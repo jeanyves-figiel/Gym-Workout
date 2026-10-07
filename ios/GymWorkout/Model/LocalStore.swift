@@ -7,6 +7,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var profile: Profile
     var seed: UInt32
     var week: Int
+    /// Entered in-app (used when Apple Health lacks them).
+    var body: BodyMetrics?
 }
 
 struct LocalState: Codable {
@@ -19,6 +21,9 @@ struct LocalState: Codable {
     var pendingLogIds: Set<UUID> = []
     var lastLogPull: Date?
     var profileDirty = false
+    var history: [WorkoutRecord] = []
+    var pendingHistoryIds: Set<UUID> = []
+    var lastHistoryPull: Date?
 }
 
 /// JSON file in Application Support, encrypted at rest by iOS data protection.

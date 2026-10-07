@@ -6,6 +6,8 @@ import WorkoutEngine
 struct WorkoutPlayerView: View {
     let sessionId: String
     @Environment(AppModel.self) private var model
+    @Environment(HealthManager.self) private var health
+    @State private var record: WorkoutRecord?
     @Environment(\.dismiss) private var dismiss
 
     @State private var index = 0
@@ -31,8 +33,8 @@ struct WorkoutPlayerView: View {
             Theme.bg.ignoresSafeArea()
             if let session {
                 if finished {
-                    SummaryView(session: session, elapsed: Date().timeIntervalSince(started), setsDone: setsDone.values.reduce(0, +)) {
-                        model.markDone(session.id)
+                    SummaryView(session: session, elapsed: Date().timeIntervalSince(started), setsDone: setsDone.values.reduce(0, +),
+                                kcal: record?.kcal, healthSaved: health.connected && health.writeWorkouts) {
                         dismiss()
                     }
                     .transition(.scale.combined(with: .opacity))
@@ -273,6 +275,16 @@ struct WorkoutPlayerView: View {
         if (setsDone[step.item.uid] ?? 0) >= max(1, step.item.prescription.sets) { model.setTicked(step.item.uid) }
         if index >= steps.count - 1 {
             UINotificationFeedbackGenerator().notificationOccurred(.success)
+            if let session, record == nil {
+                let r = model.recordWorkout(
+                    session: session, setsDone: setsDone, startedAt: started, endedAt: Date(),
+                    bodyMassKg: health.snapshot.weightKg ?? model.body.weightKg)
+                record = r
+                Task {
+                    let hr = await health.save(r)
+                    model.attachHeartRate(r.id, avg: hr.avg, max: hr.max)
+                }
+            }
             finished = true
         } else {
             go(index + 1)
@@ -338,6 +350,8 @@ private struct SummaryView: View {
     let session: Session
     let elapsed: TimeInterval
     let setsDone: Int
+    let kcal: Double?
+    let healthSaved: Bool
     let onDone: () -> Void
     @State private var pop = false
 
@@ -354,6 +368,7 @@ private struct SummaryView: View {
                 HStack(spacing: 10) {
                     StatTile(value: Format.elapsed(elapsed), label: "Time")
                     StatTile(value: "\(setsDone)", label: "Sets")
+                    if let kcal { StatTile(value: "\(Int(kcal))", label: "kcal") }
                     StatTile(value: "\(session.blocks.reduce(0) { $0 + $1.items.count })", label: "Moves")
                 }
                 VStack(alignment: .leading, spacing: 12) {
@@ -362,6 +377,10 @@ private struct SummaryView: View {
                     FlowLayout(spacing: 6) { ForEach(session.topMuscles(8)) { MuscleChip(muscle: $0) } }
                 }
                 .card()
+                if healthSaved {
+                    Label("Saved to Apple Health", systemImage: "heart.fill").font(Theme.label(13)).foregroundStyle(.pink)
+                }
+                Text("Added to your history in Progress.").font(.footnote).foregroundStyle(Theme.muted)
                 Button(action: onDone) { Text("DONE") }
                     .buttonStyle(LimeButtonStyle())
             }

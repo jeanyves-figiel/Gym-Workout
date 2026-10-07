@@ -4,6 +4,7 @@ import WorkoutEngine
 /// "Train" tab: week hero, next-up session, week list.
 struct WeekView: View {
     @Environment(AppModel.self) private var model
+    @Environment(HealthManager.self) private var health
     @State private var editing = false
     @State private var playing: Session?
 
@@ -12,6 +13,17 @@ struct WeekView: View {
             if let plan = model.plan, let profile = model.profile {
                 VStack(alignment: .leading, spacing: 22) {
                     WeekHero(plan: plan, profile: profile, done: model.completedCount)
+                    ReadinessCard(snapshot: health.snapshot)
+                    if health.snapshot.weightKg == nil && model.body.weightKg == nil {
+                        BodyPromptCard()
+                    }
+                    if let perWeek = health.snapshot.climbingPerWeek4w {
+                        ClimbingSyncHint(healthPerWeek: perWeek, profileDays: profile.climbingDaysPerWeek) { n in
+                            var p = profile
+                            p.climbingDaysPerWeek = n
+                            model.applyProfile(p, seed: plan.seed, week: plan.week)
+                        }
+                    }
                     if let next = model.nextSession {
                         NextUpCard(session: next) { playing = next }
                     } else {

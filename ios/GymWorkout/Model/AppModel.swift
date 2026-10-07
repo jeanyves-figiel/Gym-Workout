@@ -42,10 +42,10 @@ final class AppModel {
             state = LocalState()
             state.synced = SyncedProfile(profile: Demo.profile, seed: 7, week: 2)
             state.plan = Generator.generateWeek(Demo.profile, week: 2, seed: 7)
-            if let first = state.plan?.sessions.first {
-                state.done[first.id] = true
-                state.logs = [LogEntry(date: Date(), exerciseId: "pull-up", weightKg: 10)]
-            }
+            if let first = state.plan?.sessions.first { state.done[first.id] = true }
+            let demo = Demo.history()
+            state.history = demo.records
+            state.logs = demo.logs
             phase = Demo.screen == "welcome" ? .signedOut : .signedIn
             return
         }
@@ -118,7 +118,7 @@ final class AppModel {
     func applyProfile(_ profile: Profile, seed: UInt32? = nil, week: Int = 1) {
         let s = seed ?? UInt32.random(in: 0...UInt32.max)
         let changed = state.synced?.week != week || state.synced?.seed != s || state.synced?.profile != profile
-        state.synced = SyncedProfile(profile: profile, seed: s, week: week)
+        state.synced = SyncedProfile(profile: profile, seed: s, week: week, body: state.synced?.body)
         state.plan = Generator.generateWeek(profile, week: week, seed: s)
         if changed {
             state.done = [:]
@@ -195,6 +195,70 @@ final class AppModel {
         persist()
     }
 
+    // MARK: Body & history
+
+    var body: BodyMetrics { state.synced?.body ?? BodyMetrics() }
+
+    func saveBody(_ body: BodyMetrics) {
+        guard state.synced != nil else { return }
+        state.synced?.body = body.isEmpty ? nil : body
+        state.profileDirty = true
+        persist()
+        Task { await sync() }
+    }
+
+    var history: [WorkoutRecord] { state.history.sorted { $0.startedAt > $1.startedAt } }
+
+    var weightEntries: [WeightEntry] {
+        state.logs.compactMap { l in l.weightKg.map { WeightEntry(exerciseId: l.exerciseId, date: l.date, kg: $0, reps: l.reps) } }
+    }
+
+    /// Weights logged for each exercise during one session.
+    func sessionWeights(_ sessionId: String) -> [String: Double] {
+        var out: [String: Double] = [:]
+        for l in state.logs where l.sessionId == sessionId { if let kg = l.weightKg { out[l.exerciseId] = kg } }
+        return out
+    }
+
+    /// Stores a finished session; returns it so Health can enrich it.
+    @discardableResult
+    func recordWorkout(session: Session, setsDone: [String: Int], startedAt: Date, endedAt: Date, bodyMassKg: Double?) -> WorkoutRecord {
+        let r = WorkoutRecord.build(
+            session: session, week: plan?.week ?? 1, deload: plan?.deload ?? false,
+            setsDone: setsDone, weights: sessionWeights(session.id),
+            startedAt: startedAt, endedAt: endedAt, bodyMassKg: bodyMassKg)
+        state.history.append(r)
+        state.pendingHistoryIds.insert(r.id)
+        state.done[session.id] = true
+        persist()
+        Task { await sync() }
+        return r
+    }
+
+    /// Ticked items count as fully done when a session is marked complete without the player.
+    func recordFromTicks(_ session: Session, bodyMassKg: Double?) -> WorkoutRecord {
+        var sets: [String: Int] = [:]
+        for b in session.blocks { for it in b.items where state.ticked[it.uid] ?? false { sets[it.uid] = it.prescription.sets } }
+        let end = Date()
+        return recordWorkout(session: session, setsDone: sets, startedAt: end.addingTimeInterval(TimeInterval(-session.estMin * 60)), endedAt: end, bodyMassKg: bodyMassKg)
+    }
+
+    func attachHeartRate(_ id: UUID, avg: Double?, max: Double?) {
+        guard avg != nil || max != nil, let i = state.history.firstIndex(where: { $0.id == id }) else { return }
+        state.history[i].avgHeartRate = avg
+        state.history[i].maxHeartRate = max
+        state.pendingHistoryIds.insert(id)
+        persist()
+        Task { await sync() }
+    }
+
+    func deleteRecord(_ id: UUID) {
+        state.history.removeAll { $0.id == id }
+        state.pendingHistoryIds.remove(id)
+        persist()
+        Task { try? await api.deleteWorkout(id) }
+    }
+
     func logWeight(exerciseId: String, sessionId: String, kg: Double) {
         let entry = LogEntry(date: Date(), exerciseId: exerciseId, sessionId: sessionId, weightKg: kg)
         state.logs.append(entry)
@@ -243,6 +307,16 @@ final class AppModel {
                 try await api.pushLogs(pending)
                 state.pendingLogIds.subtract(pending.map(\.id))
             }
+            let pendingRecords = state.history.filter { state.pendingHistoryIds.contains($0.id) }
+            if !pendingRecords.isEmpty {
+                try await api.pushWorkouts(pendingRecords)
+                state.pendingHistoryIds.subtract(pendingRecords.map(\.id))
+            }
+            let remoteHistory = try await api.fetchWorkouts(WorkoutRecord.self, since: state.lastHistoryPull?.addingTimeInterval(-300))
+            var historyById = Dictionary(state.history.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
+            for r in remoteHistory where !state.pendingHistoryIds.contains(r.id) { historyById[r.id] = r }
+            state.history = Array(historyById.values)
+            state.lastHistoryPull = Date()
             // 5 min overlap absorbs clock skew; merge is idempotent by id.
             let since = state.lastLogPull?.addingTimeInterval(-300)
             let remote = try await api.fetchLogs(since: since)

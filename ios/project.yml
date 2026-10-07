@@ -40,6 +40,8 @@ targets:
       path: GymWorkout/GymWorkout.entitlements
       properties:
         com.apple.developer.applesignin: [Default]
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
     info:
       path: GymWorkout/Info.plist
       properties:
@@ -50,6 +52,8 @@ targets:
           UIApplicationSupportsMultipleScenes: false
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSFaceIDUsageDescription: Unlock Gym-Workout with Face ID.
+        NSHealthShareUsageDescription: Reads weight, height, age, sex, resting heart rate, HRV, VO2max, sleep, heart rate during sessions and climbing workouts to estimate calories, show readiness and track progress.
+        NSHealthUpdateUsageDescription: Saves your gym sessions as workouts, and weight and height you enter, to Apple Health.
         ITSAppUsesNonExemptEncryption: false
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true

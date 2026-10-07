@@ -179,6 +179,10 @@ public actor APIClient {
         }
     }
 
+    public func deleteWorkout(_ id: UUID) async throws {
+        _ = try await authorizedRaw("DELETE", "/v1/me/workouts/\(id.uuidString)", Empty?.none)
+    }
+
     // MARK: Internals
 
     struct Empty: Codable {}

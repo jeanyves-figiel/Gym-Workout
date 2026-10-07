@@ -43,6 +43,8 @@ struct MainTabView: View {
                 .tabItem { Label("Train", systemImage: "bolt.heart.fill") }
             NavigationStack { LibraryView() }
                 .tabItem { Label("Explore", systemImage: "figure.arms.open") }
+            NavigationStack { ProgressTabView() }
+                .tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
             NavigationStack { AccountView() }
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
         }
@@ -80,6 +82,9 @@ private struct DemoScreen: View {
         case "muscle": NavigationStack { MuscleDetailView(muscle: .lats) }
         case "exercise": NavigationStack { ExerciseDetailView(exerciseId: "pull-up") }
         case "technique": FormSheet(exercise: Exercise.get("leg-press"))
+        case "progress": NavigationStack { ProgressTabView() }
+        case "history": NavigationStack { HistoryDetailView(recordId: model.history.first?.id ?? UUID()) }
+        case "body": NavigationStack { BodyHealthView() }
         default: MainTabView()
         }
     }
