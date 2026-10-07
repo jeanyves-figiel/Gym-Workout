@@ -6,6 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Progress tab (#18): totals, week streak vs target, 12-week consistency calendar, sessions-per-week chart, estimated-1RM trend per lift, 28-day muscle balance map, personal records, 22 achievements (bronze/silver/gold with progress), full session history with per-exercise sets/weights, heart rate, kcal and muscle map.
+- Apple Health (#18): writes each session as a workout (energy estimate + metadata) and reads weight, height, age, sex, resting HR, HRV, VO₂max, sleep, in-session heart rate and climbing workouts; readiness card (sleep, HRV and resting HR vs 30-day baseline); climbing-days suggestion from Health; body weight & VO₂max trends. Health data stays on device.
+- Body & Health screen (#18): height, weight, birth year entered in-app when Health lacks them, optional write-back to Health; prompt on Train tab until known. Inclusive, optional identity: gender (woman, man, non-binary, genderfluid, agender, Two-Spirit, questioning, self-describe, prefer not to say) kept separate from optional sex for estimates (female, male, intersex, other, prefer not to say).
 - API: workout history sync `/v1/me/workouts` (upsert, `since` delta, delete; included in export and account deletion) (#18).
 - Equipment & correct positioning for every exercise (#16): equipment cards (icon, Puls 5 zone, adjustment advice), and per-exercise technique — numbered set-up steps (machine settings + start position), head-to-feet body-position checkpoints, common mistakes, breathing. Shown on exercise pages, as a "Setup & technique" sheet and inline checkpoints in the workout player, and as an equipment line on exercise cards. Covered for all 151 exercises by tests.
 - Muscle visibility (#14): front/back body heat maps per session, per exercise and for the week; primary/assist muscle chips on every exercise; per-part "session flow" showing which muscles each category targets.

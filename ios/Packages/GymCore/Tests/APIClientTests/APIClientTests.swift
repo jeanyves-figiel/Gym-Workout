@@ -165,4 +165,22 @@ private func tokensJSON(_ n: Int) -> String {
         #expect(logs.first?.weightKg == 80)
         #expect(logs.first?.date == date)
     }
+
+    @Test func workoutsRoundTrip() async throws {
+        struct W: Codable, Sendable, Equatable { var id: UUID; var startedAt: Date; var title: String }
+        let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
+        StubProtocol.register("workouts.test") { req, body in
+            if req.httpMethod == "POST" {
+                let s = String(decoding: body ?? Data(), as: UTF8.self)
+                return s.contains(#""workouts":[{"#) && s.contains(#""startedAt":"2026-10-07T10:00:00Z""#) ? (200, #"{"saved":1}"#) : (400, #"{"error":"x","message":"\#(s)"}"#)
+            }
+            return (200, #"{"workouts":[{"id":"6F9619FF-8B86-4011-B42D-00C04FC964FF","startedAt":"2026-10-07T10:00:00Z","title":"Legs","updatedAt":"2026-10-07T10:00:01.123Z"}],"serverTime":"x"}"#)
+        }
+        let api = makeClient("workouts.test", tokens: store)
+        let date = Date(timeIntervalSince1970: 1_791_367_200)
+        try await api.pushWorkouts([W(id: UUID(), startedAt: date, title: "Legs")])
+        let got = try await api.fetchWorkouts(W.self)
+        #expect(got.first?.title == "Legs")
+        #expect(got.first?.startedAt == date)
+    }
 }

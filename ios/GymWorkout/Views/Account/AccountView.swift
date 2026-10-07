@@ -30,6 +30,7 @@ struct AccountView: View {
                         ChangePasswordView(hasPassword: user.hasPassword)
                     }
                     NavigationLink("Signed-in devices") { DevicesView() }
+                    NavigationLink { BodyHealthView() } label: { Label("Body & Apple Health", systemImage: "heart.text.square") }
                     Toggle("Lock with \(lock.biometryName)", isOn: Binding(
                         get: { lock.enabled },
                         set: { on in Task { await lock.setEnabled(on) } }))

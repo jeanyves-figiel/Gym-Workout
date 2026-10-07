@@ -6,6 +6,7 @@ import WorkoutEngine
 struct SessionView: View {
     let sessionId: String
     @Environment(AppModel.self) private var model
+    @Environment(HealthManager.self) private var health
     @State private var playing = false
     @State private var detail: ExerciseRef?
     @State private var muscle: Muscle?
@@ -77,9 +78,17 @@ struct SessionView: View {
     @ViewBuilder
     private func finishButton(_ s: Session) -> some View {
         let done = model.state.done[s.id] ?? false
-        Button(done ? "Mark as not done" : "Mark session done") {
-            model.toggleDone(s.id)
-            if !done { UINotificationFeedbackGenerator().notificationOccurred(.success) }
+        Button(done ? "Mark as not done" : "Mark session done (ticked items)") {
+            if done {
+                model.toggleDone(s.id)
+            } else {
+                let r = model.recordFromTicks(s, bodyMassKg: health.snapshot.weightKg ?? model.body.weightKg)
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                Task {
+                    let hr = await health.save(r)
+                    model.attachHeartRate(r.id, avg: hr.avg, max: hr.max)
+                }
+            }
         }
         .font(Theme.label(14))
         .foregroundStyle(Theme.muted)

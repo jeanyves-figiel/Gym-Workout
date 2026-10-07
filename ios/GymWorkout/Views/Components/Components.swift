@@ -78,6 +78,10 @@ enum Format {
         return s >= 3600 ? String(format: "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60) : String(format: "%d:%02d", s / 60, s % 60)
     }
 
+    static func count(_ v: Double) -> String {
+        v >= 10_000 ? String(format: "%.0fk", v / 1000) : String(Int(v.rounded()))
+    }
+
     static func kg(_ v: Double) -> String {
         v.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(v)) : String(format: "%.1f", v)
     }
