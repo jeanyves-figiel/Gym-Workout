@@ -6,3 +6,10 @@ coverage/
 .env*
 !.env.example
 backend/data/
+# iOS
+ios/**/.build/
+ios/**/.swiftpm/
+ios/*.xcodeproj/
+ios/GymWorkout/Info.plist
+xcuserdata/
+DerivedData/

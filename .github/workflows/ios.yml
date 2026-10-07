@@ -1,0 +1,44 @@
+name: iOS
+
+on:
+  pull_request:
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  push:
+    branches: [main]
+    paths: ['ios/**', '.github/workflows/ios.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: GymCore tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: swift test --package-path ios/Packages/GymCore
+
+  app:
+    name: App build (simulator)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate --spec ios/project.yml
+      - name: Build Debug + Staging
+        run: |
+          set -o pipefail
+          for cfg in Debug Staging; do
+            xcodebuild build \
+              -project ios/GymWorkout.xcodeproj \
+              -scheme GymWorkout \
+              -configuration "$cfg" \
+              -destination 'generic/platform=iOS Simulator' \
+              -skipPackagePluginValidation \
+              CODE_SIGNING_ALLOWED=NO | tail -n 50
+          done

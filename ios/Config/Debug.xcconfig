@@ -1,0 +1,4 @@
+// DEV: local API (cd backend && npm run dev). `/$()/` escapes the xcconfig comment marker.
+APP_BUNDLE_ID = ch.figiel.gymworkout.dev
+APP_DISPLAY_NAME = Workout DEV
+API_BASE_URL = http:/$()/localhost:7443
