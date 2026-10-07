@@ -8,6 +8,10 @@ strength + definition, climber mobility, cardio, explosiveness, and cool-downs d
 | iOS app | `ios/` | SwiftUI, iOS 17+, on-device workout engine |
 | API | `backend/` | Node 22 (TS type-stripping), Fastify, SQLite, JWT — accounts + sync |
 
+## iOS app
+
+See [`ios/README.md`](ios/README.md): `brew install xcodegen && cd ios && xcodegen generate`.
+
 ## API (backend)
 
 ```bash

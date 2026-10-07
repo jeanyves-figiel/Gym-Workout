@@ -1,0 +1,87 @@
+struct Query {
+    var category: Category
+    var pattern: Pattern?
+    var regions: [Region]?
+    var main = false
+    var prefer: [String] = []
+}
+
+/// Mutable generation state shared across a week (reference semantics on purpose).
+final class Ctx {
+    var rng: Rng
+    let level: Int
+    let equipment: Set<Equipment>
+    /// Prefer exercises without heavy grip (frequent climber).
+    let spareGrip: Bool
+    let climber: Bool
+    let profile: Profile
+    let week: Int
+    let deload: Bool
+    var usedWeek: Set<String> = []
+    var usedSession: Set<String> = []
+
+    init(profile: Profile, week: Int, seed: UInt32) {
+        self.profile = profile
+        self.week = week
+        deload = week == Rules.mesocycleWeeks
+        rng = Rng(seed: seed &+ UInt32(week) &* 7919)
+        level = profile.experience.level
+        equipment = Set(profile.equipment)
+        spareGrip = profile.climbingDaysPerWeek >= 2
+        climber = profile.goal == .climbing || profile.climbingDaysPerWeek >= 1
+    }
+}
+
+enum Selector {
+    static func isAvailable(_ e: Exercise, _ equipment: Set<Equipment>) -> Bool {
+        e.equipment.allSatisfy { equipment.contains($0) }
+    }
+
+    static func candidates(level: Int, equipment: Set<Equipment>, _ q: Query) -> [Exercise] {
+        Exercise.catalog.filter { e in
+            e.category == q.category
+                && (q.pattern == nil || e.pattern == q.pattern)
+                && (q.regions == nil || e.regions.contains { q.regions!.contains($0) })
+                && e.level <= level
+                && isAvailable(e, equipment)
+        }
+    }
+
+    /// Best-scoring candidate, random tie-break. Marks it used.
+    static func select(_ ctx: Ctx, _ q: Query) -> Exercise? {
+        let pool = candidates(level: ctx.level, equipment: ctx.equipment, q).filter { !ctx.usedSession.contains($0.id) }
+        guard !pool.isEmpty else { return nil }
+        func score(_ e: Exercise) -> Double {
+            var s = 0.0
+            if q.main && e.main { s += 8 }
+            // Intermediate+ main lifts: favour free-weight compounds over machines.
+            if q.main && ctx.level >= 2 && e.level >= 2 { s += 1.5 }
+            if let i = q.prefer.firstIndex(of: e.id) { s += 4 - Double(min(3, i)) * 0.5 }
+            if ctx.spareGrip && !e.gripHeavy { s += 2 }
+            if !ctx.usedWeek.contains(e.id) { s += 1 }
+            if let r = q.regions { s += 0.5 * Double(e.regions.filter { r.contains($0) }.count) }
+            return s
+        }
+        let scores = pool.map(score)
+        let best = scores.max()!
+        let top = zip(pool, scores).filter { $0.1 >= best - 1e-9 }.map(\.0)
+        let pick = ctx.rng.pick(top)
+        ctx.usedSession.insert(pick.id)
+        ctx.usedWeek.insert(pick.id)
+        return pick
+    }
+}
+
+extension Exercise {
+    /// Swap options: same role (pattern / target muscle / region), available, level-appropriate.
+    public func alternatives(for profile: Profile) -> [Exercise] {
+        let pool = Selector.candidates(level: profile.experience.level, equipment: Set(profile.equipment), Query(category: category))
+            .filter { $0.id != id }
+        switch category {
+        case .strength, .power: return pool.filter { $0.pattern == pattern }
+        case .stretch: return pool.filter { $0.primary.contains { primary.contains($0) } }
+        case .mobility, .warmup: return pool.filter { $0.regions.contains { regions.contains($0) } }
+        case .cardio: return pool
+        }
+    }
+}

@@ -1,0 +1,4 @@
+// Production API — set real host once hosting is chosen (#3).
+APP_BUNDLE_ID = ch.figiel.gymworkout
+APP_DISPLAY_NAME = Workout
+API_BASE_URL = https:/$()/api.gym-workout.invalid

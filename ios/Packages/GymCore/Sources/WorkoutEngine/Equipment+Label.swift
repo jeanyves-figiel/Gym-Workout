@@ -1,0 +1,47 @@
+// Generated. Order = display order.
+
+extension Equipment {
+    public var label: String {
+        switch self {
+        case .barbell: "Barbell & plates"
+        case .trapBar: "Trap bar"
+        case .rack: "Squat/power rack"
+        case .bench: "Adjustable bench"
+        case .dumbbells: "Dumbbells"
+        case .kettlebells: "Kettlebells"
+        case .cable: "Cable tower"
+        case .smith: "Smith machine"
+        case .legPress: "Leg press"
+        case .hackSquat: "Hack squat"
+        case .legCurl: "Leg curl"
+        case .legExtension: "Leg extension"
+        case .latPulldown: "Lat pulldown"
+        case .seatedRow: "Seated row"
+        case .chestPress: "Chest press machine"
+        case .pecDeck: "Pec deck / rear delt"
+        case .hipThrustMachine: "Hip thrust machine"
+        case .backExtension: "Back extension (45°)"
+        case .pullupBar: "Pull-up bar"
+        case .dipStation: "Dip station"
+        case .rings: "Gymnastic rings"
+        case .trx: "TRX / suspension"
+        case .landmine: "Landmine"
+        case .plyoBox: "Plyo box"
+        case .medBall: "Medicine ball"
+        case .slamBall: "Slam ball"
+        case .sled: "Sled & turf"
+        case .battleRope: "Battle rope"
+        case .abWheel: "Ab wheel"
+        case .bands: "Resistance bands"
+        case .foamRoller: "Foam roller"
+        case .mat: "Stretch mat"
+        case .treadmill: "Treadmill"
+        case .bike: "Upright/spin bike"
+        case .airBike: "Air bike"
+        case .rower: "Rower"
+        case .skiErg: "SkiErg"
+        case .stairClimber: "Stair climber"
+        case .elliptical: "Cross-trainer"
+        }
+    }
+}
