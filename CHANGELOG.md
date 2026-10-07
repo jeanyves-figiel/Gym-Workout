@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- API: workout history sync `/v1/me/workouts` (upsert, `since` delta, delete; included in export and account deletion) (#18).
 - Muscle visibility (#14): front/back body heat maps per session, per exercise and for the week; primary/assist muscle chips on every exercise; per-part "session flow" showing which muscles each category targets.
 - Explore tab (#14): browse by muscle (tappable body map, muscle groups, weekly sets) or by category; muscle pages list related exercises grouped by category (main vs assist); exercise pages with map, cues, equipment and swap.
 - Workout player (#14): full-screen step-through with category progress bar, set tracking, auto rest countdown (+15 s / skip), weight logging, next-up preview and a finish summary of muscles hit.
