@@ -42,11 +42,14 @@ struct BodyHealthView: View {
                 metricRow("Height", unit: "cm", text: $height, health: snap.heightCm.map { String(format: "%.0f", $0) })
                 metricRow("Weight", unit: "kg", text: $weight, health: snap.weightKg.map { String(format: "%.1f", $0) })
                 metricRow("Birth year", unit: "", text: $birthYear, health: snap.birthYear.map(String.init))
-                Picker("Sex", selection: $sex) {
-                    Text("Not set").tag(BodyMetrics.Sex?.none)
-                    ForEach(BodyMetrics.Sex.allCases) { Text($0.rawValue.capitalized).tag(BodyMetrics.Sex?.some($0)) }
+                if let healthSex = snap.sex {
+                    metricRow("Sex", unit: "", text: .constant(""), health: healthSex.rawValue.capitalized)
+                } else {
+                    Picker("Sex", selection: $sex) {
+                        Text("Not set").tag(BodyMetrics.Sex?.none)
+                        ForEach(BodyMetrics.Sex.allCases) { Text($0.rawValue.capitalized).tag(BodyMetrics.Sex?.some($0)) }
+                    }
                 }
-                .disabled(snap.sex != nil)
                 if health.connected && (snap.heightCm == nil || snap.weightKg == nil) {
                     Toggle("Also save height & weight to Health", isOn: $writeToHealth)
                 }

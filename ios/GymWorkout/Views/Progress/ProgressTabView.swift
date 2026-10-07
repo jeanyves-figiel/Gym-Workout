@@ -32,6 +32,7 @@ struct ProgressTabView: View {
                         BodyMapPair(heat: s.muscleBalance).frame(height: 240)
                         HeatLegend()
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .card()
                 }
                 achievements
@@ -359,6 +360,7 @@ struct HistoryDetailView: View {
                         Text("Muscles worked").eyebrow()
                         BodyMapPair(heat: r.muscleHeat).frame(height: 240)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .card()
                     ForEach(WorkoutEngine.Category.allCases) { cat in
                         let items = r.exercises.filter { $0.category == cat }
@@ -376,6 +378,7 @@ struct HistoryDetailView: View {
                                     }
                                 }
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .card()
                         }
                     }
