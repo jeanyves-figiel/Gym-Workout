@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct GymWorkoutApp: App {
+struct MonkeyWorkoutApp: App {
     @State private var model = AppModel.live()
     @State private var lock = AppLock()
     @State private var health = HealthManager()

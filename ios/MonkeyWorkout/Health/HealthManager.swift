@@ -267,8 +267,8 @@ final class HealthManager {
             }
             try await builder.addMetadata([
                 HKMetadataKeyIndoorWorkout: true,
-                "GymWorkoutTitle": record.title,
-                "GymWorkoutSets": record.totalSets,
+                "MonkeyWorkoutTitle": record.title,
+                "MonkeyWorkoutSets": record.totalSets,
             ])
             try await builder.endCollection(at: record.endedAt)
             _ = try await builder.finishWorkout()

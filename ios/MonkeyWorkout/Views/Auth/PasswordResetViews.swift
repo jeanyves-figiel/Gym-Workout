@@ -89,7 +89,7 @@ struct PrivacyNoticeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Privacy notice").font(.title2.bold())
-                Text("Gym-Workout is a personal app. It stores only what it needs to work:")
+                Text("MonkeyWorkout is a personal app. It stores only what it needs to work:")
                 Text("• **Account** — email, optional name, password hash (never the password), Sign in with Apple identifier.")
                 Text("• **Training** — your training profile and the weights you log, so they sync across devices.")
                 Text("• **Body** — height, weight and birth year you enter, for calorie estimates and progress. Gender and sex are optional, inclusive and never required.")

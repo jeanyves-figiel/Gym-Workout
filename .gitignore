@@ -10,6 +10,6 @@ backend/data/
 ios/**/.build/
 ios/**/.swiftpm/
 ios/*.xcodeproj/
-ios/GymWorkout/Info.plist
+ios/MonkeyWorkout/Info.plist
 xcuserdata/
 DerivedData/

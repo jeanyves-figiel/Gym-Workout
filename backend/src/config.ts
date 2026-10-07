@@ -34,14 +34,14 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
     dbPath: env.DB_PATH ?? (prod ? '/data/app.db' : './data/dev.db'),
     jwtSecret,
     codePepper: required('CODE_PEPPER', env, prod, 'dev-only-code-pepper'),
-    appleBundleIds: (env.APPLE_BUNDLE_IDS ?? 'ch.figiel.gymworkout,ch.figiel.gymworkout.staging,ch.figiel.gymworkout.dev')
+    appleBundleIds: (env.APPLE_BUNDLE_IDS ?? 'Com.app.MonkeyWorkout,Com.app.MonkeyWorkout.dev')
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),
     accessTtlSec: Number(env.ACCESS_TTL_SEC ?? 900),
     refreshTtlDays: Number(env.REFRESH_TTL_DAYS ?? 60),
-    mail: { transport, smtpUrl: env.SMTP_URL, from: env.MAIL_FROM ?? 'Gym-Workout <no-reply@localhost>' },
-    appName: env.APP_NAME ?? 'Gym-Workout',
+    mail: { transport, smtpUrl: env.SMTP_URL, from: env.MAIL_FROM ?? 'MonkeyWorkout <no-reply@localhost>' },
+    appName: env.APP_NAME ?? 'MonkeyWorkout',
     authRateLimitPerMin: Number(env.AUTH_RATE_LIMIT_PER_MIN ?? 10),
   };
 };

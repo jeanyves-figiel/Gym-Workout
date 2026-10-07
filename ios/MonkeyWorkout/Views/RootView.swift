@@ -58,7 +58,7 @@ private struct LockScreen: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "lock.fill").font(.system(size: 44))
-            Text("Gym-Workout is locked").font(.headline)
+            Text("MonkeyWorkout is locked").font(.headline)
             if let e = lock.error { Text(e).font(.footnote).foregroundStyle(.secondary) }
             Button("Unlock with \(lock.biometryName)") { Task { await lock.unlock() } }
                 .buttonStyle(.borderedProminent)

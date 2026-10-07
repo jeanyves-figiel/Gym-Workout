@@ -35,8 +35,8 @@ jobs:
           set -o pipefail
           for cfg in Debug Staging; do
             xcodebuild build \
-              -project ios/GymWorkout.xcodeproj \
-              -scheme GymWorkout \
+              -project ios/MonkeyWorkout.xcodeproj \
+              -scheme MonkeyWorkout \
               -configuration "$cfg" \
               -destination 'generic/platform=iOS Simulator' \
               -skipPackagePluginValidation \
@@ -58,7 +58,7 @@ jobs:
       - name: Build for simulator
         run: |
           set -o pipefail
-          xcodebuild build -project ios/GymWorkout.xcodeproj -scheme GymWorkout -configuration Debug \
+          xcodebuild build -project ios/MonkeyWorkout.xcodeproj -scheme MonkeyWorkout -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
             -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO | tail -n 5
       - name: Capture screens
@@ -68,10 +68,10 @@ jobs:
           xcrun simctl boot "$DEVICE"
           xcrun simctl bootstatus "$DEVICE" -b
           xcrun simctl status_bar "$DEVICE" override --time 9:41 --batteryLevel 100 --cellularBars 4 || true
-          xcrun simctl install "$DEVICE" build/Build/Products/Debug-iphonesimulator/GymWorkout.app
+          xcrun simctl install "$DEVICE" build/Build/Products/Debug-iphonesimulator/MonkeyWorkout.app
           mkdir -p shots
           for s in welcome week session player explore muscle exercise technique progress history body; do
-            xcrun simctl launch --terminate-running-process "$DEVICE" ch.figiel.gymworkout.dev -demo -demoScreen "$s"
+            xcrun simctl launch --terminate-running-process "$DEVICE" Com.app.MonkeyWorkout.dev -demo -demoScreen "$s"
             sleep 6
             xcrun simctl io "$DEVICE" screenshot "shots/$s.png"
             sips -Z 800 "shots/$s.png" >/dev/null

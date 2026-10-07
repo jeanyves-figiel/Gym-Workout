@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { AppleIdentity } from '../src/apple.ts';
+import { type AppleIdentity, audienceAllowed } from '../src/apple.ts';
 import { buildApp } from '../src/app.ts';
 import { loadConfig } from '../src/config.ts';
 import { openDb } from '../src/db.ts';
@@ -294,6 +294,17 @@ describe('workout history sync', () => {
   it('rejects malformed workouts', async () => {
     const { tokens } = await signUp();
     expect((await post('/v1/me/workouts', { workouts: [{ id: 'nope', startedAt: 'x' }] }, tokens.accessToken)).statusCode).toBe(400);
+  });
+});
+
+describe('Apple audience', () => {
+  it('matches bundle ids case-insensitively and rejects others', () => {
+    const ids = loadConfig({ NODE_ENV: 'test' }).appleBundleIds;
+    expect(ids).toContain('Com.app.MonkeyWorkout');
+    expect(audienceAllowed('com.app.monkeyworkout', ids)).toBe(true);
+    expect(audienceAllowed(['other', 'Com.app.MonkeyWorkout.dev'], ids)).toBe(true);
+    expect(audienceAllowed('com.evil.app', ids)).toBe(false);
+    expect(audienceAllowed(undefined, ids)).toBe(false);
   });
 });
 

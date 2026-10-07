@@ -3,7 +3,7 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// Typed client for the Gym-Workout API. Handles token storage and transparent, single-flight refresh.
+/// Typed client for the MonkeyWorkout API. Handles token storage and transparent, single-flight refresh.
 public actor APIClient {
     public let baseURL: URL
     private let session: URLSession

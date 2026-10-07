@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- App renamed **MonkeyWorkout** (#21): Xcode project/target/schemes, display names, bundle IDs `Com.app.MonkeyWorkout` (Release + TestFlight staging) and `Com.app.MonkeyWorkout.dev` (DEV); App Store Connect SKU `Monkeyworkout`, Apple ID `6819971090` documented; signing team `U7VAR53G86` set.
+- API: Sign in with Apple accepts the new bundle IDs, matched case-insensitively; emails sent as MonkeyWorkout (#21).
+
 ### Added
 - Progress tab (#18): totals, week streak vs target, 12-week consistency calendar, sessions-per-week chart, estimated-1RM trend per lift, 28-day muscle balance map, personal records, 22 achievements (bronze/silver/gold with progress), full session history with per-exercise sets/weights, heart rate, kcal and muscle map.
 - Apple Health (#18): writes each session as a workout (energy estimate + metadata) and reads weight, height, age, sex, resting HR, HRV, VO₂max, sleep, in-session heart rate and climbing workouts; readiness card (sleep, HRV and resting HR vs 30-day baseline); climbing-days suggestion from Health; body weight & VO₂max trends. Health data stays on device.
