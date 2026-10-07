@@ -1,4 +1,5 @@
-// Staging API — set real host once hosting is chosen (#3).
-APP_BUNDLE_ID = ch.figiel.gymworkout.staging
-APP_DISPLAY_NAME = Workout STG
+// Staging build, distributed via TestFlight under the App Store Connect record (Apple ID 6819971090).
+// Same bundle id as Release; points at the staging API — set the real host once hosting is chosen (#3).
+APP_BUNDLE_ID = Com.app.MonkeyWorkout
+APP_DISPLAY_NAME = Monkey STG
 API_BASE_URL = https:/$()/api-staging.gym-workout.invalid

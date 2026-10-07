@@ -9,5 +9,5 @@ enum AppConfig {
         return url
     }()
 
-    static let keychainService = (Bundle.main.bundleIdentifier ?? "ch.figiel.gymworkout") + ".auth"
+    static let keychainService = (Bundle.main.bundleIdentifier ?? "Com.app.MonkeyWorkout") + ".auth"
 }

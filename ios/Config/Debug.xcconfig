@@ -1,4 +1,5 @@
 // DEV: local API (cd backend && npm run dev). `/$()/` escapes the xcconfig comment marker.
-APP_BUNDLE_ID = ch.figiel.gymworkout.dev
-APP_DISPLAY_NAME = Workout DEV
+// Separate bundle id so DEV installs side by side with the TestFlight/App Store build.
+APP_BUNDLE_ID = Com.app.MonkeyWorkout.dev
+APP_DISPLAY_NAME = Monkey DEV
 API_BASE_URL = http:/$()/localhost:7443

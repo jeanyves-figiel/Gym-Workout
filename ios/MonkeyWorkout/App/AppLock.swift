@@ -44,7 +44,7 @@ final class AppLock {
             return
         }
         do {
-            if try await ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Unlock Gym-Workout") {
+            if try await ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Unlock MonkeyWorkout") {
                 locked = false
                 error = nil
             }

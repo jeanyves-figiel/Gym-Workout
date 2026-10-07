@@ -1,4 +1,4 @@
-# Gym-Workout API
+# MonkeyWorkout API
 
 Accounts + data sync for the iOS app. Single-user-scale: SQLite (`node:sqlite`) on a volume.
 

@@ -1,4 +1,4 @@
-# Gym-Workout
+# MonkeyWorkout
 
 Personal **iOS app** (SwiftUI) generating adaptive gym sessions for a large, fully equipped gym (reference: Fitnesspark Puls 5, Zürich):
 strength + definition, climber mobility, cardio, explosiveness, and cool-downs derived from what each session loaded.
