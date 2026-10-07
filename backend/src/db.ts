@@ -58,6 +58,14 @@ const MIGRATIONS: string[] = [
      updated_at TEXT NOT NULL
    );
    CREATE INDEX logs_user_updated ON workout_logs(user_id, updated_at);`,
+  `CREATE TABLE workouts (
+     id TEXT PRIMARY KEY,
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     started_at TEXT NOT NULL,
+     data TEXT NOT NULL,
+     updated_at TEXT NOT NULL
+   );
+   CREATE INDEX workouts_user_updated ON workouts(user_id, updated_at);`,
 ];
 
 export const openDb = (path: string): DB => {
