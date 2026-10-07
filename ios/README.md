@@ -9,7 +9,7 @@ brew install xcodegen
 cd ios && xcodegen generate && open MonkeyWorkout.xcodeproj
 ```
 
-1. Select your team in *Signing & Capabilities* (Sign in with Apple capability is pre-declared).
+1. Signing team `U7VAR53G86` is preset (automatic signing). Sign in with Apple + HealthKit are enabled on the App ID.
 2. DEV: run the API (`cd backend && npm run dev`, http://localhost:7443), run scheme **MonkeyWorkout** (Debug) on a simulator. Verification codes are printed in the API console.
 3. Staging (TestFlight): scheme **MonkeyWorkout Staging**. Set real API hosts in `Config/Staging.xcconfig` / `Config/Release.xcconfig` (#3).
 
