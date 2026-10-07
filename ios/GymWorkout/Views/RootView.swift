@@ -1,4 +1,5 @@
 import SwiftUI
+import WorkoutEngine
 
 struct RootView: View {
     @Environment(AppModel.self) private var model
@@ -78,6 +79,7 @@ private struct DemoScreen: View {
         case "explore": NavigationStack { LibraryView() }
         case "muscle": NavigationStack { MuscleDetailView(muscle: .lats) }
         case "exercise": NavigationStack { ExerciseDetailView(exerciseId: "pull-up") }
+        case "technique": FormSheet(exercise: Exercise.get("leg-press"))
         default: MainTabView()
         }
     }

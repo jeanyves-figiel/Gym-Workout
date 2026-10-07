@@ -199,3 +199,26 @@ private func withSessions(_ p: Profile, _ n: Int) -> Profile {
         #expect(!s.muscles(in: .strength).isEmpty)
     }
 }
+
+@Suite struct TechniqueTests {
+    @Test func everyExerciseHasCompleteTechnique() {
+        for e in Exercise.catalog {
+            guard let t = e.technique else {
+                Issue.record("missing technique for \(e.id)")
+                continue
+            }
+            #expect(!t.setup.isEmpty, "\(e.id) setup")
+            #expect(t.position.count >= 2, "\(e.id) position")
+            #expect(!t.mistakes.isEmpty, "\(e.id) mistakes")
+            #expect(!t.breathing.isEmpty, "\(e.id) breathing")
+        }
+    }
+
+    @Test func noOrphanTechniqueEntries() {
+        for id in Technique.catalog.keys { #expect(Exercise.find(id) != nil, "orphan \(id)") }
+    }
+
+    @Test func equipmentHasZoneAndAdjustment() {
+        for eq in Equipment.allCases { #expect(!eq.adjustment.isEmpty) ; _ = eq.zone }
+    }
+}

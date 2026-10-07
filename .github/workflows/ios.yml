@@ -69,7 +69,7 @@ jobs:
           xcrun simctl status_bar "$DEVICE" override --time 9:41 --batteryLevel 100 --cellularBars 4 || true
           xcrun simctl install "$DEVICE" build/Build/Products/Debug-iphonesimulator/GymWorkout.app
           mkdir -p shots
-          for s in welcome week session player explore muscle exercise; do
+          for s in welcome week session player explore muscle exercise technique; do
             xcrun simctl launch --terminate-running-process "$DEVICE" ch.figiel.gymworkout.dev -demo -demoScreen "$s"
             sleep 6
             xcrun simctl io "$DEVICE" screenshot "shots/$s.png"

@@ -32,7 +32,7 @@ cd ios && xcodegen generate && open GymWorkout.xcodeproj
 
 ## Demo mode (DEBUG)
 
-Launch arguments `-demo -demoScreen <welcome|week|session|player|explore|muscle|exercise>` start with sample data, no network.
+Launch arguments `-demo -demoScreen <welcome|week|session|player|explore|muscle|exercise|technique>` start with sample data, no network.
 CI captures each screen (≤ 800 px) and pushes them to branch `screenshots/pr-<n>` + a workflow artifact.
 
 ## Tests
