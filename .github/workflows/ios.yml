@@ -42,3 +42,52 @@ jobs:
               -skipPackagePluginValidation \
               CODE_SIGNING_ALLOWED=NO | tail -n 50
           done
+
+  screenshots:
+    name: Screenshots (demo mode)
+    needs: app
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate --spec ios/project.yml
+      - name: Build for simulator
+        run: |
+          set -o pipefail
+          xcodebuild build -project ios/GymWorkout.xcodeproj -scheme GymWorkout -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO | tail -n 5
+      - name: Capture screens
+        run: |
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -E "iPhone 1[5-7] Pro \(" | grep -oE '[0-9A-F-]{36}')
+          echo "device=$DEVICE"
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl status_bar "$DEVICE" override --time 9:41 --batteryLevel 100 --cellularBars 4 || true
+          xcrun simctl install "$DEVICE" build/Build/Products/Debug-iphonesimulator/GymWorkout.app
+          mkdir -p shots
+          for s in welcome week session player explore muscle exercise; do
+            xcrun simctl launch --terminate-running-process "$DEVICE" ch.figiel.gymworkout.dev -demo -demoScreen "$s"
+            sleep 6
+            xcrun simctl io "$DEVICE" screenshot "shots/$s.png"
+            sips -Z 800 "shots/$s.png" >/dev/null
+          done
+          ls -la shots
+      - name: Publish to screenshots branch
+        env:
+          TOKEN: ${{ github.token }}
+          BRANCH: screenshots/pr-${{ github.event.number }}
+        run: |
+          cd shots
+          git init -q -b shots
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com add .
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "Screenshots for ${GITHUB_SHA}"
+          git push -qf "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
+          echo "Screenshots on branch \`${BRANCH}\`" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: shots

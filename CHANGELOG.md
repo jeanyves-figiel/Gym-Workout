@@ -9,6 +9,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Muscle visibility (#14): front/back body heat maps per session, per exercise and for the week; primary/assist muscle chips on every exercise; per-part "session flow" showing which muscles each category targets.
 - Explore tab (#14): browse by muscle (tappable body map, muscle groups, weekly sets) or by category; muscle pages list related exercises grouped by category (main vs assist); exercise pages with map, cues, equipment and swap.
 - Workout player (#14): full-screen step-through with category progress bar, set tracking, auto rest countdown (+15 s / skip), weight logging, next-up preview and a finish summary of muscles hit.
+- DEBUG demo mode + CI screenshot job (≤ 800 px, branch `screenshots/pr-<n>`) for visual review (#14).
 - Bold dark design system (#14): heavy rounded type, lime accent, gradient per category, progress rings, animated welcome screen.
 
 ### Changed

@@ -30,6 +30,11 @@ cd ios && xcodegen generate && open GymWorkout.xcodeproj
 | `GymWorkout/Views/Plan` | Training profile, week, session (tick, swap, rest timer, kg log) |
 | `GymWorkout/Views/Account` | Name, password, devices, Face ID lock, export, sign out (all), delete account |
 
+## Demo mode (DEBUG)
+
+Launch arguments `-demo -demoScreen <welcome|week|session|player|explore|muscle|exercise>` start with sample data, no network.
+CI captures each screen (≤ 800 px) and pushes them to branch `screenshots/pr-<n>` + a workflow artifact.
+
 ## Tests
 
 ```bash

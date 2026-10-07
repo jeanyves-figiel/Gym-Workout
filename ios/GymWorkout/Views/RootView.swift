@@ -18,7 +18,11 @@ struct RootView: View {
                             .navigationTitle("Your training")
                     }
                 } else {
+                    #if DEBUG
+                    if model.demo { DemoScreen() } else { MainTabView() }
+                    #else
                     MainTabView()
+                    #endif
                 }
             }
             if lock.locked && lock.enabled {
@@ -60,3 +64,22 @@ private struct LockScreen: View {
         .background(.background)
     }
 }
+
+#if DEBUG
+/// Jumps straight to one screen for CI screenshots.
+private struct DemoScreen: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let second = model.plan?.sessions.dropFirst().first?.id ?? ""
+        switch Demo.screen {
+        case "session": NavigationStack { SessionView(sessionId: second) }
+        case "player": WorkoutPlayerView(sessionId: second)
+        case "explore": NavigationStack { LibraryView() }
+        case "muscle": NavigationStack { MuscleDetailView(muscle: .lats) }
+        case "exercise": NavigationStack { ExerciseDetailView(exerciseId: "pull-up") }
+        default: MainTabView()
+        }
+    }
+}
+#endif

@@ -32,7 +32,24 @@ final class AppModel {
 
     // MARK: Lifecycle & auth
 
+    private(set) var demo = false
+
     func bootstrap() async {
+        #if DEBUG
+        if Demo.enabled {
+            demo = true
+            user = Demo.user
+            state = LocalState()
+            state.synced = SyncedProfile(profile: Demo.profile, seed: 7, week: 2)
+            state.plan = Generator.generateWeek(Demo.profile, week: 2, seed: 7)
+            if let first = state.plan?.sessions.first {
+                state.done[first.id] = true
+                state.logs = [LogEntry(date: Date(), exerciseId: "pull-up", weightKg: 10)]
+            }
+            phase = Demo.screen == "welcome" ? .signedOut : .signedIn
+            return
+        }
+        #endif
         state = store.load()
         await api.setOnSignedOut { [weak self] in
             Task { @MainActor in self?.sessionExpired() }
@@ -203,7 +220,7 @@ final class AppModel {
     }
 
     func sync() async {
-        guard phase == .signedIn else { return }
+        guard phase == .signedIn, !demo else { return }
         guard !syncing else {
             resyncRequested = true
             return
@@ -242,5 +259,7 @@ final class AppModel {
         }
     }
 
-    private func persist() { store.save(state) }
+    private func persist() {
+        if !demo { store.save(state) }
+    }
 }
