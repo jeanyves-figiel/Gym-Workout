@@ -262,6 +262,41 @@ describe('account deletion, data sync & export', () => {
   });
 });
 
+describe('workout history sync', () => {
+  it('upserts, deltas, isolates, exports and deletes workouts', async () => {
+    const { tokens } = await signUp();
+    const t = tokens.accessToken;
+    const id = randomUUID();
+    const w = { id, startedAt: '2026-10-07T09:00:00Z', title: 'Lower body', durationSec: 3600, exercises: [{ id: 'back-squat', sets: 4 }] };
+    expect((await post('/v1/me/workouts', { workouts: [w] }, t)).json().saved).toBe(1);
+    const all = (await get('/v1/me/workouts', t)).json().workouts;
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ id, title: 'Lower body', exercises: [{ id: 'back-squat', sets: 4 }] });
+
+    advance(1000);
+    const since = clock.toISOString();
+    advance(1000);
+    await post('/v1/me/workouts', { workouts: [{ ...w, durationSec: 3700 }] }, t);
+    const delta = (await get(`/v1/me/workouts?since=${encodeURIComponent(since)}`, t)).json().workouts;
+    expect(delta).toHaveLength(1);
+    expect(delta[0].durationSec).toBe(3700);
+
+    const other = await signUp('other@example.com');
+    await post('/v1/me/workouts', { workouts: [{ ...w, title: 'hijack' }] }, other.tokens.accessToken);
+    expect((await get('/v1/me/workouts', other.tokens.accessToken)).json().workouts).toHaveLength(0);
+    expect((await get('/v1/me/workouts', t)).json().workouts[0].title).toBe('Lower body');
+
+    expect((await get('/v1/me/export', t)).json().workouts).toHaveLength(1);
+    expect((await app.inject({ method: 'DELETE', url: `/v1/me/workouts/${id}`, headers: { authorization: `Bearer ${t}` } })).statusCode).toBe(204);
+    expect((await get('/v1/me/workouts', t)).json().workouts).toHaveLength(0);
+  });
+
+  it('rejects malformed workouts', async () => {
+    const { tokens } = await signUp();
+    expect((await post('/v1/me/workouts', { workouts: [{ id: 'nope', startedAt: 'x' }] }, tokens.accessToken)).statusCode).toBe(400);
+  });
+});
+
 describe('rate limiting', () => {
   it('limits auth endpoints per IP', async () => {
     await app.close();

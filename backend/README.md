@@ -32,6 +32,8 @@ Production env: see `.env.example` (`JWT_SECRET`, `CODE_PEPPER`, `SMTP_URL` requ
 | GET / PUT | `/me/profile` | ✓ | opaque app profile JSON |
 | GET / POST | `/me/logs` | ✓ | `?since=ISO` delta; upsert ≤500 by client UUID |
 | DELETE | `/me/logs/:id` | ✓ | |
+| GET / POST | `/me/workouts` | ✓ | completed sessions (opaque JSON with `id`, `startedAt`); `?since=ISO` delta; upsert ≤100 |
+| DELETE | `/me/workouts/:id` | ✓ | |
 | GET | `/me/export` | ✓ | full JSON export (nFADP/GDPR) |
 | GET | `/healthz` | – | |
 
