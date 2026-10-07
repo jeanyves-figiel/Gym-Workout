@@ -163,10 +163,28 @@ public actor APIClient {
         }
     }
 
+    /// Completed workout records (app-defined, must encode `id` + `startedAt`).
+    public func fetchWorkouts<T: Decodable & Sendable>(_: T.Type, since: Date? = nil) async throws -> [T] {
+        var path = "/v1/me/workouts"
+        if let since {
+            let s = ISO8601DateFormatter().string(from: since)
+            path += "?since=\(s.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? s)"
+        }
+        return try await authorized("GET", path, Empty?.none, as: WorkoutsResponse<T>.self).workouts
+    }
+
+    public func pushWorkouts<T: Encodable & Sendable>(_ workouts: [T]) async throws {
+        for chunk in stride(from: 0, to: workouts.count, by: 100).map({ Array(workouts[$0..<min($0 + 100, workouts.count)]) }) {
+            _ = try await authorizedRaw("POST", "/v1/me/workouts", WorkoutsBody(workouts: chunk))
+        }
+    }
+
     // MARK: Internals
 
     struct Empty: Codable {}
     struct ProfileBody<T: Encodable>: Encodable { var data: T }
+    struct WorkoutsBody<T: Encodable>: Encodable { var workouts: [T] }
+    struct WorkoutsResponse<T: Decodable>: Decodable { var workouts: [T] }
 
     private func authenticate(_ path: String, _ body: some Encodable) async throws -> User {
         let data = try await send("POST", path, body)
