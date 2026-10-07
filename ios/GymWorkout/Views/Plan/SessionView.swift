@@ -179,6 +179,7 @@ struct ExerciseCard: View {
                 }
                 .buttonStyle(.plain)
                 MuscleChips(primary: exercise.primary, secondary: exercise.secondary)
+                EquipmentLine(equipment: exercise.equipment)
                 if let paired = item.pairedWith.flatMap(Exercise.find) {
                     Label("During rest: \(paired.name)", systemImage: "figure.flexibility")
                         .font(.caption.weight(.semibold))

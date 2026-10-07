@@ -15,6 +15,7 @@ struct WorkoutPlayerView: View {
     @State private var started = Date()
     @State private var finished = false
     @State private var kgText = ""
+    @State private var formFor: Exercise?
 
     private struct Step {
         let item: PlannedExercise
@@ -41,6 +42,7 @@ struct WorkoutPlayerView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .sheet(item: $formFor) { FormSheet(exercise: $0) }
         .animation(.spring(duration: 0.4), value: index)
         .animation(.spring(duration: 0.5), value: finished)
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
@@ -83,6 +85,7 @@ struct WorkoutPlayerView: View {
                                 Text("rest \(Format.rest(step.item.prescription.restSec))").font(Theme.label(14)).foregroundStyle(Theme.muted)
                             }
                         }
+                        EquipmentLine(equipment: step.exercise.equipment)
                         if let i = step.item.prescription.intensity { Text(i).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted) }
                         if let n = step.item.prescription.note { Text(n).font(.footnote).foregroundStyle(Theme.muted) }
 
@@ -108,10 +111,7 @@ struct WorkoutPlayerView: View {
                         if step.block.kind == .strength && !step.exercise.equipment.isEmpty && step.exercise.unit != .sec {
                             weightRow(step)
                         }
-                        VStack(alignment: .leading, spacing: 6) {
-                            ForEach(step.exercise.cues, id: \.self) { Text("• \($0)").font(.footnote) }
-                        }
-                        .foregroundStyle(.white.opacity(0.8))
+                        formCard(step)
                     }
                 }
 
@@ -139,6 +139,29 @@ struct WorkoutPlayerView: View {
                 }
             }
         }
+    }
+
+    /// Key body-position checkpoints inline; full setup/technique in a sheet.
+    private func formCard(_ step: Step) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Form").eyebrow()
+                Spacer()
+                Button { formFor = step.exercise } label: {
+                    Label("Setup & technique", systemImage: "list.bullet.clipboard")
+                        .font(Theme.label(12))
+                }
+                .foregroundStyle(Theme.lime)
+            }
+            if let t = step.exercise.technique {
+                ForEach(t.position.prefix(3), id: \.self) { c in
+                    CheckpointRow(checkpoint: c, accent: step.block.kind.category.color)
+                }
+            } else {
+                ForEach(step.exercise.cues, id: \.self) { Text("• \($0)").font(.footnote) }
+            }
+        }
+        .card(padding: 14)
     }
 
     private func topBar(_ session: Session) -> some View {

@@ -34,22 +34,8 @@ struct ExerciseDetailView: View {
                     weightLog
                 }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("How to").eyebrow()
-                    ForEach(Array(e.cues.enumerated()), id: \.offset) { i, cue in
-                        HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text("\(i + 1)").font(Theme.display(20)).foregroundStyle(e.category.color)
-                            Text(cue).font(.body.weight(.medium))
-                        }
-                    }
-                    if !e.equipment.isEmpty {
-                        Text("Equipment: " + e.equipment.map(\.label).joined(separator: ", "))
-                            .font(.footnote)
-                            .foregroundStyle(Theme.muted)
-                            .padding(.top, 4)
-                    }
-                }
-                .card()
+                EquipmentSection(equipment: e.equipment, accent: e.category.color)
+                TechniqueView(exercise: e)
 
                 alternativesSection
             }
