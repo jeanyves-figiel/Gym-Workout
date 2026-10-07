@@ -11,6 +11,8 @@ struct BodyHealthView: View {
     @State private var weight = ""
     @State private var birthYear = ""
     @State private var sex: BodyMetrics.Sex?
+    @State private var gender: BodyMetrics.Gender?
+    @State private var genderText = ""
     @State private var writeToHealth = true
     @State private var saved = false
 
@@ -42,14 +44,6 @@ struct BodyHealthView: View {
                 metricRow("Height", unit: "cm", text: $height, health: snap.heightCm.map { String(format: "%.0f", $0) })
                 metricRow("Weight", unit: "kg", text: $weight, health: snap.weightKg.map { String(format: "%.1f", $0) })
                 metricRow("Birth year", unit: "", text: $birthYear, health: snap.birthYear.map(String.init))
-                if let healthSex = snap.sex {
-                    metricRow("Sex", unit: "", text: .constant(""), health: healthSex.rawValue.capitalized)
-                } else {
-                    Picker("Sex", selection: $sex) {
-                        Text("Not set").tag(BodyMetrics.Sex?.none)
-                        ForEach(BodyMetrics.Sex.allCases) { Text($0.rawValue.capitalized).tag(BodyMetrics.Sex?.some($0)) }
-                    }
-                }
                 if health.connected && (snap.heightCm == nil || snap.weightKg == nil) {
                     Toggle("Also save height & weight to Health", isOn: $writeToHealth)
                 }
@@ -57,6 +51,38 @@ struct BodyHealthView: View {
                 Text("Body")
             } footer: {
                 Text("Used for calorie estimates and progress. Values from Apple Health are shown in green and used first; enter the rest here.")
+            }
+
+            Section {
+                Picker("Gender", selection: $gender) {
+                    Text("Not set").tag(BodyMetrics.Gender?.none)
+                    ForEach(BodyMetrics.Gender.allCases) { Text($0.label).tag(BodyMetrics.Gender?.some($0)) }
+                }
+                .pickerStyle(.navigationLink)
+                if gender == .selfDescribe {
+                    TextField("How do you describe your gender?", text: $genderText)
+                        .textInputAutocapitalization(.never)
+                }
+            } header: {
+                Text("About you (optional)")
+            } footer: {
+                Text("Only for you — never used in calculations or shared.")
+            }
+
+            Section {
+                if let healthSex = snap.sex {
+                    metricRow("Sex", unit: "", text: .constant(""), health: healthSex.label)
+                } else {
+                    Picker("Sex", selection: $sex) {
+                        Text("Not set").tag(BodyMetrics.Sex?.none)
+                        ForEach(BodyMetrics.Sex.allCases) { Text($0.label).tag(BodyMetrics.Sex?.some($0)) }
+                    }
+                    .pickerStyle(.navigationLink)
+                }
+            } header: {
+                Text("For estimates (optional)")
+            } footer: {
+                Text("Physiological sex can slightly refine calorie and heart-rate estimates. Leave unset or choose “Prefer not to say” and the app uses neutral defaults.")
             }
 
             Section {
@@ -97,6 +123,8 @@ struct BodyHealthView: View {
         weight = b.weightKg.map { String(format: "%.1f", $0) } ?? ""
         birthYear = b.birthYear.map(String.init) ?? ""
         sex = b.sex
+        gender = b.gender
+        genderText = b.genderDescription ?? ""
     }
 
     private func number(_ s: String) -> Double? { Double(s.replacingOccurrences(of: ",", with: ".")) }
@@ -107,6 +135,9 @@ struct BodyHealthView: View {
         if let w = number(weight), (30...300).contains(w) { b.weightKg = w }
         if let y = Int(birthYear), (1900...2020).contains(y) { b.birthYear = y }
         b.sex = sex
+        b.gender = gender
+        let described = genderText.trimmingCharacters(in: .whitespacesAndNewlines)
+        b.genderDescription = gender == .selfDescribe && !described.isEmpty ? String(described.prefix(60)) : nil
         model.saveBody(b)
         if health.connected && writeToHealth {
             var toHealth = BodyMetrics()

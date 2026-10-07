@@ -2,19 +2,56 @@ import Foundation
 import HealthKit
 import WorkoutEngine
 
-/// Height / weight / age / sex — entered in-app when Apple Health doesn't have them.
+/// Height / weight / age entered in-app when Apple Health doesn't have them,
+/// plus optional, inclusive identity fields. Every field is optional.
 struct BodyMetrics: Codable, Equatable, Sendable {
+    /// Sex used only to refine physiological estimates (calories, heart-rate zones). Optional.
     enum Sex: String, Codable, CaseIterable, Identifiable {
-        case female, male, other
+        case female, male, intersex, other, preferNotToSay
         var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .female: "Female"
+            case .male: "Male"
+            case .intersex: "Intersex"
+            case .other: "Other"
+            case .preferNotToSay: "Prefer not to say"
+            }
+        }
+    }
+
+    /// How you identify. Never used in calculations. Optional.
+    enum Gender: String, Codable, CaseIterable, Identifiable {
+        case woman, man, nonBinary, genderfluid, agender, twoSpirit, questioning, selfDescribe, preferNotToSay
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .woman: "Woman"
+            case .man: "Man"
+            case .nonBinary: "Non-binary"
+            case .genderfluid: "Genderfluid"
+            case .agender: "Agender"
+            case .twoSpirit: "Two-Spirit"
+            case .questioning: "Questioning"
+            case .selfDescribe: "Prefer to self-describe"
+            case .preferNotToSay: "Prefer not to say"
+            }
+        }
     }
 
     var heightCm: Double?
     var weightKg: Double?
     var birthYear: Int?
     var sex: Sex?
+    var gender: Gender?
+    /// Free text when `gender == .selfDescribe`.
+    var genderDescription: String?
 
-    var isEmpty: Bool { heightCm == nil && weightKg == nil && birthYear == nil && sex == nil }
+    var isEmpty: Bool {
+        heightCm == nil && weightKg == nil && birthYear == nil && sex == nil && gender == nil && genderDescription == nil
+    }
 }
 
 /// What we read from Apple Health. Stays on device (never sent to the server).

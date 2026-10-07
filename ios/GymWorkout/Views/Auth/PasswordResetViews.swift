@@ -92,7 +92,7 @@ struct PrivacyNoticeView: View {
                 Text("Gym-Workout is a personal app. It stores only what it needs to work:")
                 Text("• **Account** — email, optional name, password hash (never the password), Sign in with Apple identifier.")
                 Text("• **Training** — your training profile and the weights you log, so they sync across devices.")
-                Text("• **Body** — height, weight, birth year and sex you enter, for calorie estimates and progress.")
+                Text("• **Body** — height, weight and birth year you enter, for calorie estimates and progress. Gender and sex are optional, inclusive and never required.")
                 Text("• **History** — completed sessions (exercises, sets, weights, duration, heart rate) so you can see progress.")
                 Text("• **Security** — signed-in devices (device name, dates) so you can sign them out.")
                 Text("**Apple Health** data you allow is read and written on this iPhone only and never sent to the server.")
