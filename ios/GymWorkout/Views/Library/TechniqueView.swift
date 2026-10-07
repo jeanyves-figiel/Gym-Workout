@@ -63,6 +63,7 @@ struct EquipmentSection: View {
                 row(symbol: e.symbol, title: e.label, zone: e.zone.label, text: e.adjustment)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .card()
     }
 
@@ -101,6 +102,7 @@ struct TechniqueView: View {
                 Text("Key cues").eyebrow()
                 ForEach(exercise.cues, id: \.self) { Text("• \($0)") }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .card()
         }
     }
@@ -119,6 +121,7 @@ struct TechniqueView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .card()
     }
 
@@ -135,6 +138,7 @@ struct TechniqueView: View {
                     .foregroundStyle(Theme.muted)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .card()
     }
 
@@ -149,6 +153,7 @@ struct TechniqueView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .card()
     }
 
