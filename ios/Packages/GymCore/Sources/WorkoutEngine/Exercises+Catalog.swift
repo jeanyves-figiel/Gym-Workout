@@ -151,6 +151,7 @@ extension Exercise {
         Exercise(id: "side-bend", name: "Standing side bend", category: .stretch, pattern: .general, primary: [.obliques, .lats], equipment: [], level: 1, unilateral: true, unit: .sec, cues: ["Reach up and over"]),
         Exercise(id: "behind-back-clasp", name: "Behind-back clasp", category: .stretch, pattern: .general, primary: [.frontDelts, .chest, .biceps], equipment: [], level: 1, unit: .sec, cues: ["Clasp, lift hands, open chest"]),
         Exercise(id: "upper-trap", name: "Neck & upper-trap stretch", category: .stretch, pattern: .general, primary: [.upperBack], equipment: [], level: 1, unilateral: true, unit: .sec, cues: ["Ear to shoulder, opposite hand down"]),
+        Exercise(id: "side-delt-stretch", name: "Behind-back side delt stretch", category: .stretch, pattern: .general, primary: [.sideDelts, .frontDelts], equipment: [], level: 1, unilateral: true, unit: .sec, cues: ["Hand behind back, pull the wrist across", "Tilt head away, shoulder down"]),
         Exercise(id: "breathing", name: "90/90 breathing (down-regulate)", category: .stretch, pattern: .general, primary: [], equipment: [.mat], level: 1, unit: .sec, cues: ["Feet on bench, 4 s in / 6–8 s out", "Shift into recovery"]),
     ]
 }

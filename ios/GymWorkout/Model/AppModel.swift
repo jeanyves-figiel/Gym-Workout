@@ -32,7 +32,24 @@ final class AppModel {
 
     // MARK: Lifecycle & auth
 
+    private(set) var demo = false
+
     func bootstrap() async {
+        #if DEBUG
+        if Demo.enabled {
+            demo = true
+            user = Demo.user
+            state = LocalState()
+            state.synced = SyncedProfile(profile: Demo.profile, seed: 7, week: 2)
+            state.plan = Generator.generateWeek(Demo.profile, week: 2, seed: 7)
+            if let first = state.plan?.sessions.first {
+                state.done[first.id] = true
+                state.logs = [LogEntry(date: Date(), exerciseId: "pull-up", weightKg: 10)]
+            }
+            phase = Demo.screen == "welcome" ? .signedOut : .signedIn
+            return
+        }
+        #endif
         state = store.load()
         await api.setOnSignedOut { [weak self] in
             Task { @MainActor in self?.sessionExpired() }
@@ -127,6 +144,39 @@ final class AppModel {
         persist()
     }
 
+    func setTicked(_ uid: String, _ on: Bool = true) {
+        guard state.ticked[uid] != on else { return }
+        state.ticked[uid] = on
+        persist()
+    }
+
+    func markDone(_ sessionId: String) {
+        state.done[sessionId] = true
+        persist()
+    }
+
+    /// First session of the week not yet completed.
+    var nextSession: Session? { plan?.sessions.first { !(state.done[$0.id] ?? false) } }
+
+    var completedCount: Int { plan?.sessions.filter { state.done[$0.id] ?? false }.count ?? 0 }
+
+    /// Normalised muscle load across the whole week.
+    var weekHeat: [Muscle: Double] {
+        guard let plan else { return [:] }
+        var load: [Muscle: Double] = [:]
+        for s in plan.sessions { for (m, v) in Generator.muscleLoad(s.blocks) { load[m, default: 0] += v } }
+        let mx = load.values.max() ?? 1
+        return load.mapValues { $0 / max(mx, 1e-9) }
+    }
+
+    /// Weekly working sets where `muscle` is a primary mover.
+    func weeklySets(for muscle: Muscle) -> Int {
+        guard let plan else { return 0 }
+        return plan.sessions.flatMap { $0.blocks.filter { [BlockKind.power, .strength].contains($0.kind) }.flatMap(\.items) }
+            .filter { Exercise.get($0.exerciseId).primary.contains(muscle) }
+            .reduce(0) { $0 + $1.prescription.sets }
+    }
+
     func toggleDone(_ sessionId: String) {
         state.done[sessionId] = !(state.done[sessionId] ?? false)
         persist()
@@ -170,7 +220,7 @@ final class AppModel {
     }
 
     func sync() async {
-        guard phase == .signedIn else { return }
+        guard phase == .signedIn, !demo else { return }
         guard !syncing else {
             resyncRequested = true
             return
@@ -209,5 +259,7 @@ final class AppModel {
         }
     }
 
-    private func persist() { store.save(state) }
+    private func persist() {
+        if !demo { store.save(state) }
+    }
 }

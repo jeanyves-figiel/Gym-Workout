@@ -67,6 +67,7 @@ struct AccountView: View {
                 Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")")
             }
         }
+        .themedForm()
         .navigationTitle("Account")
         .onAppear { name = model.user?.name ?? "" }
         .onChange(of: model.user?.name) { _, new in name = new ?? "" }
@@ -127,6 +128,7 @@ struct ChangePasswordView: View {
                 }
             }
         }
+        .themedForm()
         .navigationTitle(hasPassword ? "Change password" : "Set password")
     }
 }
@@ -146,6 +148,7 @@ struct DevicesView: View {
             }
             ErrorText(message: error)
         }
+        .themedForm()
         .navigationTitle("Devices")
         .task {
             do { sessions = try await model.api.sessions() } catch { self.error = error.localizedDescription }
@@ -184,6 +187,7 @@ struct DeleteAccountView: View {
                 .foregroundStyle(.red)
             }
         }
+        .themedForm()
         .navigationTitle("Delete account")
     }
 }

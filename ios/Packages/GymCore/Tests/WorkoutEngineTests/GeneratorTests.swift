@@ -149,3 +149,53 @@ private func withSessions(_ p: Profile, _ n: Int) -> Profile {
     q.sessionsPerWeek = n
     return q
 }
+
+@Suite struct StretchingTests {
+    @Test(arguments: Goal.allCases)
+    func everySessionHasMandatoryStretching(goal: Goal) {
+        for n in 2...6 {
+            for cap in [nil, 45] as [Int?] {
+                let p = Profile(goal: goal, sessionsPerWeek: n, experience: .beginner, climbingDaysPerWeek: 3, maxSessionMinutes: cap)
+                for week in 1...4 {
+                    for s in Generator.generateWeek(p, week: week, seed: 99).sessions {
+                        let cd = s.blocks.first { $0.kind == .cooldown }
+                        #expect(cd != nil)
+                        let stretches = cd!.items.filter { Exercise.get($0.exerciseId).category == .stretch && $0.exerciseId != "breathing" }
+                        #expect(stretches.count >= Generator.minStretches, "\(goal) n=\(n) cap=\(String(describing: cap)) w=\(week)")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite struct MuscleTests {
+    @Test func everyMuscleHasGroupAndIsDrawn() {
+        for m in Muscle.allCases { #expect(m.onFront || m.onBack) }
+        #expect(Set(MuscleGroup.allCases.flatMap(\.muscles)).count == Muscle.allCases.count)
+    }
+
+    @Test func everyMuscleHasStrengthAndStretchExercises() {
+        for m in Muscle.allCases {
+            let cats = Exercise.working(m).map(\.0)
+            #expect(cats.contains(.strength), "\(m) strength")
+            #expect(cats.contains(.stretch), "\(m) stretch")
+        }
+    }
+
+    @Test func workingListsPrimaryFirst() {
+        for (_, hits) in Exercise.working(.lats) {
+            let firstSecondary = hits.firstIndex { !$0.primary } ?? hits.count
+            #expect(hits[firstSecondary...].allSatisfy { !$0.primary })
+        }
+    }
+
+    @Test func sessionHeatIsNormalised() {
+        let s = Generator.generateWeek(Profile(), seed: 1).sessions[0]
+        let heat = s.muscleHeat
+        #expect(heat.values.max() == 1)
+        #expect(heat.values.allSatisfy { $0 >= 0 && $0 <= 1 })
+        #expect(!s.topMuscles().isEmpty)
+        #expect(!s.muscles(in: .strength).isEmpty)
+    }
+}

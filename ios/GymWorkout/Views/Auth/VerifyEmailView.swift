@@ -37,6 +37,7 @@ struct VerifyEmailView: View {
                 .disabled(resent)
             }
         }
+        .themedForm()
         .navigationTitle("Verify email")
     }
 

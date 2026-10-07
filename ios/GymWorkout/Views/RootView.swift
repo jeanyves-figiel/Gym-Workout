@@ -18,7 +18,11 @@ struct RootView: View {
                             .navigationTitle("Your training")
                     }
                 } else {
+                    #if DEBUG
+                    if model.demo { DemoScreen() } else { MainTabView() }
+                    #else
                     MainTabView()
+                    #endif
                 }
             }
             if lock.locked && lock.enabled {
@@ -26,6 +30,8 @@ struct RootView: View {
             }
         }
         .animation(.default, value: model.phase)
+        .preferredColorScheme(.dark)
+        .tint(Theme.lime)
     }
 }
 
@@ -33,10 +39,13 @@ struct MainTabView: View {
     var body: some View {
         TabView {
             NavigationStack { WeekView() }
-                .tabItem { Label("Plan", systemImage: "figure.strengthtraining.traditional") }
+                .tabItem { Label("Train", systemImage: "bolt.heart.fill") }
+            NavigationStack { LibraryView() }
+                .tabItem { Label("Explore", systemImage: "figure.arms.open") }
             NavigationStack { AccountView() }
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
         }
+        .toolbarBackground(Theme.bg, for: .tabBar)
     }
 }
 
@@ -55,3 +64,22 @@ private struct LockScreen: View {
         .background(.background)
     }
 }
+
+#if DEBUG
+/// Jumps straight to one screen for CI screenshots.
+private struct DemoScreen: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let second = model.plan?.sessions.dropFirst().first?.id ?? ""
+        switch Demo.screen {
+        case "session": NavigationStack { SessionView(sessionId: second) }
+        case "player": WorkoutPlayerView(sessionId: second)
+        case "explore": NavigationStack { LibraryView() }
+        case "muscle": NavigationStack { MuscleDetailView(muscle: .lats) }
+        case "exercise": NavigationStack { ExerciseDetailView(exerciseId: "pull-up") }
+        default: MainTabView()
+        }
+    }
+}
+#endif
