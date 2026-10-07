@@ -1,0 +1,59 @@
+name: Promote to production
+
+# Manual only. Re-tags the exact image already validated on staging — no rebuild.
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Commit SHA to promote (blank = image currently on staging)'
+        required: false
+        default: ''
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ vars.PROD_URL }}
+    steps:
+      - id: src
+        env:
+          SHA: ${{ inputs.sha }}
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          if [ -n "$SHA" ]; then SRC="$IMAGE:sha-$SHA"; else SRC="$IMAGE:staging"; fi
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "src=$SRC" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Re-tag same image as prod
+        id: tag
+        run: |
+          SRC='${{ steps.src.outputs.src }}'
+          DIGEST=$(docker buildx imagetools inspect "$SRC" --format '{{json .Manifest}}' | jq -r .digest)
+          docker buildx imagetools create -t '${{ steps.src.outputs.image }}:prod' "${{ steps.src.outputs.image }}@$DIGEST"
+          echo "ref=${{ steps.src.outputs.image }}@$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "Promoted \`$SRC\` → \`prod\` ($DIGEST)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Trigger production deploy
+        env:
+          HOOK: ${{ secrets.PROD_DEPLOY_HOOK }}
+          IMAGE: ${{ steps.tag.outputs.ref }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::warning::PROD_DEPLOY_HOOK not set — prod tag updated, no deploy triggered."
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK" -H 'Content-Type: application/json' \
+            -d "{\"image\":\"$IMAGE\",\"env\":\"production\"}"
