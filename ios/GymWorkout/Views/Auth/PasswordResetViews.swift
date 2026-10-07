@@ -30,6 +30,7 @@ struct ForgotPasswordView: View {
                 }
             }
         }
+        .themedForm()
         .navigationTitle("Reset password")
     }
 }
@@ -78,6 +79,7 @@ struct ResetPasswordView: View {
                 }
             }
         }
+        .themedForm()
         .navigationTitle("New password")
     }
 }
@@ -96,6 +98,7 @@ struct PrivacyNoticeView: View {
             }
             .padding()
         }
+        .themedForm()
         .navigationTitle("Privacy")
         .navigationBarTitleDisplayMode(.inline)
     }

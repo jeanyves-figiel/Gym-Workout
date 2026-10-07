@@ -30,6 +30,7 @@ struct SignInView: View {
                 Button("Create an account") { path.append(.signUp) }
             }
         }
+        .themedForm()
         .navigationTitle("Sign in")
     }
 

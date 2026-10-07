@@ -48,16 +48,7 @@ struct BusyButton: View {
 }
 
 extension BlockKind {
-    var color: Color {
-        switch self {
-        case .warmup: .orange
-        case .power: .red
-        case .strength: .indigo
-        case .mobility: .purple
-        case .cardio: .teal
-        case .cooldown: .blue
-        }
-    }
+    var color: Color { category.color }
 
     var short: String {
         switch self {
@@ -66,7 +57,7 @@ extension BlockKind {
         case .strength: "Strength"
         case .mobility: "Mobility"
         case .cardio: "Cardio"
-        case .cooldown: "Cool-down"
+        case .cooldown: "Stretch"
         }
     }
 }
@@ -80,6 +71,11 @@ enum Format {
         var parts = [p.sets > 1 ? "\(p.sets) × \(p.reps)" : p.reps]
         if p.restSec > 0 { parts.append("rest \(rest(p.restSec))") }
         return parts.joined(separator: " · ")
+    }
+
+    static func elapsed(_ t: TimeInterval) -> String {
+        let s = max(0, Int(t))
+        return s >= 3600 ? String(format: "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60) : String(format: "%d:%02d", s / 60, s % 60)
     }
 
     static func kg(_ v: Double) -> String {

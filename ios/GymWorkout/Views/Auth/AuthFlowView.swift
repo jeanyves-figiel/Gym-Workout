@@ -1,6 +1,7 @@
 import APIClient
 import AuthenticationServices
 import SwiftUI
+import WorkoutEngine
 
 enum AuthRoute: Hashable {
     case signIn, signUp, verify(email: String), forgot, reset(email: String), privacy
@@ -28,36 +29,48 @@ struct AuthFlowView: View {
 
 struct WelcomeView: View {
     @Binding var path: [AuthRoute]
+    @State private var appear = false
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            Image(systemName: "figure.climbing")
-                .font(.system(size: 64))
-                .foregroundStyle(.tint)
-            VStack(spacing: 8) {
-                Text("Gym-Workout").font(.largeTitle.bold())
-                Text("Strength, power, mobility and cardio — planned for your week and your gym.")
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
+        ZStack {
+            Theme.bg.ignoresSafeArea()
+            RadialGradient(colors: [WorkoutEngine.Category.strength.colors[1].opacity(0.55), .clear], center: .topTrailing, startRadius: 20, endRadius: 420)
+                .ignoresSafeArea()
+            RadialGradient(colors: [WorkoutEngine.Category.power.colors[0].opacity(0.35), .clear], center: .bottomLeading, startRadius: 20, endRadius: 380)
+                .ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 22) {
+                Spacer()
+                VStack(alignment: .leading, spacing: -8) {
+                    ForEach(Array(["LIFT.", "LEAP.", "CLIMB.", "RECOVER."].enumerated()), id: \.offset) { i, word in
+                        Text(word)
+                            .font(Theme.display(58))
+                            .foregroundStyle(i == 2 ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Color.white))
+                            .opacity(appear ? 1 : 0)
+                            .offset(x: appear ? 0 : -40)
+                            .animation(.spring(duration: 0.6).delay(Double(i) * 0.08), value: appear)
+                    }
+                }
+                Text("Sessions built for your week, your gym and your climbing — with every muscle mapped.")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Theme.muted)
+                Spacer()
+                AppleSignInButton()
+                Button { path.append(.signUp) } label: { Text("CREATE ACCOUNT") }
+                    .buttonStyle(LimeButtonStyle())
+                Button("I already have an account") { path.append(.signIn) }
+                    .font(Theme.label(15))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
             }
-            Spacer()
-            AppleSignInButton()
-            Button { path.append(.signUp) } label: {
-                Text("Create account with email").bold().frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            Button("I already have an account") { path.append(.signIn) }
+            .padding(24)
         }
-        .padding(24)
+        .onAppear { appear = true }
     }
 }
 
 /// Sign in with Apple → backend verifies the identity token and creates/links the account.
 struct AppleSignInButton: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.colorScheme) private var scheme
     @State private var task = FormTask()
 
     var body: some View {
@@ -83,8 +96,9 @@ struct AppleSignInButton: View {
                     if (error as? ASAuthorizationError)?.code != .canceled { task.error = error.localizedDescription }
                 }
             }
-            .signInWithAppleButtonStyle(scheme == .dark ? .white : .black)
-            .frame(height: 50)
+            .signInWithAppleButtonStyle(.white)
+            .frame(height: 56)
+            .clipShape(Capsule())
             .disabled(task.busy)
             ErrorText(message: task.error)
         }

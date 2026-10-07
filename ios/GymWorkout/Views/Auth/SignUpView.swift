@@ -59,6 +59,7 @@ struct SignUpView: View {
                 }
             }
         }
+        .themedForm()
         .navigationTitle("Create account")
     }
 }

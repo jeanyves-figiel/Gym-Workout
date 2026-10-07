@@ -52,7 +52,7 @@ public enum Generator {
         let id = "w\(ctx.week)s\(index + 1)"
         ctx.usedSession = []
         let warm = clamp(Int((Double(minutes) * 0.12).rounded()), 6, 10)
-        let cool = clamp(Int((Double(minutes) * 0.1).rounded()), 5, 10)
+        let cool = clamp(Int((Double(minutes) * 0.11).rounded()), 6, 10)
         let work = Double(minutes - warm - cool)
         let mix = sessionMix(ctx.profile, focus)
 
@@ -176,7 +176,7 @@ public enum Generator {
             // Prehab right after the main lift so it survives short sessions.
             out.removeAll { $0 == .shoulderHealth || $0 == .forearmAntagonist }
             out.insert(.shoulderHealth, at: min(1, out.count))
-            out.insert(.forearmAntagonist, at: min(3, out.count))
+            out.insert(.forearmAntagonist, at: min(2, out.count))
         }
         if ctx.spareGrip { out.removeAll { $0 == .armsFlex } }
         return out
@@ -224,8 +224,11 @@ public enum Generator {
             // Light prehab/core work is supersetted into the rest of the last heavy exercise.
             let light = Rules.lightPatterns.contains(pattern) && !circuit
             let hostIndex = light ? items.lastIndex { !Rules.lightPatterns.contains($0.slot) } : nil
+            // Long rests (≥ 2 min) fit two prehab partners, shorter rests one.
             let superset = hostIndex.map { h in
-                !items.contains { $0.supersetWith == items[h].uid } && items[h].prescription.restSec >= 75
+                let rest = items[h].prescription.restSec
+                let partners = items.filter { $0.supersetWith == items[h].uid }.count
+                return rest >= 75 && partners < (rest >= 120 ? 2 : 1)
             } ?? false
 
             var est = superset ? Double(p.sets) * workSec(e, repsMid: repsMid) + transitionSec : itemSec(e, p, repsMid: repsMid)
@@ -352,6 +355,9 @@ public enum Generator {
         return load
     }
 
+    /// Every session ends with at least this many static stretches (plus breathing).
+    public static let minStretches = 3
+
     static func cooldown(_ ctx: Ctx, _ minutes: Int, _ prior: [Block], _ uid: String) -> Block {
         let budget = Double(minutes * 60)
         var load = muscleLoad(prior)
@@ -370,7 +376,9 @@ public enum Generator {
         let stretches = Selector.candidates(level: ctx.level, equipment: ctx.equipment, Query(category: .stretch)).filter { $0.id != "breathing" }
         var remaining = load
         var chosen: Set<String> = []
-        while used + breathingSec < budget {
+        var stretchCount = 0
+        // Stretching is mandatory: at least `minStretches`, more while the budget allows.
+        while stretchCount < minStretches || used + breathingSec < budget {
             var best: Exercise?
             var bestScore = 0.0
             for s in stretches where !chosen.contains(s.id) {
@@ -379,7 +387,8 @@ public enum Generator {
             }
             guard let b = best else { break }
             let est = (b.unilateral ? 90.0 : 45.0) + 15
-            if used + est + breathingSec > budget * 1.1 { break }
+            if stretchCount >= minStretches && used + est + breathingSec > budget * 1.1 { break }
+            stretchCount += 1
             chosen.insert(b.id)
             for m in b.primary { remaining[m] = (remaining[m] ?? 0) * 0.25 }
             items.append(PlannedExercise(
@@ -393,7 +402,7 @@ public enum Generator {
             prescription: Prescription(sets: 1, reps: "90 s", restSec: 0), estSec: Int(breathingSec)))
 
         let top = load.sorted { $0.value > $1.value || ($0.value == $1.value && $0.key.rawValue < $1.key.rawValue) }.prefix(4).map(\.key.label)
-        return Block(kind: .cooldown, title: "Cool-down", targetMin: minutes, items: items,
-                     note: "Targets today's most-loaded muscles: \(top.joined(separator: ", ")).")
+        return Block(kind: .cooldown, title: "Stretching & cool-down", targetMin: minutes, items: items,
+                     note: "Static stretches for today's most-loaded muscles: \(top.joined(separator: ", ")).")
     }
 }

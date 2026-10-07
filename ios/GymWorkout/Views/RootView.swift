@@ -26,6 +26,8 @@ struct RootView: View {
             }
         }
         .animation(.default, value: model.phase)
+        .preferredColorScheme(.dark)
+        .tint(Theme.lime)
     }
 }
 
@@ -33,10 +35,13 @@ struct MainTabView: View {
     var body: some View {
         TabView {
             NavigationStack { WeekView() }
-                .tabItem { Label("Plan", systemImage: "figure.strengthtraining.traditional") }
+                .tabItem { Label("Train", systemImage: "bolt.heart.fill") }
+            NavigationStack { LibraryView() }
+                .tabItem { Label("Explore", systemImage: "figure.arms.open") }
             NavigationStack { AccountView() }
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
         }
+        .toolbarBackground(Theme.bg, for: .tabBar)
     }
 }
 

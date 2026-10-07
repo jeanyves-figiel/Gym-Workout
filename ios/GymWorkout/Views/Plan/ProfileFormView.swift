@@ -77,5 +77,6 @@ struct ProfileFormView: View {
                 }
             }
         }
+        .themedForm()
     }
 }
