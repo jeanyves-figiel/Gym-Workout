@@ -23,7 +23,7 @@ public enum Grouping: String, Codable, CaseIterable, Sendable, Identifiable {
 }
 
 /// Muscle group used to group exercises "of the same category".
-public enum MuscleGroup: String, Sendable {
+public enum SetGroup: String, Sendable {
     case push, pull, arms, legs, core
 
     /// Coarser area used by circuits: upper body, lower body, core.
@@ -48,7 +48,7 @@ public enum MuscleGroup: String, Sendable {
 
 extension Pattern {
     /// Muscle group of a strength slot; nil for power/general patterns.
-    public var muscleGroup: MuscleGroup? {
+    public var setGroup: SetGroup? {
         switch self {
         case .squat, .hinge, .singleLeg, .kneeFlex, .kneeExt, .calves: .legs
         case .hPush, .vPush, .lateralRaise: .push
@@ -171,9 +171,9 @@ extension Generator {
         let attached = Dictionary(grouping: b.items.filter { $0.supersetWith != nil }, by: { $0.supersetWith! })
         // Candidates: non-main, standalone strength exercises (not a prehab partner riding another's rest).
         let mainUid = b.items.first?.uid
-        let free = b.items.filter { $0.uid != mainUid && $0.supersetWith == nil && $0.slot.muscleGroup != nil }
+        let free = b.items.filter { $0.uid != mainUid && $0.supersetWith == nil && $0.slot.setGroup != nil }
         let key: (PlannedExercise) -> String = { item in
-            let g = item.slot.muscleGroup!
+            let g = item.slot.setGroup!
             return grouping == .supersets ? g.rawValue : g.area
         }
         let size = grouping == .supersets ? 2 : 4

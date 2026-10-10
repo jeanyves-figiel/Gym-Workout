@@ -81,8 +81,8 @@ private func nx(_ b: Block, after uid: String, setsDone: [String: Int]) -> Strin
                     found = true
                     #expect(members.count >= 2)
                     #expect(members.count <= (grouping == .supersets ? 2 : 5))
-                    let groups = Set(members.map { $0.slot.muscleGroup!.rawValue })
-                    let areas = Set(members.map { $0.slot.muscleGroup!.area })
+                    let groups = Set(members.map { $0.slot.setGroup!.rawValue })
+                    let areas = Set(members.map { $0.slot.setGroup!.area })
                     if grouping == .supersets { #expect(groups.count == 1, "\(members.map(\.exerciseId))") }
                     else { #expect(areas.count == 1, "\(members.map(\.exerciseId))") }
                     #expect(Set(members.map(\.prescription.restSec)).count == 1)
