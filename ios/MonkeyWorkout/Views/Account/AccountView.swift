@@ -24,7 +24,7 @@ struct AccountView: View {
                     // Other features add their Account rows here as AccountCard (Community profile, Notifications, Training calendar).
                     section("You")
                     NavigationLink { BodyHealthView() } label: {
-                        AccountCard(symbol: "heart.text.square.fill", title: "Body & Apple Health",
+                        AccountCard(symbol: "heart.text.square.fill", title: "Body & Health",
                                     subtitle: health.connected ? "Apple Health connected" : "Height, weight, Apple Health",
                                     gradient: AccountTint.body) {
                             if let kg = health.snapshot.weightKg ?? model.body.weightKg {

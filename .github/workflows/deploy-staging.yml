@@ -64,6 +64,13 @@ jobs:
           fi
       - if: steps.gate.outputs.skip != 'true'
         uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Ensure flyctl
+        if: steps.gate.outputs.skip != 'true'
+        # setup-flyctl occasionally finishes without flyctl on PATH (staging deploy run 38084710625); fall back to the installer.
+        run: |
+          command -v flyctl && exit 0
+          curl -fsSL https://fly.io/install.sh | sh
+          echo "$HOME/.fly/bin" >> "$GITHUB_PATH"
       - if: steps.gate.outputs.skip != 'true'
         uses: docker/login-action@v3
         with:

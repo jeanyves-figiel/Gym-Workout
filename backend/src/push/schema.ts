@@ -26,3 +26,15 @@ export const ensurePushSchema = (db: DB): void => {
     );
   `);
 };
+
+/** Push data for the account export (#69): preferences and registered devices (token shortened). */
+export const pushExport = (db: DB, userId: string) => {
+  const prefs = db.prepare('SELECT data FROM notification_prefs WHERE user_id = ?').get(userId) as { data: string } | undefined;
+  const devices = db
+    .prepare('SELECT token, env, topic, tz, created_at FROM push_devices WHERE user_id = ? ORDER BY created_at')
+    .all(userId) as unknown as { token: string; env: string; topic: string; tz: string | null; created_at: string }[];
+  return {
+    prefs: prefs ? JSON.parse(prefs.data) : null,
+    devices: devices.map((d) => ({ token: `${d.token.slice(0, 8)}…`, env: d.env, topic: d.topic, tz: d.tz, createdAt: d.created_at })),
+  };
+};

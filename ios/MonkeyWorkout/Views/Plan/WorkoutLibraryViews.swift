@@ -165,7 +165,7 @@ struct LibraryCard: View {
             } else {
                 HStack(alignment: .firstTextBaseline, spacing: 0) {
                     Text("\(entry.session.estMin)").font(Theme.display(28)).monospacedDigit()
-                    Text("′").font(Theme.display(16))
+                    Text(" min").font(Theme.label(13))
                 }
                 .opacity(0.85)
             }
