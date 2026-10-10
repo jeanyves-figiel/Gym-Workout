@@ -61,7 +61,7 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild build -project ios/MonkeyWorkout.xcodeproj -scheme MonkeyWorkout -configuration Debug \
-            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
             -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO | tail -n 5
       - name: Capture screens
         run: |
