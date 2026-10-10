@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Progress tab redesign** (#82) in the Explore card style: lime streak hero (week streak, best streak, this-week ring vs goal), gradient stat tiles (sessions, time trained, tonnage, climbs in 12 weeks with top grade, or total sets), gradient weekly bars (lime when goal hit), strength and Apple Health trends with big latest value and change, PR attempts as gold cards plus top lifts, climbing card (logged, Health, MonkeyGrade), achievements header with next badge. New users get a "Day one" hero, a First milestones card (first session, first PR, first climb), today's square outlined, ghost weekly bars and a next-badge hint instead of zeros. Badge ids and `BadgeSheet` unchanged (notification deep links). CI screenshot `progress-empty`.
+
 ### Fixed
 - Explore body map: tapping any muscle opened Calves (#79). Each muscle now opens its own page (front and back, mirrored sides too); same fix for the tappable maps on session and exercise pages, and display-only maps no longer swallow taps. Taps resolved by `BodyMapLayout` (WorkoutEngine, tested); muscle page exercise rows show the exercise picture; VoiceOver gets one action per muscle.
 - Training profile: climbing no longer depends on the goal (#49). An independent **I climb** switch (any goal) shows climbing days/weekdays; changing goal never clears them (#40 cleared them for non-climbing goals); Climbing performance turns it on; new profiles start on when Apple Health shows climbing workouts. Health climbing-days hint back for all goals.

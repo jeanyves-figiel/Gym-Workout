@@ -58,6 +58,13 @@ final class AppModel {
             MonkeyGradeLink.shared.loadDemo(ownerId: Demo.user?.id ?? "demo")
             state.synced?.profile.climbDayAddon = true
             state.customExerciseList = [Demo.customExercise]
+            if Demo.screen == "progress-empty" {
+                // New user: no sessions, PRs or logged climbs yet.
+                state.history = []
+                state.logs = []
+                state.climbs = []
+                state.prAttempts = []
+            }
             phase = Demo.screen == "welcome" ? .signedOut : .signedIn
             return
         }
