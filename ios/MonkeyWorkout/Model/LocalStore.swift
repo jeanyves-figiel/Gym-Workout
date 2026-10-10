@@ -24,6 +24,10 @@ struct LocalState: Codable {
     var history: [WorkoutRecord] = []
     var pendingHistoryIds: Set<UUID> = []
     var lastHistoryPull: Date?
+    // Custom workouts (#28). Optional so state files written before them still decode.
+    var customWorkoutList: [CustomWorkout]?
+    var pendingCustomWorkoutIds: Set<UUID>?
+    var deletedCustomWorkoutIds: Set<UUID>?
 }
 
 /// JSON file in Application Support, encrypted at rest by iOS data protection.

@@ -39,6 +39,7 @@ struct WeekView: View {
                         }
                         .buttonStyle(.plain)
                     }
+                    MyWorkoutsSection()
                     Text("Example workouts").eyebrow()
                     ForEach(WorkoutTemplate.all) { t in
                         NavigationLink(value: t.sessionId) {

@@ -155,9 +155,9 @@ final class AppModel {
         persist()
     }
 
-    /// A session of this week's plan, or an example workout.
+    /// A session of this week's plan, an example workout or one of the user's custom workouts.
     func session(_ id: String) -> Session? {
-        plan?.sessions.first { $0.id == id } ?? WorkoutTemplate.find(sessionId: id)?.session
+        plan?.sessions.first { $0.id == id } ?? WorkoutTemplate.find(sessionId: id)?.session ?? customWorkout(sessionId: id)?.session
     }
 
     /// First session of the week not yet completed.
@@ -329,6 +329,7 @@ final class AppModel {
             for l in remote where !state.pendingLogIds.contains(l.id) { byId[l.id] = l }
             state.logs = byId.values.sorted { $0.date < $1.date }
             state.lastLogPull = Date()
+            try await syncCustomWorkouts()
             syncError = nil
             persist()
         } catch APIError.signedOut {
@@ -338,7 +339,8 @@ final class AppModel {
         }
     }
 
-    private func persist() {
+    /// Internal (not private) so model extensions in other files can save.
+    func persist() {
         if !demo { store.save(state) }
     }
 }

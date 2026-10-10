@@ -21,8 +21,8 @@ struct SessionView: View {
                     FlowOverview(session: session)
                     ForEach(session.blocks) { block in
                         BlockSection(block: block, sessionId: session.id) { item in
-                            // Example workouts are fixed: no swap.
-                            detail = ExerciseRef(exerciseId: item.exerciseId, uid: session.isExample ? nil : item.uid)
+                            // Example and custom workouts are fixed lists (custom ones are edited in the builder): no swap.
+                            detail = ExerciseRef(exerciseId: item.exerciseId, uid: session.isStandalone ? nil : item.uid)
                         }
                     }
                     finishButton(session)
@@ -31,14 +31,16 @@ struct SessionView: View {
                 .padding(.bottom, 90)
             }
             .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle(session.isExample ? "Example workout" : "Day \(session.index + 1)")
+            .navigationTitle(session.isCustom ? "My workout" : session.isExample ? "Example workout" : "Day \(session.index + 1)")
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
                 Button { playing = true } label: { Label("Start workout", systemImage: "play.fill") }
                     .buttonStyle(LimeButtonStyle())
+                    .disabled(session.blocks.allSatisfy { $0.items.isEmpty })
                     .padding(.horizontal, 16)
                     .padding(.bottom, 8)
             }
+            .standaloneWorkoutActions(session)
             .fullScreenCover(isPresented: $playing) { WorkoutPlayerView(sessionId: session.id) }
             .sheet(item: $detail) { ref in
                 NavigationStack { ExerciseDetailView(exerciseId: ref.exerciseId, plannedUid: ref.uid) }
@@ -58,6 +60,8 @@ struct SessionView: View {
             Text(s.displayTitle).font(Theme.display(38)).fixedSize(horizontal: false, vertical: true)
             if let t = WorkoutTemplate.find(sessionId: s.id) {
                 Text("\(t.kcal) kcal · \(t.activityPoints) activity points").font(Theme.label(14)).foregroundStyle(Theme.lime)
+            } else if let kcal = model.customWorkout(sessionId: s.id)?.kcal {
+                Text("\(kcal) kcal").font(Theme.label(14)).foregroundStyle(Theme.lime)
             }
             HStack(spacing: 10) {
                 StatTile(value: "\(s.estMin)′", label: "Duration")

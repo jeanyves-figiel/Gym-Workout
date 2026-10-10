@@ -7,6 +7,7 @@ import type { Config } from './config.ts';
 import type { DB } from './db.ts';
 import { ApiError } from './errors.ts';
 import type { Mailer } from './mailer.ts';
+import { customWorkoutRoutes } from './routes/customWorkouts.ts';
 import { dataRoutes } from './routes/data.ts';
 
 declare module 'fastify' {
@@ -147,6 +148,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       });
 
       dataRoutes(r, deps.db, deps.now ?? (() => new Date()), auth);
+      customWorkoutRoutes(r, deps.db, deps.now ?? (() => new Date()));
     },
     { prefix: '/v1' },
   );
