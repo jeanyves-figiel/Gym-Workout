@@ -64,6 +64,10 @@ public enum Equipment: String, Codable, CaseIterable, Sendable, Identifiable {
     case skiErg = "ski-erg"
     case stairClimber = "stair-climber"
     case elliptical
+    case seatedCalf = "seated-calf"
+    case hipAdAbductor = "hip-ad-abductor"
+    case abCrunch = "ab-crunch"
+    case torsoRotation = "torso-rotation"
     public var id: String { rawValue }
 }
 
@@ -124,12 +128,14 @@ public struct Exercise: Identifiable, Hashable, Sendable {
     public let unit: Unit?
     public let regions: [Region]
     public let cues: [String]
+    /// False = only used by example workouts, never picked by the generator (keeps generated plans stable).
+    public let generator: Bool
 
     public init(
         id: String, name: String, category: Category, pattern: Pattern,
         primary: [Muscle], secondary: [Muscle] = [], equipment: [Equipment], level: Int,
         unilateral: Bool = false, secPerRep: Double? = nil, gripHeavy: Bool = false, main: Bool = false,
-        unit: Unit? = nil, regions: [Region] = [], cues: [String]
+        unit: Unit? = nil, regions: [Region] = [], cues: [String], generator: Bool = true
     ) {
         self.id = id
         self.name = name
@@ -146,6 +152,7 @@ public struct Exercise: Identifiable, Hashable, Sendable {
         self.unit = unit
         self.regions = regions
         self.cues = cues
+        self.generator = generator
     }
 
     private static let byId: [String: Exercise] = Dictionary(uniqueKeysWithValues: catalog.map { ($0.id, $0) })
@@ -168,10 +175,15 @@ public struct Profile: Codable, Hashable, Sendable {
     /// Optional hard cap on session minutes.
     public var maxSessionMinutes: Int?
     public var equipment: [Equipment]
+    /// Weekdays the user climbs (1 = Monday … 7 = Sunday). Optional so older saved profiles still decode.
+    public var climbingWeekdays: [Int]?
+    /// Weekdays the user prefers for the gym (1 = Monday … 7 = Sunday); nil = any day.
+    public var gymWeekdays: [Int]?
 
     public init(
         goal: Goal = .balanced, sessionsPerWeek: Int = 3, experience: Experience = .intermediate,
-        climbingDaysPerWeek: Int = 2, maxSessionMinutes: Int? = nil, equipment: [Equipment] = Gym.puls5.equipment
+        climbingDaysPerWeek: Int = 2, maxSessionMinutes: Int? = nil, equipment: [Equipment] = Gym.puls5.equipment,
+        climbingWeekdays: [Int]? = nil, gymWeekdays: [Int]? = nil
     ) {
         self.goal = goal
         self.sessionsPerWeek = sessionsPerWeek
@@ -179,6 +191,8 @@ public struct Profile: Codable, Hashable, Sendable {
         self.climbingDaysPerWeek = climbingDaysPerWeek
         self.maxSessionMinutes = maxSessionMinutes
         self.equipment = equipment
+        self.climbingWeekdays = climbingWeekdays
+        self.gymWeekdays = gymWeekdays
     }
 }
 
@@ -233,6 +247,8 @@ public struct Session: Codable, Hashable, Sendable, Identifiable {
     public var targetMin: Int
     public var estMin: Int
     public var blocks: [Block]
+    /// 1 = Monday … 7 = Sunday when the plan is laid out on weekdays (climbing/gym days set); nil otherwise.
+    public var weekday: Int? = nil
 }
 
 public struct WeekPlan: Codable, Hashable, Sendable {

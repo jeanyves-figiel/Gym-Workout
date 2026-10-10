@@ -13,3 +13,4 @@ ios/*.xcodeproj/
 ios/MonkeyWorkout/Info.plist
 xcuserdata/
 DerivedData/
+.claude/worktrees/

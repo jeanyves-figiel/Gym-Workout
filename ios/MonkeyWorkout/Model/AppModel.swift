@@ -155,6 +155,11 @@ final class AppModel {
         persist()
     }
 
+    /// A session of this week's plan, an example workout or one of the user's custom workouts.
+    func session(_ id: String) -> Session? {
+        plan?.sessions.first { $0.id == id } ?? WorkoutTemplate.find(sessionId: id)?.session ?? customWorkout(sessionId: id)?.session
+    }
+
     /// First session of the week not yet completed.
     var nextSession: Session? { plan?.sessions.first { !(state.done[$0.id] ?? false) } }
 
@@ -267,6 +272,24 @@ final class AppModel {
         Task { await sync() }
     }
 
+    /// Per-set log (kg × reps, optional RIR). Re-logging the same set of the same session today updates it in place.
+    func logSet(exerciseId: String, sessionId: String, setIndex: Int, kg: Double, reps: Int, rir: Int?) {
+        if let i = state.logs.firstIndex(where: {
+            $0.exerciseId == exerciseId && $0.sessionId == sessionId && $0.setIndex == setIndex && Calendar.current.isDateInToday($0.date)
+        }) {
+            state.logs[i].weightKg = kg
+            state.logs[i].reps = reps
+            state.logs[i].rir = rir
+            state.pendingLogIds.insert(state.logs[i].id)
+        } else {
+            let entry = LogEntry(date: Date(), exerciseId: exerciseId, sessionId: sessionId, weightKg: kg, reps: reps, setIndex: setIndex, rir: rir)
+            state.logs.append(entry)
+            state.pendingLogIds.insert(entry.id)
+        }
+        persist()
+        Task { await sync() }
+    }
+
     func lastWeight(_ exerciseId: String) -> Double? {
         state.logs.last { $0.exerciseId == exerciseId && $0.weightKg != nil }?.weightKg
     }
@@ -324,6 +347,7 @@ final class AppModel {
             for l in remote where !state.pendingLogIds.contains(l.id) { byId[l.id] = l }
             state.logs = byId.values.sorted { $0.date < $1.date }
             state.lastLogPull = Date()
+            try await syncCustomWorkouts()
             syncError = nil
             persist()
         } catch APIError.signedOut {
@@ -333,7 +357,8 @@ final class AppModel {
         }
     }
 
-    private func persist() {
+    /// Internal (not private) so model extensions in other files can save.
+    func persist() {
         if !demo { store.save(state) }
     }
 }

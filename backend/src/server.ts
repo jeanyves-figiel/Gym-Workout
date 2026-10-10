@@ -3,6 +3,7 @@ import { buildApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { openDb } from './db.ts';
 import { createMailer } from './mailer.ts';
+import { startPurgeJob } from './purge.ts';
 
 const config = loadConfig();
 const db = openDb(config.dbPath);
@@ -14,7 +15,10 @@ const app = buildApp({
   logger: true,
 });
 
+const stopPurge = startPurgeJob(db, { intervalMs: config.purgeIntervalMin * 60_000, log: (m) => app.log.info(m) });
+
 const shutdown = async () => {
+  stopPurge();
   await app.close();
   db.close();
   process.exit(0);

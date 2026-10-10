@@ -25,7 +25,7 @@ struct WorkoutPlayerView: View {
         var exercise: Exercise { Exercise.get(item.exerciseId) }
     }
 
-    private var session: Session? { model.plan?.sessions.first { $0.id == sessionId } }
+    private var session: Session? { model.session(sessionId) }
     private var steps: [Step] { session?.blocks.flatMap { b in b.items.map { Step(item: $0, block: b) } } ?? [] }
 
     var body: some View {
@@ -88,6 +88,7 @@ struct WorkoutPlayerView: View {
                             }
                         }
                         EquipmentLine(equipment: step.exercise.equipment)
+                        ExerciseImageHeader(exercise: step.exercise, height: 180, showsAttribution: false).id(step.item.uid)
                         if let i = step.item.prescription.intensity { Text(i).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted) }
                         if let n = step.item.prescription.note { Text(n).font(.footnote).foregroundStyle(Theme.muted) }
 
@@ -111,7 +112,7 @@ struct WorkoutPlayerView: View {
                                 .background(RoundedRectangle(cornerRadius: 12).fill(WorkoutEngine.Category.mobility.color.opacity(0.2)))
                         }
                         if step.block.kind == .strength && !step.exercise.equipment.isEmpty && step.exercise.unit != .sec {
-                            weightRow(step)
+                            SetLogCard(item: step.item, sessionId: sessionId, done: done).id(step.item.uid)
                         }
                         formCard(step)
                     }

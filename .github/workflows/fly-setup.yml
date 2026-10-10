@@ -1,7 +1,7 @@
 name: Fly setup
 
 # Manual, idempotent, one-time bootstrap of a Fly.io app (#3) — no local CLI needed.
-# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Email: secrets SES_ACCESS_KEY_ID + SES_SECRET_ACCESS_KEY (IAM user, ses:SendRawEmail) or SMTP_URL → real email, else console.
+# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Email: secrets SES_ACCESS_KEY_ID + SES_SECRET_ACCESS_KEY (IAM user, ses:SendRawEmail) or SMTP_URL → real email, else console. Optional APPLE_KEY_ID + APPLE_PRIVATE_KEY (Sign in with Apple .p8) → Apple token revocation.
 on:
   workflow_dispatch:
     inputs:
@@ -28,6 +28,8 @@ jobs:
       SES_ACCESS_KEY_ID: ${{ secrets.SES_ACCESS_KEY_ID }}
       SES_SECRET_ACCESS_KEY: ${{ secrets.SES_SECRET_ACCESS_KEY }}
       SES_REGION: eu-central-2
+      APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+      APPLE_PRIVATE_KEY: ${{ secrets.APPLE_PRIVATE_KEY }}
       FLY_APP: ${{ inputs.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
       REGION: fra
       HOSTNAME: ${{ inputs.environment == 'production' && 'workout.monkeygrade.cloud' || 'workout-staging.monkeygrade.cloud' }}
@@ -72,6 +74,11 @@ jobs:
           if [ -n "$SMTP_URL" ] && echo "$have" | grep -qx MAIL_TRANSPORT; then flyctl secrets unset --stage -a "$FLY_APP" MAIL_TRANSPORT; fi
           if [ -s "$RUNNER_TEMP/secrets.env" ]; then flyctl secrets import --stage -a "$FLY_APP" < "$RUNNER_TEMP/secrets.env"; fi
           rm -f "$RUNNER_TEMP/secrets.env"
+          # Sign in with Apple key (token exchange + revocation on account deletion, #12). Multiline .p8 via stdin.
+          if [ -n "$APPLE_KEY_ID" ] && [ -n "$APPLE_PRIVATE_KEY" ]; then
+            printf '%s\n' "$APPLE_PRIVATE_KEY" | flyctl secrets set --stage -a "$FLY_APP" APPLE_PRIVATE_KEY=-
+            flyctl secrets set --stage -a "$FLY_APP" APPLE_KEY_ID="$APPLE_KEY_ID"
+          fi
           flyctl secrets list -a "$FLY_APP"
       - name: TLS certificate
         run: |

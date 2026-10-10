@@ -24,6 +24,10 @@ struct LocalState: Codable {
     var history: [WorkoutRecord] = []
     var pendingHistoryIds: Set<UUID> = []
     var lastHistoryPull: Date?
+    // Custom workouts (#28). Optional so state files written before them still decode.
+    var customWorkoutList: [CustomWorkout]?
+    var pendingCustomWorkoutIds: Set<UUID>?
+    var deletedCustomWorkoutIds: Set<UUID>?
 }
 
 /// JSON file in Application Support, encrypted at rest by iOS data protection.
@@ -47,4 +51,27 @@ struct LocalStore {
     }
 
     func wipe() { try? FileManager.default.removeItem(at: url) }
+}
+
+extension LocalState {
+    /// Lenient: missing keys fall back to defaults, so state files from older builds keep decoding.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init()
+        ownerId = try c.decodeIfPresent(String.self, forKey: .ownerId)
+        synced = try? c.decodeIfPresent(SyncedProfile.self, forKey: .synced)
+        plan = try? c.decodeIfPresent(WeekPlan.self, forKey: .plan)
+        done = (try? c.decodeIfPresent([String: Bool].self, forKey: .done)) ?? [:]
+        ticked = (try? c.decodeIfPresent([String: Bool].self, forKey: .ticked)) ?? [:]
+        logs = (try? c.decodeIfPresent([LogEntry].self, forKey: .logs)) ?? []
+        pendingLogIds = (try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingLogIds)) ?? []
+        lastLogPull = try? c.decodeIfPresent(Date.self, forKey: .lastLogPull)
+        profileDirty = (try? c.decodeIfPresent(Bool.self, forKey: .profileDirty)) ?? false
+        history = (try? c.decodeIfPresent([WorkoutRecord].self, forKey: .history)) ?? []
+        pendingHistoryIds = (try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingHistoryIds)) ?? []
+        lastHistoryPull = try? c.decodeIfPresent(Date.self, forKey: .lastHistoryPull)
+        customWorkoutList = try? c.decodeIfPresent([CustomWorkout].self, forKey: .customWorkoutList)
+        pendingCustomWorkoutIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingCustomWorkoutIds)
+        deletedCustomWorkoutIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedCustomWorkoutIds)
+    }
 }

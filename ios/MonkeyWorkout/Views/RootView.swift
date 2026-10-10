@@ -78,6 +78,7 @@ private struct DemoScreen: View {
         switch Demo.screen {
         case "session": NavigationStack { SessionView(sessionId: second) }
         case "player": WorkoutPlayerView(sessionId: second)
+        case "example": NavigationStack { SessionView(sessionId: WorkoutTemplate.all[1].sessionId) }
         case "explore": NavigationStack { LibraryView() }
         case "muscle": NavigationStack { MuscleDetailView(muscle: .lats) }
         case "exercise": NavigationStack { ExerciseDetailView(exerciseId: "pull-up") }

@@ -10,6 +10,22 @@ Accounts + data sync for the iOS app. Single-user-scale: SQLite (`node:sqlite`) 
 | Container | `docker build -t gym-api . && docker run -p 8080:8080 -v gym-data:/data --env-file .env gym-api` |
 
 Production env: see `.env.example` (`JWT_SECRET`, `CODE_PEPPER`, `SMTP_URL` required).
+
+Optional env:
+
+| Env | Default | Purpose |
+|---|---|---|
+| `APPLE_TEAM_ID` | – | Sign in with Apple server-to-server: team id (`fly.*.toml`) |
+| `APPLE_KEY_ID` | – | Key ID of the Sign in with Apple key (Fly secret) |
+| `APPLE_PRIVATE_KEY` | – | `.p8` contents, real newlines or `\n` (Fly secret) |
+| `APPLE_CLIENT_ID` | first `APPLE_BUNDLE_IDS` | client_id fallback; the identity token's audience (bundle id) is preferred |
+| `HIBP_CHECK` | on (off when `NODE_ENV=test`) | `0` disables the breached-password check |
+| `PURGE_INTERVAL_MIN` | `60` | purge of expired codes / refresh tokens (also runs at startup; `0` = startup only) |
+
+Without the three `APPLE_*` key settings the Apple code exchange and token revocation are skipped (logged once).
+With them: `/auth/apple` exchanges `authorizationCode` at `appleid.apple.com/auth/token` (ES256 client-secret JWT, 5 min)
+and stores the Apple refresh token AES-256-GCM encrypted (key derived from `CODE_PEPPER`; rotating it makes stored tokens unrevocable);
+`DELETE /me` revokes it at `appleid.apple.com/auth/revoke`. Apple errors never block sign-in or deletion.
 Container starts as root only to `chown` the `/data` mount, then runs as `node` (`docker-entrypoint.sh`).
 
 ## Hosting (Fly.io)
@@ -39,25 +55,29 @@ Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode
 | POST | `/auth/verify-email` | – | `{email, code}` → `{user, tokens}` |
 | POST | `/auth/resend-verification` | – | `{email}` → 202 (throttled 1/min) |
 | POST | `/auth/login` | – | `{email, password}` → `{user, tokens}`; 403 `email_not_verified`; 429 `account_locked` |
-| POST | `/auth/apple` | – | `{identityToken, name?}` → `{user, tokens, created}`; links verified email |
+| POST | `/auth/apple` | – | `{identityToken, authorizationCode?, name?}` → `{user, tokens, created}`; links verified email; code exchanged for Apple refresh token (revoked on account deletion) |
 | POST | `/auth/refresh` | – | `{refreshToken}` → new pair (rotation; replay revokes family) |
 | POST | `/auth/logout` | – | `{refreshToken}` → 204 |
 | POST | `/auth/password/forgot` | – | `{email}` → 202 |
 | POST | `/auth/password/reset` | – | `{email, code, newPassword}` → 204, signs out all devices |
 | GET / PATCH | `/me` | ✓ | profile of account; PATCH `{name}` |
 | POST | `/me/password` | ✓ | `{currentPassword?, newPassword}` → new tokens, other devices signed out |
+| POST | `/me/email` | ✓ | `{newEmail, password?}` (password required if the account has one) → 202, code emailed to the new address. Enumeration-safe; 400 `same_email` |
+| POST | `/me/email/confirm` | ✓ | `{code}` → `{user}`; old address notified; 409 `email_taken` if claimed meanwhile |
 | GET | `/me/sessions` | ✓ | active devices |
 | POST | `/me/logout-all` | ✓ | 204 |
-| DELETE | `/me` | ✓ | `{confirm: "DELETE", password?}` — permanent, cascades all data |
+| DELETE | `/me` | ✓ | `{confirm: "DELETE", password?}` — permanent, cascades all data, revokes Sign in with Apple |
 | GET / PUT | `/me/profile` | ✓ | opaque app profile JSON |
-| GET / POST | `/me/logs` | ✓ | `?since=ISO` delta; upsert ≤500 by client UUID |
+| GET / POST | `/me/logs` | ✓ | `?since=ISO` delta; upsert ≤500 by client UUID. Entry: `{id, date, exerciseId, sessionId?, weightKg?, reps?, setIndex?, rir?}` |
 | DELETE | `/me/logs/:id` | ✓ | |
 | GET / POST | `/me/workouts` | ✓ | completed sessions (opaque JSON with `id`, `startedAt`); `?since=ISO` delta; upsert ≤100 |
 | DELETE | `/me/workouts/:id` | ✓ | |
+| GET / POST | `/me/custom-workouts` | ✓ | user-built workouts (opaque JSON with `id`, `name`, `items[].exerciseId`); `?since=ISO` delta; upsert ≤100 |
+| DELETE | `/me/custom-workouts/:id` | ✓ | |
 | GET | `/me/export` | ✓ | full JSON export (nFADP/GDPR) |
 | GET | `/healthz` | – | |
 
-Errors: `{error: <code>, message}`.
+Errors: `{error: <code>, message}`. Password endpoints (register, reset, change) may return 400 `weak_password` or `breached_password`.
 
 ## Security model
 - Passwords: scrypt (N=2¹⁵, r=8, p=1), ≥10 chars, common/email-derived rejected; dummy hash for unknown accounts (timing).
@@ -66,3 +86,6 @@ Errors: `{error: <code>, message}`.
 - Lockout: 10 failed logins → 15 min. Rate limit: 10 req/min/IP on auth routes.
 - Sign in with Apple: identity token verified against Apple JWKS (issuer + bundle-id audience).
 - Password change/reset revokes all refresh tokens and notifies by email.
+- Breached passwords: Have I Been Pwned range API (k-anonymity: only 5 hex chars of the SHA-1 leave the server, `Add-Padding`), 2 s timeout, fails open.
+- Email change: 6-digit code to the new address (same TTL/attempt rules), old address notified, pending codes invalidated.
+- Purge job: expired codes / email changes / refresh tokens deleted hourly; revoked refresh tokens kept while their family is live (replay detection), then 24 h grace.

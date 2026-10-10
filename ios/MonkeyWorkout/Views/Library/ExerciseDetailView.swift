@@ -16,6 +16,7 @@ struct ExerciseDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
+                ExerciseImageHeader(exercise: e)
                 VStack(alignment: .leading, spacing: 10) {
                     CategoryPill(category: e.category)
                     Text(e.name).font(Theme.display(34)).fixedSize(horizontal: false, vertical: true)
@@ -33,6 +34,7 @@ struct ExerciseDetailView: View {
                 if plannedUid != nil && e.category == .strength && !e.equipment.isEmpty && e.unit != .sec {
                     weightLog
                 }
+                ExerciseProgressCard(exerciseId: e.id, plannedUid: plannedUid)
 
                 EquipmentSection(equipment: e.equipment, accent: e.category.color)
                 TechniqueView(exercise: e)

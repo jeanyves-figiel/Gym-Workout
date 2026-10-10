@@ -77,7 +77,7 @@ public struct WorkoutRecord: Codable, Hashable, Sendable, Identifiable {
         let duration = max(0, Int(endedAt.timeIntervalSince(startedAt)))
         return WorkoutRecord(
             id: id, startedAt: startedAt, durationSec: duration, sessionId: session.id, week: week, deload: deload,
-            focus: session.focus, title: session.focus.label, exercises: exercises,
+            focus: session.focus, title: session.displayTitle, exercises: exercises,
             kcal: Energy.estimate(session: session, durationSec: duration, bodyMassKg: bodyMassKg),
             avgHeartRate: nil, maxHeartRate: nil,
             muscleLoad: Dictionary(uniqueKeysWithValues: load.map { ($0.key.rawValue, $0.value) }))

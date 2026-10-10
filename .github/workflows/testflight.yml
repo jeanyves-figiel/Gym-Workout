@@ -1,0 +1,108 @@
+name: TestFlight (Staging)
+
+# Archives the "MonkeyWorkout Staging" scheme (staging API) and uploads it to App Store Connect → TestFlight.
+# Signing: Xcode automatic/cloud signing driven by an App Store Connect API key (no certificates in the repo).
+# Skips with a warning until the ASC_* secrets exist (see ios/README.md → TestFlight).
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['ios/**', '.github/workflows/testflight.yml']
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    name: Archive + upload
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - name: Check secrets
+        id: secrets
+        run: |
+          if [ -z "$ASC_KEY_ID" ] || [ -z "$ASC_ISSUER_ID" ] || [ -z "$ASC_KEY_P8" ]; then
+            echo "::warning::ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_P8 not set; skipping TestFlight upload."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ok == 'true'
+      - name: Select newest Xcode
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+      - name: API key
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          KEY="$RUNNER_TEMP/asc/AuthKey_${ASC_KEY_ID}.p8"
+          # Accept the .p8 pasted as-is or base64-encoded.
+          if printf '%s' "$ASC_KEY_P8" | grep -q 'BEGIN PRIVATE KEY'; then
+            printf '%s\n' "$ASC_KEY_P8" > "$KEY"
+          else
+            printf '%s' "$ASC_KEY_P8" | base64 --decode > "$KEY"
+          fi
+          echo "ASC_KEY_PATH=$KEY" >> "$GITHUB_ENV"
+      - name: Generate project
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec ios/project.yml
+      - name: Archive (Staging)
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project ios/MonkeyWorkout.xcodeproj \
+            -scheme "MonkeyWorkout Staging" \
+            -configuration Staging \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/MonkeyWorkout.xcarchive" \
+            -skipPackagePluginValidation \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} | tail -n 80
+      - name: Export + upload to App Store Connect
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          set -o pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>U7VAR53G86</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/MonkeyWorkout.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" | tail -n 80
+          echo "Uploaded build ${{ github.run_number }} (Staging → workout-staging.monkeygrade.cloud). Appears in TestFlight after Apple processing." >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove API key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/asc"

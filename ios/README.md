@@ -22,6 +22,21 @@ cd ios && xcodegen generate && open MonkeyWorkout.xcodeproj
 **App Store Connect:** name **MonkeyWorkout** · bundle ID `Com.app.MonkeyWorkout` · SKU `Monkeyworkout` · Apple ID `6819971090`.
 Capabilities needed on the App ID(s): Sign in with Apple, HealthKit.
 
+### TestFlight (CI upload)
+
+Workflow **TestFlight (Staging)** (`.github/workflows/testflight.yml`) archives scheme **MonkeyWorkout Staging** (API `workout-staging.monkeygrade.cloud`) on a macOS runner and uploads it to App Store Connect. Runs on every merge to `main` touching `ios/**`, or manually (Actions → TestFlight (Staging) → Run workflow). Build number = workflow run number. Skips with a warning until the secrets below exist.
+
+Signing is Xcode cloud/automatic signing via an App Store Connect API key: no certificates or profiles in the repo.
+
+One-time setup (you, not CI):
+1. App Store Connect → Users and Access → Integrations → App Store Connect API → Team Keys → **Generate API Key**. Name `GitHub CI`, access **Admin** (needed for cloud-managed distribution certificates). Download the `.p8` (only downloadable once). Note **Key ID** and **Issuer ID** (top of the page).
+2. GitHub → repo → Settings → Secrets and variables → Actions → New repository secret:
+   - `ASC_KEY_ID` = Key ID
+   - `ASC_ISSUER_ID` = Issuer ID
+   - `ASC_KEY_P8` = full contents of the `.p8` file (incl. `-----BEGIN PRIVATE KEY-----` lines), or its base64
+3. Actions → **TestFlight (Staging)** → Run workflow.
+4. App Store Connect → MonkeyWorkout → TestFlight: build appears after Apple processing; add yourself to an internal testing group, then install via the TestFlight app.
+
 ## Structure
 
 | Path | Content |
@@ -30,7 +45,7 @@ Capabilities needed on the App ID(s): Sign in with Apple, HealthKit.
 | `Packages/GymCore/Sources/APIClient` | Typed API client: Keychain tokens, single-flight refresh, sync |
 | `MonkeyWorkout/Model` | `AppModel` (auth phase, plan, logs, sync), local JSON store (data protection) |
 | `MonkeyWorkout/Views/Auth` | Welcome, Sign in with Apple, sign up, email code, sign in, forgot/reset, privacy notice |
-| `MonkeyWorkout/Views/Plan` | Training profile, week, session (tick, swap, rest timer, kg log) |
+| `MonkeyWorkout/Views/Plan` | Training profile, week, session (tick, swap, rest timer, per-set kg × reps × RIR log with load suggestion) |
 | `MonkeyWorkout/Views/Account` | Name, password, devices, Face ID lock, export, sign out (all), delete account |
 
 ## Demo mode (DEBUG)
