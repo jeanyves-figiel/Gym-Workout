@@ -48,7 +48,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
 
   app.register(rateLimit, { global: false });
 
-  app.get('/healthz', async () => ({ ok: true }));
+  // Mail transport is exposed so the staging smoke test can tell real delivery from console logging.
+  app.get('/healthz', async () => ({ ok: true, mail: deps.config.mail.transport }));
 
   const authenticate = async (req: FastifyRequest) => {
     const h = req.headers.authorization;

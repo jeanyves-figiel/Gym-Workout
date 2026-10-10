@@ -50,6 +50,13 @@ const signUp = async (email = EMAIL, password = PW) => {
 beforeEach(() => setup());
 afterEach(() => app.close());
 
+describe('health', () => {
+  it('reports mail transport', async () => {
+    const r = await app.inject({ method: 'GET', url: '/healthz' });
+    expect(r.json()).toEqual({ ok: true, mail: 'console' });
+  });
+});
+
 describe('registration & verification', () => {
   it('registers, requires verification, then signs in', async () => {
     const r = await post('/v1/auth/register', { email: ' Climber@Example.com ', password: PW, acceptedTerms: true, name: 'JY' });
