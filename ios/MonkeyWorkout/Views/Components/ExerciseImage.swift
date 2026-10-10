@@ -45,16 +45,27 @@ struct ExerciseImage: View {
 
     @State private var image: UIImage?
 
-    /// Frames this exercise has (2, or 0 without media).
-    static func frameCount(_ e: Exercise) -> Int {
-        e.hasIllustration ? e.illustrationAssets.count : e.imageURLs.count
+    /// The user's own exercise (#52): photo or pose drawing from its record.
+    private var custom: CustomExercise? {
+        CustomExercise.isCustom(exercise.id) ? CustomExercises.shared.record(exercise.id) : nil
     }
+
+    /// Frames this exercise has (2, 1 for a custom photo, or 0 without media).
+    static func frameCount(_ e: Exercise) -> Int {
+        if CustomExercise.isCustom(e.id) { return CustomExercises.shared.record(e.id)?.frameCount ?? 0 }
+        return e.hasIllustration ? e.illustrationAssets.count : e.imageURLs.count
+    }
+
+    /// Has a picture: catalog photo/illustration or a custom exercise's photo/pose.
+    static func hasMedia(_ e: Exercise) -> Bool { frameCount(e) > 0 }
 
     var body: some View {
         // The placeholder sets the size; the picture is laid over it so `.fill` never grows the view.
         placeholder
             .overlay {
-                if let image {
+                if let custom {
+                    CustomExerciseArt(record: custom, frame: frame, contentMode: contentMode)
+                } else if let image {
                     Image(uiImage: image)
                         .resizable()
                         .aspectRatio(contentMode: exercise.hasIllustration ? .fit : contentMode)
@@ -73,7 +84,7 @@ struct ExerciseImage: View {
         GeometryReader { geo in
             ZStack {
                 Rectangle().fill(exercise.category.gradient)
-                if !exercise.hasIllustration {
+                if !exercise.hasIllustration && !(custom?.hasArt ?? false) {
                     Image(systemName: exercise.category.symbol)
                         .font(.system(size: max(12, min(geo.size.width, geo.size.height) * 0.36), weight: .bold))
                         .foregroundStyle(.white.opacity(0.9))
@@ -85,6 +96,7 @@ struct ExerciseImage: View {
 
     @MainActor
     private func load() async {
+        if custom != nil { return }
         if exercise.hasIllustration {
             let names = exercise.illustrationAssets
             image = names.indices.contains(frame) ? UIImage(named: names[frame]) : nil
@@ -191,7 +203,7 @@ struct ExerciseImageHeader: View {
     var style: Style = .sequence
 
     var body: some View {
-        if exercise.hasMedia {
+        if ExerciseImage.hasMedia(exercise) {
             VStack(alignment: .leading, spacing: 6) {
                 Group {
                     if style == .sequence && ExerciseImage.frameCount(exercise) > 1 {
