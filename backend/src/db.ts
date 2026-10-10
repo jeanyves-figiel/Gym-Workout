@@ -78,6 +78,12 @@ const MIGRATIONS: string[] = [
      updated_at TEXT NOT NULL
    );
    CREATE INDEX custom_workouts_user_updated ON custom_workouts(user_id, updated_at);`,
+  // Workout library (#62): sharing a custom workout with members (visibility as community posts), moderation, saves.
+  `ALTER TABLE custom_workouts ADD COLUMN visibility TEXT NOT NULL DEFAULT 'private';
+   ALTER TABLE custom_workouts ADD COLUMN shared_at TEXT;
+   ALTER TABLE custom_workouts ADD COLUMN hidden_at TEXT;
+   ALTER TABLE custom_workouts ADD COLUMN saves INTEGER NOT NULL DEFAULT 0;
+   CREATE INDEX custom_workouts_shared ON custom_workouts(visibility, shared_at);`,
 ];
 
 export const openDb = (path: string): DB => {
