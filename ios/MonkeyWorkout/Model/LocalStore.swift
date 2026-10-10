@@ -11,6 +11,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var body: BodyMetrics?
     /// "Can't train" dates and travel periods (#68). Optional so older profiles still decode.
     var away: [AwayPeriod]?
+    /// Library workouts placed into the plan (#62): replaced or extra sessions of the current week.
+    var planInserts: [PlanInsert]?
 }
 
 struct LocalState: Codable {

@@ -20,6 +20,7 @@ import { customWorkoutRoutes } from './routes/customWorkouts.ts';
 import { prAttemptRoutes } from './routes/prAttempts.ts';
 import { dataRoutes } from './routes/data.ts';
 import { pushRoutes } from './routes/push.ts';
+import { libraryRoutes } from './routes/library.ts';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -201,6 +202,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       customExerciseRoutes(r, deps.db, deps.now ?? (() => new Date()));
       prAttemptRoutes(r, deps.db, deps.now ?? (() => new Date()));
       pushRoutes(r, push, deps.config.appleBundleIds, (id) => sharing(id)?.nickname ?? null);
+      libraryRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
     },
     { prefix: '/v1' },
   );

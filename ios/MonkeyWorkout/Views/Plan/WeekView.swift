@@ -44,14 +44,7 @@ struct WeekView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    MyWorkoutsSection()
-                    Text("Example workouts").eyebrow()
-                    ForEach(WorkoutTemplate.all) { t in
-                        NavigationLink(value: t.sessionId) {
-                            ExampleRowCard(template: t, done: model.state.done[t.sessionId] ?? false)
-                        }
-                        .buttonStyle(.plain)
-                    }
+                    WorkoutLibrarySection()
                 }
                 .padding(16)
             } else {
@@ -166,7 +159,7 @@ private struct NextUpCard: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Next up · \(session.dayLabel)").font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
-                    Text(session.focus.label).font(Theme.display(30)).foregroundStyle(.white).fixedSize(horizontal: false, vertical: true)
+                    Text(session.displayTitle).font(Theme.display(30)).foregroundStyle(.white).fixedSize(horizontal: false, vertical: true)
                     Label("\(session.estMin) min", systemImage: "clock.fill").font(Theme.label(14)).foregroundStyle(.white.opacity(0.9))
                 }
                 Spacer(minLength: 8)
@@ -229,7 +222,7 @@ struct SessionRowCard: View {
                 .frame(width: 52, alignment: .leading)
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text(session.focus.label).font(.system(.headline, design: .rounded).weight(.heavy))
+                    Text(session.displayTitle).font(.system(.headline, design: .rounded).weight(.heavy))
                     Spacer()
                     if done {
                         Image(systemName: "checkmark.seal.fill").foregroundStyle(Theme.lime)
@@ -249,42 +242,6 @@ struct SessionRowCard: View {
         }
         .card()
         .opacity(done ? 0.7 : 1)
-    }
-}
-
-/// Ready-made example workout: name, calories, exercise count, activity points.
-struct ExampleRowCard: View {
-    let template: WorkoutTemplate
-    let done: Bool
-
-    var body: some View {
-        let session = template.session
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(template.name).font(.system(.headline, design: .rounded).weight(.heavy))
-                Spacer()
-                if done {
-                    Image(systemName: "checkmark.seal.fill").foregroundStyle(Theme.lime)
-                } else {
-                    Text("\(session.estMin)′").font(Theme.label(14)).foregroundStyle(Theme.muted)
-                }
-            }
-            HStack {
-                Text("\(template.kcal) kcal · \(template.items.count) exercises").font(.caption.weight(.semibold))
-                Spacer()
-                Text("\(template.activityPoints) activity points")
-                    .font(Theme.label(12))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(Theme.lime.opacity(0.18)))
-                    .foregroundStyle(Theme.lime)
-            }
-            Text(session.topMuscles(4).map(\.name).joined(separator: " · "))
-                .font(.caption)
-                .foregroundStyle(Theme.muted)
-                .lineLimit(1)
-        }
-        .card()
     }
 }
 

@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|readiness|cycle|picker|builder|calendar|away|gyms|variety|welcome|community|community-join|community-share|community-profile]`
+/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|readiness|cycle|picker|library|library-plan|builder|calendar|away|gyms|variety|welcome|community|community-join|community-share|community-profile]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("-demo") }
@@ -18,6 +18,32 @@ enum Demo {
         let json = #"{"id":"demo","email":"climber@example.com","name":"JY","emailVerified":true,"hasPassword":true,"appleLinked":false,"createdAt":"2026-10-07T10:00:00Z"}"#
         return try? JSONDecoder().decode(User.self, from: Data(json.utf8))
     }()
+
+    /// Workout library (#62): one of mine shared with members, two from other members.
+    static let customWorkouts: [CustomWorkout] = [
+        CustomWorkout(
+            name: "Push day",
+            items: [
+                .init(exerciseId: "bench-press", sets: 4, reps: 8, restSec: 120),
+                .init(exerciseId: "ohp", sets: 3, reps: 8, restSec: 120),
+                .init(exerciseId: "dips", kcal: 40),
+                .init(exerciseId: "db-lateral-raise", sets: 3, reps: 12, restSec: 60),
+            ],
+            createdAt: Date(timeIntervalSince1970: 1_790_000_000), visibility: .members),
+    ]
+
+    static let sharedWorkouts: [SharedWorkout] = [
+        SharedWorkout(
+            name: "Engine builder",
+            items: [.init(exerciseId: "rower", sets: 1, reps: 12, restSec: 60), .init(exerciseId: "kb-swing", sets: 4, reps: 15, restSec: 45),
+                    .init(exerciseId: "bike", sets: 1, reps: 10, restSec: 0)],
+            saves: 12, author: .init(userId: "u-lea", nickname: "lea_climbs")),
+        SharedWorkout(
+            name: "Pull strength",
+            items: [.init(exerciseId: "pull-up", sets: 4, reps: 6, restSec: 150), .init(exerciseId: "barbell-row", sets: 4, reps: 8, restSec: 120),
+                    .init(exerciseId: "face-pull", sets: 3, reps: 12, restSec: 60), .init(exerciseId: "hammer-curl", sets: 3, reps: 10, restSec: 60)],
+            saves: 8, author: .init(userId: "u-marco", nickname: "marco")),
+    ]
 
     /// A user-built machine exercise with a pose drawing (#52).
     static let customExercise: CustomExercise = {

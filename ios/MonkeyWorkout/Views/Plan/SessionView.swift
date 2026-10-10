@@ -30,7 +30,7 @@ struct SessionView: View {
                 .padding(.bottom, 90)
             }
             .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle(session.isCustom ? "My workout" : session.isExample ? "Example workout" : session.dayLabel)
+            .navigationTitle(model.libraryTitle(session) ?? session.dayLabel)
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
                 Button { playing = true } label: {
@@ -62,6 +62,7 @@ struct SessionView: View {
                 SessionDayLine(weekday: day, climbing: model.profile?.climbingDays ?? [])
             }
             Text(s.displayTitle).font(Theme.display(38)).fixedSize(horizontal: false, vertical: true)
+            LibraryActionsPanel(session: s)
             if let t = WorkoutTemplate.find(sessionId: s.id) {
                 Text("\(t.kcal) kcal · \(t.activityPoints) activity points").font(Theme.label(14)).foregroundStyle(Theme.lime)
             } else if let kcal = model.customWorkout(sessionId: s.id)?.kcal {
