@@ -241,7 +241,8 @@ public enum PRPlanner {
         var out: [RampStep] = []
         for (pct, reps) in pattern {
             let w = max(floor, LoadAdvisor.round(kg * pct, to: s.granularity))
-            guard w < kg, w > (out.last?.kg ?? -1), w > 0 else { continue }
+            let previous = out.last?.kg ?? 0
+            guard w > 0, kg > w, w > previous else { continue }
             out.append(RampStep(kg: w, reps: reps))
         }
         return out
