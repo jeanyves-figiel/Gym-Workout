@@ -14,7 +14,7 @@ struct BodyHealthView: View {
     @State private var gender: BodyMetrics.Gender?
     @State private var genderText = ""
     @State private var writeToHealth = true
-    @State private var saved = false
+    @State private var loaded = false
 
     private var snap: HealthSnapshot { health.snapshot }
 
@@ -89,7 +89,7 @@ struct BodyHealthView: View {
                 Button {
                     save()
                 } label: {
-                    Text(saved ? "Saved" : "Save").bold().frame(maxWidth: .infinity)
+                    Text("Save").bold().frame(maxWidth: .infinity)
                 }
             }
         }
@@ -117,7 +117,10 @@ struct BodyHealthView: View {
         }
     }
 
+    /// Once only: onAppear also fires when returning from a picker's pushed list, which would reset the selection.
     private func load() {
+        guard !loaded else { return }
+        loaded = true
         let b = model.body
         height = b.heightCm.map { String(format: "%.0f", $0) } ?? ""
         weight = b.weightKg.map { String(format: "%.1f", $0) } ?? ""
@@ -145,7 +148,7 @@ struct BodyHealthView: View {
             if snap.weightKg == nil { toHealth.weightKg = b.weightKg }
             Task { await health.saveBody(toHealth) }
         }
-        saved = true
+        dismiss()
     }
 }
 

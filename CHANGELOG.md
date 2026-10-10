@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Training profile redesign** (onboarding "Your training" + Train → edit) (#37): vivid Explore-style goal cards, each showing recommended gym sessions/week, session length and training mix (power/strength/mobility/cardio); picking a goal applies its recommended sessions. Session count, experience and length as big tap targets with a "REC" marker; per-session / per-week totals card. Climbing days and climbing weekdays only shown (and kept) for the **Climbing performance** goal; other goals save without climbing. Gym days as large day tiles. Gym: scoped gyms first (Fitnesspark Puls 5) or search any gym via Apple Maps; selected gym saved in the profile (optional field, older profiles unchanged); equipment editor in a sheet. Health climbing-days hint only for the climbing goal.
+
 ### Added
 - New app icon: lime kettlebell-monkey on purple gradient (source `ios/Design/AppIcon.svg`) (#35).
 - **TestFlight distribute** workflow: waits for Apple processing, then adds the newest build to the internal TestFlight group "Workout" via the App Store Connect API. Runs after each TestFlight upload; also manual (group name input).
@@ -27,6 +30,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - Home Screen name of TestFlight (Staging) builds now "MonkeyWorkout" instead of "Monkey STG" (#35).
+- Body & Health: Gender and Sex picks were reset on return from the picker list (form reloaded on every appear); Save now returns to the previous screen (#38).
+- Keyboard in forms (Account, Body & Health, password/email screens…) can now be dismissed: Done button above the keyboard and swipe-down on the form. Account name saves when you leave the field, not only on Return (#42).
 - **TestFlight distribute** no longer fails on internal groups with automatic distribution (Apple rejects manual assignment there; those groups already get every build).
 - TestFlight uploads after the first failed ("bundle version must be higher than 1"): generated Info.plist hard-coded version 1.0 build 1. It now uses `MARKETING_VERSION` (set to 1.0, matching App Store Connect) and `CURRENT_PROJECT_VERSION` (CI run number).
 - Email on staging/prod: SES Zurich (eu-central-2) has no SMTP endpoint, so sign-up failed with 500 (`ENOTFOUND email-smtp.eu-central-2.amazonaws.com`). API now sends via the SES HTTPS API (`SendRawEmail`, SigV4, same send-only IAM user); **Fly setup** pushes `SES_*` secrets and drops the old `SMTP_URL`. Smoke test accepts `ses` (#26).
