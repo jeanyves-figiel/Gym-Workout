@@ -2,27 +2,46 @@ import SwiftUI
 import UIKit
 import WorkoutEngine
 
-/// Full-screen, one-exercise-at-a-time workout mode with set tracking, auto rest timer and finish summary.
+/// Full-screen, one-exercise-at-a-time workout mode: current-set card with steppers, one-tap effort during rest,
+/// up-next preview, Live Activity, pause/resume (#55, #57) and finish summary.
 struct WorkoutPlayerView: View {
     let sessionId: String
+    /// DEBUG screenshots: open on the rest screen after set 1.
+    var demoRest = false
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
-    @State private var record: WorkoutRecord?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var record: WorkoutRecord?
 
     @State private var index = 0
     @State private var setsDone: [String: Int] = [:]
-    @State private var restEnd: Date?
-    @State private var restTotal = 0
+    @State private var pause: Pause?
     @State private var started = Date()
     @State private var finished = false
-    @State private var kgText = ""
+    @State private var ready = false
+    @State private var closing = false
+    @State private var discarded = false
     @State private var formFor: Exercise?
+    @State private var log = SetLogState()
+    @State private var live = LiveWorkout()
+
+    /// Overlay after a set: optional rest countdown and the one-tap effort picker for that set.
+    struct Pause: Equatable {
+        var start = Date()
+        var end: Date?
+        var total = 0
+        var effortSet: Int?
+        var effort: Effort?
+    }
 
     private struct Step {
         let item: PlannedExercise
         let block: Block
         var exercise: Exercise { Exercise.get(item.exerciseId) }
+        var sets: Int { max(1, item.prescription.sets) }
+        /// Per-set kg × reps logging applies (loaded strength work counted in reps).
+        var loggable: Bool { block.kind == .strength && !exercise.equipment.isEmpty && exercise.unit != .sec }
     }
 
     private var session: Session? { model.session(sessionId) }
@@ -38,17 +57,39 @@ struct WorkoutPlayerView: View {
                         dismiss()
                     }
                     .transition(.scale.combined(with: .opacity))
-                } else if steps.indices.contains(index) {
+                } else if ready, steps.indices.contains(index) {
                     player(steps[index], session: session)
                 }
             }
         }
         .preferredColorScheme(.dark)
         .sheet(item: $formFor) { FormSheet(exercise: $0) }
+        .confirmationDialog("Leave workout?", isPresented: $closing, titleVisibility: .visible) {
+            Button("Pause · resume later") { pauseAndClose() }
+            Button("Finish & save now") { finish() }
+            Button("Discard workout", role: .destructive) { discard() }
+        } message: {
+            Text("Paused workouts continue at this exercise and set.")
+        }
         .animation(.spring(duration: 0.4), value: index)
         .animation(.spring(duration: 0.5), value: finished)
-        .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
-        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+        .animation(.spring(duration: 0.3), value: pause)
+        .onAppear {
+            UIApplication.shared.isIdleTimerDisabled = true
+            resumeOrBegin()
+        }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
+            saveProgress()
+            live.end()
+        }
+        .onChange(of: index) { reloadLog(); saveProgress(); updateLive() }
+        .onChange(of: setsDone) { saveProgress(); updateLive() }
+        .onChange(of: pause) { updateLive() }
+        .onChange(of: log.rows) { updateLive() }
+        .onChange(of: scenePhase) { _, p in if p != .active { saveProgress() } }
+        .onReceive(NotificationCenter.default.publisher(for: .workoutRestAdd15)) { _ in extendRest() }
+        .onReceive(NotificationCenter.default.publisher(for: .workoutRestSkip)) { _ in pause = nil }
     }
 
     // MARK: Player
@@ -56,14 +97,14 @@ struct WorkoutPlayerView: View {
     @ViewBuilder
     private func player(_ step: Step, session: Session) -> some View {
         let cat = step.block.kind.category
-        let sets = max(1, step.item.prescription.sets)
+        let sets = step.sets
         let done = setsDone[step.item.uid] ?? 0
 
         ZStack(alignment: .top) {
             RadialGradient(colors: [cat.colors[0].opacity(0.45), .clear], center: .topLeading, startRadius: 10, endRadius: 520)
                 .ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 14) {
                 topBar(session)
                 HStack {
                     CategoryPill(category: cat, title: step.block.title)
@@ -111,21 +152,18 @@ struct WorkoutPlayerView: View {
                                 .padding(10)
                                 .background(RoundedRectangle(cornerRadius: 12).fill(WorkoutEngine.Category.mobility.color.opacity(0.2)))
                         }
-                        if step.block.kind == .strength && !step.exercise.equipment.isEmpty && step.exercise.unit != .sec {
-                            SetLogCard(item: step.item, sessionId: sessionId, done: done).id(step.item.uid)
+                        if step.loggable && log.item?.uid == step.item.uid {
+                            SetLogCard(state: log, done: done)
                         }
                         formCard(step)
                     }
                 }
 
-                if let next = steps.indices.contains(index + 1) ? steps[index + 1] : nil {
-                    HStack(spacing: 10) {
-                        Text("Next").eyebrow()
-                        Image(systemName: next.block.kind.symbol).foregroundStyle(next.block.kind.category.color)
-                        Text(next.exercise.name).font(.subheadline.weight(.bold)).lineLimit(1)
-                        Spacer()
-                    }
-                    .card(padding: 12)
+                if step.loggable && done < sets && log.item?.uid == step.item.uid {
+                    CurrentSetCard(state: log, set: done, colors: cat.colors)
+                }
+                if let next = upNext(after: step, done: done, sets: sets, includeSets: false) {
+                    UpNextCard(title: next.title, eyebrow: next.eyebrow, detail: next.detail, exercise: next.exercise, colors: next.colors)
                 }
 
                 setDots(sets: sets, done: done, color: cat.colors[0])
@@ -134,14 +172,47 @@ struct WorkoutPlayerView: View {
             .padding(.horizontal, 20)
             .padding(.top, 8)
 
-            if let end = restEnd {
-                RestOverlay(end: end, total: restTotal, color: cat.colors[0]) {
-                    restEnd = $0
+            if let p = pause {
+                PauseOverlay(
+                    pause: p, color: cat.colors[0],
+                    doneLabel: p.effortSet.flatMap { i in log.values(i).map { "Set \(i + 1) done · \(LoadAdvisor.formatKg($0.kg)) × \($0.reps)" } }
+                        ?? "Set \(done) done",
+                    next: upNext(after: step, done: done, sets: sets, includeSets: true)
+                ) { effort in
+                    pickEffort(effort)
+                } onExtend: {
+                    extendRest()
                 } onSkip: {
-                    restEnd = nil
+                    pause = nil
                 }
             }
         }
+    }
+
+    struct UpNext {
+        var eyebrow: String
+        var title: String
+        var detail: String
+        var exercise: Exercise?
+        var colors: [Color]
+    }
+
+    /// Next set of this exercise (when `includeSets`) or the next exercise.
+    private func upNext(after step: Step, done: Int, sets: Int, includeSets: Bool) -> UpNext? {
+        let cat = step.block.kind.category
+        if includeSets, done < sets {
+            let detail = step.loggable ? log.values(done).map { "\(LoadAdvisor.formatKg($0.kg)) kg × \($0.reps)" } ?? "" : step.item.prescription.reps
+            return UpNext(eyebrow: "Next · set \(done + 1) of \(sets)", title: step.exercise.name, detail: detail, exercise: nil, colors: cat.colors)
+        }
+        guard steps.indices.contains(index + 1) else { return nil }
+        let n = steps[index + 1]
+        let left = sets - done
+        return UpNext(
+            eyebrow: left > 0 && !includeSets ? "Up next · after \(left) set\(left == 1 ? "" : "s")" : "Up next",
+            title: n.exercise.name,
+            detail: Format.prescription(n.item.prescription),
+            exercise: n.exercise,
+            colors: n.block.kind.category.colors)
     }
 
     /// Key body-position checkpoints inline; full setup/technique in a sheet.
@@ -169,12 +240,12 @@ struct WorkoutPlayerView: View {
 
     private func topBar(_ session: Session) -> some View {
         HStack(spacing: 12) {
-            Button { dismiss() } label: {
-                Image(systemName: "xmark").font(.system(size: 16, weight: .heavy))
+            Button { closing = true } label: {
+                Image(systemName: "pause.fill").font(.system(size: 16, weight: .heavy))
                     .frame(width: 40, height: 40)
                     .background(Circle().fill(Theme.cardStrong))
             }
-            .accessibilityLabel("Close workout")
+            .accessibilityLabel("Pause or leave workout")
             HStack(spacing: 3) {
                 ForEach(Array(steps.enumerated()), id: \.offset) { i, s in
                     Capsule()
@@ -194,7 +265,7 @@ struct WorkoutPlayerView: View {
             ForEach(0..<sets, id: \.self) { i in
                 Capsule()
                     .fill(i < done ? AnyShapeStyle(color) : AnyShapeStyle(Color.white.opacity(0.12)))
-                    .frame(height: 10)
+                    .frame(height: 8)
                     .animation(.spring(duration: 0.3), value: done)
             }
         }
@@ -229,116 +300,207 @@ struct WorkoutPlayerView: View {
         .padding(.bottom, 8)
     }
 
-    private func weightRow(_ step: Step) -> some View {
-        HStack(spacing: 10) {
-            TextField(model.lastWeight(step.exercise.id).map(Format.kg) ?? "kg", text: $kgText)
-                .keyboardType(.decimalPad)
-                .font(Theme.display(22))
-                .frame(width: 90)
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.cardStrong))
-            Text("kg").font(Theme.label(14))
-            Button("Log") {
-                if let v = Double(kgText.replacingOccurrences(of: ",", with: ".")), v >= 0, v <= 1000 {
-                    model.logWeight(exerciseId: step.exercise.id, sessionId: sessionId, kg: v)
-                    kgText = ""
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                }
-            }
-            .font(Theme.label(14))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(Capsule().fill(Theme.lime))
-            .foregroundStyle(Theme.ink)
-            .disabled(kgText.isEmpty)
-            if let last = model.lastWeight(step.exercise.id) {
-                Text("last \(Format.kg(last))").font(.caption).foregroundStyle(Theme.muted)
-            }
-        }
-    }
-
     // MARK: Actions
 
     private func completeSet(_ step: Step, sets: Int, done: Int) {
         guard done < sets else { return advance(step) }
         let now = done + 1
-        setsDone[step.item.uid] = now
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        if now >= sets {
-            model.setTicked(step.item.uid)
-        } else if step.item.prescription.restSec > 0 {
-            restTotal = step.item.prescription.restSec
-            restEnd = Date().addingTimeInterval(TimeInterval(restTotal))
-        }
+        let logged = step.loggable && log.item?.uid == step.item.uid && log.log(done, model: model)
+        setsDone[step.item.uid] = now
+        if now >= sets { model.setTicked(step.item.uid) }
+        let rest = now < sets ? step.item.prescription.restSec : 0
+        guard rest > 0 || logged else { return }
+        var effort: Effort?
+        if logged, let rir = log.values(done)?.rir { effort = Effort(rir: rir) }
+        pause = Pause(
+            end: rest > 0 ? Date().addingTimeInterval(TimeInterval(rest)) : nil, total: rest,
+            effortSet: logged ? done : nil, effort: effort)
+    }
+
+    private func pickEffort(_ e: Effort) {
+        guard var p = pause, let i = p.effortSet else { return }
+        log.setRIR(i, e.rir, model: model)
+        p.effort = e
+        // No rest running (last set): the tap closes the overlay.
+        pause = p.end == nil ? nil : p
+    }
+
+    private func extendRest() {
+        guard var p = pause, let end = p.end else { return }
+        let base = max(end, Date())
+        p.end = base.addingTimeInterval(15)
+        p.total += Int(base.timeIntervalSince(end)) + 15
+        pause = p
     }
 
     private func advance(_ step: Step) {
-        if (setsDone[step.item.uid] ?? 0) >= max(1, step.item.prescription.sets) { model.setTicked(step.item.uid) }
+        if (setsDone[step.item.uid] ?? 0) >= step.sets { model.setTicked(step.item.uid) }
         if index >= steps.count - 1 {
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-            if let session, record == nil {
-                let r = model.recordWorkout(
-                    session: session, setsDone: setsDone, startedAt: started, endedAt: Date(),
-                    bodyMassKg: health.snapshot.weightKg ?? model.body.weightKg)
-                record = r
-                Task {
-                    let hr = await health.save(r)
-                    model.attachHeartRate(r.id, avg: hr.avg, max: hr.max)
-                }
-            }
-            finished = true
+            finish()
         } else {
             go(index + 1)
         }
     }
 
+    private func finish() {
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        if let session, record == nil {
+            let r = model.recordWorkout(
+                session: session, setsDone: setsDone, startedAt: started, endedAt: Date(),
+                bodyMassKg: health.snapshot.weightKg ?? model.body.weightKg)
+            record = r
+            Task {
+                let hr = await health.save(r)
+                model.attachHeartRate(r.id, avg: hr.avg, max: hr.max)
+            }
+        }
+        model.clearActiveWorkout(sessionId)
+        live.end()
+        pause = nil
+        finished = true
+    }
+
+    private func pauseAndClose() {
+        saveProgress()
+        live.end()
+        dismiss()
+    }
+
+    private func discard() {
+        model.clearActiveWorkout(sessionId)
+        discarded = true
+        live.end()
+        dismiss()
+    }
+
     private func go(_ i: Int) {
         guard steps.indices.contains(i) else { return }
-        restEnd = nil
-        kgText = ""
+        pause = nil
         index = i
+    }
+
+    // MARK: Progress + Live Activity
+
+    private func resumeOrBegin() {
+        guard !ready, let session else { return }
+        if let w = model.activeWorkout(sessionId) {
+            index = min(max(0, w.index), max(0, steps.count - 1))
+            setsDone = w.setsDone
+            started = Date().addingTimeInterval(-w.elapsed)
+        } else {
+            model.beginWorkout(session)
+            started = Date()
+        }
+        reloadLog()
+        ready = true
+        live.start(title: session.displayTitle, startedAt: started, state: liveState())
+        #if DEBUG
+        if demoRest, steps.indices.contains(index) {
+            let s = steps.firstIndex { $0.loggable } ?? index
+            index = s
+            reloadLog()
+            completeSet(steps[s], sets: steps[s].sets, done: setsDone[steps[s].item.uid] ?? 0)
+        }
+        #endif
+    }
+
+    private func reloadLog() {
+        guard steps.indices.contains(index), steps[index].loggable else { return }
+        log.load(item: steps[index].item, sessionId: sessionId, model: model)
+    }
+
+    private func saveProgress() {
+        guard ready, !finished, !discarded else { return }
+        model.saveActiveWorkout(ActiveWorkout(
+            sessionId: sessionId, index: index, setsDone: setsDone,
+            elapsed: Date().timeIntervalSince(started), updatedAt: Date()))
+    }
+
+    private func liveState() -> WorkoutActivityAttributes.ContentState {
+        guard steps.indices.contains(index) else {
+            return .init(exercise: "", setLabel: "", detail: "", next: "", tint: 0xCCFF3D)
+        }
+        let step = steps[index]
+        let done = setsDone[step.item.uid] ?? 0
+        let current = min(done, step.sets - 1)
+        let next = upNext(after: step, done: done, sets: step.sets, includeSets: true)
+        let detail = step.loggable ? log.values(current).map { "\(LoadAdvisor.formatKg($0.kg)) × \($0.reps)" } ?? "" : ""
+        return .init(
+            exercise: step.exercise.name,
+            setLabel: step.sets > 1 ? "Set \(current + 1) of \(step.sets)" : Format.prescription(step.item.prescription),
+            detail: detail,
+            restStart: pause?.end == nil ? nil : pause?.start,
+            restEnd: pause?.end,
+            next: next.map { $0.detail.isEmpty ? $0.title : "\($0.title) · \($0.detail)" } ?? "Finish",
+            tint: step.block.kind.category.tintHex)
+    }
+
+    private func updateLive() {
+        guard ready, !finished else { return }
+        live.update(liveState())
     }
 }
 
-/// Big countdown ring over the player.
-private struct RestOverlay: View {
-    let end: Date
-    let total: Int
+/// Over the player after a set: what was done, one-tap effort, rest countdown and what's next.
+private struct PauseOverlay: View {
+    let pause: WorkoutPlayerView.Pause
     let color: Color
-    let onExtend: (Date) -> Void
+    let doneLabel: String
+    let next: WorkoutPlayerView.UpNext?
+    let onEffort: (Effort) -> Void
+    let onExtend: () -> Void
     let onSkip: () -> Void
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.2)) { ctx in
-            let left = max(0, end.timeIntervalSince(ctx.date))
-            VStack(spacing: 24) {
-                Text(left > 0 ? "Rest" : "Go!").eyebrow()
-                ZStack {
-                    ProgressRing(progress: left / Double(max(1, total)), lineWidth: 16, colors: [color, Theme.lime])
-                    Text(Format.rest(Int(left.rounded(.up)))).font(Theme.display(64)).monospacedDigit()
+            let left = max(0, (pause.end ?? .now).timeIntervalSince(ctx.date))
+            VStack(spacing: 20) {
+                Spacer(minLength: 0)
+                Text(doneLabel).eyebrow()
+                if pause.effortSet != nil {
+                    EffortPicker(selected: pause.effort, onPick: onEffort)
                 }
-                .frame(width: 230, height: 230)
+                if pause.end != nil {
+                    ZStack {
+                        ProgressRing(progress: left / Double(max(1, pause.total)), lineWidth: 14, colors: [color, Theme.lime])
+                        VStack(spacing: 0) {
+                            Text(left > 0 ? "Rest" : "Go!").eyebrow()
+                            Text(Format.rest(Int(left.rounded(.up)))).font(Theme.display(54)).monospacedDigit()
+                        }
+                    }
+                    .frame(width: 190, height: 190)
+                    .accessibilityElement(children: .combine)
+                }
                 HStack(spacing: 14) {
-                    Button("+15 s") { onExtend(end.addingTimeInterval(15)) }
-                        .font(Theme.label(15))
-                        .padding(.horizontal, 22)
-                        .padding(.vertical, 14)
-                        .background(Capsule().fill(Theme.cardStrong))
-                    Button(left > 0 ? "Skip" : "Continue") { onSkip() }
+                    if pause.end != nil {
+                        Button("+15 s", action: onExtend)
+                            .font(Theme.label(15))
+                            .padding(.horizontal, 22)
+                            .padding(.vertical, 14)
+                            .background(Capsule().fill(Theme.cardStrong))
+                    }
+                    Button(pause.end == nil ? "Continue" : left > 0 ? "Skip" : "Continue", action: onSkip)
                         .font(Theme.label(15))
                         .padding(.horizontal, 22)
                         .padding(.vertical, 14)
                         .background(Capsule().fill(Theme.lime))
                         .foregroundStyle(Theme.ink)
                 }
+                if let next {
+                    UpNextCard(title: next.title, eyebrow: next.eyebrow, detail: next.detail, exercise: next.exercise, colors: next.colors)
+                }
+                Spacer(minLength: 0)
             }
+            .padding(.horizontal, 20)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.ultraThinMaterial)
             .background(Theme.bg.opacity(0.6))
         }
         .foregroundStyle(.white)
         .transition(.opacity)
-        .task(id: end) {
+        .task(id: pause.end) {
+            guard let end = pause.end else { return }
             let wait = end.timeIntervalSinceNow
             if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
             if !Task.isCancelled { UINotificationFeedbackGenerator().notificationOccurred(.warning) }

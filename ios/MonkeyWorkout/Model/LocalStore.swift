@@ -28,6 +28,18 @@ struct LocalState: Codable {
     var customWorkoutList: [CustomWorkout]?
     var pendingCustomWorkoutIds: Set<UUID>?
     var deletedCustomWorkoutIds: Set<UUID>?
+    /// Workout paused in the player, resumed at the same point (#57). Local only.
+    var activeWorkout: ActiveWorkout?
+}
+
+/// Where the player stopped: exercise index, sets done per item and active time so far.
+struct ActiveWorkout: Codable, Equatable {
+    var sessionId: String
+    var index: Int
+    var setsDone: [String: Int]
+    /// Active seconds before the pause; paused time is not counted.
+    var elapsed: TimeInterval
+    var updatedAt: Date
 }
 
 /// JSON file in Application Support, encrypted at rest by iOS data protection.
@@ -73,5 +85,6 @@ extension LocalState {
         customWorkoutList = try? c.decodeIfPresent([CustomWorkout].self, forKey: .customWorkoutList)
         pendingCustomWorkoutIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingCustomWorkoutIds)
         deletedCustomWorkoutIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedCustomWorkoutIds)
+        activeWorkout = try? c.decodeIfPresent(ActiveWorkout.self, forKey: .activeWorkout)
     }
 }

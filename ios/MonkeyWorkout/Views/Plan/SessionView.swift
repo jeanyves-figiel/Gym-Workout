@@ -6,7 +6,6 @@ import WorkoutEngine
 struct SessionView: View {
     let sessionId: String
     @Environment(AppModel.self) private var model
-    @Environment(HealthManager.self) private var health
     @State private var playing = false
     @State private var detail: ExerciseRef?
     @State private var muscle: Muscle?
@@ -34,7 +33,9 @@ struct SessionView: View {
             .navigationTitle(session.isCustom ? "My workout" : session.isExample ? "Example workout" : session.dayLabel)
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
-                Button { playing = true } label: { Label("Start workout", systemImage: "play.fill") }
+                Button { playing = true } label: {
+                    Label(model.activeWorkout(session.id) == nil ? "Start workout" : "Resume workout", systemImage: "play.fill")
+                }
                     .buttonStyle(LimeButtonStyle())
                     .disabled(session.blocks.allSatisfy { $0.items.isEmpty })
                     .padding(.horizontal, 16)
@@ -86,24 +87,15 @@ struct SessionView: View {
         }
     }
 
+    /// Exercises complete only in the player (#57); a finished session can still be reopened.
     @ViewBuilder
     private func finishButton(_ s: Session) -> some View {
-        let done = model.state.done[s.id] ?? false
-        Button(done ? "Mark as not done" : "Mark session done (ticked items)") {
-            if done {
-                model.toggleDone(s.id)
-            } else {
-                let r = model.recordFromTicks(s, bodyMassKg: health.snapshot.weightKg ?? model.body.weightKg)
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
-                Task {
-                    let hr = await health.save(r)
-                    model.attachHeartRate(r.id, avg: hr.avg, max: hr.max)
-                }
-            }
+        if model.state.done[s.id] ?? false {
+            Button("Mark as not done") { model.toggleDone(s.id) }
+                .font(Theme.label(14))
+                .foregroundStyle(Theme.muted)
+                .frame(maxWidth: .infinity)
         }
-        .font(Theme.label(14))
-        .foregroundStyle(Theme.muted)
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -172,12 +164,11 @@ struct ExerciseCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Button { model.toggleTick(item.uid) } label: {
-                Image(systemName: ticked ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(ticked ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Color.white.opacity(0.35)))
-            }
-            .accessibilityLabel(ticked ? "Mark not done" : "Mark done")
+            // Status only: set by the workout player (#57).
+            Image(systemName: ticked ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 26, weight: .bold))
+                .foregroundStyle(ticked ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Color.white.opacity(0.15)))
+                .accessibilityLabel(ticked ? "Done" : "Not done yet")
 
             ExerciseThumbnail(exercise: exercise, size: 52).onTapGesture(perform: onOpen)
 

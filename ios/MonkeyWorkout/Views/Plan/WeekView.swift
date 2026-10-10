@@ -138,6 +138,7 @@ private struct WeekHero: View {
 private struct NextUpCard: View {
     let session: Session
     let onStart: () -> Void
+    @Environment(AppModel.self) private var model
 
     private var lead: WorkoutEngine.Category {
         session.blocks.first { $0.kind == .strength }?.kind.category ?? .strength
@@ -161,7 +162,7 @@ private struct NextUpCard: View {
             BlockStripe(blocks: session.blocks)
             HStack(spacing: 10) {
                 Button(action: onStart) {
-                    Label("Start workout", systemImage: "play.fill")
+                    Label(model.activeWorkout(session.id) == nil ? "Start workout" : "Resume workout", systemImage: "play.fill")
                 }
                 .buttonStyle(LimeButtonStyle())
                 NavigationLink(value: session.id) {

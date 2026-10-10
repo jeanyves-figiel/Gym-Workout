@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Faster logging in the workout player** (#55): current-set card with kg / reps steppers prefilled from the load suggestion (no keyboard); after each set a one-tap effort picker (Fail / 1 / 2 / 3 / 4+ reps left, logged as RIR) on the rest screen; gradient "Up next" card (next exercise with image, sets × reps) in the player and next set or exercise on the rest screen.
+- **Live Activity** (#55): lock screen + Dynamic Island show the current set or rest countdown and what's next, with +15 s / Skip rest buttons; "Rest over" notification when the app is in the background. New widget extension target (bundle id `<app id>.LiveActivity`).
+- **Pause and resume a workout** (#57): the player's pause button offers Pause (resume later at the same exercise, sets done and active time, also after closing the app), Finish & save now, or Discard. "Resume workout" on the session and week cards.
+
+### Changed
+- Exercise completion circles in the session overview are status only; exercises complete only when done in the player after Start workout (#57). Removed "Mark session done (ticked items)".
+
 ### Changed
 - **Training profile redesign** (onboarding "Your training" + Train → edit) (#37): vivid Explore-style goal cards, each showing recommended gym sessions/week, session length and training mix (power/strength/mobility/cardio); picking a goal applies its recommended sessions. Session count, experience and length as big tap targets with a "REC" marker; per-session / per-week totals card. Climbing days and climbing weekdays only shown (and kept) for the **Climbing performance** goal; other goals save without climbing. Gym days as large day tiles. Gym: scoped gyms first (Fitnesspark Puls 5) or search any gym via Apple Maps; selected gym saved in the profile (optional field, older profiles unchanged); equipment editor in a sheet. Health climbing-days hint only for the climbing goal.
 
