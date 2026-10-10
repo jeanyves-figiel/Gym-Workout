@@ -34,7 +34,8 @@ private func climber(_ sessions: Int, climbing: [Int], before: ClimbNeighbour? =
         let climbing = [2, 4]
         let plan = Generator.generateWeek(climber(4, climbing: climbing, before: .any, after: .any), seed: 6)
         for s in plan.sessions {
-            #expect(!(s.blocks.first { $0.kind == .strength }?.note ?? "").contains("Climbing tomorrow"))
+            let note = s.blocks.first { $0.kind == .strength }?.note ?? ""
+            #expect(!note.contains("Climbing tomorrow"))
         }
         #expect(WeekSchedule.note(weekday: 1, climbing: climbing, prefs: ClimbPrefs(before: .any)) == "Climbing tomorrow")
     }
