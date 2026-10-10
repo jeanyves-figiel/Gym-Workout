@@ -87,6 +87,11 @@ private struct DemoScreen: View {
         case "progress": NavigationStack { ProgressTabView() }
         case "history": NavigationStack { HistoryDetailView(recordId: model.history.first?.id ?? UUID()) }
         case "body": NavigationStack { BodyHealthView() }
+        case "onboarding", "onboarding-climbing":
+            NavigationStack {
+                ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
+                    .navigationTitle("Your training")
+            }
         default: MainTabView()
         }
     }

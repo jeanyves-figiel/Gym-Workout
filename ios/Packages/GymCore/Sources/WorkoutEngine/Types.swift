@@ -179,6 +179,8 @@ public struct Profile: Codable, Hashable, Sendable {
     public var climbingWeekdays: [Int]?
     /// Weekdays the user prefers for the gym (1 = Monday … 7 = Sunday); nil = any day.
     public var gymWeekdays: [Int]?
+    /// Where the user trains; nil = the default scoped gym (older profiles).
+    public var gym: GymRef?
     /// Gym day before / after a climbing day (#47); nil = `.light`. Optional so older profiles decode.
     public var climbBefore: ClimbNeighbour?
     public var climbAfter: ClimbNeighbour?
@@ -190,7 +192,7 @@ public struct Profile: Codable, Hashable, Sendable {
     public init(
         goal: Goal = .balanced, sessionsPerWeek: Int = 3, experience: Experience = .intermediate,
         climbingDaysPerWeek: Int = 2, maxSessionMinutes: Int? = nil, equipment: [Equipment] = Gym.puls5.equipment,
-        climbingWeekdays: [Int]? = nil, gymWeekdays: [Int]? = nil,
+        climbingWeekdays: [Int]? = nil, gymWeekdays: [Int]? = nil, gym: GymRef? = nil,
         climbBefore: ClimbNeighbour? = nil, climbAfter: ClimbNeighbour? = nil,
         climbSameDay: ClimbSameDay? = nil, climbDayAddon: Bool? = nil
     ) {
@@ -202,6 +204,7 @@ public struct Profile: Codable, Hashable, Sendable {
         self.equipment = equipment
         self.climbingWeekdays = climbingWeekdays
         self.gymWeekdays = gymWeekdays
+        self.gym = gym
         self.climbBefore = climbBefore
         self.climbAfter = climbAfter
         self.climbSameDay = climbSameDay
