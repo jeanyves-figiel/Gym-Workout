@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **TestFlight distribute** workflow: waits for Apple processing, then adds the newest build to the internal TestFlight group "Workout" via the App Store Connect API. Runs after each TestFlight upload; also manual (group name input).
 - Manual **Fly logs** workflow: prints recent staging/production API logs (errors by default) without local tools.
 - Custom workouts (#28): build your own (name, catalog exercises with search + category/muscle filters, sets × reps, rest, optional kcal, reorder), edit/duplicate/delete, "Duplicate & edit" on example workouts; "My workouts" on Train, played and recorded like examples, synced with offline queue. API `/v1/me/custom-workouts` (upsert, `since`, delete; in export and account deletion).
 - Per-set logging in the workout player (kg × reps, optional RIR), prefilled from a load suggestion; synced (`setIndex`/`rir` on logs, backward compatible; backend migration adds nullable columns) (#5).

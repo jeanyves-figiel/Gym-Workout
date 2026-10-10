@@ -1,0 +1,36 @@
+name: TestFlight distribute
+
+# Adds the newest processed build to a TestFlight group (default: internal group "Workout").
+# Runs after each TestFlight upload, or manually.
+on:
+  workflow_dispatch:
+    inputs:
+      group:
+        description: 'TestFlight group name'
+        default: Workout
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  distribute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      APP_ID: '6819971090'
+      GROUP: ${{ inputs.group || 'Workout' }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet 'pyjwt[crypto]==2.9.0'
+      - name: Assign build
+        run: |
+          if [ -z "$ASC_KEY_ID" ]; then echo "::warning::ASC_* secrets not set; skipping."; exit 0; fi
+          mkdir -p "$RUNNER_TEMP/asc"
+          export ASC_KEY_PATH="$RUNNER_TEMP/asc/key.p8"
+          if printf '%s' "$ASC_KEY_P8" | grep -q 'BEGIN PRIVATE KEY'; then printf '%s\n' "$ASC_KEY_P8" > "$ASC_KEY_PATH"; else printf '%s' "$ASC_KEY_P8" | base64 --decode > "$ASC_KEY_PATH"; fi
+          python3 .github/scripts/asc_distribute.py
+          rm -rf "$RUNNER_TEMP/asc"

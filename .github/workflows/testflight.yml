@@ -106,3 +106,9 @@ jobs:
       - name: Remove API key
         if: always()
         run: rm -rf "$RUNNER_TEMP/asc"
+
+  distribute:
+    name: Add to TestFlight group
+    needs: upload
+    uses: ./.github/workflows/testflight-distribute.yml
+    secrets: inherit
