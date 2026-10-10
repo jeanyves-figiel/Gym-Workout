@@ -49,6 +49,7 @@ final class AppModel {
             state.climbs = Demo.climbs()
             MonkeyGradeLink.shared.loadDemo(ownerId: Demo.user?.id ?? "demo")
             state.synced?.profile.climbDayAddon = true
+            Community.shared.loadDemo(joined: Demo.screen != "community-join")
             phase = Demo.screen == "welcome" ? .signedOut : .signedIn
             return
         }
@@ -240,6 +241,7 @@ final class AppModel {
         state.done[session.id] = true
         persist()
         Task { await sync() }
+        Community.shared.didRecord(r, api: api, userId: user?.id)
         return r
     }
 
