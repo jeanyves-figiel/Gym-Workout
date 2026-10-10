@@ -2,25 +2,15 @@ import SwiftUI
 import UIKit
 import WorkoutEngine
 
-/// Per-set logging in the workout player: kg × reps and optional RIR for every set, prefilled from the load suggestion.
-/// Give it `.id(item.uid)` at the call site so its rows reset when the player moves to another exercise.
+/// Per-set logging table in the workout player: kg × reps and optional RIR for every set, for review and corrections.
+/// Rows live in `SetLogState`, shared with the current-set card and the one-tap effort picker.
 struct SetLogCard: View {
-    let item: PlannedExercise
-    let sessionId: String
-    /// Sets completed in the player. Completing a set ("SET n DONE") logs that row with its current values.
+    @Bindable var state: SetLogState
+    /// Sets completed in the player; highlights the next row.
     let done: Int
     @Environment(AppModel.self) private var model
-    @State private var rows: [Row] = []
-    @State private var suggestion: LoadSuggestion?
     @FocusState private var focus: Field?
     @State private var explaining = false
-
-    struct Row: Equatable {
-        var kg = ""
-        var reps = ""
-        var rir = ""
-        var logged = false
-    }
 
     enum Field: Hashable {
         case kg(Int), reps(Int), rir(Int)
@@ -42,8 +32,8 @@ struct SetLogCard: View {
                 .buttonStyle(.plain)
                 .accessibilityHint("Explains RIR and RPE")
             }
-            if let s = suggestion { SuggestionLine(suggestion: s) }
-            ForEach(rows.indices, id: \.self) { i in row(i) }
+            if let s = state.suggestion { SuggestionLine(suggestion: s) }
+            ForEach(state.rows.indices, id: \.self) { i in row(i) }
         }
         .card(padding: 14)
         .sheet(isPresented: $explaining) {
@@ -52,33 +42,27 @@ struct SetLogCard: View {
                 .presentationDetents([.medium, .large])
                 .preferredColorScheme(.dark)
         }
-        .onAppear(perform: load)
-        .onChange(of: done) { old, new in
-            let end = min(new, rows.count)
-            guard old >= 0, old < end else { return }
-            for i in old..<end where !rows[i].logged { log(i) }
-        }
     }
 
     private func row(_ i: Int) -> some View {
-        let current = i == done && !rows[i].logged
+        let current = i == done && !state.rows[i].logged
         return HStack(spacing: 8) {
             Text("\(i + 1)")
                 .font(Theme.label(14))
                 .foregroundStyle(current ? Theme.lime : Theme.muted)
                 .frame(width: 20)
-            field($rows[i].kg, placeholder: "kg", keyboard: .decimalPad, focus: .kg(i), width: 70)
+            field($state.rows[i].kg, placeholder: "kg", keyboard: .decimalPad, focus: .kg(i), width: 70)
             Text("×").font(Theme.label(14)).foregroundStyle(Theme.muted)
-            field($rows[i].reps, placeholder: "reps", keyboard: .numberPad, focus: .reps(i), width: 50)
-            field($rows[i].rir, placeholder: "RIR", keyboard: .numberPad, focus: .rir(i), width: 46)
+            field($state.rows[i].reps, placeholder: "reps", keyboard: .numberPad, focus: .reps(i), width: 50)
+            field($state.rows[i].rir, placeholder: "RIR", keyboard: .numberPad, focus: .rir(i), width: 46)
             Spacer(minLength: 0)
             Button { log(i) } label: {
-                Image(systemName: rows[i].logged ? "checkmark.circle.fill" : "checkmark.circle")
+                Image(systemName: state.rows[i].logged ? "checkmark.circle.fill" : "checkmark.circle")
                     .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(rows[i].logged ? Theme.lime : Color.white.opacity(0.5))
+                    .foregroundStyle(state.rows[i].logged ? Theme.lime : Color.white.opacity(0.5))
             }
-            .disabled(parse(rows[i]) == nil)
-            .accessibilityLabel(rows[i].logged ? "Update set \(i + 1)" : "Log set \(i + 1)")
+            .disabled(state.values(i) == nil)
+            .accessibilityLabel(state.rows[i].logged ? "Update set \(i + 1)" : "Log set \(i + 1)")
         }
     }
 
@@ -93,43 +77,10 @@ struct SetLogCard: View {
             .background(RoundedRectangle(cornerRadius: 10).fill(Theme.cardStrong))
     }
 
-    private struct Values {
-        var kg: Double
-        var reps: Int
-        var rir: Int?
-    }
-
-    private func parse(_ r: Row) -> Values? {
-        guard let kg = Double(r.kg.replacingOccurrences(of: ",", with: ".")), kg >= 0, kg <= 1000,
-              let reps = Int(r.reps), reps >= 0, reps <= 1000 else { return nil }
-        return Values(kg: kg, reps: reps, rir: Int(r.rir).map { min(10, max(0, $0)) })
-    }
-
     private func log(_ i: Int) {
-        guard rows.indices.contains(i), let v = parse(rows[i]) else { return }
-        model.logSet(exerciseId: item.exerciseId, sessionId: sessionId, setIndex: i, kg: v.kg, reps: v.reps, rir: v.rir)
-        rows[i].logged = true
-        // Carry the load forward to the sets not logged yet.
-        for j in rows.indices where j > i && !rows[j].logged { rows[j].kg = rows[i].kg }
+        guard state.log(i, model: model) else { return }
         focus = nil
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-    }
-
-    private func load() {
-        let s = model.loadSuggestion(for: item, sessionId: sessionId)
-        suggestion = s
-        let logged = model.todaysSets(exerciseId: item.exerciseId, sessionId: sessionId)
-        let kg = s.map { LoadAdvisor.formatKg($0.kg) } ?? model.lastWeight(item.exerciseId).map { LoadAdvisor.formatKg($0) } ?? ""
-        var reps = ""
-        if let r = s?.reps ?? item.prescription.repRange?.low { reps = String(r) }
-        rows = (0..<max(1, item.prescription.sets)).map { i in
-            guard let l = logged[i] else { return Row(kg: kg, reps: reps) }
-            return Row(
-                kg: l.weightKg.map { LoadAdvisor.formatKg($0) } ?? kg,
-                reps: l.reps.map { String($0) } ?? reps,
-                rir: l.rir.map { String($0) } ?? "",
-                logged: true)
-        }
     }
 }
 

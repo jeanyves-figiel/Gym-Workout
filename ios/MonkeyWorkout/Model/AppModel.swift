@@ -172,11 +172,6 @@ final class AppModel {
         applyProfile(sp.profile, week: sp.week)
     }
 
-    func toggleTick(_ uid: String) {
-        state.ticked[uid] = !(state.ticked[uid] ?? false)
-        persist()
-    }
-
     func setTicked(_ uid: String, _ on: Bool = true) {
         guard state.ticked[uid] != on else { return }
         state.ticked[uid] = on
@@ -273,14 +268,6 @@ final class AppModel {
         Task { await sync() }
         Community.shared.didRecord(r, api: api, userId: user?.id)
         return r
-    }
-
-    /// Ticked items count as fully done when a session is marked complete without the player.
-    func recordFromTicks(_ session: Session, bodyMassKg: Double?) -> WorkoutRecord {
-        var sets: [String: Int] = [:]
-        for b in session.blocks { for it in b.items where state.ticked[it.uid] ?? false { sets[it.uid] = it.prescription.sets } }
-        let end = Date()
-        return recordWorkout(session: session, setsDone: sets, startedAt: end.addingTimeInterval(TimeInterval(-session.estMin * 60)), endedAt: end, bodyMassKg: bodyMassKg)
     }
 
     func attachHeartRate(_ id: UUID, avg: Double?, max: Double?) {

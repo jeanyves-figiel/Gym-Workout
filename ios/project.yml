@@ -32,7 +32,10 @@ targets:
         excludes: [Resources/PrivacyInfo.xcprivacy]
       - path: MonkeyWorkout/Resources/PrivacyInfo.xcprivacy
         buildPhase: resources
+      - path: Shared
     dependencies:
+      - target: MonkeyWorkoutWidgets
+        embed: true
       - package: GymCore
         product: WorkoutEngine
       - package: GymCore
@@ -62,6 +65,7 @@ targets:
         NSLocationWhenInUseUsageDescription: Finds gyms near you. Your location is only used for the search and never leaves this device except to Apple Maps.
         NSHealthUpdateUsageDescription: Saves your gym sessions as workouts, and weight and height you enter, to Apple Health.
         ITSAppUsesNonExemptEncryption: false
+        NSSupportsLiveActivities: true
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
     settings:
@@ -72,6 +76,27 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ENABLE_PREVIEWS: YES
+  # Live Activity (lock screen + Dynamic Island) of the workout player (#55).
+  MonkeyWorkoutWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: MonkeyWorkoutWidgets
+      - path: Shared
+    info:
+      path: MonkeyWorkoutWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: $(APP_DISPLAY_NAME)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).LiveActivity
+        PRODUCT_NAME: MonkeyWorkoutWidgets
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: YES
 schemes:
   MonkeyWorkout:
     build:
