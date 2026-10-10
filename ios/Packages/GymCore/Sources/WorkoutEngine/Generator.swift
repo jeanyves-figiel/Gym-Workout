@@ -73,13 +73,18 @@ public enum Generator {
         return WeekPlan(week: week, deload: ctx.deload, seed: ctx.seed, sessionMinutes: minutes, sessions: sessions)
     }
 
-    /// Week 1's picks for `.same` replays.
+    /// Week 1's picks for `.same` replays: only those that made it into the plan, so a later week never swaps
+    /// in an exercise week 1 dropped for time.
     static func record(_ profile: Profile, seed: UInt32) -> [String: String] {
-        var p = profile
-        p.syncClimbingDays()
-        let ctx = Ctx(profile: p, week: 1, seed: seed)
-        _ = generateWeek(ctx)
-        return ctx.picks
+        let ctx = Ctx(profile: profile, week: 1, seed: seed)
+        let plan = generateWeek(ctx)
+        var kept: [String: Set<String>] = [:]
+        for s in plan.sessions {
+            kept["s\(s.index + 1)-"] = Set(s.blocks.flatMap { $0.items.flatMap { [$0.exerciseId] + [$0.pairedWith].compactMap { $0 } } })
+        }
+        return ctx.picks.filter { key, id in
+            kept[String(key.prefix { $0 != "-" }) + "-"]?.contains(id) ?? false
+        }
     }
 
     // MARK: Session
