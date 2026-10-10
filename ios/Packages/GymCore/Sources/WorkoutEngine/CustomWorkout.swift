@@ -95,15 +95,22 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
     public var name: String
     public var items: [Item]
     public var createdAt: Date
+    /// Shared in the workout library (#62); private by default.
+    public var visibility: WorkoutVisibility
+    /// Set by the server when reports hid it from other members (read-only, never sent).
+    public var hidden: Bool
 
-    public init(id: UUID = UUID(), name: String, items: [Item] = [], createdAt: Date = Date()) {
+    public init(id: UUID = UUID(), name: String, items: [Item] = [], createdAt: Date = Date(), visibility: WorkoutVisibility = .private) {
         self.id = id
         self.name = name
         self.items = items
         self.createdAt = createdAt
+        self.visibility = visibility
+        self.hidden = false
     }
 
-    enum CodingKeys: String, CodingKey { case id, name, items, createdAt }
+    enum CodingKeys: String, CodingKey { case id, name, items, createdAt, visibility }
+    private enum ServerKeys: String, CodingKey { case hidden }
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -111,6 +118,17 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? "My workout"
         items = try c.decodeIfPresent([Item].self, forKey: .items) ?? []
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date(timeIntervalSince1970: 0)
+        visibility = (try? c.decodeIfPresent(WorkoutVisibility.self, forKey: .visibility)) ?? .private
+        hidden = (try? decoder.container(keyedBy: ServerKeys.self).decodeIfPresent(Bool.self, forKey: .hidden)) ?? false
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encode(items, forKey: .items)
+        try c.encode(createdAt, forKey: .createdAt)
+        try c.encode(visibility, forKey: .visibility)
     }
 
     // MARK: Limits (mirrored by the API: name ≤ 100 chars, ≤ 100 items)

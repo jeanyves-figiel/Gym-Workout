@@ -33,6 +33,15 @@ extension AppModel {
         return w
     }
 
+    /// Sets shared workouts back to "Only me" locally; they stay queued for the next push.
+    private func unshare(_ ids: [UUID]) {
+        guard !ids.isEmpty else { return }
+        for i in (state.customWorkoutList ?? []).indices where ids.contains(state.customWorkoutList![i].id) {
+            state.customWorkoutList![i].visibility = .private
+        }
+        persist()
+    }
+
     func deleteCustomWorkout(_ id: UUID) {
         guard let w = customWorkout(id) else { return }
         state.customWorkoutList?.removeAll { $0.id == id }
@@ -60,7 +69,14 @@ extension AppModel {
         state.pendingCustomWorkoutIds = Set(pending.map(\.id))
         if !pending.isEmpty {
             // Failure keeps them queued (offline at the gym); `sync()` surfaces the error.
-            try await api.pushCustomWorkouts(pending)
+            do {
+                try await api.pushCustomWorkouts(pending)
+            } catch let APIError.server(_, code, message) where ["community_profile_required", "objectionable_content"].contains(code) {
+                // Sharing refused (#62): keep the workouts, make them private again so the queue can drain.
+                unshare(pending.filter { $0.visibility != .private }.map(\.id))
+                throw APIError.server(status: 400, code: code, message: code == "community_profile_required"
+                    ? "Create your Community profile to share workouts. Kept them private for now." : message)
+            }
             // Only clear what is unchanged since the push started (an edit made meanwhile stays queued).
             for w in pending where customWorkout(w.id) == w { state.pendingCustomWorkoutIds?.remove(w.id) }
         }

@@ -18,6 +18,8 @@ final class AppModel {
         }
     }
     var syncError: String?
+    /// Workouts other members shared (#62), loaded on demand; not persisted.
+    var sharedLibrary: [SharedWorkout] = []
 
     let api: APIClient
     private let store: LocalStore
@@ -54,6 +56,8 @@ final class AppModel {
             state.history = demo.records
             state.logs = demo.logs
             state.climbs = Demo.climbs()
+            state.customWorkoutList = Demo.customWorkouts
+            sharedLibrary = Demo.sharedWorkouts
             state.prAttempts = Demo.prAttempts()
             MonkeyGradeLink.shared.loadDemo(ownerId: Demo.user?.id ?? "demo")
             state.synced?.profile.climbDayAddon = true
@@ -138,12 +142,15 @@ final class AppModel {
     // MARK: Plan
 
     var profile: Profile? { state.synced?.profile }
-    var plan: WeekPlan? { state.plan }
+    /// Generated week with library workouts placed into it (#62).
+    var plan: WeekPlan? { state.plan?.applying(state.synced?.planInserts ?? []) }
 
     func applyProfile(_ profile: Profile, seed: UInt32? = nil, week: Int = 1) {
         let s = seed ?? UInt32.random(in: 0...UInt32.max)
         let changed = state.synced?.week != week || state.synced?.seed != s || state.synced?.profile != profile
-        state.synced = SyncedProfile(profile: profile, seed: s, week: week, body: state.synced?.body, away: state.synced?.away)
+        // Plan inserts belong to one week: kept for a new variation or profile edit, dropped on a week change.
+        state.synced = SyncedProfile(profile: profile, seed: s, week: week, body: state.synced?.body, away: state.synced?.away,
+                                     planInserts: state.synced?.planInserts?.filter { $0.week == week })
         state.plan = Generator.generateWeek(profile, week: week, seed: s)
         replanCurrentWeek()
         if changed {
@@ -181,9 +188,10 @@ final class AppModel {
         persist()
     }
 
-    /// A session of this week's plan, an example workout or one of the user's custom workouts.
+    /// A session of this week's plan, an example workout, one of the user's custom workouts or a member's shared one.
     func session(_ id: String) -> Session? {
         plan?.sessions.first { $0.id == id } ?? WorkoutTemplate.find(sessionId: id)?.session ?? customWorkout(sessionId: id)?.session
+            ?? sharedWorkout(sessionId: id)?.workout.session
     }
 
     /// First session of the week not yet completed.
