@@ -37,4 +37,30 @@ import Testing
         #expect(ExerciseImages.url(imageId: "", frame: 0) == nil)
         #expect(ExerciseImages.url(imageId: "Plank", frame: 2) == nil)
     }
+
+    @Test func everyExerciseHasPhotoOrIllustration() {
+        for e in Exercise.catalog { #expect(e.hasMedia, "\(e.id) has no image") }
+        for id in ExerciseIllustrations.ids {
+            #expect(Exercise.find(id) != nil, "\(id)")
+            #expect(ExerciseImages.ids[id] == nil, "\(id) has both a photo and an illustration")
+        }
+        #expect(Exercise.catalog.filter(\.hasIllustration).count == ExerciseIllustrations.ids.count)
+    }
+
+    @Test func illustrationAssetsExistInAppCatalog() throws {
+        // Tests/WorkoutEngineTests → ios/
+        let ios = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let assets = ios.appendingPathComponent("MonkeyWorkout/Resources/Illustrations.xcassets")
+        for e in Exercise.catalog where e.hasIllustration {
+            let names = e.illustrationAssets
+            #expect(names.count == ExerciseIllustrations.frameCount)
+            for name in names {
+                let svg = assets.appendingPathComponent("\(name).imageset/\(name).svg")
+                #expect(FileManager.default.fileExists(atPath: svg.path), "\(svg.path)")
+            }
+        }
+        #expect(Exercise.get("back-squat").illustrationAssets.isEmpty)
+    }
 }

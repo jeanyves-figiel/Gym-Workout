@@ -21,9 +21,6 @@ extension Goal {
         }
     }
 
-    /// Only the climbing goal schedules around climbing days.
-    public var usesClimbing: Bool { self == .climbing }
-
     /// Training mix shares (power, strength, mobility, cardio), summing to 1.
     public var mixShares: (power: Double, strength: Double, mobility: Double, cardio: Double) {
         let m = config.mix.normalised
@@ -32,25 +29,26 @@ extension Goal {
 }
 
 extension Profile {
-    /// Picks a goal and applies its recommended week: sessions per week, and climbing only for the climbing goal.
+    /// Picks a goal and applies its recommended sessions per week. Climbing days are kept;
+    /// the climbing goal switches climbing on.
     public mutating func applyGoal(_ g: Goal) {
         goal = g
         sessionsPerWeek = g.recommendedSessions
-        if g.usesClimbing {
-            if climbingDaysPerWeek == 0 { climbingDaysPerWeek = 2 }
-        } else {
-            clearClimbing()
+        if g == .climbing && !climbs { climbs = true }
+    }
+
+    /// Whether the user climbs, independent of the goal. Off clears climbing days and weekdays;
+    /// on starts at 2 days / week. Same signal as `Generator.isClimber` minus the goal.
+    public var climbs: Bool {
+        get { climbingDaysPerWeek > 0 || !climbingDays.isEmpty }
+        set {
+            if newValue {
+                if climbingDaysPerWeek == 0 { climbingDaysPerWeek = 2 }
+            } else {
+                climbingDaysPerWeek = 0
+                climbingWeekdays = nil
+            }
         }
-    }
-
-    /// Drops climbing days when the goal does not use them.
-    public mutating func normalizeForGoal() {
-        if !goal.usesClimbing { clearClimbing() }
-    }
-
-    mutating func clearClimbing() {
-        climbingDaysPerWeek = 0
-        climbingWeekdays = nil
     }
 
     /// Session minutes this profile would get with `goal` at its recommended frequency.

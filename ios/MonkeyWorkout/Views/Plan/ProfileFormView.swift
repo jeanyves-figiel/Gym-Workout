@@ -3,16 +3,22 @@ import SwiftUI
 import WorkoutEngine
 
 /// Training profile editor (onboarding + Train → edit): goal tiles with their recommended week,
-/// visual day pickers, climbing only for the climbing goal, and a gym picker with map search.
+/// visual day pickers, an "I climb" switch for climbing days, and a gym picker with map search.
 struct ProfileFormView: View {
     let onSave: (Profile) -> Void
     @State private var p: Profile
     @State private var showEquipment = false
+    @Environment(HealthManager.self) private var health
+    private let isNew: Bool
 
     init(initial: Profile?, onSave: @escaping (Profile) -> Void) {
         self.onSave = onSave
+        isNew = initial == nil
         var start = initial ?? Profile()
-        if initial == nil { start.applyGoal(start.goal) }
+        if initial == nil {
+            start.applyGoal(start.goal)
+            start.climbs = false
+        }
         _p = State(initialValue: start)
     }
 
@@ -38,7 +44,7 @@ struct ProfileFormView: View {
 
     private var scheduleHint: String {
         var lines: [String] = []
-        if p.goal.usesClimbing && !p.climbingDays.isEmpty {
+        if p.climbs && !p.climbingDays.isEmpty {
             lines.append("Sessions are placed around your climbing days: no heavy pulling, grip work or jumps the day before you climb.")
         }
         let gym = p.gymDays.count
@@ -74,7 +80,6 @@ struct ProfileFormView: View {
         .safeAreaInset(edge: .bottom) {
             Button {
                 var out = p
-                out.normalizeForGoal()
                 onSave(out)
             } label: {
                 Text("GENERATE PLAN")
@@ -88,6 +93,13 @@ struct ProfileFormView: View {
             EquipmentSheet(equipment: $p.equipment)
         }
         .animation(.spring(duration: 0.3), value: p.goal)
+        .animation(.spring(duration: 0.3), value: p.climbs)
+        .onAppear {
+            // New profile: climbing on when Apple Health shows climbing workouts.
+            if isNew, !p.climbs, let perWeek = health.snapshot.climbingPerWeek4w, perWeek >= 0.5 {
+                p.climbingDaysPerWeek = min(4, max(1, Int(perWeek.rounded())))
+            }
+        }
     }
 
     // MARK: Sections
@@ -135,7 +147,22 @@ struct ProfileFormView: View {
                 }
             }
 
-            if p.goal.usesClimbing {
+            Toggle(isOn: $p.climbs) {
+                HStack(spacing: 10) {
+                    Image(systemName: "figure.climbing")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 34, height: 34)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(WorkoutEngine.Category.mobility.gradient))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("I climb").font(.system(size: 15, weight: .heavy, design: .rounded))
+                        Text("Gym sessions are placed around climbing").font(.caption).foregroundStyle(Theme.muted)
+                    }
+                }
+            }
+            .tint(Theme.lime)
+
+            if p.climbs {
                 VStack(alignment: .leading, spacing: 8) {
                     fieldLabel("I climb on", symbol: "figure.climbing")
                     DayTiles(days: climbingDays, symbol: "figure.climbing", fill: AnyShapeStyle(WorkoutEngine.Category.mobility.gradient), ink: .white)
