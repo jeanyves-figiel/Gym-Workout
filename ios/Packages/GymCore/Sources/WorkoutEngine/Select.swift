@@ -11,8 +11,12 @@ final class Ctx {
     var rng: Rng
     let level: Int
     let equipment: Set<Equipment>
-    /// Prefer exercises without heavy grip (frequent climber).
-    let spareGrip: Bool
+    /// Frequent climber (≥ 2 climbing days / week).
+    let frequentClimber: Bool
+    /// Current session is the day before a climbing day (weekday-scheduled plans only).
+    var preClimb = false
+    /// Prefer exercises without heavy grip (frequent climber, or climbing tomorrow).
+    var spareGrip: Bool { frequentClimber || preClimb }
     let climber: Bool
     let profile: Profile
     let week: Int
@@ -27,7 +31,7 @@ final class Ctx {
         rng = Rng(seed: seed &+ UInt32(week) &* 7919)
         level = profile.experience.level
         equipment = Set(profile.equipment)
-        spareGrip = profile.climbingDaysPerWeek >= 2
+        frequentClimber = profile.climbingDaysPerWeek >= 2
         climber = profile.goal == .climbing || profile.climbingDaysPerWeek >= 1
     }
 }

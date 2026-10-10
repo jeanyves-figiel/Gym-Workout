@@ -31,7 +31,7 @@ struct SessionView: View {
                 .padding(.bottom, 90)
             }
             .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle(session.isExample ? "Example workout" : "Day \(session.index + 1)")
+            .navigationTitle(session.isExample ? "Example workout" : session.dayLabel)
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
                 Button { playing = true } label: { Label("Start workout", systemImage: "play.fill") }
@@ -55,6 +55,9 @@ struct SessionView: View {
     @ViewBuilder
     private func header(_ s: Session) -> some View {
         VStack(alignment: .leading, spacing: 16) {
+            if let day = s.weekday {
+                SessionDayLine(weekday: day, climbing: model.profile?.climbingDays ?? [])
+            }
             Text(s.displayTitle).font(Theme.display(38)).fixedSize(horizontal: false, vertical: true)
             if let t = WorkoutTemplate.find(sessionId: s.id) {
                 Text("\(t.kcal) kcal · \(t.activityPoints) activity points").font(Theme.label(14)).foregroundStyle(Theme.lime)
