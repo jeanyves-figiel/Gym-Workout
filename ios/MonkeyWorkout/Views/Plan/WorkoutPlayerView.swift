@@ -92,7 +92,7 @@ struct WorkoutPlayerView: View {
         .onChange(of: log.rows) { updateLive() }
         .onChange(of: scenePhase) { _, p in if p != .active { saveProgress() } }
         .onReceive(NotificationCenter.default.publisher(for: .workoutRestAdd15)) { _ in extendRest() }
-        .onReceive(NotificationCenter.default.publisher(for: .workoutRestSkip)) { _ in pause = nil }
+        .onReceive(NotificationCenter.default.publisher(for: .workoutRestSkip)) { _ in closePause() }
     }
 
     // MARK: Player
@@ -150,7 +150,7 @@ struct WorkoutPlayerView: View {
                 } onExtend: {
                     extendRest()
                 } onSkip: {
-                    pause = nil
+                    closePause()
                 }
             }
         }
@@ -240,6 +240,8 @@ struct WorkoutPlayerView: View {
                 mainAction(step, sets: sets, done: done)
             } label: {
                 Text(mainLabel(step, sets: sets, done: done))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             .buttonStyle(LimeButtonStyle())
 
@@ -291,7 +293,11 @@ struct WorkoutPlayerView: View {
         setsDone[step.item.uid] = now
         if now >= sets { model.setTicked(step.item.uid) }
         let rest = now < sets ? step.timedSpec?.easySec ?? step.item.prescription.restSec : 0
-        guard rest > 0 || logged else { return }
+        // Last set: straight on to the next exercise (after the effort tap when the set was logged).
+        guard rest > 0 || logged else {
+            if now >= sets { advance(step) }
+            return
+        }
         var effort: Effort?
         if logged, let rir = log.values(done)?.rir { effort = Effort(rir: rir) }
         pause = Pause(
@@ -303,8 +309,16 @@ struct WorkoutPlayerView: View {
         guard var p = pause, let i = p.effortSet else { return }
         log.setRIR(i, e.rir, model: model)
         p.effort = e
-        // No rest running (last set): the tap closes the overlay.
-        pause = p.end == nil ? nil : p
+        // No rest running (last set): the tap closes the overlay and moves on.
+        if p.end == nil { closePause() } else { pause = p }
+    }
+
+    /// Closes the rest/effort overlay; after an exercise's last set this moves to the next exercise.
+    private func closePause() {
+        pause = nil
+        guard steps.indices.contains(index) else { return }
+        let step = steps[index]
+        if (setsDone[step.item.uid] ?? 0) >= step.sets { advance(step) }
     }
 
     private func extendRest() {
