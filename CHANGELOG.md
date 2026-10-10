@@ -12,7 +12,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Per-exercise history (best e1RM trend, sessions with sets) from the exercise page (#5).
 - Exercise illustrations from free-exercise-db (public domain, pinned commit) for 113 exercises: thumbnails on session cards, animated header with credit on exercise page, animated image in the player; disk-cached for offline use (#27).
 - Sign in with Apple credential check on launch/foreground; signs out when the Apple ID link is revoked (#12).
-- Account deletion revokes the Sign in with Apple token: server exchanges the authorization code at sign-in (refresh token stored encrypted) and calls Apple's revoke endpoint on deletion. Needs Fly secrets `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` (team/client id in `fly.*.toml`); skipped until set (#12).
+- Account deletion revokes the Sign in with Apple token: server exchanges the authorization code at sign-in (refresh token stored encrypted) and calls Apple's revoke endpoint on deletion. Needs GitHub secrets `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, pushed to Fly by the **Fly setup** workflow; skipped until set (#12).
 - Change email: Account → Change email, 6-digit code to new address, old address notified (`POST /v1/me/email`, `/v1/me/email/confirm`) (#13).
 - Breached-password check (Have I Been Pwned, k-anonymity, fail-open, 2 s timeout) at sign-up, reset and change; `HIBP_CHECK=0` disables (#13).
 - Purge job for expired codes, pending email changes and expired/revoked refresh tokens (`PURGE_INTERVAL_MIN`, default 60) (#13).

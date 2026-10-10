@@ -9,8 +9,8 @@ primary_region = 'fra'
   PORT = '8080'
   DB_PATH = '/data/app.db'
   MAIL_FROM = 'MonkeyWorkout <no-reply@monkeygrade.cloud>'
-  # Sign in with Apple token exchange/revocation (#13). Also needs secrets APPLE_KEY_ID + APPLE_PRIVATE_KEY (.p8):
-  #   fly secrets set -a <app> APPLE_KEY_ID=XXXXXXXXXX APPLE_PRIVATE_KEY="$(cat AuthKey_XXXXXXXXXX.p8)"
+  # Sign in with Apple token exchange/revocation (#12). Also needs secrets APPLE_KEY_ID + APPLE_PRIVATE_KEY (.p8):
+  #   add as GitHub repo secrets, then run the "Fly setup" workflow (.github/workflows/fly-setup.yml).
   APPLE_TEAM_ID = 'U7VAR53G86'
   APPLE_CLIENT_ID = 'Com.app.MonkeyWorkout'
 
