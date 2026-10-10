@@ -273,6 +273,22 @@ POSES = {
         P(lN=(5, 95), lF=(110, 170, 180), aN=(130, -40), aF=(125, -40),
           props=[("plate", ("shoulder", -4, 0), 26)]),
     ],
+    "reverse-nordic": [
+        P(lN=(90, 180, 180), lF=(90, 180, 180), aN=(70, -110), aF=(70, -110), props=[("mat", -90, 110)]),
+        P(t=-122, h=-110, lN=(58, 180, 180), lF=(58, 180, 180), aN=(30, -150), aF=(30, -150), props=[("mat", -90, 110)]),
+    ],
+    "trx-hamstring-curl": [
+        P(t=168, h=180, lN=(-10, -10, -95), lF=(-10, -10, -95), aN=(8, 0), aF=(8, 0),
+          props=[("strap", "ankleN", 330), ("mat", -110, 60)]),
+        P(t=152, h=172, lN=(-58, 42, -60), lF=(-58, 42, -60), aN=(20, 0), aF=(20, 0),
+          props=[("strap", "ankleN", 330), ("mat", -110, 60)]),
+    ],
+    "copenhagen-plank": [
+        P(front=True, t=0, h=0, lN=(180, 180, 180), lF=(158, 158, 158), aN=(90, 0), aF=(-40, 140),
+          pin=("elbowN", (300, 262)), props=[("bench", "ankleN", 80, -20, 9)]),
+        P(front=True, t=0, h=0, lN=(180, 180, 180), lF=(178, 178, 178), aN=(90, 0), aF=(-90, -90),
+          pin=("elbowN", (300, 262)), props=[("bench", "ankleN", 80, -20, 9)]),
+    ],
     "torso-rotation": [
         P(front=True, lN=(-10, 90, 0), lF=(190, 90, 180), aN=(40, 170), aF=(140, 10),
           props=[("machine", -70, 40, 140, 70), ("seat", "hip", 70)]),
