@@ -24,7 +24,7 @@ Capabilities needed on the App ID(s): Sign in with Apple, HealthKit.
 
 ### TestFlight (CI upload)
 
-Workflow **TestFlight (Staging)** (`.github/workflows/testflight.yml`) archives scheme **MonkeyWorkout Staging** (API `workout-staging.monkeygrade.cloud`) on a macOS runner and uploads it to App Store Connect. Runs on every merge to `main` touching `ios/**`, or manually (Actions → TestFlight (Staging) → Run workflow). Build number = workflow run number. Skips with a warning until the secrets below exist.
+Workflow **TestFlight (Staging)** (`.github/workflows/testflight.yml`) archives scheme **MonkeyWorkout Staging** (API `workout-staging.monkeygrade.cloud`) on a macOS runner and uploads it to App Store Connect. Manual only (Actions → TestFlight (Staging) → Run workflow); merges to `main` do not upload builds. Build number = workflow run number. Skips with a warning until the secrets below exist.
 
 Signing is Xcode cloud/automatic signing via an App Store Connect API key: no certificates or profiles in the repo.
 
