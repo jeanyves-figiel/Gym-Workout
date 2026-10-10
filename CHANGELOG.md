@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Staging hosted on Fly.io (#3): app `monkeyworkout-staging` (`backend/fly.staging.toml`, region `fra`, 1 machine + `/data` volume, `/healthz` check). **Deploy staging** mirrors the CI-built image to Fly's registry and runs `flyctl deploy` on every merge to `main` (skips with a warning until `FLY_API_TOKEN` is set). iOS Staging build points at `https://monkeyworkout-staging.fly.dev`.
+
+### Fixed
+- API container: entrypoint fixes ownership of root-owned `/data` mounts (Fly volumes) before dropping to the `node` user (#3).
+
 ### Changed
 - App renamed **MonkeyWorkout** (#21): Xcode project/target/schemes, display names, bundle IDs `Com.app.MonkeyWorkout` (Release + TestFlight staging) and `Com.app.MonkeyWorkout.dev` (DEV); App Store Connect SKU `Monkeyworkout`, Apple ID `6819971090` documented; signing team `U7VAR53G86` set.
 - API: Sign in with Apple accepts the new bundle IDs, matched case-insensitively; emails sent as MonkeyWorkout (#21).
