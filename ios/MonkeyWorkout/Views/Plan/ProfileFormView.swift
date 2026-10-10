@@ -10,9 +10,12 @@ struct ProfileFormView: View {
     @State private var showEquipment = false
     @Environment(HealthManager.self) private var health
     private let isNew: Bool
+    /// Section to scroll to on appear (demo screenshots).
+    private let scrollTo: String?
 
-    init(initial: Profile?, onSave: @escaping (Profile) -> Void) {
+    init(initial: Profile?, scrollTo: String? = nil, onSave: @escaping (Profile) -> Void) {
         self.onSave = onSave
+        self.scrollTo = scrollTo
         isNew = initial == nil
         var start = initial ?? Profile()
         if initial == nil {
@@ -58,23 +61,29 @@ struct ProfileFormView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Pick a goal. Your week is sized around it.")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.muted)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Pick a goal. Your week is sized around it.")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.muted)
 
-                goals
+                    goals
 
-                Text("Your week").eyebrow().padding(.top, 14)
-                week
-                summary
+                    Text("Your week").eyebrow().padding(.top, 14)
+                    week
+                    summary
 
-                Text("Your gym").eyebrow().padding(.top, 14)
-                GymPicker(profile: $p, showEquipment: $showEquipment)
+                    Text("Week to week").eyebrow().padding(.top, 14).id("variety")
+                    variety
+
+                    Text("Your gym").eyebrow().padding(.top, 14)
+                    GymPicker(profile: $p, showEquipment: $showEquipment)
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 24)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 24)
+            .onAppear { if let scrollTo { proxy.scrollTo(scrollTo, anchor: .top) } }
         }
         .background(Theme.bg.ignoresSafeArea())
         .safeAreaInset(edge: .bottom) {
@@ -186,6 +195,18 @@ struct ProfileFormView: View {
             Text(scheduleHint).font(.footnote).foregroundStyle(Theme.muted)
         }
         .card()
+    }
+
+    private var variety: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("How your plan changes across the \(Generator.mesocycleWeeks)-week cycle.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.muted)
+            ForEach(PlanVariety.allCases) { v in
+                VarietyCard(variety: v, selected: p.planVariety == v) { p.variety = v }
+            }
+        }
+        .animation(.spring(duration: 0.3), value: p.variety)
     }
 
     private var summary: some View {
@@ -331,6 +352,115 @@ private struct MixBar: View {
             }
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Variety
+
+extension PlanVariety {
+    var title: String {
+        switch self {
+        case .same: "Same every week"
+        case .fresh: "Fresh each week"
+        case .rotate: "Rotate muscle focus"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .same: "Same exercises per day · load goes up"
+        case .fresh: "Main lifts stay · accessories change"
+        case .rotate: "Day order and lead lift rotate weekly"
+        }
+    }
+
+    var blurb: String {
+        switch self {
+        case .same: "Each day repeats its exercises all cycle, so every session is a chance to beat last week. Only sets and effort change with the week."
+        case .fresh: "Your main lift per day stays for clean progression; accessories, warm-up, mobility and cardio change every week to keep it fresh."
+        case .rotate: "Each week the days shift and a different lift leads each session, so muscles get a new emphasis. Weekly volume per muscle stays the same."
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .same: "repeat"
+        case .fresh: "shuffle"
+        case .rotate: "arrow.triangle.2.circlepath"
+        }
+    }
+
+    /// Big number on the card: distinct weekly layouts across the cycle.
+    var count: (String, String) {
+        switch self {
+        case .same: ("1", "PLAN")
+        case .fresh: ("\(Generator.mesocycleWeeks)", "VARIANTS")
+        case .rotate: ("\(Generator.mesocycleWeeks)", "FOCUSES")
+        }
+    }
+
+    var gradient: LinearGradient {
+        let c: WorkoutEngine.Category = switch self {
+        case .same: .cardio
+        case .fresh: .warmup
+        case .rotate: .power
+        }
+        return c.gradient
+    }
+}
+
+/// Week-to-week choice as a vivid Explore-style card; the picked one expands with its explanation.
+private struct VarietyCard: View {
+    let variety: PlanVariety
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 14) {
+                    Image(systemName: variety.symbol)
+                        .font(.system(size: 24, weight: .bold))
+                        .frame(width: 56, height: 56)
+                        .background(RoundedRectangle(cornerRadius: 17, style: .continuous).fill(.white.opacity(0.22)))
+                        .overlay(alignment: .topTrailing) {
+                            if selected {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 22))
+                                    .foregroundStyle(Theme.ink, Theme.lime)
+                                    .offset(x: 7, y: -7)
+                            }
+                        }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(variety.title).font(Theme.display(20)).lineLimit(1).minimumScaleFactor(0.75)
+                        Text(variety.subtitle).font(.footnote.weight(.semibold)).opacity(0.85)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 4)
+                    VStack(alignment: .trailing, spacing: 0) {
+                        Text(variety.count.0).font(Theme.display(28))
+                        Text(variety.count.1).font(Theme.label(9)).tracking(1.2).opacity(0.8)
+                    }
+                }
+                if selected {
+                    Text(variety.blurb).font(.footnote.weight(.medium)).opacity(0.92)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(variety.gradient))
+            .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(.white, lineWidth: selected ? 3 : 0))
+            .opacity(selected ? 1 : 0.55)
+            .saturation(selected ? 1 : 0.7)
+            .shadow(color: .black.opacity(selected ? 0.35 : 0), radius: 14, y: 8)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(variety.title). \(variety.subtitle)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
@@ -614,9 +744,13 @@ enum GymSearch {
     }
 }
 
-private struct EquipmentSheet: View {
+struct EquipmentSheet: View {
     @Binding var equipment: [Equipment]
     @Environment(\.dismiss) private var dismiss
+
+    init(equipment: Binding<[Equipment]>) {
+        _equipment = equipment
+    }
 
     var body: some View {
         NavigationStack {
