@@ -222,6 +222,13 @@ struct RPEExplainer: View {
             }
             Text("\"Keep RPE honest\" = stop each set at the RPE written in the workout, not earlier, not to failure. \"Drop 1 RPE\" = stop one rep sooner than written.")
                 .font(.footnote.weight(.medium)).foregroundStyle(Theme.muted)
+            Label {
+                Text("Log it during the workout: after each set, type the reps you had left in the **RIR** box (reps in reserve) next to kg × reps. RIR 2 = RPE 8. Optional, but it tunes your next load suggestion.")
+            } icon: {
+                Image(systemName: "square.and.pencil")
+            }
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(Theme.lime)
         }
         .card(padding: 14)
     }
