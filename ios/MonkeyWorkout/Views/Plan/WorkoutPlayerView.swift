@@ -18,6 +18,8 @@ struct WorkoutPlayerView: View {
     @State private var setsDone: [String: Int] = [:]
     @State private var pause: Pause?
     @State private var timed: TimedRun?
+    /// Superset/circuit: step to open when the rest/effort overlay closes (#78).
+    @State private var pendingJump: Int?
     @State private var started = Date()
     @State private var finished = false
     @State private var ready = false
@@ -180,6 +182,19 @@ struct WorkoutPlayerView: View {
     /// Next set of this exercise (when `includeSets`) or the next exercise.
     private func upNext(after step: Step, done: Int, sets: Int, includeSets: Bool) -> UpNext? {
         let cat = step.block.kind.category
+        // Superset/circuit: the next member (no rest) or the round's first member (after the rest).
+        if includeSets || done < sets, let j = groupJump(step, done: includeSets ? done : done + 1), j.index != index {
+            guard steps.indices.contains(j.index) else { return nil }
+            let n = steps[j.index]
+            let inGroup = isMember(n, of: step)
+            let nd = setsDone[n.item.uid] ?? 0
+            return UpNext(
+                eyebrow: !inGroup ? "Up next" : j.rest == 0 ? "\(n.item.group ?? "") · no rest, go" : "\(n.item.group ?? "") · next round",
+                title: n.exercise.name,
+                detail: inGroup ? "Set \(nd + 1) of \(n.sets) · \(n.item.prescription.reps)" : Format.prescription(n.item.prescription),
+                exercise: n.exercise,
+                colors: n.block.kind.category.colors)
+        }
         if includeSets, done < sets {
             let detail = step.loggable ? log.values(done).map { "\(LoadAdvisor.formatKg($0.kg)) kg × \($0.reps)" } ?? "" : step.item.prescription.reps
             return UpNext(eyebrow: "Next · set \(done + 1) of \(sets)", title: step.exercise.name, detail: detail, exercise: nil, colors: cat.colors)
@@ -295,12 +310,17 @@ struct WorkoutPlayerView: View {
         let logged = step.loggable && log.item?.uid == step.item.uid && log.log(done, model: model)
         setsDone[step.item.uid] = now
         if now >= sets { model.setTicked(step.item.uid) }
-        let rest = now < sets ? step.timedSpec?.easySec ?? step.item.prescription.restSec : 0
+        // Superset/circuit: on to the next member without rest, rest after the round (#78).
+        let jump = groupJump(step, done: now)
+        let target = jump.flatMap { $0.index == index ? nil : $0.index }
+        let rest = jump?.rest ?? (now < sets ? step.timedSpec?.easySec ?? step.item.prescription.restSec : 0)
         // Last set: straight on to the next exercise (after the effort tap when the set was logged).
         guard rest > 0 || logged else {
+            if let target { return moveTo(target) }
             if now >= sets { advance(step) }
             return
         }
+        pendingJump = target
         var effort: Effort?
         if logged, let rir = log.values(done)?.rir { effort = Effort(rir: rir) }
         pause = Pause(
@@ -319,6 +339,10 @@ struct WorkoutPlayerView: View {
     /// Closes the rest/effort overlay; after an exercise's last set this moves to the next exercise.
     private func closePause() {
         pause = nil
+        if let j = pendingJump {
+            pendingJump = nil
+            return moveTo(j)
+        }
         guard steps.indices.contains(index) else { return }
         let step = steps[index]
         if (setsDone[step.item.uid] ?? 0) >= step.sets { advance(step) }
@@ -375,8 +399,40 @@ struct WorkoutPlayerView: View {
     private func go(_ i: Int) {
         guard steps.indices.contains(i) else { return }
         pause = nil
+        pendingJump = nil
         timed = nil
         index = i
+    }
+
+    /// Step index `i`, or the finish when it is past the last step.
+    private func moveTo(_ i: Int) {
+        if i >= steps.count { finish() } else { go(i) }
+    }
+
+    // MARK: Supersets and circuits (#78)
+
+    private func isMember(_ other: Step, of step: Step) -> Bool {
+        step.block.groupMembers(of: step.item.uid).contains { $0.uid == other.item.uid }
+    }
+
+    /// Where a grouped exercise goes once `done` of its sets are done: the next member (rest 0), the round's first
+    /// member (after the group's rest), or when the whole group is done the first unfinished step after it (an index
+    /// past the last step means finish). nil for straight sets.
+    private func groupJump(_ step: Step, done: Int) -> (index: Int, rest: Int)? {
+        let members = step.block.groupMembers(of: step.item.uid)
+        guard step.item.group != nil, members.count > 1 else { return nil }
+        var sets = setsDone
+        sets[step.item.uid] = done
+        if let n = step.block.next(after: step.item.uid, setsDone: sets) {
+            guard let i = steps.firstIndex(where: { $0.item.uid == n.uid }) else { return nil }
+            return (i, n.restSec)
+        }
+        let uids = Set(members.map(\.uid))
+        guard let first = steps.firstIndex(where: { uids.contains($0.item.uid) }) else { return nil }
+        let open = steps.indices.first { i in
+            i > first && !uids.contains(steps[i].item.uid) && (sets[steps[i].item.uid] ?? 0) < steps[i].sets
+        }
+        return (open ?? steps.count, 0)
     }
 
     // MARK: Progress + Live Activity
