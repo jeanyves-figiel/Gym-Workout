@@ -25,6 +25,9 @@ struct WeekView: View {
                             model.applyProfile(p, seed: plan.seed, week: plan.week)
                         }
                     }
+                    if Generator.isClimber(profile) {
+                        ClimbSection()
+                    }
                     if let next = model.nextSession {
                         NextUpCard(session: next) { playing = next }
                     } else {
@@ -274,6 +277,7 @@ struct ExampleRowCard: View {
 struct SessionDayLine: View {
     let weekday: Int
     let climbing: [Int]
+    @Environment(AppModel.self) private var model
 
     var body: some View {
         HStack(spacing: 6) {
@@ -281,7 +285,7 @@ struct SessionDayLine: View {
                 .font(Theme.label(12))
                 .tracking(1)
                 .foregroundStyle(Theme.lime)
-            if let note = WeekSchedule.note(weekday: weekday, climbing: climbing) {
+            if let note = WeekSchedule.note(weekday: weekday, climbing: climbing, prefs: model.profile?.climbPrefs ?? ClimbPrefs()) {
                 Text(note)
                     .font(.caption)
                     .foregroundStyle(Theme.muted)

@@ -41,6 +41,15 @@ struct AccountView: View {
                         get: { lock.enabled },
                         set: { on in Task { await lock.setEnabled(on) } }))
                 }
+                Section("Connected apps") {
+                    NavigationLink { MonkeyGradeView() } label: {
+                        LabeledContent {
+                            Text(MonkeyGradeLink.shared.isConnected(for: user.id) ? "Connected" : "Connect")
+                        } label: {
+                            Label("MonkeyGrade", systemImage: "figure.climbing")
+                        }
+                    }
+                }
             } else {
                 Section { ProgressView().task { await model.refreshUser() } }
             }
