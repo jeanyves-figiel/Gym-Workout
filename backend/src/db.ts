@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { ensureSchemaExtras } from './schemaExtras.ts';
 
 export type DB = DatabaseSync;
 
@@ -74,6 +75,7 @@ export const openDb = (path: string): DB => {
   db.exec('PRAGMA foreign_keys = ON;');
   if (path !== ':memory:') db.exec('PRAGMA journal_mode = WAL;');
   migrate(db);
+  ensureSchemaExtras(db);
   return db;
 };
 

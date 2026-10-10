@@ -11,6 +11,12 @@ export interface Config {
   mail: { transport: 'console' | 'smtp'; smtpUrl?: string; from: string };
   appName: string;
   authRateLimitPerMin: number;
+  /** Sign in with Apple server-to-server (code exchange + token revocation). Unset → skipped. */
+  appleSignIn: { teamId?: string; keyId?: string; privateKey?: string; clientId?: string };
+  /** Reject passwords found in Have I Been Pwned (k-anonymity range API). */
+  hibpCheck: boolean;
+  /** Interval of the expired codes / refresh tokens purge job (0 disables the timer). */
+  purgeIntervalMin: number;
 }
 
 const required = (name: string, env: NodeJS.ProcessEnv, prod: boolean, dev: string): string => {
@@ -43,5 +49,15 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
     mail: { transport, smtpUrl: env.SMTP_URL, from: env.MAIL_FROM ?? 'MonkeyWorkout <no-reply@localhost>' },
     appName: env.APP_NAME ?? 'MonkeyWorkout',
     authRateLimitPerMin: Number(env.AUTH_RATE_LIMIT_PER_MIN ?? 10),
+    appleSignIn: {
+      teamId: env.APPLE_TEAM_ID || undefined,
+      keyId: env.APPLE_KEY_ID || undefined,
+      // .p8 contents; literal "\n" sequences (single-line secrets) are turned back into newlines.
+      privateKey: env.APPLE_PRIVATE_KEY ? env.APPLE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined,
+      clientId: env.APPLE_CLIENT_ID || undefined,
+    },
+    // On by default, off in tests; HIBP_CHECK=0 disables, HIBP_CHECK=1 forces on.
+    hibpCheck: env.HIBP_CHECK !== undefined ? !['0', 'false', 'off', 'no'].includes(env.HIBP_CHECK.toLowerCase()) : mode !== 'test',
+    purgeIntervalMin: Number(env.PURGE_INTERVAL_MIN ?? 60),
   };
 };

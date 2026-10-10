@@ -2,11 +2,15 @@ import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { z, ZodError } from 'zod';
 import type { AppleVerifier } from './apple.ts';
+import { AppleTokenService, type Fetch } from './appleTokens.ts';
 import { AuthService, publicUser } from './auth.ts';
 import type { Config } from './config.ts';
 import type { DB } from './db.ts';
+import { EmailChangeService } from './emailChange.ts';
 import { ApiError } from './errors.ts';
+import { createBreachChecker } from './hibp.ts';
 import type { Mailer } from './mailer.ts';
+import { accountRoutes } from './routes/account.ts';
 import { dataRoutes } from './routes/data.ts';
 
 declare module 'fastify' {
@@ -22,6 +26,8 @@ export interface AppDeps {
   apple: AppleVerifier;
   now?: () => Date;
   logger?: boolean;
+  /** Outbound HTTP (Apple token endpoints, HIBP); injectable for tests. */
+  fetch?: Fetch;
 }
 
 const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
@@ -33,7 +39,16 @@ const device = (req: FastifyRequest) => (req.headers['x-device-name'] as string 
 
 export const buildApp = (deps: AppDeps): FastifyInstance => {
   const app = Fastify({ logger: deps.logger ?? false, trustProxy: true, bodyLimit: 1_000_000 });
-  const auth = new AuthService({ ...deps, now: deps.now ?? (() => new Date()) });
+  const now = deps.now ?? (() => new Date());
+  const outbound: Fetch = deps.fetch ?? ((input, init) => globalThis.fetch(input, init));
+  const warn = (msg: string) => app.log.warn(msg);
+  const auth = new AuthService({
+    ...deps,
+    now,
+    breached: deps.config.hibpCheck ? createBreachChecker({ fetch: outbound, log: warn }) : undefined,
+    appleTokens: new AppleTokenService({ config: deps.config, db: deps.db, fetch: outbound, now, log: warn }),
+  });
+  const emailChange = new EmailChangeService({ db: deps.db, config: deps.config, mailer: deps.mailer, now });
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof ApiError) return reply.status(err.status).send({ error: err.code, message: err.message, ...err.extra });
@@ -86,8 +101,10 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       });
 
       r.post('/apple', limit, async (req) => {
-        const b = z.object({ identityToken: z.string().min(10).max(5000), name: name.optional() }).parse(req.body);
-        return auth.signInWithApple(b.identityToken, b.name, device(req));
+        const b = z
+          .object({ identityToken: z.string().min(10).max(5000), authorizationCode: z.string().min(1).max(2000).optional(), name: name.optional() })
+          .parse(req.body);
+        return auth.signInWithApple(b.identityToken, b.name, device(req), b.authorizationCode);
       });
 
       r.post('/refresh', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (req) => {
@@ -147,6 +164,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       });
 
       dataRoutes(r, deps.db, deps.now ?? (() => new Date()), auth);
+      accountRoutes(r, emailChange, deps.config.authRateLimitPerMin);
     },
     { prefix: '/v1' },
   );

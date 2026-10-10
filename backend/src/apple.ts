@@ -4,6 +4,8 @@ export interface AppleIdentity {
   sub: string;
   email?: string;
   emailVerified: boolean;
+  /** Bundle id the token was issued to (`aud`); used as client_id for code exchange / revocation. */
+  audience?: string;
 }
 
 export type AppleVerifier = (identityToken: string) => Promise<AppleIdentity>;
@@ -24,7 +26,9 @@ export const createAppleVerifier = (bundleIds: string[]): AppleVerifier => {
     if (!audienceAllowed(payload.aud, bundleIds)) throw new Error('Apple token audience mismatch');
     if (typeof payload.sub !== 'string') throw new Error('Apple token without sub');
     const ev = payload.email_verified;
+    const auds = Array.isArray(payload.aud) ? payload.aud : payload.aud ? [payload.aud] : [];
     return {
+      audience: auds.find((a) => audienceAllowed(a, bundleIds)),
       sub: payload.sub,
       email: typeof payload.email === 'string' ? payload.email.toLowerCase() : undefined,
       emailVerified: ev === true || ev === 'true',

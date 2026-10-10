@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { jwtVerify, SignJWT } from 'jose';
 import type { AppleVerifier } from './apple.ts';
+import type { AppleTokenService } from './appleTokens.ts';
 import type { Config } from './config.ts';
 import { burnPasswordCheck, hashPassword, hmac, randomToken, safeEqualHex, sha256, sixDigitCode, verifyPassword } from './crypto.ts';
 import { type DB, tx } from './db.ts';
 import { ApiError } from './errors.ts';
+import type { BreachChecker } from './hibp.ts';
 import type { Mailer } from './mailer.ts';
 
 export interface UserRow {
@@ -75,6 +77,10 @@ export interface AuthDeps {
   mailer: Mailer;
   apple: AppleVerifier;
   now: () => Date;
+  /** Have I Been Pwned check (unset → disabled). */
+  breached?: BreachChecker;
+  /** Apple code exchange / token revocation (unset → disabled). */
+  appleTokens?: AppleTokenService;
 }
 
 export class AuthService {
@@ -103,11 +109,21 @@ export class AuthService {
     if (p) throw new ApiError(400, 'weak_password', p);
   }
 
+  private async assertNotBreached(pw: string) {
+    if (this.d.breached && (await this.d.breached(pw)))
+      throw new ApiError(
+        400,
+        'breached_password',
+        'This password has appeared in a data breach and is unsafe. Please choose a different one.',
+      );
+  }
+
   // ───────────── registration & verification
 
   async register(email: string, password: string, name: string | undefined, acceptedTerms: boolean): Promise<void> {
     if (!acceptedTerms) throw new ApiError(400, 'terms_required', 'You must accept the terms and privacy policy.');
     this.assertPassword(password, email);
+    await this.assertNotBreached(password);
     const hash = await hashPassword(password);
     const existing = this.userByEmail(email);
     const now = this.iso();
@@ -186,6 +202,7 @@ export class AuthService {
     identityToken: string,
     name: string | undefined,
     device?: string,
+    authorizationCode?: string,
   ): Promise<{ user: PublicUser; tokens: TokenPair; created: boolean }> {
     let identity;
     try {
@@ -216,6 +233,8 @@ export class AuthService {
         .run(id, identity.email ?? null, identity.email ? now : null, name ?? null, identity.sub, now, now, now);
       return id;
     });
+    // Refresh token needed to revoke Sign in with Apple at account deletion (#13). Never fails sign-in.
+    if (authorizationCode && this.d.appleTokens) await this.d.appleTokens.storeFromCode(userId, authorizationCode, identity.audience);
     return { user: publicUser(this.userById(userId)!), tokens: await this.issueTokens(userId, device), created };
   }
 
@@ -231,6 +250,7 @@ export class AuthService {
     const u = this.userByEmail(email);
     if (!u) throw new ApiError(400, 'invalid_code', 'Invalid or expired code.');
     this.assertPassword(newPassword, email);
+    await this.assertNotBreached(newPassword);
     this.consumeCode(u.id, 'reset_password', code);
     const hash = await hashPassword(newPassword);
     const now = this.iso();
@@ -250,6 +270,7 @@ export class AuthService {
         throw new ApiError(401, 'invalid_credentials', 'Current password is incorrect.');
     }
     this.assertPassword(next, u.email);
+    await this.assertNotBreached(next);
     const now = this.iso();
     this.d.db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?').run(await hashPassword(next), now, userId);
     this.revokeAll(userId);
@@ -276,7 +297,10 @@ export class AuthService {
     const u = this.userById(userId)!;
     if (u.password_hash && (!password || !(await verifyPassword(password, u.password_hash))))
       throw new ApiError(401, 'invalid_credentials', 'Password is incorrect.');
+    const appleToken = u.apple_sub ? this.d.appleTokens?.tokenFor(userId) : undefined;
     this.d.db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    // Best effort: revocation failures are logged by the service and never block deletion.
+    if (appleToken) await this.d.appleTokens!.revoke(appleToken);
     if (u.email && u.email_verified_at)
       await this.d.mailer.send({
         to: u.email,
