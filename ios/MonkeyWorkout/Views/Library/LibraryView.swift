@@ -10,7 +10,8 @@ struct LibraryView: View {
 
     @Environment(AppModel.self) private var model
     @State private var mode: Mode = .muscles
-    @State private var side: BodySide = .front
+    /// Muscle tapped on the body map; pushes its page.
+    @State private var tapped: Muscle?
 
     var body: some View {
         ScrollView {
@@ -32,6 +33,7 @@ struct LibraryView: View {
         .toolbarTitleDisplayMode(.inlineLarge)
         .navigationDestination(for: Muscle.self) { MuscleDetailView(muscle: $0) }
         .navigationDestination(for: WorkoutEngine.Category.self) { CategoryDetailView(category: $0) }
+        .navigationDestination(item: $tapped) { MuscleDetailView(muscle: $0) }
     }
 
     private var muscles: some View {
@@ -40,7 +42,7 @@ struct LibraryView: View {
                 Text("This week's load · tap a muscle").eyebrow()
                 HStack(spacing: 12) {
                     ForEach(BodySide.allCases) { s in
-                        NavigationBodyMap(side: s, heat: model.weekHeat)
+                        BodyMapView(side: s, heat: model.weekHeat) { tapped = $0 }
                     }
                 }
                 .frame(height: 320)
@@ -68,18 +70,6 @@ struct LibraryView: View {
                     .buttonStyle(.plain)
             }
         }
-    }
-}
-
-/// Body map whose taps push the muscle page.
-private struct NavigationBodyMap: View {
-    let side: BodySide
-    let heat: [Muscle: Double]
-    @State private var target: Muscle?
-
-    var body: some View {
-        BodyMapView(side: side, heat: heat) { target = $0 }
-            .navigationDestination(item: $target) { MuscleDetailView(muscle: $0) }
     }
 }
 
@@ -162,6 +152,7 @@ struct MuscleDetailView: View {
                                         .background {
                                             if hit.primary { Capsule().fill(Theme.lime) } else { Capsule().strokeBorder(Color.white.opacity(0.35)) }
                                         }
+                                    ExerciseThumbnail(exercise: hit.exercise, size: 48)
                                     Text(hit.exercise.name).font(.body.weight(.semibold)).multilineTextAlignment(.leading)
                                     Spacer()
                                     Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.muted)
