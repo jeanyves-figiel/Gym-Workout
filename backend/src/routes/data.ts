@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type AuthService, publicUser } from '../auth.ts';
 import { type DB, tx } from '../db.ts';
+import { pushExport } from '../push/schema.ts';
 import { communityExport } from './community.ts';
 import { listCustomExercises } from './customExercises.ts';
 import { listCustomWorkouts } from './customWorkouts.ts';
@@ -159,6 +160,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
       community: communityExport(db, req.userId!),
       customExercises: listCustomExercises(db, req.userId!),
       prAttempts: listPrAttempts(db, req.userId!),
+      notifications: pushExport(db, req.userId!),
       sessions: auth.sessions(req.userId!),
     };
   });
