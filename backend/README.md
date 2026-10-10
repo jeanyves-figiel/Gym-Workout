@@ -45,6 +45,8 @@ Each: region `fra`, 1 machine + 1 GB volume (`/data`, SQLite), `/healthz` check.
 4. Actions → **Fly setup** → Run for `staging`, then `production`. Creates app, volume, secrets (`JWT_SECRET`, `CODE_PEPPER` random; SES keys, `SMTP_URL` or `MAIL_TRANSPORT=console`), TLS cert. Idempotent; re-run after adding `SMTP_URL`.
 5. Re-run latest **Deploy staging**. Prod: **Promote to production** when staging is validated.
 
+Remote push (#69): Apple Developer → Keys → new key with **Apple Push Notifications service (APNs)** → repo secrets `APNS_KEY_ID` (10 chars) and `APNS_PRIVATE_KEY` (.p8 contents), then re-run **Fly setup** per environment. Team id from `APPLE_TEAM_ID`. Without them pushes are skipped (logged once). Quiet hours: pushes still arrive, as passive (silent) notifications. Followers come from `app.push.setFollowersProvider` (Community follow model).
+
 App name taken → change it in the `fly.*.toml`, `deploy-staging.yml` / `promote.yml` and `fly-setup.yml`.
 Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode: email codes appear in the app's logs (Fly dashboard → Monitoring).
 
@@ -90,6 +92,11 @@ Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode
 | GET / POST | `/me/pr-attempts` | ✓ | personal-record attempts (JSON with `id`, `exerciseId`, `date`, `kind` 1RM/repMax/maxReps, `kg`, `reps`, `success`, optional `isRecord`); `?since=ISO` delta; upsert ≤200 |
 | DELETE | `/me/pr-attempts/:id` | ✓ | |
 | GET | `/me/export` | ✓ | full JSON export (nFADP/GDPR) |
+| PUT | `/me/push-device` | ✓ | `{token (hex), env: sandbox\|production, topic (bundle id), tz?}`; a token moves to the last account that registers it |
+| DELETE | `/me/push-device/:token` | ✓ | 204 (sign-out) |
+| GET / PUT | `/me/notification-prefs` | ✓ | `{prefs}`: toggles, reminder/check-in times, quiet hours (minutes after midnight) |
+| POST | `/me/achievements` | ✓ | `{achievements: [{id, type, text}]}` ≤30 → pushes each new id once to followers → `{announced}` |
+| POST | `/me/push-test` | ✓ | test push to own devices → `{devices, sent, pushConfigured}` |
 | GET | `/healthz` | – | |
 
 Errors: `{error: <code>, message}`. Password endpoints (register, reset, change) may return 400 `weak_password` or `breached_password`.

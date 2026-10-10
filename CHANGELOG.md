@@ -5,6 +5,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Notifications** (#69). Account → Notifications, Explore-style cards with toggle and time per type:
+  - **Session reminder** on the morning of each planned session (default 07:30); tap opens the session.
+  - **Missed session** check-in the next day (default 09:00) with **Train today** / **Pick another day** (moves it to the next free day via the training calendar, or opens the calendar). Cleared once the session is recorded.
+  - **Your achievements** (#76): notification when you unlock a badge (Progress → Achievements); tap opens the badge. Own toggle.
+  - **People you follow**: APNs push when they set a PR (PR attempts) or unlock a badge (sent once per badge; device announces new badges via `POST /v1/me/achievements`, old badges never sent). Followers come from Community follows (blocks respected); only members whose default visibility isn't private announce, shown by nickname. Tap opens their community page.
+  - **Quiet hours** (default 22:00–07:00): local reminders move out of the window, remote pushes arrive silently.
+  - Send test (local + server push). Reminders follow the training calendar's dated sessions (moves, days off, travel).
+  - Backend: push device registry, notification prefs, APNs HTTP/2 token-auth sender, dead tokens removed; secrets `APNS_KEY_ID` / `APNS_PRIVATE_KEY` via **Fly setup**; skipped until set. Device unregistered on sign-out; data deleted with the account.
+
 ### Fixed
 - Explore body map: tapping any muscle opened Calves (#79). Each muscle now opens its own page (front and back, mirrored sides too); same fix for the tappable maps on session and exercise pages, and display-only maps no longer swallow taps. Taps resolved by `BodyMapLayout` (WorkoutEngine, tested); muscle page exercise rows show the exercise picture; VoiceOver gets one action per muscle.
 - Training profile: climbing no longer depends on the goal (#49). An independent **I climb** switch (any goal) shows climbing days/weekdays; changing goal never clears them (#40 cleared them for non-climbing goals); Climbing performance turns it on; new profiles start on when Apple Health shows climbing workouts. Health climbing-days hint back for all goals.

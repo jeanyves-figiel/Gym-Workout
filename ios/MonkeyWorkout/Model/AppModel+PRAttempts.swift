@@ -46,6 +46,7 @@ extension AppModel {
         }
         persist()
         Task { await sync() }
+        if attempt.success && attempt.isRecord { NotificationManager.shared.announcePR(attempt, model: self) }
     }
 
     /// Removes the attempt and the logged copies of its sets (best effort on the server).

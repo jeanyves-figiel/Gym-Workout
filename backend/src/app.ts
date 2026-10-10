@@ -10,16 +10,24 @@ import { EmailChangeService } from './emailChange.ts';
 import { ApiError } from './errors.ts';
 import { createBreachChecker } from './hibp.ts';
 import type { Mailer } from './mailer.ts';
+import { type ApnsSender, createApnsSender } from './push/apns.ts';
+import { PushService } from './push/service.ts';
 import { accountRoutes } from './routes/account.ts';
+import { followerIds } from './community/moderation.ts';
 import { communityPublicRoutes, communityRoutes } from './routes/community.ts';
 import { customExerciseRoutes } from './routes/customExercises.ts';
 import { customWorkoutRoutes } from './routes/customWorkouts.ts';
 import { prAttemptRoutes } from './routes/prAttempts.ts';
 import { dataRoutes } from './routes/data.ts';
+import { pushRoutes } from './routes/push.ts';
 
 declare module 'fastify' {
   interface FastifyRequest {
     userId?: string;
+  }
+  interface FastifyInstance {
+    /** Remote push (#69). Other features call `app.push.notifyFollowers(...)`. */
+    push: PushService;
   }
 }
 
@@ -32,6 +40,8 @@ export interface AppDeps {
   logger?: boolean;
   /** Outbound HTTP (Apple token endpoints, HIBP); injectable for tests. */
   fetch?: Fetch;
+  /** APNs transport; defaults to HTTP/2 when APNS_* is configured. Injectable for tests. */
+  apns?: ApnsSender;
 }
 
 const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
@@ -53,6 +63,20 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
     appleTokens: new AppleTokenService({ config: deps.config, db: deps.db, fetch: outbound, now, log: warn }),
   });
   const emailChange = new EmailChangeService({ db: deps.db, config: deps.config, mailer: deps.mailer, now });
+  const k = deps.config.apns;
+  const push = new PushService({
+    db: deps.db,
+    now,
+    log: warn,
+    sender: deps.apns ?? (k.teamId && k.keyId && k.privateKey ? createApnsSender({ teamId: k.teamId, keyId: k.keyId, privateKey: k.privateKey }, now) : undefined),
+  });
+  // Followers from Community (#61). Only members who share (default visibility not private) announce wins.
+  const sharing = (id: string) =>
+    deps.db.prepare("SELECT nickname FROM community_profiles WHERE user_id = ? AND default_visibility != 'private'").get(id) as
+      | { nickname: string }
+      | undefined;
+  push.setFollowersProvider((id) => (sharing(id) ? followerIds(deps.db, id) : []));
+  app.decorate('push', push);
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof ApiError) return reply.status(err.status).send({ error: err.code, message: err.message, ...err.extra });
@@ -176,6 +200,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       communityRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
       customExerciseRoutes(r, deps.db, deps.now ?? (() => new Date()));
       prAttemptRoutes(r, deps.db, deps.now ?? (() => new Date()));
+      pushRoutes(r, push, deps.config.appleBundleIds, (id) => sharing(id)?.nickname ?? null);
     },
     { prefix: '/v1' },
   );

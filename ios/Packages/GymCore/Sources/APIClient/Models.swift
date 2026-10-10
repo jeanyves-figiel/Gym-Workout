@@ -104,3 +104,23 @@ public enum APIError: Error, Equatable, LocalizedError {
         return nil
     }
 }
+
+/// Result of `POST /v1/me/push-test`.
+public struct PushTestResult: Codable, Sendable, Equatable {
+    public var devices: Int
+    public var sent: Int
+    public var pushConfigured: Bool
+}
+
+/// `POST /v1/me/achievements` item: stable id, kind ("badge", "pr") and the line followers see.
+public struct AchievementAnnouncement: Codable, Sendable, Equatable {
+    public var id: String
+    public var type: String
+    public var text: String
+
+    public init(id: String, type: String, text: String) {
+        self.id = id
+        self.type = type
+        self.text = text
+    }
+}
