@@ -175,6 +175,8 @@ struct ExerciseCard: View {
             }
             .accessibilityLabel(ticked ? "Mark not done" : "Mark done")
 
+            ExerciseThumbnail(exercise: exercise, size: 52).onTapGesture(perform: onOpen)
+
             VStack(alignment: .leading, spacing: 8) {
                 Button(action: onOpen) {
                     VStack(alignment: .leading, spacing: 4) {
