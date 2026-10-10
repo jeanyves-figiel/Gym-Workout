@@ -89,6 +89,9 @@ private struct DemoScreen: View {
         case "progress": NavigationStack { ProgressTabView() }
         case "history": NavigationStack { HistoryDetailView(recordId: model.history.first?.id ?? UUID()) }
         case "body": NavigationStack { BodyHealthView() }
+        case "account": NavigationStack { AccountView() }
+        case "account-password": NavigationStack { ChangePasswordView(hasPassword: true) }
+        case "account-email": NavigationStack { ChangeEmailView(currentEmail: Demo.user?.email, hasPassword: true) }
         case "onboarding", "onboarding-climbing":
             NavigationStack {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }

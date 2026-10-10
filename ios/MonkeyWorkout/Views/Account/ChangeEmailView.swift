@@ -17,58 +17,58 @@ struct ChangeEmailView: View {
     private var trimmed: String { newEmail.trimmingCharacters(in: .whitespaces) }
 
     var body: some View {
-        Form {
-            if let sentTo {
-                Section {
-                    TextField("6-digit code", text: $code)
-                        .textContentType(.oneTimeCode)
-                        .keyboardType(.numberPad)
-                        .onChange(of: code) { _, new in code = String(new.filter(\.isNumber).prefix(6)) }
-                } header: {
-                    Text("Code sent to \(sentTo)")
-                } footer: {
-                    VStack(alignment: .leading) {
-                        Text("The code expires in 15 minutes. Check your spam folder if it doesn't arrive.")
-                        ErrorText(message: task.error)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                if let sentTo {
+                    AccountHeader(symbol: "envelope.badge.fill", title: "Check your inbox",
+                                  subtitle: "Code sent to \(sentTo). It expires in 15 minutes. Check spam if it doesn't arrive.",
+                                  gradient: AccountTint.email)
+                    AccountField(label: "6-digit code") {
+                        TextField("123456", text: $code)
+                            .textContentType(.oneTimeCode)
+                            .keyboardType(.numberPad)
+                            .font(Theme.display(28))
+                            .tracking(6)
+                            .onChange(of: code) { _, new in code = String(new.filter(\.isNumber).prefix(6)) }
                     }
-                }
-                Section {
-                    BusyButton(title: "Confirm new email", busy: task.busy, disabled: code.count != 6) {
+                    ErrorText(message: task.error)
+                    LimeActionButton(title: "Confirm new email", busy: task.busy, disabled: code.count != 6) {
                         task.run {
                             model.user = try await model.api.confirmEmailChange(code: code)
                             dismiss()
                         }
                     }
-                    Button("Resend code") {
-                        resendTask.run { try await model.api.requestEmailChange(newEmail: sentTo, password: hasPassword ? password : nil) }
-                    }
-                    .disabled(resendTask.busy)
-                    Button("Use a different email") {
-                        self.sentTo = nil
-                        code = ""
+                    HStack(spacing: 10) {
+                        AccountPillButton(title: resendTask.busy ? "Sending…" : "Resend code") {
+                            resendTask.run { try await model.api.requestEmailChange(newEmail: sentTo, password: hasPassword ? password : nil) }
+                        }
+                        .disabled(resendTask.busy)
+                        AccountPillButton(title: "Different email") {
+                            self.sentTo = nil
+                            code = ""
+                        }
                     }
                     ErrorText(message: resendTask.error)
-                }
-            } else {
-                Section {
-                    if let currentEmail { LabeledContent("Current", value: currentEmail) }
-                    TextField("New email", text: $newEmail)
-                        .textContentType(.emailAddress)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                } else {
+                    AccountHeader(symbol: "envelope.fill", title: currentEmail == nil ? "Add email" : "Change email",
+                                  subtitle: currentEmail.map { "Now: \($0)" } ?? "Sign in with email as well as Apple.",
+                                  gradient: AccountTint.email)
+                    AccountField(label: "New email") {
+                        TextField("you@example.com", text: $newEmail)
+                            .textContentType(.emailAddress)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
                     if hasPassword {
-                        SecureField("Password", text: $password).textContentType(.password)
+                        AccountField(label: "Password") {
+                            SecureField("Password", text: $password).textContentType(.password)
+                        }
                     }
-                } footer: {
-                    VStack(alignment: .leading) {
-                        Text("We'll email a 6-digit code to the new address. Your current address will be told about the change.")
-                        ErrorText(message: task.error)
-                    }
-                }
-                Section {
-                    BusyButton(title: "Send code", busy: task.busy,
-                               disabled: !trimmed.contains("@") || (hasPassword && password.isEmpty)) {
+                    AccountNote(text: "We'll email a 6-digit code to the new address. Your current address will be told about the change.")
+                    ErrorText(message: task.error)
+                    LimeActionButton(title: "Send code", busy: task.busy,
+                                     disabled: !trimmed.contains("@") || (hasPassword && password.isEmpty)) {
                         let email = trimmed
                         task.run {
                             try await model.api.requestEmailChange(newEmail: email, password: hasPassword ? password : nil)
@@ -77,8 +77,10 @@ struct ChangeEmailView: View {
                     }
                 }
             }
+            .padding(16)
         }
         .themedForm()
         .navigationTitle(currentEmail == nil ? "Add email" : "Change email")
+        .toolbarTitleDisplayMode(.inline)
     }
 }
