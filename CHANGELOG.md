@@ -26,6 +26,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - Body & Health: Gender and Sex picks were reset on return from the picker list (form reloaded on every appear); Save now returns to the previous screen (#38).
+- Keyboard in forms (Account, Body & Health, password/email screens…) can now be dismissed: Done button above the keyboard and swipe-down on the form. Account name saves when you leave the field, not only on Return (#42).
 - **TestFlight distribute** no longer fails on internal groups with automatic distribution (Apple rejects manual assignment there; those groups already get every build).
 - TestFlight uploads after the first failed ("bundle version must be higher than 1"): generated Info.plist hard-coded version 1.0 build 1. It now uses `MARKETING_VERSION` (set to 1.0, matching App Store Connect) and `CURRENT_PROJECT_VERSION` (CI run number).
 - Email on staging/prod: SES Zurich (eu-central-2) has no SMTP endpoint, so sign-up failed with 500 (`ENOTFOUND email-smtp.eu-central-2.amazonaws.com`). API now sends via the SES HTTPS API (`SendRawEmail`, SigV4, same send-only IAM user); **Fly setup** pushes `SES_*` secrets and drops the old `SMTP_URL`. Smoke test accepts `ses` (#26).
