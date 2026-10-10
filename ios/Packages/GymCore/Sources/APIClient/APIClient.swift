@@ -216,6 +216,18 @@ public actor APIClient {
         _ = try await authorizedRaw("DELETE", "/v1/me/custom-workouts/\(id.uuidString)", Empty?.none)
     }
 
+    /// User-built exercises (app-defined, must encode `id` and `name`; may carry a base64 `photo`).
+    public func fetchCustomExercises<T: Decodable & Sendable>(_: T.Type) async throws -> [T] {
+        try await authorized("GET", "/v1/me/custom-exercises", Empty?.none, as: ExercisesResponse<T>.self).exercises
+    }
+
+    /// One per request: photos make records large (server body limit 1 MB).
+    public func pushCustomExercises<T: Encodable & Sendable>(_ exercises: [T]) async throws {
+        for e in exercises {
+            _ = try await authorizedRaw("POST", "/v1/me/custom-exercises", ExercisesBody(exercises: [e]))
+        }
+    }
+
     /// Personal-record attempts (app-defined; must encode `id`, `exerciseId`, `date`, `kind`, `kg`, `reps`, `success`).
     public func fetchPRAttempts<T: Decodable & Sendable>(_: T.Type) async throws -> [T] {
         try await authorized("GET", "/v1/me/pr-attempts", Empty?.none, as: AttemptsResponse<T>.self).attempts
@@ -270,6 +282,8 @@ public actor APIClient {
     struct PrefsBody<T: Encodable>: Encodable { var prefs: T }
     struct WorkoutsBody<T: Encodable>: Encodable { var workouts: [T] }
     struct WorkoutsResponse<T: Decodable>: Decodable { var workouts: [T] }
+    struct ExercisesBody<T: Encodable>: Encodable { var exercises: [T] }
+    struct ExercisesResponse<T: Decodable>: Decodable { var exercises: [T] }
     struct AttemptsBody<T: Encodable>: Encodable { var attempts: [T] }
     struct AttemptsResponse<T: Decodable>: Decodable { var attempts: [T] }
 

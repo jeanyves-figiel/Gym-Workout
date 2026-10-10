@@ -10,8 +10,16 @@ struct ExerciseDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var muscle: Muscle?
     @State private var kgText = ""
+    @State private var editing: CustomExercise?
 
     private var e: Exercise { Exercise.get(exerciseId) }
+
+    /// The user's own exercise (#52), editable from here.
+    private var custom: CustomExercise? {
+        // Reading the model's list keeps this page current after an edit.
+        _ = model.state.customExerciseList?.count
+        return CustomExercise.isCustom(exerciseId) ? CustomExercises.shared.record(exerciseId) : nil
+    }
 
     var body: some View {
         ScrollView {
@@ -20,6 +28,9 @@ struct ExerciseDetailView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     CategoryPill(category: e.category)
                     Text(e.name).font(Theme.display(34)).fixedSize(horizontal: false, vertical: true)
+                    if let machine = custom?.machine {
+                        Label(machine, systemImage: "gearshape.2.fill").font(.subheadline.weight(.semibold))
+                    }
                     Text(e.category.blurb).font(.subheadline).foregroundStyle(Theme.muted)
                 }
 
@@ -46,8 +57,14 @@ struct ExerciseDetailView: View {
         }
         .background(Theme.bg.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        .toolbar {
+            if let custom, !custom.archived {
+                ToolbarItem(placement: .topBarLeading) { Button("Edit") { editing = custom } }
+            }
+            ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+        }
         .sheet(item: $muscle) { m in NavigationStack { MuscleDetailView(muscle: m) } }
+        .sheet(item: $editing) { c in CustomExerciseBuilderView(existing: c) }
     }
 
     private var muscleRows: some View {
@@ -104,7 +121,7 @@ struct ExerciseDetailView: View {
 
     @ViewBuilder
     private var alternativesSection: some View {
-        let alts = model.profile.map { e.alternatives(for: $0) } ?? []
+        let alts = custom != nil ? [] : (model.profile.map { e.alternatives(for: $0) } ?? [])
         if !alts.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text(plannedUid == nil ? "Similar exercises" : "Swap for").eyebrow()

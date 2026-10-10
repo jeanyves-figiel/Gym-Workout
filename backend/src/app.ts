@@ -13,6 +13,7 @@ import type { Mailer } from './mailer.ts';
 import { type ApnsSender, createApnsSender } from './push/apns.ts';
 import { PushService } from './push/service.ts';
 import { accountRoutes } from './routes/account.ts';
+import { customExerciseRoutes } from './routes/customExercises.ts';
 import { customWorkoutRoutes } from './routes/customWorkouts.ts';
 import { prAttemptRoutes } from './routes/prAttempts.ts';
 import { dataRoutes } from './routes/data.ts';
@@ -186,6 +187,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       dataRoutes(r, deps.db, deps.now ?? (() => new Date()), auth);
       accountRoutes(r, emailChange, deps.config.authRateLimitPerMin);
       customWorkoutRoutes(r, deps.db, deps.now ?? (() => new Date()));
+      customExerciseRoutes(r, deps.db, deps.now ?? (() => new Date()));
       prAttemptRoutes(r, deps.db, deps.now ?? (() => new Date()));
       pushRoutes(r, push, deps.config.appleBundleIds, (id) => auth.userById(id)?.name ?? null);
     },
