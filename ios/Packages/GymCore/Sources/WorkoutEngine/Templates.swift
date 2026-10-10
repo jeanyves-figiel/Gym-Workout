@@ -81,7 +81,7 @@ public struct WorkoutTemplate: Identifiable, Hashable, Sendable {
 }
 
 extension Session {
-    /// Example workouts carry their own name; generated sessions are named by focus.
+    /// Example and custom workouts carry their own name; generated sessions are named by focus.
     public var isExample: Bool { id.hasPrefix(WorkoutTemplate.idPrefix) }
-    public var displayTitle: String { isExample ? title : focus.label }
+    public var displayTitle: String { isStandalone ? title : focus.label }
 }

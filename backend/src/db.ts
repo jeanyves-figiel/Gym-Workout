@@ -70,6 +70,13 @@ const MIGRATIONS: string[] = [
   // Per-set logging: which set (0-based) and reps in reserve. Nullable → old rows/clients unaffected.
   `ALTER TABLE workout_logs ADD COLUMN set_index INTEGER;
    ALTER TABLE workout_logs ADD COLUMN rir INTEGER;`,
+  `CREATE TABLE custom_workouts (
+     id TEXT PRIMARY KEY,
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     data TEXT NOT NULL,
+     updated_at TEXT NOT NULL
+   );
+   CREATE INDEX custom_workouts_user_updated ON custom_workouts(user_id, updated_at);`,
 ];
 
 export const openDb = (path: string): DB => {

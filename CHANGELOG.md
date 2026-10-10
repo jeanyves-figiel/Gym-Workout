@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Custom workouts (#28): build your own (name, catalog exercises with search + category/muscle filters, sets × reps, rest, optional kcal, reorder), edit/duplicate/delete, "Duplicate & edit" on example workouts; "My workouts" on Train, played and recorded like examples, synced with offline queue. API `/v1/me/custom-workouts` (upsert, `since`, delete; in export and account deletion).
 - Per-set logging in the workout player (kg × reps, optional RIR), prefilled from a load suggestion; synced (`setIndex`/`rir` on logs, backward compatible; backend migration adds nullable columns) (#5).
 - Load suggestions: double progression within the prescribed rep range, equipment-aware increments/rounding, −5 % below range, −10 % deload week; shown in player and on exercise page (#5).
 - Per-exercise history (best e1RM trend, sessions with sets) from the exercise page (#5).
@@ -22,6 +23,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Staging + production hosted on Fly.io (#3): apps `monkeyworkout-staging` → `https://workout-staging.monkeygrade.cloud`, `monkeyworkout-prod` → `https://workout.monkeygrade.cloud` (`backend/fly.*.toml`, region `fra`, 1 machine + `/data` volume, `/healthz` check). **Deploy staging** deploys the CI-built image on every merge to `main`; **Promote to production** (manual) deploys the same digest to prod. Both skip with a warning until `FLY_API_TOKEN` is set. Manual **Fly setup** workflow bootstraps app, volume, secrets and TLS cert per environment without local tools. Email via Amazon SES SMTP (eu-central-2, dedicated send-only IAM user; SMTP password derived in CI) from `no-reply@monkeygrade.cloud` when repo secrets `SES_ACCESS_KEY_ID`/`SES_SECRET_ACCESS_KEY` (or `SMTP_URL`) are set, else codes logged. iOS Staging build → staging host, Release → prod host.
 
 ### Fixed
+- iOS local state decodes leniently: state saved by older builds no longer resets to empty when new fields are missing.
 - API container: entrypoint fixes ownership of root-owned `/data` mounts (Fly volumes) before dropping to the `node` user (#3).
 
 ### Changed

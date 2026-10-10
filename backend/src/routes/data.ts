@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type AuthService, publicUser } from '../auth.ts';
 import { type DB, tx } from '../db.ts';
+import { listCustomWorkouts } from './customWorkouts.ts';
 
 const logEntry = z.object({
   id: z.uuid(),
@@ -151,6 +152,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
       profile: getProfile(req.userId!),
       logs,
       workouts: listWorkouts(req.userId!),
+      customWorkouts: listCustomWorkouts(db, req.userId!),
       sessions: auth.sessions(req.userId!),
     };
   });

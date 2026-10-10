@@ -11,6 +11,7 @@ import { ApiError } from './errors.ts';
 import { createBreachChecker } from './hibp.ts';
 import type { Mailer } from './mailer.ts';
 import { accountRoutes } from './routes/account.ts';
+import { customWorkoutRoutes } from './routes/customWorkouts.ts';
 import { dataRoutes } from './routes/data.ts';
 
 declare module 'fastify' {
@@ -166,6 +167,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
 
       dataRoutes(r, deps.db, deps.now ?? (() => new Date()), auth);
       accountRoutes(r, emailChange, deps.config.authRateLimitPerMin);
+      customWorkoutRoutes(r, deps.db, deps.now ?? (() => new Date()));
     },
     { prefix: '/v1' },
   );

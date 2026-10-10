@@ -196,6 +196,26 @@ public actor APIClient {
         _ = try await authorizedRaw("DELETE", "/v1/me/workouts/\(id.uuidString)", Empty?.none)
     }
 
+    /// User-built workouts (app-defined, must encode `id`, `name` and `items[].exerciseId`).
+    public func fetchCustomWorkouts<T: Decodable & Sendable>(_: T.Type, since: Date? = nil) async throws -> [T] {
+        var path = "/v1/me/custom-workouts"
+        if let since {
+            let s = ISO8601DateFormatter().string(from: since)
+            path += "?since=\(s.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? s)"
+        }
+        return try await authorized("GET", path, Empty?.none, as: WorkoutsResponse<T>.self).workouts
+    }
+
+    public func pushCustomWorkouts<T: Encodable & Sendable>(_ workouts: [T]) async throws {
+        for chunk in stride(from: 0, to: workouts.count, by: 100).map({ Array(workouts[$0..<min($0 + 100, workouts.count)]) }) {
+            _ = try await authorizedRaw("POST", "/v1/me/custom-workouts", WorkoutsBody(workouts: chunk))
+        }
+    }
+
+    public func deleteCustomWorkout(_ id: UUID) async throws {
+        _ = try await authorizedRaw("DELETE", "/v1/me/custom-workouts/\(id.uuidString)", Empty?.none)
+    }
+
     // MARK: Internals
 
     struct Empty: Codable {}
