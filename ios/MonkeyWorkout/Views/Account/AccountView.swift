@@ -29,6 +29,9 @@ struct AccountView: View {
                     NavigationLink(user.hasPassword ? "Change password" : "Set a password") {
                         ChangePasswordView(hasPassword: user.hasPassword)
                     }
+                    NavigationLink(user.email == nil ? "Add email" : "Change email") {
+                        ChangeEmailView(currentEmail: user.email, hasPassword: user.hasPassword)
+                    }
                     NavigationLink("Signed-in devices") { DevicesView() }
                     NavigationLink { BodyHealthView() } label: { Label("Body & Apple Health", systemImage: "heart.text.square") }
                     Toggle("Lock with \(lock.biometryName)", isOn: Binding(

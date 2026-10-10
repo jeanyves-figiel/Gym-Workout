@@ -1,0 +1,58 @@
+name: Staging smoke test
+
+# End-to-end checks against the live staging API after each staging deploy (#26).
+# Email delivery uses the Amazon SES mailbox simulator: a 2xx from /register means SES accepted the message.
+on:
+  workflow_run:
+    workflows: ['Deploy staging']
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      API: https://workout-staging.monkeygrade.cloud
+    steps:
+      - name: Health + real mail transport
+        run: |
+          # Machine may be stopped (auto_stop); give it time to wake.
+          for i in $(seq 1 12); do
+            body=$(curl -fsS -m 20 "$API/healthz") && break
+            sleep 10
+          done
+          echo "healthz: $body"
+          echo "$body" | jq -e '.ok == true' >/dev/null
+          echo "$body" | jq -e '.mail == "ses" or .mail == "smtp"' >/dev/null || { echo "::error::Staging mail transport is console; verification emails are only logged."; exit 1; }
+      - name: Sign-up sends verification email (SES simulator)
+        run: |
+          EMAIL="success+mw-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}@simulator.amazonses.com"
+          echo "EMAIL=$EMAIL" >> "$GITHUB_ENV"
+          code=$(curl -sS -m 30 -o out.json -w '%{http_code}' -X POST "$API/v1/auth/register" \
+            -H 'content-type: application/json' \
+            -d "{\"email\":\"$EMAIL\",\"password\":\"smoke-${GITHUB_RUN_ID}-Pw!x\",\"acceptedTerms\":true}")
+          cat out.json; echo
+          [ "$code" = 202 ] || { echo "::error::register returned $code (SES send failed?)"; exit 1; }
+      - name: Unverified login is refused and re-sends code
+        run: |
+          code=$(curl -sS -m 30 -o out.json -w '%{http_code}' -X POST "$API/v1/auth/login" \
+            -H 'content-type: application/json' \
+            -d "{\"email\":\"$EMAIL\",\"password\":\"smoke-${GITHUB_RUN_ID}-Pw!x\"}")
+          cat out.json; echo
+          [ "$code" = 403 ] && jq -e '.error == "email_not_verified"' out.json >/dev/null
+      - name: Forgot password accepted
+        run: |
+          code=$(curl -sS -m 30 -o /dev/null -w '%{http_code}' -X POST "$API/v1/auth/password/forgot" \
+            -H 'content-type: application/json' -d "{\"email\":\"$EMAIL\"}")
+          [ "$code" = 202 ]
+      - name: Auth guards
+        run: |
+          code=$(curl -sS -m 30 -o /dev/null -w '%{http_code}' -X POST "$API/v1/auth/apple" \
+            -H 'content-type: application/json' -d '{"identityToken":"not-a-real-apple-token"}')
+          [ "$code" = 401 ] || [ "$code" = 400 ] || { echo "::error::apple returned $code"; exit 1; }
+          code=$(curl -sS -m 30 -o /dev/null -w '%{http_code}' "$API/v1/me")
+          [ "$code" = 401 ] || { echo "::error::/v1/me without token returned $code"; exit 1; }

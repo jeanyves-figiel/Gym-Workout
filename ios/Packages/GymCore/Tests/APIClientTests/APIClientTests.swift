@@ -183,4 +183,57 @@ private func tokensJSON(_ n: Int) -> String {
         #expect(got.first?.title == "Legs")
         #expect(got.first?.startedAt == date)
     }
+
+    @Test func customWorkoutsRoundTrip() async throws {
+        struct C: Codable, Sendable, Equatable { var id: UUID; var name: String; var createdAt: Date }
+        let id = UUID(uuidString: "6F9619FF-8B86-4011-B42D-00C04FC964FF")!
+        let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
+        StubProtocol.register("custom.test") { req, body in
+            let path = req.url!.path
+            switch req.httpMethod {
+            case "POST":
+                let s = String(decoding: body ?? Data(), as: UTF8.self)
+                let ok = path == "/v1/me/custom-workouts" && s.contains(#""workouts":[{"#) && s.contains(#""createdAt":"2026-10-07T10:00:00Z""#)
+                return ok ? (200, #"{"saved":1}"#) : (400, #"{"error":"x","message":"\#(s)"}"#)
+            case "DELETE":
+                return path == "/v1/me/custom-workouts/\(id.uuidString)" ? (204, "") : (404, #"{"error":"x","message":"\#(path)"}"#)
+            default:
+                guard path == "/v1/me/custom-workouts" else { return (404, #"{"error":"x","message":"\#(path)"}"#) }
+                return (200, #"{"workouts":[{"id":"\#(id.uuidString)","name":"Push","createdAt":"2026-10-07T10:00:00Z","updatedAt":"2026-10-07T10:00:01.123Z"}],"serverTime":"x"}"#)
+            }
+        }
+        let api = makeClient("custom.test", tokens: store)
+        let date = Date(timeIntervalSince1970: 1_791_367_200)
+        try await api.pushCustomWorkouts([C(id: id, name: "Push", createdAt: date)])
+        let got = try await api.fetchCustomWorkouts(C.self)
+        #expect(got == [C(id: id, name: "Push", createdAt: date)])
+        try await api.deleteCustomWorkout(id)
+    }
+}
+
+@Suite struct LogEntryCodingTests {
+    @Test func legacyLogsDecodeWithoutPerSetFields() throws {
+        let dec = JSONDecoder()
+        dec.dateDecodingStrategy = .iso8601
+        let json = #"{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","date":"2026-10-07T10:00:00Z","exerciseId":"back-squat","sessionId":null,"weightKg":80,"reps":null}"#
+        let l = try dec.decode(LogEntry.self, from: Data(json.utf8))
+        #expect(l.weightKg == 80)
+        #expect(l.setIndex == nil)
+        #expect(l.rir == nil)
+    }
+
+    @Test func perSetFieldsRoundTrip() throws {
+        let enc = JSONEncoder()
+        enc.dateEncodingStrategy = .iso8601
+        let dec = JSONDecoder()
+        dec.dateDecodingStrategy = .iso8601
+        let l = LogEntry(date: Date(timeIntervalSince1970: 1_791_367_200), exerciseId: "back-squat", sessionId: "w1s1",
+                         weightKg: 82.5, reps: 8, setIndex: 2, rir: 1)
+        let back = try dec.decode(LogEntry.self, from: enc.encode(l))
+        #expect(back == l)
+        // Nil per-set fields are omitted, so old servers see exactly the legacy payload.
+        let legacy = try String(decoding: enc.encode(LogEntry(date: l.date, exerciseId: "x", weightKg: 1)), as: UTF8.self)
+        #expect(!legacy.contains("setIndex"))
+        #expect(!legacy.contains("rir"))
+    }
 }

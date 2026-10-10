@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SwiftUI
 
 @main
@@ -15,10 +16,17 @@ struct MonkeyWorkoutApp: App {
                 .environment(health)
                 .task {
                     await model.bootstrap()
+                    await AppleCredentialCheck.verify(model)
                     #if DEBUG
                     if Demo.enabled { health.snapshot = Demo.health; return }
                     #endif
                     await health.refresh()
+                }
+                .task {
+                    // Apple ID stopped using Sign in with Apple for this app while it was running.
+                    for await _ in NotificationCenter.default.notifications(named: ASAuthorizationAppleIDProvider.credentialRevokedNotification) {
+                        await AppleCredentialCheck.verify(model)
+                    }
                 }
                 .onChange(of: scenePhase) { _, phase in
                     switch phase {
@@ -26,6 +34,7 @@ struct MonkeyWorkoutApp: App {
                     case .active:
                         lock.didBecomeActive()
                         Task {
+                            await AppleCredentialCheck.verify(model)
                             await model.sync()
                             await health.refresh()
                         }

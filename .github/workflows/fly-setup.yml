@@ -1,0 +1,82 @@
+name: Fly setup
+
+# Manual, idempotent, one-time bootstrap of a Fly.io app (#3) — no local CLI needed.
+# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Email: secrets SES_ACCESS_KEY_ID + SES_SECRET_ACCESS_KEY (IAM user, ses:SendRawEmail; sent via the SES HTTPS API) or SMTP_URL → real email, else console. Optional APPLE_KEY_ID + APPLE_PRIVATE_KEY (Sign in with Apple .p8) → Apple token revocation.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target'
+        type: choice
+        options: [staging, production]
+        default: staging
+      org:
+        description: 'Fly organization slug'
+        required: true
+        default: 'personal'
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      SMTP_URL: ${{ secrets.SMTP_URL }}
+      SES_ACCESS_KEY_ID: ${{ secrets.SES_ACCESS_KEY_ID }}
+      SES_SECRET_ACCESS_KEY: ${{ secrets.SES_SECRET_ACCESS_KEY }}
+      SES_REGION: eu-central-2
+      APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+      APPLE_PRIVATE_KEY: ${{ secrets.APPLE_PRIVATE_KEY }}
+      FLY_APP: ${{ inputs.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
+      REGION: fra
+      HOSTNAME: ${{ inputs.environment == 'production' && 'workout.monkeygrade.cloud' || 'workout-staging.monkeygrade.cloud' }}
+      ORG: ${{ inputs.org }}
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: App
+        run: |
+          if flyctl status -a "$FLY_APP" >/dev/null 2>&1; then echo "app exists"
+          else flyctl apps create "$FLY_APP" --org "$ORG"; fi
+      - name: Volume
+        run: |
+          if [ "$(flyctl volumes list -a "$FLY_APP" --json | jq length)" -gt 0 ]; then echo "volume exists"
+          else flyctl volumes create data -a "$FLY_APP" -r "$REGION" -s 1 -y; fi
+      # Generated in the runner, sent via stdin, never printed. Existing secrets are kept.
+      - name: Secrets
+        run: |
+          have=$(flyctl secrets list -a "$FLY_APP" --json | jq -r '.[] | (.Name // .name)')
+          {
+            echo "$have" | grep -qx JWT_SECRET  || echo "JWT_SECRET=$(openssl rand -base64 48 | tr -d '\n')"
+            echo "$have" | grep -qx CODE_PEPPER || echo "CODE_PEPPER=$(openssl rand -base64 32 | tr -d '\n')"
+            if [ -n "$SES_ACCESS_KEY_ID" ]; then
+              # SES HTTPS API (eu-central-2 has no SMTP endpoint).
+              echo "SES_ACCESS_KEY_ID=$SES_ACCESS_KEY_ID"
+              echo "SES_SECRET_ACCESS_KEY=$SES_SECRET_ACCESS_KEY"
+              echo "SES_REGION=$SES_REGION"
+            elif [ -n "$SMTP_URL" ]; then echo "SMTP_URL=$SMTP_URL"
+            else echo "$have" | grep -qxE 'SES_ACCESS_KEY_ID|SMTP_URL|MAIL_TRANSPORT' || echo "MAIL_TRANSPORT=console"; fi
+          } > "$RUNNER_TEMP/secrets.env"
+          # Real mail configured → drop the console fallback (and the old SES SMTP URL when using the API).
+          if { [ -n "$SES_ACCESS_KEY_ID" ] || [ -n "$SMTP_URL" ]; } && echo "$have" | grep -qx MAIL_TRANSPORT; then flyctl secrets unset --stage -a "$FLY_APP" MAIL_TRANSPORT; fi
+          if [ -n "$SES_ACCESS_KEY_ID" ] && echo "$have" | grep -qx SMTP_URL; then flyctl secrets unset --stage -a "$FLY_APP" SMTP_URL; fi
+          if [ -s "$RUNNER_TEMP/secrets.env" ]; then flyctl secrets import --stage -a "$FLY_APP" < "$RUNNER_TEMP/secrets.env"; fi
+          rm -f "$RUNNER_TEMP/secrets.env"
+          # Sign in with Apple key (token exchange + revocation on account deletion, #12). Multiline .p8 via stdin.
+          if [ -n "$APPLE_KEY_ID" ] && [ -n "$APPLE_PRIVATE_KEY" ]; then
+            printf '%s\n' "$APPLE_PRIVATE_KEY" | flyctl secrets set --stage -a "$FLY_APP" APPLE_PRIVATE_KEY=-
+            flyctl secrets set --stage -a "$FLY_APP" APPLE_KEY_ID="$APPLE_KEY_ID"
+          fi
+          flyctl secrets list -a "$FLY_APP"
+      - name: TLS certificate
+        run: |
+          flyctl certs show "$HOSTNAME" -a "$FLY_APP" >/dev/null 2>&1 || flyctl certs add "$HOSTNAME" -a "$FLY_APP"
+          {
+            echo "### DNS for \`$HOSTNAME\`"
+            echo "CNAME \`${HOSTNAME%%.*}\` → \`$FLY_APP.fly.dev\` (DNS only)"
+            echo '```'
+            flyctl certs show "$HOSTNAME" -a "$FLY_APP" 2>&1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

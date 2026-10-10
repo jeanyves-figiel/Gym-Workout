@@ -5,6 +5,32 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **TestFlight distribute** workflow: waits for Apple processing, then adds the newest build to the internal TestFlight group "Workout" via the App Store Connect API. Runs after each TestFlight upload; also manual (group name input).
+- Manual **Fly logs** workflow: prints recent staging/production API logs (errors by default) without local tools.
+- Custom workouts (#28): build your own (name, catalog exercises with search + category/muscle filters, sets × reps, rest, optional kcal, reorder), edit/duplicate/delete, "Duplicate & edit" on example workouts; "My workouts" on Train, played and recorded like examples, synced with offline queue. API `/v1/me/custom-workouts` (upsert, `since`, delete; in export and account deletion).
+- Per-set logging in the workout player (kg × reps, optional RIR), prefilled from a load suggestion; synced (`setIndex`/`rir` on logs, backward compatible; backend migration adds nullable columns) (#5).
+- Load suggestions: double progression within the prescribed rep range, equipment-aware increments/rounding, −5 % below range, −10 % deload week; shown in player and on exercise page (#5).
+- Per-exercise history (best e1RM trend, sessions with sets) from the exercise page (#5).
+- Exercise illustrations from free-exercise-db (public domain, pinned commit) for 113 exercises: thumbnails on session cards, animated header with credit on exercise page, animated image in the player; disk-cached for offline use (#27).
+- Sign in with Apple credential check on launch/foreground; signs out when the Apple ID link is revoked (#12).
+- Account deletion revokes the Sign in with Apple token: server exchanges the authorization code at sign-in (refresh token stored encrypted) and calls Apple's revoke endpoint on deletion. Needs GitHub secrets `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, pushed to Fly by the **Fly setup** workflow; skipped until set (#12).
+- Change email: Account → Change email, 6-digit code to new address, old address notified (`POST /v1/me/email`, `/v1/me/email/confirm`) (#13).
+- Breached-password check (Have I Been Pwned, k-anonymity, fail-open, 2 s timeout) at sign-up, reset and change; `HIBP_CHECK=0` disables (#13).
+- Purge job for expired codes, pending email changes and expired/revoked refresh tokens (`PURGE_INTERVAL_MIN`, default 60) (#13).
+- Climbing schedule (#6): pick climbing weekdays (and optionally gym days) in the training profile; sessions are placed on weekdays around climbing: no heavy pull/grip or explosive block the day before climbing, push and leg days adjacent to climbing. Session cards, next-up card and session screen show weekday + "climbing tomorrow / day after climbing" hint. Climbing days/week follows picked weekdays; Health climbing hint hidden then. Profiles without weekdays generate unchanged plans.
+- **Staging smoke test** workflow (#26): after each staging deploy, checks `/healthz`, that mail goes via SMTP, sign-up email accepted by SES (mailbox simulator), unverified-login refusal, forgot-password and auth guards. `/healthz` now reports the mail transport.
+- Example workouts on the Train tab: **Arms + Shoulder** (10 exercises) and **Lowerbody** (10 exercises), 3 × 10 each, with source-plan calories and activity points; open, tick off and play like any session, recorded to history. 12 new exercises with full setup/technique (barbell split squat, barbell & incline curls, lying barbell/dumbbell French press, standing reverse fly, diamond push-up, seated calf raise, hip adduction/abduction, seated crunch, torso rotation) and 4 new machines; example-only exercises are never picked by the generator.
+- **TestFlight (Staging)** workflow (#12): archives the Staging scheme on macOS and uploads to App Store Connect using an App Store Connect API key (cloud signing); skips until `ASC_KEY_ID`/`ASC_ISSUER_ID`/`ASC_KEY_P8` are set. Setup steps in `ios/README.md`.
+- Staging + production hosted on Fly.io (#3): apps `monkeyworkout-staging` → `https://workout-staging.monkeygrade.cloud`, `monkeyworkout-prod` → `https://workout.monkeygrade.cloud` (`backend/fly.*.toml`, region `fra`, 1 machine + `/data` volume, `/healthz` check). **Deploy staging** deploys the CI-built image on every merge to `main`; **Promote to production** (manual) deploys the same digest to prod. Both skip with a warning until `FLY_API_TOKEN` is set. Manual **Fly setup** workflow bootstraps app, volume, secrets and TLS cert per environment without local tools. Email via Amazon SES SMTP (eu-central-2, dedicated send-only IAM user; SMTP password derived in CI) from `no-reply@monkeygrade.cloud` when repo secrets `SES_ACCESS_KEY_ID`/`SES_SECRET_ACCESS_KEY` (or `SMTP_URL`) are set, else codes logged. iOS Staging build → staging host, Release → prod host.
+
+### Fixed
+- **TestFlight distribute** no longer fails on internal groups with automatic distribution (Apple rejects manual assignment there; those groups already get every build).
+- TestFlight uploads after the first failed ("bundle version must be higher than 1"): generated Info.plist hard-coded version 1.0 build 1. It now uses `MARKETING_VERSION` (set to 1.0, matching App Store Connect) and `CURRENT_PROJECT_VERSION` (CI run number).
+- Email on staging/prod: SES Zurich (eu-central-2) has no SMTP endpoint, so sign-up failed with 500 (`ENOTFOUND email-smtp.eu-central-2.amazonaws.com`). API now sends via the SES HTTPS API (`SendRawEmail`, SigV4, same send-only IAM user); **Fly setup** pushes `SES_*` secrets and drops the old `SMTP_URL`. Smoke test accepts `ses` (#26).
+- iOS local state decodes leniently: state saved by older builds no longer resets to empty when new fields are missing.
+- API container: entrypoint fixes ownership of root-owned `/data` mounts (Fly volumes) before dropping to the `node` user (#3).
+
 ### Changed
 - App renamed **MonkeyWorkout** (#21): Xcode project/target/schemes, display names, bundle IDs `Com.app.MonkeyWorkout` (Release + TestFlight staging) and `Com.app.MonkeyWorkout.dev` (DEV); App Store Connect SKU `Monkeyworkout`, Apple ID `6819971090` documented; signing team `U7VAR53G86` set.
 - API: Sign in with Apple accepts the new bundle IDs, matched case-insensitively; emails sent as MonkeyWorkout (#21).

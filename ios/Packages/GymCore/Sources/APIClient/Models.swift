@@ -43,14 +43,23 @@ public struct LogEntry: Codable, Sendable, Equatable, Identifiable {
     public var sessionId: String?
     public var weightKg: Double?
     public var reps: Int?
+    /// 0-based set number within the session (per-set logging). Nil for legacy one-weight-per-exercise logs.
+    public var setIndex: Int?
+    /// Reps in reserve for that set (optional).
+    public var rir: Int?
 
-    public init(id: UUID = UUID(), date: Date, exerciseId: String, sessionId: String? = nil, weightKg: Double? = nil, reps: Int? = nil) {
+    public init(
+        id: UUID = UUID(), date: Date, exerciseId: String, sessionId: String? = nil, weightKg: Double? = nil, reps: Int? = nil,
+        setIndex: Int? = nil, rir: Int? = nil
+    ) {
         self.id = id
         self.date = date
         self.exerciseId = exerciseId
         self.sessionId = sessionId
         self.weightKg = weightKg
         self.reps = reps
+        self.setIndex = setIndex
+        self.rir = rir
     }
 }
 
