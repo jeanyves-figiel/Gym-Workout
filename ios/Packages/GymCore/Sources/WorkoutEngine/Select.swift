@@ -28,6 +28,11 @@ final class Ctx {
     var mainRng: Rng
     var usedMain: Set<String> = []
     var usedWeek: Set<String> = []
+    /// `.same` plans after week 1: week 1's picks per session index. A query any of them fits reuses it,
+    /// so exercises stay put even when a week's dose changes how many fit the time budget.
+    var reference: [Int: (picks: [String], paired: [String])]?
+    /// Reference picks (in pick order) and paired drills for the session being generated.
+    var sessionReference: (picks: [String], paired: [String]) = ([], [])
     var usedSession: Set<String> = []
 
     init(profile: Profile, week: Int, seed: UInt32) {
@@ -43,6 +48,21 @@ final class Ctx {
         equipment = Set(profile.equipment)
         frequentClimber = profile.climbingDaysPerWeek >= 2
         climber = profile.goal == .climbing || profile.climbingDaysPerWeek >= 1
+    }
+}
+
+extension Ctx {
+    /// Marks a pick used for this session / week (and as a main lift).
+    func use(_ e: Exercise, main: Bool) -> Exercise {
+        if main { usedMain.insert(e.id) }
+        usedSession.insert(e.id)
+        usedWeek.insert(e.id)
+        return e
+    }
+
+    /// Paired drills: the reference pick when one fits, else a random one.
+    func pickPaired(_ pool: [Exercise]) -> Exercise {
+        sessionReference.paired.lazy.compactMap { id in pool.first { $0.id == id } }.first ?? rng.pick(pool)
     }
 }
 
@@ -66,6 +86,9 @@ enum Selector {
     static func select(_ ctx: Ctx, _ q: Query) -> Exercise? {
         let pool = candidates(level: ctx.level, equipment: ctx.equipment, q).filter { !ctx.usedSession.contains($0.id) }
         guard !pool.isEmpty else { return nil }
+        if let id = ctx.sessionReference.picks.first(where: { id in pool.contains { $0.id == id } }) {
+            return ctx.use(Exercise.get(id), main: q.main)
+        }
         func score(_ e: Exercise) -> Double {
             var s = 0.0
             if q.main && e.main { s += 8 }
@@ -80,11 +103,7 @@ enum Selector {
         let scores = pool.map(score)
         let best = scores.max()!
         let top = zip(pool, scores).filter { $0.1 >= best - 1e-9 }.map(\.0)
-        let pick = q.main ? ctx.mainRng.pick(top) : ctx.rng.pick(top)
-        if q.main { ctx.usedMain.insert(pick.id) }
-        ctx.usedSession.insert(pick.id)
-        ctx.usedWeek.insert(pick.id)
-        return pick
+        return ctx.use(q.main ? ctx.mainRng.pick(top) : ctx.rng.pick(top), main: q.main)
     }
 }
 

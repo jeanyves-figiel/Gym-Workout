@@ -33,6 +33,13 @@ public enum Generator {
         profile.syncClimbingDays()
         let week = min(mesocycleWeeks, max(1, week))
         let ctx = Ctx(profile: profile, week: week, seed: seed)
+        if ctx.variety == .same && week != 1 {
+            let ref = generateWeek(profile, week: 1, seed: seed)
+            ctx.reference = Dictionary(uniqueKeysWithValues: ref.sessions.map { s in
+                let items = s.blocks.flatMap(\.items)
+                return (s.index, (items.map(\.exerciseId), items.compactMap(\.pairedWith)))
+            })
+        }
         let base = sessionMinutes(profile)
         let minutes = ctx.deload ? max(Rules.minSession - 5, round5(Double(base) * 0.8)) : base
         let baseSplit = Rules.splits[profile.sessionsPerWeek] ?? Rules.splits[3]!
@@ -70,6 +77,7 @@ public enum Generator {
     static func generateSession(_ ctx: Ctx, focus: Focus, variant: Int, index: Int, minutes: Int, cardio: CardioMode) -> Session {
         let id = "w\(ctx.week)s\(index + 1)"
         ctx.usedSession = []
+        ctx.sessionReference = ctx.reference?[index] ?? ([], [])
         let warm = clamp(Int((Double(minutes) * 0.12).rounded()), 6, 10)
         let cool = clamp(Int((Double(minutes) * 0.11).rounded()), 6, 10)
         let work = Double(minutes - warm - cool)
@@ -276,7 +284,7 @@ public enum Generator {
                 let m = Selector.candidates(level: ctx.level, equipment: ctx.equipment, Query(category: .mobility, regions: [region]))
                     .filter { !pairUsed.contains($0.id) && !ctx.usedSession.contains($0.id) }
                 if !m.isEmpty {
-                    let pick = ctx.rng.pick(m)
+                    let pick = ctx.pickPaired(m)
                     pairUsed.insert(pick.id)
                     paired = pick.id
                 }

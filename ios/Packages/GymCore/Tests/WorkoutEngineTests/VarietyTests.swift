@@ -7,7 +7,10 @@ private func profile(_ v: PlanVariety?, sessions: Int = 4) -> Profile {
 }
 
 private func ids(_ s: Session) -> [String] { s.blocks.flatMap { $0.items.map(\.exerciseId) } }
-private func mainLift(_ s: Session) -> String? { s.blocks.first { $0.kind == .strength }?.items.first?.exerciseId }
+/// First strength exercise; conditioning circuits have no main lift.
+private func mainLift(_ s: Session) -> String? {
+    s.focus == .conditioning ? nil : s.blocks.first { $0.kind == .strength }?.items.first?.exerciseId
+}
 private func week(_ p: Profile, _ w: Int, seed: UInt32 = 11) -> WeekPlan { Generator.generateWeek(p, week: w, seed: seed) }
 
 @Suite struct VarietyTests {
@@ -21,10 +24,17 @@ private func week(_ p: Profile, _ w: Int, seed: UInt32 = 11) -> WeekPlan { Gener
     @Test(arguments: [2, 3, 4, 5, 6])
     func sameRepeatsEveryExercise(sessions: Int) {
         let p = profile(.same, sessions: sessions)
-        let w1 = week(p, 1), w2 = week(p, 2), w3 = week(p, 3)
-        #expect(w1.sessions.map(ids) == w2.sessions.map(ids))
+        let w1 = week(p, 1)
+        #expect(w1.sessions.map(ids) == week(p, 2).sessions.map(ids))
+        // Peak week adds sets, so an accessory may drop for time, but nothing new comes in.
+        let w3 = week(p, 3)
         #expect(w1.sessions.map(\.focus) == w3.sessions.map(\.focus))
         #expect(w1.sessions.map(mainLift) == w3.sessions.map(mainLift))
+        for (a, b) in zip(w1.sessions, w3.sessions) {
+            #expect(Set(b.blocks.first { $0.kind == .strength }!.items.map(\.exerciseId))
+                .isSubset(of: Set(a.blocks.first { $0.kind == .strength }!.items.map(\.exerciseId))))
+        }
+        #expect(w1.sessions.map(mainLift) == week(p, 4).sessions.map(mainLift))
     }
 
     @Test(arguments: [2, 3, 4, 5, 6])
