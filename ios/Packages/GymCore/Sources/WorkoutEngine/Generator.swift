@@ -113,7 +113,12 @@ public enum Generator {
         let pw = ctx.preClimb ? nil : power(ctx, focus, powerMin, "\(id)-pw")
         if let pw { blocks.append(pw) }
         let powerLeft = pw.map { max(0, powerMin - Int($0.estMin.rounded())) } ?? powerMin
-        var st = strength(ctx, focus, variant, strengthMin + powerLeft, "\(id)-st", regions, leadStep: ctx.week - 1 + index)
+        // Grouping (#78) saves rest time, so the block is filled for a longer budget before it is grouped.
+        let grouping = focus == .conditioning ? Grouping.straight : ctx.profile.group
+        var st = strength(ctx, focus, variant, Int(Double(strengthMin + powerLeft) * grouping.budgetStretch), "\(id)-st", regions,
+                          leadStep: ctx.week - 1 + index)
+        st = applyGrouping(st, grouping)
+        st.targetMin = strengthMin + powerLeft
         if ctx.preClimb {
             st.note = ["Climbing tomorrow: no jumps or heavy grip work today.", st.note].compactMap { $0 }.joined(separator: " ")
         } else if ctx.preClimbGrip {
@@ -241,6 +246,7 @@ public enum Generator {
         else if light { d = Dose(sets: beginner ? 2 : 3, reps: e.unit == .sec ? "30–45 s" : "12–15", repsMid: 13, restSec: 45, rpe: 7) }
         else { d = g.accessory }
         if circuit { d.sets = 3; d.restSec = 30; d.rpe = 7 }
+        else { d.restSec = ctx.profile.rest.restSec(d.restSec, main: isMain, light: light) }
 
         var sets = d.sets - (beginner && !light && !circuit ? 1 : 0)
         if isMain && ctx.week % mesocycleWeeks == 3 && !beginner { sets += 1 }

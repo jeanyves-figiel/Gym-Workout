@@ -77,6 +77,8 @@ struct ProfileFormView: View {
                     Text("Week to week").eyebrow().padding(.top, 14).id("variety")
                     variety
 
+                    TrainingStyleSection(profile: $p).id("style")
+
                     Text("Your gym").eyebrow().padding(.top, 14)
                     GymPicker(profile: $p, showEquipment: $showEquipment)
                 }
