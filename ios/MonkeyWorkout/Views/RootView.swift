@@ -95,7 +95,8 @@ private struct DemoScreen: View {
         case "account": NavigationStack { AccountView() }
         case "account-password": NavigationStack { ChangePasswordView(hasPassword: true) }
         case "account-email": NavigationStack { ChangeEmailView(currentEmail: Demo.user?.email, hasPassword: true) }
-        case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", "breathing"]) { _ in }
+        case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", Demo.customExercise.exerciseId]) { _ in }
+        case "builder": CustomExerciseBuilderView(existing: Demo.customExercise)
         case "onboarding", "onboarding-climbing":
             NavigationStack {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
