@@ -70,9 +70,10 @@ public actor APIClient {
         return try await authenticate("/v1/auth/login", Body(email: email, password: password))
     }
 
-    public func signInWithApple(identityToken: String, name: String?) async throws -> User {
-        struct Body: Encodable { var identityToken: String; var name: String? }
-        return try await authenticate("/v1/auth/apple", Body(identityToken: identityToken, name: name))
+    /// `authorizationCode` lets the server obtain an Apple refresh token, revoked when the account is deleted.
+    public func signInWithApple(identityToken: String, name: String?, authorizationCode: String? = nil) async throws -> User {
+        struct Body: Encodable { var identityToken: String; var authorizationCode: String?; var name: String? }
+        return try await authenticate("/v1/auth/apple", Body(identityToken: identityToken, authorizationCode: authorizationCode, name: name))
     }
 
     public func forgotPassword(email: String) async throws {
@@ -114,6 +115,18 @@ public actor APIClient {
         struct Body: Encodable { var currentPassword: String?; var newPassword: String }
         let r = try await authorized("POST", "/v1/me/password", Body(currentPassword: current, newPassword: new), as: TokensResponse.self)
         store(r.tokens)
+    }
+
+    /// Emails a 6-digit code to `newEmail`; `password` is required when the account has one.
+    public func requestEmailChange(newEmail: String, password: String?) async throws {
+        struct Body: Encodable { var newEmail: String; var password: String? }
+        _ = try await authorizedRaw("POST", "/v1/me/email", Body(newEmail: newEmail, password: password))
+    }
+
+    /// Confirms the pending email change; the old address is notified by the server.
+    public func confirmEmailChange(code: String) async throws -> User {
+        struct Body: Encodable { var code: String }
+        return try await authorized("POST", "/v1/me/email/confirm", Body(code: code), as: UserResponse.self).user
     }
 
     public func sessions() async throws -> [ActiveSession] {

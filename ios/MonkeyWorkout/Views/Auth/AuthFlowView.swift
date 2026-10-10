@@ -88,8 +88,12 @@ struct AppleSignInButton: View {
                         return
                     }
                     let name = cred.fullName.flatMap { PersonNameComponentsFormatter().string(from: $0) }.flatMap { $0.isEmpty ? nil : $0 }
+                    // Server exchanges it for an Apple refresh token so account deletion can revoke Sign in with Apple.
+                    let code = cred.authorizationCode.flatMap { String(data: $0, encoding: .utf8) }
+                    let appleUserID = cred.user
                     task.run {
-                        let user = try await model.api.signInWithApple(identityToken: token, name: name)
+                        let user = try await model.api.signInWithApple(identityToken: token, name: name, authorizationCode: code)
+                        AppleCredentialCheck.remember(appleUserID: appleUserID, accountId: user.id)
                         await model.didAuthenticate(user)
                     }
                 case let .failure(error):
