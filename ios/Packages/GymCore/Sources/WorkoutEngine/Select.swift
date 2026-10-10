@@ -23,6 +23,10 @@ final class Ctx {
     let profile: Profile
     let week: Int
     let deload: Bool
+    let variety: PlanVariety
+    /// Main-lift picks: own RNG (seed only) and "used" set, so main lifts don't drift week to week.
+    var mainRng: Rng
+    var usedMain: Set<String> = []
     var usedWeek: Set<String> = []
     var usedSession: Set<String> = []
 
@@ -30,7 +34,11 @@ final class Ctx {
         self.profile = profile
         self.week = week
         deload = week == Rules.mesocycleWeeks
-        rng = Rng(seed: seed &+ UInt32(week) &* 7919)
+        let variety = profile.planVariety
+        self.variety = variety
+        // `.same`: one RNG stream for every week → identical picks; otherwise picks vary by week.
+        rng = Rng(seed: variety == .same ? seed : seed &+ UInt32(week) &* 7919)
+        mainRng = Rng(seed: seed ^ 0x9E37_79B9)
         level = profile.experience.level
         equipment = Set(profile.equipment)
         frequentClimber = profile.climbingDaysPerWeek >= 2
@@ -65,14 +73,15 @@ enum Selector {
             if q.main && ctx.level >= 2 && e.level >= 2 { s += 1.5 }
             if let i = q.prefer.firstIndex(of: e.id) { s += 4 - Double(min(3, i)) * 0.5 }
             if ctx.spareGrip && !e.gripHeavy { s += 2 }
-            if !ctx.usedWeek.contains(e.id) { s += 1 }
+            if !(q.main ? ctx.usedMain : ctx.usedWeek).contains(e.id) { s += 1 }
             if let r = q.regions { s += 0.5 * Double(e.regions.filter { r.contains($0) }.count) }
             return s
         }
         let scores = pool.map(score)
         let best = scores.max()!
         let top = zip(pool, scores).filter { $0.1 >= best - 1e-9 }.map(\.0)
-        let pick = ctx.rng.pick(top)
+        let pick = q.main ? ctx.mainRng.pick(top) : ctx.rng.pick(top)
+        if q.main { ctx.usedMain.insert(pick.id) }
         ctx.usedSession.insert(pick.id)
         ctx.usedWeek.insert(pick.id)
         return pick

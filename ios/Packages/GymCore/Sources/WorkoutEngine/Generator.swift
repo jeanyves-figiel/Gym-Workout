@@ -35,7 +35,9 @@ public enum Generator {
         let ctx = Ctx(profile: profile, week: week, seed: seed)
         let base = sessionMinutes(profile)
         let minutes = ctx.deload ? max(Rules.minSession - 5, round5(Double(base) * 0.8)) : base
-        let split = Rules.splits[profile.sessionsPerWeek] ?? Rules.splits[3]!
+        let baseSplit = Rules.splits[profile.sessionsPerWeek] ?? Rules.splits[3]!
+        let rotate = ctx.variety == .rotate
+        let split = rotate ? Rules.rotatedSplit(baseSplit, week: week) : baseSplit
         // With climbing / gym weekdays set, sessions are re-ordered and placed on weekdays.
         let prefs = profile.climbPrefs
         let slots = WeekSchedule.assign(split, climbing: profile.climbingDays, gym: profile.gymDays, prefs: prefs)
@@ -52,7 +54,9 @@ public enum Generator {
             // Day before climbing (#47): light/rest → no jumps + grip spared; strong → grip spared only.
             ctx.preClimb = beforeClimb && (prefs.before == .light || prefs.before == .rest)
             ctx.preClimbGrip = beforeClimb && prefs.before == .strong
-            var session = generateSession(ctx, focus: focus, variant: n % 2, index: i, minutes: minutes, cardio: mode)
+            // `.rotate`: A/B slot orders swap weekly too.
+            let variant = (n + (rotate ? week - 1 : 0)) % 2
+            var session = generateSession(ctx, focus: focus, variant: variant, index: i, minutes: minutes, cardio: mode)
             session.weekday = weekday
             sessions.append(session)
         }
@@ -87,7 +91,7 @@ public enum Generator {
         let pw = ctx.preClimb ? nil : power(ctx, focus, powerMin, "\(id)-pw")
         if let pw { blocks.append(pw) }
         let powerLeft = pw.map { max(0, powerMin - Int($0.estMin.rounded())) } ?? powerMin
-        var st = strength(ctx, focus, variant, strengthMin + powerLeft, "\(id)-st", regions)
+        var st = strength(ctx, focus, variant, strengthMin + powerLeft, "\(id)-st", regions, leadStep: ctx.week - 1 + index)
         if ctx.preClimb {
             st.note = ["Climbing tomorrow: no jumps or heavy grip work today.", st.note].compactMap { $0 }.joined(separator: " ")
         } else if ctx.preClimbGrip {
@@ -229,10 +233,12 @@ public enum Generator {
                              note: notes.isEmpty ? nil : notes.joined(separator: " · ")), d.repsMid)
     }
 
-    static func strength(_ ctx: Ctx, _ focus: Focus, _ variant: Int, _ minutes: Int, _ uid: String, _ pairRegions: [Region]) -> Block {
+    static func strength(_ ctx: Ctx, _ focus: Focus, _ variant: Int, _ minutes: Int, _ uid: String, _ pairRegions: [Region], leadStep: Int = 0) -> Block {
         let budget = Double(minutes * 60)
         let circuit = focus == .conditioning
-        let slots = climberSlots(Rules.strengthSlots(focus, variant: variant), focus, ctx)
+        var base = Rules.strengthSlots(focus, variant: variant)
+        if ctx.variety == .rotate { base = Rules.rotatingLead(base, focus, step: leadStep) }
+        let slots = climberSlots(base, focus, ctx)
         var items: [PlannedExercise] = []
         var pairUsed: Set<String> = []
         var used = 0.0
