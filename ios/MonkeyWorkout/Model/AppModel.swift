@@ -49,6 +49,8 @@ final class AppModel {
             state.climbs = Demo.climbs()
             MonkeyGradeLink.shared.loadDemo(ownerId: Demo.user?.id ?? "demo")
             state.synced?.profile.climbDayAddon = true
+            state.synced?.away = Demo.away()
+            replanCurrentWeek()
             phase = Demo.screen == "welcome" ? .signedOut : .signedIn
             return
         }
@@ -121,8 +123,9 @@ final class AppModel {
     func applyProfile(_ profile: Profile, seed: UInt32? = nil, week: Int = 1) {
         let s = seed ?? UInt32.random(in: 0...UInt32.max)
         let changed = state.synced?.week != week || state.synced?.seed != s || state.synced?.profile != profile
-        state.synced = SyncedProfile(profile: profile, seed: s, week: week, body: state.synced?.body)
+        state.synced = SyncedProfile(profile: profile, seed: s, week: week, body: state.synced?.body, away: state.synced?.away)
         state.plan = Generator.generateWeek(profile, week: week, seed: s)
+        replanCurrentWeek()
         if changed {
             state.done = [:]
             state.ticked = [:]
@@ -304,6 +307,7 @@ final class AppModel {
         if state.synced == nil || !state.profileDirty {
             state.synced = remote
             state.plan = Generator.generateWeek(remote.profile, week: remote.week, seed: remote.seed)
+            replanCurrentWeek()
             state.profileDirty = false
             persist()
         }
