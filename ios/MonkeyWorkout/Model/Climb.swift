@@ -62,6 +62,8 @@ struct ClimbEntry: Identifiable, Equatable, Sendable {
     var topGrade: String?
     /// True when logged in this app (can be deleted here).
     var local = false
+    /// Extra line, e.g. "12 sends · 3 flashes" from MonkeyGrade.
+    var detail: String?
 
     var minutes: Int { max(0, Int(end.timeIntervalSince(start) / 60)) }
 
@@ -89,11 +91,37 @@ struct ClimbEntry: Identifiable, Equatable, Sendable {
 }
 
 enum Climbs {
-    /// Logged climbs plus Health climbs not written by this app (matched by id), newest first.
-    static func merged(local: [ClimbLog], health: [ClimbEntry]) -> [ClimbEntry] {
+    /// Logged climbs, MonkeyGrade sessions, and Health climbs not already covered by either, newest first.
+    /// Health copies are matched by id (written here) or by overlapping time (written by MonkeyGrade's app).
+    static func merged(local: [ClimbLog], health: [ClimbEntry], monkeyGrade: [ClimbEntry] = []) -> [ClimbEntry] {
         let ids = Set(local.map(\.id))
-        let all = local.map { ClimbEntry($0) } + health.filter { !ids.contains($0.id) }
-        return all.sorted { $0.start > $1.start }
+        let mine = local.map { ClimbEntry($0) }
+        let others = health.filter { h in
+            !ids.contains(h.id) && !monkeyGrade.contains { overlaps($0, h) }
+        }
+        return (mine + monkeyGrade + others).sorted { $0.start > $1.start }
+    }
+
+    static func overlaps(_ a: ClimbEntry, _ b: ClimbEntry) -> Bool {
+        a.start < b.end && b.start < a.end
+    }
+
+    /// Hardest grade when labels are all Font (6A, 7B+) or all V-scale (V5); nil for colours or mixed scales.
+    static func hardest(_ labels: [String]) -> String? {
+        let l = labels.map { $0.trimmingCharacters(in: .whitespaces).uppercased() }.filter { !$0.isEmpty }
+        guard !l.isEmpty else { return nil }
+        let isFont = l.allSatisfy { $0.range(of: #"^[3-9][ABC]?\+?$"#, options: .regularExpression) != nil }
+        if isFont { return l.max { fontRank($0) < fontRank($1) } }
+        let isV = l.allSatisfy { $0.range(of: #"^V\d{1,2}$"#, options: .regularExpression) != nil }
+        if isV { return l.max { (Int($0.dropFirst()) ?? 0) < (Int($1.dropFirst()) ?? 0) } }
+        return nil
+    }
+
+    private static func fontRank(_ g: String) -> Int {
+        let chars = Array(g)
+        let n = Int(String(chars[0])) ?? 0
+        let letter = chars.count > 1 && chars[1] != "+" ? Int(chars[1].asciiValue ?? 65) - 64 : 0
+        return n * 100 + letter * 10 + (g.hasSuffix("+") ? 1 : 0)
     }
 
     static func thisWeek(_ climbs: [ClimbEntry], now: Date = Date()) -> Int {

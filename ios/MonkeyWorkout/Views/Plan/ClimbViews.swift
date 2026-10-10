@@ -37,7 +37,11 @@ struct ClimbSection: View {
     @State private var logging: ClimbLog?
     @State private var settings = false
 
-    private var climbs: [ClimbEntry] { Climbs.merged(local: model.climbLogs, health: health.snapshot.recentClimbs) }
+    private var monkeyGrade: MonkeyGradeLink { .shared }
+
+    private var climbs: [ClimbEntry] {
+        Climbs.merged(local: model.climbLogs, health: health.snapshot.recentClimbs, monkeyGrade: monkeyGrade.climbs(for: model.user?.id))
+    }
 
     var body: some View {
         let all = climbs
@@ -82,6 +86,7 @@ struct ClimbSection: View {
         }
         .sheet(item: $logging) { LogClimbView(initial: $0) }
         .sheet(isPresented: $settings) { ClimbSettingsView() }
+        .task { if monkeyGrade.isConnected(for: model.user?.id) { await monkeyGrade.refresh() } }
     }
 
     private var isClimbingDay: Bool {
@@ -159,12 +164,12 @@ private struct ClimbTile: View {
             Text(climb.kind?.label ?? "Climbing").font(Theme.display(17))
             Text("\(climb.start.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))) · \(climb.durationText)")
                 .font(Theme.label(11)).opacity(0.9)
-            Text(climb.effort.map { "Effort \($0) · \(climb.source)" } ?? climb.source)
-                .font(Theme.label(10)).opacity(0.75).lineLimit(1)
+            Text([climb.detail, climb.effort.map { "Effort \($0)" }, climb.source].compactMap { $0 }.joined(separator: " · "))
+                .font(Theme.label(10)).opacity(0.75).lineLimit(2)
         }
         .foregroundStyle(.white)
         .padding(14)
-        .frame(width: 150, height: 130, alignment: .topLeading)
+        .frame(width: 160, height: 140, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(climb.gradient))
     }
 }
