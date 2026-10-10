@@ -6,7 +6,7 @@ struct TimedSpec: Equatable {
     var workSec: Int
     var easySec: Int?
 
-    init?(_ p: Prescription, unit: WorkoutEngine.Unit) {
+    init?(_ p: Prescription, unit: WorkoutEngine.Unit?) {
         let parts = p.reps.components(separatedBy: "/")
         // Exercises counted in seconds may give a bare number ("30").
         guard let work = Self.seconds(parts[0]) ?? (unit == .sec ? Int(parts[0].trimmingCharacters(in: .whitespaces)) : nil),
