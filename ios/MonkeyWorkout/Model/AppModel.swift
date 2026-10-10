@@ -46,6 +46,9 @@ final class AppModel {
             let demo = Demo.history()
             state.history = demo.records
             state.logs = demo.logs
+            state.climbs = Demo.climbs()
+            MonkeyGradeLink.shared.loadDemo(ownerId: Demo.user?.id ?? "demo")
+            state.synced?.profile.climbDayAddon = true
             phase = Demo.screen == "welcome" ? .signedOut : .signedIn
             return
         }

@@ -3,11 +3,9 @@ name: TestFlight (Staging)
 # Archives the "MonkeyWorkout Staging" scheme (staging API) and uploads it to App Store Connect → TestFlight.
 # Signing: Xcode automatic/cloud signing driven by an App Store Connect API key (no certificates in the repo).
 # Skips with a warning until the ASC_* secrets exist (see ios/README.md → TestFlight).
+# Manual only: builds ship when all open work streams are merged, not on every merge to main.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['ios/**', '.github/workflows/testflight.yml']
 
 concurrency:
   group: testflight

@@ -6,6 +6,7 @@ struct AccountView: View {
     @Environment(AppLock.self) private var lock
     @State private var name = ""
     @State private var nameTask = FormTask()
+    @FocusState private var nameFocused: Bool
     @State private var exportURL: URL?
     @State private var exportTask = FormTask()
     @State private var confirmSignOutAll = false
@@ -19,7 +20,9 @@ struct AccountView: View {
                     HStack {
                         TextField("Name", text: $name)
                             .textContentType(.name)
-                            .onSubmit(saveName)
+                            .submitLabel(.done)
+                            .focused($nameFocused)
+                            .onChange(of: nameFocused) { _, focused in if !focused { saveName() } }
                         if nameTask.busy { ProgressView() }
                     }
                     ErrorText(message: nameTask.error)
@@ -37,6 +40,15 @@ struct AccountView: View {
                     Toggle("Lock with \(lock.biometryName)", isOn: Binding(
                         get: { lock.enabled },
                         set: { on in Task { await lock.setEnabled(on) } }))
+                }
+                Section("Connected apps") {
+                    NavigationLink { MonkeyGradeView() } label: {
+                        LabeledContent {
+                            Text(MonkeyGradeLink.shared.isConnected(for: user.id) ? "Connected" : "Connect")
+                        } label: {
+                            Label("MonkeyGrade", systemImage: "figure.climbing")
+                        }
+                    }
                 }
             } else {
                 Section { ProgressView().task { await model.refreshUser() } }
@@ -86,6 +98,7 @@ struct AccountView: View {
 
     private func saveName() {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard (trimmed.isEmpty ? nil : trimmed) != model.user?.name else { return }
         nameTask.run { model.user = try await model.api.updateName(trimmed.isEmpty ? nil : trimmed) }
     }
 

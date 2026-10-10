@@ -73,9 +73,20 @@ struct Card: ViewModifier {
 extension View {
     func card(padding: CGFloat = 16) -> some View { modifier(Card(padding: padding)) }
 
-    /// Dark canvas behind system forms/lists.
+    /// Dark canvas behind system forms/lists; keyboard dismisses on scroll or via a Done button.
     func themedForm() -> some View {
-        scrollContentBackground(.hidden).background(Theme.bg.ignoresSafeArea())
+        scrollContentBackground(.hidden)
+            .background(Theme.bg.ignoresSafeArea())
+            .scrollDismissesKeyboard(.interactively)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
+                    .bold()
+                }
+            }
     }
 
     /// Small uppercase section label.

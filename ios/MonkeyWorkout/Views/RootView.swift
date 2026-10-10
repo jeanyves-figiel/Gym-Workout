@@ -80,12 +80,20 @@ private struct DemoScreen: View {
         case "player": WorkoutPlayerView(sessionId: second)
         case "example": NavigationStack { SessionView(sessionId: WorkoutTemplate.all[1].sessionId) }
         case "explore": NavigationStack { LibraryView() }
+        case "monkeygrade": NavigationStack { MonkeyGradeView() }
+        case "climb-settings": ClimbSettingsView()
+        case "climb": LogClimbView(initial: ClimbLog(start: Date().addingTimeInterval(-90 * 60), effort: 8, topGrade: "6C"))
         case "muscle": NavigationStack { MuscleDetailView(muscle: .lats) }
         case "exercise": NavigationStack { ExerciseDetailView(exerciseId: "pull-up") }
         case "technique": FormSheet(exercise: Exercise.get("leg-press"))
         case "progress": NavigationStack { ProgressTabView() }
         case "history": NavigationStack { HistoryDetailView(recordId: model.history.first?.id ?? UUID()) }
         case "body": NavigationStack { BodyHealthView() }
+        case "onboarding", "onboarding-climbing":
+            NavigationStack {
+                ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
+                    .navigationTitle("Your training")
+            }
         case "readiness":
             ReadinessSheet(snapshot: Demo.health, readiness: Readiness.assess(Demo.health)?.0 ?? .normal, flags: Readiness.assess(Demo.health)?.1 ?? [])
         case "cycle": WeekPhaseSheet(week: 1)

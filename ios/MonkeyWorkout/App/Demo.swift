@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|session|player|explore|muscle|exercise|technique|progress|history|body|readiness|cycle|welcome]`
+/// DEBUG-only: `-demo [-demoScreen week|onboarding|onboarding-climbing|session|player|explore|muscle|exercise|technique|progress|history|body|readiness|cycle|welcome]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("-demo") }
@@ -21,6 +21,11 @@ enum Demo {
 
     static let profile = Profile(goal: .balanced, sessionsPerWeek: 4, experience: .intermediate, climbingDaysPerWeek: 2)
 
+    /// Onboarding screenshot with the climbing goal picked.
+    static let climbingProfile = Profile(
+        goal: .climbing, sessionsPerWeek: 2, experience: .intermediate, climbingDaysPerWeek: 2,
+        climbingWeekdays: [2, 4], gymWeekdays: [1, 5])
+
     static let health: HealthSnapshot = {
         var s = HealthSnapshot()
         s.weightKg = 72.4
@@ -34,6 +39,11 @@ enum Demo {
         s.vo2Max = 47
         s.sleepHours = 7.2
         s.climbingPerWeek4w = 2
+        let day: Double = 86_400
+        s.recentClimbs = [
+            ClimbEntry(id: UUID(), start: Date().addingTimeInterval(-4 * day), end: Date().addingTimeInterval(-4 * day + 7_200), source: "MonkeyGrade"),
+            ClimbEntry(id: UUID(), start: Date().addingTimeInterval(-9 * day), end: Date().addingTimeInterval(-9 * day + 5_400), source: "MonkeyGrade"),
+        ]
         let now = Date()
         s.weightTrend = (0..<12).map { i in .init(date: now.addingTimeInterval(Double(i - 12) * 7 * 86_400), value: 74 - Double(i) * 0.15) }
         s.vo2Trend = (0..<6).map { i in .init(date: now.addingTimeInterval(Double(i - 6) * 30 * 86_400), value: 44 + Double(i) * 0.6) }
@@ -75,6 +85,15 @@ enum Demo {
             }
         }
         return (records, logs)
+    }
+
+    /// Climbs logged in the app: a hard boulder session yesterday and a lead session last week.
+    static func climbs() -> [ClimbLog] {
+        let day: Double = 86_400
+        return [
+            ClimbLog(kind: .boulder, start: Date().addingTimeInterval(-day - 3_600 * 3), minutes: 105, effort: 8, topGrade: "6C+"),
+            ClimbLog(kind: .lead, start: Date().addingTimeInterval(-6 * day), minutes: 120, effort: 6, topGrade: "6b"),
+        ]
     }
 }
 #endif
