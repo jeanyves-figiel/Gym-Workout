@@ -673,6 +673,10 @@ struct RescheduleSheet: View {
     @State private var result: Date??
     @State private var awayDraft: AwayPeriod?
 
+    init(sessionId: String) {
+        self.sessionId = sessionId
+    }
+
     var body: some View {
         let session = model.plan?.sessions.first { $0.id == sessionId }
         NavigationStack {

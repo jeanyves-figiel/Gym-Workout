@@ -71,7 +71,6 @@ struct FoundGym: Identifiable {
     }
 }
 
-@MainActor
 enum GymFinder {
     static func id(_ item: MKMapItem) -> String {
         let c = item.placemark.coordinate
@@ -126,9 +125,14 @@ struct GymFinderView: View {
     @State private var failure: String?
     @State private var camera: MapCameraPosition = .automatic
     @State private var selected: FoundGym?
-    @State private var locator = OneShotLocation()
+    @State private var locator: OneShotLocation?
 
     enum Mode: Hashable { case nearMe, place }
+
+    init(place: String = "", onPick: ((GymRef) -> Void)? = nil) {
+        self.place = place
+        self.onPick = onPick
+    }
 
     var body: some View {
         NavigationStack {
@@ -219,7 +223,9 @@ struct GymFinderView: View {
         let origin: CLLocation?
         switch mode {
         case .nearMe:
-            origin = await locator.current()
+            let l = locator ?? OneShotLocation()
+            locator = l
+            origin = await l.current()
             if origin == nil { failure = "Location unavailable. Allow location for MonkeyWorkout in Settings, or search near a place." }
         case .place:
             let q = placeText.trimmingCharacters(in: .whitespaces)
@@ -275,7 +281,11 @@ struct GymDetailView: View {
     let gym: FoundGym
     var onPick: ((GymRef) -> Void)?
     @Environment(\.openURL) private var openURL
-    @State private var placeCard: MKMapItem?
+
+    init(gym: FoundGym, onPick: ((GymRef) -> Void)? = nil) {
+        self.gym = gym
+        self.onPick = onPick
+    }
 
     var body: some View {
         ScrollView {
@@ -317,16 +327,16 @@ struct GymDetailView: View {
                 }
                 HStack(spacing: 10) {
                     action("Directions", "arrow.triangle.turn.up.right.diamond.fill", .cardio) {
-                        gym.item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDefault])
+                        _ = gym.item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDefault])
                     }
                     action("Hours & photos", "clock.fill", .warmup) {
-                        if #available(iOS 18.0, *) { placeCard = gym.item } else { gym.item.openInMaps() }
+                        _ = gym.item.openInMaps()
                     }
                 }
                 if let url = gym.item.url {
                     action("Open website", "safari.fill", .mobility) { openURL(url) }
                 }
-                Text("Details from Apple Maps; hours, ratings and photos where Apple has them.")
+                Text("Details from Apple Maps. Hours & photos opens the gym's Apple Maps place card.")
                     .font(.footnote).foregroundStyle(Theme.muted)
             }
             .padding(16)
@@ -334,7 +344,6 @@ struct GymDetailView: View {
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle(gym.name)
         .navigationBarTitleDisplayMode(.inline)
-        .modifier(PlaceCard(item: $placeCard))
     }
 
     private func info(_ symbol: String, _ title: String, _ value: String) -> some View {
@@ -356,18 +365,5 @@ struct GymDetailView: View {
                 .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(category.gradient))
         }
         .buttonStyle(.plain)
-    }
-}
-
-/// Apple's own place card (hours, ratings, photos) on iOS 18+.
-private struct PlaceCard: ViewModifier {
-    @Binding var item: MKMapItem?
-
-    func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
-            content.mapItemDetailSheet(item: $item)
-        } else {
-            content
-        }
     }
 }
