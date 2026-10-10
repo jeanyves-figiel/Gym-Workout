@@ -18,7 +18,7 @@ struct WeekView: View {
                         BodyPromptCard()
                     }
                     // Picked climbing weekdays set the count; the Health hint would be overridden.
-                    if profile.goal.usesClimbing, profile.climbingDays.isEmpty, let perWeek = health.snapshot.climbingPerWeek4w {
+                    if profile.climbingDays.isEmpty, let perWeek = health.snapshot.climbingPerWeek4w {
                         ClimbingSyncHint(healthPerWeek: perWeek, profileDays: profile.climbingDaysPerWeek) { n in
                             var p = profile
                             p.climbingDaysPerWeek = n

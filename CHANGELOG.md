@@ -5,8 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Training profile: climbing no longer depends on the goal (#49). An independent **I climb** switch (any goal) shows climbing days/weekdays; changing goal never clears them (#40 cleared them for non-climbing goals); Climbing performance turns it on; new profiles start on when Apple Health shows climbing workouts. Health climbing-days hint back for all goals.
+
 ### Changed
-- **Training profile redesign** (onboarding "Your training" + Train → edit) (#37): vivid Explore-style goal cards, each showing recommended gym sessions/week, session length and training mix (power/strength/mobility/cardio); picking a goal applies its recommended sessions. Session count, experience and length as big tap targets with a "REC" marker; per-session / per-week totals card. Climbing days and climbing weekdays only shown (and kept) for the **Climbing performance** goal; other goals save without climbing. Gym days as large day tiles. Gym: scoped gyms first (Fitnesspark Puls 5) or search any gym via Apple Maps; selected gym saved in the profile (optional field, older profiles unchanged); equipment editor in a sheet. Health climbing-days hint only for the climbing goal.
+- **Training profile redesign** (onboarding "Your training" + Train → edit) (#37): vivid Explore-style goal cards, each showing recommended gym sessions/week, session length and training mix (power/strength/mobility/cardio); picking a goal applies its recommended sessions. Session count, experience and length as big tap targets with a "REC" marker; per-session / per-week totals card. Climbing days and weekdays behind an **I climb** switch. Gym days as large day tiles. Gym: scoped gyms first (Fitnesspark Puls 5) or search any gym via Apple Maps; selected gym saved in the profile (optional field, older profiles unchanged); equipment editor in a sheet.
 
 ### Added
 - **TestFlight distribute** workflow: waits for Apple processing, then adds the newest build to the internal TestFlight group "Workout" via the App Store Connect API. Runs after each TestFlight upload; also manual (group name input).
