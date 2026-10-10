@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { containsObjectionable as isObjectionable } from '../src/community/filter.ts';
 import { sanitizeJpeg } from '../src/community/image.ts';
+import { followerIds } from '../src/community/moderation.ts';
 import { loadConfig } from '../src/config.ts';
 import { type DB, openDb } from '../src/db.ts';
 import { ConsoleMailer } from '../src/mailer.ts';
@@ -166,6 +167,30 @@ describe('community feed', () => {
     expect((await req('GET', '/v1/community/feed?scope=mine', a.t)).json().posts).toHaveLength(2);
     await req('DELETE', `/v1/community/posts/${pub.id}`, a.t);
     expect((await req('GET', '/v1/community/feed?scope=mine', a.t)).json().posts).toHaveLength(1);
+  });
+
+  it('follows: following feed, counts, provider, block removes follows', async () => {
+    const a = await join('a@example.com', 'bea', { defaultVisibility: 'members' });
+    const b = await join('b@example.com', 'monkey_jy');
+    const c = await join('c@example.com', 'crimpy', { defaultVisibility: 'members' });
+    await share(a.t);
+    await share(c.t);
+    expect((await req('PUT', `/v1/community/follows/${b.id}`, b.t)).statusCode).toBe(400);
+    expect((await req('PUT', `/v1/community/follows/${a.id}`, b.t)).statusCode).toBe(204);
+    const feed = (await req('GET', '/v1/community/feed?scope=following', b.t)).json().posts;
+    expect(feed.map((p: { author: { nickname: string } }) => p.author.nickname)).toEqual(['bea']);
+    const m = (await req('GET', `/v1/community/members/${a.id}`, b.t)).json();
+    expect(m.followedByMe).toBe(true);
+    expect(m.member.followers).toBe(1);
+    expect((await req('GET', '/v1/community/follows', b.t)).json().following[0].nickname).toBe('bea');
+    expect(followerIds(db, a.id)).toEqual([b.id]);
+    await req('POST', '/v1/community/blocks', a.t, { userId: b.id });
+    expect(followerIds(db, a.id)).toEqual([]);
+    expect((await req('PUT', `/v1/community/follows/${a.id}`, b.t)).statusCode).toBe(404);
+    await req('DELETE', `/v1/community/blocks/${b.id}`, a.t);
+    await req('PUT', `/v1/community/follows/${a.id}`, b.t);
+    expect((await req('DELETE', `/v1/community/follows/${a.id}`, b.t)).statusCode).toBe(204);
+    expect(followerIds(db, a.id)).toEqual([]);
   });
 
   it('dedupes by refId, filters captions and paginates', async () => {

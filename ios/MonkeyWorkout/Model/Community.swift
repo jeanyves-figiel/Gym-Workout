@@ -13,13 +13,20 @@ final class Community {
     private(set) var loaded = false
     private(set) var feed: [CommunityPost] = []
     private(set) var mine: [CommunityPost] = []
+    private(set) var following: [CommunityPost] = []
     private var next: [CommunityFeedScope: String] = [:]
     private(set) var loading = false
     var error: String?
     private var ownerId: String?
     private var demo = false
 
-    func posts(_ scope: CommunityFeedScope) -> [CommunityPost] { scope == .mine ? mine : feed }
+    func posts(_ scope: CommunityFeedScope) -> [CommunityPost] {
+        switch scope {
+        case .members: feed
+        case .following: following
+        case .mine: mine
+        }
+    }
     func hasMore(_ scope: CommunityFeedScope) -> Bool { next[scope] != nil }
 
     /// Loads the profile (and feeds when joined). Resets when a different user signs in.
@@ -31,6 +38,7 @@ final class Community {
             loaded = false
             feed = []
             mine = []
+            following = []
             next = [:]
         }
         do {
@@ -50,10 +58,12 @@ final class Community {
         do {
             async let f = api.communityFeed(.members)
             async let m = api.communityFeed(.mine)
-            let (fp, mp) = try await (f, m)
+            async let g = api.communityFeed(.following)
+            let (fp, mp, gp) = try await (f, m, g)
             feed = fp.posts
             mine = mp.posts
-            next = [.members: fp.nextBefore, .mine: mp.nextBefore].compactMapValues { $0 }
+            following = gp.posts
+            next = [.members: fp.nextBefore, .mine: mp.nextBefore, .following: gp.nextBefore].compactMapValues { $0 }
             error = nil
         } catch {
             self.error = error.localizedDescription
@@ -66,7 +76,11 @@ final class Community {
         defer { loading = false }
         do {
             let page = try await api.communityFeed(scope, before: before)
-            if scope == .mine { mine += page.posts } else { feed += page.posts }
+            switch scope {
+            case .members: feed += page.posts
+            case .following: following += page.posts
+            case .mine: mine += page.posts
+            }
             next[scope] = page.nextBefore
         } catch {
             self.error = error.localizedDescription
@@ -77,13 +91,14 @@ final class Community {
         let joined = profile == nil
         profile = p
         loaded = true
-        if joined { feed = []; mine = [] }
+        if joined { feed = []; mine = []; following = [] }
     }
 
     func left() {
         profile = nil
         feed = []
         mine = []
+        following = []
         next = [:]
     }
 
@@ -105,6 +120,7 @@ final class Community {
     func replace(_ post: CommunityPost) {
         if let i = feed.firstIndex(where: { $0.id == post.id }) { feed[i] = post }
         if let i = mine.firstIndex(where: { $0.id == post.id }) { mine[i] = post }
+        if let i = following.firstIndex(where: { $0.id == post.id }) { following[i] = post }
     }
 
     func insert(_ post: CommunityPost) {
@@ -124,12 +140,23 @@ final class Community {
 
     func removed(_ id: String) {
         feed.removeAll { $0.id == id }
+        following.removeAll { $0.id == id }
         mine.removeAll { $0.id == id }
     }
 
     /// Hides everything from a member just blocked.
     func blocked(_ userId: String) {
         feed.removeAll { $0.author.userId == userId }
+        following.removeAll { $0.author.userId == userId }
+    }
+
+    func unfollowed(_ userId: String) {
+        following.removeAll { $0.author.userId == userId }
+        if profile != nil { profile!.following = max(0, profile!.following - 1) }
+    }
+
+    func followed() {
+        profile?.following += 1
     }
 
     /// Auto-share (profile setting): posts a finished workout with the profile's default visibility.
@@ -152,7 +179,7 @@ final class Community {
         guard joined else { return }
         profile = CommunityProfile(
             userId: "demo", nickname: "monkey_jy", bio: "Climber who lifts. Chasing a strict one-arm hang.", avatarUrl: nil,
-            defaultVisibility: .members, autoShare: false, sharedPosts: 34, cheersReceived: 96)
+            defaultVisibility: .members, autoShare: false, sharedPosts: 34, cheersReceived: 96, followers: 12, following: 8)
         let now = Date()
         let bea = CommunityAuthor(userId: "u-bea", nickname: "bench_bea")
         let me = CommunityAuthor(userId: "demo", nickname: "monkey_jy")
@@ -175,6 +202,7 @@ final class Community {
         ]
         feed = posts
         mine = posts.filter(\.mine)
+        following = posts.filter { $0.author.userId == "u-bea" }
     }
     #endif
 }

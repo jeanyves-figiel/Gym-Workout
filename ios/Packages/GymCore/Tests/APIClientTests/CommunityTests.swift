@@ -50,7 +50,7 @@ private let postJSON = #"""
     @Test func uploadsAvatarAsJPEG() async throws {
         StubProtocol.register("avatar.test") { req, body in
             guard req.value(forHTTPHeaderField: "Content-Type") == "image/jpeg", body == Data([0xFF, 0xD8, 0xFF, 0xD9]) else { return (400, "{}") }
-            return (200, #"{"profile":{"userId":"u1","nickname":"jy_","bio":null,"avatarUrl":"/v1/community/avatars/a","defaultVisibility":"private","autoShare":false,"guidelinesAcceptedAt":"2026-10-10T10:00:00.000Z","sharedPosts":0,"cheersReceived":0}}"#)
+            return (200, #"{"profile":{"userId":"u1","nickname":"jy_","bio":null,"avatarUrl":"/v1/community/avatars/a","defaultVisibility":"private","autoShare":false,"guidelinesAcceptedAt":"2026-10-10T10:00:00.000Z","sharedPosts":0,"cheersReceived":0,"followers":0,"following":0}}"#)
         }
         let p = try await client("avatar.test").uploadAvatar(jpeg: Data([0xFF, 0xD8, 0xFF, 0xD9]))
         #expect(p.defaultVisibility == .onlyMe)
