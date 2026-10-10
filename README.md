@@ -27,7 +27,7 @@ See [`backend/README.md`](backend/README.md) for endpoints and security model.
 ## Delivery (trunk-based)
 
 1. Branch off `main` → PR → CI.
-2. Squash-merge → **Deploy staging**: builds `ghcr.io/jeanyves-figiel/gym-workout-api:sha-<sha>` (+ `:staging`), deploys that image to Fly.io app `monkeyworkout-staging` (`https://monkeyworkout-staging.fly.dev`).
+2. Squash-merge → **Deploy staging**: builds `ghcr.io/jeanyves-figiel/gym-workout-api:sha-<sha>` (+ `:staging`), deploys that image to Fly.io app `monkeyworkout-staging` (`https://workout-staging.monkeygrade.cloud`).
 3. Validate staging.
 4. **Promote to production** (manual): re-tags the same digest as `:prod`, calls `PROD_DEPLOY_HOOK`. No rebuild.
 

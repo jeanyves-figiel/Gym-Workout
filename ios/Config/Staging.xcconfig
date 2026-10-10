@@ -2,4 +2,4 @@
 // Same bundle id as Release; points at the staging API on Fly.io (#3, backend/fly.staging.toml).
 APP_BUNDLE_ID = Com.app.MonkeyWorkout
 APP_DISPLAY_NAME = Monkey STG
-API_BASE_URL = https:/$()/monkeyworkout-staging.fly.dev
+API_BASE_URL = https:/$()/workout-staging.monkeygrade.cloud

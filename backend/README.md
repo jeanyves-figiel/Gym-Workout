@@ -14,21 +14,17 @@ Container starts as root only to `chown` the `/data` mount, then runs as `node` 
 
 ## Staging on Fly.io
 
-App `monkeyworkout-staging` (`fly.staging.toml`, region `fra`, 1 machine + 1 GB volume) → `https://monkeyworkout-staging.fly.dev`.
-Every merge to `main` deploys the CI-built image (`deploy-staging.yml`). One-time setup:
+App `monkeyworkout-staging` (`fly.staging.toml`, region `fra`, 1 machine + 1 GB volume) → `https://workout-staging.monkeygrade.cloud`.
+Every merge to `main` deploys the CI-built image (`deploy-staging.yml`). One-time setup, no local tools:
 
-```bash
-fly auth login
-fly apps create monkeyworkout-staging          # name taken → change it in fly.staging.toml, deploy-staging.yml (FLY_APP), ios/Config/Staging.xcconfig
-fly volumes create data -a monkeyworkout-staging -r fra -s 1 -y
-fly secrets set -a monkeyworkout-staging --stage \
-  JWT_SECRET="$(openssl rand -base64 48)" CODE_PEPPER="$(openssl rand -base64 32)" \
-  MAIL_TRANSPORT=console                      # or SMTP_URL=smtps://… MAIL_FROM="MonkeyWorkout <no-reply@…>"
-fly tokens create deploy -a monkeyworkout-staging -x 8760h
-```
+1. fly.io dashboard: sign up, add card → **Tokens** → create org token.
+2. GitHub → Settings → Environments → `staging`: secret `FLY_API_TOKEN` (that token), variable `STAGING_URL=https://workout-staging.monkeygrade.cloud`.
+3. Actions → **Fly staging setup** → Run. Creates app, volume, secrets (`JWT_SECRET`, `CODE_PEPPER` random; `MAIL_TRANSPORT=console`), TLS cert. Idempotent.
+4. DNS for `monkeygrade.cloud`: `CNAME workout-staging → monkeyworkout-staging.fly.dev`.
+5. Actions → **Deploy staging** → re-run latest run (or merge anything).
 
-GitHub → Settings → Environments → `staging`: secret `FLY_API_TOKEN` (token above), variable `STAGING_URL=https://monkeyworkout-staging.fly.dev`.
-Then re-run the latest **Deploy staging** run (or merge). With `MAIL_TRANSPORT=console`, email codes appear in `fly logs -a monkeyworkout-staging`.
+App name taken → change it in `fly.staging.toml`, `deploy-staging.yml`, `fly-staging-setup.yml` (`FLY_APP`).
+Real email: add Fly secrets `SMTP_URL`, `MAIL_FROM` and remove `MAIL_TRANSPORT`. Until then, email codes appear in the app's logs (Fly dashboard → Monitoring).
 
 ## Endpoints (`/v1`)
 

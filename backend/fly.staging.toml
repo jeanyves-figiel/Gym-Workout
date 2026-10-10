@@ -1,5 +1,6 @@
 # Fly.io staging app (#3). Deployed by .github/workflows/deploy-staging.yml on every merge to main.
-# Secrets (fly secrets set -a monkeyworkout-staging ...): JWT_SECRET, CODE_PEPPER, SMTP_URL + MAIL_FROM (or MAIL_TRANSPORT=console).
+# Public host: https://workout-staging.monkeygrade.cloud (CNAME → monkeyworkout-staging.fly.dev).
+# App, volume, secrets (JWT_SECRET, CODE_PEPPER, MAIL_TRANSPORT=console) and cert: .github/workflows/fly-staging-setup.yml.
 app = 'monkeyworkout-staging'
 primary_region = 'fra'
 
