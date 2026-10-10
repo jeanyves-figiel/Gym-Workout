@@ -9,7 +9,7 @@ extension Equipment {
         case .barbell, .trapBar, .rack, .smith, .landmine: "figure.strengthtraining.traditional"
         case .bench: "rectangle.split.3x1.fill"
         case .cable, .legPress, .hackSquat, .legCurl, .legExtension, .latPulldown, .seatedRow, .chestPress, .pecDeck,
-             .hipThrustMachine, .backExtension: "gearshape.fill"
+             .hipThrustMachine, .backExtension, .seatedCalf, .hipAdAbductor, .abCrunch, .torsoRotation: "gearshape.fill"
         case .pullupBar, .dipStation: "figure.climbing"
         case .rings: "circle.circle"
         case .trx: "figure.strengthtraining.functional"

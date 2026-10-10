@@ -155,6 +155,11 @@ final class AppModel {
         persist()
     }
 
+    /// A session of this week's plan, or an example workout.
+    func session(_ id: String) -> Session? {
+        plan?.sessions.first { $0.id == id } ?? WorkoutTemplate.find(sessionId: id)?.session
+    }
+
     /// First session of the week not yet completed.
     var nextSession: Session? { plan?.sessions.first { !(state.done[$0.id] ?? false) } }
 

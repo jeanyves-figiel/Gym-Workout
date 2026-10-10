@@ -64,6 +64,10 @@ public enum Equipment: String, Codable, CaseIterable, Sendable, Identifiable {
     case skiErg = "ski-erg"
     case stairClimber = "stair-climber"
     case elliptical
+    case seatedCalf = "seated-calf"
+    case hipAdAbductor = "hip-ad-abductor"
+    case abCrunch = "ab-crunch"
+    case torsoRotation = "torso-rotation"
     public var id: String { rawValue }
 }
 
@@ -124,12 +128,14 @@ public struct Exercise: Identifiable, Hashable, Sendable {
     public let unit: Unit?
     public let regions: [Region]
     public let cues: [String]
+    /// False = only used by example workouts, never picked by the generator (keeps generated plans stable).
+    public let generator: Bool
 
     public init(
         id: String, name: String, category: Category, pattern: Pattern,
         primary: [Muscle], secondary: [Muscle] = [], equipment: [Equipment], level: Int,
         unilateral: Bool = false, secPerRep: Double? = nil, gripHeavy: Bool = false, main: Bool = false,
-        unit: Unit? = nil, regions: [Region] = [], cues: [String]
+        unit: Unit? = nil, regions: [Region] = [], cues: [String], generator: Bool = true
     ) {
         self.id = id
         self.name = name
@@ -146,6 +152,7 @@ public struct Exercise: Identifiable, Hashable, Sendable {
         self.unit = unit
         self.regions = regions
         self.cues = cues
+        self.generator = generator
     }
 
     private static let byId: [String: Exercise] = Dictionary(uniqueKeysWithValues: catalog.map { ($0.id, $0) })

@@ -25,7 +25,7 @@ struct WorkoutPlayerView: View {
         var exercise: Exercise { Exercise.get(item.exerciseId) }
     }
 
-    private var session: Session? { model.plan?.sessions.first { $0.id == sessionId } }
+    private var session: Session? { model.session(sessionId) }
     private var steps: [Step] { session?.blocks.flatMap { b in b.items.map { Step(item: $0, block: b) } } ?? [] }
 
     var body: some View {

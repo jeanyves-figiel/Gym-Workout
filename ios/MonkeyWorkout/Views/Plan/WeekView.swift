@@ -39,6 +39,13 @@ struct WeekView: View {
                         }
                         .buttonStyle(.plain)
                     }
+                    Text("Example workouts").eyebrow()
+                    ForEach(WorkoutTemplate.all) { t in
+                        NavigationLink(value: t.sessionId) {
+                            ExampleRowCard(template: t, done: model.state.done[t.sessionId] ?? false)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 .padding(16)
             } else {
@@ -217,5 +224,41 @@ struct SessionRowCard: View {
         }
         .card()
         .opacity(done ? 0.7 : 1)
+    }
+}
+
+/// Ready-made example workout: name, calories, exercise count, activity points.
+struct ExampleRowCard: View {
+    let template: WorkoutTemplate
+    let done: Bool
+
+    var body: some View {
+        let session = template.session
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(template.name).font(.system(.headline, design: .rounded).weight(.heavy))
+                Spacer()
+                if done {
+                    Image(systemName: "checkmark.seal.fill").foregroundStyle(Theme.lime)
+                } else {
+                    Text("\(session.estMin)′").font(Theme.label(14)).foregroundStyle(Theme.muted)
+                }
+            }
+            HStack {
+                Text("\(template.kcal) kcal · \(template.items.count) exercises").font(.caption.weight(.semibold))
+                Spacer()
+                Text("\(template.activityPoints) activity points")
+                    .font(Theme.label(12))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Theme.lime.opacity(0.18)))
+                    .foregroundStyle(Theme.lime)
+            }
+            Text(session.topMuscles(4).map(\.name).joined(separator: " · "))
+                .font(.caption)
+                .foregroundStyle(Theme.muted)
+                .lineLimit(1)
+        }
+        .card()
     }
 }

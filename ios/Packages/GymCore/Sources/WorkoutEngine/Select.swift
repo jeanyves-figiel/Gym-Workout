@@ -39,7 +39,8 @@ enum Selector {
 
     static func candidates(level: Int, equipment: Set<Equipment>, _ q: Query) -> [Exercise] {
         Exercise.catalog.filter { e in
-            e.category == q.category
+            e.generator
+                && e.category == q.category
                 && (q.pattern == nil || e.pattern == q.pattern)
                 && (q.regions == nil || e.regions.contains { q.regions!.contains($0) })
                 && e.level <= level

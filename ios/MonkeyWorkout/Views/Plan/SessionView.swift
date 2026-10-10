@@ -11,7 +11,7 @@ struct SessionView: View {
     @State private var detail: ExerciseRef?
     @State private var muscle: Muscle?
 
-    private var session: Session? { model.plan?.sessions.first { $0.id == sessionId } }
+    private var session: Session? { model.session(sessionId) }
 
     var body: some View {
         if let session {
@@ -21,7 +21,8 @@ struct SessionView: View {
                     FlowOverview(session: session)
                     ForEach(session.blocks) { block in
                         BlockSection(block: block, sessionId: session.id) { item in
-                            detail = ExerciseRef(exerciseId: item.exerciseId, uid: item.uid)
+                            // Example workouts are fixed: no swap.
+                            detail = ExerciseRef(exerciseId: item.exerciseId, uid: session.isExample ? nil : item.uid)
                         }
                     }
                     finishButton(session)
@@ -30,7 +31,7 @@ struct SessionView: View {
                 .padding(.bottom, 90)
             }
             .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle("Day \(session.index + 1)")
+            .navigationTitle(session.isExample ? "Example workout" : "Day \(session.index + 1)")
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
                 Button { playing = true } label: { Label("Start workout", systemImage: "play.fill") }
@@ -54,7 +55,10 @@ struct SessionView: View {
     @ViewBuilder
     private func header(_ s: Session) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(s.focus.label).font(Theme.display(38)).fixedSize(horizontal: false, vertical: true)
+            Text(s.displayTitle).font(Theme.display(38)).fixedSize(horizontal: false, vertical: true)
+            if let t = WorkoutTemplate.find(sessionId: s.id) {
+                Text("\(t.kcal) kcal · \(t.activityPoints) activity points").font(Theme.label(14)).foregroundStyle(Theme.lime)
+            }
             HStack(spacing: 10) {
                 StatTile(value: "\(s.estMin)′", label: "Duration")
                 StatTile(value: "\(s.blocks.reduce(0) { $0 + $1.items.count })", label: "Exercises")

@@ -42,6 +42,10 @@ extension Equipment {
         case .skiErg: "SkiErg"
         case .stairClimber: "Stair climber"
         case .elliptical: "Cross-trainer"
+        case .seatedCalf: "Seated calf raise"
+        case .hipAdAbductor: "Hip adductor / abductor"
+        case .abCrunch: "Ab crunch machine"
+        case .torsoRotation: "Torso rotation machine"
         }
     }
 }

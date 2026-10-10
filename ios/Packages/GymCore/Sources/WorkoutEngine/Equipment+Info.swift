@@ -18,7 +18,8 @@ extension Equipment {
         switch self {
         case .barbell, .trapBar, .rack, .bench, .dumbbells, .smith, .landmine: .freeWeights
         case .cable, .legPress, .hackSquat, .legCurl, .legExtension, .latPulldown, .seatedRow, .chestPress, .pecDeck,
-             .hipThrustMachine, .backExtension, .dipStation, .pullupBar: .machines
+             .hipThrustMachine, .backExtension, .dipStation, .pullupBar, .seatedCalf, .hipAdAbductor, .abCrunch,
+             .torsoRotation: .machines
         case .kettlebells, .rings, .trx, .plyoBox, .medBall, .slamBall, .sled, .battleRope, .abWheel, .bands: .functional
         case .treadmill, .bike, .airBike, .rower, .skiErg, .stairClimber, .elliptical: .cardio
         case .foamRoller, .mat: .stretch
@@ -67,6 +68,10 @@ extension Equipment {
         case .skiErg: "Damper 4–7; stand a half step from the machine."
         case .stairClimber: "Light touch on the rails for balance only."
         case .elliptical: "Upright posture; resistance high enough to feel each stride."
+        case .seatedCalf: "Knee pad snug on the lower thighs; balls of the feet on the platform edge."
+        case .hipAdAbductor: "Set the leg pads to the range you can control; start with a small opening."
+        case .abCrunch: "Seat so the chest pad or handles sit at upper-chest height."
+        case .torsoRotation: "Lock the start angle to a range you can control; knees pinned by the pads."
         }
     }
 }
