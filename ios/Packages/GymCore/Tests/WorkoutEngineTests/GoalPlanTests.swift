@@ -12,24 +12,26 @@ import Testing
         }
     }
 
-    @Test func pickingAGoalAppliesItsWeek() {
+    @Test func pickingAGoalAppliesItsWeekAndKeepsClimbing() {
         var p = Profile(goal: .balanced, sessionsPerWeek: 6, climbingDaysPerWeek: 2, climbingWeekdays: [2, 4])
-        p.applyGoal(.strength)
-        #expect(p.sessionsPerWeek == 3)
-        #expect(p.climbingDaysPerWeek == 0)
-        #expect(p.climbingWeekdays == nil)
-        p.applyGoal(.climbing)
-        #expect(p.sessionsPerWeek == 2)
+        p.applyGoal(.build)
+        #expect(p.sessionsPerWeek == 4)
         #expect(p.climbingDaysPerWeek == 2)
+        #expect(p.climbingDays == [2, 4])
+        var q = Profile(climbingDaysPerWeek: 0)
+        #expect(!q.climbs)
+        q.applyGoal(.climbing)
+        #expect(q.sessionsPerWeek == 2)
+        #expect(q.climbs && q.climbingDaysPerWeek == 2)
     }
 
-    @Test func normalizeKeepsClimbingOnlyForClimbingGoal() {
-        var c = Profile(goal: .climbing, climbingDaysPerWeek: 3, climbingWeekdays: [1, 3, 5])
-        c.normalizeForGoal()
-        #expect(c.climbingDays == [1, 3, 5])
-        var b = Profile(goal: .build, climbingDaysPerWeek: 3, climbingWeekdays: [1, 3, 5])
-        b.normalizeForGoal()
-        #expect(b.climbingDaysPerWeek == 0 && b.climbingDays.isEmpty)
+    @Test func climbsToggle() {
+        var p = Profile(goal: .build, climbingDaysPerWeek: 3, climbingWeekdays: [1, 3, 5])
+        #expect(p.climbs)
+        p.climbs = false
+        #expect(p.climbingDaysPerWeek == 0 && p.climbingDays.isEmpty && !Generator.isClimber(p))
+        p.climbs = true
+        #expect(p.climbingDaysPerWeek == 2 && Generator.isClimber(p))
     }
 
     @Test func recommendedMinutesMatchGenerator() {
