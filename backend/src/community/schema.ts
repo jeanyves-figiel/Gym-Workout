@@ -52,13 +52,14 @@ export const ensureCommunitySchema = (db: DB): void => {
     CREATE TABLE IF NOT EXISTS community_reports (
       id TEXT PRIMARY KEY,
       reporter_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      post_id TEXT REFERENCES community_posts(id) ON DELETE SET NULL,
+      target_type TEXT,
+      target_id TEXT,
       target_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
       reason TEXT NOT NULL,
       details TEXT,
       created_at TEXT NOT NULL,
       resolved_at TEXT
     );
-    CREATE INDEX IF NOT EXISTS community_reports_post ON community_reports(post_id);
+    CREATE INDEX IF NOT EXISTS community_reports_target ON community_reports(target_type, target_id);
   `);
 };

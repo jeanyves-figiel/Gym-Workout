@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
-import { isObjectionable } from '../src/community/filter.ts';
+import { containsObjectionable as isObjectionable } from '../src/community/filter.ts';
 import { sanitizeJpeg } from '../src/community/image.ts';
 import { loadConfig } from '../src/config.ts';
 import { type DB, openDb } from '../src/db.ts';

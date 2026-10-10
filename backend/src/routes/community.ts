@@ -1,22 +1,25 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { isObjectionable } from '../community/filter.ts';
 import { AVATAR_MAX_BYTES, sanitizeJpeg } from '../community/image.ts';
+import {
+  assertClean as checkClean,
+  AUTO_HIDE_REPORTS,
+  isBlockedBetween,
+  reportContent,
+  REPORT_REASONS,
+  type Visibility,
+  VISIBILITIES,
+  visibleToOthersSql,
+} from '../community/moderation.ts';
 import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
 import type { Mailer } from '../mailer.ts';
 
 /** Community (#61): profiles, shared progress posts, cheers, report + block. */
 
-export const VISIBILITIES = ['private', 'members', 'public'] as const;
 export const REACTIONS = ['like', 'strong', 'fire', 'clap'] as const;
 const POST_KINDS = ['workout', 'badge', 'record', 'climb', 'note'] as const;
-const REPORT_REASONS = ['spam', 'harassment', 'hate', 'sexual', 'violence', 'other'] as const;
-/** Distinct reporters after which a post is hidden pending review. */
-export const AUTO_HIDE_REPORTS = 3;
-
-type Visibility = (typeof VISIBILITIES)[number];
 
 interface ProfileRow {
   user_id: string;
@@ -65,11 +68,6 @@ const payload = z.object({
   stats: z.array(z.object({ label: text(20).min(1), value: text(20).min(1) })).max(4).nullish(),
 });
 
-const checkClean = (...texts: (string | null | undefined)[]) => {
-  if (texts.some(isObjectionable))
-    throw new ApiError(400, 'objectionable_content', 'Please keep it friendly: that text is not allowed in the community.');
-};
-
 export const communityExport = (db: DB, userId: string) => ({
   profile: (db.prepare('SELECT nickname, bio, default_visibility, auto_share, guidelines_accepted_at, created_at FROM community_profiles WHERE user_id = ?').get(userId) ?? null),
   posts: (db.prepare('SELECT id, kind, ref_id, visibility, caption, payload, hidden_at, created_at FROM community_posts WHERE user_id = ? ORDER BY created_at').all(userId) as unknown as { payload: string }[]).map(
@@ -92,8 +90,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
   };
 
   /** Either side blocked the other. */
-  const blockedBetween = (a: string, b: string) =>
-    !!db.prepare('SELECT 1 FROM community_blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)').get(a, b, b, a);
+  const blockedBetween = (a: string, b: string) => isBlockedBetween(db, a, b);
 
   const stats = (userId: string) => {
     const s = db
@@ -128,8 +125,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
 
   const SELECT_POSTS = `SELECT p.*, cp.nickname, cp.avatar_id FROM community_posts p LEFT JOIN community_profiles cp ON cp.user_id = p.user_id`;
   /** Posts `viewer` may see that are not their own. */
-  const VISIBLE_TO_OTHERS = `p.hidden_at IS NULL AND p.visibility IN ('members', 'public') AND cp.user_id IS NOT NULL
-    AND NOT EXISTS (SELECT 1 FROM community_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?))`;
+  const VISIBLE_TO_OTHERS = `cp.user_id IS NOT NULL AND ${visibleToOthersSql('p.user_id', 'p.visibility', 'p.hidden_at')}`;
 
   const toPosts = (rows: PostRow[], viewer: string) => {
     if (!rows.length) return [];
@@ -369,17 +365,12 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       postId = row.id;
       target = row.user_id;
     } else if (!profileRow(b.userId!)) throw new ApiError(404, 'not_found', 'Member not found.');
-    if (target === reporter) throw new ApiError(400, 'own_content', 'You cannot report yourself.');
     const ts = now().toISOString();
     let hidden = false;
     tx(db, () => {
-      db.prepare('INSERT INTO community_reports (id, reporter_id, post_id, target_user_id, reason, details, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
-        randomUUID(), reporter, postId, target, b.reason, b.details || null, ts,
-      );
-      if (postId) {
-        const n = (db.prepare('SELECT COUNT(DISTINCT reporter_id) AS n FROM community_reports WHERE post_id = ? AND resolved_at IS NULL').get(postId) as { n: number }).n;
-        if (n >= AUTO_HIDE_REPORTS) hidden = Number(db.prepare('UPDATE community_posts SET hidden_at = ? WHERE id = ? AND hidden_at IS NULL').run(ts, postId).changes) > 0;
-      }
+      const n = reportContent(db, { reporterId: reporter, targetType: postId ? 'post' : null, targetId: postId, targetUserId: target, reason: b.reason, details: b.details, at: ts });
+      if (postId && n >= AUTO_HIDE_REPORTS)
+        hidden = Number(db.prepare('UPDATE community_posts SET hidden_at = ? WHERE id = ? AND hidden_at IS NULL').run(ts, postId).changes) > 0;
     });
     if (moderationEmail)
       mailer

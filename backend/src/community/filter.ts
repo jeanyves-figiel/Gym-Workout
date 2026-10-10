@@ -23,7 +23,7 @@ const plain = (s: string) => s.normalize('NFKD').replace(/\p{M}/gu, '').toLowerC
 const leet = (s: string) => s.replace(/[013457@$!]/g, (c) => LEET[c] ?? c);
 
 /** True when `text` contains a blocked word (also catches "f.u.c.k" and "fuuuck"-style spellings). */
-export const isObjectionable = (text: string | null | undefined): boolean => {
+export const containsObjectionable = (text: string | null | undefined): boolean => {
   if (!text) return false;
   const p = plain(text);
   return hasWord(p) || hasWord(leet(p));
