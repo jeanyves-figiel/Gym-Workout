@@ -40,7 +40,9 @@ jobs:
               -configuration "$cfg" \
               -destination 'generic/platform=iOS Simulator' \
               -skipPackagePluginValidation \
-              CODE_SIGNING_ALLOWED=NO | tail -n 50
+              CODE_SIGNING_ALLOWED=NO > build.log 2>&1 \
+              || { grep -E 'error:' build.log | sort -u; tail -n 50 build.log; exit 1; }
+            tail -n 50 build.log
           done
 
   screenshots:
@@ -70,7 +72,7 @@ jobs:
           xcrun simctl status_bar "$DEVICE" override --time 9:41 --batteryLevel 100 --cellularBars 4 || true
           xcrun simctl install "$DEVICE" build/Build/Products/Debug-iphonesimulator/MonkeyWorkout.app
           mkdir -p shots
-          for s in welcome onboarding onboarding-climbing week climb climb-settings monkeygrade example session player explore muscle exercise pr pr-attempt pr-result technique progress history body readiness cycle picker community community-join community-share community-profile; do
+          for s in welcome onboarding onboarding-climbing week climb climb-settings monkeygrade example session player explore muscle exercise pr pr-attempt pr-result technique progress history body readiness cycle picker builder community community-join community-share community-profile; do
             xcrun simctl launch --terminate-running-process "$DEVICE" Com.app.MonkeyWorkout.dev -demo -demoScreen "$s"
             sleep 6
             xcrun simctl io "$DEVICE" screenshot "shots/$s.png"
