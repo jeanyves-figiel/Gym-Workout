@@ -1,7 +1,7 @@
 name: Fly setup
 
 # Manual, idempotent, one-time bootstrap of a Fly.io app (#3) — no local CLI needed.
-# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Optional secret SMTP_URL (SES Mail Manager SMTP) → real email, else console.
+# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Email: secrets SES_ACCESS_KEY_ID + SES_SECRET_ACCESS_KEY (IAM user, ses:SendRawEmail) or SMTP_URL → real email, else console.
 on:
   workflow_dispatch:
     inputs:
@@ -25,6 +25,9 @@ jobs:
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       SMTP_URL: ${{ secrets.SMTP_URL }}
+      SES_ACCESS_KEY_ID: ${{ secrets.SES_ACCESS_KEY_ID }}
+      SES_SECRET_ACCESS_KEY: ${{ secrets.SES_SECRET_ACCESS_KEY }}
+      SES_REGION: eu-central-2
       FLY_APP: ${{ inputs.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
       REGION: fra
       HOSTNAME: ${{ inputs.environment == 'production' && 'workout.monkeygrade.cloud' || 'workout-staging.monkeygrade.cloud' }}
@@ -39,6 +42,22 @@ jobs:
         run: |
           if [ "$(flyctl volumes list -a "$FLY_APP" --json | jq length)" -gt 0 ]; then echo "volume exists"
           else flyctl volumes create data -a "$FLY_APP" -r "$REGION" -s 1 -y; fi
+      # IAM user (ses:SendRawEmail) → SES SMTP password (AWS SigV4 derivation), unless SMTP_URL is given.
+      - name: Derive SES SMTP URL
+        if: env.SMTP_URL == '' && env.SES_ACCESS_KEY_ID != ''
+        run: |
+          url=$(python3 - <<'PY'
+          import base64, hashlib, hmac, os, urllib.parse
+          def h(k, m): return hmac.new(k, m.encode(), hashlib.sha256).digest()
+          sig = ('AWS4' + os.environ['SES_SECRET_ACCESS_KEY']).encode()
+          for m in ('11111111', os.environ['SES_REGION'], 'ses', 'aws4_request', 'SendRawEmail'):
+              sig = h(sig, m)
+          pw = base64.b64encode(b'\x04' + sig).decode()
+          print(f"smtp://{os.environ['SES_ACCESS_KEY_ID']}:{urllib.parse.quote(pw, safe='')}@email-smtp.{os.environ['SES_REGION']}.amazonaws.com:587")
+          PY
+          )
+          echo "::add-mask::$url"
+          echo "SMTP_URL=$url" >> "$GITHUB_ENV"
       # Generated in the runner, sent via stdin, never printed. Existing secrets are kept.
       - name: Secrets
         run: |
