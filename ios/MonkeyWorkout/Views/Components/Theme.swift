@@ -196,16 +196,19 @@ struct StatTile: View {
 }
 
 struct LimeButtonStyle: ButtonStyle {
+    var fill: Color = Theme.lime
+    var text: Color = Theme.ink
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(Theme.label(17))
             .tracking(1.5)
-            .foregroundStyle(Theme.ink)
+            .foregroundStyle(text)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 18)
-            .background(Capsule().fill(Theme.lime))
+            .background(Capsule().fill(fill))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .shadow(color: Theme.lime.opacity(0.35), radius: configuration.isPressed ? 4 : 16, y: 6)
+            .shadow(color: fill.opacity(0.35), radius: configuration.isPressed ? 4 : 16, y: 6)
             .animation(.spring(duration: 0.25), value: configuration.isPressed)
     }
 }

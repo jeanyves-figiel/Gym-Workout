@@ -150,6 +150,17 @@ public enum ExerciseImages {
         "hip-adduction":           "Thigh_Adductor",
         "hip-abduction":           "Thigh_Abductor",
         "crunch-machine":          "Ab_Crunch_Machine",
+        "smith-squat":             "Smith_Machine_Squat",
+        "good-morning":            "Good_Morning",
+        "leg-press-calf-raise":    "Calf_Press_On_The_Leg_Press_Machine",
+        "incline-bench-press":     "Barbell_Incline_Bench_Press_-_Medium_Grip",
+        "pec-deck-fly":            "Butterfly",
+        "chin-up":                 "Chin-Up",
+        "band-assisted-pull-up":   "Band_Assisted_Pull-Up",
+        "close-grip-bench":        "Close-Grip_Barbell_Bench_Press",
+        "db-overhead-triceps":     "Standing_Dumbbell_Triceps_Extension",
+        "reverse-crunch":          "Reverse_Crunch",
+        "side-lying-external-rotation": "External_Rotation",
     ]
 }
 

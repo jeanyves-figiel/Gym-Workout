@@ -176,6 +176,16 @@ struct ExerciseCard: View {
                 Button(action: onOpen) {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(alignment: .firstTextBaseline) {
+                            if let group = item.group {
+                                // Superset / circuit label (#78): same letter = back to back.
+                                Text(group)
+                                    .font(Theme.label(11))
+                                    .foregroundStyle(Theme.ink)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(RoundedRectangle(cornerRadius: 6).fill(Theme.lime))
+                                    .accessibilityLabel("Group \(group)")
+                            }
                             Text(exercise.name)
                                 .font(.system(.headline, design: .rounded).weight(.heavy))
                                 .strikethrough(ticked)
