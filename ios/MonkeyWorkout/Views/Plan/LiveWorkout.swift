@@ -65,4 +65,16 @@ extension WorkoutEngine.Category {
         case .stretch: 0x1ED98A
         }
     }
+
+    /// Second gradient colour as hex (Watch).
+    var tintHex2: UInt32 {
+        switch self {
+        case .warmup: 0xFFC93D
+        case .power: 0xFF6FB5
+        case .strength: 0x8A4DFF
+        case .mobility: 0xFF4DD8
+        case .cardio: 0x2EC5FF
+        case .stretch: 0xB6FF6B
+        }
+    }
 }

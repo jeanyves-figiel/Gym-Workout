@@ -17,6 +17,7 @@ struct MonkeyWorkoutApp: App {
                 .environment(health)
                 .task {
                     await model.bootstrap()
+                    WatchSync.shared.start(model: model, health: health)
                     await AppleCredentialCheck.verify(model)
                     #if DEBUG
                     if Demo.enabled { health.snapshot = Demo.health; return }
@@ -29,6 +30,8 @@ struct MonkeyWorkoutApp: App {
                         await AppleCredentialCheck.verify(model)
                     }
                 }
+                // Plan, completion, history or custom workouts changed: refresh the Watch.
+                .onChange(of: WatchSync.changeKey(model)) { WatchSync.shared.push() }
                 .onChange(of: scenePhase) { _, phase in
                     switch phase {
                     case .background: lock.didEnterBackground()
