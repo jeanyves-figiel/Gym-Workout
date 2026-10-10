@@ -87,6 +87,7 @@ struct WorkoutPlayerView: View {
             UIApplication.shared.isIdleTimerDisabled = false
             saveProgress()
             live.end()
+            WatchSync.shared.sendLive(nil)
         }
         .onChange(of: index) { reloadLog(); saveProgress(); updateLive() }
         .onChange(of: setsDone) { saveProgress(); updateLive() }
@@ -95,6 +96,9 @@ struct WorkoutPlayerView: View {
         .onChange(of: scenePhase) { _, p in if p != .active { saveProgress() } }
         .onReceive(NotificationCenter.default.publisher(for: .workoutRestAdd15)) { _ in extendRest() }
         .onReceive(NotificationCenter.default.publisher(for: .workoutRestSkip)) { _ in closePause() }
+        .onReceive(NotificationCenter.default.publisher(for: .watchCommand)) { n in
+            if let c = n.object as? WCommand { handle(c) }
+        }
     }
 
     // MARK: Player
@@ -355,6 +359,7 @@ struct WorkoutPlayerView: View {
         }
         model.clearActiveWorkout(sessionId)
         live.end()
+        WatchSync.shared.sendLive(nil)
         pause = nil
         finished = true
     }
@@ -436,8 +441,33 @@ struct WorkoutPlayerView: View {
     }
 
     private func updateLive() {
-        guard ready, !finished else { return }
-        live.update(liveState())
+        guard ready, !finished, !discarded else { return WatchSync.shared.sendLive(nil) }
+        let state = liveState()
+        live.update(state)
+        guard steps.indices.contains(index), let session else { return }
+        let step = steps[index]
+        WatchSync.shared.sendLive(WLive(
+            sessionTitle: session.displayTitle, exercise: state.exercise, setLabel: state.setLabel, detail: state.detail,
+            restEnd: state.restEnd, next: state.next, tint: state.tint,
+            effortPending: pause?.effortSet != nil && pause?.effort == nil,
+            action: mainLabel(step, sets: step.sets, done: setsDone[step.item.uid] ?? 0)))
+    }
+
+    /// Remote control from the Watch while this player runs on the iPhone.
+    private func handle(_ c: WCommand) {
+        guard ready, !finished, steps.indices.contains(index) else { return }
+        let step = steps[index]
+        switch c {
+        case .main:
+            if pause != nil { closePause() } else { mainAction(step, sets: step.sets, done: setsDone[step.item.uid] ?? 0) }
+        case .skipRest: closePause()
+        case .addRest: extendRest()
+        case .effort0, .effort1, .effort2, .effort3, .effort4:
+            let rir = [WCommand.effort0, .effort1, .effort2, .effort3, .effort4].firstIndex(of: c) ?? 2
+            pickEffort(Effort(rir: rir))
+        case .next: advance(step)
+        case .previous: go(index - 1)
+        }
     }
 }
 

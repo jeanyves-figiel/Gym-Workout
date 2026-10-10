@@ -12,6 +12,7 @@ ios/**/.swiftpm/
 ios/*.xcodeproj/
 ios/MonkeyWorkout/Info.plist
 ios/MonkeyWorkoutWidgets/Info.plist
+ios/MonkeyWorkoutWatch/Info.plist
 xcuserdata/
 DerivedData/
 .claude/worktrees/
