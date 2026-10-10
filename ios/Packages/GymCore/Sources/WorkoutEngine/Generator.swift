@@ -113,12 +113,11 @@ public enum Generator {
         let pw = ctx.preClimb ? nil : power(ctx, focus, powerMin, "\(id)-pw")
         if let pw { blocks.append(pw) }
         let powerLeft = pw.map { max(0, powerMin - Int($0.estMin.rounded())) } ?? powerMin
-        // Grouping (#78) saves rest time, so the block is filled for a longer budget before it is grouped.
+        var st = strength(ctx, focus, variant, strengthMin + powerLeft, "\(id)-st", regions, leadStep: ctx.week - 1 + index)
+        // Supersets / circuits (#78); the rest time they save goes back into extra rounds (not in a deload week).
         let grouping = focus == .conditioning ? Grouping.straight : ctx.profile.group
-        var st = strength(ctx, focus, variant, Int(Double(strengthMin + powerLeft) * grouping.budgetStretch), "\(id)-st", regions,
-                          leadStep: ctx.week - 1 + index)
         st = applyGrouping(st, grouping)
-        st.targetMin = strengthMin + powerLeft
+        if grouping != .straight && !ctx.deload { st = fillGroupedTime(st, targetMin: st.targetMin) }
         if ctx.preClimb {
             st.note = ["Climbing tomorrow: no jumps or heavy grip work today.", st.note].compactMap { $0 }.joined(separator: " ")
         } else if ctx.preClimbGrip {

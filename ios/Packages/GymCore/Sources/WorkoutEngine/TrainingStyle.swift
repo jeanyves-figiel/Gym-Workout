@@ -113,15 +113,6 @@ extension Grouping {
         }
     }
 
-    /// Strength-block budget multiplier before grouping: grouped exercises share one rest per round.
-    var budgetStretch: Double {
-        switch self {
-        case .straight: 1
-        case .supersets: 1.15
-        case .circuits: 1.25
-        }
-    }
-
     /// Big number + caption shown on the setting card.
     public var size: (value: String, unit: String) {
         switch self {
@@ -232,6 +223,37 @@ extension Generator {
         b.items = out
         let style = grouping == .supersets ? "Supersets" : "Circuits"
         b.note = [b.note, "\(style): same-letter exercises back to back (A1 → A2), rest after the round."].compactMap { $0 }.joined(separator: " ")
+        return b
+    }
+
+    /// Grouping can leave the block short when the focus has no more slots to fill: add a round to the groups
+    /// (up to 5 sets) until the block is within a minute of its target.
+    static func fillGroupedTime(_ block: Block, targetMin: Int) -> Block {
+        var b = block
+        var deficit = Double(targetMin * 60) - Double(b.items.reduce(0) { $0 + $1.estSec })
+        let letters = Array(Set(b.items.compactMap { $0.group?.first })).sorted()
+        var progress = true
+        while deficit > 60 && progress {
+            progress = false
+            for letter in letters where deficit > 60 {
+                let idx = b.items.indices.filter { b.items[$0].group?.first == letter }
+                guard let lastIdx = idx.last, idx.allSatisfy({ b.items[$0].prescription.sets < 5 }) else { continue }
+                let rest = b.items[lastIdx].prescription.restSec
+                var added = 0
+                for i in idx {
+                    let m = b.items[i]
+                    let rounds = m.prescription.sets
+                    let restPart = i == lastIdx ? max(0, rounds - 1) * rest : 0
+                    let perSet = (m.estSec - restPart) / max(1, rounds)
+                    b.items[i].prescription.sets += 1
+                    let extra = perSet + (i == lastIdx ? rest : 0)
+                    b.items[i].estSec += extra
+                    added += extra
+                }
+                deficit -= Double(added)
+                progress = true
+            }
+        }
         return b
     }
 
