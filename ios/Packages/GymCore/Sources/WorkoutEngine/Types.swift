@@ -158,7 +158,9 @@ public struct Exercise: Identifiable, Hashable, Sendable {
     private static let byId: [String: Exercise] = Dictionary(uniqueKeysWithValues: catalog.map { ($0.id, $0) })
 
     /// Catalog exercise, or one of the user's custom exercises (`CustomExercises.shared`).
-    public static func find(_ id: String, custom: CustomExercises = .shared) -> Exercise? { byId[id] ?? custom.exercise(id) }
+    public static func find(_ id: String) -> Exercise? { find(id, custom: .shared) }
+
+    public static func find(_ id: String, custom: CustomExercises) -> Exercise? { byId[id] ?? custom.exercise(id) }
 
     /// Crashes on unknown ids — ids come from the catalog or the user's custom exercises.
     public static func get(_ id: String) -> Exercise {
