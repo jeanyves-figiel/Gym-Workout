@@ -52,12 +52,18 @@ struct LibraryEntry: Identifiable, Hashable {
         return w.visibility == .private ? nil : w.visibility.label.uppercased()
     }
 
+    /// Most common exercise category: the card's icon.
+    var mainCategory: WorkoutEngine.Category {
+        let exercises = session.blocks.flatMap(\.items).map { Exercise.get($0.exerciseId) }
+        let counts = Dictionary(grouping: exercises, by: \.category).mapValues(\.count)
+        return counts.max(by: { $0.value < $1.value })?.key ?? .strength
+    }
+
     /// Vivid card colours from where the work sits (Explore style).
     var palette: WorkoutEngine.Category {
         let s = session
-        let exercises = s.blocks.flatMap(\.items).map { Exercise.get($0.exerciseId) }
-        let counts = Dictionary(grouping: exercises, by: \.category).mapValues(\.count)
-        if let top = counts.max(by: { $0.value < $1.value })?.key, top != .strength { return top }
+        let top = mainCategory
+        if top != .strength { return top }
         switch s.focus {
         case .lower, .fullLower, .legs: return .warmup
         case .upper, .fullUpper: return .mobility
@@ -138,7 +144,7 @@ struct LibraryCard: View {
     var body: some View {
         let palette = entry.palette
         HStack(spacing: 14) {
-            Image(systemName: palette.symbol)
+            Image(systemName: entry.mainCategory.symbol)
                 .font(.system(size: 24, weight: .bold))
                 .frame(width: 52, height: 52)
                 .background(RoundedRectangle(cornerRadius: 16).fill(.white.opacity(0.2)))
