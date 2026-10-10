@@ -68,8 +68,8 @@ struct ExerciseHeroCard: View {
                 .opacity(0.85)
             }
             ZStack(alignment: .bottomTrailing) {
-                // Still picture: no looping frames in the player.
-                ExerciseImage(exercise: exercise)
+                // Start position; tap plays the movement once (no looping frames).
+                ExerciseMotionView(exercise: exercise)
                     .frame(maxWidth: .infinity)
                     .frame(height: 150)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))

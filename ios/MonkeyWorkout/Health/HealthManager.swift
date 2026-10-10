@@ -102,13 +102,18 @@ enum Readiness: String {
         }
     }
 
+    /// Flag thresholds (also quoted in the info sheet).
+    static let hrvFloor = 0.85
+    static let restHRRise = 5.0
+    static let minSleep = 6.0
+
     /// HRV vs 30-day baseline, resting HR vs baseline, last night's sleep.
     static func assess(_ s: HealthSnapshot) -> (Readiness, [String])? {
         guard s.hasRecoveryData else { return nil }
         var low: [String] = []
-        if let h = s.hrv, let b = s.hrvBaseline, b > 0, h < b * 0.85 { low.append("HRV below your baseline") }
-        if let r = s.restingHR, let b = s.restingHRBaseline, r > b + 5 { low.append("Resting HR elevated") }
-        if let sl = s.sleepHours, sl < 6 { low.append("Short sleep") }
+        if let h = s.hrv, let b = s.hrvBaseline, b > 0, h < b * hrvFloor { low.append("HRV below your baseline") }
+        if let r = s.restingHR, let b = s.restingHRBaseline, r > b + restHRRise { low.append("Resting HR elevated") }
+        if let sl = s.sleepHours, sl < minSleep { low.append("Short sleep") }
         return (low.count >= 2 ? .easy : low.count == 1 ? .normal : .ready, low)
     }
 }

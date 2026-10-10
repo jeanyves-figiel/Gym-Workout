@@ -10,6 +10,7 @@ struct SetLogCard: View {
     let done: Int
     @Environment(AppModel.self) private var model
     @FocusState private var focus: Field?
+    @State private var explaining = false
 
     enum Field: Hashable {
         case kg(Int), reps(Int), rir(Int)
@@ -20,12 +21,27 @@ struct SetLogCard: View {
             HStack {
                 Text("Log sets").eyebrow()
                 Spacer()
-                Text("kg × reps · RIR").font(Theme.label(11)).foregroundStyle(Theme.muted)
+                Button { explaining = true } label: {
+                    HStack(spacing: 4) {
+                        Text("kg × reps · RIR")
+                        Image(systemName: "info.circle.fill")
+                    }
+                    .font(Theme.label(11))
+                    .foregroundStyle(Theme.muted)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Explains RIR and RPE")
             }
             if let s = state.suggestion { SuggestionLine(suggestion: s) }
             ForEach(state.rows.indices, id: \.self) { i in row(i) }
         }
         .card(padding: 14)
+        .sheet(isPresented: $explaining) {
+            ScrollView { RPEExplainer().padding(16) }
+                .background(Theme.bg.ignoresSafeArea())
+                .presentationDetents([.medium, .large])
+                .preferredColorScheme(.dark)
+        }
     }
 
     private func row(_ i: Int) -> some View {

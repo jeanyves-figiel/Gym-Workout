@@ -90,11 +90,15 @@ private struct DemoScreen: View {
         case "progress": NavigationStack { ProgressTabView() }
         case "history": NavigationStack { HistoryDetailView(recordId: model.history.first?.id ?? UUID()) }
         case "body": NavigationStack { BodyHealthView() }
+        case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", "breathing"]) { _ in }
         case "onboarding", "onboarding-climbing":
             NavigationStack {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
                     .navigationTitle("Your training")
             }
+        case "readiness":
+            ReadinessSheet(snapshot: Demo.health, readiness: Readiness.assess(Demo.health)?.0 ?? .normal, flags: Readiness.assess(Demo.health)?.1 ?? [])
+        case "cycle": WeekPhaseSheet(week: 1)
         default: MainTabView()
         }
     }
