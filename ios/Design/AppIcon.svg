@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3B1270"/><stop offset="1" stop-color="#0A0614"/></linearGradient>
+<radialGradient id="glow" cx="0.5" cy="0.58" r="0.5"><stop offset="0" stop-color="#C6FF3D" stop-opacity="0.22"/><stop offset="1" stop-color="#C6FF3D" stop-opacity="0"/></radialGradient>
+<linearGradient id="lime" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#E2FF7A"/><stop offset="1" stop-color="#A8E81E"/></linearGradient>
+</defs>
+<rect width="1024" height="1024" fill="url(#bg)"/>
+<circle cx="512" cy="590" r="470" fill="url(#glow)"/>
+<!-- kettlebell handle -->
+<path d="M330 470 C 300 230, 400 165, 512 165 C 624 165, 724 230, 694 470" fill="none" stroke="url(#lime)" stroke-width="86" stroke-linecap="round"/>
+<!-- ears -->
+<circle cx="246" cy="560" r="104" fill="url(#lime)"/><circle cx="778" cy="560" r="104" fill="url(#lime)"/>
+<circle cx="246" cy="560" r="56" fill="#2A0C4E"/><circle cx="778" cy="560" r="56" fill="#2A0C4E"/>
+<!-- bell body -->
+<circle cx="512" cy="610" r="290" fill="url(#lime)"/>
+<!-- face mask -->
+<g fill="#1B0833">
+<circle cx="432" cy="575" r="108"/><circle cx="592" cy="575" r="108"/>
+<ellipse cx="512" cy="720" rx="178" ry="128"/>
+</g>
+<!-- eyes -->
+<circle cx="440" cy="585" r="40" fill="#fff"/><circle cx="584" cy="585" r="40" fill="#fff"/>
+<circle cx="452" cy="590" r="22" fill="#0A0614"/><circle cx="596" cy="590" r="22" fill="#0A0614"/>
+<circle cx="460" cy="580" r="7" fill="#fff"/><circle cx="604" cy="580" r="7" fill="#fff"/>
+<!-- brows (determined) -->
+<path d="M382 520 L478 540" stroke="#C6FF3D" stroke-width="22" stroke-linecap="round"/>
+<path d="M642 520 L546 540" stroke="#C6FF3D" stroke-width="22" stroke-linecap="round"/>
+<!-- nostrils + grin -->
+<ellipse cx="492" cy="680" rx="10" ry="14" fill="#C6FF3D"/><ellipse cx="532" cy="680" rx="10" ry="14" fill="#C6FF3D"/>
+<path d="M420 735 Q512 815 604 735 Q512 770 420 735 Z" fill="#fff" stroke="#fff" stroke-width="14" stroke-linejoin="round"/>
+</svg>
