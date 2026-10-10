@@ -30,6 +30,9 @@ struct LocalState: Codable {
     var deletedCustomWorkoutIds: Set<UUID>?
     // Logged climbs (#44). Optional so older state files still decode.
     var climbs: [ClimbLog]?
+    // Custom exercises (#52). Archived, never deleted.
+    var customExerciseList: [CustomExercise]?
+    var pendingCustomExerciseIds: Set<UUID>?
     // PR attempts (#60). Optional so older state files still decode.
     var prAttempts: [PRAttempt]?
     var pendingPRAttemptIds: Set<UUID>?
@@ -93,6 +96,8 @@ extension LocalState {
         deletedCustomWorkoutIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedCustomWorkoutIds)
         climbs = try? c.decodeIfPresent([ClimbLog].self, forKey: .climbs)
         activeWorkout = try? c.decodeIfPresent(ActiveWorkout.self, forKey: .activeWorkout)
+        customExerciseList = try? c.decodeIfPresent([CustomExercise].self, forKey: .customExerciseList)
+        pendingCustomExerciseIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingCustomExerciseIds)
         prAttempts = try? c.decodeIfPresent([PRAttempt].self, forKey: .prAttempts)
         pendingPRAttemptIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingPRAttemptIds)
         deletedPRAttemptIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedPRAttemptIds)
