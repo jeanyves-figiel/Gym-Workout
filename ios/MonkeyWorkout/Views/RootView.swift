@@ -87,6 +87,11 @@ private struct DemoScreen: View {
         case "history": NavigationStack { HistoryDetailView(recordId: model.history.first?.id ?? UUID()) }
         case "body": NavigationStack { BodyHealthView() }
         case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", "breathing"]) { _ in }
+        case "onboarding", "onboarding-climbing":
+            NavigationStack {
+                ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
+                    .navigationTitle("Your training")
+            }
         default: MainTabView()
         }
     }

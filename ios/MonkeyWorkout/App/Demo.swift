@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|session|player|explore|muscle|exercise|technique|progress|history|body|picker|welcome]`
+/// DEBUG-only: `-demo [-demoScreen week|onboarding|onboarding-climbing|session|player|explore|muscle|exercise|technique|progress|history|body|picker|welcome]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("-demo") }
@@ -20,6 +20,11 @@ enum Demo {
     }()
 
     static let profile = Profile(goal: .balanced, sessionsPerWeek: 4, experience: .intermediate, climbingDaysPerWeek: 2)
+
+    /// Onboarding screenshot with the climbing goal picked.
+    static let climbingProfile = Profile(
+        goal: .climbing, sessionsPerWeek: 2, experience: .intermediate, climbingDaysPerWeek: 2,
+        climbingWeekdays: [2, 4], gymWeekdays: [1, 5])
 
     static let health: HealthSnapshot = {
         var s = HealthSnapshot()
