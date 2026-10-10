@@ -28,6 +28,8 @@ struct LocalState: Codable {
     var customWorkoutList: [CustomWorkout]?
     var pendingCustomWorkoutIds: Set<UUID>?
     var deletedCustomWorkoutIds: Set<UUID>?
+    // Logged climbs (#44). Optional so older state files still decode.
+    var climbs: [ClimbLog]?
 }
 
 /// JSON file in Application Support, encrypted at rest by iOS data protection.
@@ -73,5 +75,6 @@ extension LocalState {
         customWorkoutList = try? c.decodeIfPresent([CustomWorkout].self, forKey: .customWorkoutList)
         pendingCustomWorkoutIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingCustomWorkoutIds)
         deletedCustomWorkoutIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedCustomWorkoutIds)
+        climbs = try? c.decodeIfPresent([ClimbLog].self, forKey: .climbs)
     }
 }

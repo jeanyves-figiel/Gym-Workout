@@ -34,6 +34,11 @@ enum Demo {
         s.vo2Max = 47
         s.sleepHours = 7.2
         s.climbingPerWeek4w = 2
+        let day: Double = 86_400
+        s.recentClimbs = [
+            ClimbEntry(id: UUID(), start: Date().addingTimeInterval(-4 * day), end: Date().addingTimeInterval(-4 * day + 7_200), source: "MonkeyGrade"),
+            ClimbEntry(id: UUID(), start: Date().addingTimeInterval(-9 * day), end: Date().addingTimeInterval(-9 * day + 5_400), source: "MonkeyGrade"),
+        ]
         let now = Date()
         s.weightTrend = (0..<12).map { i in .init(date: now.addingTimeInterval(Double(i - 12) * 7 * 86_400), value: 74 - Double(i) * 0.15) }
         s.vo2Trend = (0..<6).map { i in .init(date: now.addingTimeInterval(Double(i - 6) * 30 * 86_400), value: 44 + Double(i) * 0.6) }
@@ -75,6 +80,15 @@ enum Demo {
             }
         }
         return (records, logs)
+    }
+
+    /// Climbs logged in the app: a hard boulder session yesterday and a lead session last week.
+    static func climbs() -> [ClimbLog] {
+        let day: Double = 86_400
+        return [
+            ClimbLog(kind: .boulder, start: Date().addingTimeInterval(-day - 3_600 * 3), minutes: 105, effort: 8, topGrade: "6C+"),
+            ClimbLog(kind: .lead, start: Date().addingTimeInterval(-6 * day), minutes: 120, effort: 6, topGrade: "6b"),
+        ]
     }
 }
 #endif

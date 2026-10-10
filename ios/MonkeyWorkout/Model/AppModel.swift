@@ -46,6 +46,7 @@ final class AppModel {
             let demo = Demo.history()
             state.history = demo.records
             state.logs = demo.logs
+            state.climbs = Demo.climbs()
             phase = Demo.screen == "welcome" ? .signedOut : .signedIn
             return
         }

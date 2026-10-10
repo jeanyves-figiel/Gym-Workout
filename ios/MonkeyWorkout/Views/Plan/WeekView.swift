@@ -25,6 +25,9 @@ struct WeekView: View {
                             model.applyProfile(p, seed: plan.seed, week: plan.week)
                         }
                     }
+                    if profile.goal == .climbing || profile.climbingDaysPerWeek > 0 || !profile.climbingDays.isEmpty {
+                        ClimbSection()
+                    }
                     if let next = model.nextSession {
                         NextUpCard(session: next) { playing = next }
                     } else {
