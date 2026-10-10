@@ -41,6 +41,11 @@ struct AccountView: View {
                         get: { lock.enabled },
                         set: { on in Task { await lock.setEnabled(on) } }))
                 }
+                Section("Notifications") {
+                    NavigationLink { NotificationSettingsView() } label: {
+                        Label("Reminders & alerts", systemImage: "bell.badge.fill")
+                    }
+                }
                 Section("Connected apps") {
                     NavigationLink { MonkeyGradeView() } label: {
                         LabeledContent {

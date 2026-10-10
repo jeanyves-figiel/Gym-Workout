@@ -1,0 +1,317 @@
+import APIClient
+import SwiftUI
+import UIKit
+import UserNotifications
+import WorkoutEngine
+
+/// Where a tapped notification takes the user.
+enum NotificationRoute: Identifiable, Equatable {
+    case session(String)
+    /// Missed-session check-in: the session and the day it was planned on.
+    case reschedule(sessionId: String, day: Date)
+
+    var id: String {
+        switch self {
+        case let .session(s): "session|\(s)"
+        case let .reschedule(s, d): "reschedule|\(s)|\(d.timeIntervalSince1970)"
+        }
+    }
+}
+
+/// Notifications (#69).
+/// - Local: reminder on the morning of each planned session, check-in the day after a missed one
+///   (actions: train today / pick another day). Rebuilt from the plan whenever it, history or prefs change.
+/// - Remote: APNs token registered with the backend, which pushes followed users' achievements.
+@MainActor @Observable
+final class NotificationManager: NSObject {
+    static let shared = NotificationManager()
+
+    enum Category {
+        static let upcoming = "SESSION_UPCOMING"
+        static let missed = "SESSION_MISSED"
+        static let follow = "FOLLOW_ACHIEVEMENT"
+    }
+
+    enum Action {
+        static let trainToday = "TRAIN_TODAY"
+        static let reschedule = "RESCHEDULE"
+    }
+
+    private static let prefsKey = "notifications.prefs"
+    private static let movesKey = "notifications.moves"
+
+    var prefs: NotificationPrefs {
+        didSet {
+            guard prefs != oldValue else { return }
+            save(prefs, Self.prefsKey)
+            prefsDirty = true
+        }
+    }
+
+    private(set) var authorization: UNAuthorizationStatus = .notDetermined
+    /// Set when a notification is tapped; the main tab view presents it.
+    var route: NotificationRoute?
+    /// Interim reschedule (until the training calendar, #68, owns moves): "sessionId|yyyy-MM-dd" → new day.
+    private(set) var moves: [String: Date]
+    private(set) var pendingCount = 0
+
+    private var deviceToken: String?
+    private var registeredFor: String?
+    private var prefsDirty = true
+    private let center = UNUserNotificationCenter.current()
+
+    override private init() {
+        prefs = Self.load(NotificationPrefs.self, Self.prefsKey) ?? NotificationPrefs()
+        moves = Self.load([String: Date].self, Self.movesKey) ?? [:]
+        super.init()
+    }
+
+    /// Once at launch, before any notification response can arrive.
+    func configure() {
+        center.delegate = self
+        let train = UNNotificationAction(identifier: Action.trainToday, title: "Train today", options: [.foreground])
+        let move = UNNotificationAction(identifier: Action.reschedule, title: "Pick another day", options: [.foreground])
+        center.setNotificationCategories([
+            UNNotificationCategory(identifier: Category.upcoming, actions: [], intentIdentifiers: []),
+            UNNotificationCategory(identifier: Category.missed, actions: [train, move], intentIdentifiers: []),
+            UNNotificationCategory(identifier: Category.follow, actions: [], intentIdentifiers: []),
+        ])
+    }
+
+    func refreshAuthorization() async {
+        authorization = await center.notificationSettings().authorizationStatus
+    }
+
+    /// Asks once; later calls just report the current state.
+    @discardableResult
+    func requestAuthorization() async -> Bool {
+        await refreshAuthorization()
+        if authorization == .notDetermined {
+            _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+            await refreshAuthorization()
+        }
+        return [.authorized, .provisional, .ephemeral].contains(authorization)
+    }
+
+    var allowed: Bool { [.authorized, .provisional, .ephemeral].contains(authorization) }
+
+    // MARK: Local reminders
+
+    /// Rebuilds pending session reminders and check-ins from the current plan.
+    func reschedule(_ model: AppModel, now: Date = Date()) async {
+        await refreshAuthorization()
+        let ours = await center.pendingNotificationRequests().map(\.identifier).filter(Self.isOurs)
+        center.removePendingNotificationRequests(withIdentifiers: ours)
+        guard allowed, model.phase == .signedIn, !model.demo else {
+            pendingCount = 0
+            return
+        }
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: now)
+        let from = cal.date(byAdding: .day, value: -1, to: today) ?? today
+        let through = cal.date(byAdding: .day, value: 8, to: today) ?? today
+        let source = PlanSessionSource(plan: model.plan, done: model.state.done, history: model.state.history, moves: moves, now: now)
+        let reminders = ReminderPlanner.plan(source.plannedSessions(from: from, through: through, calendar: cal), prefs: prefs, now: now, calendar: cal)
+        for r in reminders {
+            let content = UNMutableNotificationContent()
+            content.title = r.title
+            content.body = r.body
+            content.sound = .default
+            content.threadIdentifier = r.kind.rawValue
+            content.categoryIdentifier = r.kind == .upcoming ? Category.upcoming : Category.missed
+            content.userInfo = ["kind": r.kind.rawValue, "sessionId": r.sessionId, "day": r.day.timeIntervalSince1970]
+            let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: r.fireAt)
+            let req = UNNotificationRequest(identifier: r.id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false))
+            try? await center.add(req)
+        }
+        pendingCount = reminders.count
+        // A check-in already on screen for a session that is now done or moved is stale.
+        let open = Set(reminders.map(\.id))
+        let delivered = await center.deliveredNotifications().map(\.request.identifier).filter { $0.hasPrefix("missed|") && !open.contains($0) }
+        let stillMissed = Set(source.plannedSessions(from: from, through: today, calendar: cal).filter { !$0.done }
+            .map { "missed|\($0.sessionId)|\(ReminderPlanner.dayKey($0.day, calendar: cal))" })
+        center.removeDeliveredNotifications(withIdentifiers: delivered.filter { !stillMissed.contains($0) })
+    }
+
+    private static func isOurs(_ id: String) -> Bool { id.hasPrefix("upcoming|") || id.hasPrefix("missed|") }
+
+    /// Moves a planned session to `newDay` for reminders and check-ins.
+    func move(sessionId: String, from day: Date, to newDay: Date, model: AppModel) {
+        let cal = Calendar.current
+        let key = "\(sessionId)|\(ReminderPlanner.dayKey(cal.startOfDay(for: day), calendar: cal))"
+        moves[key] = cal.startOfDay(for: newDay)
+        // Moves only matter around now; drop ones older than two weeks.
+        let cutoff = cal.date(byAdding: .day, value: -14, to: Date()) ?? Date()
+        moves = moves.filter { $0.value >= cutoff }
+        save(moves, Self.movesKey)
+        Task { await reschedule(model) }
+    }
+
+    /// Upcoming planned days, for the reschedule picker.
+    func plannedDays(_ model: AppModel, days: Int = 8, now: Date = Date()) -> [PlannedSession] {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: now)
+        let through = cal.date(byAdding: .day, value: days, to: today) ?? today
+        return PlanSessionSource(plan: model.plan, done: model.state.done, history: model.state.history, moves: moves, now: now)
+            .plannedSessions(from: today, through: through, calendar: cal)
+    }
+
+    /// Test notification in 5 s (Settings).
+    func sendLocalTest() async {
+        guard await requestAuthorization() else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "MonkeyWorkout"
+        content.body = "Reminders work. See you at the gym 💪"
+        content.sound = .default
+        try? await center.add(UNNotificationRequest(identifier: "test|\(UUID().uuidString)", content: content,
+                                                    trigger: UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)))
+    }
+
+    // MARK: Remote push
+
+    /// Registers for APNs when follow alerts are on and the user allowed notifications.
+    func registerRemoteIfNeeded() {
+        guard allowed, prefs.followAchievements else { return }
+        UIApplication.shared.registerForRemoteNotifications()
+    }
+
+    func didRegister(deviceToken data: Data) {
+        deviceToken = data.map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Uploads token + prefs for the signed-in user (idempotent; cheap to call on every foreground).
+    func syncRemote(_ model: AppModel) async {
+        guard model.phase == .signedIn, !model.demo, let userId = model.user?.id else { return }
+        if prefsDirty || registeredFor != userId {
+            do {
+                try await model.api.saveNotificationPrefs(prefs)
+                prefsDirty = false
+            } catch { /* retried on next foreground */ }
+        }
+        guard let token = deviceToken, registeredFor != "\(userId)|\(token)" else { return }
+        #if DEBUG
+        let env = "sandbox"
+        #else
+        let env = "production"
+        #endif
+        do {
+            try await model.api.registerPushDevice(token: token, env: env, topic: Bundle.main.bundleIdentifier ?? "", timeZone: TimeZone.current.identifier)
+            registeredFor = "\(userId)|\(token)"
+        } catch { /* retried on next foreground */ }
+    }
+
+    /// Badges unlocked since the last check are sent to the server, which tells followers.
+    /// The first check per account only records a baseline, so old badges never reach anyone.
+    func announceNewBadges(_ model: AppModel, now: Date = Date()) async {
+        guard model.phase == .signedIn, !model.demo, let userId = model.user?.id else { return }
+        let key = "notifications.badges.\(userId)"
+        let unlocked = Achievements.evaluate(records: model.state.history, weights: model.weightEntries,
+                                             targetPerWeek: model.profile?.sessionsPerWeek ?? 3).filter(\.unlocked)
+        guard let known = Self.load(Set<String>.self, key) else {
+            save(Set(unlocked.map(\.id)), key)
+            return
+        }
+        let recent = now.addingTimeInterval(-2 * 86_400)
+        let fresh = unlocked.filter { !known.contains($0.id) }
+        guard !fresh.isEmpty else { return }
+        let list = fresh.filter { ($0.unlockedAt ?? .distantPast) >= recent }
+            .map { AchievementAnnouncement(id: "badge-\($0.id)", type: "badge", text: "Unlocked \($0.title): \($0.detail)") }
+        do {
+            if !list.isEmpty { try await model.api.announceAchievements(list) }
+            save(known.union(fresh.map(\.id)), key)
+        } catch { /* retried on next change */ }
+    }
+
+    /// Before sign-out: stop pushes to this device for this account, drop local reminders.
+    func signOut(api: APIClient) async {
+        if let token = deviceToken { try? await api.unregisterPushDevice(token: token) }
+        registeredFor = nil
+        prefsDirty = true
+        center.removeAllPendingNotificationRequests()
+        center.removeAllDeliveredNotifications()
+        pendingCount = 0
+        moves = [:]
+        save(moves, Self.movesKey)
+    }
+
+    // MARK: Storage
+
+    private func save(_ value: some Encodable, _ key: String) {
+        UserDefaults.standard.set(try? JSONEncoder().encode(value), forKey: key)
+    }
+
+    private static func load<T: Decodable>(_: T.Type, _ key: String) -> T? {
+        UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode(T.self, from: $0) }
+    }
+}
+
+extension NotificationManager: UNUserNotificationCenterDelegate {
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter, willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .list, .sound]
+    }
+
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        let info = response.notification.request.content.userInfo
+        let kind = info["kind"] as? String
+        let sessionId = info["sessionId"] as? String
+        let day = (info["day"] as? Double).map { Date(timeIntervalSince1970: $0) }
+        let action = response.actionIdentifier
+        await MainActor.run {
+            guard let sessionId else { return }
+            switch (kind, action) {
+            case ("missed", Action.trainToday): self.route = .session(sessionId)
+            case ("missed", _): self.route = .reschedule(sessionId: sessionId, day: day ?? Date())
+            case ("upcoming", _): self.route = .session(sessionId)
+            default: break
+            }
+        }
+    }
+}
+
+/// Planned sessions from the generated week plan: sessions with a weekday land on that weekday of
+/// last, this and next calendar week. The training calendar (#68) can replace this with dated sessions.
+struct PlanSessionSource: PlannedSessionSource {
+    let plan: WeekPlan?
+    let done: [String: Bool]
+    let history: [WorkoutRecord]
+    let moves: [String: Date]
+    let now: Date
+
+    func plannedSessions(from: Date, through: Date, calendar cal: Calendar) -> [PlannedSession] {
+        guard let plan else { return [] }
+        let thisWeek = WeekPlan.weekStart(of: now, calendar: cal)
+        var out: [PlannedSession] = []
+        for offset in [-7, 0, 7] {
+            guard let weekStart = cal.date(byAdding: .day, value: offset, to: thisWeek),
+                  let weekEnd = cal.date(byAdding: .day, value: 7, to: weekStart) else { continue }
+            for (s, day) in plan.dated(weekStart: weekStart, calendar: cal) {
+                let target = moves["\(s.id)|\(ReminderPlanner.dayKey(day, calendar: cal))"] ?? day
+                guard target >= from, target <= through else { continue }
+                let end = max(weekEnd, cal.date(byAdding: .day, value: 1, to: target) ?? target)
+                // The week's checkmark only describes the current week; earlier/later weeks use history.
+                let recorded = history.contains { $0.sessionId == s.id && $0.startedAt >= weekStart && $0.startedAt < end }
+                let isDone = recorded || (offset == 0 && (done[s.id] ?? false))
+                out.append(PlannedSession(sessionId: s.id, title: s.title, estMin: s.estMin, day: target, done: isDone))
+            }
+        }
+        return out.sorted { $0.day < $1.day }
+    }
+}
+
+/// Bridges UIKit's remote-notification callbacks into SwiftUI.
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        MainActor.assumeIsolated { NotificationManager.shared.configure() }
+        return true
+    }
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        MainActor.assumeIsolated { NotificationManager.shared.didRegister(deviceToken: deviceToken) }
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        // Simulator, missing aps-environment entitlement or no network: local reminders still work.
+    }
+}

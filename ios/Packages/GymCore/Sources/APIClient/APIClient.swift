@@ -216,6 +216,35 @@ public actor APIClient {
         _ = try await authorizedRaw("DELETE", "/v1/me/custom-workouts/\(id.uuidString)", Empty?.none)
     }
 
+    // MARK: Notifications (#69)
+
+    /// Registers this install's APNs token (hex). `env`: "sandbox" (debug builds) or "production".
+    public func registerPushDevice(token: String, env: String, topic: String, timeZone: String) async throws {
+        struct Body: Encodable { var token, env, topic, tz: String }
+        _ = try await authorizedRaw("PUT", "/v1/me/push-device", Body(token: token, env: env, topic: topic, tz: timeZone))
+    }
+
+    public func unregisterPushDevice(token: String) async throws {
+        _ = try await authorizedRaw("DELETE", "/v1/me/push-device/\(token)", Empty?.none)
+    }
+
+    /// Notification preferences (app-defined; server validates the known keys).
+    public func saveNotificationPrefs<T: Encodable & Sendable>(_ prefs: T) async throws {
+        struct Body<P: Encodable>: Encodable { var prefs: P }
+        _ = try await authorizedRaw("PUT", "/v1/me/notification-prefs", Body(prefs: prefs))
+    }
+
+    /// Achievements just unlocked on this device; the server pushes them to followers (once per id).
+    public func announceAchievements(_ list: [AchievementAnnouncement]) async throws {
+        struct Body: Encodable { var achievements: [AchievementAnnouncement] }
+        _ = try await authorizedRaw("POST", "/v1/me/achievements", Body(achievements: list))
+    }
+
+    /// Sends a test push to this account's registered devices. Returns devices reached.
+    public func sendTestPush() async throws -> PushTestResult {
+        try await authorized("POST", "/v1/me/push-test", Empty(), as: PushTestResult.self)
+    }
+
     // MARK: Internals
 
     struct Empty: Codable {}

@@ -1,7 +1,7 @@
 name: Fly setup
 
 # Manual, idempotent, one-time bootstrap of a Fly.io app (#3) — no local CLI needed.
-# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Email: secrets SES_ACCESS_KEY_ID + SES_SECRET_ACCESS_KEY (IAM user, ses:SendRawEmail; sent via the SES HTTPS API) or SMTP_URL → real email, else console. Optional APPLE_KEY_ID + APPLE_PRIVATE_KEY (Sign in with Apple .p8) → Apple token revocation.
+# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Email: secrets SES_ACCESS_KEY_ID + SES_SECRET_ACCESS_KEY (IAM user, ses:SendRawEmail; sent via the SES HTTPS API) or SMTP_URL → real email, else console. Optional APPLE_KEY_ID + APPLE_PRIVATE_KEY (Sign in with Apple .p8) → Apple token revocation. Optional APNS_KEY_ID + APNS_PRIVATE_KEY (APNs .p8) → remote push.
 on:
   workflow_dispatch:
     inputs:
@@ -30,6 +30,8 @@ jobs:
       SES_REGION: eu-central-2
       APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
       APPLE_PRIVATE_KEY: ${{ secrets.APPLE_PRIVATE_KEY }}
+      APNS_KEY_ID: ${{ secrets.APNS_KEY_ID }}
+      APNS_PRIVATE_KEY: ${{ secrets.APNS_PRIVATE_KEY }}
       FLY_APP: ${{ inputs.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
       REGION: fra
       HOSTNAME: ${{ inputs.environment == 'production' && 'workout.monkeygrade.cloud' || 'workout-staging.monkeygrade.cloud' }}
@@ -68,6 +70,11 @@ jobs:
           if [ -n "$APPLE_KEY_ID" ] && [ -n "$APPLE_PRIVATE_KEY" ]; then
             printf '%s\n' "$APPLE_PRIVATE_KEY" | flyctl secrets set --stage -a "$FLY_APP" APPLE_PRIVATE_KEY=-
             flyctl secrets set --stage -a "$FLY_APP" APPLE_KEY_ID="$APPLE_KEY_ID"
+          fi
+          # APNs key (remote push, #69). Multiline .p8 via stdin.
+          if [ -n "$APNS_KEY_ID" ] && [ -n "$APNS_PRIVATE_KEY" ]; then
+            printf '%s\n' "$APNS_PRIVATE_KEY" | flyctl secrets set --stage -a "$FLY_APP" APNS_PRIVATE_KEY=-
+            flyctl secrets set --stage -a "$FLY_APP" APNS_KEY_ID="$APNS_KEY_ID"
           fi
           flyctl secrets list -a "$FLY_APP"
       - name: TLS certificate

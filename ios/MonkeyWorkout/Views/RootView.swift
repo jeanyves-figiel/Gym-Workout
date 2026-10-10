@@ -49,6 +49,7 @@ struct MainTabView: View {
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
         }
         .toolbarBackground(Theme.bg, for: .tabBar)
+        .modifier(NotificationsHost())
     }
 }
 
@@ -97,6 +98,9 @@ private struct DemoScreen: View {
         case "readiness":
             ReadinessSheet(snapshot: Demo.health, readiness: Readiness.assess(Demo.health)?.0 ?? .normal, flags: Readiness.assess(Demo.health)?.1 ?? [])
         case "cycle": WeekPhaseSheet(week: 1)
+        case "notifications": NavigationStack { NotificationSettingsView() }
+        case "reschedule":
+            RescheduleSheet(sessionId: second, day: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
         default: MainTabView()
         }
     }

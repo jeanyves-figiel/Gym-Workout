@@ -43,6 +43,8 @@ targets:
         com.apple.developer.applesignin: [Default]
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.access: []
+        # Remote push (#69). Archive/export for TestFlight/App Store switches it to production.
+        aps-environment: development
     info:
       path: MonkeyWorkout/Info.plist
       properties:

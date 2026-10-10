@@ -3,6 +3,7 @@ import SwiftUI
 
 @main
 struct MonkeyWorkoutApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = AppModel.live()
     @State private var lock = AppLock()
     @State private var health = HealthManager()

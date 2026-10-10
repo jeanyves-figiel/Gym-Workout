@@ -5,6 +5,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Notifications** (#69). Account → Notifications, Explore-style cards with toggle and time per type:
+  - **Session reminder** on the morning of each planned session (default 07:30); tap opens the session.
+  - **Missed session** check-in the next day (default 09:00) with **Train today** / **Pick another day**; picker shows the next 7 days with climbing days and other planned sessions. Cleared once the session is recorded.
+  - **People you follow**: APNs push when they unlock a badge (sent once per badge; device announces new badges via `POST /v1/me/achievements`, old badges never sent). Followers resolved through the Community follow model (`app.push.setFollowersProvider`); no-op until it is wired.
+  - **Quiet hours** (default 22:00–07:00): local reminders move out of the window, remote pushes arrive silently.
+  - Send test (local + server push). Reminders use session weekdays (gym/climbing days in the training profile).
+  - Backend: push device registry, notification prefs, APNs HTTP/2 token-auth sender, dead tokens removed; secrets `APNS_KEY_ID` / `APNS_PRIVATE_KEY` via **Fly setup**; skipped until set. Device unregistered on sign-out; data deleted with the account.
+
 ### Fixed
 - Training profile: climbing no longer depends on the goal (#49). An independent **I climb** switch (any goal) shows climbing days/weekdays; changing goal never clears them (#40 cleared them for non-climbing goals); Climbing performance turns it on; new profiles start on when Apple Health shows climbing workouts. Health climbing-days hint back for all goals.
 

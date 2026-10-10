@@ -10,13 +10,20 @@ import { EmailChangeService } from './emailChange.ts';
 import { ApiError } from './errors.ts';
 import { createBreachChecker } from './hibp.ts';
 import type { Mailer } from './mailer.ts';
+import { type ApnsSender, createApnsSender } from './push/apns.ts';
+import { PushService } from './push/service.ts';
 import { accountRoutes } from './routes/account.ts';
 import { customWorkoutRoutes } from './routes/customWorkouts.ts';
 import { dataRoutes } from './routes/data.ts';
+import { pushRoutes } from './routes/push.ts';
 
 declare module 'fastify' {
   interface FastifyRequest {
     userId?: string;
+  }
+  interface FastifyInstance {
+    /** Remote push (#69). Other features call `app.push.notifyFollowers(...)`. */
+    push: PushService;
   }
 }
 
@@ -29,6 +36,8 @@ export interface AppDeps {
   logger?: boolean;
   /** Outbound HTTP (Apple token endpoints, HIBP); injectable for tests. */
   fetch?: Fetch;
+  /** APNs transport; defaults to HTTP/2 when APNS_* is configured. Injectable for tests. */
+  apns?: ApnsSender;
 }
 
 const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
@@ -50,6 +59,14 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
     appleTokens: new AppleTokenService({ config: deps.config, db: deps.db, fetch: outbound, now, log: warn }),
   });
   const emailChange = new EmailChangeService({ db: deps.db, config: deps.config, mailer: deps.mailer, now });
+  const k = deps.config.apns;
+  const push = new PushService({
+    db: deps.db,
+    now,
+    log: warn,
+    sender: deps.apns ?? (k.teamId && k.keyId && k.privateKey ? createApnsSender({ teamId: k.teamId, keyId: k.keyId, privateKey: k.privateKey }, now) : undefined),
+  });
+  app.decorate('push', push);
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof ApiError) return reply.status(err.status).send({ error: err.code, message: err.message, ...err.extra });
@@ -168,6 +185,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       dataRoutes(r, deps.db, deps.now ?? (() => new Date()), auth);
       accountRoutes(r, emailChange, deps.config.authRateLimitPerMin);
       customWorkoutRoutes(r, deps.db, deps.now ?? (() => new Date()));
+      pushRoutes(r, push, deps.config.appleBundleIds, (id) => auth.userById(id)?.name ?? null);
     },
     { prefix: '/v1' },
   );

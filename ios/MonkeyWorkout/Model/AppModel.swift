@@ -86,17 +86,20 @@ final class AppModel {
 
     /// Explicit sign-out: revoke this device and wipe local data.
     func signOut() async {
+        await NotificationManager.shared.signOut(api: api)
         await api.logout()
         resetLocal()
     }
 
     func signOutEverywhere() async throws {
+        await NotificationManager.shared.signOut(api: api)
         try await api.logoutAllDevices()
         resetLocal()
     }
 
     func deleteAccount(password: String?) async throws {
         try await api.deleteAccount(password: password)
+        await NotificationManager.shared.signOut(api: api)
         resetLocal()
     }
 
