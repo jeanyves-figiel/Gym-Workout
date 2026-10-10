@@ -230,8 +230,7 @@ public actor APIClient {
 
     /// Notification preferences (app-defined; server validates the known keys).
     public func saveNotificationPrefs<T: Encodable & Sendable>(_ prefs: T) async throws {
-        struct Body<P: Encodable>: Encodable { var prefs: P }
-        _ = try await authorizedRaw("PUT", "/v1/me/notification-prefs", Body(prefs: prefs))
+        _ = try await authorizedRaw("PUT", "/v1/me/notification-prefs", PrefsBody(prefs: prefs))
     }
 
     /// Achievements just unlocked on this device; the server pushes them to followers (once per id).
@@ -249,6 +248,7 @@ public actor APIClient {
 
     struct Empty: Codable {}
     struct ProfileBody<T: Encodable>: Encodable { var data: T }
+    struct PrefsBody<T: Encodable>: Encodable { var prefs: T }
     struct WorkoutsBody<T: Encodable>: Encodable { var workouts: [T] }
     struct WorkoutsResponse<T: Decodable>: Decodable { var workouts: [T] }
 
