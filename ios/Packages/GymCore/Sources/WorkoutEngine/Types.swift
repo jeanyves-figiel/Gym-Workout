@@ -157,11 +157,12 @@ public struct Exercise: Identifiable, Hashable, Sendable {
 
     private static let byId: [String: Exercise] = Dictionary(uniqueKeysWithValues: catalog.map { ($0.id, $0) })
 
-    public static func find(_ id: String) -> Exercise? { byId[id] }
+    /// Catalog exercise, or one of the user's custom exercises (`CustomExercises.shared`).
+    public static func find(_ id: String, custom: CustomExercises = .shared) -> Exercise? { byId[id] ?? custom.exercise(id) }
 
-    /// Crashes on unknown ids — ids come from the catalog itself.
+    /// Crashes on unknown ids — ids come from the catalog or the user's custom exercises.
     public static func get(_ id: String) -> Exercise {
-        guard let e = byId[id] else { preconditionFailure("Unknown exercise \(id)") }
+        guard let e = find(id) else { preconditionFailure("Unknown exercise \(id)") }
         return e
     }
 }

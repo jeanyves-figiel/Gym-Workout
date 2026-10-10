@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|onboarding|onboarding-climbing|session|player|explore|muscle|exercise|technique|progress|history|body|readiness|cycle|picker|welcome]`
+/// DEBUG-only: `-demo [-demoScreen week|onboarding|onboarding-climbing|session|player|explore|muscle|exercise|technique|progress|history|body|readiness|cycle|picker|builder|welcome]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("-demo") }
@@ -17,6 +17,17 @@ enum Demo {
     static let user: User? = {
         let json = #"{"id":"demo","email":"climber@example.com","name":"JY","emailVerified":true,"hasPassword":true,"appleLinked":false,"createdAt":"2026-10-07T10:00:00Z"}"#
         return try? JSONDecoder().decode(User.self, from: Data(json.utf8))
+    }()
+
+    /// A user-built machine exercise with a pose drawing (#52).
+    static let customExercise: CustomExercise = {
+        var pose = ExerciseDrawing(template: .seated)
+        pose.frames[1] = FigurePose(legN: (-25, 70), legF: (0, 90), armN: (60, 0), armF: (65, 0))
+        pose.props = [DrawingProp(.seat), DrawingProp(.machine, dx: -20), DrawingProp(.pad, anchor: .kneeN)]
+        return CustomExercise(
+            id: UUID(uuidString: "6F0C2B1E-5A47-4E4B-9C3A-2B7D7F1A9E10")!, name: "Hip abductor machine",
+            createdAt: Date(timeIntervalSince1970: 1_791_000_000), category: .strength, primary: [.glutes],
+            secondary: [.adductors], machine: "Technogym Selection 700", cues: ["Slow return, 2 s"], drawing: pose)
     }()
 
     static let profile = Profile(goal: .balanced, sessionsPerWeek: 4, experience: .intermediate, climbingDaysPerWeek: 2)
