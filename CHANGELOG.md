@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Staging + production hosted on Fly.io (#3): apps `monkeyworkout-staging` → `https://workout-staging.monkeygrade.cloud`, `monkeyworkout-prod` → `https://workout.monkeygrade.cloud` (`backend/fly.*.toml`, region `fra`, 1 machine + `/data` volume, `/healthz` check). **Deploy staging** deploys the CI-built image on every merge to `main`; **Promote to production** (manual) deploys the same digest to prod. Both skip with a warning until `FLY_API_TOKEN` is set. Manual **Fly setup** workflow bootstraps app, volume, secrets and TLS cert per environment without local tools. Email via Amazon SES SMTP (eu-central-2, dedicated send-only IAM user; SMTP password derived in CI) from `no-reply@monkeygrade.cloud` when repo secrets `SES_ACCESS_KEY_ID`/`SES_SECRET_ACCESS_KEY` (or `SMTP_URL`) are set, else codes logged. iOS Staging build → staging host, Release → prod host.
+
+### Fixed
+- API container: entrypoint fixes ownership of root-owned `/data` mounts (Fly volumes) before dropping to the `node` user (#3).
+
 ### Changed
 - App renamed **MonkeyWorkout** (#21): Xcode project/target/schemes, display names, bundle IDs `Com.app.MonkeyWorkout` (Release + TestFlight staging) and `Com.app.MonkeyWorkout.dev` (DEV); App Store Connect SKU `Monkeyworkout`, Apple ID `6819971090` documented; signing team `U7VAR53G86` set.
 - API: Sign in with Apple accepts the new bundle IDs, matched case-insensitively; emails sent as MonkeyWorkout (#21).

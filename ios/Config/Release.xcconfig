@@ -1,5 +1,5 @@
 // App Store build — MonkeyWorkout (SKU Monkeyworkout, Apple ID 6819971090).
-// Production API — set the real host once hosting is chosen (#3).
+// Production API (#3).
 APP_BUNDLE_ID = Com.app.MonkeyWorkout
 APP_DISPLAY_NAME = MonkeyWorkout
-API_BASE_URL = https:/$()/api.gym-workout.invalid
+API_BASE_URL = https:/$()/workout.monkeygrade.cloud

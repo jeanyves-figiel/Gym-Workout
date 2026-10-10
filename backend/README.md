@@ -10,6 +10,26 @@ Accounts + data sync for the iOS app. Single-user-scale: SQLite (`node:sqlite`) 
 | Container | `docker build -t gym-api . && docker run -p 8080:8080 -v gym-data:/data --env-file .env gym-api` |
 
 Production env: see `.env.example` (`JWT_SECRET`, `CODE_PEPPER`, `SMTP_URL` required).
+Container starts as root only to `chown` the `/data` mount, then runs as `node` (`docker-entrypoint.sh`).
+
+## Hosting (Fly.io)
+
+| Env | Fly app | Config | URL | Deployed by |
+|---|---|---|---|---|
+| staging | `monkeyworkout-staging` | `fly.staging.toml` | `https://workout-staging.monkeygrade.cloud` | **Deploy staging**, every merge to `main` |
+| production | `monkeyworkout-prod` | `fly.production.toml` | `https://workout.monkeygrade.cloud` | **Promote to production**, manual, same digest |
+
+Each: region `fra`, 1 machine + 1 GB volume (`/data`, SQLite), `/healthz` check. One-time setup, no local tools:
+
+1. fly.io dashboard → **Tokens** → create org token. GitHub → Settings → Secrets → Actions: repo secret `FLY_API_TOKEN`.
+   Email (Amazon SES Zurich, domain `monkeygrade.cloud` verified): IAM user `monkeyworkout-ses-smtp` (only `ses:SendRawEmail` on that identity) → access key → repo secrets `SES_ACCESS_KEY_ID`, `SES_SECRET_ACCESS_KEY`. **Fly setup** derives the SES SMTP password in CI (`email-smtp.eu-central-2.amazonaws.com:587`). Or set `SMTP_URL` directly. Without either, email codes go to the app logs.
+2. GitHub environments `staging`, `production`: variables `STAGING_URL` / `PROD_URL` (URLs above).
+3. Cloudflare DNS (`monkeygrade.cloud`), **DNS only**: `CNAME workout-staging → monkeyworkout-staging.fly.dev`, `CNAME workout → monkeyworkout-prod.fly.dev`.
+4. Actions → **Fly setup** → Run for `staging`, then `production`. Creates app, volume, secrets (`JWT_SECRET`, `CODE_PEPPER` random; `SMTP_URL` or `MAIL_TRANSPORT=console`), TLS cert. Idempotent; re-run after adding `SMTP_URL`.
+5. Re-run latest **Deploy staging**. Prod: **Promote to production** when staging is validated.
+
+App name taken → change it in the `fly.*.toml`, `deploy-staging.yml` / `promote.yml` and `fly-setup.yml`.
+Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode: email codes appear in the app's logs (Fly dashboard → Monitoring).
 
 ## Endpoints (`/v1`)
 

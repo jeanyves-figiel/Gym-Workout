@@ -48,14 +48,30 @@ jobs:
           docker buildx imagetools create -t "$IMAGE:prod" "$IMAGE@$DIGEST"
           echo "ref=$IMAGE@$DIGEST" >> "$GITHUB_OUTPUT"
           echo "Promoted \`$SRC\` → \`prod\` ($DIGEST)" >> "$GITHUB_STEP_SUMMARY"
-      - name: Trigger production deploy
-        env:
-          HOOK: ${{ secrets.PROD_DEPLOY_HOOK }}
-          IMAGE: ${{ steps.tag.outputs.ref }}
+      - uses: actions/checkout@v4
+      - name: Check Fly token
+        id: gate
         run: |
-          if [ -z "$HOOK" ]; then
-            echo "::warning::PROD_DEPLOY_HOOK not set — prod tag updated, no deploy triggered."
-            exit 0
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::warning::FLY_API_TOKEN not set — prod tag updated, no deploy triggered."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
-          curl -fsS -X POST "$HOOK" -H 'Content-Type: application/json' \
-            -d "{\"image\":\"$IMAGE\",\"env\":\"production\"}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - if: steps.gate.outputs.skip != 'true'
+        uses: superfly/flyctl-actions/setup-flyctl@master
+      # Same digest as staging, mirrored to Fly's registry.
+      - name: Deploy to Fly production
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FLY_APP: monkeyworkout-prod
+          REF: ${{ steps.tag.outputs.ref }}
+        run: |
+          flyctl auth docker
+          DST="registry.fly.io/$FLY_APP:${REF##*@sha256:}"
+          docker pull "$REF"
+          docker tag "$REF" "$DST"
+          docker push "$DST"
+          flyctl deploy --config backend/fly.production.toml --app "$FLY_APP" --image "$DST"
+          echo "Deployed \`$REF\` to $FLY_APP" >> "$GITHUB_STEP_SUMMARY"
