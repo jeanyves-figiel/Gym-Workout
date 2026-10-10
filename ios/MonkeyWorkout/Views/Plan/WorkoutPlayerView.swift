@@ -88,6 +88,7 @@ struct WorkoutPlayerView: View {
                             }
                         }
                         EquipmentLine(equipment: step.exercise.equipment)
+                        ExerciseImageHeader(exercise: step.exercise, height: 180, showsAttribution: false).id(step.item.uid)
                         if let i = step.item.prescription.intensity { Text(i).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted) }
                         if let n = step.item.prescription.note { Text(n).font(.footnote).foregroundStyle(Theme.muted) }
 
