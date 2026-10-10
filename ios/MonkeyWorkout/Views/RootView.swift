@@ -85,11 +85,15 @@ private struct DemoScreen: View {
         case "climb": LogClimbView(initial: ClimbLog(start: Date().addingTimeInterval(-90 * 60), effort: 8, topGrade: "6C"))
         case "muscle": NavigationStack { MuscleDetailView(muscle: .lats) }
         case "exercise": NavigationStack { ExerciseDetailView(exerciseId: "pull-up") }
+        case "pr": NavigationStack { ScrollView { PRCard(exerciseId: "bench-press").padding(16) }.background(Theme.bg.ignoresSafeArea()) }
+        case "pr-attempt": PRAttemptView(exerciseId: "bench-press")
+        case "pr-result": PRAttemptView(exerciseId: "bench-press", showing: Demo.prResult)
         case "technique": FormSheet(exercise: Exercise.get("leg-press"))
         case "progress": NavigationStack { ProgressTabView() }
         case "history": NavigationStack { HistoryDetailView(recordId: model.history.first?.id ?? UUID()) }
         case "body": NavigationStack { BodyHealthView() }
-        case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", "breathing"]) { _ in }
+        case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", Demo.customExercise.exerciseId]) { _ in }
+        case "builder": CustomExerciseBuilderView(existing: Demo.customExercise)
         case "onboarding", "onboarding-climbing":
             NavigationStack {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }

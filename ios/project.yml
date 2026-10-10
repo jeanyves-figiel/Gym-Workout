@@ -55,6 +55,7 @@ targets:
           UIApplicationSupportsMultipleScenes: false
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSFaceIDUsageDescription: Unlock MonkeyWorkout with Face ID.
+        NSCameraUsageDescription: Take a photo of a machine for your own exercises.
         NSHealthShareUsageDescription: Reads weight, height, age, sex, resting heart rate, HRV, VO2max, sleep, heart rate during sessions and climbing workouts to estimate calories, show readiness and track progress.
         NSLocationWhenInUseUsageDescription: Finds gyms near you. Your location is only used for the search and never leaves this device except to Apple Maps.
         NSHealthUpdateUsageDescription: Saves your gym sessions as workouts, and weight and height you enter, to Apple Health.

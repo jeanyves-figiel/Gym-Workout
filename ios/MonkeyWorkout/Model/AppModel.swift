@@ -9,7 +9,14 @@ final class AppModel {
 
     var phase: Phase = .launching
     var user: User?
-    var state = LocalState()
+    var state = LocalState() {
+        didSet {
+            // Custom exercises resolve through `Exercise.find` everywhere (picker, sessions, history).
+            if state.customExerciseList != oldValue.customExerciseList {
+                CustomExercises.shared.replaceAll(state.customExerciseList ?? [])
+            }
+        }
+    }
     var syncError: String?
 
     let api: APIClient
@@ -47,8 +54,10 @@ final class AppModel {
             state.history = demo.records
             state.logs = demo.logs
             state.climbs = Demo.climbs()
+            state.prAttempts = Demo.prAttempts()
             MonkeyGradeLink.shared.loadDemo(ownerId: Demo.user?.id ?? "demo")
             state.synced?.profile.climbDayAddon = true
+            state.customExerciseList = [Demo.customExercise]
             state.synced?.away = Demo.away()
             replanCurrentWeek()
             phase = Demo.screen == "welcome" ? .signedOut : .signedIn
@@ -354,7 +363,9 @@ final class AppModel {
             for l in remote where !state.pendingLogIds.contains(l.id) { byId[l.id] = l }
             state.logs = byId.values.sorted { $0.date < $1.date }
             state.lastLogPull = Date()
+            try await syncCustomExercises()
             try await syncCustomWorkouts()
+            try await syncPRAttempts()
             syncError = nil
             persist()
         } catch APIError.signedOut {
