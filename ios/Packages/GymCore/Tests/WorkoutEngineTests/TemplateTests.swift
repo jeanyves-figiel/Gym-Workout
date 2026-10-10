@@ -16,6 +16,7 @@ import Testing
             #expect(s.estMin > 0)
         }
         #expect(WorkoutTemplate.armsShoulder.items.count == 10)
+        #expect(WorkoutTemplate.lowerbody.items.count == 10)
     }
 
     @Test func exampleOnlyExercisesNeverGenerated() {

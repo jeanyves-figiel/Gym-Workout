@@ -2,6 +2,24 @@
 
 extension Technique {
     static let examples: [String: Technique] = [
+        "barbell-split-squat": Technique(
+            setup: [
+                "Set the J-hooks at upper-chest height and unrack the bar onto the upper back",
+                "Step one foot forward and one back into a long, hip-width split stance",
+            ],
+            position: [
+                Checkpoint(.back, "Tall torso, bar over mid-foot"),
+                Checkpoint(.core, "Braced, ribs down"),
+                Checkpoint(.knees, "Front knee tracks over the toes; back knee drops straight down"),
+                Checkpoint(.feet, "Front foot flat, back foot on the ball"),
+            ],
+            mistakes: [
+                "Feet in a line (tightrope) so balance is lost",
+                "Pushing off the back leg instead of the front",
+                "Leaning forward over the front knee",
+            ],
+            breathing: "Inhale and brace at the top, exhale as you drive up"
+        ),
         "barbell-curl": Technique(
             setup: [
                 "Load a straight or EZ bar light enough for 10 strict reps",

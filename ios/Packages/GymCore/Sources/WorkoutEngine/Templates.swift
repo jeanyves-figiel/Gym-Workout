@@ -49,10 +49,13 @@ public struct WorkoutTemplate: Identifiable, Hashable, Sendable {
 
     public static let all: [WorkoutTemplate] = [lowerbody, armsShoulder]
 
-    /// Source plan lists 10 exercises; only the first 6 were provided so far.
     static let lowerbody = WorkoutTemplate(
         id: "lowerbody", name: "Lowerbody", focus: .lower, kcal: 249, activityPoints: 214,
         items: [
+            Item("back-squat", kcal: 63),
+            Item("barbell-split-squat", kcal: 42),
+            Item("bulgarian-split-squat", kcal: 111),
+            Item("hip-thrust-machine", kcal: 9),
             Item("seated-calf-raise"),
             Item("hip-adduction"),
             Item("hip-abduction"),
