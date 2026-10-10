@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import type { Config } from './config.ts';
+import { SesMailer } from './ses.ts';
 
 export interface Mail {
   to: string;
@@ -37,4 +38,8 @@ export class SmtpMailer implements Mailer {
 }
 
 export const createMailer = (c: Config): Mailer =>
-  c.mail.transport === 'smtp' ? new SmtpMailer(c.mail.smtpUrl!, c.mail.from) : new ConsoleMailer();
+  c.mail.transport === 'ses'
+    ? new SesMailer(c.mail.ses!, c.mail.from)
+    : c.mail.transport === 'smtp'
+      ? new SmtpMailer(c.mail.smtpUrl!, c.mail.from)
+      : new ConsoleMailer();

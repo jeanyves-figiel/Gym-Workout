@@ -27,7 +27,7 @@ jobs:
           done
           echo "healthz: $body"
           echo "$body" | jq -e '.ok == true' >/dev/null
-          echo "$body" | jq -e '.mail == "smtp"' >/dev/null || { echo "::error::Staging mail transport is not smtp; verification emails are only logged."; exit 1; }
+          echo "$body" | jq -e '.mail == "ses" or .mail == "smtp"' >/dev/null || { echo "::error::Staging mail transport is console; verification emails are only logged."; exit 1; }
       - name: Sign-up sends verification email (SES simulator)
         run: |
           EMAIL="success+mw-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}@simulator.amazonses.com"
