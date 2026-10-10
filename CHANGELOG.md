@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Per-set logging in the workout player (kg × reps, optional RIR), prefilled from a load suggestion; synced (`setIndex`/`rir` on logs, backward compatible; backend migration adds nullable columns) (#5).
+- Load suggestions: double progression within the prescribed rep range, equipment-aware increments/rounding, −5 % below range, −10 % deload week; shown in player and on exercise page (#5).
+- Per-exercise history (best e1RM trend, sessions with sets) from the exercise page (#5).
+- Exercise illustrations from free-exercise-db (public domain, pinned commit) for 113 exercises: thumbnails on session cards, animated header with credit on exercise page, animated image in the player; disk-cached for offline use (#27).
 - Sign in with Apple credential check on launch/foreground; signs out when the Apple ID link is revoked (#12).
 - Account deletion revokes the Sign in with Apple token: server exchanges the authorization code at sign-in (refresh token stored encrypted) and calls Apple's revoke endpoint on deletion. Needs Fly secrets `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` (team/client id in `fly.*.toml`); skipped until set (#12).
 - Change email: Account → Change email, 6-digit code to new address, old address notified (`POST /v1/me/email`, `/v1/me/email/confirm`) (#13).
