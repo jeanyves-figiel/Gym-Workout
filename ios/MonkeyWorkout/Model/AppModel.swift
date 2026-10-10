@@ -54,6 +54,7 @@ final class AppModel {
             state.history = demo.records
             state.logs = demo.logs
             state.climbs = Demo.climbs()
+            state.prAttempts = Demo.prAttempts()
             MonkeyGradeLink.shared.loadDemo(ownerId: Demo.user?.id ?? "demo")
             state.synced?.profile.climbDayAddon = true
             state.customExerciseList = [Demo.customExercise]
@@ -360,6 +361,7 @@ final class AppModel {
             state.lastLogPull = Date()
             try await syncCustomExercises()
             try await syncCustomWorkouts()
+            try await syncPRAttempts()
             syncError = nil
             persist()
         } catch APIError.signedOut {

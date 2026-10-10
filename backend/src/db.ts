@@ -77,6 +77,15 @@ const MIGRATIONS: string[] = [
      updated_at TEXT NOT NULL
    );
    CREATE INDEX custom_workouts_user_updated ON custom_workouts(user_id, updated_at);`,
+  `CREATE TABLE pr_attempts (
+     id TEXT PRIMARY KEY,
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     exercise_id TEXT NOT NULL,
+     date TEXT NOT NULL,
+     data TEXT NOT NULL,
+     updated_at TEXT NOT NULL
+   );
+   CREATE INDEX pr_attempts_user_updated ON pr_attempts(user_id, updated_at);`,
   // User-built exercises (#52): opaque app records incl. optional photo (base64 JPEG) and pose drawing.
   `CREATE TABLE custom_exercises (
      id TEXT PRIMARY KEY,

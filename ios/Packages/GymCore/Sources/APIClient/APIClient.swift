@@ -228,6 +228,25 @@ public actor APIClient {
         }
     }
 
+    /// Personal-record attempts (app-defined; must encode `id`, `exerciseId`, `date`, `kind`, `kg`, `reps`, `success`).
+    public func fetchPRAttempts<T: Decodable & Sendable>(_: T.Type) async throws -> [T] {
+        try await authorized("GET", "/v1/me/pr-attempts", Empty?.none, as: AttemptsResponse<T>.self).attempts
+    }
+
+    public func pushPRAttempts<T: Encodable & Sendable>(_ attempts: [T]) async throws {
+        for chunk in stride(from: 0, to: attempts.count, by: 200).map({ Array(attempts[$0..<min($0 + 200, attempts.count)]) }) {
+            _ = try await authorizedRaw("POST", "/v1/me/pr-attempts", AttemptsBody(attempts: chunk))
+        }
+    }
+
+    public func deleteLog(_ id: UUID) async throws {
+        _ = try await authorizedRaw("DELETE", "/v1/me/logs/\(id.uuidString)", Empty?.none)
+    }
+
+    public func deletePRAttempt(_ id: UUID) async throws {
+        _ = try await authorizedRaw("DELETE", "/v1/me/pr-attempts/\(id.uuidString)", Empty?.none)
+    }
+
     // MARK: Internals
 
     struct Empty: Codable {}
@@ -236,6 +255,8 @@ public actor APIClient {
     struct WorkoutsResponse<T: Decodable>: Decodable { var workouts: [T] }
     struct ExercisesBody<T: Encodable>: Encodable { var exercises: [T] }
     struct ExercisesResponse<T: Decodable>: Decodable { var exercises: [T] }
+    struct AttemptsBody<T: Encodable>: Encodable { var attempts: [T] }
+    struct AttemptsResponse<T: Decodable>: Decodable { var attempts: [T] }
 
     private func authenticate(_ path: String, _ body: some Encodable) async throws -> User {
         let data = try await send("POST", path, body)
