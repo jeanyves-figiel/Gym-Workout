@@ -22,7 +22,7 @@ Container starts as root only to `chown` the `/data` mount, then runs as `node` 
 Each: region `fra`, 1 machine + 1 GB volume (`/data`, SQLite), `/healthz` check. One-time setup, no local tools:
 
 1. fly.io dashboard → **Tokens** → create org token. GitHub → Settings → Secrets → Actions: repo secret `FLY_API_TOKEN`.
-   Email (Amazon SES, eu-central-2, domain `monkeygrade.cloud` verified): SES → SMTP settings → create SMTP credentials; repo secret `SMTP_URL=smtps://<user>:<url-encoded password>@email-smtp.eu-central-2.amazonaws.com:465`. Without it, email codes go to the app logs.
+   Email (Amazon SES Zurich, domain `monkeygrade.cloud` verified, shared Mail Manager ingress endpoint with rule "send to internet"): repo secret `SMTP_URL=smtp://<endpoint user>:<url-encoded password>@<endpoint>.mail-manager-smtp.eu-central-2.amazonaws.com:587` (STARTTLS). Without it, email codes go to the app logs.
 2. GitHub environments `staging`, `production`: variables `STAGING_URL` / `PROD_URL` (URLs above).
 3. Cloudflare DNS (`monkeygrade.cloud`), **DNS only**: `CNAME workout-staging → monkeyworkout-staging.fly.dev`, `CNAME workout → monkeyworkout-prod.fly.dev`.
 4. Actions → **Fly setup** → Run for `staging`, then `production`. Creates app, volume, secrets (`JWT_SECRET`, `CODE_PEPPER` random; `SMTP_URL` or `MAIL_TRANSPORT=console`), TLS cert. Idempotent; re-run after adding `SMTP_URL`.

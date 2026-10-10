@@ -1,7 +1,7 @@
 name: Fly setup
 
 # Manual, idempotent, one-time bootstrap of a Fly.io app (#3) — no local CLI needed.
-# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Optional secret SMTP_URL (SES SMTP) → real email, else console.
+# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Optional secret SMTP_URL (SES Mail Manager SMTP) → real email, else console.
 on:
   workflow_dispatch:
     inputs:
