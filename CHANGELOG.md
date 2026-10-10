@@ -6,6 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Sign in with Apple credential check on launch/foreground; signs out when the Apple ID link is revoked (#12).
+- Account deletion revokes the Sign in with Apple token: server exchanges the authorization code at sign-in (refresh token stored encrypted) and calls Apple's revoke endpoint on deletion. Needs Fly secrets `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` (team/client id in `fly.*.toml`); skipped until set (#12).
+- Change email: Account → Change email, 6-digit code to new address, old address notified (`POST /v1/me/email`, `/v1/me/email/confirm`) (#13).
+- Breached-password check (Have I Been Pwned, k-anonymity, fail-open, 2 s timeout) at sign-up, reset and change; `HIBP_CHECK=0` disables (#13).
+- Purge job for expired codes, pending email changes and expired/revoked refresh tokens (`PURGE_INTERVAL_MIN`, default 60) (#13).
 - Climbing schedule (#6): pick climbing weekdays (and optionally gym days) in the training profile; sessions are placed on weekdays around climbing: no heavy pull/grip or explosive block the day before climbing, push and leg days adjacent to climbing. Session cards, next-up card and session screen show weekday + "climbing tomorrow / day after climbing" hint. Climbing days/week follows picked weekdays; Health climbing hint hidden then. Profiles without weekdays generate unchanged plans.
 - **Staging smoke test** workflow (#26): after each staging deploy, checks `/healthz`, that mail goes via SMTP, sign-up email accepted by SES (mailbox simulator), unverified-login refusal, forgot-password and auth guards. `/healthz` now reports the mail transport.
 - Example workouts on the Train tab: **Arms + Shoulder** (10 exercises) and **Lowerbody** (10 exercises), 3 × 10 each, with source-plan calories and activity points; open, tick off and play like any session, recorded to history. 12 new exercises with full setup/technique (barbell split squat, barbell & incline curls, lying barbell/dumbbell French press, standing reverse fly, diamond push-up, seated calf raise, hip adduction/abduction, seated crunch, torso rotation) and 4 new machines; example-only exercises are never picked by the generator.
