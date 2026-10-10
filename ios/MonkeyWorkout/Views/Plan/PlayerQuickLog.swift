@@ -65,11 +65,10 @@ struct EffortPicker: View {
     }
 }
 
-/// Hero card for the coming set: kg and reps steppers prefilled from the load suggestion, no keyboard.
+/// Card for the coming set: kg and reps steppers prefilled from the load suggestion, no keyboard.
 struct CurrentSetCard: View {
     @Bindable var state: SetLogState
     let set: Int
-    let colors: [Color]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -90,9 +89,9 @@ struct CurrentSetCard: View {
             }
         }
         .foregroundStyle(.white)
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 22, style: .continuous)
-            .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.card))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Theme.stroke))
     }
 
     private func stepper(value: String, unit: String, minus: @escaping () -> Void, plus: @escaping () -> Void) -> some View {
@@ -106,7 +105,7 @@ struct CurrentSetCard: View {
             stepButton("plus", label: "More \(unit)", action: plus)
         }
         .padding(4)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.black.opacity(0.22)))
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.cardStrong))
         .accessibilityElement(children: .contain)
     }
 

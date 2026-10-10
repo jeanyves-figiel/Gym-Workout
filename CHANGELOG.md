@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Pause and resume a workout** (#57): the player's pause button offers Pause (resume later at the same exercise, sets done and active time, also after closing the app), Finish & save now, or Discard. "Resume workout" on the session and week cards.
 
 ### Changed
+- **Workout player redesign** (#59): one gradient hero card per exercise in its block's colour (name, big target, still picture instead of the looping two-frame animation, muscle chips, Form button for setup & technique); body map and inline form checkpoints removed from the player; set card, Up next and controls always visible. Timed work (rower, planks, cardio, intervals) gets START / PAUSE / RESUME with a countdown ring that completes the set at 0 (interval "easy" part used as rest). Rest screen shows the paired mobility drill as its own card.
 - Exercise completion circles in the session overview are status only; exercises complete only when done in the player after Start workout (#57). Removed "Mark session done (ticked items)".
 
 ### Changed

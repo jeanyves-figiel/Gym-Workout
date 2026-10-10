@@ -17,6 +17,7 @@ struct WorkoutPlayerView: View {
     @State private var index = 0
     @State private var setsDone: [String: Int] = [:]
     @State private var pause: Pause?
+    @State private var timed: TimedRun?
     @State private var started = Date()
     @State private var finished = false
     @State private var ready = false
@@ -42,6 +43,8 @@ struct WorkoutPlayerView: View {
         var sets: Int { max(1, item.prescription.sets) }
         /// Per-set kg × reps logging applies (loaded strength work counted in reps).
         var loggable: Bool { block.kind == .strength && !exercise.equipment.isEmpty && exercise.unit != .sec }
+        /// Work time when the prescription is timed ("4 min", "30 s", intervals).
+        var timedSpec: TimedSpec? { TimedSpec(item.prescription, unit: exercise.unit) }
     }
 
     private var session: Session? { model.session(sessionId) }
@@ -101,72 +104,35 @@ struct WorkoutPlayerView: View {
         let done = setsDone[step.item.uid] ?? 0
 
         ZStack(alignment: .top) {
-            RadialGradient(colors: [cat.colors[0].opacity(0.45), .clear], center: .topLeading, startRadius: 10, endRadius: 520)
+            RadialGradient(colors: [cat.colors[0].opacity(0.35), .clear], center: .top, startRadius: 10, endRadius: 560)
                 .ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 12) {
                 topBar(session)
-                HStack {
-                    CategoryPill(category: cat, title: step.block.title)
-                    Spacer()
-                    Text("\(index + 1)/\(steps.count)").font(Theme.label(14)).foregroundStyle(Theme.muted).monospacedDigit()
-                }
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 18) {
-                        Text(step.exercise.name)
-                            .font(Theme.display(40))
-                            .minimumScaleFactor(0.6)
-                            .lineLimit(3)
+                    VStack(alignment: .leading, spacing: 14) {
+                        ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
+                                         position: "\(index + 1)/\(steps.count)") { formFor = step.exercise }
                             .id(step.item.uid)
                             .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
-                        HStack(alignment: .firstTextBaseline, spacing: 10) {
-                            Text(step.item.prescription.sets > 1 ? "\(step.item.prescription.sets) × \(step.item.prescription.reps)" : step.item.prescription.reps)
-                                .font(Theme.display(30))
-                                .foregroundStyle(cat.colors[1])
-                            if step.item.prescription.restSec > 0 {
-                                Text("rest \(Format.rest(step.item.prescription.restSec))").font(Theme.label(14)).foregroundStyle(Theme.muted)
-                            }
-                        }
-                        EquipmentLine(equipment: step.exercise.equipment)
-                        ExerciseImageHeader(exercise: step.exercise, height: 180, showsAttribution: false).id(step.item.uid)
-                        if let i = step.item.prescription.intensity { Text(i).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted) }
-                        if let n = step.item.prescription.note { Text(n).font(.footnote).foregroundStyle(Theme.muted) }
-
-                        HStack(alignment: .top, spacing: 14) {
-                            HStack(spacing: 6) {
-                                BodyMapView(side: .front, heat: step.exercise.heat, showLabel: false)
-                                BodyMapView(side: .back, heat: step.exercise.heat, showLabel: false)
-                            }
-                            .frame(width: 130, height: 160)
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Working").eyebrow()
-                                MuscleChips(primary: step.exercise.primary, secondary: step.exercise.secondary)
-                            }
-                        }
-                        .card(padding: 12)
-
-                        if let paired = step.item.pairedWith.flatMap(Exercise.find) {
-                            Label("During rest: \(paired.name) · 5–6 slow reps", systemImage: "figure.flexibility")
-                                .font(.footnote.weight(.semibold))
-                                .padding(10)
-                                .background(RoundedRectangle(cornerRadius: 12).fill(WorkoutEngine.Category.mobility.color.opacity(0.2)))
+                        if let run = timed, run.uid == step.item.uid {
+                            TimedRing(run: run, color: [cat.colors[1], cat.colors[0]])
                         }
                         if step.loggable && log.item?.uid == step.item.uid {
                             SetLogCard(state: log, done: done)
                         }
-                        formCard(step)
                     }
+                    .padding(.bottom, 4)
                 }
 
                 if step.loggable && done < sets && log.item?.uid == step.item.uid {
-                    CurrentSetCard(state: log, set: done, colors: cat.colors)
+                    CurrentSetCard(state: log, set: done)
                 }
                 if let next = upNext(after: step, done: done, sets: sets, includeSets: false) {
                     UpNextCard(title: next.title, eyebrow: next.eyebrow, detail: next.detail, exercise: next.exercise, colors: next.colors)
                 }
-
-                setDots(sets: sets, done: done, color: cat.colors[0])
+                if sets > 1 { setDots(sets: sets, done: done, color: cat.colors[0]) }
                 controls(step, sets: sets, done: done)
             }
             .padding(.horizontal, 20)
@@ -177,6 +143,7 @@ struct WorkoutPlayerView: View {
                     pause: p, color: cat.colors[0],
                     doneLabel: p.effortSet.flatMap { i in log.values(i).map { "Set \(i + 1) done · \(LoadAdvisor.formatKg($0.kg)) × \($0.reps)" } }
                         ?? "Set \(done) done",
+                    drill: step.item.pairedWith.flatMap(Exercise.find),
                     next: upNext(after: step, done: done, sets: sets, includeSets: true)
                 ) { effort in
                     pickEffort(effort)
@@ -186,6 +153,16 @@ struct WorkoutPlayerView: View {
                     pause = nil
                 }
             }
+        }
+        .task(id: timed?.end) {
+            // Timed set over: count it and buzz.
+            guard let run = timed, let end = run.end, run.uid == step.item.uid else { return }
+            let wait = end.timeIntervalSinceNow
+            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+            guard !Task.isCancelled, timed == run else { return }
+            timed = nil
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            completeSet(step, sets: sets, done: setsDone[step.item.uid] ?? 0)
         }
     }
 
@@ -213,29 +190,6 @@ struct WorkoutPlayerView: View {
             detail: Format.prescription(n.item.prescription),
             exercise: n.exercise,
             colors: n.block.kind.category.colors)
-    }
-
-    /// Key body-position checkpoints inline; full setup/technique in a sheet.
-    private func formCard(_ step: Step) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Form").eyebrow()
-                Spacer()
-                Button { formFor = step.exercise } label: {
-                    Label("Setup & technique", systemImage: "list.bullet.clipboard")
-                        .font(Theme.label(12))
-                }
-                .foregroundStyle(Theme.lime)
-            }
-            if let t = step.exercise.technique {
-                ForEach(t.position.prefix(3), id: \.self) { c in
-                    CheckpointRow(checkpoint: c, accent: step.block.kind.category.color)
-                }
-            } else {
-                ForEach(step.exercise.cues, id: \.self) { Text("• \($0)").font(.footnote) }
-            }
-        }
-        .card(padding: 14)
     }
 
     private func topBar(_ session: Session) -> some View {
@@ -283,9 +237,9 @@ struct WorkoutPlayerView: View {
             .accessibilityLabel("Previous exercise")
 
             Button {
-                completeSet(step, sets: sets, done: done)
+                mainAction(step, sets: sets, done: done)
             } label: {
-                Text(done >= sets ? (index == steps.count - 1 ? "FINISH" : "NEXT") : "SET \(done + 1) DONE")
+                Text(mainLabel(step, sets: sets, done: done))
             }
             .buttonStyle(LimeButtonStyle())
 
@@ -300,7 +254,34 @@ struct WorkoutPlayerView: View {
         .padding(.bottom, 8)
     }
 
+    private func mainLabel(_ step: Step, sets: Int, done: Int) -> String {
+        if done >= sets { return index == steps.count - 1 ? "FINISH" : "NEXT" }
+        if let spec = step.timedSpec {
+            guard let run = timed, run.uid == step.item.uid else { return "START \(Format.elapsed(Double(spec.workSec)))" }
+            return run.end == nil ? "RESUME" : "PAUSE"
+        }
+        return "SET \(done + 1) DONE"
+    }
+
     // MARK: Actions
+
+    /// Lime button: timed work starts / pauses its countdown (which completes the set at 0); otherwise completes the set.
+    private func mainAction(_ step: Step, sets: Int, done: Int) {
+        guard done < sets, let spec = step.timedSpec else { return completeSet(step, sets: sets, done: done) }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        guard var run = timed, run.uid == step.item.uid else {
+            timed = TimedRun(uid: step.item.uid, total: spec.workSec, remaining: Double(spec.workSec),
+                             end: Date().addingTimeInterval(Double(spec.workSec)))
+            return
+        }
+        if let end = run.end {
+            run.remaining = max(0, end.timeIntervalSinceNow)
+            run.end = nil
+        } else {
+            run.end = Date().addingTimeInterval(run.remaining)
+        }
+        timed = run
+    }
 
     private func completeSet(_ step: Step, sets: Int, done: Int) {
         guard done < sets else { return advance(step) }
@@ -309,7 +290,7 @@ struct WorkoutPlayerView: View {
         let logged = step.loggable && log.item?.uid == step.item.uid && log.log(done, model: model)
         setsDone[step.item.uid] = now
         if now >= sets { model.setTicked(step.item.uid) }
-        let rest = now < sets ? step.item.prescription.restSec : 0
+        let rest = now < sets ? step.timedSpec?.easySec ?? step.item.prescription.restSec : 0
         guard rest > 0 || logged else { return }
         var effort: Effort?
         if logged, let rir = log.values(done)?.rir { effort = Effort(rir: rir) }
@@ -377,6 +358,7 @@ struct WorkoutPlayerView: View {
     private func go(_ i: Int) {
         guard steps.indices.contains(i) else { return }
         pause = nil
+        timed = nil
         index = i
     }
 
@@ -447,6 +429,8 @@ private struct PauseOverlay: View {
     let pause: WorkoutPlayerView.Pause
     let color: Color
     let doneLabel: String
+    /// Mobility drill paired with this exercise, done during rest.
+    let drill: Exercise?
     let next: WorkoutPlayerView.UpNext?
     let onEffort: (Effort) -> Void
     let onExtend: () -> Void
@@ -486,6 +470,10 @@ private struct PauseOverlay: View {
                         .padding(.vertical, 14)
                         .background(Capsule().fill(Theme.lime))
                         .foregroundStyle(Theme.ink)
+                }
+                if let drill, pause.end != nil {
+                    UpNextCard(title: drill.name, eyebrow: "During rest", detail: "5–6 slow reps", exercise: drill,
+                               colors: WorkoutEngine.Category.mobility.colors)
                 }
                 if let next {
                     UpNextCard(title: next.title, eyebrow: next.eyebrow, detail: next.detail, exercise: next.exercise, colors: next.colors)
