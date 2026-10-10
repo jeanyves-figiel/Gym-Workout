@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- New app icon: lime kettlebell-monkey on purple gradient (source `ios/Design/AppIcon.svg`) (#35).
 - **TestFlight distribute** workflow: waits for Apple processing, then adds the newest build to the internal TestFlight group "Workout" via the App Store Connect API. Runs after each TestFlight upload; also manual (group name input).
 - Manual **Fly logs** workflow: prints recent staging/production API logs (errors by default) without local tools.
 - Custom workouts (#28): build your own (name, catalog exercises with search + category/muscle filters, sets × reps, rest, optional kcal, reorder), edit/duplicate/delete, "Duplicate & edit" on example workouts; "My workouts" on Train, played and recorded like examples, synced with offline queue. API `/v1/me/custom-workouts` (upsert, `since`, delete; in export and account deletion).
@@ -25,6 +26,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Staging + production hosted on Fly.io (#3): apps `monkeyworkout-staging` → `https://workout-staging.monkeygrade.cloud`, `monkeyworkout-prod` → `https://workout.monkeygrade.cloud` (`backend/fly.*.toml`, region `fra`, 1 machine + `/data` volume, `/healthz` check). **Deploy staging** deploys the CI-built image on every merge to `main`; **Promote to production** (manual) deploys the same digest to prod. Both skip with a warning until `FLY_API_TOKEN` is set. Manual **Fly setup** workflow bootstraps app, volume, secrets and TLS cert per environment without local tools. Email via Amazon SES SMTP (eu-central-2, dedicated send-only IAM user; SMTP password derived in CI) from `no-reply@monkeygrade.cloud` when repo secrets `SES_ACCESS_KEY_ID`/`SES_SECRET_ACCESS_KEY` (or `SMTP_URL`) are set, else codes logged. iOS Staging build → staging host, Release → prod host.
 
 ### Fixed
+- Home Screen name of TestFlight (Staging) builds now "MonkeyWorkout" instead of "Monkey STG" (#35).
 - **TestFlight distribute** no longer fails on internal groups with automatic distribution (Apple rejects manual assignment there; those groups already get every build).
 - TestFlight uploads after the first failed ("bundle version must be higher than 1"): generated Info.plist hard-coded version 1.0 build 1. It now uses `MARKETING_VERSION` (set to 1.0, matching App Store Connect) and `CURRENT_PROJECT_VERSION` (CI run number).
 - Email on staging/prod: SES Zurich (eu-central-2) has no SMTP endpoint, so sign-up failed with 500 (`ENOTFOUND email-smtp.eu-central-2.amazonaws.com`). API now sends via the SES HTTPS API (`SendRawEmail`, SigV4, same send-only IAM user); **Fly setup** pushes `SES_*` secrets and drops the old `SMTP_URL`. Smoke test accepts `ses` (#26).
