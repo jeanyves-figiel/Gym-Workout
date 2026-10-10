@@ -99,6 +99,9 @@ private struct DemoScreen: View {
         case "progress", "progress-empty": NavigationStack { ProgressTabView() }
         case "history": NavigationStack { HistoryDetailView(recordId: model.history.first?.id ?? UUID()) }
         case "body": NavigationStack { BodyHealthView() }
+        case "account": NavigationStack { AccountView() }
+        case "account-password": NavigationStack { ChangePasswordView(hasPassword: true) }
+        case "account-email": NavigationStack { ChangeEmailView(currentEmail: Demo.user?.email, hasPassword: true) }
         case "community", "community-join": NavigationStack { CommunityView() }
         case "community-share": ShareWinView()
         case "community-profile": NavigationStack { CommunityProfileView() }
