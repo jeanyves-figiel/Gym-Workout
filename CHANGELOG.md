@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- **TestFlight upload is manual only** (#53): merges to main no longer archive/upload a TestFlight build; run **TestFlight (Staging)** via workflow_dispatch when a batch is ready. Staging API deploy on merge unchanged.
 - **Training profile redesign** (onboarding "Your training" + Train → edit) (#37): vivid Explore-style goal cards, each showing recommended gym sessions/week, session length and training mix (power/strength/mobility/cardio); picking a goal applies its recommended sessions. Session count, experience and length as big tap targets with a "REC" marker; per-session / per-week totals card. Climbing days and climbing weekdays only shown (and kept) for the **Climbing performance** goal; other goals save without climbing. Gym days as large day tiles. Gym: scoped gyms first (Fitnesspark Puls 5) or search any gym via Apple Maps; selected gym saved in the profile (optional field, older profiles unchanged); equipment editor in a sheet. Health climbing-days hint only for the climbing goal.
 
 ### Added
