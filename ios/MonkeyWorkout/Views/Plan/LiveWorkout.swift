@@ -10,8 +10,12 @@ final class LiveWorkout {
     private static let restNotificationId = "workout.rest.end"
 
     func start(title: String, startedAt: Date, state: WorkoutActivityAttributes.ContentState) {
-        // No permission prompt in demo/screenshot runs.
-        if !Demo.enabled { UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in } }
+        #if DEBUG
+        let ask = !Demo.enabled  // no permission prompt in demo/screenshot runs
+        #else
+        let ask = true
+        #endif
+        if ask { UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in } }
         guard activity == nil, ActivityAuthorizationInfo().areActivitiesEnabled else { return update(state) }
         // A previous run killed mid-workout can leave one behind.
         for a in Activity<WorkoutActivityAttributes>.activities {
