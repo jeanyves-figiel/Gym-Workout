@@ -79,6 +79,7 @@ private func session(_ id: String, _ day: String, done: Bool = false) -> Planned
         let p = try JSONDecoder().decode(NotificationPrefs.self, from: Data(#"{"missedCheckIn":false,"quietStart":5000,"future":1}"#.utf8))
         #expect(!p.missedCheckIn)
         #expect(p.sessionReminders)
+        #expect(p.ownAchievements)
         #expect(p.quietStart == 1439)
         #expect(NotificationPrefs.clock(450) == "07:30")
     }

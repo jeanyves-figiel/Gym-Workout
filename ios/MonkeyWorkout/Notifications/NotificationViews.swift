@@ -10,6 +10,7 @@ enum NotifyStyle {
     static let reminder = LinearGradient(colors: [rgb(0x2F6BFF), rgb(0x8A4DFF)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let missed = LinearGradient(colors: [rgb(0xFF8A00), rgb(0xFFC93D)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let follow = LinearGradient(colors: [rgb(0xFF2D55), rgb(0xFF6FB5)], startPoint: .topLeading, endPoint: .bottomTrailing)
+    static let badge = LinearGradient(colors: [rgb(0xFFB800), rgb(0xFF5E3A)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let quiet = LinearGradient(colors: [rgb(0x3A2D7A), rgb(0x1E1650)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let today = LinearGradient(colors: [rgb(0x00C9A7), rgb(0x2EC5FF)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let day = LinearGradient(colors: [Color.white.opacity(0.10), Color.white.opacity(0.05)], startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -54,7 +55,12 @@ struct NotificationsHost: ViewModifier {
                 case let .session(id):
                     NavigationStack { SessionView(sessionId: id) }
                 case let .reschedule(id, day):
-                    RescheduleSheet(sessionId: id, day: day)
+                    MissedSessionSheet(sessionId: id, day: day)
+                case let .badge(id):
+                    if let b = Achievements.evaluate(records: model.state.history, weights: model.weightEntries,
+                                                     targetPerWeek: model.profile?.sessionsPerWeek ?? 3).first(where: { $0.id == id }) {
+                        BadgeSheet(badge: b).presentationDetents([.medium])
+                    }
                 }
             }
     }
@@ -74,7 +80,7 @@ struct NotificationSettingsView: View {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Notifications").font(Theme.display(40))
-                    Text("Session reminders, missed-session check-ins and wins from people you follow.")
+                    Text("Session reminders, missed-session check-ins, your badges and wins from people you follow.")
                         .font(.body.weight(.medium)).foregroundStyle(Theme.muted)
                 }
                 .padding(.bottom, 6)
@@ -106,6 +112,10 @@ struct NotificationSettingsView: View {
                            isOn: $notify.prefs.missedCheckIn) {
                     TimeRow(title: "Check in at", minutes: $notify.prefs.checkInMinutes)
                 }
+
+                NotifyCard(symbol: "medal.fill", title: "Your achievements", detail: "When you unlock a badge",
+                           gradient: NotifyStyle.badge, trailing: notify.prefs.ownAchievements ? "On" : "Off",
+                           isOn: $notify.prefs.ownAchievements) { EmptyView() }
 
                 NotifyCard(symbol: "trophy.fill", title: "People you follow", detail: "When they set a PR or unlock a badge",
                            gradient: NotifyStyle.follow, trailing: notify.prefs.followAchievements ? "On" : "Off",
@@ -245,7 +255,7 @@ private struct PermissionCard: View {
 // MARK: - Missed-session check-in
 
 /// Opened from the missed-session notification: train now, or move the session to another day.
-struct RescheduleSheet: View {
+struct MissedSessionSheet: View {
     let sessionId: String
     let day: Date
     @Environment(AppModel.self) private var model

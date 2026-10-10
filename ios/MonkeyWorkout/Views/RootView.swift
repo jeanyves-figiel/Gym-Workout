@@ -100,7 +100,7 @@ private struct DemoScreen: View {
         case "cycle": WeekPhaseSheet(week: 1)
         case "notifications": NavigationStack { NotificationSettingsView() }
         case "reschedule":
-            RescheduleSheet(sessionId: second, day: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
+            MissedSessionSheet(sessionId: second, day: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
         default: MainTabView()
         }
     }

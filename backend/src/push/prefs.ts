@@ -12,6 +12,7 @@ export const NotificationPrefs = z.object({
   reminderMinutes: minutes.default(7 * 60 + 30),
   missedCheckIn: z.boolean().default(true),
   checkInMinutes: minutes.default(9 * 60),
+  ownAchievements: z.boolean().default(true),
   followAchievements: z.boolean().default(true),
   quietHours: z.boolean().default(true),
   quietStart: minutes.default(22 * 60),

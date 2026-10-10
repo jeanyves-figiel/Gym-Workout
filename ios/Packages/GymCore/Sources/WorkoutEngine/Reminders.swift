@@ -9,6 +9,8 @@ public struct NotificationPrefs: Codable, Hashable, Sendable {
     /// Check-in the day after a planned session that was not done: train today or pick another day.
     public var missedCheckIn = true
     public var checkInMinutes = 9 * 60
+    /// Local notification when you unlock a badge (#76).
+    public var ownAchievements = true
     /// Remote push when someone you follow sets a PR or hits a milestone.
     public var followAchievements = true
     /// Local reminders are moved out of the window; remote pushes arrive silently inside it.
@@ -27,6 +29,7 @@ public struct NotificationPrefs: Codable, Hashable, Sendable {
         reminderMinutes = NotificationPrefs.clamp(v(.reminderMinutes, d.reminderMinutes))
         missedCheckIn = v(.missedCheckIn, d.missedCheckIn)
         checkInMinutes = NotificationPrefs.clamp(v(.checkInMinutes, d.checkInMinutes))
+        ownAchievements = v(.ownAchievements, d.ownAchievements)
         followAchievements = v(.followAchievements, d.followAchievements)
         quietHours = v(.quietHours, d.quietHours)
         quietStart = NotificationPrefs.clamp(v(.quietStart, d.quietStart))

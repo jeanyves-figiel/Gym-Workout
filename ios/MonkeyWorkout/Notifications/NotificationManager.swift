@@ -9,11 +9,14 @@ enum NotificationRoute: Identifiable, Equatable {
     case session(String)
     /// Missed-session check-in: the session and the day it was planned on.
     case reschedule(sessionId: String, day: Date)
+    /// Badge just unlocked (#76).
+    case badge(String)
 
     var id: String {
         switch self {
         case let .session(s): "session|\(s)"
         case let .reschedule(s, d): "reschedule|\(s)|\(d.timeIntervalSince1970)"
+        case let .badge(b): "badge|\(b)"
         }
     }
 }
@@ -30,6 +33,7 @@ final class NotificationManager: NSObject {
         static let upcoming = "SESSION_UPCOMING"
         static let missed = "SESSION_MISSED"
         static let follow = "FOLLOW_ACHIEVEMENT"
+        static let badge = "BADGE_UNLOCKED"
     }
 
     enum Action {
@@ -75,6 +79,7 @@ final class NotificationManager: NSObject {
             UNNotificationCategory(identifier: Category.upcoming, actions: [], intentIdentifiers: []),
             UNNotificationCategory(identifier: Category.missed, actions: [train, move], intentIdentifiers: []),
             UNNotificationCategory(identifier: Category.follow, actions: [], intentIdentifiers: []),
+            UNNotificationCategory(identifier: Category.badge, actions: [], intentIdentifiers: []),
         ])
     }
 
@@ -200,11 +205,13 @@ final class NotificationManager: NSObject {
         } catch { /* retried on next foreground */ }
     }
 
-    /// Badges unlocked since the last check are sent to the server, which tells followers.
-    /// The first check per account only records a baseline, so old badges never reach anyone.
+    /// Badges unlocked since the last check: a local "badge unlocked" notification (#76) and an
+    /// announcement the server pushes to followers. The first check per account only records a
+    /// baseline, so old badges never notify anyone.
     func announceNewBadges(_ model: AppModel, now: Date = Date()) async {
         guard model.phase == .signedIn, !model.demo, let userId = model.user?.id else { return }
         let key = "notifications.badges.\(userId)"
+        let pendingKey = "notifications.badgeAnnouncements.\(userId)"
         let unlocked = Achievements.evaluate(records: model.state.history, weights: model.weightEntries,
                                              targetPerWeek: model.profile?.sessionsPerWeek ?? 3).filter(\.unlocked)
         guard let known = Self.load(Set<String>.self, key) else {
@@ -213,13 +220,32 @@ final class NotificationManager: NSObject {
         }
         let recent = now.addingTimeInterval(-2 * 86_400)
         let fresh = unlocked.filter { !known.contains($0.id) }
-        guard !fresh.isEmpty else { return }
-        let list = fresh.filter { ($0.unlockedAt ?? .distantPast) >= recent }
-            .map { AchievementAnnouncement(id: "badge-\($0.id)", type: "badge", text: "Unlocked \($0.title): \($0.detail)") }
-        do {
-            if !list.isEmpty { try await model.api.announceAchievements(list) }
+        var pending = Self.load([AchievementAnnouncement].self, pendingKey) ?? []
+        if !fresh.isEmpty {
             save(known.union(fresh.map(\.id)), key)
+            let newOnes = fresh.filter { ($0.unlockedAt ?? .distantPast) >= recent }
+            if prefs.ownAchievements, allowed {
+                for b in newOnes { await postBadgeUnlocked(b) }
+            }
+            pending += newOnes.map { AchievementAnnouncement(id: "badge-\($0.id)", type: "badge", text: "Unlocked \($0.title): \($0.detail)") }
+            save(pending, pendingKey)
+        }
+        guard !pending.isEmpty else { return }
+        do {
+            try await model.api.announceAchievements(Array(pending.prefix(30)))
+            save(Array(pending.dropFirst(30)), pendingKey)
         } catch { /* retried on next change */ }
+    }
+
+    private func postBadgeUnlocked(_ b: Badge) async {
+        let content = UNMutableNotificationContent()
+        content.title = "Achievement unlocked: \(b.title) 🏆"
+        content.body = b.detail
+        content.sound = .default
+        content.threadIdentifier = "badge"
+        content.categoryIdentifier = Category.badge
+        content.userInfo = ["kind": "badge", "badgeId": b.id]
+        try? await center.add(UNNotificationRequest(identifier: "badge|\(b.id)", content: content, trigger: nil))
     }
 
     /// Before sign-out: stop pushes to this device for this account, drop local reminders.
@@ -258,7 +284,12 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         let sessionId = info["sessionId"] as? String
         let day = (info["day"] as? Double).map { Date(timeIntervalSince1970: $0) }
         let action = response.actionIdentifier
+        let badgeId = info["badgeId"] as? String
         await MainActor.run {
+            if kind == "badge", let badgeId {
+                self.route = .badge(badgeId)
+                return
+            }
             guard let sessionId else { return }
             switch (kind, action) {
             case ("missed", Action.trainToday): self.route = .session(sessionId)

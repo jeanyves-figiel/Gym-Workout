@@ -9,6 +9,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Notifications** (#69). Account → Notifications, Explore-style cards with toggle and time per type:
   - **Session reminder** on the morning of each planned session (default 07:30); tap opens the session.
   - **Missed session** check-in the next day (default 09:00) with **Train today** / **Pick another day**; picker shows the next 7 days with climbing days and other planned sessions. Cleared once the session is recorded.
+  - **Your achievements** (#76): notification when you unlock a badge (Progress → Achievements); tap opens the badge. Own toggle.
   - **People you follow**: APNs push when they unlock a badge (sent once per badge; device announces new badges via `POST /v1/me/achievements`, old badges never sent). Followers resolved through the Community follow model (`app.push.setFollowersProvider`); no-op until it is wired.
   - **Quiet hours** (default 22:00–07:00): local reminders move out of the window, remote pushes arrive silently.
   - Send test (local + server push). Reminders use session weekdays (gym/climbing days in the training profile).
