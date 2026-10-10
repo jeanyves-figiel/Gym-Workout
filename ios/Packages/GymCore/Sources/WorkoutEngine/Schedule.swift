@@ -1,5 +1,40 @@
 import Foundation
 
+/// How the gym day right before or after a climbing day is shaped (#47).
+public enum ClimbNeighbour: String, Codable, CaseIterable, Sendable, Identifiable {
+    /// No heavy pulling, grip or jumps; push and legs preferred.
+    case light
+    /// A hard push or legs day is welcome; only heavy pulling and grip are kept light.
+    case strong
+    /// Keep the day free of gym sessions when possible.
+    case rest
+    /// Climbing ignored for this day.
+    case any
+    public var id: String { rawValue }
+}
+
+/// Gym sessions on climbing days (#47).
+public enum ClimbSameDay: String, Codable, CaseIterable, Sendable, Identifiable {
+    /// Only when there is no other way.
+    case avoid
+    /// Fine (e.g. gym in the morning, climb in the evening).
+    case allow
+    public var id: String { rawValue }
+}
+
+/// The user's choices for scheduling around climbing (#47). Defaults = original behaviour.
+public struct ClimbPrefs: Hashable, Sendable {
+    public var before: ClimbNeighbour
+    public var after: ClimbNeighbour
+    public var sameDay: ClimbSameDay
+
+    public init(before: ClimbNeighbour = .light, after: ClimbNeighbour = .light, sameDay: ClimbSameDay = .avoid) {
+        self.before = before
+        self.after = after
+        self.sameDay = sameDay
+    }
+}
+
 /// Weekday-aware placement of gym sessions around climbing days.
 /// Weekdays are numbered 1 = Monday … 7 = Sunday (ISO 8601); the week wraps (Sunday → Monday).
 public enum WeekSchedule {
@@ -38,7 +73,7 @@ public enum WeekSchedule {
     ///
     /// Every choice of days × ordering of the split is scored (≤ 35 × 90 candidates); lowest score wins,
     /// ties keep the first candidate so the result is deterministic.
-    public static func assign(_ split: [Focus], climbing: [Int], gym: [Int]) -> [Slot]? {
+    public static func assign(_ split: [Focus], climbing: [Int], gym: [Int], prefs: ClimbPrefs = ClimbPrefs()) -> [Slot]? {
         let climb = Set(normalized(climbing))
         let preferred = Set(normalized(gym))
         guard !climb.isEmpty || !preferred.isEmpty, !split.isEmpty, split.count <= 7 else { return nil }
@@ -47,7 +82,7 @@ public enum WeekSchedule {
         var bestScore = Double.infinity
         for days in combinations(weekdays, split.count) {
             for order in orders {
-                let s = score(days: days, order: order, climbing: climb, gym: preferred)
+                let s = score(days: days, order: order, climbing: climb, gym: preferred, prefs: prefs)
                 if s < bestScore - 1e-9 {
                     bestScore = s
                     best = zip(days, order).map { Slot(weekday: $0, focus: $1) }
@@ -58,23 +93,39 @@ public enum WeekSchedule {
     }
 
     /// Lower is better. See `assign`.
-    static func score(days: [Int], order: [Focus], climbing: Set<Int>, gym: Set<Int>) -> Double {
+    static func score(days: [Int], order: [Focus], climbing: Set<Int>, gym: Set<Int>, prefs: ClimbPrefs = ClimbPrefs()) -> Double {
         var byDay: [Int: Focus] = [:]
         for (d, f) in zip(days, order) { byDay[d] = f }
         var s = 0.0
         for (d, f) in zip(days, order) {
             let climbBefore = climbing.contains(previous(d))
             let climbAfter = climbing.contains(next(d))
-            // Doubling up with a climbing session only when there is no other way.
-            if climbing.contains(d) { s += 12 }
+            // Doubling up with a climbing session only when there is no other way (unless allowed).
+            if climbing.contains(d) { s += prefs.sameDay == .allow ? 1 : 12 }
             // Preferred gym days are respected whenever there are enough of them.
             if !gym.isEmpty && !gym.contains(d) { s += 20 }
-            // Day before climbing: no heavy pulling/grip, no high-intensity lower-body power.
-            if climbAfter { s += 3 * pullLoad(f) + 2 * lowerPower(f) }
-            // Day after climbing: fingers and lats are still tired.
-            if climbBefore { s += pullLoad(f) }
+            var antagonist = 0.0
+            if climbAfter {
+                switch prefs.before {
+                // Day before climbing: no heavy pulling/grip, no high-intensity lower-body power.
+                case .light: s += 3 * pullLoad(f) + 2 * lowerPower(f); antagonist = 1
+                // Hard push/legs welcome; fingers and lats still spared.
+                case .strong: s += 3 * pullLoad(f); antagonist = 2
+                case .rest: s += 8
+                case .any: break
+                }
+            }
+            if climbBefore {
+                switch prefs.after {
+                // Day after climbing: fingers and lats are still tired.
+                case .light: s += pullLoad(f); antagonist = max(antagonist, 1)
+                case .strong: s += pullLoad(f); antagonist = max(antagonist, 2)
+                case .rest: s += 8
+                case .any: break
+                }
+            }
             // Antagonist push and leg days fit next to climbing days.
-            if climbBefore || climbAfter { s -= antagonistBonus(f) }
+            s -= antagonist * antagonistBonus(f)
             // Spread sessions out; never stack similar sessions back to back.
             if let g = byDay[next(d)] {
                 s += 1
@@ -170,10 +221,18 @@ public enum WeekSchedule {
     // MARK: Display
 
     /// Short reason shown on a session card, e.g. "Climbing tomorrow · grip & jumps kept light".
-    public static func note(weekday: Int, climbing: [Int]) -> String? {
+    public static func note(weekday: Int, climbing: [Int], prefs: ClimbPrefs = ClimbPrefs()) -> String? {
         let climb = Set(normalized(climbing))
-        if climb.contains(weekday) { return "Climbing day too · keep it light" }
-        if climb.contains(next(weekday)) { return "Climbing tomorrow · grip & explosive work kept light" }
+        if climb.contains(weekday) {
+            return prefs.sameDay == .allow ? "Climbing day too · gym first, climb after" : "Climbing day too · keep it light"
+        }
+        if climb.contains(next(weekday)) {
+            switch prefs.before {
+            case .light, .rest: return "Climbing tomorrow · grip & explosive work kept light"
+            case .strong: return "Climbing tomorrow · push hard, pulling & grip kept light"
+            case .any: return "Climbing tomorrow"
+            }
+        }
         if climb.contains(previous(weekday)) { return "Day after climbing" }
         return nil
     }
@@ -184,6 +243,11 @@ extension Profile {
     public var climbingDays: [Int] { WeekSchedule.normalized(climbingWeekdays) }
     /// Picked gym weekdays (sorted, valid); empty when none are set.
     public var gymDays: [Int] { WeekSchedule.normalized(gymWeekdays) }
+
+    /// Scheduling choices around climbing days (#47).
+    public var climbPrefs: ClimbPrefs {
+        ClimbPrefs(before: climbBefore ?? .light, after: climbAfter ?? .light, sameDay: climbSameDay ?? .avoid)
+    }
 
     /// Keeps `climbingDaysPerWeek` equal to the number of picked climbing weekdays, when any are picked.
     public mutating func syncClimbingDays() {

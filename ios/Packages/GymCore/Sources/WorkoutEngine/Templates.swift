@@ -45,7 +45,21 @@ public struct WorkoutTemplate: Identifiable, Hashable, Sendable {
                        blocks: [Block(kind: .strength, title: "Strength", targetMin: est, items: planned)])
     }
 
-    public static func find(sessionId: String) -> WorkoutTemplate? { all.first { $0.sessionId == sessionId } }
+    public static func find(sessionId: String) -> WorkoutTemplate? { (all + [climbAddon]).first { $0.sessionId == sessionId } }
+
+    /// Optional short session on climbing days (#47): push antagonists, shoulder health, finger extensors, core.
+    /// No pulling or grip, so it stacks with a climbing session. Offered on the Train tab, not listed with examples.
+    public static let climbAddon = WorkoutTemplate(
+        id: "climb-addon", name: "Climbing-day add-on", focus: .push, kcal: 90, activityPoints: 60,
+        items: [
+            Item("push-up", sets: 3, reps: 10),
+            Item("push-up-plus", sets: 2, reps: 12),
+            Item("face-pull", sets: 2, reps: 12),
+            Item("cable-external-rotation", sets: 2, reps: 12),
+            Item("reverse-wrist-curl", sets: 2, reps: 15),
+            Item("finger-extensions", sets: 2, reps: 20),
+            Item("dead-bug", sets: 2, reps: 10),
+        ])
 
     public static let all: [WorkoutTemplate] = [lowerbody, armsShoulder]
 

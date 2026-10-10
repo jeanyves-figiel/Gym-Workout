@@ -37,7 +37,8 @@ public enum Generator {
         let minutes = ctx.deload ? max(Rules.minSession - 5, round5(Double(base) * 0.8)) : base
         let split = Rules.splits[profile.sessionsPerWeek] ?? Rules.splits[3]!
         // With climbing / gym weekdays set, sessions are re-ordered and placed on weekdays.
-        let slots = WeekSchedule.assign(split, climbing: profile.climbingDays, gym: profile.gymDays)
+        let prefs = profile.climbPrefs
+        let slots = WeekSchedule.assign(split, climbing: profile.climbingDays, gym: profile.gymDays, prefs: prefs)
         let order = slots?.map(\.focus) ?? split
         var seen: [Focus: Int] = [:]
         let rotation = profile.goal.config.cardio
@@ -47,12 +48,16 @@ public enum Generator {
             seen[focus] = n + 1
             let mode: CardioMode = focus == .conditioning ? .intervals : rotation[i % rotation.count]
             let weekday = slots?[i].weekday
-            ctx.preClimb = weekday.map { profile.climbingDays.contains(WeekSchedule.next($0)) } ?? false
+            let beforeClimb = weekday.map { profile.climbingDays.contains(WeekSchedule.next($0)) } ?? false
+            // Day before climbing (#47): light/rest → no jumps + grip spared; strong → grip spared only.
+            ctx.preClimb = beforeClimb && (prefs.before == .light || prefs.before == .rest)
+            ctx.preClimbGrip = beforeClimb && prefs.before == .strong
             var session = generateSession(ctx, focus: focus, variant: n % 2, index: i, minutes: minutes, cardio: mode)
             session.weekday = weekday
             sessions.append(session)
         }
         ctx.preClimb = false
+        ctx.preClimbGrip = false
         return WeekPlan(week: week, deload: ctx.deload, seed: seed, sessionMinutes: minutes, sessions: sessions)
     }
 
@@ -85,6 +90,8 @@ public enum Generator {
         var st = strength(ctx, focus, variant, strengthMin + powerLeft, "\(id)-st", regions)
         if ctx.preClimb {
             st.note = ["Climbing tomorrow: no jumps or heavy grip work today.", st.note].compactMap { $0 }.joined(separator: " ")
+        } else if ctx.preClimbGrip {
+            st.note = ["Climbing tomorrow: push hard, keep heavy pulling and grip light.", st.note].compactMap { $0 }.joined(separator: " ")
         }
         blocks.append(st)
         if let mo = mobility(ctx, focus, mobilityMin, "\(id)-mo") { blocks.append(mo) }
