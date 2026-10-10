@@ -48,5 +48,9 @@ while True:
 groups = [g for g in call("GET", f"/betaGroups?filter[app]={app}&limit=50")["data"] if g["attributes"]["name"] == group_name]
 if not groups:
     sys.exit(f"Beta group {group_name!r} not found")
+if groups[0]["attributes"].get("hasAccessToAllBuilds"):
+    # Internal group with automatic distribution: every processed build is already available to it.
+    print(f"Build {build['attributes']['version']} is available to {group_name!r} (group gets all builds)")
+    sys.exit(0)
 call("POST", f"/betaGroups/{groups[0]['id']}/relationships/builds", {"data": [{"type": "builds", "id": build["id"]}]})
 print(f"Build {build['attributes']['version']} added to {group_name!r}")
