@@ -76,6 +76,8 @@ Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode
 | DELETE | `/me/workouts/:id` | ✓ | |
 | GET / POST | `/me/custom-workouts` | ✓ | user-built workouts (opaque JSON with `id`, `name`, `items[].exerciseId`); `?since=ISO` delta; upsert ≤100 |
 | DELETE | `/me/custom-workouts/:id` | ✓ | |
+| GET / POST | `/me/pr-attempts` | ✓ | personal-record attempts (JSON with `id`, `exerciseId`, `date`, `kind` 1RM/repMax/maxReps, `kg`, `reps`, `success`, optional `isRecord`); `?since=ISO` delta; upsert ≤200 |
+| DELETE | `/me/pr-attempts/:id` | ✓ | |
 | GET | `/me/export` | ✓ | full JSON export (nFADP/GDPR) |
 | PUT | `/me/push-device` | ✓ | `{token (hex), env: sandbox\|production, topic (bundle id), tz?}`; a token moves to the last account that registers it |
 | DELETE | `/me/push-device/:token` | ✓ | 204 (sign-out) |

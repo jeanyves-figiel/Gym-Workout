@@ -216,6 +216,25 @@ public actor APIClient {
         _ = try await authorizedRaw("DELETE", "/v1/me/custom-workouts/\(id.uuidString)", Empty?.none)
     }
 
+    /// Personal-record attempts (app-defined; must encode `id`, `exerciseId`, `date`, `kind`, `kg`, `reps`, `success`).
+    public func fetchPRAttempts<T: Decodable & Sendable>(_: T.Type) async throws -> [T] {
+        try await authorized("GET", "/v1/me/pr-attempts", Empty?.none, as: AttemptsResponse<T>.self).attempts
+    }
+
+    public func pushPRAttempts<T: Encodable & Sendable>(_ attempts: [T]) async throws {
+        for chunk in stride(from: 0, to: attempts.count, by: 200).map({ Array(attempts[$0..<min($0 + 200, attempts.count)]) }) {
+            _ = try await authorizedRaw("POST", "/v1/me/pr-attempts", AttemptsBody(attempts: chunk))
+        }
+    }
+
+    public func deleteLog(_ id: UUID) async throws {
+        _ = try await authorizedRaw("DELETE", "/v1/me/logs/\(id.uuidString)", Empty?.none)
+    }
+
+    public func deletePRAttempt(_ id: UUID) async throws {
+        _ = try await authorizedRaw("DELETE", "/v1/me/pr-attempts/\(id.uuidString)", Empty?.none)
+    }
+
     // MARK: Notifications (#69)
 
     /// Registers this install's APNs token (hex). `env`: "sandbox" (debug builds) or "production".
@@ -251,6 +270,8 @@ public actor APIClient {
     struct PrefsBody<T: Encodable>: Encodable { var prefs: T }
     struct WorkoutsBody<T: Encodable>: Encodable { var workouts: [T] }
     struct WorkoutsResponse<T: Decodable>: Decodable { var workouts: [T] }
+    struct AttemptsBody<T: Encodable>: Encodable { var attempts: [T] }
+    struct AttemptsResponse<T: Decodable>: Decodable { var attempts: [T] }
 
     private func authenticate(_ path: String, _ body: some Encodable) async throws -> User {
         let data = try await send("POST", path, body)

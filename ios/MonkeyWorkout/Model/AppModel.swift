@@ -47,6 +47,7 @@ final class AppModel {
             state.history = demo.records
             state.logs = demo.logs
             state.climbs = Demo.climbs()
+            state.prAttempts = Demo.prAttempts()
             MonkeyGradeLink.shared.loadDemo(ownerId: Demo.user?.id ?? "demo")
             state.synced?.profile.climbDayAddon = true
             phase = Demo.screen == "welcome" ? .signedOut : .signedIn
@@ -354,6 +355,7 @@ final class AppModel {
             state.logs = byId.values.sorted { $0.date < $1.date }
             state.lastLogPull = Date()
             try await syncCustomWorkouts()
+            try await syncPRAttempts()
             syncError = nil
             persist()
         } catch APIError.signedOut {

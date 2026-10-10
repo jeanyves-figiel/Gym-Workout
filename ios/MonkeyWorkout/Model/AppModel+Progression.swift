@@ -29,8 +29,9 @@ extension AppModel {
     /// Suggested load for a planned exercise. Today's sets of the same session are ignored so the
     /// suggestion stays stable while the workout is being logged.
     func loadSuggestion(for item: PlannedExercise, sessionId: String) -> LoadSuggestion? {
+        // PR attempts (single heavy sets) say nothing about the working-set rep range.
         let history = exerciseSessions(item.exerciseId).filter {
-            !($0.sessionId == sessionId && Calendar.current.isDateInToday($0.date))
+            !($0.sessionId == sessionId && Calendar.current.isDateInToday($0.date)) && !PRPlanner.isPRSession($0.sessionId)
         }
         let inPlan = plan?.sessions.contains { $0.id == sessionId } ?? false
         return LoadAdvisor.suggest(

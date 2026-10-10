@@ -237,6 +237,23 @@ final class NotificationManager: NSObject {
         } catch { /* retried on next change */ }
     }
 
+    /// A new personal record: followers get "New PR: Bench press 100 kg × 3" (once per attempt).
+    func announcePR(_ attempt: PRAttempt, model: AppModel) {
+        guard model.phase == .signedIn, !model.demo, let userId = model.user?.id else { return }
+        let pendingKey = "notifications.badgeAnnouncements.\(userId)"
+        let name = Exercise.find(attempt.exerciseId)?.name ?? attempt.exerciseId
+        let kg = String(format: "%g", attempt.kg)
+        var pending = Self.load([AchievementAnnouncement].self, pendingKey) ?? []
+        pending.append(AchievementAnnouncement(id: "pr-\(attempt.id.uuidString)", type: "pr", text: "New PR: \(name) \(kg) kg × \(attempt.reps)"))
+        save(pending, pendingKey)
+        Task {
+            do {
+                try await model.api.announceAchievements(Array(pending.prefix(30)))
+                save(Array(pending.dropFirst(30)), pendingKey)
+            } catch { /* flushed with the next badge check */ }
+        }
+    }
+
     private func postBadgeUnlocked(_ b: Badge) async {
         let content = UNMutableNotificationContent()
         content.title = "Achievement unlocked: \(b.title) 🏆"

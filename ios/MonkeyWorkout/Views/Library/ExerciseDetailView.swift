@@ -35,6 +35,7 @@ struct ExerciseDetailView: View {
                     weightLog
                 }
                 ExerciseProgressCard(exerciseId: e.id, plannedUid: plannedUid)
+                PRCard(exerciseId: e.id)
 
                 EquipmentSection(equipment: e.equipment, accent: e.category.color)
                 TechniqueView(exercise: e)
