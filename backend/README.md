@@ -87,6 +87,8 @@ Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode
 | GET / PUT / DELETE | `/community/follows[/:userId]` | ✓ | members you follow |
 | GET | `/community/avatars/:id` | – | avatar JPEG (unguessable id, immutable cache) |
 | GET | `/share/:postId` | – | public web card for `public` posts |
+| GET / POST | `/me/pr-attempts` | ✓ | personal-record attempts (JSON with `id`, `exerciseId`, `date`, `kind` 1RM/repMax/maxReps, `kg`, `reps`, `success`, optional `isRecord`); `?since=ISO` delta; upsert ≤200 |
+| DELETE | `/me/pr-attempts/:id` | ✓ | |
 | GET | `/me/export` | ✓ | full JSON export (nFADP/GDPR) |
 | GET | `/healthz` | – | |
 
