@@ -20,6 +20,7 @@ struct PRAttemptView: View {
     @State private var rampDone: Set<Int> = []
     @State private var tries: [PRSet] = []
     @State private var result: PRAttempt?
+    @State private var shareImage: Image?
 
     private var e: Exercise { Exercise.get(exerciseId) }
     private var step: Double { LoadAdvisor.steps(for: e, kg: kg).granularity }
@@ -351,15 +352,8 @@ struct PRAttemptView: View {
                             Text(delta).font(Theme.label(14)).padding(.horizontal, 14).padding(.vertical, 8)
                                 .background(Capsule().fill(.white.opacity(0.18))).foregroundStyle(Theme.lime)
                         }
-                        if r.success {
-                            ShareLink(item: shareText(r)) {
-                                Label("Share", systemImage: "square.and.arrow.up").font(Theme.label(14))
-                                    .padding(.horizontal, 14).padding(.vertical, 8)
-                                    .background(Capsule().fill(.white.opacity(0.18)))
-                            }
-                            .foregroundStyle(.white)
-                        }
                     }
+                    if r.success { shareSection(r) }
                     if !r.success {
                         Text("Missed lifts are part of the process. Your best stays \(previousText(r)).")
                             .font(.footnote).foregroundStyle(.white.opacity(0.8)).multilineTextAlignment(.center)
@@ -367,7 +361,12 @@ struct PRAttemptView: View {
                 }
                 PRHistoryList(exerciseId: exerciseId, limit: 6)
                     .padding(.top, 8)
-                Button("Done") { dismiss() }.buttonStyle(LimeButtonStyle()).padding(.top, 6)
+                Button { dismiss() } label: {
+                    Text("Done").font(Theme.label(17)).frame(maxWidth: .infinity).padding(.vertical, 18)
+                        .background(Capsule().fill(Theme.cardStrong))
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 6)
             }
             .foregroundStyle(.white)
             .padding(16)
@@ -375,6 +374,34 @@ struct PRAttemptView: View {
         .background(
             LinearGradient(colors: colors + [Theme.bg], startPoint: .top, endPoint: .center).ignoresSafeArea()
         )
+        .task(id: r?.id) { if let r, r.success { renderShareImage(r) } }
+    }
+
+    /// Image card (1080 × 1350) for Instagram, Messages, WhatsApp…, with the text as caption.
+    @ViewBuilder
+    private func shareSection(_ r: PRAttempt) -> some View {
+        let text = shareText(r)
+        if let image = shareImage {
+            image.resizable().scaledToFit()
+                .frame(maxWidth: 240)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .shadow(color: .black.opacity(0.4), radius: 14, y: 8)
+                .padding(.top, 6)
+            ShareLink(item: image, message: Text(text), preview: SharePreview(text, image: image)) {
+                Label(r.isRecord ? "Share my PR" : "Share", systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(LimeButtonStyle())
+        } else {
+            ShareLink(item: text) { Label("Share", systemImage: "square.and.arrow.up") }
+                .buttonStyle(LimeButtonStyle())
+        }
+    }
+
+    @MainActor
+    private func renderShareImage(_ r: PRAttempt) {
+        let renderer = ImageRenderer(content: PRShareCard(attempt: r, exerciseName: e.name, improvement: improvement(r)))
+        renderer.scale = 3
+        shareImage = renderer.uiImage.map { Image(uiImage: $0) }
     }
 
     private func resultCaption(_ r: PRAttempt) -> String {
@@ -408,6 +435,61 @@ struct PRAttemptView: View {
         plan = p
         if !keepKg { kg = p.kg }
         reps = p.kind == .maxReps ? p.reps : targetReps
+    }
+}
+
+/// Shareable PR card, laid out at 360 × 450 pt and rendered at 3× (1080 × 1350, Instagram portrait).
+struct PRShareCard: View {
+    let attempt: PRAttempt
+    let exerciseName: String
+    let improvement: String?
+
+    var body: some View {
+        let r = attempt
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Image(systemName: r.isRecord ? "trophy.fill" : "checkmark.seal.fill")
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundStyle(r.isRecord ? Color.yellow : Theme.lime)
+                    .frame(width: 58, height: 58)
+                    .background(RoundedRectangle(cornerRadius: 16).fill(.white.opacity(0.2)))
+                Spacer()
+                Text(r.date.formatted(.dateTime.day().month(.abbreviated).year())).font(Theme.label(13)).opacity(0.85)
+            }
+            Spacer()
+            Text(r.isRecord ? "NEW PERSONAL RECORD" : "LIFTED").font(Theme.label(15)).tracking(2)
+            Text(exerciseName).font(Theme.display(30)).lineLimit(2).minimumScaleFactor(0.6)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(r.kind == .maxReps ? "\(r.reps)" : LoadAdvisor.formatKg(r.kg))
+                    .font(.system(size: 104, weight: .black, design: .rounded)).monospacedDigit()
+                    .minimumScaleFactor(0.5).lineLimit(1)
+                Text(r.kind == .maxReps ? "REPS" : "KG").font(Theme.display(28))
+            }
+            HStack(spacing: 8) {
+                Text(r.kind == .maxReps ? "@ \(LoadAdvisor.formatKg(r.kg)) kg" : "\(r.label) · × \(r.reps)")
+                    .font(Theme.label(15))
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(Capsule().fill(.white.opacity(0.2)))
+                if let improvement {
+                    Text(improvement).font(Theme.label(15)).foregroundStyle(Theme.ink)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Capsule().fill(Theme.lime))
+                }
+            }
+            Spacer()
+            HStack(spacing: 8) {
+                Circle().fill(Theme.lime).frame(width: 10, height: 10)
+                Text("MonkeyWorkout").font(Theme.label(16))
+            }
+            .opacity(0.9)
+        }
+        .foregroundStyle(.white)
+        .padding(26)
+        .frame(width: 360, height: 450)
+        .background(
+            LinearGradient(colors: WorkoutEngine.Category.strength.colors + [WorkoutEngine.Category.power.colors[0]],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+        )
     }
 }
 
