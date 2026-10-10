@@ -262,6 +262,25 @@ describe('account deletion, data sync & export', () => {
     expect(mailer.outbox.at(-1)!.subject).toContain('account deleted');
   });
 
+  it('stores per-set fields (setIndex, rir) and keeps legacy logs working', async () => {
+    const { tokens } = await signUp();
+    const t = tokens.accessToken;
+    const legacy = { id: randomUUID(), date: '2026-10-07T10:00:00Z', exerciseId: 'back-squat', weightKg: 80 };
+    const set = { id: randomUUID(), date: '2026-10-07T10:05:00Z', exerciseId: 'back-squat', sessionId: 'w1s1', weightKg: 82.5, reps: 8, setIndex: 1, rir: 2 };
+    expect((await post('/v1/me/logs', { logs: [legacy, set] }, t)).json().saved).toBe(2);
+    const logs = (await get('/v1/me/logs', t)).json().logs as Record<string, unknown>[];
+    const byId = new Map(logs.map((l) => [l.id, l]));
+    expect(byId.get(set.id)).toMatchObject({ setIndex: 1, rir: 2, reps: 8, weightKg: 82.5 });
+    expect(byId.get(legacy.id)).toMatchObject({ setIndex: null, rir: null, weightKg: 80 });
+    // re-pushing without the new fields (old client) clears them like any other upsert
+    await post('/v1/me/logs', { logs: [{ ...set, setIndex: undefined, rir: undefined }] }, t);
+    const again = (await get('/v1/me/logs', t)).json().logs.find((l: { id: string }) => l.id === set.id);
+    expect(again.setIndex).toBeNull();
+    for (const bad of [{ setIndex: -1 }, { setIndex: 1.5 }, { rir: 11 }, { rir: -1 }]) {
+      expect((await post('/v1/me/logs', { logs: [{ ...set, ...bad }] }, t)).statusCode).toBe(400);
+    }
+  });
+
   it('validates log payloads', async () => {
     const { tokens } = await signUp();
     const bad = await post('/v1/me/logs', { logs: [{ id: 'x', date: 'nope', exerciseId: '' }] }, tokens.accessToken);

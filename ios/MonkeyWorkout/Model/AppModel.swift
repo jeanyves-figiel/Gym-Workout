@@ -272,6 +272,24 @@ final class AppModel {
         Task { await sync() }
     }
 
+    /// Per-set log (kg × reps, optional RIR). Re-logging the same set of the same session today updates it in place.
+    func logSet(exerciseId: String, sessionId: String, setIndex: Int, kg: Double, reps: Int, rir: Int?) {
+        if let i = state.logs.firstIndex(where: {
+            $0.exerciseId == exerciseId && $0.sessionId == sessionId && $0.setIndex == setIndex && Calendar.current.isDateInToday($0.date)
+        }) {
+            state.logs[i].weightKg = kg
+            state.logs[i].reps = reps
+            state.logs[i].rir = rir
+            state.pendingLogIds.insert(state.logs[i].id)
+        } else {
+            let entry = LogEntry(date: Date(), exerciseId: exerciseId, sessionId: sessionId, weightKg: kg, reps: reps, setIndex: setIndex, rir: rir)
+            state.logs.append(entry)
+            state.pendingLogIds.insert(entry.id)
+        }
+        persist()
+        Task { await sync() }
+    }
+
     func lastWeight(_ exerciseId: String) -> Double? {
         state.logs.last { $0.exerciseId == exerciseId && $0.weightKg != nil }?.weightKg
     }

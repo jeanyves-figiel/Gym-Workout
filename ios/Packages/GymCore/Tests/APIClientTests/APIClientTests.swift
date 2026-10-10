@@ -184,3 +184,30 @@ private func tokensJSON(_ n: Int) -> String {
         #expect(got.first?.startedAt == date)
     }
 }
+
+@Suite struct LogEntryCodingTests {
+    @Test func legacyLogsDecodeWithoutPerSetFields() throws {
+        let dec = JSONDecoder()
+        dec.dateDecodingStrategy = .iso8601
+        let json = #"{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","date":"2026-10-07T10:00:00Z","exerciseId":"back-squat","sessionId":null,"weightKg":80,"reps":null}"#
+        let l = try dec.decode(LogEntry.self, from: Data(json.utf8))
+        #expect(l.weightKg == 80)
+        #expect(l.setIndex == nil)
+        #expect(l.rir == nil)
+    }
+
+    @Test func perSetFieldsRoundTrip() throws {
+        let enc = JSONEncoder()
+        enc.dateEncodingStrategy = .iso8601
+        let dec = JSONDecoder()
+        dec.dateDecodingStrategy = .iso8601
+        let l = LogEntry(date: Date(timeIntervalSince1970: 1_791_367_200), exerciseId: "back-squat", sessionId: "w1s1",
+                         weightKg: 82.5, reps: 8, setIndex: 2, rir: 1)
+        let back = try dec.decode(LogEntry.self, from: enc.encode(l))
+        #expect(back == l)
+        // Nil per-set fields are omitted, so old servers see exactly the legacy payload.
+        let legacy = try String(decoding: enc.encode(LogEntry(date: l.date, exerciseId: "x", weightKg: 1)), as: UTF8.self)
+        #expect(!legacy.contains("setIndex"))
+        #expect(!legacy.contains("rir"))
+    }
+}

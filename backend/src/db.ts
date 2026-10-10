@@ -67,6 +67,9 @@ const MIGRATIONS: string[] = [
      updated_at TEXT NOT NULL
    );
    CREATE INDEX workouts_user_updated ON workouts(user_id, updated_at);`,
+  // Per-set logging: which set (0-based) and reps in reserve. Nullable → old rows/clients unaffected.
+  `ALTER TABLE workout_logs ADD COLUMN set_index INTEGER;
+   ALTER TABLE workout_logs ADD COLUMN rir INTEGER;`,
 ];
 
 export const openDb = (path: string): DB => {
