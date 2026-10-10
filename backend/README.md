@@ -74,6 +74,10 @@ Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode
 | DELETE | `/me/workouts/:id` | ✓ | |
 | GET / POST | `/me/custom-workouts` | ✓ | user-built workouts (opaque JSON with `id`, `name`, `items[].exerciseId`); `?since=ISO` delta; upsert ≤100 |
 | DELETE | `/me/custom-workouts/:id` | ✓ | |
+| GET | `/library/shared` | ✓ | workout library (#62): members' shared custom workouts (`visibility` members/public on upsert), newest first; `?q=` name, `?before=`, `?limit=`; needs community profile; blocks + auto-hidden excluded |
+| GET | `/library/shared/:id` | ✓ | one shared workout |
+| POST | `/library/shared/:id/save` | ✓ | count a copy into "My workouts" |
+| POST | `/library/shared/:id/report` | ✓ | `{reason, details?}`; auto-hides after 3 distinct reporters |
 | GET | `/me/export` | ✓ | full JSON export (nFADP/GDPR) |
 | GET | `/healthz` | – | |
 

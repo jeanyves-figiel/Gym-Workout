@@ -216,6 +216,36 @@ public actor APIClient {
         _ = try await authorizedRaw("DELETE", "/v1/me/custom-workouts/\(id.uuidString)", Empty?.none)
     }
 
+    // MARK: Workout library (#62)
+
+    /// Workouts other members shared (app-defined type), newest first; needs a community profile.
+    public func fetchSharedWorkouts<T: Decodable & Sendable>(_: T.Type, query: String? = nil, limit: Int = 50) async throws -> [T] {
+        var path = "/v1/library/shared?limit=\(limit)"
+        if let q = query?.trimmingCharacters(in: .whitespaces), !q.isEmpty {
+            path += "&q=\(q.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "")"
+        }
+        return try await authorized("GET", path, Empty?.none, as: WorkoutsResponse<T>.self).workouts
+    }
+
+    /// Counts a copy into "My workouts" for the author; the copy itself is a new custom workout.
+    public func countSharedWorkoutSave(_ id: UUID) async throws {
+        _ = try await authorizedRaw("POST", "/v1/library/shared/\(id.uuidString.lowercased())/save", Empty?.none)
+    }
+
+    /// Reports a shared workout (spam, harassment, hate, sexual, violence, other); returns whether it is now hidden.
+    @discardableResult
+    public func reportSharedWorkout(_ id: UUID, reason: String, details: String? = nil) async throws -> Bool {
+        struct Body: Encodable { var reason: String; var details: String? }
+        struct Response: Decodable { var hidden: Bool }
+        return try await authorized("POST", "/v1/library/shared/\(id.uuidString.lowercased())/report", Body(reason: reason, details: details), as: Response.self).hidden
+    }
+
+    /// Blocks a member (community, #61): neither sees the other's shared content.
+    public func blockMember(_ userId: String) async throws {
+        struct Body: Encodable { var userId: String }
+        _ = try await authorizedRaw("POST", "/v1/community/blocks", Body(userId: userId))
+    }
+
     // MARK: Internals
 
     struct Empty: Codable {}

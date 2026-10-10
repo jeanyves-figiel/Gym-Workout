@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Workout library** (#62): Train's "My workouts" + "Example workouts" become one library: your workouts, built-in (Lowerbody, Arms + Shoulder) and workouts shared by members, as Explore-style gradient cards (All / Mine / Built-in / Members filters, search). From a workout's page: **Start workout** runs it as a standalone quick session; **Add to plan** replaces a day of this week's plan or adds an extra session (optional weekday), kept on a new variation, cleared on a week change, synced with the profile; planned ones can be removed again. Share your own workouts as Only me (default) / Members / Public, same model as Community (#61); members' workouts show the author, can be saved as a private copy, reported (auto-hidden after 3 reports) or their author blocked. API: `visibility` on `/v1/me/custom-workouts` (needs community profile, text filter), `GET /v1/library/shared`, `/:id`, `/:id/save`, `/:id/report`; migration adds `visibility`, `shared_at`, `hidden_at`, `saves` to `custom_workouts`. Demo screens `library`, `library-plan` in CI screenshots.
+
 ### Fixed
 - Training profile: climbing no longer depends on the goal (#49). An independent **I climb** switch (any goal) shows climbing days/weekdays; changing goal never clears them (#40 cleared them for non-climbing goals); Climbing performance turns it on; new profiles start on when Apple Health shows climbing workouts. Health climbing-days hint back for all goals.
 

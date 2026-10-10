@@ -9,6 +9,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var week: Int
     /// Entered in-app (used when Apple Health lacks them).
     var body: BodyMetrics?
+    /// Library workouts placed into the plan (#62): replaced or extra sessions of the current week.
+    var planInserts: [PlanInsert]?
 }
 
 struct LocalState: Codable {
