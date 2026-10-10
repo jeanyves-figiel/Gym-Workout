@@ -149,54 +149,6 @@ struct BodyHealthView: View {
     }
 }
 
-/// Recovery card on the Train tab (only when Health has data).
-struct ReadinessCard: View {
-    let snapshot: HealthSnapshot
-
-    var body: some View {
-        if let assessed = Readiness.assess(snapshot) {
-            content(assessed.0, assessed.1)
-        }
-    }
-
-    private func content(_ r: Readiness, _ reasons: [String]) -> some View {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("Readiness").eyebrow()
-                    Spacer()
-                    Image(systemName: "heart.text.square.fill").foregroundStyle(.pink)
-                }
-                Text(r.title).font(Theme.display(26)).foregroundStyle(color(r))
-                Text(reasons.isEmpty ? r.advice : reasons.joined(separator: " · ") + ". " + r.advice)
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(Theme.muted)
-                HStack(spacing: 10) {
-                    if let s = snapshot.sleepHours { metric(String(format: "%.1f h", s), "Sleep") }
-                    if let h = snapshot.hrv { metric("\(Int(h)) ms", "HRV") }
-                    if let r = snapshot.restingHR { metric("\(Int(r))", "Rest HR") }
-                    if let v = snapshot.vo2Max { metric(String(format: "%.0f", v), "VO₂max") }
-                }
-            }
-            .card()
-    }
-
-    private func color(_ r: Readiness) -> Color {
-        switch r {
-        case .ready: Theme.lime
-        case .normal: .yellow
-        case .easy: .orange
-        }
-    }
-
-    private func metric(_ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value).font(Theme.display(18)).monospacedDigit()
-            Text(label).eyebrow()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
 /// Prompt shown until weight/height are known (from Health or entered).
 struct BodyPromptCard: View {
     var body: some View {

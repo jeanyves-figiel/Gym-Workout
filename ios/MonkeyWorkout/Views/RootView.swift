@@ -86,6 +86,9 @@ private struct DemoScreen: View {
         case "progress": NavigationStack { ProgressTabView() }
         case "history": NavigationStack { HistoryDetailView(recordId: model.history.first?.id ?? UUID()) }
         case "body": NavigationStack { BodyHealthView() }
+        case "readiness":
+            ReadinessSheet(snapshot: Demo.health, readiness: Readiness.assess(Demo.health)?.0 ?? .normal, flags: Readiness.assess(Demo.health)?.1 ?? [])
+        case "cycle": WeekPhaseSheet(week: 1)
         default: MainTabView()
         }
     }
