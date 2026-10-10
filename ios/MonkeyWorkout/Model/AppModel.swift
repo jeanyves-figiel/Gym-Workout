@@ -57,9 +57,17 @@ final class AppModel {
             state.prAttempts = Demo.prAttempts()
             MonkeyGradeLink.shared.loadDemo(ownerId: Demo.user?.id ?? "demo")
             state.synced?.profile.climbDayAddon = true
+            Community.shared.loadDemo(joined: Demo.screen != "community-join")
             state.customExerciseList = [Demo.customExercise]
             state.synced?.away = Demo.away()
             replanCurrentWeek()
+            if Demo.screen == "progress-empty" {
+                // New user: no sessions, PRs or logged climbs yet.
+                state.history = []
+                state.logs = []
+                state.climbs = []
+                state.prAttempts = []
+            }
             phase = Demo.screen == "welcome" ? .signedOut : .signedIn
             return
         }
@@ -252,6 +260,7 @@ final class AppModel {
         state.done[session.id] = true
         persist()
         Task { await sync() }
+        Community.shared.didRecord(r, api: api, userId: user?.id)
         return r
     }
 
