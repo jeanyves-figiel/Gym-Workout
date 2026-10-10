@@ -56,8 +56,9 @@ extension AppModel {
 
     /// Blocks the author: none of their workouts (or community posts) show any more, either way.
     func block(_ author: SharedWorkout.Author) async throws {
-        if !demo { try await api.blockMember(author.userId) }
+        if !demo { try await api.block(author.userId) }
         sharedLibrary.removeAll { $0.author.userId == author.userId }
+        Community.shared.blocked(author.userId)
     }
 
     // MARK: Plan

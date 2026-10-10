@@ -21,6 +21,7 @@ Optional env:
 | `APPLE_CLIENT_ID` | first `APPLE_BUNDLE_IDS` | client_id fallback; the identity token's audience (bundle id) is preferred |
 | `HIBP_CHECK` | on (off when `NODE_ENV=test`) | `0` disables the breached-password check |
 | `PURGE_INTERVAL_MIN` | `60` | purge of expired codes / refresh tokens (also runs at startup; `0` = startup only) |
+| `MODERATION_EMAIL` | – | receives community reports (unset → stored only) |
 
 Without the three `APPLE_*` key settings the Apple code exchange and token revocation are skipped (logged once).
 With them: `/auth/apple` exchanges `authorizationCode` at `appleid.apple.com/auth/token` (ES256 client-secret JWT, 5 min)
@@ -78,6 +79,17 @@ Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode
 | GET | `/library/shared/:id` | ✓ | one shared workout |
 | POST | `/library/shared/:id/save` | ✓ | count a copy into "My workouts" |
 | POST | `/library/shared/:id/report` | ✓ | `{reason, details?}`; auto-hides after 3 distinct reporters |
+| GET / PUT / DELETE | `/community/me` | ✓ | community profile (`nickname`, `bio`, `defaultVisibility` private\|members\|public, `autoShare`; joining needs `acceptGuidelines: true`); DELETE = leave (profile, photo, posts, cheers) |
+| PUT / DELETE | `/community/me/avatar` | ✓ | raw `image/jpeg` ≤512 KB, 64–1024 px; APPn/comment segments (EXIF, GPS, XMP) stripped |
+| GET | `/community/feed?scope=members\|mine&before=ISO&limit=` | ✓ | newest first, `nextBefore` cursor; blocks applied both ways |
+| POST | `/community/posts` | ✓ | share a win (`kind` workout\|badge\|record\|climb\|note, `refId` dedupes, `payload` card, `caption`, `visibility`) |
+| PATCH / DELETE | `/community/posts/:id` | ✓ | own posts: visibility / caption |
+| PUT / DELETE | `/community/posts/:id/reactions/:kind` | ✓ | like\|strong\|fire\|clap, not on own posts |
+| GET | `/community/members/:userId` | ✓ | member profile + visible posts |
+| POST | `/community/reports` | ✓ | `postId` or `userId`, `reason`; post hidden after 3 distinct reporters; mailed to `MODERATION_EMAIL` |
+| GET / POST / DELETE | `/community/blocks[/:userId]` | ✓ | block list |
+| GET | `/community/avatars/:id` | – | avatar JPEG (unguessable id, immutable cache) |
+| GET | `/share/:postId` | – | public web card for `public` posts |
 | GET | `/me/export` | ✓ | full JSON export (nFADP/GDPR) |
 | GET | `/healthz` | – | |
 

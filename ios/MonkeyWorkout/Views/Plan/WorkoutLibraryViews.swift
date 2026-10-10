@@ -271,7 +271,10 @@ struct WorkoutLibraryView: View {
         case nil:
             ProgressView().frame(maxWidth: .infinity).padding()
         case .needsCommunityProfile:
-            hint("person.2.fill", "Join the community", "Create your Community profile to see workouts other members share, and to share yours.")
+            NavigationLink { CommunityView() } label: {
+                hint("person.2.fill", "Join the community", "Create your Community profile to see workouts other members share, and to share yours.")
+            }
+            .buttonStyle(.plain)
         case let .failed(message):
             hint("icloud.slash", "Couldn't load member workouts", message)
         case .loaded where model.memberLibrary.isEmpty:
