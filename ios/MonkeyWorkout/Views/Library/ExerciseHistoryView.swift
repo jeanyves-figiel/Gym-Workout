@@ -128,9 +128,9 @@ struct ExerciseHistoryView: View {
     }
 
     private func sessionRow(_ s: ExerciseSession) -> some View {
-        let title = model.state.history.first {
+        let title: String? = PRPlanner.isPRSession(s.sessionId) ? "PR attempt" : model.state.history.first(where: {
             $0.sessionId == s.sessionId && Calendar.current.isDate($0.startedAt, inSameDayAs: s.date)
-        }?.title
+        })?.title
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {

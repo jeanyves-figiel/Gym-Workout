@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|onboarding|onboarding-climbing|session|player|explore|muscle|exercise|technique|progress|history|body|readiness|cycle|picker|variety|welcome]`
+/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|explore|muscle|exercise|technique|progress|history|body|readiness|cycle|picker|variety|welcome]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("-demo") }
@@ -95,5 +95,26 @@ enum Demo {
             ClimbLog(kind: .lead, start: Date().addingTimeInterval(-6 * day), minutes: 120, effort: 6, topGrade: "6b"),
         ]
     }
+
+    /// Bench press PR attempts: a missed single, a 5RM, a 90 kg single and today's 92.5 kg record.
+    static func prAttempts() -> [PRAttempt] {
+        let day: Double = 86_400
+        func single(_ kg: Double, made: Bool, prev: Double?, ago: Double) -> PRAttempt {
+            PRPlanner.finish(exerciseId: "bench-press", kind: .oneRepMax, targetReps: 1, sets: [PRSet(kg: kg, reps: 1, made: made)],
+                             previousBest: prev, date: Date().addingTimeInterval(-ago * day))
+        }
+        return [
+            single(87.5, made: false, prev: nil, ago: 69),
+            PRPlanner.finish(exerciseId: "bench-press", kind: .repMax, targetReps: 5, sets: [PRSet(kg: 80, reps: 5)],
+                             previousBest: 77.5, date: Date().addingTimeInterval(-51 * day)),
+            single(90, made: true, prev: 85, ago: 28),
+            prResult,
+        ]
+    }
+
+    static let prResult: PRAttempt = PRPlanner.finish(
+        exerciseId: "bench-press", kind: .oneRepMax, targetReps: 1,
+        sets: [PRSet(kg: 40, reps: 8, warmup: true), PRSet(kg: 92.5, reps: 1), PRSet(kg: 95, reps: 1, made: false)],
+        previousBest: 90, date: Date().addingTimeInterval(-600))
 }
 #endif
