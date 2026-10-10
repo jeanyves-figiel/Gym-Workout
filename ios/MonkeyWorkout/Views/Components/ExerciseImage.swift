@@ -35,9 +35,9 @@ final class ExerciseImageLoader {
     }
 }
 
-/// Exercise illustration (free-exercise-db) with the category gradient + icon as placeholder
-/// while loading, offline, or when the exercise has no picture. `animated` alternates the
-/// start/end frames as a simple two-frame animation.
+/// Exercise picture: a free-exercise-db photo, or the app's own illustration (bundled SVG drawn on the
+/// category gradient). The gradient + icon is the placeholder while a photo loads or offline.
+/// `animated` alternates the start/end frames as a simple two-frame animation.
 struct ExerciseImage: View {
     let exercise: Exercise
     var animated = false
@@ -53,9 +53,9 @@ struct ExerciseImage: View {
                 if !frames.isEmpty {
                     Image(uiImage: frames[min(frame, frames.count - 1)])
                         .resizable()
-                        .aspectRatio(contentMode: contentMode)
+                        .aspectRatio(contentMode: exercise.hasIllustration ? .fit : contentMode)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.white)
+                        .background(exercise.hasIllustration ? Color.clear : Color.white)
                         .id(frame)
                         .transition(.opacity)
                 }
@@ -70,9 +70,11 @@ struct ExerciseImage: View {
         GeometryReader { geo in
             ZStack {
                 Rectangle().fill(exercise.category.gradient)
-                Image(systemName: exercise.category.symbol)
-                    .font(.system(size: max(12, min(geo.size.width, geo.size.height) * 0.36), weight: .bold))
-                    .foregroundStyle(.white.opacity(0.9))
+                if !exercise.hasIllustration {
+                    Image(systemName: exercise.category.symbol)
+                        .font(.system(size: max(12, min(geo.size.width, geo.size.height) * 0.36), weight: .bold))
+                        .foregroundStyle(.white.opacity(0.9))
+                }
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }
@@ -82,6 +84,12 @@ struct ExerciseImage: View {
     private func load() async {
         frames = []
         frame = 0
+        if exercise.hasIllustration {
+            let names = animated ? exercise.illustrationAssets : Array(exercise.illustrationAssets.prefix(1))
+            frames = names.compactMap { UIImage(named: $0) }
+            await cycle(frames.count)
+            return
+        }
         let urls = animated ? exercise.imageURLs : Array(exercise.imageURLs.prefix(1))
         var loaded: [UIImage] = []
         for url in urls {
@@ -91,11 +99,16 @@ struct ExerciseImage: View {
         }
         guard !Task.isCancelled else { return }
         frames = loaded
-        guard animated, loaded.count > 1 else { return }
+        await cycle(loaded.count)
+    }
+
+    @MainActor
+    private func cycle(_ count: Int) async {
+        guard animated, count > 1 else { return }
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(1.2))
             guard !Task.isCancelled else { break }
-            withAnimation(.easeInOut(duration: 0.3)) { frame = (frame + 1) % loaded.count }
+            withAnimation(.easeInOut(duration: 0.3)) { frame = (frame + 1) % count }
         }
     }
 }
@@ -113,21 +126,21 @@ struct ExerciseThumbnail: View {
     }
 }
 
-/// Large animated illustration for the exercise page and the player. Renders nothing when unmapped.
+/// Large animated picture for the exercise page and the player. Renders nothing without media.
 struct ExerciseImageHeader: View {
     let exercise: Exercise
     var height: CGFloat = 220
     var showsAttribution = true
 
     var body: some View {
-        if exercise.imageId != nil {
+        if exercise.hasMedia {
             VStack(alignment: .leading, spacing: 6) {
                 ExerciseImage(exercise: exercise, animated: true)
                     .frame(maxWidth: .infinity)
                     .frame(height: height)
                     .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(Theme.stroke))
-                if showsAttribution {
+                if showsAttribution, exercise.imageId != nil {
                     Link(destination: ExerciseImages.sourceURL) {
                         Text(ExerciseImages.attribution).font(.caption2).foregroundStyle(Theme.muted)
                     }

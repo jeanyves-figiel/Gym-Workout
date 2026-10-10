@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Every exercise now has a picture (#46): 1 more free-exercise-db photo match (battle rope slams → 114 photos) and the app's own two-frame illustrations (start/end, primary muscles highlighted, on the category gradient) for the other 49. Generated as vector SVG assets by `ios/Tools/illustrations/generate.py`; shown in the picker, session thumbnails, exercise page and player. `ios/EXERCISE_MEDIA.md` records source + license per exercise; test enforces media for every catalog exercise. No video: no free-to-use video set covers the catalog.
 - **TestFlight distribute** workflow: waits for Apple processing, then adds the newest build to the internal TestFlight group "Workout" via the App Store Connect API. Runs after each TestFlight upload; also manual (group name input).
 - Manual **Fly logs** workflow: prints recent staging/production API logs (errors by default) without local tools.
 - Custom workouts (#28): build your own (name, catalog exercises with search + category/muscle filters, sets × reps, rest, optional kcal, reorder), edit/duplicate/delete, "Duplicate & edit" on example workouts; "My workouts" on Train, played and recorded like examples, synced with offline queue. API `/v1/me/custom-workouts` (upsert, `since`, delete; in export and account deletion).
@@ -32,6 +33,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - API container: entrypoint fixes ownership of root-owned `/data` mounts (Fly volumes) before dropping to the `node` user (#3).
 
 ### Changed
+- **Add exercises** picker redesigned in the Explore look (#46): gradient category tiles with live counts, muscle-group chips (then individual muscles), two-column picture cards with category pill and lime tap-order badge, sticky "Add N exercises" button. CI screenshots add `picker`.
 - App renamed **MonkeyWorkout** (#21): Xcode project/target/schemes, display names, bundle IDs `Com.app.MonkeyWorkout` (Release + TestFlight staging) and `Com.app.MonkeyWorkout.dev` (DEV); App Store Connect SKU `Monkeyworkout`, Apple ID `6819971090` documented; signing team `U7VAR53G86` set.
 - API: Sign in with Apple accepts the new bundle IDs, matched case-insensitively; emails sent as MonkeyWorkout (#21).
 
