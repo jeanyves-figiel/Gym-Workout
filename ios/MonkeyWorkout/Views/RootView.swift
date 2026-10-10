@@ -98,11 +98,15 @@ private struct DemoScreen: View {
         case "community", "community-join": NavigationStack { CommunityView() }
         case "community-share": ShareWinView()
         case "community-profile": NavigationStack { CommunityProfileView() }
+        case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", "breathing"]) { _ in }
         case "onboarding", "onboarding-climbing":
             NavigationStack {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
                     .navigationTitle("Your training")
             }
+        case "readiness":
+            ReadinessSheet(snapshot: Demo.health, readiness: Readiness.assess(Demo.health)?.0 ?? .normal, flags: Readiness.assess(Demo.health)?.1 ?? [])
+        case "cycle": WeekPhaseSheet(week: 1)
         default: MainTabView()
         }
     }
