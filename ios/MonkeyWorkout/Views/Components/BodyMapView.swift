@@ -1,54 +1,14 @@
 import SwiftUI
 import WorkoutEngine
 
-enum BodySide: String, CaseIterable, Identifiable {
-    case front, back
-    var id: String { rawValue }
-}
+typealias BodySide = BodyMapLayout.Side
 
-/// One drawable muscle region in a 200 × 410 design space; `mirrored` draws the symmetric twin.
-private struct Region {
-    let muscle: Muscle
-    let rect: CGRect
-    var mirrored = true
-    var angle: Double = 0
-}
-
-private let W: CGFloat = 200
-private let H: CGFloat = 410
-
-private func r(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat) -> CGRect { CGRect(x: x, y: y, width: w, height: h) }
-
-private let frontRegions: [Region] = [
-    Region(muscle: .sideDelts, rect: r(34, 74, 14, 28), angle: 12),
-    Region(muscle: .frontDelts, rect: r(44, 68, 22, 26), angle: 20),
-    Region(muscle: .chest, rect: r(63, 78, 36, 34)),
-    Region(muscle: .biceps, rect: r(36, 100, 17, 46), angle: 8),
-    Region(muscle: .forearms, rect: r(26, 162, 16, 62), angle: 8),
-    Region(muscle: .obliques, rect: r(64, 122, 18, 56)),
-    Region(muscle: .abs, rect: r(86, 116, 28, 72), mirrored: false),
-    Region(muscle: .hipFlexors, rect: r(74, 192, 18, 24), angle: -20),
-    Region(muscle: .quads, rect: r(66, 220, 26, 88), angle: 4),
-    Region(muscle: .adductors, rect: r(89, 222, 10, 54)),
-    Region(muscle: .calves, rect: r(70, 330, 16, 54)),
-]
-
-private let backRegions: [Region] = [
-    Region(muscle: .sideDelts, rect: r(34, 74, 14, 28), angle: 12),
-    Region(muscle: .rearDelts, rect: r(44, 70, 22, 24), angle: 20),
-    Region(muscle: .upperBack, rect: r(72, 66, 56, 48), mirrored: false),
-    Region(muscle: .rotatorCuff, rect: r(64, 92, 20, 20)),
-    Region(muscle: .lats, rect: r(62, 112, 28, 60), angle: -8),
-    Region(muscle: .triceps, rect: r(36, 100, 17, 48), angle: 8),
-    Region(muscle: .forearms, rect: r(26, 162, 16, 62), angle: 8),
-    Region(muscle: .lowerBack, rect: r(84, 158, 32, 32), mirrored: false),
-    Region(muscle: .glutes, rect: r(66, 190, 33, 36)),
-    Region(muscle: .hamstrings, rect: r(67, 232, 26, 76), angle: 3),
-    Region(muscle: .adductors, rect: r(91, 232, 9, 40)),
-    Region(muscle: .calves, rect: r(68, 320, 25, 62)),
-]
+private let W = CGFloat(BodyMapLayout.width)
+private let H = CGFloat(BodyMapLayout.height)
 
 /// Stylised anatomical map. Fill = heat (0…1); tap a muscle to drill in.
+/// Taps are resolved in design space by `BodyMapLayout.muscle(at:_:side:)` (one gesture for the whole map),
+/// so each ellipse opens its own muscle.
 struct BodyMapView: View {
     let side: BodySide
     var heat: [Muscle: Double] = [:]
@@ -61,14 +21,18 @@ struct BodyMapView: View {
             let s = min(geo.size.width / W, geo.size.height / H)
             ZStack(alignment: .topLeading) {
                 silhouette(s)
-                ForEach(Array(regions.enumerated()), id: \.offset) { _, region in
-                    muscle(region, rect: region.rect, s: s)
-                    if region.mirrored {
-                        muscle(region, rect: CGRect(x: W - region.rect.maxX, y: region.rect.minY, width: region.rect.width, height: region.rect.height), s: s, flip: true)
-                    }
+                ForEach(Array(shapes.enumerated()), id: \.offset) { _, shape in
+                    muscle(shape, s: s)
                 }
             }
             .frame(width: W * s, height: H * s)
+            .contentShape(Rectangle())
+            .gesture(SpatialTapGesture().onEnded { tap in
+                guard let onTap, s > 0,
+                      let m = BodyMapLayout.muscle(at: Double(tap.location.x / s), Double(tap.location.y / s), side: side)
+                else { return }
+                onTap(m)
+            }, including: onTap == nil ? .subviews : .all)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .aspectRatio(W / H, contentMode: .fit)
@@ -77,29 +41,35 @@ struct BodyMapView: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilitySummary)
+        .accessibilityActions {
+            if let onTap {
+                ForEach(BodyMapLayout.muscles(side), id: \.self) { m in
+                    Button(m.name) { onTap(m) }
+                }
+            }
+        }
     }
 
-    private var regions: [Region] { side == .front ? frontRegions : backRegions }
+    private var shapes: [BodyMapLayout.Shape] { BodyMapLayout.shapes(side) }
 
     private var accessibilitySummary: String {
-        let worked = regions.map(\.muscle).filter { (heat[$0] ?? 0) > 0 }
+        let worked = BodyMapLayout.muscles(side).filter { (heat[$0] ?? 0) > 0 }
         return "\(side.rawValue) body map" + (worked.isEmpty ? "" : ": " + worked.map(\.name).joined(separator: ", "))
     }
 
     @ViewBuilder
-    private func muscle(_ region: Region, rect: CGRect, s: CGFloat, flip: Bool = false) -> some View {
-        let h = heat[region.muscle] ?? 0
-        let isSel = selected == region.muscle
+    private func muscle(_ shape: BodyMapLayout.Shape, s: CGFloat) -> some View {
+        let h = heat[shape.muscle] ?? 0
+        let isSel = selected == shape.muscle
         let fill: Color = h > 0 ? Theme.heat(h) : Color.white.opacity(0.10)
         Ellipse()
             .fill(fill.opacity(h > 0 ? 0.35 + 0.65 * h : 1))
             .overlay(Ellipse().strokeBorder(isSel ? Color.white : Color.white.opacity(0.12), lineWidth: isSel ? 2 : 0.5))
             .shadow(color: h > 0.5 ? fill.opacity(0.7) : .clear, radius: 6 * s)
-            .frame(width: rect.width * s, height: rect.height * s)
-            .rotationEffect(.degrees(flip ? -region.angle : region.angle))
-            .position(x: rect.midX * s, y: rect.midY * s)
-            .contentShape(Ellipse())
-            .onTapGesture { onTap?(region.muscle) }
+            .frame(width: CGFloat(shape.w) * s, height: CGFloat(shape.h) * s)
+            .rotationEffect(.degrees(shape.angle))
+            .position(x: CGFloat(shape.midX) * s, y: CGFloat(shape.midY) * s)
+            .allowsHitTesting(false)
     }
 
     @ViewBuilder
