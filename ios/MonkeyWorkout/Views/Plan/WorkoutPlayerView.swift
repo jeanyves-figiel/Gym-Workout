@@ -111,7 +111,7 @@ struct WorkoutPlayerView: View {
                                 .background(RoundedRectangle(cornerRadius: 12).fill(WorkoutEngine.Category.mobility.color.opacity(0.2)))
                         }
                         if step.block.kind == .strength && !step.exercise.equipment.isEmpty && step.exercise.unit != .sec {
-                            weightRow(step)
+                            SetLogCard(item: step.item, sessionId: sessionId, done: done).id(step.item.uid)
                         }
                         formCard(step)
                     }

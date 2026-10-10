@@ -45,7 +45,7 @@ One-time setup (you, not CI):
 | `Packages/GymCore/Sources/APIClient` | Typed API client: Keychain tokens, single-flight refresh, sync |
 | `MonkeyWorkout/Model` | `AppModel` (auth phase, plan, logs, sync), local JSON store (data protection) |
 | `MonkeyWorkout/Views/Auth` | Welcome, Sign in with Apple, sign up, email code, sign in, forgot/reset, privacy notice |
-| `MonkeyWorkout/Views/Plan` | Training profile, week, session (tick, swap, rest timer, kg log) |
+| `MonkeyWorkout/Views/Plan` | Training profile, week, session (tick, swap, rest timer, per-set kg × reps × RIR log with load suggestion) |
 | `MonkeyWorkout/Views/Account` | Name, password, devices, Face ID lock, export, sign out (all), delete account |
 
 ## Demo mode (DEBUG)

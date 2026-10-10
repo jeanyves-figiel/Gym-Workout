@@ -50,7 +50,7 @@ Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode
 | POST | `/me/logout-all` | ✓ | 204 |
 | DELETE | `/me` | ✓ | `{confirm: "DELETE", password?}` — permanent, cascades all data |
 | GET / PUT | `/me/profile` | ✓ | opaque app profile JSON |
-| GET / POST | `/me/logs` | ✓ | `?since=ISO` delta; upsert ≤500 by client UUID |
+| GET / POST | `/me/logs` | ✓ | `?since=ISO` delta; upsert ≤500 by client UUID. Entry: `{id, date, exerciseId, sessionId?, weightKg?, reps?, setIndex?, rir?}` |
 | DELETE | `/me/logs/:id` | ✓ | |
 | GET / POST | `/me/workouts` | ✓ | completed sessions (opaque JSON with `id`, `startedAt`); `?since=ISO` delta; upsert ≤100 |
 | DELETE | `/me/workouts/:id` | ✓ | |

@@ -33,6 +33,7 @@ struct ExerciseDetailView: View {
                 if plannedUid != nil && e.category == .strength && !e.equipment.isEmpty && e.unit != .sec {
                     weightLog
                 }
+                ExerciseProgressCard(exerciseId: e.id, plannedUid: plannedUid)
 
                 EquipmentSection(equipment: e.equipment, accent: e.category.color)
                 TechniqueView(exercise: e)
