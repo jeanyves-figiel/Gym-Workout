@@ -6,7 +6,8 @@ import Foundation
 ///
 /// URLs are pinned to one commit of that repository so the pictures can't change under us.
 /// Only exercises whose picture shows genuinely the same movement (equipment + movement) are mapped;
-/// everything else falls back to the category icon in the app.
+/// every other exercise has one of the app's own illustrations (`ExerciseIllustrations`).
+/// Source + license of each exercise's media: ios/EXERCISE_MEDIA.md.
 public enum ExerciseImages {
     /// Credit line shown wherever an illustration is displayed in full.
     public static let attribution = "Image: free-exercise-db (public domain)"
@@ -96,6 +97,7 @@ public enum ExerciseImages {
         "depth-jump":              "Linear_Depth_Jump",
         "med-ball-chest-pass":     "Medicine_Ball_Chest_Pass",
         "ball-slam":               "Overhead_Slam",
+        "battle-rope-slams":       "Battling_Ropes",
         "overhead-back-throw":     "Backward_Medicine_Ball_Throw",
         "kb-swing":                "One-Arm_Kettlebell_Swings",
         "kb-snatch":               "One-Arm_Kettlebell_Snatch",
@@ -151,4 +153,18 @@ extension Exercise {
         guard let imageId else { return [] }
         return (0..<ExerciseImages.frameCount).compactMap { ExerciseImages.url(imageId: imageId, frame: $0) }
     }
+}
+
+extension Exercise {
+    /// True when the exercise uses one of the app's own illustrations (no matching photo).
+    public var hasIllustration: Bool { imageId == nil && ExerciseIllustrations.ids.contains(id) }
+
+    /// Asset names of the illustration frames (start, end). Empty when the exercise has a photo instead.
+    public var illustrationAssets: [String] {
+        guard hasIllustration else { return [] }
+        return (0..<ExerciseIllustrations.frameCount).map { ExerciseIllustrations.assetName(id, frame: $0) }
+    }
+
+    /// Every catalog exercise has a photo or an illustration.
+    public var hasMedia: Bool { imageId != nil || hasIllustration }
 }
