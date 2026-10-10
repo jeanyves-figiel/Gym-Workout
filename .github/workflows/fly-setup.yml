@@ -1,7 +1,7 @@
 name: Fly setup
 
 # Manual, idempotent, one-time bootstrap of a Fly.io app (#3) — no local CLI needed.
-# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens), repo-level or on the chosen environment.
+# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Optional secret SMTP_URL (SES SMTP) → real email, else console.
 on:
   workflow_dispatch:
     inputs:
@@ -24,6 +24,7 @@ jobs:
     environment: ${{ inputs.environment }}
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      SMTP_URL: ${{ secrets.SMTP_URL }}
       FLY_APP: ${{ inputs.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
       REGION: fra
       HOSTNAME: ${{ inputs.environment == 'production' && 'workout.monkeygrade.cloud' || 'workout-staging.monkeygrade.cloud' }}
@@ -45,8 +46,11 @@ jobs:
           {
             echo "$have" | grep -qx JWT_SECRET  || echo "JWT_SECRET=$(openssl rand -base64 48 | tr -d '\n')"
             echo "$have" | grep -qx CODE_PEPPER || echo "CODE_PEPPER=$(openssl rand -base64 32 | tr -d '\n')"
-            echo "$have" | grep -qxE 'SMTP_URL|MAIL_TRANSPORT' || echo "MAIL_TRANSPORT=console"
+            if [ -n "$SMTP_URL" ]; then echo "SMTP_URL=$SMTP_URL"
+            else echo "$have" | grep -qxE 'SMTP_URL|MAIL_TRANSPORT' || echo "MAIL_TRANSPORT=console"; fi
           } > "$RUNNER_TEMP/secrets.env"
+          # Real SMTP configured → drop the console fallback.
+          if [ -n "$SMTP_URL" ] && echo "$have" | grep -qx MAIL_TRANSPORT; then flyctl secrets unset --stage -a "$FLY_APP" MAIL_TRANSPORT; fi
           if [ -s "$RUNNER_TEMP/secrets.env" ]; then flyctl secrets import --stage -a "$FLY_APP" < "$RUNNER_TEMP/secrets.env"; fi
           rm -f "$RUNNER_TEMP/secrets.env"
           flyctl secrets list -a "$FLY_APP"

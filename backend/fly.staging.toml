@@ -1,6 +1,6 @@
 # Fly.io staging app (#3). Deployed by .github/workflows/deploy-staging.yml on every merge to main.
 # Public host: https://workout-staging.monkeygrade.cloud (CNAME → monkeyworkout-staging.fly.dev).
-# App, volume, secrets (JWT_SECRET, CODE_PEPPER, MAIL_TRANSPORT=console) and cert: .github/workflows/fly-setup.yml (environment: staging).
+# App, volume, secrets (JWT_SECRET, CODE_PEPPER, SMTP_URL or MAIL_TRANSPORT=console) and cert: .github/workflows/fly-setup.yml (environment: staging).
 app = 'monkeyworkout-staging'
 primary_region = 'fra'
 
@@ -8,6 +8,7 @@ primary_region = 'fra'
   NODE_ENV = 'production'
   PORT = '8080'
   DB_PATH = '/data/app.db'
+  MAIL_FROM = 'MonkeyWorkout Staging <no-reply@monkeygrade.cloud>'
 
 # SQLite lives on this volume → exactly one machine.
 [mounts]
