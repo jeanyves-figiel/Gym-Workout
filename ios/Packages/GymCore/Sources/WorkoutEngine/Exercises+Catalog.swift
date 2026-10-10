@@ -181,5 +181,5 @@ extension Exercise {
         Exercise(id: "hip-abduction", name: "Machine hip abduction", category: .strength, pattern: .general, primary: [.glutes], equipment: [.hipAdAbductor], level: 1, secPerRep: 3, cues: ["Push with the outer knees", "Slow return"], generator: false),
         Exercise(id: "crunch-machine", name: "Plate-loaded seated crunch", category: .strength, pattern: .coreFlex, primary: [.abs], equipment: [.abCrunch], level: 1, secPerRep: 3, cues: ["Curl ribs to pelvis", "Don't pull with the arms"], generator: false),
         Exercise(id: "torso-rotation", name: "Seated torso rotation machine", category: .strength, pattern: .coreAntiRot, primary: [.obliques], secondary: [.abs], equipment: [.torsoRotation], level: 1, unilateral: true, secPerRep: 3, cues: ["Rotate from the trunk, hips still", "Controlled range"], generator: false),
-    ]
+    ] + travelCatalog
 }

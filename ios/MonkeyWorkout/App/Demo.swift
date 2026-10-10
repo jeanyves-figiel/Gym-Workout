@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|explore|muscle|exercise|technique|progress|history|body|readiness|cycle|picker|builder|welcome]`
+/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|explore|muscle|exercise|technique|progress|history|body|readiness|cycle|picker|builder|calendar|away|gyms|variety|welcome]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("-demo") }
@@ -96,6 +96,17 @@ enum Demo {
             }
         }
         return (records, logs)
+    }
+
+    /// Away periods (#68): two busy days later this week and a hotel-gym trip next week.
+    static func away() -> [AwayPeriod] {
+        let cal = Progression.calendar()
+        let monday = Progression.weekStart(Date(), cal)
+        func key(_ days: Int) -> String { PlanCalendar.key(cal.date(byAdding: .day, value: days, to: monday)!, cal) }
+        return [
+            AwayPeriod(kind: .off, start: key(3), end: key(4), note: "Conference"),
+            AwayPeriod(kind: .travel, start: key(7), end: key(10), note: "Berlin", setup: .hotelGym),
+        ]
     }
 
     /// Climbs logged in the app: a hard boulder session yesterday and a lead session last week.
