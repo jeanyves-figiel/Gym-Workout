@@ -1,7 +1,7 @@
 name: Fly setup
 
 # Manual, idempotent, one-time bootstrap of a Fly.io app (#3) — no local CLI needed.
-# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Email: secrets SES_ACCESS_KEY_ID + SES_SECRET_ACCESS_KEY (IAM user, ses:SendRawEmail) or SMTP_URL → real email, else console. Optional APPLE_KEY_ID + APPLE_PRIVATE_KEY (Sign in with Apple .p8) → Apple token revocation.
+# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Email: secrets SES_ACCESS_KEY_ID + SES_SECRET_ACCESS_KEY (IAM user, ses:SendRawEmail; sent via the SES HTTPS API) or SMTP_URL → real email, else console. Optional APPLE_KEY_ID + APPLE_PRIVATE_KEY (Sign in with Apple .p8) → Apple token revocation.
 on:
   workflow_dispatch:
     inputs:
@@ -44,22 +44,6 @@ jobs:
         run: |
           if [ "$(flyctl volumes list -a "$FLY_APP" --json | jq length)" -gt 0 ]; then echo "volume exists"
           else flyctl volumes create data -a "$FLY_APP" -r "$REGION" -s 1 -y; fi
-      # IAM user (ses:SendRawEmail) → SES SMTP password (AWS SigV4 derivation), unless SMTP_URL is given.
-      - name: Derive SES SMTP URL
-        if: env.SMTP_URL == '' && env.SES_ACCESS_KEY_ID != ''
-        run: |
-          url=$(python3 - <<'PY'
-          import base64, hashlib, hmac, os, urllib.parse
-          def h(k, m): return hmac.new(k, m.encode(), hashlib.sha256).digest()
-          sig = ('AWS4' + os.environ['SES_SECRET_ACCESS_KEY']).encode()
-          for m in ('11111111', os.environ['SES_REGION'], 'ses', 'aws4_request', 'SendRawEmail'):
-              sig = h(sig, m)
-          pw = base64.b64encode(b'\x04' + sig).decode()
-          print(f"smtp://{os.environ['SES_ACCESS_KEY_ID']}:{urllib.parse.quote(pw, safe='')}@email-smtp.{os.environ['SES_REGION']}.amazonaws.com:587")
-          PY
-          )
-          echo "::add-mask::$url"
-          echo "SMTP_URL=$url" >> "$GITHUB_ENV"
       # Generated in the runner, sent via stdin, never printed. Existing secrets are kept.
       - name: Secrets
         run: |
@@ -67,11 +51,17 @@ jobs:
           {
             echo "$have" | grep -qx JWT_SECRET  || echo "JWT_SECRET=$(openssl rand -base64 48 | tr -d '\n')"
             echo "$have" | grep -qx CODE_PEPPER || echo "CODE_PEPPER=$(openssl rand -base64 32 | tr -d '\n')"
-            if [ -n "$SMTP_URL" ]; then echo "SMTP_URL=$SMTP_URL"
-            else echo "$have" | grep -qxE 'SMTP_URL|MAIL_TRANSPORT' || echo "MAIL_TRANSPORT=console"; fi
+            if [ -n "$SES_ACCESS_KEY_ID" ]; then
+              # SES HTTPS API (eu-central-2 has no SMTP endpoint).
+              echo "SES_ACCESS_KEY_ID=$SES_ACCESS_KEY_ID"
+              echo "SES_SECRET_ACCESS_KEY=$SES_SECRET_ACCESS_KEY"
+              echo "SES_REGION=$SES_REGION"
+            elif [ -n "$SMTP_URL" ]; then echo "SMTP_URL=$SMTP_URL"
+            else echo "$have" | grep -qxE 'SES_ACCESS_KEY_ID|SMTP_URL|MAIL_TRANSPORT' || echo "MAIL_TRANSPORT=console"; fi
           } > "$RUNNER_TEMP/secrets.env"
-          # Real SMTP configured → drop the console fallback.
-          if [ -n "$SMTP_URL" ] && echo "$have" | grep -qx MAIL_TRANSPORT; then flyctl secrets unset --stage -a "$FLY_APP" MAIL_TRANSPORT; fi
+          # Real mail configured → drop the console fallback (and the old SES SMTP URL when using the API).
+          if { [ -n "$SES_ACCESS_KEY_ID" ] || [ -n "$SMTP_URL" ]; } && echo "$have" | grep -qx MAIL_TRANSPORT; then flyctl secrets unset --stage -a "$FLY_APP" MAIL_TRANSPORT; fi
+          if [ -n "$SES_ACCESS_KEY_ID" ] && echo "$have" | grep -qx SMTP_URL; then flyctl secrets unset --stage -a "$FLY_APP" SMTP_URL; fi
           if [ -s "$RUNNER_TEMP/secrets.env" ]; then flyctl secrets import --stage -a "$FLY_APP" < "$RUNNER_TEMP/secrets.env"; fi
           rm -f "$RUNNER_TEMP/secrets.env"
           # Sign in with Apple key (token exchange + revocation on account deletion, #12). Multiline .p8 via stdin.
