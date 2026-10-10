@@ -39,6 +39,8 @@ struct ExerciseHeroCard: View {
     let block: Block
     let item: PlannedExercise
     let position: String
+    /// Set for weighted strength work: opens the PR attempt flow (#60).
+    var onAttemptPR: (() -> Void)?
     let onForm: () -> Void
 
     var body: some View {
@@ -67,22 +69,36 @@ struct ExerciseHeroCard: View {
                 .font(Theme.label(11))
                 .opacity(0.85)
             }
-            ZStack(alignment: .bottomTrailing) {
+            ZStack(alignment: .bottom) {
                 // Start position; tap plays the movement once (no looping frames).
                 ExerciseMotionView(exercise: exercise)
                     .frame(maxWidth: .infinity)
                     .frame(height: 150)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                Button(action: onForm) {
-                    Label("Form", systemImage: "info.circle.fill")
-                        .font(Theme.label(12))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(.black.opacity(0.55)))
+                HStack {
+                    if let onAttemptPR {
+                        Button(action: onAttemptPR) {
+                            Label("Attempt PR", systemImage: "trophy.fill")
+                                .font(Theme.label(12))
+                                .foregroundStyle(Theme.ink)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Capsule().fill(Theme.lime))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Spacer()
+                    Button(action: onForm) {
+                        Label("Form", systemImage: "info.circle.fill")
+                            .font(Theme.label(12))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(.black.opacity(0.55)))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Setup and technique")
                 }
-                .buttonStyle(.plain)
                 .padding(8)
-                .accessibilityLabel("Setup and technique")
             }
             HeroMuscleChips(primary: exercise.primary, secondary: exercise.secondary)
             if let n = item.prescription.note { Text(n).font(.caption.weight(.semibold)).opacity(0.85) }
