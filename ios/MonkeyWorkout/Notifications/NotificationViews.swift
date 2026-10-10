@@ -27,7 +27,7 @@ struct NotificationsHost: ViewModifier {
     private var key: String {
         let plan = model.plan?.sessions.map { "\($0.id)@\($0.weekday ?? 0)" }.joined(separator: ",") ?? ""
         let done = model.state.done.filter(\.value).keys.sorted().joined(separator: ",")
-        return [plan, done, "\(model.state.history.count)", "\(notify.prefs.hashValue)", "\(notify.moves.count)", model.user?.id ?? ""]
+        return [plan, done, "\(model.state.history.count)", "\(notify.prefs.hashValue)", "\(model.away.count)", model.user?.id ?? ""]
             .joined(separator: "|")
     }
 
@@ -254,22 +254,17 @@ private struct PermissionCard: View {
 
 // MARK: - Missed-session check-in
 
-/// Opened from the missed-session notification: train now, or move the session to another day.
+/// Opened from the missed-session notification: train now, or move the session with the training calendar (#68).
 struct MissedSessionSheet: View {
     let sessionId: String
     let day: Date
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var training = false
+    @State private var moving = false
+    @State private var calendar = false
 
     private var session: Session? { model.session(sessionId) }
-    private var climbing: Set<Int> { Set(model.profile?.climbingDays ?? []) }
-
-    private var options: [Date] {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        return (0..<7).compactMap { cal.date(byAdding: .day, value: $0, to: today) }
-    }
 
     var body: some View {
         NavigationStack {
@@ -279,7 +274,7 @@ struct MissedSessionSheet: View {
                         Text("Missed \(day.formatted(.dateTime.weekday(.wide)))").font(Theme.label(12)).tracking(1.6)
                             .foregroundStyle(Theme.muted).textCase(.uppercase)
                         Text(session?.title ?? "Your session").font(Theme.display(34))
-                        Text("No stress. Train today or pick a day that works.").font(.body.weight(.medium)).foregroundStyle(Theme.muted)
+                        Text("No stress. Train today or move it to a free day.").font(.body.weight(.medium)).foregroundStyle(Theme.muted)
                     }
                     .padding(.bottom, 4)
 
@@ -288,20 +283,19 @@ struct MissedSessionSheet: View {
                                 big: "GO", gradient: NotifyStyle.today)
                     }
                     .buttonStyle(.plain)
+                    .disabled(session == nil)
 
-                    Text("Move to").font(Theme.label(11)).tracking(1.6).foregroundStyle(Theme.muted).textCase(.uppercase)
-                        .padding(.top, 6)
-                    ForEach(options, id: \.self) { d in
-                        Button {
-                            NotificationManager.shared.move(sessionId: sessionId, from: day, to: d, model: model)
-                            dismiss()
-                        } label: {
-                            DayCard(symbol: climbing.contains(weekday(d)) ? "figure.climbing" : "calendar",
-                                    title: label(d), detail: note(d),
-                                    big: d.formatted(.dateTime.day()), gradient: NotifyStyle.day)
-                        }
-                        .buttonStyle(.plain)
+                    Button { moving = true } label: {
+                        DayCard(symbol: "arrow.uturn.forward", title: "Move it", detail: "Next free day this week",
+                                big: "→", gradient: NotifyStyle.missed)
                     }
+                    .buttonStyle(.plain)
+
+                    Button { calendar = true } label: {
+                        DayCard(symbol: "calendar", title: "Open calendar", detail: "See the coming weeks, mark days off",
+                                big: "📅", gradient: NotifyStyle.reminder)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(16)
             }
@@ -312,26 +306,13 @@ struct MissedSessionSheet: View {
             .fullScreenCover(isPresented: $training, onDismiss: { dismiss() }) {
                 WorkoutPlayerView(sessionId: sessionId)
             }
+            .sheet(isPresented: $moving, onDismiss: { dismiss() }) {
+                RescheduleSheet(sessionId: sessionId)
+            }
+            .sheet(isPresented: $calendar) {
+                NavigationStack { CalendarView() }
+            }
         }
-    }
-
-    private func weekday(_ d: Date) -> Int { WeekSchedule.fromCalendar(Calendar.current.component(.weekday, from: d)) }
-
-    private func label(_ d: Date) -> String {
-        let cal = Calendar.current
-        if cal.isDateInToday(d) { return "Today" }
-        if cal.isDateInTomorrow(d) { return "Tomorrow" }
-        return d.formatted(.dateTime.weekday(.wide))
-    }
-
-    /// What else is on that day.
-    private func note(_ d: Date) -> String {
-        let cal = Calendar.current
-        let planned = NotificationManager.shared.plannedDays(model).filter { cal.isDate($0.day, inSameDayAs: d) && $0.sessionId != sessionId }
-        var parts: [String] = []
-        if climbing.contains(weekday(d)) { parts.append("Climbing day") }
-        parts += planned.map { "\($0.title) planned" }
-        return parts.isEmpty ? "Free" : parts.joined(separator: " · ")
     }
 }
 

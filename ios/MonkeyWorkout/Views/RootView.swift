@@ -103,6 +103,9 @@ private struct DemoScreen: View {
         case "readiness":
             ReadinessSheet(snapshot: Demo.health, readiness: Readiness.assess(Demo.health)?.0 ?? .normal, flags: Readiness.assess(Demo.health)?.1 ?? [])
         case "cycle": WeekPhaseSheet(week: 1)
+        case "calendar": NavigationStack { CalendarView() }
+        case "gyms": GymFinderView(place: "Zürich")
+        case "away": AwayEditorView(initial: AwayPeriod(kind: .travel, start: Demo.away()[1].start, end: Demo.away()[1].end, note: "Berlin", setup: .hotelGym), isNew: true) { _ in }
         case "notifications": NavigationStack { NotificationSettingsView() }
         case "reschedule":
             MissedSessionSheet(sessionId: second, day: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())

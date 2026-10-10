@@ -42,7 +42,6 @@ final class NotificationManager: NSObject {
     }
 
     private static let prefsKey = "notifications.prefs"
-    private static let movesKey = "notifications.moves"
 
     var prefs: NotificationPrefs {
         didSet {
@@ -55,8 +54,6 @@ final class NotificationManager: NSObject {
     private(set) var authorization: UNAuthorizationStatus = .notDetermined
     /// Set when a notification is tapped; the main tab view presents it.
     var route: NotificationRoute?
-    /// Interim reschedule (until the training calendar, #68, owns moves): "sessionId|yyyy-MM-dd" → new day.
-    private(set) var moves: [String: Date]
     private(set) var pendingCount = 0
 
     private var deviceToken: String?
@@ -66,7 +63,6 @@ final class NotificationManager: NSObject {
 
     override private init() {
         prefs = Self.load(NotificationPrefs.self, Self.prefsKey) ?? NotificationPrefs()
-        moves = Self.load([String: Date].self, Self.movesKey) ?? [:]
         super.init()
     }
 
@@ -115,7 +111,7 @@ final class NotificationManager: NSObject {
         let today = cal.startOfDay(for: now)
         let from = cal.date(byAdding: .day, value: -1, to: today) ?? today
         let through = cal.date(byAdding: .day, value: 8, to: today) ?? today
-        let source = PlanSessionSource(plan: model.plan, done: model.state.done, history: model.state.history, moves: moves, now: now)
+        let source = CalendarSessionSource(model: model, from: from, through: through)
         let reminders = ReminderPlanner.plan(source.plannedSessions(from: from, through: through, calendar: cal), prefs: prefs, now: now, calendar: cal)
         for r in reminders {
             let content = UNMutableNotificationContent()
@@ -139,27 +135,6 @@ final class NotificationManager: NSObject {
     }
 
     private static func isOurs(_ id: String) -> Bool { id.hasPrefix("upcoming|") || id.hasPrefix("missed|") }
-
-    /// Moves a planned session to `newDay` for reminders and check-ins.
-    func move(sessionId: String, from day: Date, to newDay: Date, model: AppModel) {
-        let cal = Calendar.current
-        let key = "\(sessionId)|\(ReminderPlanner.dayKey(cal.startOfDay(for: day), calendar: cal))"
-        moves[key] = cal.startOfDay(for: newDay)
-        // Moves only matter around now; drop ones older than two weeks.
-        let cutoff = cal.date(byAdding: .day, value: -14, to: Date()) ?? Date()
-        moves = moves.filter { $0.value >= cutoff }
-        save(moves, Self.movesKey)
-        Task { await reschedule(model) }
-    }
-
-    /// Upcoming planned days, for the reschedule picker.
-    func plannedDays(_ model: AppModel, days: Int = 8, now: Date = Date()) -> [PlannedSession] {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: now)
-        let through = cal.date(byAdding: .day, value: days, to: today) ?? today
-        return PlanSessionSource(plan: model.plan, done: model.state.done, history: model.state.history, moves: moves, now: now)
-            .plannedSessions(from: today, through: through, calendar: cal)
-    }
 
     /// Test notification in 5 s (Settings).
     func sendLocalTest() async {
@@ -273,8 +248,6 @@ final class NotificationManager: NSObject {
         center.removeAllPendingNotificationRequests()
         center.removeAllDeliveredNotifications()
         pendingCount = 0
-        moves = [:]
-        save(moves, Self.movesKey)
     }
 
     // MARK: Storage
@@ -318,33 +291,21 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
     }
 }
 
-/// Planned sessions from the generated week plan: sessions with a weekday land on that weekday of
-/// last, this and next calendar week. The training calendar (#68) can replace this with dated sessions.
-struct PlanSessionSource: PlannedSessionSource {
-    let plan: WeekPlan?
-    let done: [String: Bool]
-    let history: [WorkoutRecord]
-    let moves: [String: Date]
-    let now: Date
+/// Planned, not-done sessions from the training calendar (#68): dated, adapted around away periods and
+/// moves, so a rescheduled session gets its reminder on the new day.
+struct CalendarSessionSource: PlannedSessionSource {
+    private let items: [PlannedSession]
+
+    @MainActor init(model: AppModel, from: Date, through: Date) {
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: through).map { $0.addingTimeInterval(-1) } ?? through
+        items = model.plannedSessions(from: from, to: end).map {
+            PlannedSession(sessionId: $0.session.id, title: $0.session.title, estMin: $0.session.estMin, day: $0.date, done: false)
+        }
+    }
 
     func plannedSessions(from: Date, through: Date, calendar cal: Calendar) -> [PlannedSession] {
-        guard let plan else { return [] }
-        let thisWeek = WeekPlan.weekStart(of: now, calendar: cal)
-        var out: [PlannedSession] = []
-        for offset in [-7, 0, 7] {
-            guard let weekStart = cal.date(byAdding: .day, value: offset, to: thisWeek),
-                  let weekEnd = cal.date(byAdding: .day, value: 7, to: weekStart) else { continue }
-            for (s, day) in plan.dated(weekStart: weekStart, calendar: cal) {
-                let target = moves["\(s.id)|\(ReminderPlanner.dayKey(day, calendar: cal))"] ?? day
-                guard target >= from, target <= through else { continue }
-                let end = max(weekEnd, cal.date(byAdding: .day, value: 1, to: target) ?? target)
-                // The week's checkmark only describes the current week; earlier/later weeks use history.
-                let recorded = history.contains { $0.sessionId == s.id && $0.startedAt >= weekStart && $0.startedAt < end }
-                let isDone = recorded || (offset == 0 && (done[s.id] ?? false))
-                out.append(PlannedSession(sessionId: s.id, title: s.title, estMin: s.estMin, day: target, done: isDone))
-            }
-        }
-        return out.sorted { $0.day < $1.day }
+        let last = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: through)) ?? through
+        return items.filter { $0.day >= cal.startOfDay(for: from) && $0.day < last }
     }
 }
 
