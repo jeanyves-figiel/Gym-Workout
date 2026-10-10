@@ -38,6 +38,7 @@ public struct Technique: Hashable, Sendable {
         .merging(powerCardioWarmup) { a, _ in a }
         .merging(mobilityStretch) { a, _ in a }
         .merging(examples) { a, _ in a }
+        .merging(travel) { a, _ in a }
 }
 
 extension Exercise {

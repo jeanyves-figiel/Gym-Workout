@@ -22,6 +22,7 @@ from poses import POSES  # noqa: E402
 
 IOS = HERE.parent.parent
 CATALOG = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercises+Catalog.swift"
+TRAVEL = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercises+Travel.swift"
 PHOTOS = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercise+Images.swift"
 ASSETS = IOS / "MonkeyWorkout/Resources/Illustrations.xcassets"
 SWIFT_OUT = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercise+Illustrations.swift"
@@ -36,9 +37,9 @@ GRADIENT = {"warmup": ("#FF8A00", "#FFC93D"), "power": ("#FF2D55", "#FF6FB5"),
 
 
 def catalog():
-    src = CATALOG.read_text()
+    src = CATALOG.read_text() + TRAVEL.read_text()
     out = {}
-    for m in re.finditer(r'Exercise\(id: "([^"]+)", name: "([^"]+)", category: \.(\w+), pattern: \.\w+, '
+    for m in re.finditer(r'Exercise\(id: "([^"]+)", name: "([^"]+)", category: \.(\w+), pattern: \.[\w`]+, '
                          r'primary: \[([^\]]*)\]', src):
         out[m.group(1)] = dict(name=m.group(2), category=m.group(3),
                                primary=[p.strip().lstrip(".") for p in m.group(4).split(",") if p.strip()])
