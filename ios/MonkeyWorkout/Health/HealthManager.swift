@@ -69,6 +69,8 @@ struct HealthSnapshot: Equatable {
     var sleepHours: Double?
     var climbingThisWeek = 0
     var climbingPerWeek4w: Double?
+    /// Climbing workouts of the last 4 weeks from every app, newest first (#44).
+    var recentClimbs: [ClimbEntry] = []
     var weightTrend: [TrendPoint] = []
     var vo2Trend: [TrendPoint] = []
 
@@ -197,6 +199,7 @@ final class HealthManager {
         let fourWeeks = cal.date(byAdding: .weekOfYear, value: -4, to: weekStart)!
         let past = await climbingCount(from: fourWeeks, to: weekStart)
         s.climbingPerWeek4w = past > 0 ? Double(past) / 4 : nil
+        s.recentClimbs = await climbs(from: fourWeeks, to: now)
         snapshot = s
     }
 
@@ -247,7 +250,68 @@ final class HealthManager {
         return (try? await d.result(for: store).count) ?? 0
     }
 
+    private static let climbIdKey = "MonkeyWorkoutClimbId"
+
+    private func climbs(from: Date, to: Date) async -> [ClimbEntry] {
+        let pred = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            HKQuery.predicateForWorkouts(with: .climbing),
+            HKQuery.predicateForSamples(withStart: from, end: to),
+        ])
+        let d = HKSampleQueryDescriptor(predicates: [.workout(pred)], sortDescriptors: [SortDescriptor<HKWorkout>(\.startDate, order: .reverse)], limit: 50)
+        let workouts = (try? await d.result(for: store)) ?? []
+        return workouts.map { w in
+            let meta = w.metadata ?? [:]
+            let id = (meta[Self.climbIdKey] as? String).flatMap(UUID.init(uuidString:)) ?? w.uuid
+            return ClimbEntry(
+                id: id, start: w.startDate, end: w.endDate, source: w.sourceRevision.source.name,
+                kind: (meta["MonkeyWorkoutClimbType"] as? String).flatMap(ClimbKind.init(rawValue:)),
+                effort: (meta["MonkeyWorkoutEffort"] as? NSNumber)?.intValue,
+                topGrade: meta["MonkeyWorkoutTopGrade"] as? String)
+        }
+    }
+
     // MARK: Write
+
+    /// Saves a logged climb as an Apple Health Climbing workout. Returns true when written.
+    @discardableResult
+    func saveClimb(_ log: ClimbLog, kcal: Double?) async -> Bool {
+        guard connected, available, writeWorkouts else { return false }
+        let config = HKWorkoutConfiguration()
+        config.activityType = .climbing
+        config.locationType = log.kind == .outdoor ? .outdoor : .indoor
+        let builder = HKWorkoutBuilder(healthStore: store, configuration: config, device: .local())
+        do {
+            try await builder.beginCollection(at: log.start)
+            if let kcal {
+                let sample = HKQuantitySample(
+                    type: HKQuantityType(.activeEnergyBurned),
+                    quantity: HKQuantity(unit: .kilocalorie(), doubleValue: kcal),
+                    start: log.start, end: log.end)
+                try await builder.addSamples([sample])
+            }
+            var meta: [String: Any] = [
+                HKMetadataKeyIndoorWorkout: log.kind != .outdoor,
+                Self.climbIdKey: log.id.uuidString,
+                "MonkeyWorkoutClimbType": log.kind.rawValue,
+                "MonkeyWorkoutEffort": log.effort,
+            ]
+            if let g = log.topGrade, !g.isEmpty { meta["MonkeyWorkoutTopGrade"] = g }
+            try await builder.addMetadata(meta)
+            try await builder.endCollection(at: log.end)
+            _ = try await builder.finishWorkout()
+            return true
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+    }
+
+    /// Removes the Health workout written for a logged climb, if any.
+    func deleteClimb(_ id: UUID) async {
+        guard connected, available else { return }
+        let pred = HKQuery.predicateForObjects(withMetadataKey: Self.climbIdKey, allowedValues: [id.uuidString])
+        _ = try? await store.deleteObjects(of: HKObjectType.workoutType(), predicate: pred)
+    }
 
     /// Saves the session as an Apple Health workout; returns heart-rate stats measured during it (e.g. by a Watch).
     func save(_ record: WorkoutRecord) async -> (avg: Double?, max: Double?) {

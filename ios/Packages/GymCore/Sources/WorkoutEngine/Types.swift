@@ -181,11 +181,20 @@ public struct Profile: Codable, Hashable, Sendable {
     public var gymWeekdays: [Int]?
     /// Where the user trains; nil = the default scoped gym (older profiles).
     public var gym: GymRef?
+    /// Gym day before / after a climbing day (#47); nil = `.light`. Optional so older profiles decode.
+    public var climbBefore: ClimbNeighbour?
+    public var climbAfter: ClimbNeighbour?
+    /// Gym sessions on climbing days (#47); nil = `.avoid`.
+    public var climbSameDay: ClimbSameDay?
+    /// Offer a short optional add-on workout on climbing days (#47); nil = off.
+    public var climbDayAddon: Bool?
 
     public init(
         goal: Goal = .balanced, sessionsPerWeek: Int = 3, experience: Experience = .intermediate,
         climbingDaysPerWeek: Int = 2, maxSessionMinutes: Int? = nil, equipment: [Equipment] = Gym.puls5.equipment,
-        climbingWeekdays: [Int]? = nil, gymWeekdays: [Int]? = nil, gym: GymRef? = nil
+        climbingWeekdays: [Int]? = nil, gymWeekdays: [Int]? = nil, gym: GymRef? = nil,
+        climbBefore: ClimbNeighbour? = nil, climbAfter: ClimbNeighbour? = nil,
+        climbSameDay: ClimbSameDay? = nil, climbDayAddon: Bool? = nil
     ) {
         self.goal = goal
         self.sessionsPerWeek = sessionsPerWeek
@@ -196,6 +205,10 @@ public struct Profile: Codable, Hashable, Sendable {
         self.climbingWeekdays = climbingWeekdays
         self.gymWeekdays = gymWeekdays
         self.gym = gym
+        self.climbBefore = climbBefore
+        self.climbAfter = climbAfter
+        self.climbSameDay = climbSameDay
+        self.climbDayAddon = climbDayAddon
     }
 }
 
