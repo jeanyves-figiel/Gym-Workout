@@ -74,6 +74,7 @@ struct CalendarView: View {
     @State private var editing: AwayPeriod?
     @State private var editingIsNew = false
     @State private var selected: DaySelection?
+    @State private var findingGym = false
 
     var body: some View {
         let weeks = model.calendarWeeks()
@@ -111,6 +112,13 @@ struct CalendarView: View {
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Calendar")
         .toolbarTitleDisplayMode(.inlineLarge)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { findingGym = true } label: { Image(systemName: "location.magnifyingglass") }
+                    .accessibilityLabel("Find a gym")
+            }
+        }
+        .sheet(isPresented: $findingGym) { GymFinderView() }
         .sheet(item: $editing) { a in
             AwayEditorView(initial: a, isNew: editingIsNew) { saved in
                 if let saved { model.saveAway(saved) } else { model.deleteAway(a.id) }
@@ -448,6 +456,7 @@ struct AwayEditorView: View {
     @State private var query = ""
     @State private var results: [GymRef] = []
     @State private var searching = false
+    @State private var findingGym = false
     @Environment(\.dismiss) private var dismiss
 
     init(initial: AwayPeriod, isNew: Bool, onDone: @escaping (AwayPeriod?) -> Void) {
@@ -520,6 +529,12 @@ struct AwayEditorView: View {
             .navigationTitle(isNew ? "Away" : "Edit away")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .sheet(isPresented: $findingGym) {
+                GymFinderView(place: note) { ref in
+                    draft.gym = ref
+                    draft.setup = .fullGym
+                }
+            }
             .sheet(isPresented: $showEquipment) {
                 EquipmentSheet(equipment: Binding(get: { draft.travelEquipment }, set: { draft.equipment = $0 }))
             }
@@ -598,6 +613,14 @@ struct AwayEditorView: View {
 
     private var gymSearch: some View {
         VStack(alignment: .leading, spacing: 6) {
+            Button { findingGym = true } label: {
+                Label(note.trimmingCharacters(in: .whitespaces).isEmpty ? "Find gyms near me" : "Find gyms near \(note.trimmingCharacters(in: .whitespaces))",
+                      systemImage: "location.magnifyingglass")
+                    .font(Theme.label(14)).foregroundStyle(Theme.ink)
+                    .frame(maxWidth: .infinity).padding(.vertical, 12)
+                    .background(Capsule().fill(Theme.lime))
+            }
+            .buttonStyle(.plain)
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Theme.muted)
                 TextField("Search a gym (name or city)", text: $query)
