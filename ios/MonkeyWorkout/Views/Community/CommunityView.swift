@@ -54,6 +54,7 @@ struct CommunityView: View {
             LazyVStack(spacing: 12) {
                 Picker("Feed", selection: $scope) {
                     Text("Members").tag(CommunityFeedScope.members)
+                    Text("Following").tag(CommunityFeedScope.following)
                     Text("Mine").tag(CommunityFeedScope.mine)
                 }
                 .pickerStyle(.segmented)
@@ -81,18 +82,39 @@ private struct EmptyFeedCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: scope == .mine ? "trophy.fill" : "person.3.fill").font(.system(size: 30, weight: .bold))
-            Text(scope == .mine ? "Your wins live here" : "Nothing shared yet").font(Theme.display(24))
-            Text(scope == .mine
-                 ? "Share a workout, a personal best or a badge. Keep it to yourself or show the members."
-                 : "Be the first: share a workout, a personal best or a badge with the members.")
-                .font(.subheadline.weight(.medium)).opacity(0.9)
+            Image(systemName: symbol).font(.system(size: 30, weight: .bold))
+            Text(title).font(Theme.display(24))
+            Text(message).font(.subheadline.weight(.medium)).opacity(0.9)
             Button("SHARE A WIN", action: share).buttonStyle(LimeButtonStyle()).padding(.top, 4)
         }
         .foregroundStyle(.white)
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(WorkoutEngine.Category.mobility.gradient))
+    }
+
+    private var symbol: String {
+        switch scope {
+        case .members: "person.3.fill"
+        case .following: "person.crop.circle.badge.checkmark"
+        case .mine: "trophy.fill"
+        }
+    }
+
+    private var title: String {
+        switch scope {
+        case .members: "Nothing shared yet"
+        case .following: "Follow members"
+        case .mine: "Your wins live here"
+        }
+    }
+
+    private var message: String {
+        switch scope {
+        case .members: "Be the first: share a workout, a personal best or a badge with the members."
+        case .following: "Tap a member's name, then Follow, to see their wins here."
+        case .mine: "Share a workout, a personal best or a badge. Keep it to yourself or show the members."
+        }
     }
 }
 

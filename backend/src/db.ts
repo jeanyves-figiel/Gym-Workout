@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { ensureCommunitySchema } from './community/schema.ts';
+import { ensurePushSchema } from './push/schema.ts';
 import { ensureSchemaExtras } from './schemaExtras.ts';
 
 export type DB = DatabaseSync;
@@ -78,6 +79,23 @@ const MIGRATIONS: string[] = [
      updated_at TEXT NOT NULL
    );
    CREATE INDEX custom_workouts_user_updated ON custom_workouts(user_id, updated_at);`,
+  `CREATE TABLE pr_attempts (
+     id TEXT PRIMARY KEY,
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     exercise_id TEXT NOT NULL,
+     date TEXT NOT NULL,
+     data TEXT NOT NULL,
+     updated_at TEXT NOT NULL
+   );
+   CREATE INDEX pr_attempts_user_updated ON pr_attempts(user_id, updated_at);`,
+  // User-built exercises (#52): opaque app records incl. optional photo (base64 JPEG) and pose drawing.
+  `CREATE TABLE custom_exercises (
+     id TEXT PRIMARY KEY,
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     data TEXT NOT NULL,
+     updated_at TEXT NOT NULL
+   );
+   CREATE INDEX custom_exercises_user_updated ON custom_exercises(user_id, updated_at);`,
   // Workout library (#62): sharing a custom workout with members (visibility as community posts), moderation, saves.
   `ALTER TABLE custom_workouts ADD COLUMN visibility TEXT NOT NULL DEFAULT 'private';
    ALTER TABLE custom_workouts ADD COLUMN shared_at TEXT;
@@ -94,6 +112,7 @@ export const openDb = (path: string): DB => {
   migrate(db);
   ensureSchemaExtras(db);
   ensureCommunitySchema(db);
+  ensurePushSchema(db);
   return db;
 };
 

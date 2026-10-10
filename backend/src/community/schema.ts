@@ -49,6 +49,13 @@ export const ensureCommunitySchema = (db: DB): void => {
       created_at TEXT NOT NULL,
       PRIMARY KEY (blocker_id, blocked_id)
     );
+    CREATE TABLE IF NOT EXISTS community_follows (
+      follower_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      followed_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (follower_id, followed_id)
+    );
+    CREATE INDEX IF NOT EXISTS community_follows_followed ON community_follows(followed_id);
     CREATE TABLE IF NOT EXISTS community_reports (
       id TEXT PRIMARY KEY,
       reporter_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

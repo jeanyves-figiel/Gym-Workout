@@ -31,11 +31,15 @@ public struct CommunityProfile: Codable, Sendable, Equatable {
     public var autoShare: Bool
     public var sharedPosts: Int
     public var cheersReceived: Int
+    public var followers: Int
+    public var following: Int
 
     public init(
         userId: String, nickname: String, bio: String? = nil, avatarUrl: String? = nil, defaultVisibility: CommunityVisibility = .onlyMe,
-        autoShare: Bool = false, sharedPosts: Int = 0, cheersReceived: Int = 0
+        autoShare: Bool = false, sharedPosts: Int = 0, cheersReceived: Int = 0, followers: Int = 0, following: Int = 0
     ) {
+        self.followers = followers
+        self.following = following
         self.userId = userId
         self.nickname = nickname
         self.bio = bio
@@ -54,8 +58,14 @@ public struct CommunityMember: Codable, Sendable, Equatable {
     public var avatarUrl: String?
     public var sharedPosts: Int
     public var cheersReceived: Int
+    public var followers: Int
+    public var following: Int
 
-    public init(userId: String, nickname: String, bio: String?, avatarUrl: String?, sharedPosts: Int, cheersReceived: Int) {
+    public init(
+        userId: String, nickname: String, bio: String?, avatarUrl: String?, sharedPosts: Int, cheersReceived: Int, followers: Int = 0, following: Int = 0
+    ) {
+        self.followers = followers
+        self.following = following
         self.userId = userId
         self.nickname = nickname
         self.bio = bio
@@ -163,11 +173,13 @@ public struct CommunityMemberPage: Decodable, Sendable {
     public var member: CommunityMember
     public var posts: [CommunityPost]
     public var blockedByMe: Bool
+    public var followedByMe: Bool
 
-    public init(member: CommunityMember, posts: [CommunityPost], blockedByMe: Bool) {
+    public init(member: CommunityMember, posts: [CommunityPost], blockedByMe: Bool, followedByMe: Bool = false) {
         self.member = member
         self.posts = posts
         self.blockedByMe = blockedByMe
+        self.followedByMe = followedByMe
     }
 }
 
@@ -178,7 +190,7 @@ public struct BlockedMember: Decodable, Sendable, Identifiable, Equatable {
     public var id: String { userId }
 }
 
-public enum CommunityFeedScope: String, Sendable { case members, mine }
+public enum CommunityFeedScope: String, Sendable, CaseIterable { case members, following, mine }
 
 extension APIClient {
     struct CommunityProfileResponse: Decodable { var profile: CommunityProfile? }
@@ -286,6 +298,14 @@ extension APIClient {
 
     public func unblock(_ userId: String) async throws {
         _ = try await authorizedRaw("DELETE", "/v1/community/blocks/\(userId)", Empty?.none)
+    }
+
+    public func follow(_ userId: String) async throws {
+        _ = try await authorizedRaw("PUT", "/v1/community/follows/\(userId)", Empty?.none)
+    }
+
+    public func unfollow(_ userId: String) async throws {
+        _ = try await authorizedRaw("DELETE", "/v1/community/follows/\(userId)", Empty?.none)
     }
 
     public func blockedMembers() async throws -> [BlockedMember] {

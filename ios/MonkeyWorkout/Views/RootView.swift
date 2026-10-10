@@ -55,6 +55,7 @@ struct MainTabView: View {
         .toolbarBackground(Theme.bg, for: .tabBar)
         // Community profile early so auto-share works for the first workout of the session.
         .task(id: model.user?.id) { await Community.shared.load(api: model.api, userId: model.user?.id) }
+        .modifier(NotificationsHost())
     }
 }
 
@@ -91,17 +92,29 @@ private struct DemoScreen: View {
         case "climb": LogClimbView(initial: ClimbLog(start: Date().addingTimeInterval(-90 * 60), effort: 8, topGrade: "6C"))
         case "muscle": NavigationStack { MuscleDetailView(muscle: .lats) }
         case "exercise": NavigationStack { ExerciseDetailView(exerciseId: "pull-up") }
+        case "pr": NavigationStack { ScrollView { PRCard(exerciseId: "bench-press").padding(16) }.background(Theme.bg.ignoresSafeArea()) }
+        case "pr-attempt": PRAttemptView(exerciseId: "bench-press")
+        case "pr-result": PRAttemptView(exerciseId: "bench-press", showing: Demo.prResult)
         case "technique": FormSheet(exercise: Exercise.get("leg-press"))
-        case "progress": NavigationStack { ProgressTabView() }
+        case "progress", "progress-empty": NavigationStack { ProgressTabView() }
         case "history": NavigationStack { HistoryDetailView(recordId: model.history.first?.id ?? UUID()) }
         case "body": NavigationStack { BodyHealthView() }
+        case "account": NavigationStack { AccountView() }
+        case "account-password": NavigationStack { ChangePasswordView(hasPassword: true) }
+        case "account-email": NavigationStack { ChangeEmailView(currentEmail: Demo.user?.email, hasPassword: true) }
         case "community", "community-join": NavigationStack { CommunityView() }
         case "community-share": ShareWinView()
         case "community-profile": NavigationStack { CommunityProfileView() }
-        case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", "breathing"]) { _ in }
+        case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", Demo.customExercise.exerciseId]) { _ in }
+        case "builder": CustomExerciseBuilderView(existing: Demo.customExercise)
         case "onboarding", "onboarding-climbing":
             NavigationStack {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
+                    .navigationTitle("Your training")
+            }
+        case "variety":
+            NavigationStack {
+                ProfileFormView(initial: nil, scrollTo: "variety") { _ in }
                     .navigationTitle("Your training")
             }
         case "readiness":
@@ -109,6 +122,12 @@ private struct DemoScreen: View {
         case "cycle": WeekPhaseSheet(week: 1)
         case "library": NavigationStack { WorkoutLibraryView().navigationDestination(for: String.self) { SessionView(sessionId: $0) } }
         case "library-plan": AddToPlanSheet(workout: model.libraryWorkout(for: WorkoutTemplate.all[0].session) ?? Demo.customWorkouts[0])
+        case "calendar": NavigationStack { CalendarView() }
+        case "gyms": GymFinderView(place: "Zürich")
+        case "away": AwayEditorView(initial: AwayPeriod(kind: .travel, start: Demo.away()[1].start, end: Demo.away()[1].end, note: "Berlin", setup: .hotelGym), isNew: true) { _ in }
+        case "notifications": NavigationStack { NotificationSettingsView() }
+        case "reschedule":
+            MissedSessionSheet(sessionId: second, day: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
         default: MainTabView()
         }
     }

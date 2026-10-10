@@ -45,6 +45,8 @@ Each: region `fra`, 1 machine + 1 GB volume (`/data`, SQLite), `/healthz` check.
 4. Actions → **Fly setup** → Run for `staging`, then `production`. Creates app, volume, secrets (`JWT_SECRET`, `CODE_PEPPER` random; SES keys, `SMTP_URL` or `MAIL_TRANSPORT=console`), TLS cert. Idempotent; re-run after adding `SMTP_URL`.
 5. Re-run latest **Deploy staging**. Prod: **Promote to production** when staging is validated.
 
+Remote push (#69): Apple Developer → Keys → new key with **Apple Push Notifications service (APNs)** → repo secrets `APNS_KEY_ID` (10 chars) and `APNS_PRIVATE_KEY` (.p8 contents), then re-run **Fly setup** per environment. Team id from `APPLE_TEAM_ID`. Without them pushes are skipped (logged once). Quiet hours: pushes still arrive, as passive (silent) notifications. Followers come from `app.push.setFollowersProvider` (Community follow model).
+
 App name taken → change it in the `fly.*.toml`, `deploy-staging.yml` / `promote.yml` and `fly-setup.yml`.
 Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode: email codes appear in the app's logs (Fly dashboard → Monitoring).
 
@@ -81,16 +83,24 @@ Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode
 | POST | `/library/shared/:id/report` | ✓ | `{reason, details?}`; auto-hides after 3 distinct reporters |
 | GET / PUT / DELETE | `/community/me` | ✓ | community profile (`nickname`, `bio`, `defaultVisibility` private\|members\|public, `autoShare`; joining needs `acceptGuidelines: true`); DELETE = leave (profile, photo, posts, cheers) |
 | PUT / DELETE | `/community/me/avatar` | ✓ | raw `image/jpeg` ≤512 KB, 64–1024 px; APPn/comment segments (EXIF, GPS, XMP) stripped |
-| GET | `/community/feed?scope=members\|mine&before=ISO&limit=` | ✓ | newest first, `nextBefore` cursor; blocks applied both ways |
+| GET | `/community/feed?scope=members\|following\|mine&before=ISO&limit=` | ✓ | newest first, `nextBefore` cursor; blocks applied both ways |
 | POST | `/community/posts` | ✓ | share a win (`kind` workout\|badge\|record\|climb\|note, `refId` dedupes, `payload` card, `caption`, `visibility`) |
 | PATCH / DELETE | `/community/posts/:id` | ✓ | own posts: visibility / caption |
 | PUT / DELETE | `/community/posts/:id/reactions/:kind` | ✓ | like\|strong\|fire\|clap, not on own posts |
 | GET | `/community/members/:userId` | ✓ | member profile + visible posts |
 | POST | `/community/reports` | ✓ | `postId` or `userId`, `reason`; post hidden after 3 distinct reporters; mailed to `MODERATION_EMAIL` |
-| GET / POST / DELETE | `/community/blocks[/:userId]` | ✓ | block list |
+| GET / POST / DELETE | `/community/blocks[/:userId]` | ✓ | block list (blocking also removes follows both ways) |
+| GET / PUT / DELETE | `/community/follows[/:userId]` | ✓ | members you follow |
 | GET | `/community/avatars/:id` | – | avatar JPEG (unguessable id, immutable cache) |
 | GET | `/share/:postId` | – | public web card for `public` posts |
+| GET / POST | `/me/pr-attempts` | ✓ | personal-record attempts (JSON with `id`, `exerciseId`, `date`, `kind` 1RM/repMax/maxReps, `kg`, `reps`, `success`, optional `isRecord`); `?since=ISO` delta; upsert ≤200 |
+| DELETE | `/me/pr-attempts/:id` | ✓ | |
 | GET | `/me/export` | ✓ | full JSON export (nFADP/GDPR) |
+| PUT | `/me/push-device` | ✓ | `{token (hex), env: sandbox\|production, topic (bundle id), tz?}`; a token moves to the last account that registers it |
+| DELETE | `/me/push-device/:token` | ✓ | 204 (sign-out) |
+| GET / PUT | `/me/notification-prefs` | ✓ | `{prefs}`: toggles, reminder/check-in times, quiet hours (minutes after midnight) |
+| POST | `/me/achievements` | ✓ | `{achievements: [{id, type, text}]}` ≤30 → pushes each new id once to followers → `{announced}` |
+| POST | `/me/push-test` | ✓ | test push to own devices → `{devices, sent, pushConfigured}` |
 | GET | `/healthz` | – | |
 
 Errors: `{error: <code>, message}`. Password endpoints (register, reset, change) may return 400 `weak_password` or `breached_password`.

@@ -157,11 +157,14 @@ public struct Exercise: Identifiable, Hashable, Sendable {
 
     private static let byId: [String: Exercise] = Dictionary(uniqueKeysWithValues: catalog.map { ($0.id, $0) })
 
-    public static func find(_ id: String) -> Exercise? { byId[id] }
+    /// Catalog exercise, or one of the user's custom exercises (`CustomExercises.shared`).
+    public static func find(_ id: String) -> Exercise? { find(id, custom: .shared) }
 
-    /// Crashes on unknown ids — ids come from the catalog itself.
+    public static func find(_ id: String, custom: CustomExercises) -> Exercise? { byId[id] ?? custom.exercise(id) }
+
+    /// Crashes on unknown ids — ids come from the catalog or the user's custom exercises.
     public static func get(_ id: String) -> Exercise {
-        guard let e = byId[id] else { preconditionFailure("Unknown exercise \(id)") }
+        guard let e = find(id) else { preconditionFailure("Unknown exercise \(id)") }
         return e
     }
 }
@@ -188,13 +191,20 @@ public struct Profile: Codable, Hashable, Sendable {
     public var climbSameDay: ClimbSameDay?
     /// Offer a short optional add-on workout on climbing days (#47); nil = off.
     public var climbDayAddon: Bool?
+    /// Week-to-week variety (#64); nil = `.fresh`. Optional so older profiles decode.
+    public var variety: PlanVariety?
+    /// Rest between sets (#78); nil = the goal's default.
+    public var restStyle: RestStyle?
+    /// Supersets / circuits (#78); nil = the goal's default.
+    public var grouping: Grouping?
 
     public init(
         goal: Goal = .balanced, sessionsPerWeek: Int = 3, experience: Experience = .intermediate,
         climbingDaysPerWeek: Int = 2, maxSessionMinutes: Int? = nil, equipment: [Equipment] = Gym.puls5.equipment,
         climbingWeekdays: [Int]? = nil, gymWeekdays: [Int]? = nil, gym: GymRef? = nil,
         climbBefore: ClimbNeighbour? = nil, climbAfter: ClimbNeighbour? = nil,
-        climbSameDay: ClimbSameDay? = nil, climbDayAddon: Bool? = nil
+        climbSameDay: ClimbSameDay? = nil, climbDayAddon: Bool? = nil, variety: PlanVariety? = nil,
+        restStyle: RestStyle? = nil, grouping: Grouping? = nil
     ) {
         self.goal = goal
         self.sessionsPerWeek = sessionsPerWeek
@@ -209,6 +219,9 @@ public struct Profile: Codable, Hashable, Sendable {
         self.climbAfter = climbAfter
         self.climbSameDay = climbSameDay
         self.climbDayAddon = climbDayAddon
+        self.variety = variety
+        self.restStyle = restStyle
+        self.grouping = grouping
     }
 }
 
@@ -241,6 +254,8 @@ public struct PlannedExercise: Codable, Hashable, Sendable, Identifiable {
     public var pairedWith: String?
     /// uid of the exercise in whose rest this one is performed.
     public var supersetWith: String?
+    /// Superset / circuit label (#78), e.g. "A1", "A2": same letter = done back to back, rest after the round.
+    public var group: String? = nil
     public var estSec: Int
     public var id: String { uid }
 }

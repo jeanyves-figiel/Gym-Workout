@@ -256,15 +256,21 @@ extension Session {
 extension Exercise {
     private static let byName: [Exercise] = catalog.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
 
-    /// Catalog filtered for the workout builder: every word of `query` must appear in the name,
-    /// a muscle or equipment label; optional category and muscle (primary or secondary) filters.
-    public static func search(_ query: String = "", category: Category? = nil, muscle: Muscle? = nil) -> [Exercise] {
+    /// Catalog plus the user's custom exercises, filtered for the workout builder: every word of `query`
+    /// must appear in the name, machine, a muscle or equipment label; optional category and muscle
+    /// (primary or secondary) filters.
+    public static func search(
+        _ query: String = "", category: Category? = nil, muscle: Muscle? = nil, custom registry: CustomExercises = .shared
+    ) -> [Exercise] {
         let words = query.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
-        return byName.filter { e in
+        let custom = registry.active
+        let all = custom.isEmpty ? byName : (byName + custom).sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        return all.filter { e in
             if let category, e.category != category { return false }
             if let muscle, !e.muscles.contains(muscle) { return false }
             guard !words.isEmpty else { return true }
-            let haystack = ([e.name, e.id] + e.muscles.map(\.name) + e.equipment.map(\.label)).joined(separator: " ")
+            let machine = registry.record(e.id)?.machine ?? ""
+            let haystack = ([e.name, e.id, machine] + e.muscles.map(\.name) + e.equipment.map(\.label)).joined(separator: " ")
             return words.allSatisfy { haystack.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
         }
     }

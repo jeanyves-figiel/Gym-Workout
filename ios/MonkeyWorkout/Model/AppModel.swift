@@ -9,7 +9,14 @@ final class AppModel {
 
     var phase: Phase = .launching
     var user: User?
-    var state = LocalState()
+    var state = LocalState() {
+        didSet {
+            // Custom exercises resolve through `Exercise.find` everywhere (picker, sessions, history).
+            if state.customExerciseList != oldValue.customExerciseList {
+                CustomExercises.shared.replaceAll(state.customExerciseList ?? [])
+            }
+        }
+    }
     var syncError: String?
     /// Workouts other members shared (#62), loaded on demand; not persisted.
     var sharedLibrary: [SharedWorkout] = []
@@ -51,9 +58,20 @@ final class AppModel {
             state.climbs = Demo.climbs()
             state.customWorkoutList = Demo.customWorkouts
             sharedLibrary = Demo.sharedWorkouts
+            state.prAttempts = Demo.prAttempts()
             MonkeyGradeLink.shared.loadDemo(ownerId: Demo.user?.id ?? "demo")
             state.synced?.profile.climbDayAddon = true
             Community.shared.loadDemo(joined: Demo.screen != "community-join")
+            state.customExerciseList = [Demo.customExercise]
+            state.synced?.away = Demo.away()
+            replanCurrentWeek()
+            if Demo.screen == "progress-empty" {
+                // New user: no sessions, PRs or logged climbs yet.
+                state.history = []
+                state.logs = []
+                state.climbs = []
+                state.prAttempts = []
+            }
             phase = Demo.screen == "welcome" ? .signedOut : .signedIn
             return
         }
@@ -91,17 +109,20 @@ final class AppModel {
 
     /// Explicit sign-out: revoke this device and wipe local data.
     func signOut() async {
+        await NotificationManager.shared.signOut(api: api)
         await api.logout()
         resetLocal()
     }
 
     func signOutEverywhere() async throws {
+        await NotificationManager.shared.signOut(api: api)
         try await api.logoutAllDevices()
         resetLocal()
     }
 
     func deleteAccount(password: String?) async throws {
         try await api.deleteAccount(password: password)
+        await NotificationManager.shared.signOut(api: api)
         resetLocal()
     }
 
@@ -128,9 +149,10 @@ final class AppModel {
         let s = seed ?? UInt32.random(in: 0...UInt32.max)
         let changed = state.synced?.week != week || state.synced?.seed != s || state.synced?.profile != profile
         // Plan inserts belong to one week: kept for a new variation or profile edit, dropped on a week change.
-        state.synced = SyncedProfile(profile: profile, seed: s, week: week, body: state.synced?.body,
+        state.synced = SyncedProfile(profile: profile, seed: s, week: week, body: state.synced?.body, away: state.synced?.away,
                                      planInserts: state.synced?.planInserts?.filter { $0.week == week })
         state.plan = Generator.generateWeek(profile, week: week, seed: s)
+        replanCurrentWeek()
         if changed {
             state.done = [:]
             state.ticked = [:]
@@ -314,6 +336,7 @@ final class AppModel {
         if state.synced == nil || !state.profileDirty {
             state.synced = remote
             state.plan = Generator.generateWeek(remote.profile, week: remote.week, seed: remote.seed)
+            replanCurrentWeek()
             state.profileDirty = false
             persist()
         }
@@ -360,7 +383,9 @@ final class AppModel {
             for l in remote where !state.pendingLogIds.contains(l.id) { byId[l.id] = l }
             state.logs = byId.values.sorted { $0.date < $1.date }
             state.lastLogPull = Date()
+            try await syncCustomExercises()
             try await syncCustomWorkouts()
+            try await syncPRAttempts()
             syncError = nil
             persist()
         } catch APIError.signedOut {

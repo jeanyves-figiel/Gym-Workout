@@ -75,6 +75,7 @@ export const communityExport = (db: DB, userId: string) => ({
   ),
   reactionsGiven: db.prepare('SELECT post_id, kind, created_at FROM community_reactions WHERE user_id = ?').all(userId),
   blocked: db.prepare('SELECT blocked_id, created_at FROM community_blocks WHERE blocker_id = ?').all(userId),
+  following: db.prepare('SELECT followed_id, created_at FROM community_follows WHERE follower_id = ?').all(userId),
 });
 
 export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mailer: Mailer, moderationEmail?: string) => {
@@ -97,10 +98,12 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       .prepare(
         `SELECT
            (SELECT COUNT(*) FROM community_posts WHERE user_id = ? AND hidden_at IS NULL AND visibility != 'private') AS shared,
-           (SELECT COUNT(*) FROM community_reactions cr JOIN community_posts p ON p.id = cr.post_id WHERE p.user_id = ?) AS cheers`,
+           (SELECT COUNT(*) FROM community_reactions cr JOIN community_posts p ON p.id = cr.post_id WHERE p.user_id = ?) AS cheers,
+           (SELECT COUNT(*) FROM community_follows WHERE followed_id = ?) AS followers,
+           (SELECT COUNT(*) FROM community_follows WHERE follower_id = ?) AS following`,
       )
-      .get(userId, userId) as { shared: number; cheers: number };
-    return { sharedPosts: s.shared, cheersReceived: s.cheers };
+      .get(userId, userId, userId, userId) as { shared: number; cheers: number; followers: number; following: number };
+    return { sharedPosts: s.shared, cheersReceived: s.cheers, followers: s.followers, following: s.following };
   };
 
   const ownProfile = (p: ProfileRow) => ({
@@ -210,6 +213,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     tx(db, () => {
       db.prepare('DELETE FROM community_posts WHERE user_id = ?').run(req.userId!);
       db.prepare('DELETE FROM community_reactions WHERE user_id = ?').run(req.userId!);
+      db.prepare('DELETE FROM community_follows WHERE follower_id = ? OR followed_id = ?').run(req.userId!, req.userId!);
       db.prepare('DELETE FROM community_avatars WHERE user_id = ?').run(req.userId!);
       db.prepare('DELETE FROM community_profiles WHERE user_id = ?').run(req.userId!);
     });
@@ -243,7 +247,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
   r.get('/community/feed', async (req) => {
     const q = z
       .object({
-        scope: z.enum(['members', 'mine']).default('members'),
+        scope: z.enum(['members', 'mine', 'following']).default('members'),
         before: z.iso.datetime({ offset: true }).optional(),
         limit: z.coerce.number().int().min(1).max(50).default(20),
       })
@@ -254,7 +258,14 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     const rows = (
       q.scope === 'mine'
         ? db.prepare(`${SELECT_POSTS} WHERE p.user_id = ? AND p.created_at < ? ORDER BY p.created_at DESC LIMIT ?`).all(viewer, before, q.limit)
-        : db
+        : q.scope === 'following'
+          ? db
+              .prepare(
+                `${SELECT_POSTS} WHERE p.user_id IN (SELECT followed_id FROM community_follows WHERE follower_id = ?) AND ${VISIBLE_TO_OTHERS}
+                 AND p.created_at < ? ORDER BY p.created_at DESC LIMIT ?`,
+              )
+              .all(viewer, viewer, viewer, before, q.limit)
+          : db
             .prepare(`${SELECT_POSTS} WHERE (p.user_id = ? AND p.visibility != 'private' OR (${VISIBLE_TO_OTHERS})) AND p.created_at < ? ORDER BY p.created_at DESC LIMIT ?`)
             .all(viewer, viewer, viewer, before, q.limit)
     ) as unknown as PostRow[];
@@ -347,7 +358,38 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
         : db.prepare(`${SELECT_POSTS} WHERE p.user_id = ? AND ${VISIBLE_TO_OTHERS} ORDER BY p.created_at DESC LIMIT 30`).all(userId, viewer, viewer)
     ) as unknown as PostRow[];
     const blocked = !!db.prepare('SELECT 1 FROM community_blocks WHERE blocker_id = ? AND blocked_id = ?').get(viewer, userId);
-    return { member: memberProfile(p), posts: toPosts(rows, viewer), blockedByMe: blocked };
+    const following = !!db.prepare('SELECT 1 FROM community_follows WHERE follower_id = ? AND followed_id = ?').get(viewer, userId);
+    return { member: memberProfile(p), posts: toPosts(rows, viewer), blockedByMe: blocked, followedByMe: following };
+  });
+
+  // ───────────── follows
+
+  r.get('/community/follows', async (req) => ({
+    following: db
+      .prepare(
+        `SELECT f.followed_id AS userId, cp.nickname, cp.avatar_id FROM community_follows f
+         JOIN community_profiles cp ON cp.user_id = f.followed_id WHERE f.follower_id = ? ORDER BY cp.nickname`,
+      )
+      .all(req.userId!)
+      .map((x) => {
+        const r = x as { userId: string; nickname: string; avatar_id: string | null };
+        return { userId: r.userId, nickname: r.nickname, avatarUrl: avatarUrl(r.avatar_id) };
+      }),
+  }));
+
+  r.put('/community/follows/:userId', async (req, reply) => {
+    const { userId } = z.object({ userId: z.string().min(1).max(64) }).parse(req.params);
+    requireProfile(req.userId!);
+    if (userId === req.userId) throw new ApiError(400, 'own_content', 'You cannot follow yourself.');
+    if (!profileRow(userId) || blockedBetween(req.userId!, userId)) throw new ApiError(404, 'not_found', 'Member not found.');
+    db.prepare('INSERT OR IGNORE INTO community_follows (follower_id, followed_id, created_at) VALUES (?, ?, ?)').run(req.userId!, userId, now().toISOString());
+    return reply.status(204).send();
+  });
+
+  r.delete('/community/follows/:userId', async (req, reply) => {
+    const { userId } = z.object({ userId: z.string().min(1).max(64) }).parse(req.params);
+    db.prepare('DELETE FROM community_follows WHERE follower_id = ? AND followed_id = ?').run(req.userId!, userId);
+    return reply.status(204).send();
   });
 
   // ───────────── moderation: report & block
@@ -400,7 +442,12 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     const b = z.object({ userId: z.string().min(1).max(64) }).parse(req.body);
     if (b.userId === req.userId) throw new ApiError(400, 'own_content', 'You cannot block yourself.');
     if (!db.prepare('SELECT 1 FROM users WHERE id = ?').get(b.userId)) throw new ApiError(404, 'not_found', 'Member not found.');
-    db.prepare('INSERT OR IGNORE INTO community_blocks (blocker_id, blocked_id, created_at) VALUES (?, ?, ?)').run(req.userId!, b.userId, now().toISOString());
+    tx(db, () => {
+      db.prepare('INSERT OR IGNORE INTO community_blocks (blocker_id, blocked_id, created_at) VALUES (?, ?, ?)').run(req.userId!, b.userId, now().toISOString());
+      db.prepare('DELETE FROM community_follows WHERE (follower_id = ? AND followed_id = ?) OR (follower_id = ? AND followed_id = ?)').run(
+        req.userId!, b.userId, b.userId, req.userId!,
+      );
+    });
     return reply.status(204).send();
   });
 

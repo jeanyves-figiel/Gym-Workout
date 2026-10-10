@@ -9,6 +9,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var week: Int
     /// Entered in-app (used when Apple Health lacks them).
     var body: BodyMetrics?
+    /// "Can't train" dates and travel periods (#68). Optional so older profiles still decode.
+    var away: [AwayPeriod]?
     /// Library workouts placed into the plan (#62): replaced or extra sessions of the current week.
     var planInserts: [PlanInsert]?
 }
@@ -32,6 +34,13 @@ struct LocalState: Codable {
     var deletedCustomWorkoutIds: Set<UUID>?
     // Logged climbs (#44). Optional so older state files still decode.
     var climbs: [ClimbLog]?
+    // Custom exercises (#52). Archived, never deleted.
+    var customExerciseList: [CustomExercise]?
+    var pendingCustomExerciseIds: Set<UUID>?
+    // PR attempts (#60). Optional so older state files still decode.
+    var prAttempts: [PRAttempt]?
+    var pendingPRAttemptIds: Set<UUID>?
+    var deletedPRAttemptIds: Set<UUID>?
 }
 
 /// JSON file in Application Support, encrypted at rest by iOS data protection.
@@ -78,5 +87,10 @@ extension LocalState {
         pendingCustomWorkoutIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingCustomWorkoutIds)
         deletedCustomWorkoutIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedCustomWorkoutIds)
         climbs = try? c.decodeIfPresent([ClimbLog].self, forKey: .climbs)
+        customExerciseList = try? c.decodeIfPresent([CustomExercise].self, forKey: .customExerciseList)
+        pendingCustomExerciseIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingCustomExerciseIds)
+        prAttempts = try? c.decodeIfPresent([PRAttempt].self, forKey: .prAttempts)
+        pendingPRAttemptIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingPRAttemptIds)
+        deletedPRAttemptIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedPRAttemptIds)
     }
 }

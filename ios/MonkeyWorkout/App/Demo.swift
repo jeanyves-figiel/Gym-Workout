@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|onboarding|onboarding-climbing|session|player|explore|muscle|exercise|technique|progress|history|body|readiness|cycle|picker|library|library-plan|welcome|community|community-join|community-share|community-profile]`
+/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|readiness|cycle|picker|library|library-plan|builder|calendar|away|gyms|variety|welcome|community|community-join|community-share|community-profile]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("-demo") }
@@ -44,6 +44,17 @@ enum Demo {
                     .init(exerciseId: "face-pull", sets: 3, reps: 12, restSec: 60), .init(exerciseId: "hammer-curl", sets: 3, reps: 10, restSec: 60)],
             saves: 8, author: .init(userId: "u-marco", nickname: "marco")),
     ]
+
+    /// A user-built machine exercise with a pose drawing (#52).
+    static let customExercise: CustomExercise = {
+        var pose = ExerciseDrawing(template: .seated)
+        pose.frames[1] = FigurePose(legN: (-25, 70), legF: (0, 90), armN: (60, 0), armF: (65, 0))
+        pose.props = [DrawingProp(.seat), DrawingProp(.machine, dx: -20), DrawingProp(.pad, anchor: .kneeN)]
+        return CustomExercise(
+            id: UUID(uuidString: "6F0C2B1E-5A47-4E4B-9C3A-2B7D7F1A9E10")!, name: "Hip abductor machine",
+            createdAt: Date(timeIntervalSince1970: 1_791_000_000), category: .strength, primary: [.glutes],
+            secondary: [.adductors], machine: "Technogym Selection 700", cues: ["Slow return, 2 s"], drawing: pose)
+    }()
 
     static let profile = Profile(goal: .balanced, sessionsPerWeek: 4, experience: .intermediate, climbingDaysPerWeek: 2)
 
@@ -113,6 +124,17 @@ enum Demo {
         return (records, logs)
     }
 
+    /// Away periods (#68): two busy days later this week and a hotel-gym trip next week.
+    static func away() -> [AwayPeriod] {
+        let cal = Progression.calendar()
+        let monday = Progression.weekStart(Date(), cal)
+        func key(_ days: Int) -> String { PlanCalendar.key(cal.date(byAdding: .day, value: days, to: monday)!, cal) }
+        return [
+            AwayPeriod(kind: .off, start: key(3), end: key(4), note: "Conference"),
+            AwayPeriod(kind: .travel, start: key(7), end: key(10), note: "Berlin", setup: .hotelGym),
+        ]
+    }
+
     /// Climbs logged in the app: a hard boulder session yesterday and a lead session last week.
     static func climbs() -> [ClimbLog] {
         let day: Double = 86_400
@@ -121,5 +143,26 @@ enum Demo {
             ClimbLog(kind: .lead, start: Date().addingTimeInterval(-6 * day), minutes: 120, effort: 6, topGrade: "6b"),
         ]
     }
+
+    /// Bench press PR attempts: a missed single, a 5RM, a 90 kg single and today's 92.5 kg record.
+    static func prAttempts() -> [PRAttempt] {
+        let day: Double = 86_400
+        func single(_ kg: Double, made: Bool, prev: Double?, ago: Double) -> PRAttempt {
+            PRPlanner.finish(exerciseId: "bench-press", kind: .oneRepMax, targetReps: 1, sets: [PRSet(kg: kg, reps: 1, made: made)],
+                             previousBest: prev, date: Date().addingTimeInterval(-ago * day))
+        }
+        return [
+            single(87.5, made: false, prev: nil, ago: 69),
+            PRPlanner.finish(exerciseId: "bench-press", kind: .repMax, targetReps: 5, sets: [PRSet(kg: 80, reps: 5)],
+                             previousBest: 77.5, date: Date().addingTimeInterval(-51 * day)),
+            single(90, made: true, prev: 85, ago: 28),
+            prResult,
+        ]
+    }
+
+    static let prResult: PRAttempt = PRPlanner.finish(
+        exerciseId: "bench-press", kind: .oneRepMax, targetReps: 1,
+        sets: [PRSet(kg: 40, reps: 8, warmup: true), PRSet(kg: 92.5, reps: 1), PRSet(kg: 95, reps: 1, made: false)],
+        previousBest: 90, date: Date().addingTimeInterval(-600))
 }
 #endif

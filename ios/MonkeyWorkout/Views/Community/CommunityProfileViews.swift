@@ -260,9 +260,9 @@ struct CommunityProfileView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     ProfileHero(avatar: model.api.resolve(p.avatarUrl), nickname: p.nickname, bio: p.bio)
                     HStack(spacing: 10) {
-                        StatTile(value: "\(community.mine.count)", label: "Wins logged")
                         StatTile(value: "\(p.sharedPosts)", label: "Shared")
                         StatTile(value: "\(p.cheersReceived)", label: "Cheers")
+                        StatTile(value: "\(p.followers)", label: "Followers")
                     }
                     Text("Profile").eyebrow()
                     NavigationLink { editView(p) } label: {
@@ -387,6 +387,7 @@ struct MemberView: View {
     @State private var error: String?
     @State private var reporting = false
     @State private var confirmBlock = false
+    @State private var following = false
 
     private var isMe: Bool { author.userId == (Community.shared.profile?.userId ?? model.user?.id) }
 
@@ -399,6 +400,14 @@ struct MemberView: View {
                     HStack(spacing: 10) {
                         StatTile(value: "\(m.sharedPosts)", label: "Shared")
                         StatTile(value: "\(m.cheersReceived)", label: "Cheers")
+                        StatTile(value: "\(m.followers)", label: "Followers")
+                    }
+                    if !isMe, page?.blockedByMe == false {
+                        let on = page?.followedByMe == true
+                        Button(on ? "FOLLOWING ✓" : "FOLLOW") { toggleFollow(on) }
+                            .buttonStyle(LimeButtonStyle())
+                            .opacity(on ? 0.7 : 1)
+                            .disabled(following)
                     }
                 }
                 ErrorText(message: error)
@@ -454,6 +463,31 @@ struct MemberView: View {
         }
         #endif
         do { page = try await model.api.communityMember(author.userId) } catch { self.error = error.localizedDescription }
+    }
+
+    private func toggleFollow(_ on: Bool) {
+        following = true
+        Task {
+            defer { following = false }
+            do {
+                #if DEBUG
+                if model.demo {
+                    page?.followedByMe = !on
+                    return
+                }
+                #endif
+                if on {
+                    try await model.api.unfollow(author.userId)
+                    Community.shared.unfollowed(author.userId)
+                } else {
+                    try await model.api.follow(author.userId)
+                    Community.shared.followed()
+                }
+                page?.followedByMe = !on
+                page?.member.followers += on ? -1 : 1
+                if !on { await Community.shared.refresh(api: model.api) }
+            } catch { self.error = error.localizedDescription }
+        }
     }
 
     private func block() {

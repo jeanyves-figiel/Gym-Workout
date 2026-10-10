@@ -35,6 +35,21 @@ export const visibleToOthersSql = (ownerCol: string, visibilityCol: string, hidd
   `${hiddenCol} IS NULL AND ${visibilityCol} IN ('members', 'public')
    AND NOT EXISTS (SELECT 1 FROM community_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = ${ownerCol}) OR (b.blocker_id = ${ownerCol} AND b.blocked_id = ?))`;
 
+/**
+ * Members following `userId` who may be told about their shared wins: still in the community and
+ * no block either way. For push fan-out (notifications).
+ */
+export const followerIds = (db: DB, userId: string): string[] =>
+  (
+    db
+      .prepare(
+        `SELECT f.follower_id AS id FROM community_follows f JOIN community_profiles cp ON cp.user_id = f.follower_id
+         WHERE f.followed_id = ? AND NOT EXISTS (SELECT 1 FROM community_blocks b
+           WHERE (b.blocker_id = f.follower_id AND b.blocked_id = ?) OR (b.blocker_id = ? AND b.blocked_id = f.follower_id))`,
+      )
+      .all(userId, userId, userId) as { id: string }[]
+  ).map((r) => r.id);
+
 /** Member created a community profile, which requires accepting the community guidelines. */
 export const hasAcceptedGuidelines = (db: DB, userId: string) =>
   !!db.prepare('SELECT 1 FROM community_profiles WHERE user_id = ?').get(userId);

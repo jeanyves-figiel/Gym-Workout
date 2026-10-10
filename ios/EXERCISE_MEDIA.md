@@ -8,7 +8,7 @@ attribution required; the app still credits it). Illustrations are drawn by the 
 No video: no free-to-use (public domain / CC0 / CC-BY) video set covers this catalog consistently,
 so every exercise animates its two frames (start, end) instead.
 
-Photos: 114 · Illustrations: 49 · Total: 163
+Photos: 133 · Illustrations: 62 · Total: 195
 
 | Id | Exercise | Media | Source | License |
 |---|---|---|---|---|
@@ -163,6 +163,20 @@ Photos: 114 · Illustrations: 49 · Total: 163
 | `upper-trap` | Neck & upper-trap stretch | Photo (2 frames) | [free-exercise-db `Side_Neck_Stretch`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Side_Neck_Stretch) | Public domain (Unlicense) |
 | `side-delt-stretch` | Behind-back side delt stretch | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `breathing` | 90/90 breathing (down-regulate) | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `smith-squat` | Smith machine squat | Photo (2 frames) | [free-exercise-db `Smith_Machine_Squat`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Smith_Machine_Squat) | Public domain (Unlicense) |
+| `good-morning` | Barbell good morning | Photo (2 frames) | [free-exercise-db `Good_Morning`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Good_Morning) | Public domain (Unlicense) |
+| `reverse-nordic` | Reverse nordic | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `trx-hamstring-curl` | TRX hamstring curl | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `leg-press-calf-raise` | Leg press calf raise | Photo (2 frames) | [free-exercise-db `Calf_Press_On_The_Leg_Press_Machine`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Calf_Press_On_The_Leg_Press_Machine) | Public domain (Unlicense) |
+| `incline-bench-press` | Incline barbell bench press | Photo (2 frames) | [free-exercise-db `Barbell_Incline_Bench_Press_-_Medium_Grip`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Barbell_Incline_Bench_Press_-_Medium_Grip) | Public domain (Unlicense) |
+| `pec-deck-fly` | Pec deck fly | Photo (2 frames) | [free-exercise-db `Butterfly`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Butterfly) | Public domain (Unlicense) |
+| `chin-up` | Chin-up | Photo (2 frames) | [free-exercise-db `Chin-Up`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Chin-Up) | Public domain (Unlicense) |
+| `band-assisted-pull-up` | Band-assisted pull-up | Photo (2 frames) | [free-exercise-db `Band_Assisted_Pull-Up`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Band_Assisted_Pull-Up) | Public domain (Unlicense) |
+| `close-grip-bench` | Close-grip bench press | Photo (2 frames) | [free-exercise-db `Close-Grip_Barbell_Bench_Press`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Close-Grip_Barbell_Bench_Press) | Public domain (Unlicense) |
+| `db-overhead-triceps` | Dumbbell overhead triceps extension | Photo (2 frames) | [free-exercise-db `Standing_Dumbbell_Triceps_Extension`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Standing_Dumbbell_Triceps_Extension) | Public domain (Unlicense) |
+| `reverse-crunch` | Reverse crunch | Photo (2 frames) | [free-exercise-db `Reverse_Crunch`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Reverse_Crunch) | Public domain (Unlicense) |
+| `copenhagen-plank` | Copenhagen plank | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `side-lying-external-rotation` | Side-lying dumbbell external rotation | Photo (2 frames) | [free-exercise-db `External_Rotation`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/External_Rotation) | Public domain (Unlicense) |
 | `barbell-curl` | Barbell biceps curl | Photo (2 frames) | [free-exercise-db `Barbell_Curl`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Barbell_Curl) | Public domain (Unlicense) |
 | `incline-db-curl` | Incline dumbbell curl | Photo (2 frames) | [free-exercise-db `Incline_Dumbbell_Curl`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Incline_Dumbbell_Curl) | Public domain (Unlicense) |
 | `barbell-french-press` | Lying barbell French press | Photo (2 frames) | [free-exercise-db `Lying_Triceps_Press`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Lying_Triceps_Press) | Public domain (Unlicense) |
@@ -175,3 +189,21 @@ Photos: 114 · Illustrations: 49 · Total: 163
 | `hip-abduction` | Machine hip abduction | Photo (2 frames) | [free-exercise-db `Thigh_Abductor`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Thigh_Abductor) | Public domain (Unlicense) |
 | `crunch-machine` | Plate-loaded seated crunch | Photo (2 frames) | [free-exercise-db `Ab_Crunch_Machine`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Ab_Crunch_Machine) | Public domain (Unlicense) |
 | `torso-rotation` | Seated torso rotation machine | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `bw-squat` | Bodyweight squat | Photo (2 frames) | [free-exercise-db `Bodyweight_Squat`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Bodyweight_Squat) | Public domain (Unlicense) |
+| `bw-split-squat` | Split squat (bodyweight) | Photo (2 frames) | [free-exercise-db `Split_Squats`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Split_Squats) | Public domain (Unlicense) |
+| `bw-reverse-lunge` | Reverse lunge (bodyweight) | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `sl-hip-thrust` | Single-leg hip thrust | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `bw-sl-rdl` | Single-leg RDL (bodyweight) | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `table-row` | Table inverted row | Photo (2 frames) | [free-exercise-db `Inverted_Row`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Inverted_Row) | Public domain (Unlicense) |
+| `prone-pulldown` | Prone floor pulldown | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `pike-push-up` | Pike push-up | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `bw-calf-raise` | Single-leg calf raise | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `db-bent-row` | Dumbbell bent-over row | Photo (2 frames) | [free-exercise-db `Bent_Over_Two-Dumbbell_Row`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Bent_Over_Two-Dumbbell_Row) | Public domain (Unlicense) |
+| `db-floor-press` | Dumbbell floor press | Photo (2 frames) | [free-exercise-db `Dumbbell_Floor_Press`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Dumbbell_Floor_Press) | Public domain (Unlicense) |
+| `db-standing-press` | Standing dumbbell press | Photo (2 frames) | [free-exercise-db `Standing_Dumbbell_Press`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Standing_Dumbbell_Press) | Public domain (Unlicense) |
+| `db-floor-pullover` | Dumbbell floor pullover | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `band-row` | Band row | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `band-pulldown` | Band lat pulldown | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `band-chest-press` | Band chest press | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `band-overhead-press` | Band overhead press | Photo (2 frames) | [free-exercise-db `Shoulder_Press_-_With_Bands`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Shoulder_Press_-_With_Bands) | Public domain (Unlicense) |
+| `band-good-morning` | Band good morning | Photo (2 frames) | [free-exercise-db `Band_Good_Morning`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Band_Good_Morning) | Public domain (Unlicense) |
