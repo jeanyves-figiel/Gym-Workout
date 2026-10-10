@@ -13,6 +13,7 @@ struct SetLogCard: View {
     @State private var rows: [Row] = []
     @State private var suggestion: LoadSuggestion?
     @FocusState private var focus: Field?
+    @State private var explaining = false
 
     struct Row: Equatable {
         var kg = ""
@@ -30,12 +31,27 @@ struct SetLogCard: View {
             HStack {
                 Text("Log sets").eyebrow()
                 Spacer()
-                Text("kg × reps · RIR").font(Theme.label(11)).foregroundStyle(Theme.muted)
+                Button { explaining = true } label: {
+                    HStack(spacing: 4) {
+                        Text("kg × reps · RIR")
+                        Image(systemName: "info.circle.fill")
+                    }
+                    .font(Theme.label(11))
+                    .foregroundStyle(Theme.muted)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Explains RIR and RPE")
             }
             if let s = suggestion { SuggestionLine(suggestion: s) }
             ForEach(rows.indices, id: \.self) { i in row(i) }
         }
         .card(padding: 14)
+        .sheet(isPresented: $explaining) {
+            ScrollView { RPEExplainer().padding(16) }
+                .background(Theme.bg.ignoresSafeArea())
+                .presentationDetents([.medium, .large])
+                .preferredColorScheme(.dark)
+        }
         .onAppear(perform: load)
         .onChange(of: done) { old, new in
             let end = min(new, rows.count)

@@ -94,6 +94,9 @@ private struct DemoScreen: View {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
                     .navigationTitle("Your training")
             }
+        case "readiness":
+            ReadinessSheet(snapshot: Demo.health, readiness: Readiness.assess(Demo.health)?.0 ?? .normal, flags: Readiness.assess(Demo.health)?.1 ?? [])
+        case "cycle": WeekPhaseSheet(week: 1)
         default: MainTabView()
         }
     }

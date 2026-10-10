@@ -91,6 +91,7 @@ private struct WeekHero: View {
     let profile: Profile
     let done: Int
     @Environment(AppModel.self) private var model
+    @State private var explaining = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -102,13 +103,19 @@ private struct WeekHero: View {
                         Text("/\(Generator.mesocycleWeeks)").font(Theme.display(28)).foregroundStyle(Theme.muted)
                     }
                     .padding(.top, -10)
-                    Text(Generator.weekLabel(plan.week).uppercased())
+                    Button { explaining = true } label: {
+                        HStack(spacing: 5) {
+                            Text(Generator.weekLabel(plan.week).uppercased()).tracking(1)
+                            Image(systemName: "info.circle.fill")
+                        }
                         .font(Theme.label(12))
-                        .tracking(1)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background(Capsule().fill(plan.deload ? Color.orange.opacity(0.25) : Theme.lime.opacity(0.18)))
                         .foregroundStyle(plan.deload ? .orange : Theme.lime)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Explains this week's training phase")
                 }
                 Spacer()
                 ZStack {
@@ -135,6 +142,7 @@ private struct WeekHero: View {
                 .font(.footnote)
                 .foregroundStyle(Theme.muted)
         }
+        .sheet(isPresented: $explaining) { WeekPhaseSheet(week: plan.week).presentationDetents([.large]) }
     }
 }
 
