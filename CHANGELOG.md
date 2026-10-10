@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- Explore body map: tapping any muscle opened Calves (#79). Each muscle now opens its own page (front and back, mirrored sides too); same fix for the tappable maps on session and exercise pages, and display-only maps no longer swallow taps. Taps resolved by `BodyMapLayout` (WorkoutEngine, tested); muscle page exercise rows show the exercise picture; VoiceOver gets one action per muscle.
 - Training profile: climbing no longer depends on the goal (#49). An independent **I climb** switch (any goal) shows climbing days/weekdays; changing goal never clears them (#40 cleared them for non-climbing goals); Climbing performance turns it on; new profiles start on when Apple Health shows climbing workouts. Health climbing-days hint back for all goals.
 
 ### Changed
