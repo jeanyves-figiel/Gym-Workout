@@ -37,6 +37,8 @@ struct RootView: View {
 }
 
 struct MainTabView: View {
+    @Environment(AppModel.self) private var model
+
     var body: some View {
         TabView {
             NavigationStack { WeekView() }
@@ -45,10 +47,14 @@ struct MainTabView: View {
                 .tabItem { Label("Explore", systemImage: "figure.arms.open") }
             NavigationStack { ProgressTabView() }
                 .tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
+            NavigationStack { CommunityView() }
+                .tabItem { Label("Community", systemImage: "person.3.fill") }
             NavigationStack { AccountView() }
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
         }
         .toolbarBackground(Theme.bg, for: .tabBar)
+        // Community profile early so auto-share works for the first workout of the session.
+        .task(id: model.user?.id) { await Community.shared.load(api: model.api, userId: model.user?.id) }
     }
 }
 
@@ -92,6 +98,9 @@ private struct DemoScreen: View {
         case "progress", "progress-empty": NavigationStack { ProgressTabView() }
         case "history": NavigationStack { HistoryDetailView(recordId: model.history.first?.id ?? UUID()) }
         case "body": NavigationStack { BodyHealthView() }
+        case "community", "community-join": NavigationStack { CommunityView() }
+        case "community-share": ShareWinView()
+        case "community-profile": NavigationStack { CommunityProfileView() }
         case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", Demo.customExercise.exerciseId]) { _ in }
         case "builder": CustomExerciseBuilderView(existing: Demo.customExercise)
         case "onboarding", "onboarding-climbing":
