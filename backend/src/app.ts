@@ -11,6 +11,7 @@ import { ApiError } from './errors.ts';
 import { createBreachChecker } from './hibp.ts';
 import type { Mailer } from './mailer.ts';
 import { accountRoutes } from './routes/account.ts';
+import { communityPublicRoutes, communityRoutes } from './routes/community.ts';
 import { customWorkoutRoutes } from './routes/customWorkouts.ts';
 import { dataRoutes } from './routes/data.ts';
 
@@ -66,6 +67,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
 
   // Mail transport is exposed so the staging smoke test can tell real delivery from console logging.
   app.get('/healthz', async () => ({ ok: true, mail: deps.config.mail.transport }));
+
+  communityPublicRoutes(app, deps.db, deps.config.appName);
 
   const authenticate = async (req: FastifyRequest) => {
     const h = req.headers.authorization;
@@ -168,6 +171,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       dataRoutes(r, deps.db, deps.now ?? (() => new Date()), auth);
       accountRoutes(r, emailChange, deps.config.authRateLimitPerMin);
       customWorkoutRoutes(r, deps.db, deps.now ?? (() => new Date()));
+      communityRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
     },
     { prefix: '/v1' },
   );
