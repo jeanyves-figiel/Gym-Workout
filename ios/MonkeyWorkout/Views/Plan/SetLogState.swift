@@ -4,7 +4,7 @@ import WorkoutEngine
 
 /// kg × reps · RIR rows for the exercise on screen in the player, shared by the current-set card,
 /// the effort picker and the "Log sets" table. Reload with `load` whenever the player moves to another exercise.
-@Observable
+@MainActor @Observable
 final class SetLogState {
     struct Row: Equatable {
         var kg = ""

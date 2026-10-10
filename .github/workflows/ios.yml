@@ -40,7 +40,13 @@ jobs:
               -configuration "$cfg" \
               -destination 'generic/platform=iOS Simulator' \
               -skipPackagePluginValidation \
-              CODE_SIGNING_ALLOWED=NO | tail -n 50
+              CODE_SIGNING_ALLOWED=NO > "build-$cfg.log" 2>&1 || {
+                # Compiler errors first, then the tail.
+                grep -E "error:" "build-$cfg.log" | sort -u | head -n 60
+                tail -n 30 "build-$cfg.log"
+                exit 1
+              }
+            tail -n 5 "build-$cfg.log"
           done
 
   screenshots:
