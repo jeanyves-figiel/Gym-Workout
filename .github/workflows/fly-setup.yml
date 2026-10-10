@@ -1,10 +1,15 @@
-name: Fly staging setup
+name: Fly setup
 
-# Manual, idempotent, one-time bootstrap of the Fly.io staging app (#3) — no local CLI needed.
-# Needs environment `staging` secret FLY_API_TOKEN = Fly org token (dashboard → Tokens).
+# Manual, idempotent, one-time bootstrap of a Fly.io app (#3) — no local CLI needed.
+# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens), repo-level or on the chosen environment.
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: 'Target'
+        type: choice
+        options: [staging, production]
+        default: staging
       org:
         description: 'Fly organization slug'
         required: true
@@ -16,12 +21,12 @@ permissions:
 jobs:
   setup:
     runs-on: ubuntu-latest
-    environment: staging
+    environment: ${{ inputs.environment }}
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      FLY_APP: monkeyworkout-staging
+      FLY_APP: ${{ inputs.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
       REGION: fra
-      HOSTNAME: workout-staging.monkeygrade.cloud
+      HOSTNAME: ${{ inputs.environment == 'production' && 'workout.monkeygrade.cloud' || 'workout-staging.monkeygrade.cloud' }}
       ORG: ${{ inputs.org }}
     steps:
       - uses: superfly/flyctl-actions/setup-flyctl@master
@@ -50,7 +55,7 @@ jobs:
           flyctl certs show "$HOSTNAME" -a "$FLY_APP" >/dev/null 2>&1 || flyctl certs add "$HOSTNAME" -a "$FLY_APP"
           {
             echo "### DNS for \`$HOSTNAME\`"
-            echo "CNAME \`workout-staging\` → \`$FLY_APP.fly.dev\`"
+            echo "CNAME \`${HOSTNAME%%.*}\` → \`$FLY_APP.fly.dev\` (DNS only)"
             echo '```'
             flyctl certs show "$HOSTNAME" -a "$FLY_APP" 2>&1 || true
             echo '```'

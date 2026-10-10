@@ -6,7 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-- Staging hosted on Fly.io (#3): app `monkeyworkout-staging` (`backend/fly.staging.toml`, region `fra`, 1 machine + `/data` volume, `/healthz` check) at `https://workout-staging.monkeygrade.cloud`. **Deploy staging** mirrors the CI-built image to Fly's registry and runs `flyctl deploy` on every merge to `main` (skips with a warning until `FLY_API_TOKEN` is set). Manual **Fly staging setup** workflow bootstraps app, volume, secrets and TLS cert without local tools. iOS Staging build → `workout-staging.monkeygrade.cloud`, Release → `workout.monkeygrade.cloud`.
+- Staging + production hosted on Fly.io (#3): apps `monkeyworkout-staging` → `https://workout-staging.monkeygrade.cloud`, `monkeyworkout-prod` → `https://workout.monkeygrade.cloud` (`backend/fly.*.toml`, region `fra`, 1 machine + `/data` volume, `/healthz` check). **Deploy staging** deploys the CI-built image on every merge to `main`; **Promote to production** (manual) deploys the same digest to prod. Both skip with a warning until `FLY_API_TOKEN` is set. Manual **Fly setup** workflow bootstraps app, volume, secrets and TLS cert per environment without local tools. iOS Staging build → staging host, Release → prod host.
 
 ### Fixed
 - API container: entrypoint fixes ownership of root-owned `/data` mounts (Fly volumes) before dropping to the `node` user (#3).

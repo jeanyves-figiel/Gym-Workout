@@ -12,18 +12,22 @@ Accounts + data sync for the iOS app. Single-user-scale: SQLite (`node:sqlite`) 
 Production env: see `.env.example` (`JWT_SECRET`, `CODE_PEPPER`, `SMTP_URL` required).
 Container starts as root only to `chown` the `/data` mount, then runs as `node` (`docker-entrypoint.sh`).
 
-## Staging on Fly.io
+## Hosting (Fly.io)
 
-App `monkeyworkout-staging` (`fly.staging.toml`, region `fra`, 1 machine + 1 GB volume) → `https://workout-staging.monkeygrade.cloud`.
-Every merge to `main` deploys the CI-built image (`deploy-staging.yml`). One-time setup, no local tools:
+| Env | Fly app | Config | URL | Deployed by |
+|---|---|---|---|---|
+| staging | `monkeyworkout-staging` | `fly.staging.toml` | `https://workout-staging.monkeygrade.cloud` | **Deploy staging**, every merge to `main` |
+| production | `monkeyworkout-prod` | `fly.production.toml` | `https://workout.monkeygrade.cloud` | **Promote to production**, manual, same digest |
 
-1. fly.io dashboard: sign up, add card → **Tokens** → create org token.
-2. GitHub → Settings → Environments → `staging`: secret `FLY_API_TOKEN` (that token), variable `STAGING_URL=https://workout-staging.monkeygrade.cloud`.
-3. Actions → **Fly staging setup** → Run. Creates app, volume, secrets (`JWT_SECRET`, `CODE_PEPPER` random; `MAIL_TRANSPORT=console`), TLS cert. Idempotent.
-4. DNS for `monkeygrade.cloud`: `CNAME workout-staging → monkeyworkout-staging.fly.dev`.
-5. Actions → **Deploy staging** → re-run latest run (or merge anything).
+Each: region `fra`, 1 machine + 1 GB volume (`/data`, SQLite), `/healthz` check. One-time setup, no local tools:
 
-App name taken → change it in `fly.staging.toml`, `deploy-staging.yml`, `fly-staging-setup.yml` (`FLY_APP`).
+1. fly.io dashboard → **Tokens** → create org token. GitHub → Settings → Secrets → Actions: repo secret `FLY_API_TOKEN`.
+2. GitHub environments `staging`, `production`: variables `STAGING_URL` / `PROD_URL` (URLs above).
+3. Cloudflare DNS (`monkeygrade.cloud`), **DNS only**: `CNAME workout-staging → monkeyworkout-staging.fly.dev`, `CNAME workout → monkeyworkout-prod.fly.dev`.
+4. Actions → **Fly setup** → Run for `staging`, then `production`. Creates app, volume, secrets (`JWT_SECRET`, `CODE_PEPPER` random; `MAIL_TRANSPORT=console`), TLS cert. Idempotent.
+5. Re-run latest **Deploy staging**. Prod: **Promote to production** when staging is validated.
+
+App name taken → change it in the `fly.*.toml`, `deploy-staging.yml` / `promote.yml` and `fly-setup.yml`.
 Real email: add Fly secrets `SMTP_URL`, `MAIL_FROM` and remove `MAIL_TRANSPORT`. Until then, email codes appear in the app's logs (Fly dashboard → Monitoring).
 
 ## Endpoints (`/v1`)
