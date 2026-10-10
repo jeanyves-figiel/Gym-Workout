@@ -15,8 +15,10 @@ final class Ctx {
     let frequentClimber: Bool
     /// Current session is the day before a climbing day (weekday-scheduled plans only).
     var preClimb = false
+    /// Day before climbing with a "strong" choice (#47): explosive work kept, grip still spared.
+    var preClimbGrip = false
     /// Prefer exercises without heavy grip (frequent climber, or climbing tomorrow).
-    var spareGrip: Bool { frequentClimber || preClimb }
+    var spareGrip: Bool { frequentClimber || preClimb || preClimbGrip }
     let climber: Bool
     let profile: Profile
     let week: Int

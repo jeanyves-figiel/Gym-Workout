@@ -35,6 +35,7 @@ struct ClimbSection: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @State private var logging: ClimbLog?
+    @State private var settings = false
 
     private var climbs: [ClimbEntry] { Climbs.merged(local: model.climbLogs, health: health.snapshot.recentClimbs) }
 
@@ -50,6 +51,18 @@ struct ClimbSection: View {
             if let hard = Climbs.recentHard(all) {
                 HardClimbNote(climb: hard)
             }
+            if model.profile?.climbDayAddon == true {
+                NavigationLink(value: WorkoutTemplate.climbAddon.sessionId) {
+                    ClimbAddonCard(today: isClimbingDay)
+                }
+                .buttonStyle(.plain)
+            }
+            Button { settings = true } label: {
+                Label("Around climbing days", systemImage: "slider.horizontal.3")
+                    .font(Theme.label(13))
+                    .foregroundStyle(Theme.lime)
+            }
+            .buttonStyle(.plain)
             if !all.isEmpty {
                 Text("Recent climbs").eyebrow().padding(.top, 4)
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -68,6 +81,12 @@ struct ClimbSection: View {
             }
         }
         .sheet(item: $logging) { LogClimbView(initial: $0) }
+        .sheet(isPresented: $settings) { ClimbSettingsView() }
+    }
+
+    private var isClimbingDay: Bool {
+        let today = WeekSchedule.fromCalendar(Calendar.current.component(.weekday, from: Date()))
+        return model.profile?.climbingDays.contains(today) ?? false
     }
 
     private func delete(_ id: UUID) {
@@ -299,6 +318,212 @@ private struct StepButton: View {
                 .frame(width: 52, height: 52)
                 .background(Circle().fill(Theme.cardStrong))
                 .foregroundStyle(.white)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Around climbing days (#47)
+
+extension ClimbNeighbour {
+    var label: String {
+        switch self {
+        case .light: "Keep it light"
+        case .strong: "Strong push or legs"
+        case .rest: "Rest"
+        case .any: "No adjustment"
+        }
+    }
+
+    func blurb(before: Bool) -> String {
+        switch self {
+        case .light: before ? "No heavy pulling, grip or jumps. Push and legs preferred." : "Light on pulling and grip while fingers recover."
+        case .strong: before ? "Hard push or leg day welcome. Only pulling and grip kept light." : "Hard push or leg day welcome. Pulling kept light."
+        case .rest: "Keep this day free of gym sessions when the week allows."
+        case .any: "Plan the gym session as if you weren't climbing."
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .light: "leaf.fill"
+        case .strong: "flame.fill"
+        case .rest: "bed.double.fill"
+        case .any: "circle.dashed"
+        }
+    }
+
+    var colors: [Color] {
+        switch self {
+        case .light: [Color(red: 0.12, green: 0.85, blue: 0.54), Color(red: 0.71, green: 1.0, blue: 0.42)]
+        case .strong: [Color(red: 1.0, green: 0.18, blue: 0.33), Color(red: 1.0, green: 0.54, blue: 0.0)]
+        case .rest: [Color(red: 0.18, green: 0.42, blue: 1.0), Color(red: 0.54, green: 0.30, blue: 1.0)]
+        case .any: [Color(white: 0.35), Color(white: 0.55)]
+        }
+    }
+}
+
+extension ClimbSameDay {
+    var label: String {
+        switch self {
+        case .avoid: "Climb only"
+        case .allow: "Gym allowed"
+        }
+    }
+
+    var blurb: String {
+        switch self {
+        case .avoid: "Gym sessions go on climbing days only when the week has no room."
+        case .allow: "A gym session can share the day, e.g. gym in the morning, climb in the evening."
+        }
+    }
+
+    var symbol: String { self == .avoid ? "figure.climbing" : "dumbbell.fill" }
+
+    var colors: [Color] {
+        self == .avoid ? ClimbKind.boulder.colors : ClimbKind.lead.colors
+    }
+}
+
+/// Optional short session on climbing days: antagonists, shoulders, finger extensors, core.
+private struct ClimbAddonCard: View {
+    let today: Bool
+
+    var body: some View {
+        let t = WorkoutTemplate.climbAddon
+        HStack(spacing: 16) {
+            Image(systemName: "plus.circle.fill")
+                .font(.system(size: 30, weight: .bold))
+                .frame(width: 60, height: 60)
+                .background(RoundedRectangle(cornerRadius: 18).fill(.white.opacity(0.2)))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(today ? "Climbing today · add-on" : "Climbing-day add-on").font(Theme.label(11)).tracking(1.2).opacity(0.85)
+                Text("Antagonist & shoulders").font(Theme.display(22))
+                Text("Push, shoulder health, finger extensors, core. No pulling or grip.")
+                    .font(.footnote.weight(.medium)).opacity(0.85).multilineTextAlignment(.leading)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 0) {
+                Text("\(t.session.estMin)").font(Theme.display(30)).monospacedDigit()
+                Text("min").font(Theme.label(10)).opacity(0.8)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(18)
+        .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(ClimbKind.topRope.gradient))
+    }
+}
+
+/// How gym days around climbing are planned. Saving rebuilds this week's plan.
+struct ClimbSettingsView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var before: ClimbNeighbour = .light
+    @State private var after: ClimbNeighbour = .light
+    @State private var sameDay: ClimbSameDay = .avoid
+    @State private var addon = false
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Day before climbing").eyebrow()
+                    ForEach(ClimbNeighbour.allCases) { o in
+                        OptionCard(symbol: o.symbol, title: o.label, blurb: o.blurb(before: true), colors: o.colors,
+                                   selected: before == o) { before = o }
+                    }
+                    Text("Day after climbing").eyebrow().padding(.top, 8)
+                    ForEach(ClimbNeighbour.allCases) { o in
+                        OptionCard(symbol: o.symbol, title: o.label, blurb: o.blurb(before: false), colors: o.colors,
+                                   selected: after == o) { after = o }
+                    }
+                    Text("On climbing days").eyebrow().padding(.top, 8)
+                    ForEach(ClimbSameDay.allCases) { o in
+                        OptionCard(symbol: o.symbol, title: o.label, blurb: o.blurb, colors: o.colors,
+                                   selected: sameDay == o) { sameDay = o }
+                    }
+                    Toggle(isOn: $addon) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Climbing-day add-on").font(Theme.display(18))
+                            Text("Offer a short optional session (≈ \(WorkoutTemplate.climbAddon.session.estMin) min) on Train: push, shoulders, finger extensors, core.")
+                                .font(.footnote).foregroundStyle(Theme.muted)
+                        }
+                    }
+                    .tint(Theme.lime)
+                    .card(padding: 16)
+                    .padding(.top, 8)
+
+                    Button { save() } label: { Label("Save", systemImage: "checkmark") }
+                        .buttonStyle(LimeButtonStyle())
+                        .padding(.top, 8)
+                    Text("Saving rebuilds this week's plan around your climbing days.")
+                        .font(.footnote).foregroundStyle(Theme.muted)
+                }
+                .padding(16)
+            }
+            .background(Theme.bg.ignoresSafeArea())
+            .navigationTitle("Around climbing")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+            }
+        }
+        .preferredColorScheme(.dark)
+        .onAppear {
+            guard let p = model.profile else { return }
+            before = p.climbPrefs.before
+            after = p.climbPrefs.after
+            sameDay = p.climbPrefs.sameDay
+            addon = p.climbDayAddon ?? false
+        }
+    }
+
+    private func save() {
+        guard var p = model.profile else { return dismiss() }
+        p.climbBefore = before == .light ? nil : before
+        p.climbAfter = after == .light ? nil : after
+        p.climbSameDay = sameDay == .avoid ? nil : sameDay
+        p.climbDayAddon = addon ? true : nil
+        if p != model.profile {
+            model.applyProfile(p, seed: model.plan?.seed, week: model.plan?.week ?? 1)
+        }
+        dismiss()
+    }
+}
+
+/// Explore-style selectable option: icon tile, title + blurb, gradient when picked.
+private struct OptionCard: View {
+    let symbol: String
+    let title: String
+    let blurb: String
+    let colors: [Color]
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: symbol)
+                    .font(.system(size: 22, weight: .bold))
+                    .frame(width: 48, height: 48)
+                    .background(RoundedRectangle(cornerRadius: 14).fill(.white.opacity(0.2)))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(Theme.display(19))
+                    Text(blurb).font(.footnote.weight(.medium)).opacity(0.85).multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.title2.weight(.bold))
+                    .opacity(selected ? 1 : 0.5)
+            }
+            .foregroundStyle(.white)
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .opacity(selected ? 1 : 0.28))
+            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(.white.opacity(selected ? 0.9 : 0), lineWidth: 2))
+            .animation(.spring(duration: 0.25), value: selected)
         }
         .buttonStyle(.plain)
     }
