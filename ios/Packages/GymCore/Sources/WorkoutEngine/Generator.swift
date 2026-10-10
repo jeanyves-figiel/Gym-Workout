@@ -33,9 +33,19 @@ public enum Generator {
         profile.syncClimbingDays()
         let week = min(mesocycleWeeks, max(1, week))
         let ctx = Ctx(profile: profile, week: week, seed: seed)
+        if ctx.variety == .same && week != 1 {
+            ctx.replay = record(profile, seed: seed)
+        }
+        return generateWeek(ctx)
+    }
+
+    static func generateWeek(_ ctx: Ctx) -> WeekPlan {
+        let profile = ctx.profile, week = ctx.week
         let base = sessionMinutes(profile)
         let minutes = ctx.deload ? max(Rules.minSession - 5, round5(Double(base) * 0.8)) : base
-        let split = Rules.splits[profile.sessionsPerWeek] ?? Rules.splits[3]!
+        let baseSplit = Rules.splits[profile.sessionsPerWeek] ?? Rules.splits[3]!
+        let rotate = ctx.variety == .rotate
+        let split = rotate ? Rules.rotatedSplit(baseSplit, week: week) : baseSplit
         // With climbing / gym weekdays set, sessions are re-ordered and placed on weekdays.
         let prefs = profile.climbPrefs
         let slots = WeekSchedule.assign(split, climbing: profile.climbingDays, gym: profile.gymDays, prefs: prefs)
@@ -52,13 +62,29 @@ public enum Generator {
             // Day before climbing (#47): light/rest → no jumps + grip spared; strong → grip spared only.
             ctx.preClimb = beforeClimb && (prefs.before == .light || prefs.before == .rest)
             ctx.preClimbGrip = beforeClimb && prefs.before == .strong
-            var session = generateSession(ctx, focus: focus, variant: n % 2, index: i, minutes: minutes, cardio: mode)
+            // `.rotate`: A/B slot orders swap weekly too.
+            let variant = (n + (rotate ? week - 1 : 0)) % 2
+            var session = generateSession(ctx, focus: focus, variant: variant, index: i, minutes: minutes, cardio: mode)
             session.weekday = weekday
             sessions.append(session)
         }
         ctx.preClimb = false
         ctx.preClimbGrip = false
-        return WeekPlan(week: week, deload: ctx.deload, seed: seed, sessionMinutes: minutes, sessions: sessions)
+        return WeekPlan(week: week, deload: ctx.deload, seed: ctx.seed, sessionMinutes: minutes, sessions: sessions)
+    }
+
+    /// Week 1's picks for `.same` replays: only those that made it into the plan, so a later week never swaps
+    /// in an exercise week 1 dropped for time.
+    static func record(_ profile: Profile, seed: UInt32) -> [String: String] {
+        let ctx = Ctx(profile: profile, week: 1, seed: seed)
+        let plan = generateWeek(ctx)
+        var kept: [String: Set<String>] = [:]
+        for s in plan.sessions {
+            kept["s\(s.index + 1)-"] = Set(s.blocks.flatMap { $0.items.flatMap { [$0.exerciseId] + [$0.pairedWith].compactMap { $0 } } })
+        }
+        return ctx.picks.filter { key, id in
+            kept[String(key.prefix { $0 != "-" }) + "-"]?.contains(id) ?? false
+        }
     }
 
     // MARK: Session
@@ -87,7 +113,7 @@ public enum Generator {
         let pw = ctx.preClimb ? nil : power(ctx, focus, powerMin, "\(id)-pw")
         if let pw { blocks.append(pw) }
         let powerLeft = pw.map { max(0, powerMin - Int($0.estMin.rounded())) } ?? powerMin
-        var st = strength(ctx, focus, variant, strengthMin + powerLeft, "\(id)-st", regions)
+        var st = strength(ctx, focus, variant, strengthMin + powerLeft, "\(id)-st", regions, leadStep: ctx.week - 1 + index)
         if ctx.preClimb {
             st.note = ["Climbing tomorrow: no jumps or heavy grip work today.", st.note].compactMap { $0 }.joined(separator: " ")
         } else if ctx.preClimbGrip {
@@ -137,6 +163,7 @@ public enum Generator {
     static let raiseLower = ["bike", "incline-walk", "rower", "elliptical", "stair-climber"]
 
     static func warmup(_ ctx: Ctx, _ focus: Focus, _ minutes: Int, _ uid: String) -> Block {
+        ctx.begin(uid)
         let upper = [Focus.upper, .push, .pull, .fullUpper].contains(focus)
         let raiseMin = minutes >= 9 ? 5 : 4
         var items: [PlannedExercise] = []
@@ -164,6 +191,7 @@ public enum Generator {
 
     static func power(_ ctx: Ctx, _ focus: Focus, _ minutes: Int, _ uid: String) -> Block? {
         guard minutes >= 4 else { return nil }
+        ctx.begin(uid)
         let budget = Double(minutes * 60)
         let patterns = Rules.powerPatterns(focus)
         var items: [PlannedExercise] = []
@@ -229,10 +257,13 @@ public enum Generator {
                              note: notes.isEmpty ? nil : notes.joined(separator: " · ")), d.repsMid)
     }
 
-    static func strength(_ ctx: Ctx, _ focus: Focus, _ variant: Int, _ minutes: Int, _ uid: String, _ pairRegions: [Region]) -> Block {
+    static func strength(_ ctx: Ctx, _ focus: Focus, _ variant: Int, _ minutes: Int, _ uid: String, _ pairRegions: [Region], leadStep: Int = 0) -> Block {
+        ctx.begin(uid)
         let budget = Double(minutes * 60)
         let circuit = focus == .conditioning
-        let slots = climberSlots(Rules.strengthSlots(focus, variant: variant), focus, ctx)
+        var base = Rules.strengthSlots(focus, variant: variant)
+        if ctx.variety == .rotate { base = Rules.rotatingLead(base, focus, step: leadStep) }
+        let slots = climberSlots(base, focus, ctx)
         var items: [PlannedExercise] = []
         var pairUsed: Set<String> = []
         var used = 0.0
@@ -269,8 +300,7 @@ public enum Generator {
                 let region = pairRegions[(items.count + i) % pairRegions.count]
                 let m = Selector.candidates(level: ctx.level, equipment: ctx.equipment, Query(category: .mobility, regions: [region]))
                     .filter { !pairUsed.contains($0.id) && !ctx.usedSession.contains($0.id) }
-                if !m.isEmpty {
-                    let pick = ctx.rng.pick(m)
+                if !m.isEmpty, let pick = ctx.pickPaired(m) {
                     pairUsed.insert(pick.id)
                     paired = pick.id
                 }
@@ -292,6 +322,7 @@ public enum Generator {
 
     static func mobility(_ ctx: Ctx, _ focus: Focus, _ minutes: Int, _ uid: String) -> Block? {
         guard minutes >= 3 else { return nil }
+        ctx.begin(uid)
         var regions = Rules.regions(focus)
         if ctx.climber {
             var r: [Region] = [.hips, .shoulders]
@@ -346,6 +377,7 @@ public enum Generator {
 
     static func cardioBlock(_ ctx: Ctx, _ mode: CardioMode, _ minutes: Int, _ uid: String) -> Block? {
         guard minutes >= 6 else { return nil }
+        ctx.begin(uid)
         let m: CardioMode = ctx.deload ? .zone2 : (minutes < 10 && mode == .threshold ? .intervals : mode)
         let prefer = ctx.climber && m == .zone2 ? ["incline-walk", "stair-climber"] + cardioPrefer(.zone2) : cardioPrefer(m)
         guard let e = Selector.select(ctx, Query(category: .cardio, prefer: prefer)) else { return nil }

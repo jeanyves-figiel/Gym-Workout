@@ -9,6 +9,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var week: Int
     /// Entered in-app (used when Apple Health lacks them).
     var body: BodyMetrics?
+    /// "Can't train" dates and travel periods (#68). Optional so older profiles still decode.
+    var away: [AwayPeriod]?
 }
 
 struct LocalState: Codable {

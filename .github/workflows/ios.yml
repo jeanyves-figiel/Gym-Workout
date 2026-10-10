@@ -72,7 +72,7 @@ jobs:
           xcrun simctl status_bar "$DEVICE" override --time 9:41 --batteryLevel 100 --cellularBars 4 || true
           xcrun simctl install "$DEVICE" build/Build/Products/Debug-iphonesimulator/MonkeyWorkout.app
           mkdir -p shots
-          for s in welcome onboarding onboarding-climbing week climb climb-settings monkeygrade example session player explore muscle exercise pr pr-attempt pr-result technique progress progress-empty history body readiness cycle picker builder; do
+          for s in welcome onboarding onboarding-climbing week climb climb-settings monkeygrade example session player explore muscle exercise pr pr-attempt pr-result technique progress progress-empty history body readiness cycle picker builder calendar away gyms variety; do
             xcrun simctl launch --terminate-running-process "$DEVICE" Com.app.MonkeyWorkout.dev -demo -demoScreen "$s"
             sleep 6
             xcrun simctl io "$DEVICE" screenshot "shots/$s.png"
