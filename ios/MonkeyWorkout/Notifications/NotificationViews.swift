@@ -94,7 +94,7 @@ struct NotificationSettingsView: View {
                     .buttonStyle(LimeButtonStyle())
                 }
 
-                if !(model.plan?.sessions.contains { $0.weekday != nil } ?? false) {
+                if !(model.plan?.sessions.contains(where: { $0.weekday != nil }) ?? false) {
                     Label("Pick gym days in your training profile (Train → edit) so reminders know which day each session is.",
                           systemImage: "calendar.badge.exclamationmark")
                         .font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted)
