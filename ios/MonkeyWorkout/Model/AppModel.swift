@@ -61,6 +61,13 @@ final class AppModel {
             state.customExerciseList = [Demo.customExercise]
             state.synced?.away = Demo.away()
             replanCurrentWeek()
+            if Demo.screen == "progress-empty" {
+                // New user: no sessions, PRs or logged climbs yet.
+                state.history = []
+                state.logs = []
+                state.climbs = []
+                state.prAttempts = []
+            }
             phase = Demo.screen == "welcome" ? .signedOut : .signedIn
             return
         }

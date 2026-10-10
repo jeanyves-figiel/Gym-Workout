@@ -193,13 +193,18 @@ public struct Profile: Codable, Hashable, Sendable {
     public var climbDayAddon: Bool?
     /// Week-to-week variety (#64); nil = `.fresh`. Optional so older profiles decode.
     public var variety: PlanVariety?
+    /// Rest between sets (#78); nil = the goal's default.
+    public var restStyle: RestStyle?
+    /// Supersets / circuits (#78); nil = the goal's default.
+    public var grouping: Grouping?
 
     public init(
         goal: Goal = .balanced, sessionsPerWeek: Int = 3, experience: Experience = .intermediate,
         climbingDaysPerWeek: Int = 2, maxSessionMinutes: Int? = nil, equipment: [Equipment] = Gym.puls5.equipment,
         climbingWeekdays: [Int]? = nil, gymWeekdays: [Int]? = nil, gym: GymRef? = nil,
         climbBefore: ClimbNeighbour? = nil, climbAfter: ClimbNeighbour? = nil,
-        climbSameDay: ClimbSameDay? = nil, climbDayAddon: Bool? = nil, variety: PlanVariety? = nil
+        climbSameDay: ClimbSameDay? = nil, climbDayAddon: Bool? = nil, variety: PlanVariety? = nil,
+        restStyle: RestStyle? = nil, grouping: Grouping? = nil
     ) {
         self.goal = goal
         self.sessionsPerWeek = sessionsPerWeek
@@ -215,6 +220,8 @@ public struct Profile: Codable, Hashable, Sendable {
         self.climbSameDay = climbSameDay
         self.climbDayAddon = climbDayAddon
         self.variety = variety
+        self.restStyle = restStyle
+        self.grouping = grouping
     }
 }
 
@@ -247,6 +254,8 @@ public struct PlannedExercise: Codable, Hashable, Sendable, Identifiable {
     public var pairedWith: String?
     /// uid of the exercise in whose rest this one is performed.
     public var supersetWith: String?
+    /// Superset / circuit label (#78), e.g. "A1", "A2": same letter = done back to back, rest after the round.
+    public var group: String? = nil
     public var estSec: Int
     public var id: String { uid }
 }

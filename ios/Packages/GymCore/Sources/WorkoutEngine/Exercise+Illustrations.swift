@@ -20,6 +20,7 @@ public enum ExerciseIllustrations {
         "bw-cossack",
         "bw-reverse-lunge",
         "bw-sl-rdl",
+        "copenhagen-plank",
         "cossack-squat",
         "couch-stretch",
         "db-floor-pullover",
@@ -49,6 +50,7 @@ public enum ExerciseIllustrations {
         "prone-pulldown",
         "prone-ytw",
         "push-up-plus",
+        "reverse-nordic",
         "ring-push-up",
         "rotational-throw",
         "scap-push-up",
@@ -65,6 +67,7 @@ public enum ExerciseIllustrations {
         "torso-rotation",
         "trap-bar-jump",
         "trx-body-saw",
+        "trx-hamstring-curl",
         "wall-slide",
         "wrist-prep",
     ]
