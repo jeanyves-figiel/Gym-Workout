@@ -23,6 +23,8 @@ export interface Config {
   hibpCheck: boolean;
   /** Interval of the expired codes / refresh tokens purge job (0 disables the timer). */
   purgeIntervalMin: number;
+  /** Receives community reports (App Store 1.2). Unset → reports are stored only. */
+  moderationEmail?: string;
   /** APNs token auth (.p8 with Apple Push Notifications service enabled). Unset → remote push skipped (#69). */
   apns: { teamId?: string; keyId?: string; privateKey?: string };
 }
@@ -72,6 +74,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
     // On by default, off in tests; HIBP_CHECK=0 disables, HIBP_CHECK=1 forces on.
     hibpCheck: env.HIBP_CHECK !== undefined ? !['0', 'false', 'off', 'no'].includes(env.HIBP_CHECK.toLowerCase()) : mode !== 'test',
     purgeIntervalMin: Number(env.PURGE_INTERVAL_MIN ?? 60),
+    moderationEmail: env.MODERATION_EMAIL || undefined,
     apns: {
       teamId: env.APNS_TEAM_ID || env.APPLE_TEAM_ID || undefined,
       keyId: env.APNS_KEY_ID || undefined,

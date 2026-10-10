@@ -119,12 +119,21 @@ describe('push devices and prefs', () => {
     expect(db.prepare('SELECT COUNT(*) AS n FROM push_devices WHERE user_id = ?').get(fan.id)).toEqual({ n: 0 });
   });
 
-  it('announces each achievement once to followers', async () => {
+  it('announces each achievement once to community followers, by nickname, only when the actor shares', async () => {
     const actor = await signUp('ann@example.com');
     const fan = await signUp('fan2@example.com');
-    await app.inject({ method: 'PATCH', url: '/v1/me', payload: { name: 'Ann' }, headers: auth(actor.token) });
-    app.push.setFollowersProvider((id) => (id === actor.id ? [fan.id] : []));
+    const ts = clock.toISOString();
+    const profile = db.prepare(
+      'INSERT INTO community_profiles (user_id, nickname, default_visibility, guidelines_accepted_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+    );
+    profile.run(actor.id, 'Ann', 'private', ts, ts, ts);
+    profile.run(fan.id, 'Fan', 'members', ts, ts, ts);
+    db.prepare('INSERT INTO community_follows (follower_id, followed_id, created_at) VALUES (?, ?, ?)').run(fan.id, actor.id, ts);
     await put('/v1/me/push-device', device(TOKEN_A), fan.token);
+    const priv = { achievements: [{ id: 'w1', type: 'badge', text: 'Unlocked First rep' }] };
+    await app.inject({ method: 'POST', url: '/v1/me/achievements', payload: priv, headers: auth(actor.token) });
+    expect(sent).toHaveLength(0); // private profile: nobody is told
+    db.prepare("UPDATE community_profiles SET default_visibility = 'members' WHERE user_id = ?").run(actor.id);
     const body = { achievements: [{ id: 'w10', type: 'badge', text: 'Unlocked Committed: 10 sessions' }] };
     const first = await app.inject({ method: 'POST', url: '/v1/me/achievements', payload: body, headers: auth(actor.token) });
     expect(first.json()).toEqual({ announced: ['w10'] });

@@ -1,3 +1,4 @@
+import APIClient
 import SwiftUI
 import WorkoutEngine
 
@@ -56,6 +57,8 @@ struct NotificationsHost: ViewModifier {
                     NavigationStack { SessionView(sessionId: id) }
                 case let .reschedule(id, day):
                     MissedSessionSheet(sessionId: id, day: day)
+                case let .member(userId, nickname):
+                    NavigationStack { MemberView(author: CommunityAuthor(userId: userId, nickname: nickname)) }
                 case let .badge(id):
                     if let b = Achievements.evaluate(records: model.state.history, weights: model.weightEntries,
                                                      targetPerWeek: model.profile?.sessionsPerWeek ?? 3).first(where: { $0.id == id }) {

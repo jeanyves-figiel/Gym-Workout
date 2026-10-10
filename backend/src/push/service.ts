@@ -122,7 +122,7 @@ export class PushService {
       sent += await this.notifyUser(f, 'follow_achievement', {
         title: `${actorName} 🏆`,
         body: a.text,
-        data: { kind: 'follow_achievement', actorId, achievementId: a.id, type: a.type },
+        data: { kind: 'follow_achievement', actorId, actorName, achievementId: a.id, type: a.type },
         collapseId: `ach-${a.id}`.slice(0, 64),
       });
     }

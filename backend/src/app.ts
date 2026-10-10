@@ -13,6 +13,8 @@ import type { Mailer } from './mailer.ts';
 import { type ApnsSender, createApnsSender } from './push/apns.ts';
 import { PushService } from './push/service.ts';
 import { accountRoutes } from './routes/account.ts';
+import { followerIds } from './community/moderation.ts';
+import { communityPublicRoutes, communityRoutes } from './routes/community.ts';
 import { customExerciseRoutes } from './routes/customExercises.ts';
 import { customWorkoutRoutes } from './routes/customWorkouts.ts';
 import { prAttemptRoutes } from './routes/prAttempts.ts';
@@ -68,6 +70,12 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
     log: warn,
     sender: deps.apns ?? (k.teamId && k.keyId && k.privateKey ? createApnsSender({ teamId: k.teamId, keyId: k.keyId, privateKey: k.privateKey }, now) : undefined),
   });
+  // Followers from Community (#61). Only members who share (default visibility not private) announce wins.
+  const sharing = (id: string) =>
+    deps.db.prepare("SELECT nickname FROM community_profiles WHERE user_id = ? AND default_visibility != 'private'").get(id) as
+      | { nickname: string }
+      | undefined;
+  push.setFollowersProvider((id) => (sharing(id) ? followerIds(deps.db, id) : []));
   app.decorate('push', push);
 
   app.setErrorHandler((err, req, reply) => {
@@ -85,6 +93,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
 
   // Mail transport is exposed so the staging smoke test can tell real delivery from console logging.
   app.get('/healthz', async () => ({ ok: true, mail: deps.config.mail.transport }));
+
+  communityPublicRoutes(app, deps.db, deps.config.appName);
 
   const authenticate = async (req: FastifyRequest) => {
     const h = req.headers.authorization;
@@ -187,9 +197,10 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       dataRoutes(r, deps.db, deps.now ?? (() => new Date()), auth);
       accountRoutes(r, emailChange, deps.config.authRateLimitPerMin);
       customWorkoutRoutes(r, deps.db, deps.now ?? (() => new Date()));
+      communityRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
       customExerciseRoutes(r, deps.db, deps.now ?? (() => new Date()));
       prAttemptRoutes(r, deps.db, deps.now ?? (() => new Date()));
-      pushRoutes(r, push, deps.config.appleBundleIds, (id) => auth.userById(id)?.name ?? null);
+      pushRoutes(r, push, deps.config.appleBundleIds, (id) => sharing(id)?.nickname ?? null);
     },
     { prefix: '/v1' },
   );

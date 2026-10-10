@@ -191,13 +191,15 @@ public struct Profile: Codable, Hashable, Sendable {
     public var climbSameDay: ClimbSameDay?
     /// Offer a short optional add-on workout on climbing days (#47); nil = off.
     public var climbDayAddon: Bool?
+    /// Week-to-week variety (#64); nil = `.fresh`. Optional so older profiles decode.
+    public var variety: PlanVariety?
 
     public init(
         goal: Goal = .balanced, sessionsPerWeek: Int = 3, experience: Experience = .intermediate,
         climbingDaysPerWeek: Int = 2, maxSessionMinutes: Int? = nil, equipment: [Equipment] = Gym.puls5.equipment,
         climbingWeekdays: [Int]? = nil, gymWeekdays: [Int]? = nil, gym: GymRef? = nil,
         climbBefore: ClimbNeighbour? = nil, climbAfter: ClimbNeighbour? = nil,
-        climbSameDay: ClimbSameDay? = nil, climbDayAddon: Bool? = nil
+        climbSameDay: ClimbSameDay? = nil, climbDayAddon: Bool? = nil, variety: PlanVariety? = nil
     ) {
         self.goal = goal
         self.sessionsPerWeek = sessionsPerWeek
@@ -212,6 +214,7 @@ public struct Profile: Codable, Hashable, Sendable {
         self.climbAfter = climbAfter
         self.climbSameDay = climbSameDay
         self.climbDayAddon = climbDayAddon
+        self.variety = variety
     }
 }
 

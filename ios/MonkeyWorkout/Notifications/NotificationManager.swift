@@ -11,12 +11,15 @@ enum NotificationRoute: Identifiable, Equatable {
     case reschedule(sessionId: String, day: Date)
     /// Badge just unlocked (#76).
     case badge(String)
+    /// Someone you follow achieved something: their community page.
+    case member(userId: String, nickname: String)
 
     var id: String {
         switch self {
         case let .session(s): "session|\(s)"
         case let .reschedule(s, d): "reschedule|\(s)|\(d.timeIntervalSince1970)"
         case let .badge(b): "badge|\(b)"
+        case let .member(u, _): "member|\(u)"
         }
     }
 }
@@ -275,7 +278,13 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         let day = (info["day"] as? Double).map { Date(timeIntervalSince1970: $0) }
         let action = response.actionIdentifier
         let badgeId = info["badgeId"] as? String
+        let actorId = info["actorId"] as? String
+        let actorName = info["actorName"] as? String
         await MainActor.run {
+            if kind == "follow_achievement", let actorId {
+                self.route = .member(userId: actorId, nickname: actorName ?? "")
+                return
+            }
             if kind == "badge", let badgeId {
                 self.route = .badge(badgeId)
                 return
