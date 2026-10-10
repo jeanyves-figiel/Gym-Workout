@@ -33,6 +33,7 @@ struct WeekView: View {
                     } else {
                         WeekCompleteCard()
                     }
+                    CalendarEntryCard()
                     if let e = model.syncError {
                         Label(e, systemImage: "icloud.slash").font(.footnote).foregroundStyle(Theme.muted)
                     }
@@ -83,6 +84,11 @@ struct WeekView: View {
         }
         .fullScreenCover(item: $playing) { s in WorkoutPlayerView(sessionId: s.id) }
         .refreshable { await model.sync() }
+        .task {
+            // Away periods (#68): re-plan from today on (new day, period starting this week).
+            model.replanCurrentWeek()
+            model.persist()
+        }
     }
 }
 
@@ -293,7 +299,12 @@ struct SessionDayLine: View {
                 .font(Theme.label(12))
                 .tracking(1)
                 .foregroundStyle(Theme.lime)
-            if let note = WeekSchedule.note(weekday: weekday, climbing: climbing, prefs: model.profile?.climbPrefs ?? ClimbPrefs()) {
+            if let away = model.awayThisWeek(weekday), away.kind == .travel {
+                Label(away.title, systemImage: "airplane")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(WorkoutEngine.Category.cardio.color)
+                    .lineLimit(1)
+            } else if let note = WeekSchedule.note(weekday: weekday, climbing: climbing, prefs: model.profile?.climbPrefs ?? ClimbPrefs()) {
                 Text(note)
                     .font(.caption)
                     .foregroundStyle(Theme.muted)

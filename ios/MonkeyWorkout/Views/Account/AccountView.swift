@@ -36,6 +36,13 @@ struct AccountView: View {
                     }
                     .buttonStyle(.plain)
 
+                    NavigationLink { NotificationSettingsView() } label: {
+                        AccountCard(symbol: "bell.badge.fill", title: "Reminders & alerts",
+                                    subtitle: "Session reminders, check-ins, cheers",
+                                    gradient: AccountTint.notifications)
+                    }
+                    .buttonStyle(.plain)
+
                     section("Connected apps")
                     NavigationLink { MonkeyGradeView() } label: {
                         let link = MonkeyGradeLink.shared

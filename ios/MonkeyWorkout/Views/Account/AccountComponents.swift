@@ -9,6 +9,8 @@ enum AccountTint {
     static let password = WorkoutEngine.Category.strength.gradient
     static let email = WorkoutEngine.Category.cardio.gradient
     static let devices = WorkoutEngine.Category.mobility.gradient
+    static let notifications = LinearGradient(colors: [Color(red: 1, green: 0.62, blue: 0.1), Color(red: 1, green: 0.36, blue: 0.24)],
+                                              startPoint: .topLeading, endPoint: .bottomTrailing)
     static let export = WorkoutEngine.Category.stretch.gradient
     static let danger = LinearGradient(colors: [Color(red: 1, green: 0.23, blue: 0.19), Color(red: 1, green: 0.45, blue: 0.2)],
                                        startPoint: .topLeading, endPoint: .bottomTrailing)

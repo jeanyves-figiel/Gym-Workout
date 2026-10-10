@@ -247,10 +247,39 @@ public actor APIClient {
         _ = try await authorizedRaw("DELETE", "/v1/me/pr-attempts/\(id.uuidString)", Empty?.none)
     }
 
+    // MARK: Notifications (#69)
+
+    /// Registers this install's APNs token (hex). `env`: "sandbox" (debug builds) or "production".
+    public func registerPushDevice(token: String, env: String, topic: String, timeZone: String) async throws {
+        struct Body: Encodable { var token, env, topic, tz: String }
+        _ = try await authorizedRaw("PUT", "/v1/me/push-device", Body(token: token, env: env, topic: topic, tz: timeZone))
+    }
+
+    public func unregisterPushDevice(token: String) async throws {
+        _ = try await authorizedRaw("DELETE", "/v1/me/push-device/\(token)", Empty?.none)
+    }
+
+    /// Notification preferences (app-defined; server validates the known keys).
+    public func saveNotificationPrefs<T: Encodable & Sendable>(_ prefs: T) async throws {
+        _ = try await authorizedRaw("PUT", "/v1/me/notification-prefs", PrefsBody(prefs: prefs))
+    }
+
+    /// Achievements just unlocked on this device; the server pushes them to followers (once per id).
+    public func announceAchievements(_ list: [AchievementAnnouncement]) async throws {
+        struct Body: Encodable { var achievements: [AchievementAnnouncement] }
+        _ = try await authorizedRaw("POST", "/v1/me/achievements", Body(achievements: list))
+    }
+
+    /// Sends a test push to this account's registered devices. Returns devices reached.
+    public func sendTestPush() async throws -> PushTestResult {
+        try await authorized("POST", "/v1/me/push-test", Empty(), as: PushTestResult.self)
+    }
+
     // MARK: Internals
 
     struct Empty: Codable {}
     struct ProfileBody<T: Encodable>: Encodable { var data: T }
+    struct PrefsBody<T: Encodable>: Encodable { var prefs: T }
     struct WorkoutsBody<T: Encodable>: Encodable { var workouts: [T] }
     struct WorkoutsResponse<T: Decodable>: Decodable { var workouts: [T] }
     struct ExercisesBody<T: Encodable>: Encodable { var exercises: [T] }
@@ -276,19 +305,19 @@ public actor APIClient {
         do { return try decoder.decode(type, from: data) } catch { throw APIError.decoding(String(describing: error)) }
     }
 
-    private func authorized<T: Decodable>(_ method: String, _ path: String, _ body: (some Encodable)?, as type: T.Type) async throws -> T {
+    func authorized<T: Decodable>(_ method: String, _ path: String, _ body: (some Encodable)?, as type: T.Type) async throws -> T {
         try decode(type, try await authorizedRaw(method, path, body))
     }
 
     /// Adds bearer token; refreshes proactively (≤30 s left) and once on 401.
-    private func authorizedRaw(_ method: String, _ path: String, _ body: (some Encodable)?) async throws -> Data {
+    func authorizedRaw(_ method: String, _ path: String, _ body: (some Encodable)?, raw: (data: Data, contentType: String)? = nil) async throws -> Data {
         guard var t = tokens.load() else { throw APIError.signedOut }
         if t.accessExpiresAt.timeIntervalSince(now()) < 30 { t = try await refreshed(t) }
         do {
-            return try await send(method, path, body, bearer: t.accessToken)
+            return try await send(method, path, body, bearer: t.accessToken, raw: raw)
         } catch let APIError.server(status, _, _) where status == 401 {
             t = try await refreshed(t)
-            return try await send(method, path, body, bearer: t.accessToken)
+            return try await send(method, path, body, bearer: t.accessToken, raw: raw)
         }
     }
 
@@ -314,14 +343,19 @@ public actor APIClient {
         return try await task.value
     }
 
-    private func send(_ method: String, _ path: String, _ body: (some Encodable)?, bearer: String? = nil) async throws -> Data {
+    private func send(
+        _ method: String, _ path: String, _ body: (some Encodable)?, bearer: String? = nil, raw: (data: Data, contentType: String)? = nil
+    ) async throws -> Data {
         guard let url = URL(string: path, relativeTo: baseURL) else { throw APIError.network("Bad URL \(path)") }
         var req = URLRequest(url: url)
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         if let deviceName { req.setValue(deviceName, forHTTPHeaderField: "X-Device-Name") }
         if let bearer { req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization") }
-        if let body {
+        if let raw {
+            req.setValue(raw.contentType, forHTTPHeaderField: "Content-Type")
+            req.httpBody = raw.data
+        } else if let body {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try encoder.encode(body)
         }
