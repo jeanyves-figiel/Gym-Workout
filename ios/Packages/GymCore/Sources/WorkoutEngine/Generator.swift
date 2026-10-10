@@ -29,20 +29,30 @@ public enum Generator {
     // MARK: Week
 
     public static func generateWeek(_ profile: Profile, week: Int = 1, seed: UInt32) -> WeekPlan {
+        var profile = profile
+        profile.syncClimbingDays()
         let week = min(mesocycleWeeks, max(1, week))
         let ctx = Ctx(profile: profile, week: week, seed: seed)
         let base = sessionMinutes(profile)
         let minutes = ctx.deload ? max(Rules.minSession - 5, round5(Double(base) * 0.8)) : base
         let split = Rules.splits[profile.sessionsPerWeek] ?? Rules.splits[3]!
+        // With climbing / gym weekdays set, sessions are re-ordered and placed on weekdays.
+        let slots = WeekSchedule.assign(split, climbing: profile.climbingDays, gym: profile.gymDays)
+        let order = slots?.map(\.focus) ?? split
         var seen: [Focus: Int] = [:]
         let rotation = profile.goal.config.cardio
         var sessions: [Session] = []
-        for (i, focus) in split.enumerated() {
+        for (i, focus) in order.enumerated() {
             let n = seen[focus, default: 0]
             seen[focus] = n + 1
             let mode: CardioMode = focus == .conditioning ? .intervals : rotation[i % rotation.count]
-            sessions.append(generateSession(ctx, focus: focus, variant: n % 2, index: i, minutes: minutes, cardio: mode))
+            let weekday = slots?[i].weekday
+            ctx.preClimb = weekday.map { profile.climbingDays.contains(WeekSchedule.next($0)) } ?? false
+            var session = generateSession(ctx, focus: focus, variant: n % 2, index: i, minutes: minutes, cardio: mode)
+            session.weekday = weekday
+            sessions.append(session)
         }
+        ctx.preClimb = false
         return WeekPlan(week: week, deload: ctx.deload, seed: seed, sessionMinutes: minutes, sessions: sessions)
     }
 
@@ -68,10 +78,15 @@ public enum Generator {
         if ctx.climber { for r in [Region.hips, .shoulders] where !regions.contains(r) { regions.append(r) } }
 
         var blocks: [Block] = [warmup(ctx, focus, warm, "\(id)-wu")]
-        let pw = power(ctx, focus, powerMin, "\(id)-pw")
+        // Climbing tomorrow: no explosive block, its time goes to (grip-sparing) strength work.
+        let pw = ctx.preClimb ? nil : power(ctx, focus, powerMin, "\(id)-pw")
         if let pw { blocks.append(pw) }
         let powerLeft = pw.map { max(0, powerMin - Int($0.estMin.rounded())) } ?? powerMin
-        blocks.append(strength(ctx, focus, variant, strengthMin + powerLeft, "\(id)-st", regions))
+        var st = strength(ctx, focus, variant, strengthMin + powerLeft, "\(id)-st", regions)
+        if ctx.preClimb {
+            st.note = ["Climbing tomorrow: no jumps or heavy grip work today.", st.note].compactMap { $0 }.joined(separator: " ")
+        }
+        blocks.append(st)
         if let mo = mobility(ctx, focus, mobilityMin, "\(id)-mo") { blocks.append(mo) }
         if let ca = cardioBlock(ctx, cardio, cardioMin, "\(id)-ca") { blocks.append(ca) }
         blocks.append(cooldown(ctx, cool, blocks, "\(id)-cd"))
