@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|onboarding|onboarding-climbing|session|player|explore|muscle|exercise|technique|progress|history|body|readiness|cycle|variety|welcome]`
+/// DEBUG-only: `-demo [-demoScreen week|onboarding|onboarding-climbing|session|player|explore|muscle|exercise|technique|progress|history|body|readiness|cycle|picker|variety|welcome]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("-demo") }
