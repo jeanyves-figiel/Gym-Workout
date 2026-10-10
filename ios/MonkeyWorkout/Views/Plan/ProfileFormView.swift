@@ -744,9 +744,13 @@ enum GymSearch {
     }
 }
 
-private struct EquipmentSheet: View {
+struct EquipmentSheet: View {
     @Binding var equipment: [Equipment]
     @Environment(\.dismiss) private var dismiss
+
+    init(equipment: Binding<[Equipment]>) {
+        _equipment = equipment
+    }
 
     var body: some View {
         NavigationStack {
