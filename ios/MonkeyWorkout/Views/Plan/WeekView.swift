@@ -109,27 +109,32 @@ struct WeekView: View {
         return sessions.indices.sorted { key($0) < key($1) }.map { sessions[$0] }
     }
 
-    /// Title with Calendar and Plan (variation, training profile) as Explore-style gradient buttons.
+    /// Title, then Calendar, Variation and Edit plan as Explore-style gradient buttons in one row (#147).
     private var header: some View {
-        HStack(spacing: 10) {
-            Text("Train").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
-            Spacer(minLength: 4)
-            NavigationLink { CalendarView() } label: {
-                HeaderChip(symbol: "calendar", title: "Calendar", detail: "\(plannedCount) planned",
-                           gradient: WorkoutEngine.Category.strength.gradient)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Calendar, \(plannedCount) sessions planned in the next 4 weeks")
-            Menu {
-                Button(ProStore.shared.badged ? "New variation · PRO" : "New variation", systemImage: "shuffle") {
-                    ProStore.shared.run(.variation, $gate) { varying = true }
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Train").font(Theme.display(34)).lineLimit(1)
+            HStack(spacing: 8) {
+                NavigationLink { CalendarView() } label: {
+                    HeaderChip(symbol: "calendar", title: "Calendar", detail: "\(plannedCount) planned",
+                               gradient: WorkoutEngine.Category.strength.gradient)
                 }
-                Button("Edit training profile", systemImage: "slider.horizontal.3") { editing = true }
-            } label: {
-                HeaderChip(symbol: "slider.horizontal.3", title: "Plan", detail: "Variation · edit",
-                           gradient: WorkoutEngine.Category.warmup.gradient)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Calendar, \(plannedCount) sessions planned in the next 4 weeks")
+                Button {
+                    ProStore.shared.run(.variation, $gate) { varying = true }
+                } label: {
+                    HeaderChip(symbol: "shuffle", title: "Variation", detail: ProStore.shared.badged ? "New · PRO" : "New mix",
+                               gradient: WorkoutEngine.Category.warmup.gradient)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("New variation of this week's plan")
+                Button { editing = true } label: {
+                    HeaderChip(symbol: "slider.horizontal.3", title: "Edit plan", detail: "Days · goals",
+                               gradient: WorkoutEngine.Category.power.gradient)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Edit current plan: training profile")
             }
-            .accessibilityLabel("Plan: new variation or edit training profile")
         }
         .padding(.top, 4)
     }
@@ -147,7 +152,7 @@ struct WeekView: View {
     }
 }
 
-/// Small gradient button in the Train header: icon tile, title, one-line detail.
+/// Gradient button in the Train header row (equal widths): icon tile, title, one-line detail.
 private struct HeaderChip: View {
     let symbol: String
     let title: String
@@ -165,11 +170,13 @@ private struct HeaderChip: View {
                 Text(detail).font(.system(size: 10, weight: .bold, design: .rounded)).opacity(0.9)
             }
             .lineLimit(1)
-            .fixedSize()
+            .minimumScaleFactor(0.75)
+            Spacer(minLength: 0)
         }
         .foregroundStyle(.white)
+        .frame(maxWidth: .infinity)
         .padding(.leading, 7)
-        .padding(.trailing, 10)
+        .padding(.trailing, 6)
         .padding(.vertical, 7)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(gradient))
         .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
