@@ -41,6 +41,7 @@ public struct Technique: Hashable, Sendable {
         .merging(examples) { a, _ in a }
         .merging(travel) { a, _ in a }
         .merging(audit) { a, _ in a }
+        .merging(gymAudit) { a, _ in a }
 }
 
 extension Exercise {
