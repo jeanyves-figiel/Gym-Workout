@@ -122,6 +122,7 @@ struct ReadinessSheet: View {
                 .padding(16)
                 .padding(.bottom, 32)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Readiness")
             .navigationBarTitleDisplayMode(.inline)
@@ -276,6 +277,7 @@ struct WeekPhaseSheet: View {
                 .padding(16)
                 .padding(.bottom, 32)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Training cycle")
             .navigationBarTitleDisplayMode(.inline)

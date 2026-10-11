@@ -79,6 +79,7 @@ struct ChangeEmailView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .themedForm()
         .navigationTitle(currentEmail == nil ? "Add email" : "Change email")
         .toolbarTitleDisplayMode(.inline)

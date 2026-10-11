@@ -25,6 +25,7 @@ struct MonkeyGradeView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("MonkeyGrade")
         .toolbarTitleDisplayMode(.inline)

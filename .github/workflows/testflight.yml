@@ -22,7 +22,8 @@ permissions:
 jobs:
   upload:
     name: Archive + upload
-    runs-on: macos-15
+    # Newest Xcode on macos-26: iOS 27 SDK, full-screen iPhone Duo (#120).
+    runs-on: macos-26
     timeout-minutes: 45
     env:
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}

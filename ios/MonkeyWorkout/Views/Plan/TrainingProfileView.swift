@@ -34,6 +34,7 @@ struct TrainingProfileView: View {
                 .padding(16)
             }
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationDestination(for: ProfileSection.self) { ProfileSectionView(section: $0) }
     }

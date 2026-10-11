@@ -61,7 +61,13 @@ targets:
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
+        # iPhone (and the folded iPhone Duo) stay portrait; iPad needs every orientation for multitasking (#120).
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         NSFaceIDUsageDescription: Unlock MonkeyWorkout with Face ID.
         NSCameraUsageDescription: Take a photo of a machine for your own exercises.
         NSHealthShareUsageDescription: Reads weight, height, age, sex, resting heart rate, HRV, VO2max, sleep, heart rate during sessions and climbing workouts to estimate calories, show readiness and track progress.
@@ -75,7 +81,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
         PRODUCT_NAME: MonkeyWorkout
-        TARGETED_DEVICE_FAMILY: "1"
+        # iPhone + iPad (#120).
+        TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ENABLE_PREVIEWS: YES
@@ -98,7 +105,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).LiveActivity
         PRODUCT_NAME: MonkeyWorkoutWidgets
-        TARGETED_DEVICE_FAMILY: "1"
+        # Matches the app; Live Activities only show on iPhone (ActivityKit is off on iPad).
+        TARGETED_DEVICE_FAMILY: "1,2"
         SKIP_INSTALL: YES
   # Apple Watch companion (#56), embedded in the iOS app.
   MonkeyWorkoutWatch:

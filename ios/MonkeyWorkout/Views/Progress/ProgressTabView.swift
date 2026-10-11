@@ -72,6 +72,7 @@ struct ProgressTabView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .proPaywall($gate)
         .navigationTitle("Progress")
@@ -733,6 +734,7 @@ struct HistoryDetailView: View {
                 }
                 .padding(16)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("History")
             .navigationBarTitleDisplayMode(.inline)

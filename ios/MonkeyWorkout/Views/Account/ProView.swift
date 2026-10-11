@@ -189,6 +189,7 @@ struct ProView: View {
             .padding(16)
             .padding(.bottom, 24)
         }
+        .readableWidth()
         .themedForm()
         .navigationTitle(context == .account ? "MonkeyWorkout Pro" : "")
         .toolbarTitleDisplayMode(.inline)

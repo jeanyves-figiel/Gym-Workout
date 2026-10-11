@@ -25,9 +25,15 @@ jobs:
 
   app:
     name: App build (simulator)
-    runs-on: macos-15
+    # iOS 27 SDK / iPhone Duo + iPad simulators (#120).
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+      - name: Select newest Xcode
+        run: |
+          XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
       - run: brew install xcodegen
       - run: xcodegen generate --spec ios/project.yml
       - name: Build Debug + Staging
@@ -48,13 +54,18 @@ jobs:
   screenshots:
     name: Screenshots (demo mode)
     needs: app
-    timeout-minutes: 25
+    timeout-minutes: 45
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: macos-15
+    runs-on: macos-26
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+      - name: Select newest Xcode
+        run: |
+          XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
       - run: brew install xcodegen
       - run: xcodegen generate --spec ios/project.yml
       - name: Build for simulator
@@ -78,7 +89,25 @@ jobs:
             xcrun simctl io "$DEVICE" screenshot "shots/$s.png"
             sips -Z 800 "shots/$s.png" >/dev/null
           done
+          xcrun simctl shutdown "$DEVICE" || true
           ls -la shots
+      - name: Capture iPad screens
+        run: |
+          # Wide layout check (#120): readable column, sidebar-adaptable tabs.
+          xcrun simctl list devicetypes | grep -iE "ipad|duo|fold" || true
+          IPAD=$(xcrun simctl list devices available | grep -m1 -E "iPad Pro 13-inch" | grep -oE '[0-9A-F-]{36}')
+          echo "ipad=$IPAD"
+          [ -n "$IPAD" ] || { echo "::warning::No iPad Pro 13-inch simulator"; exit 0; }
+          xcrun simctl boot "$IPAD"
+          xcrun simctl bootstatus "$IPAD" -b
+          xcrun simctl status_bar "$IPAD" override --time 9:41 --batteryLevel 100 || true
+          xcrun simctl install "$IPAD" build/Build/Products/Debug-iphonesimulator/MonkeyWorkout.app
+          for s in welcome week session player explore muscle progress community account calendar; do
+            xcrun simctl launch --terminate-running-process "$IPAD" Com.app.MonkeyWorkout.dev -demo -demoScreen "$s"
+            sleep 6
+            xcrun simctl io "$IPAD" screenshot "shots/ipad-$s.png"
+            sips -Z 800 "shots/ipad-$s.png" >/dev/null
+          done
       - name: Publish to screenshots branch
         env:
           TOKEN: ${{ github.token }}

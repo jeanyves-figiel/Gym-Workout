@@ -163,6 +163,7 @@ struct NotificationSettingsView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("")
         .toolbarTitleDisplayMode(.inline)
@@ -303,6 +304,7 @@ struct MissedSessionSheet: View {
                 }
                 .padding(16)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Skip") { dismiss() } }

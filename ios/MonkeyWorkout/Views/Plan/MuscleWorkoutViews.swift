@@ -116,6 +116,7 @@ struct MuscleWorkoutGeneratorSheet: View {
                 .padding(16)
                 .animation(.spring(duration: 0.3), value: options)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .toolbar {
                 CloseToolbarItem { dismiss() }

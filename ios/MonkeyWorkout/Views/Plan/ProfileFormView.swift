@@ -98,6 +98,7 @@ struct ProfileFormView: View {
                 .padding(.top, section == nil ? 0 : 8)
                 .padding(.bottom, 24)
             }
+            .readableWidth()
             .onAppear { if let scrollTo { proxy.scrollTo(scrollTo, anchor: .top) } }
         }
         .background(Theme.bg.ignoresSafeArea())
@@ -111,6 +112,7 @@ struct ProfileFormView: View {
             .buttonStyle(LimeButtonStyle())
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
+            .readableColumn()
             .background(Theme.bg.opacity(0.92).ignoresSafeArea())
         }
         .sheet(isPresented: $showEquipment) {

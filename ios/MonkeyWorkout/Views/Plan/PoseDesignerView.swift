@@ -69,6 +69,7 @@ struct PoseDesignerView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Pose")
         .navigationBarTitleDisplayMode(.inline)

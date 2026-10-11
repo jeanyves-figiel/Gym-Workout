@@ -71,6 +71,7 @@ struct FindMembersView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Find members")
         .navigationBarTitleDisplayMode(.inline)

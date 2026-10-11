@@ -194,6 +194,7 @@ struct AccountView: View {
             .padding(16)
             .padding(.bottom, 24)
         }
+        .readableWidth()
         .themedForm()
         .navigationTitle("Account")
         .onAppear { name = model.user?.name ?? "" }
@@ -340,6 +341,7 @@ struct ChangePasswordView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .themedForm()
         .navigationTitle(hasPassword ? "Change password" : "Set password")
         .toolbarTitleDisplayMode(.inline)
@@ -370,6 +372,7 @@ struct DevicesView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .themedForm()
         .navigationTitle("Devices")
         .toolbarTitleDisplayMode(.inline)
@@ -425,6 +428,7 @@ struct DeleteAccountView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .themedForm()
         .navigationTitle("Delete account")
         .toolbarTitleDisplayMode(.inline)

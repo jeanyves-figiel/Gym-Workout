@@ -65,6 +65,7 @@ struct SwapExerciseSheet: View {
                 }
                 .padding(16)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Swap exercise")
             .navigationBarTitleDisplayMode(.inline)

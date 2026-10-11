@@ -173,6 +173,7 @@ struct FormSheet: View {
                 }
                 .padding(16)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Form")
             .navigationBarTitleDisplayMode(.inline)

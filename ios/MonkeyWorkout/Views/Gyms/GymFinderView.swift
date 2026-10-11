@@ -174,6 +174,7 @@ struct GymFinderView: View {
                 }
                 .padding(16)
             }
+            .readableWidth()
             .scrollDismissesKeyboard(.interactively)
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Find a gym")
@@ -341,6 +342,7 @@ struct GymDetailView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle(gym.name)
         .navigationBarTitleDisplayMode(.inline)

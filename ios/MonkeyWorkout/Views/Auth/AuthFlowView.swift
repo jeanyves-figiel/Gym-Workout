@@ -54,6 +54,7 @@ struct AuthScreen<Content: View>: View {
             .padding(16)
             .padding(.bottom, 24)
         }
+        .readableWidth()
         .themedForm()
         .navigationTitle(title)
         .toolbarTitleDisplayMode(.inline)

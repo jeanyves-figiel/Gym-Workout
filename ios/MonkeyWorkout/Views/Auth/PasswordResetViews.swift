@@ -110,6 +110,7 @@ struct PrivacyNoticeView: View {
             }
             .padding()
         }
+        .readableWidth()
         .themedForm()
         .navigationTitle("Privacy")
         .navigationBarTitleDisplayMode(.inline)

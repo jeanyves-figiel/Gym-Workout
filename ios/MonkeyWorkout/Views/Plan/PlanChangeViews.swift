@@ -46,6 +46,7 @@ struct MoveSessionSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView { MoveDayPicker(sessionId: sessionId) { wd in onMoved(wd); dismiss() }.padding(16) }
+                .readableWidth()
                 .background(Theme.bg.ignoresSafeArea())
                 .navigationTitle("Move to…")
                 .navigationBarTitleDisplayMode(.inline)
@@ -199,6 +200,7 @@ struct AddWorkoutSheet: View {
                 }
                 .padding(16)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Add workout")
             .navigationBarTitleDisplayMode(.inline)
