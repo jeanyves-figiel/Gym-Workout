@@ -52,6 +52,7 @@ struct CommunityView: View {
     private var feed: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
+                CommunityGymCard()
                 Picker("Feed", selection: $scope) {
                     Text("Members").tag(CommunityFeedScope.members)
                     Text("Following").tag(CommunityFeedScope.following)
