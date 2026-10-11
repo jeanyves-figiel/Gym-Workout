@@ -23,6 +23,19 @@ struct AccountView: View {
 
                     // Other features add their Account rows here as AccountCard (Community profile, Notifications, Training calendar).
                     section("You")
+                    NavigationLink { PublicProfileView() } label: {
+                        let me = Community.shared.me
+                        AccountCard(symbol: "person.crop.circle.fill", title: me.nickname.map { "@\($0)" } ?? "Profile",
+                                    subtitle: profileSubtitle(me), gradient: AccountTint.publicProfile) {
+                            if let url = model.api.resolve(me.avatarUrl) {
+                                AvatarView(url: url, nickname: me.nickname ?? "?", size: 44, ring: .white)
+                            } else {
+                                AccountChevron()
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+
                     NavigationLink { BodyHealthView() } label: {
                         AccountCard(symbol: "heart.text.square.fill", title: "Body & Health",
                                     subtitle: health.connected ? "Apple Health connected" : "Height, weight, Apple Health",
@@ -154,11 +167,20 @@ struct AccountView: View {
 
     private func profileHero(_ user: User) -> some View {
         HStack(spacing: 14) {
-            Text(initials(user))
-                .font(Theme.display(24))
-                .foregroundStyle(Theme.ink)
-                .frame(width: 64, height: 64)
-                .background(Circle().fill(Theme.lime))
+            ZStack {
+                Text(initials(user))
+                    .font(Theme.display(24))
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: 64, height: 64)
+                    .background(Circle().fill(Theme.lime))
+                // Profile photo (#108), same as in Community.
+                if let url = model.api.resolve(Community.shared.me.avatarUrl) {
+                    AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                        .frame(width: 64, height: 64)
+                        .clipShape(Circle())
+                }
+            }
+            .overlay(Circle().strokeBorder(Theme.lime, lineWidth: 2.5))
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     TextField("Add your name", text: $name, prompt: Text("Add your name").foregroundStyle(.white.opacity(0.6)))
@@ -183,6 +205,12 @@ struct AccountView: View {
         .foregroundStyle(.white)
         .padding(18)
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(AccountTint.profile))
+    }
+
+    private func profileSubtitle(_ me: PublicProfile) -> String {
+        if me.nickname == nil { return "Nickname, photo, about you" }
+        if let bio = me.bio, !bio.isEmpty { return bio }
+        return me.member ? "Shown in Community" : "Ready for Community"
     }
 
     private func chip(_ title: String, symbol: String) -> some View {
