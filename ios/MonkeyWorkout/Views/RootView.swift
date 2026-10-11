@@ -138,6 +138,7 @@ private struct DemoScreen: View {
             NavigationStack { FindMembersView().navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) } }
         case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", Demo.customExercise.exerciseId]) { _ in }
         case "builder": CustomExerciseBuilderView(existing: Demo.customExercise)
+        case "muscle-picker": MusclePickerScreen(primary: [.glutes], secondary: [.hamstrings], heat: [.glutes: 1, .hamstrings: 0.35]) { _ in }
         case "generate":
             MuscleWorkoutGeneratorSheet(profile: model.profile ?? Profile(),
                                         options: MuscleWorkoutOptions(profile: model.profile ?? Profile(), groups: [.chest, .back]),
