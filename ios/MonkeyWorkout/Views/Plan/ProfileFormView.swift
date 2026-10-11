@@ -136,8 +136,8 @@ struct ProfileFormView: View {
                 .foregroundStyle(Theme.muted)
             goals
         case .week:
-            week
             summary
+            week
         case .variety:
             variety
         case .style:

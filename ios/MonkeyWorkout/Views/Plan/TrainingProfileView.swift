@@ -73,8 +73,10 @@ struct ProfileSectionCard: View {
             Spacer(minLength: 4)
             VStack(alignment: .trailing, spacing: 0) {
                 Text(big.0).font(Theme.display(26)).lineLimit(1).minimumScaleFactor(0.5)
-                Text(big.1).font(Theme.label(9)).tracking(1.2).opacity(0.8)
+                Text(big.1).font(Theme.label(9)).tracking(1.2).opacity(0.8).lineLimit(1)
             }
+            .fixedSize()
+            .layoutPriority(2)
             Image(systemName: "chevron.right").font(.footnote.bold()).opacity(0.7)
         }
         .foregroundStyle(.white)
@@ -114,7 +116,7 @@ struct ProfileSectionCard: View {
     private var big: (String, String) {
         switch section {
         case .goal: ("\(Generator.sessionMinutes(profile))′", "PER SESSION")
-        case .week: ("\(profile.sessionsPerWeek)×", "PER WEEK")
+        case .week: (String(format: "%.1fh", Double(Generator.sessionMinutes(profile) * profile.sessionsPerWeek) / 60), "PER WEEK")
         case .variety: profile.planVariety.count
         case .style: (profile.rest.range.value, profile.rest.range.unit)
         case .gym: ("\(profile.equipment.count)", "ITEMS")
