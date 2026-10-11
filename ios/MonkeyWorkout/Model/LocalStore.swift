@@ -21,6 +21,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var moves: [SessionMove]?
     /// Per-workout rest / grouping overrides (#106), keyed by session id ("w2s1"); dropped on a week change.
     var sessionStyles: [String: SessionStyle]?
+    /// Gyms the member set up, each with its own equipment (#162). Optional so older profiles still decode.
+    var savedGyms: [SavedGym]?
 
     /// Profile the plan is generated from: the training profile plus this week's per-workout overrides.
     var planProfile: Profile {

@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { ensureCommunitySchema } from './community/schema.ts';
+import { ensureGymSchema } from './gymSchema.ts';
 import { ensurePushSchema } from './push/schema.ts';
 import { ensureSchemaExtras } from './schemaExtras.ts';
 import { ensureSubscriptionSchema } from './subscriptions/schema.ts';
@@ -115,6 +116,7 @@ export const openDb = (path: string): DB => {
   ensureCommunitySchema(db);
   ensurePushSchema(db);
   ensureSubscriptionSchema(db);
+  ensureGymSchema(db);
   return db;
 };
 

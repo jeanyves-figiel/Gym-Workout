@@ -46,6 +46,19 @@ extension Equipment {
         case .hipAdAbductor: "Hip adductor / abductor"
         case .abCrunch: "Ab crunch machine"
         case .torsoRotation: "Torso rotation machine"
+        case .ezBar: "EZ curl bar"
+        case .preacherBench: "Preacher curl bench"
+        case .shoulderPress: "Shoulder press machine"
+        case .standingCalf: "Standing calf raise machine"
+        case .tBarRow: "T-bar row"
+        case .ghd: "Glute-ham developer (GHD)"
+        case .stabilityBall: "Stability ball"
+        case .jumpRope: "Jump rope"
+        case .assistedMachine: "Assisted pull-up / dip machine"
+        case .reverseHyper: "Reverse hyper"
+        case .curlMachine: "Biceps curl machine"
+        case .tricepsMachine: "Triceps extension machine"
+        case .dipBelt: "Dip belt / weighted vest"
         }
     }
 }
