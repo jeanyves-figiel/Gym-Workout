@@ -33,5 +33,11 @@ export const ensureSubscriptionSchema = (db: DB): void => {
       note TEXT,
       created_at TEXT NOT NULL
     );
+    -- Staging test mode (SUBSCRIPTION_TESTS=on): per-account Pro mode override.
+    CREATE TABLE IF NOT EXISTS subscription_tests (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      mode TEXT,
+      updated_at TEXT NOT NULL
+    );
   `);
 };

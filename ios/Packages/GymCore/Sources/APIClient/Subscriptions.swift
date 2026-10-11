@@ -6,6 +6,8 @@ public struct Entitlement: Codable, Sendable, Equatable {
     public enum Mode: String, Codable, Sendable { case off, preview, enforced }
     public enum Source: String, Codable, Sendable { case subscription, grant, none }
     public struct Grant: Codable, Sendable, Equatable { public var until: Date? }
+    /// Staging test mode (server SUBSCRIPTION_TESTS=on): fake purchases without Apple; `mode` overrides the server's for this account.
+    public struct Test: Codable, Sendable, Equatable { public var mode: Mode? }
 
     public var mode: Mode
     /// Active subscription (trial and grace period included) or free access given by the owner.
@@ -22,6 +24,7 @@ public struct Entitlement: Codable, Sendable, Equatable {
     public var environment: String?
     public var grant: Grant?
     public var products: [String]
+    public var test: Test?
 
     public init(mode: Mode, pro: Bool, access: Bool, source: Source, productId: String? = nil, expiresAt: Date? = nil,
                 trial: Bool? = nil, lifetime: Bool? = nil, willRenew: Bool? = nil, grant: Grant? = nil, products: [String] = []) {
@@ -51,5 +54,25 @@ extension APIClient {
         struct Body: Encodable { var signedTransaction: String; var signedRenewalInfo: String? }
         return try await authorized("POST", "/v1/me/subscriptions/transactions",
                                     Body(signedTransaction: signedTransaction, signedRenewalInfo: renewalInfo), as: Entitlement.self)
+    }
+
+    // Staging test mode: Pro without Apple (404 unless the server runs with SUBSCRIPTION_TESTS=on).
+
+    /// This account sees Pro as off / preview / enforced; nil follows the server.
+    public func setTestMode(_ mode: Entitlement.Mode?) async throws -> Entitlement {
+        struct Body: Encodable { var mode: Entitlement.Mode? }
+        return try await authorized("PUT", "/v1/me/subscriptions/test", Body(mode: mode), as: Entitlement.self)
+    }
+
+    /// Fake purchase: subscriptions start with the free week, Lifetime never expires.
+    public func testPurchase(_ productId: String) async throws -> Entitlement {
+        struct Body: Encodable { var productId: String }
+        return try await authorized("POST", "/v1/me/subscriptions/test/purchase", Body(productId: productId), as: Entitlement.self)
+    }
+
+    /// `end: false` turns auto-renew off; `end: true` removes the test purchase (back to Free).
+    public func testCancel(end: Bool) async throws -> Entitlement {
+        struct Body: Encodable { var end: Bool }
+        return try await authorized("POST", "/v1/me/subscriptions/test/cancel", Body(end: end), as: Entitlement.self)
     }
 }

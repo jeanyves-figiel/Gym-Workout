@@ -22,6 +22,10 @@ Other territories get Apple's equalized price. The free week is one per Apple ID
   `pro` = active subscription (trial and grace period included) or free access from the owner.
 - One App Store subscription belongs to one MonkeyWorkout account (restoring it on another account → 409).
 
+## Staging test mode (#154)
+
+`SUBSCRIPTION_TESTS=on` (staging only, in `fly.staging.toml`): no Apple involved. Account → MonkeyWorkout Pro → **Staging test**: pick Server / Off / Preview / Enforced for your account only, then buy any plan (fake, no charge; subscriptions start with the free week, Lifetime never expires), cancel auto-renew or end it now. Entitlement carries `test` when on. Never set on production.
+
 ## Server switch `SUBSCRIPTIONS` (Fly env, default `off`)
 
 | Value | App |

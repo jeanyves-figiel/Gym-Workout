@@ -203,4 +203,29 @@ describe('in-app subscriptions', () => {
     expect(await entitlement(a.token)).toMatchObject({ source: 'grant', grant: {} }); // kept: no end date
     expect(await entitlement(b.token)).toMatchObject({ source: 'grant', grant: { until: new Date(clock.getTime() + 30 * DAY).toISOString() } });
   });
+
+  it('staging test mode: per-account mode, fake purchase, cancel and end; 404 when off', async () => {
+    start();
+    const u = await signUp('test@example.com');
+    const put = (token: string, url: string, payload: object, method: 'PUT' | 'POST' = 'POST') =>
+      app.inject({ method, url, headers: auth(token), payload });
+    expect((await put(u.token, '/v1/me/subscriptions/test/purchase', { productId: 'monkeyworkout.pro.yearly' })).statusCode).toBe(404);
+    expect(await entitlement(u.token)).not.toHaveProperty('test');
+    await app.close();
+
+    start({ SUBSCRIPTION_TESTS: 'on' });
+    const a = await signUp('a@example.com');
+    const b = await signUp('b@example.com');
+    expect(await entitlement(a.token)).toMatchObject({ mode: 'off', access: true, test: {} });
+    expect((await put(a.token, '/v1/me/subscriptions/test', { mode: 'enforced' }, 'PUT')).json()).toMatchObject({ mode: 'enforced', access: false, test: { mode: 'enforced' } });
+    expect(await entitlement(b.token)).toMatchObject({ mode: 'off', access: true }); // other accounts unchanged
+    expect((await put(a.token, '/v1/me/subscriptions/test/purchase', { productId: 'nope' })).statusCode).toBe(400);
+    expect((await put(a.token, '/v1/me/subscriptions/test/purchase', { productId: 'monkeyworkout.pro.monthly' })).json()).toMatchObject({
+      pro: true, access: true, trial: true, willRenew: true, environment: 'Test', expiresAt: new Date(clock.getTime() + 7 * DAY).toISOString(),
+    });
+    expect((await put(a.token, '/v1/me/subscriptions/test/cancel', {})).json()).toMatchObject({ pro: true, willRenew: false });
+    expect((await put(a.token, '/v1/me/subscriptions/test/purchase', { productId: 'monkeyworkout.pro.lifetime' })).json()).toMatchObject({ pro: true, lifetime: true });
+    expect((await put(a.token, '/v1/me/subscriptions/test/cancel', { end: true })).json()).toMatchObject({ pro: false, access: false });
+    expect((await put(a.token, '/v1/me/subscriptions/test', { mode: null }, 'PUT')).json()).toMatchObject({ mode: 'off', access: true, test: {} });
+  });
 });
