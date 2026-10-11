@@ -2,6 +2,7 @@ import Testing
 @testable import WorkoutEngine
 
 /// #79: every tap on the Explore body map opened Calves. #110: anatomical polygons, M and F figures.
+/// #112: muscle audit (traps, serratus, deep core, lower abs, glute med, tibialis, soleus, brachialis, extensors).
 @Suite struct BodyMapLayoutTests {
     @Test(arguments: BodyMapLayout.Side.allCases, BodyMapLayout.Figure.allCases)
     func centreOfEveryShapeHitsItsOwnMuscle(side: BodyMapLayout.Side, figure: BodyMapLayout.Figure) {
@@ -18,7 +19,12 @@ import Testing
         #expect(hit(81, 95, .front) == .chest)
         #expect(hit(100, 152, .front) == .abs)
         #expect(hit(79, 264, .front) == .quads)
-        #expect(hit(78, 357, .front) == .calves)
+        #expect(hit(78, 357, .front) == .tibialis)
+        #expect(hit(87, 345, .front) == .calves)
+        #expect(hit(100, 190, .front) == .lowerAbs)
+        #expect(hit(72, 198, .back) == .gluteMed)
+        #expect(hit(79, 378, .back) == .soleus)
+        #expect(hit(100, 66, .back) == .traps)
         #expect(hit(100, 90, .back) == .upperBack)
         #expect(hit(82, 208, .back) == .glutes)
         #expect(hit(120, 270, .back) == .hamstrings) // mirrored twin
@@ -53,5 +59,20 @@ import Testing
         }
         #expect(span(.female, 166) < span(.male, 166))
         #expect(span(.female, 214) > span(.male, 214))
+    }
+}
+
+/// #112: every muscle on the map has at least one exercise that trains it directly.
+@Suite struct MuscleAuditTests {
+    @Test(arguments: Muscle.allCases)
+    func everyMuscleHasADirectExercise(muscle: Muscle) {
+        #expect(Exercise.catalog.contains { $0.primary.contains(muscle) }, "\(muscle)")
+    }
+
+    @Test func newMusclesDecodeAndOldOnesStayStable() throws {
+        #expect(Muscle(rawValue: "upper-back") == .upperBack)
+        #expect(Muscle(rawValue: "deep-core") == .deepCore)
+        #expect(Muscle(rawValue: "glute-med") == .gluteMed)
+        #expect(Muscle.allCases.count == 28)
     }
 }

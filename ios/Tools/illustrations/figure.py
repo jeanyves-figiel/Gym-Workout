@@ -56,6 +56,10 @@ MUSCLE_SEGMENTS = {
     "frontDelts": ["shoulderblob"], "sideDelts": ["shoulderblob"], "rearDelts": ["shoulderblob"],
     "rotatorCuff": ["shoulderblob"],
     "biceps": ["upper"], "triceps": ["upper"], "forearms": ["fore"],
+    # Muscle audit (#112).
+    "traps": ["shoulderblob"], "serratus": ["torso"], "deepCore": ["torso"], "lowerAbs": ["torso"],
+    "gluteMed": ["hipblob"], "soleus": ["shin"], "tibialis": ["shin"], "brachialis": ["upper"],
+    "forearmExtensors": ["fore"],
 }
 
 

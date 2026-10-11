@@ -64,6 +64,7 @@ public enum ExerciseIllustrations {
         "suitcase-carry",
         "t-spine-roller",
         "thread-needle",
+        "tib-raise",
         "torso-rotation",
         "trap-bar-jump",
         "trx-body-saw",
