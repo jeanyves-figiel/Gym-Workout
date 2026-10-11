@@ -23,6 +23,7 @@ struct FindMembersCard: View {
                     Text("\(community.profile?.following ?? 0)").font(Theme.display(26)).monospacedDigit()
                     Text("FOLLOWING").font(Theme.label(9)).tracking(1.2).opacity(0.8)
                 }
+                .fixedSize()
                 Image(systemName: "chevron.right").font(.footnote.bold()).opacity(0.7)
             }
             .foregroundStyle(.white)
@@ -53,7 +54,8 @@ struct FindMembersView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 12) {
+            // Not lazy: one member can sit in several sections (gym, following), and a lazy stack would collide their ids.
+            VStack(alignment: .leading, spacing: 12) {
                 ErrorText(message: error)
                 if let results {
                     if searching {
@@ -83,17 +85,19 @@ struct FindMembersView: View {
     @ViewBuilder
     private var gymSection: some View {
         if showsGym {
-            HStack {
-                Text("AT \((community.profile?.gym ?? "YOUR GYM").uppercased())")
-                    .font(Theme.label(12)).tracking(1.2).foregroundStyle(Theme.muted).lineLimit(1)
-                Spacer()
-                Button("Hide my gym") { setShowGym(false) }.font(.caption.bold()).foregroundStyle(Theme.lime).disabled(savingGym)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("AT \((community.profile?.gym ?? "YOUR GYM").uppercased())")
+                        .font(Theme.label(12)).tracking(1.2).foregroundStyle(Theme.muted).lineLimit(1)
+                    Spacer()
+                    Button("Hide my gym") { setShowGym(false) }.font(.caption.bold()).foregroundStyle(Theme.lime).disabled(savingGym)
+                }
+                .padding(.top, 4)
+                if atGym.isEmpty {
+                    Text("Nobody else there shows their gym yet.").font(.subheadline).foregroundStyle(Theme.muted)
+                }
+                ForEach(atGym) { m in MemberRow(member: m) { toggleFollow(m) } }
             }
-            .padding(.top, 4)
-            if atGym.isEmpty {
-                Text("Nobody else there shows their gym yet.").font(.subheadline).foregroundStyle(Theme.muted)
-            }
-            ForEach(atGym) { m in MemberRow(member: m) { toggleFollow(m) } }
         } else {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 14) {
@@ -131,16 +135,17 @@ struct FindMembersView: View {
         }
     }
 
-    @ViewBuilder
     private func section(_ title: String, _ rows: [CommunityMemberSummary], empty: String?) -> some View {
-        if !rows.isEmpty || empty != nil {
-            Text(title.uppercased()).font(Theme.label(12)).tracking(1.2).foregroundStyle(Theme.muted).padding(.top, 4)
-        }
-        if rows.isEmpty, let empty {
-            Text(empty).font(.subheadline).foregroundStyle(Theme.muted)
-        }
-        ForEach(rows) { m in
-            MemberRow(member: m) { toggleFollow(m) }
+        VStack(alignment: .leading, spacing: 12) {
+            if !rows.isEmpty || empty != nil {
+                Text(title.uppercased()).font(Theme.label(12)).tracking(1.2).foregroundStyle(Theme.muted).padding(.top, 4)
+            }
+            if rows.isEmpty, let empty {
+                Text(empty).font(.subheadline).foregroundStyle(Theme.muted)
+            }
+            ForEach(rows) { m in
+                MemberRow(member: m) { toggleFollow(m) }
+            }
         }
     }
 
