@@ -96,14 +96,14 @@ extension AppModel {
     }
 }
 
-// MARK: - Train tab section
+// MARK: - Explore tab section
 
-/// Train tab: the workout library in short (my workouts, then built-in), with the full library one tap away.
+/// Explore → Workouts: my workouts and built-in ones, with the full library (members, search) one tap away.
 struct WorkoutLibrarySection: View {
     @Environment(AppModel.self) private var model
     @State private var editing: CustomWorkout?
 
-    private var preview: [LibraryEntry] { Array((model.myLibrary + model.builtInLibrary).prefix(4)) }
+    private var preview: [LibraryEntry] { model.myLibrary + model.builtInLibrary }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -126,8 +126,8 @@ struct WorkoutLibrarySection: View {
                         .frame(width: 52, height: 52)
                         .background(RoundedRectangle(cornerRadius: 16).fill(Theme.lime.opacity(0.15)))
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Browse the library").font(.system(.headline, design: .rounded).weight(.heavy))
-                        Text("Your workouts, built-in and shared by members. Start one now or add it to your plan.")
+                        Text("Browse all workouts").font(.system(.headline, design: .rounded).weight(.heavy))
+                        Text("Search the library, including workouts shared by members. Start one now or add it to your plan.")
                             .font(.caption)
                             .foregroundStyle(Theme.muted)
                             .multilineTextAlignment(.leading)
