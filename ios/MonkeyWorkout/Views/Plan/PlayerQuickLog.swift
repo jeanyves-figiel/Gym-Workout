@@ -141,9 +141,8 @@ struct UpNextCard: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Photos read at 48 pt; the app's line illustrations (wall + floor + thin figure) shrink to a stray
-            // "L" shape, so those get the category icon tile instead, as on Explore.
-            if let exercise, exercise.imageId != nil {
+            // The exercise's own art (#170) reads at 48 pt; without media, the category icon tile as on Explore.
+            if let exercise, ExerciseImage.hasMedia(exercise) {
                 ExerciseThumbnail(exercise: exercise, size: 48)
             } else {
                 Image(systemName: exercise?.category.symbol ?? symbol)
