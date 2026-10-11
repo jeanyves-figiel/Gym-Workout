@@ -1,0 +1,56 @@
+name: Fly undo workout
+
+# Manual ops: remove one recorded workout from an account as if it never happened (backend/src/admin/undoWorkout.ts).
+# Without workout_id or apply: dry run, lists candidate workouts in the window. With both: JSON backup next to the DB
+# (/data/backups), then deletes the workout, its set logs, PR attempts made during it and its community posts.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target'
+        type: choice
+        options: [staging, production]
+        default: staging
+      email:
+        description: 'Account email'
+        required: true
+      from:
+        description: 'Window start (ISO, UTC)'
+        required: true
+      to:
+        description: 'Window end (ISO, UTC)'
+        required: true
+      workout_id:
+        description: 'Workout id to remove (from a dry run)'
+        required: false
+        default: ''
+      apply:
+        description: 'Delete (otherwise dry run)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  undo:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_APP: ${{ inputs.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
+      HOST: ${{ inputs.environment == 'production' && 'workout.monkeygrade.cloud' || 'workout-staging.monkeygrade.cloud' }}
+      EMAIL: ${{ inputs.email }}
+      FROM: ${{ inputs.from }}
+      TO: ${{ inputs.to }}
+      WORKOUT_ID: ${{ inputs.workout_id }}
+      APPLY: ${{ inputs.apply }}
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Wake machine
+        run: curl -fsS --retry 5 --retry-delay 3 "https://$HOST/healthz" >/dev/null
+      - name: Run
+        run: |
+          args=$(jq -nc --arg email "$EMAIL" --arg from "$FROM" --arg to "$TO" --arg id "$WORKOUT_ID" --argjson apply "$APPLY" \
+            '{email: $email, from: $from, to: $to, apply: $apply} + (if $id == "" then {} else {workoutId: $id} end)' | base64 -w0)
+          flyctl ssh console -a "$FLY_APP" -C "node --disable-warning=ExperimentalWarning /app/src/admin/undoWorkout.ts $args"

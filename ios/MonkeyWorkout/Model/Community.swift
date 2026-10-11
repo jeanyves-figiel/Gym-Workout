@@ -195,6 +195,17 @@ final class Community {
         }
     }
 
+    /// Removes the workout's auto-shared post when the workout is undone (#133).
+    func didUndo(_ record: WorkoutRecord, api: APIClient) {
+        let ref = WinCard.workout(record).refId
+        for p in mine where p.kind == "workout" && p.refId == ref {
+            Task {
+                try? await api.deletePost(p.id)
+                removed(p.id)
+            }
+        }
+    }
+
     #if DEBUG
     func loadDemo(joined: Bool = true) {
         demo = true
