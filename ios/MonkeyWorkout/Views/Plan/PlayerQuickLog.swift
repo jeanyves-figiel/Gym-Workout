@@ -76,9 +76,15 @@ struct CurrentSetCard: View {
                 Text("Set \(set + 1) of \(state.rows.count)").font(Theme.label(13)).tracking(1.2).textCase(.uppercase)
                 Spacer()
                 if let s = state.suggestion {
-                    Text("Suggested \(LoadAdvisor.formatKg(s.kg))\(s.reps.map { " × \($0)" } ?? "")")
+                    // Where the prefill comes from; values stay editable with the steppers.
+                    Label(s.source == .history ? "From last time" : "Estimate",
+                          systemImage: s.source == .history ? "clock.arrow.circlepath" : "wand.and.stars")
                         .font(Theme.label(11))
-                        .opacity(0.85)
+                        .foregroundStyle(s.source == .history ? Theme.lime : .white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(.white.opacity(0.12)))
+                        .accessibilityLabel(s.reason)
                 }
             }
             HStack(spacing: 10) {
