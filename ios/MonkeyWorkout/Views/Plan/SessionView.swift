@@ -10,6 +10,7 @@ struct SessionView: View {
     @State private var detail: ExerciseRef?
     @State private var muscle: Muscle?
     @State private var swapping: ExerciseRef?
+    @State private var undoing: WorkoutRecord?
 
     private var session: Session? { model.session(sessionId) }
 
@@ -108,10 +109,24 @@ struct SessionView: View {
     @ViewBuilder
     private func finishButton(_ s: Session) -> some View {
         if model.state.done[s.id] ?? false {
-            Button("Mark as not done") { model.toggleDone(s.id) }
-                .font(Theme.label(14))
-                .foregroundStyle(Theme.muted)
-                .frame(maxWidth: .infinity)
+            // Recorded this week: undo it completely (#133); otherwise only the done mark.
+            if let r = model.recordThisWeek(s.id) {
+                Button("Undo workout") { undoing = r }
+                    .font(Theme.label(14))
+                    .foregroundStyle(Theme.muted)
+                    .frame(maxWidth: .infinity)
+                    .confirmationDialog("Undo this workout?", isPresented: Binding { undoing != nil } set: { if !$0 { undoing = nil } },
+                                        titleVisibility: .visible, presenting: undoing) { r in
+                        Button("Undo workout", role: .destructive) { model.undoWorkout(r.id) }
+                    } message: { _ in
+                        Text("Removes it from history with its sets, PRs and progress, as if it never happened, so you can do it again.")
+                    }
+            } else {
+                Button("Mark as not done") { model.toggleDone(s.id) }
+                    .font(Theme.label(14))
+                    .foregroundStyle(Theme.muted)
+                    .frame(maxWidth: .infinity)
+            }
         }
     }
 }

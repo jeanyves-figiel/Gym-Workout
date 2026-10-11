@@ -367,11 +367,42 @@ final class AppModel {
         Task { await sync() }
     }
 
-    func deleteRecord(_ id: UUID) {
+    /// Undo a finished workout as if it never happened (#133): removes the record, the sets logged during it
+    /// (so progression, PRs, starting loads and progress ignore them), its auto-shared community post, and marks
+    /// the session not done so it can be done again. Removed on the server too. Apple Health keeps its workout.
+    func undoWorkout(_ id: UUID) {
+        guard let r = state.history.first(where: { $0.id == id }) else { return }
+        let logs = setLogs(of: r)
         state.history.removeAll { $0.id == id }
         state.pendingHistoryIds.remove(id)
+        let logIds = Set(logs.map(\.id))
+        state.logs.removeAll { logIds.contains($0.id) }
+        state.pendingLogIds.subtract(logIds)
+        if r.week == plan?.week, Date().timeIntervalSince(r.startedAt) < 8 * 86_400, let s = plan?.sessions.first(where: { $0.id == r.sessionId }) {
+            state.done[s.id] = nil
+            for b in s.blocks { for it in b.items { state.ticked[it.uid] = nil } }
+            if state.activeWorkout?.sessionId == s.id { state.activeWorkout = nil }
+        }
         persist()
-        Task { try? await api.deleteWorkout(id) }
+        Community.shared.didUndo(r, api: api)
+        Task {
+            try? await api.deleteWorkout(id)
+            for l in logIds { try? await api.deleteLog(l) }
+        }
+    }
+
+    /// Set logs of a recorded workout: same session, from its start until the end (plus slack for pauses),
+    /// never into a later workout of the same session.
+    func setLogs(of r: WorkoutRecord) -> [LogEntry] {
+        let next = state.history.filter { $0.sessionId == r.sessionId && $0.startedAt > r.startedAt }.map(\.startedAt).min()
+        let from = r.startedAt.addingTimeInterval(-60)
+        let to = min(next ?? .distantFuture, r.endedAt.addingTimeInterval(6 * 3600))
+        return state.logs.filter { $0.sessionId == r.sessionId && $0.date >= from && $0.date < to }
+    }
+
+    /// The record of a plan session done this week, for Undo workout on the session page.
+    func recordThisWeek(_ sessionId: String) -> WorkoutRecord? {
+        state.history.filter { $0.sessionId == sessionId && $0.week == plan?.week && Date().timeIntervalSince($0.startedAt) < 8 * 86_400 }.max { $0.startedAt < $1.startedAt }
     }
 
     func logWeight(exerciseId: String, sessionId: String, kg: Double) {

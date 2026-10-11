@@ -1,79 +1,114 @@
 import SwiftUI
 
-/// Today: next workout, week progress, readiness and links to the week, other workouts and progress.
+/// Today (#134, design A "Hero card"): the next workout fills the first screen with a big START;
+/// crown down for gradient rows (this week, workouts, streak, progress), icon tile left, big number right.
 struct HomeView: View {
     @Environment(WatchStore.self) private var store
     let onStart: (WSession) -> Void
 
     var body: some View {
         let snap = store.snapshot
+        let p = snap.progress
         ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 6) {
                 if !store.hasPlan {
                     Eyebrow(text: "MonkeyWorkout", color: W.lime)
                     Text("Open MonkeyWorkout on your iPhone to sync your plan.").font(.footnote)
                 } else {
                     if let next = store.next {
-                        NavigationLink(value: next) { NextCard(session: next) }
+                        NavigationLink(value: next) { NextCard(session: next, week: snap.week) }
                             .buttonStyle(.plain)
                         LimeButton(title: "▶ START") { onStart(next) }
                     } else {
                         VStack(alignment: .leading, spacing: 2) {
-                            Eyebrow(text: "This week", color: W.lime)
-                            Text("Week complete").font(W.display(20))
+                            Eyebrow(text: "This week", color: .white.opacity(0.85))
+                            Text("Week complete 🏆").font(W.display(20))
                         }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, minHeight: 90, alignment: .leading)
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(W.gradient(0x3DFFB0, 0x1E9BFF)))
                     }
                     HStack {
-                        stat("\(snap.week)/\(snap.weeks)", "week")
+                        Text("\(p.thisWeek)/\(p.target) done").foregroundStyle(W.lime)
                         Spacer()
-                        stat("\(snap.progress.thisWeek)/\(snap.progress.target)", "done", W.lime)
                         if let r = snap.readiness {
-                            Spacer()
-                            stat(r.components(separatedBy: " ").first ?? r, "today", W.color(0x3DFFB0))
+                            Text("Ready \(r.components(separatedBy: " ").first ?? r)").foregroundStyle(W.color(0x3DFFB0))
                         }
                     }
-                    .padding(.vertical, 4)
+                    .font(W.label(11))
+                    .padding(.horizontal, 2)
+                    .padding(.bottom, 4)
                     NavigationLink { SessionListView(title: "This week", sessions: snap.sessions) } label: {
-                        row("calendar", "This week")
+                        HomeRow(symbol: "calendar", title: "This week", value: "\(p.thisWeek)/\(p.target)", tint: (0xFF7A3D, 0xFF3D5A))
                     }
+                    .buttonStyle(.plain)
                     if !snap.extras.isEmpty {
                         NavigationLink { SessionListView(title: "Workouts", sessions: snap.extras) } label: {
-                            row("figure.strengthtraining.traditional", "My & example workouts")
+                            HomeRow(symbol: "figure.strengthtraining.traditional", title: "Workouts", value: "\(snap.extras.count)",
+                                    tint: (0x1E9BFF, 0x3DFFB0))
                         }
+                        .buttonStyle(.plain)
                     }
-                    NavigationLink { ProgressScreen() } label: { row("chart.line.uptrend.xyaxis", "Progress") }
+                    NavigationLink { ProgressScreen() } label: {
+                        HomeRow(symbol: "flame.fill", title: "Streak", value: "\(p.streakWeeks)w", tint: (0xFFC23D, 0xFF7A3D))
+                    }
+                    .buttonStyle(.plain)
+                    NavigationLink { ProgressScreen() } label: {
+                        HomeRow(symbol: "chart.line.uptrend.xyaxis", title: "Progress",
+                                value: p.records.isEmpty ? "›" : "\(p.records.count) PR", tint: (0x3D5AFF, 0x7B3DFF))
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
         .navigationTitle("Today")
         .navigationDestination(for: WSession.self) { SessionDetailView(session: $0, onStart: onStart) }
     }
+}
 
-    private func stat(_ value: String, _ label: String, _ color: Color = .white) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(value).font(W.label(13)).foregroundStyle(color)
-            Text(label).font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+/// Big gradient card for the next workout: day, title, length, plan week.
+private struct NextCard: View {
+    let session: WSession
+    let week: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Eyebrow(text: "Next up · \(session.dayLabel)", color: .white.opacity(0.85))
+            Spacer(minLength: 0)
+            Text(session.title).font(W.display(21)).lineLimit(2).minimumScaleFactor(0.6)
+            HStack(alignment: .lastTextBaseline) {
+                Text("\(session.estMin) min · \(session.items.count) ex").font(W.label(10)).opacity(0.9)
+                Spacer()
+                Text("W\(week)").font(W.display(22))
+            }
         }
-    }
-
-    private func row(_ symbol: String, _ title: String) -> some View {
-        Label(title, systemImage: symbol).font(W.label(13))
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, minHeight: 104, alignment: .leading)
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(W.gradient(session.tint, session.blocks.first?.tint2)))
     }
 }
 
-private struct NextCard: View {
-    let session: WSession
+/// Explore-style row: icon tile left, label, big number right, on a vivid gradient.
+private struct HomeRow: View {
+    let symbol: String
+    let title: String
+    let value: String
+    let tint: (UInt32, UInt32)
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Eyebrow(text: "Next up · \(session.dayLabel)", color: .white.opacity(0.85))
-            Text(session.title).font(W.display(18)).lineLimit(2).minimumScaleFactor(0.7)
-            Text("\(session.estMin) min · \(session.items.count) exercises").font(W.label(10)).opacity(0.9)
+        HStack(spacing: 7) {
+            Image(systemName: symbol).font(.system(size: 12, weight: .bold))
+                .frame(width: 26, height: 26)
+                .background(RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.25)))
+            Text(title).font(W.label(11)).lineLimit(1)
+            Spacer(minLength: 2)
+            Text(value).font(W.display(19)).lineLimit(1).minimumScaleFactor(0.7)
         }
         .foregroundStyle(.white)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(W.gradient(session.tint, session.blocks.first?.tint2)))
+        .padding(7)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(W.gradient(tint.0, tint.1)))
     }
 }
 

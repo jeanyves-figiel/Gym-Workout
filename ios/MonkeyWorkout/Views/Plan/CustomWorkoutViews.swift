@@ -65,11 +65,22 @@ struct CustomWorkoutEditor: View {
     @State private var picking = false
     @State private var editMode: EditMode = .inactive
     @State private var confirmDiscard = false
+    @State private var generating = false
+    /// Last generator choices (#119), kept so "Generate again" starts from them.
+    @State private var generated: MuscleWorkoutOptions?
+    @State private var gate: ProGate?
+    /// Quick start of a generated workout: saved first, then played now or placed on a day of this week.
+    @State private var saved = false
+    @State private var playing = false
+    @State private var planning = false
+    @State private var planned = false
     private let initial: CustomWorkout
 
-    init(initial: CustomWorkout) {
+    /// `generated`: the generator choices behind `initial`, when it was just generated (shows the quick start).
+    init(initial: CustomWorkout, generated: MuscleWorkoutOptions? = nil) {
         self.initial = initial
         _draft = State(initialValue: initial)
+        _generated = State(initialValue: generated)
     }
 
     private var isNew: Bool { model.customWorkout(initial.id) == nil }
@@ -105,11 +116,19 @@ struct CustomWorkoutEditor: View {
                 .padding(.top, 8)
                 .cardRow()
 
+                if model.profile != nil {
+                    GenerateWorkoutCard(regenerate: !draft.items.isEmpty) {
+                        ProStore.shared.run(.generateWorkout, $gate) { generating = true }
+                    }
+                        .cardRow()
+                }
+
+                let labels = draft.groupLabels
                 ForEach($draft.items) { $item in
                     ZStack {
                         // Hidden link: the card draws its own chevron instead of the List's disclosure.
                         NavigationLink { CustomItemForm(item: $item) } label: { EmptyView() }.opacity(0)
-                        CustomItemRow(item: item)
+                        CustomItemRow(item: item, group: labels[item.id])
                     }
                     .cardRow()
                 }
@@ -133,7 +152,9 @@ struct CustomWorkoutEditor: View {
 
                 AccountNote(text: draft.items.isEmpty
                             ? "Add at least one exercise from the catalog."
-                            : "Tap an exercise to set sets × reps, rest and calories. Swipe to remove.")
+                            : draft.groupLabels.isEmpty
+                                ? "Tap an exercise to set sets × reps, rest and calories. Swipe to remove."
+                                : "Same letter = back to back (A1 → A2), rest after the round. Tap an exercise to edit, swipe to remove.")
                     .cardRow()
 
                 if !draft.items.isEmpty {
@@ -142,6 +163,20 @@ struct CustomWorkoutEditor: View {
                         AccountValue(value: "\(draft.session.estMin)", unit: "min")
                     }
                     .cardRow()
+                }
+
+                if generated != nil && canSave {
+                    HStack(spacing: 10) {
+                        QuickActionCard(title: "Start now", symbol: "play.fill", gradient: WorkoutEngine.Category.strength.gradient) {
+                            ProStore.shared.run(.generateWorkout, $gate) { saveThen { playing = true } }
+                        }
+                        QuickActionCard(title: "Add to a day", symbol: "calendar.badge.plus", gradient: WorkoutEngine.Category.mobility.gradient) {
+                            ProStore.shared.run(.generateWorkout, $gate) { saveThen { planning = true } }
+                        }
+                    }
+                    .cardRow()
+                    AccountNote(text: "Saves it to your workouts. Your plan stays as it is: Add to a day places it in this week only.")
+                        .cardRow()
                 }
             }
             .listStyle(.plain)
@@ -152,7 +187,7 @@ struct CustomWorkoutEditor: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        if draft != initial && !(isNew && draft.items.isEmpty && trimmedName.isEmpty) { confirmDiscard = true } else { dismiss() }
+                        if saved { dismiss() } else if draft != initial && !(isNew && draft.items.isEmpty && trimmedName.isEmpty) { confirmDiscard = true } else { dismiss() }
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -172,8 +207,57 @@ struct CustomWorkoutEditor: View {
                     draft.items += picked.map { CustomWorkout.Item(adding: $0) }
                 }
             }
+            .proPaywall($gate)
+            .fullScreenCover(isPresented: $playing, onDismiss: { dismiss() }) {
+                WorkoutPlayerView(sessionId: draft.sessionId)
+            }
+            .sheet(isPresented: $planning, onDismiss: { if planned { dismiss() } }) {
+                AddToPlanSheet(workout: draft) { _ in planned = true }
+            }
+            .sheet(isPresented: $generating) {
+                if let profile = model.profile {
+                    MuscleWorkoutGeneratorSheet(profile: profile, options: generated, replacing: !draft.items.isEmpty) { w, options in
+                        // The name follows the muscles unless the user typed their own.
+                        let previous = generated.map { CustomWorkout.generatedName($0.groups) }
+                        if trimmedName.isEmpty || trimmedName == previous { draft.name = w.name }
+                        draft.items = w.items
+                        generated = options
+                    }
+                }
+            }
         }
-        .interactiveDismissDisabled(draft != initial)
+        .interactiveDismissDisabled(draft != initial && !saved)
+    }
+
+    /// Saves the draft (once per change), then runs `next`.
+    private func saveThen(_ next: () -> Void) {
+        model.saveCustomWorkout(draft)
+        saved = true
+        next()
+    }
+}
+
+/// Half-width vivid action card (icon tile over a heavy label) for the builder's quick start.
+private struct QuickActionCard: View {
+    let title: String
+    let symbol: String
+    let gradient: LinearGradient
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    IconTile(symbol: symbol, size: 40)
+                    Spacer(minLength: 4)
+                    ProBadge()
+                }
+                Text(title).font(Theme.display(18)).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .gradientCard(gradient, padding: 14)
+        }
+        .buttonStyle(.borderless)
     }
 }
 
@@ -189,6 +273,8 @@ private extension View {
 /// Exercise in the builder: category gradient card, icon tile, name, prescription.
 private struct CustomItemRow: View {
     let item: CustomWorkout.Item
+    /// Superset / circuit label ("A1"), when grouped.
+    var group: String?
 
     var body: some View {
         if let e = item.exercise {
@@ -196,7 +282,18 @@ private struct CustomItemRow: View {
             HStack(spacing: 14) {
                 IconTile(symbol: e.category.symbol, size: 44)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(e.name).font(Theme.display(17)).lineLimit(2).minimumScaleFactor(0.8)
+                    HStack(spacing: 6) {
+                        if let group {
+                            Text(group)
+                                .font(Theme.label(11))
+                                .foregroundStyle(Theme.ink)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(RoundedRectangle(cornerRadius: 6).fill(Theme.lime))
+                                .accessibilityLabel("Group \(group)")
+                        }
+                        Text(e.name).font(Theme.display(17)).lineLimit(2).minimumScaleFactor(0.8)
+                    }
                     Text(([
                         item.sets > 1 ? "\(item.sets) × \(measure.text(item.reps))" : measure.text(item.reps),
                         item.restSec > 0 ? "rest \(Format.rest(item.restSec))" : nil,
