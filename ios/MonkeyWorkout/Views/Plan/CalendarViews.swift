@@ -33,41 +33,6 @@ extension TravelSetup {
 
 private let dayFormat: Date.FormatStyle = .dateTime.weekday(.abbreviated).day().month(.abbreviated)
 
-/// Entry card on the Train tab.
-struct CalendarEntryCard: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        let weeks = model.calendarWeeks(count: 4)
-        let count = weeks.reduce(0) { $0 + $1.plan.sessions.filter { !model.doneIds.contains($0.id) }.count }
-        NavigationLink {
-            CalendarView()
-        } label: {
-            HStack(spacing: 14) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 24, weight: .bold))
-                    .frame(width: 52, height: 52)
-                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.22)))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Calendar").font(Theme.display(22))
-                    Text(model.upcomingAway.isEmpty ? "Next 4 weeks · mark days off or travel" : "Next 4 weeks · \(model.upcomingAway.count) away")
-                        .font(.footnote.weight(.semibold)).opacity(0.85).lineLimit(1)
-                }
-                Spacer(minLength: 4)
-                VStack(alignment: .trailing, spacing: 0) {
-                    Text("\(count)").font(Theme.display(34)).monospacedDigit()
-                    Text("PLANNED").font(Theme.label(9)).tracking(1.2).opacity(0.8)
-                }
-            }
-            .foregroundStyle(.white)
-            .padding(18)
-            .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(WorkoutEngine.Category.strength.gradient))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Calendar, \(count) sessions planned in the next 4 weeks")
-    }
-}
-
 /// Coming weeks with dated sessions, climbing days and away periods.
 struct CalendarView: View {
     @Environment(AppModel.self) private var model
