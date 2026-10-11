@@ -105,6 +105,12 @@ extension AppModel {
         return insert
     }
 
+    /// The `PlanInsert` a session of this week's plan came from (extra or library replacement).
+    func planInsert(for session: Session) -> PlanInsert? {
+        guard let id = session.planInsertId else { return nil }
+        return state.synced?.planInserts?.first { $0.id == id }
+    }
+
     /// Takes a library workout back out of the plan; a replaced day returns to its generated session.
     func removePlanInsert(_ id: UUID) {
         guard var sp = state.synced, let ins = sp.planInserts?.first(where: { $0.id == id }) else { return }
