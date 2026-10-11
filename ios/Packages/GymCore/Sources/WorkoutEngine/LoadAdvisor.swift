@@ -132,7 +132,13 @@ public struct LoadSuggestion: Sendable, Hashable {
 /// - Even the best set fell short of the bottom of the range → −5 %.
 /// - Otherwise hold the load and aim for one more rep per set.
 /// - Deload week → −10 % of the last regular load. Deload sessions are never used as the basis.
+/// - Back after ≥ 2 weeks without this exercise → −10 % ease-in (#156, every method).
+/// - RIR-autoregulated plans (#156): logged reps in reserve ≥ 1 above target → +1 increment (≥ 2 → +2);
+///   ≥ 2 below target → −5 %; otherwise double progression as above.
 public enum LoadAdvisor {
+    /// Days without logging an exercise after which the next session eases back in.
+    public static let easeInDays = 14.0
+
     /// Smallest sensible jump and the granularity loads are rounded to.
     public struct Steps: Sendable, Hashable {
         public var increment: Double
@@ -202,7 +208,8 @@ public enum LoadAdvisor {
     /// Suggested load for the next session of `exercise`, or nil when nothing was logged yet.
     /// `history` is oldest first (see `sessions`); `week`/`deload` describe the session about to be trained.
     public static func suggest(
-        exercise e: Exercise, prescription p: Prescription, week: Int, deload: Bool, history: [ExerciseSession]
+        exercise e: Exercise, prescription p: Prescription, week: Int, deload: Bool, history: [ExerciseSession],
+        method: TrainingMethod = .block, now: Date? = nil
     ) -> LoadSuggestion? {
         let logged = history.filter { !$0.sets.isEmpty }
         guard let latest = logged.last else { return nil }
@@ -219,12 +226,39 @@ public enum LoadAdvisor {
                                   reason: "Deload week: −10 % from \(formatKg(kg)) kg")
         }
 
+        // Ease-in after a break (#156): detraining is real, the first session back calibrates.
+        if let now, now.timeIntervalSince(latest.date) >= easeInDays * 86_400, kg > 0 {
+            var target = round(kg * 0.9, to: s.granularity, .down)
+            if target >= kg { target = max(0, kg - s.granularity) }
+            let weeks = Int(now.timeIntervalSince(latest.date) / (7 * 86_400))
+            return LoadSuggestion(kg: target, reps: range?.low, action: .decrease, basisKg: kg,
+                                  reason: "Back after \(weeks) weeks: −10 % from \(formatKg(kg)) kg")
+        }
+
         let working = basis.sets.filter { $0.kg >= kg - 0.001 }
         let reps = working.compactMap(\.reps)
         guard let range, !working.isEmpty, reps.count == working.count, let minReps = reps.min(), let maxReps = reps.max() else {
             return LoadSuggestion(kg: kg, reps: range?.low, action: .hold, basisKg: kg, reason: "Repeat last load: \(formatKg(kg)) kg")
         }
 
+        if method == .autoregulated, let goal = p.targetRIR {
+            let rirs = working.compactMap(\.rir)
+            if !rirs.isEmpty && rirs.count == working.count {
+                let diff = Double(rirs.reduce(0, +)) / Double(rirs.count) - Double(goal)
+                if diff >= 1 && minReps >= range.low {
+                    var target = round(kg + s.increment * (diff >= 2 ? 2 : 1), to: s.granularity)
+                    if target <= kg { target = kg + s.granularity }
+                    return LoadSuggestion(kg: target, reps: range.low, action: .increase, basisKg: kg,
+                                          reason: "Sets ended easier than RPE \(10 - goal) at \(formatKg(kg)) kg → +\(formatKg(target - kg)) kg")
+                }
+                if diff <= -2 {
+                    var target = round(kg * 0.95, to: s.granularity)
+                    if kg > 0 && target >= kg { target = max(0, kg - s.granularity) }
+                    return LoadSuggestion(kg: target, reps: range.low, action: .decrease, basisKg: kg,
+                                          reason: "Sets ended harder than RPE \(10 - goal) at \(formatKg(kg)) kg → −5 %")
+                }
+            }
+        }
         if minReps >= range.high {
             let rirs = working.compactMap(\.rir)
             let baseWeek = week % Generator.mesocycleWeeks == 1

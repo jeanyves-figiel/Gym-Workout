@@ -203,6 +203,8 @@ public struct Profile: Codable, Hashable, Sendable {
     public var restStyle: RestStyle?
     /// Supersets / circuits (#78); nil = the goal's default.
     public var grouping: Grouping?
+    /// Training method (#156); nil = `.block`. Optional so older profiles decode.
+    public var method: TrainingMethod?
     /// Per-workout overrides (#106) keyed by session id ("w2s1"). Set by the app from the synced overrides when
     /// generating; not part of the profile form.
     public var sessionStyles: [String: SessionStyle]?
@@ -213,7 +215,7 @@ public struct Profile: Codable, Hashable, Sendable {
         climbingWeekdays: [Int]? = nil, gymWeekdays: [Int]? = nil, gym: GymRef? = nil,
         climbBefore: ClimbNeighbour? = nil, climbAfter: ClimbNeighbour? = nil,
         climbSameDay: ClimbSameDay? = nil, climbDayAddon: Bool? = nil, variety: PlanVariety? = nil,
-        restStyle: RestStyle? = nil, grouping: Grouping? = nil
+        restStyle: RestStyle? = nil, grouping: Grouping? = nil, method: TrainingMethod? = nil
     ) {
         self.goal = goal
         self.sessionsPerWeek = sessionsPerWeek
@@ -231,6 +233,7 @@ public struct Profile: Codable, Hashable, Sendable {
         self.variety = variety
         self.restStyle = restStyle
         self.grouping = grouping
+        self.method = method
     }
 }
 

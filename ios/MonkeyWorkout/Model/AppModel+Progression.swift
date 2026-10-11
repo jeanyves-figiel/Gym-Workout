@@ -37,7 +37,8 @@ extension AppModel {
         let exercise = Exercise.get(item.exerciseId)
         if let s = LoadAdvisor.suggest(
             exercise: exercise, prescription: item.prescription,
-            week: plan?.week ?? 1, deload: inPlan && (plan?.deload ?? false), history: history) {
+            week: plan?.week ?? 1, deload: inPlan && (plan?.deload ?? false), history: history,
+            method: profile?.trainingMethod ?? .block, now: Date()) {
             return s
         }
         // Never logged (#115): start from a related logged lift, else from body data and experience.
