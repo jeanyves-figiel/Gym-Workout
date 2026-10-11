@@ -110,6 +110,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Repository bootstrap (README, CHANGELOG, .gitignore).
 
 ### Fixed
+- **TestFlight no longer runs out of Apple certificates** (#140): each TestFlight run revokes the development certificate Xcode created for it ("Created via API") once the upload is done, and the **prune_ci_certs** option revokes old CI-made ones before archiving. Certificates made on a Mac are never touched.
 - **Similar exercises open their page** (#129): on an exercise page, each Similar exercises row (now with picture and chevron) opens that exercise, pushed in the same sheet; Back returns.
 - **Join the community follows Account profile edits** (#122): after setting nickname, photo or about in Account → Profile, the Join screen now switches to the "You'll appear as" card right away (it kept the empty Nickname field until the app was restarted). The agree toggle + Join button footer sits below the scrolling content instead of over it, so the guidelines no longer show through.
 - Workout player: the Attempt PR button no longer covers the "Play movement" tag on the exercise picture.
