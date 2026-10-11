@@ -66,6 +66,7 @@ final class AppModel {
             MonkeyGradeLink.shared.loadDemo(ownerId: Demo.user?.id ?? "demo")
             state.synced?.profile.climbDayAddon = true
             Community.shared.loadDemo(joined: Demo.screen != "community-join")
+            if ["paywall", "pro"].contains(Demo.screen) { ProStore.shared.loadDemo(pro: Demo.screen == "pro") }
             state.customExerciseList = [Demo.customExercise]
             state.synced?.away = Demo.away()
             replanCurrentWeek()
@@ -94,6 +95,7 @@ final class AppModel {
         phase = .signedIn // optimistic: works offline at the gym
         await refreshUser()
         await sync()
+        await ProStore.shared.start(api: api, userId: user?.id)
     }
 
     func refreshUser() async {
@@ -112,6 +114,7 @@ final class AppModel {
         persist()
         await pullProfile()
         await sync()
+        await ProStore.shared.start(api: api, userId: user.id)
     }
 
     /// Explicit sign-out: revoke this device and wipe local data.
@@ -140,6 +143,7 @@ final class AppModel {
     }
 
     private func resetLocal() {
+        ProStore.shared.reset()
         store.wipe()
         state = LocalState()
         user = nil

@@ -21,6 +21,9 @@ import { prAttemptRoutes } from './routes/prAttempts.ts';
 import { dataRoutes } from './routes/data.ts';
 import { pushRoutes } from './routes/push.ts';
 import { libraryRoutes } from './routes/library.ts';
+import { appStoreNotificationRoutes, subscriptionRoutes } from './routes/subscriptions.ts';
+import { type AppStoreDecoder, createAppStoreDecoder } from './subscriptions/appStore.ts';
+import { SubscriptionService } from './subscriptions/service.ts';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -43,6 +46,8 @@ export interface AppDeps {
   fetch?: Fetch;
   /** APNs transport; defaults to HTTP/2 when APNS_* is configured. Injectable for tests. */
   apns?: ApnsSender;
+  /** Verifies App Store signed payloads (#126); defaults to the Apple Root CA - G3 chain check. Injectable for tests. */
+  appStore?: AppStoreDecoder;
 }
 
 const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
@@ -78,6 +83,15 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       | undefined;
   push.setFollowersProvider((id) => (sharing(id) ? followerIds(deps.db, id) : []));
   app.decorate('push', push);
+  const subscriptions = new SubscriptionService({
+    db: deps.db,
+    decode: deps.appStore ?? createAppStoreDecoder({ now }),
+    now,
+    mode: deps.config.subscriptions.mode,
+    productIds: deps.config.subscriptions.productIds,
+    bundleIds: deps.config.appleBundleIds,
+    log: warn,
+  });
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof ApiError) return reply.status(err.status).send({ error: err.code, message: err.message, ...err.extra });
@@ -96,6 +110,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   app.get('/healthz', async () => ({ ok: true, mail: deps.config.mail.transport }));
 
   communityPublicRoutes(app, deps.db, deps.config.appName);
+  appStoreNotificationRoutes(app, subscriptions);
 
   const authenticate = async (req: FastifyRequest) => {
     const h = req.headers.authorization;
@@ -195,7 +210,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
         return reply.status(204).send();
       });
 
-      dataRoutes(r, deps.db, deps.now ?? (() => new Date()), auth);
+      dataRoutes(r, deps.db, deps.now ?? (() => new Date()), auth, (id) => subscriptions.export(id));
       accountRoutes(r, emailChange, deps.config.authRateLimitPerMin);
       customWorkoutRoutes(r, deps.db, deps.now ?? (() => new Date()));
       communityRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
@@ -203,6 +218,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       prAttemptRoutes(r, deps.db, deps.now ?? (() => new Date()));
       pushRoutes(r, push, deps.config.appleBundleIds, (id) => sharing(id)?.nickname ?? null);
       libraryRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
+      subscriptionRoutes(r, subscriptions);
     },
     { prefix: '/v1' },
   );

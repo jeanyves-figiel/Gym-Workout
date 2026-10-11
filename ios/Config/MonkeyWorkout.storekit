@@ -1,0 +1,120 @@
+{
+  "appPolicies": {
+    "eula": "",
+    "policies": [
+      {
+        "locale": "en_US",
+        "policyText": "",
+        "policyURL": ""
+      }
+    ]
+  },
+  "identifier": "8E0D1A00",
+  "nonRenewingSubscriptions": [],
+  "products": [],
+  "settings": {
+    "_applicationInternalID": "6819971090",
+    "_developerTeamID": "U7VAR53G86",
+    "_failTransactionsEnabled": false,
+    "_locale": "en_CH",
+    "_storefront": "CHE",
+    "_storeKitErrors": []
+  },
+  "subscriptionGroups": [
+    {
+      "id": "5E0D1A00",
+      "localizations": [
+        {
+          "description": "",
+          "displayName": "MonkeyWorkout Pro",
+          "locale": "en_US"
+        }
+      ],
+      "name": "MonkeyWorkout Pro",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "60.00",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "6E0D1A01",
+          "introductoryOffer": {
+            "internalID": "7E0D1A01",
+            "paymentMode": "free",
+            "subscriptionPeriod": "P1W"
+          },
+          "localizations": [
+            {
+              "description": "All MonkeyWorkout Pro features, billed yearly.",
+              "displayName": "Pro Yearly",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "monkeyworkout.pro.yearly",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "Pro Yearly",
+          "subscriptionGroupID": "5E0D1A00",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "6.00",
+          "familyShareable": false,
+          "groupNumber": 2,
+          "internalID": "6E0D1A02",
+          "introductoryOffer": {
+            "internalID": "7E0D1A02",
+            "paymentMode": "free",
+            "subscriptionPeriod": "P1W"
+          },
+          "localizations": [
+            {
+              "description": "All MonkeyWorkout Pro features, billed monthly.",
+              "displayName": "Pro Monthly",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "monkeyworkout.pro.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Pro Monthly",
+          "subscriptionGroupID": "5E0D1A00",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "2.00",
+          "familyShareable": false,
+          "groupNumber": 3,
+          "internalID": "6E0D1A03",
+          "introductoryOffer": {
+            "internalID": "7E0D1A03",
+            "paymentMode": "free",
+            "subscriptionPeriod": "P1W"
+          },
+          "localizations": [
+            {
+              "description": "All MonkeyWorkout Pro features, billed weekly.",
+              "displayName": "Pro Weekly",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "monkeyworkout.pro.weekly",
+          "recurringSubscriptionPeriod": "P1W",
+          "referenceName": "Pro Weekly",
+          "subscriptionGroupID": "5E0D1A00",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        }
+      ]
+    }
+  ],
+  "version": {
+    "major": 4,
+    "minor": 0
+  }
+}

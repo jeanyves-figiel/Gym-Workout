@@ -109,6 +109,7 @@ private struct DemoScreen: View {
         case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
         case "body": NavigationStack { BodyHealthView() }
         case "account": NavigationStack { AccountView() }
+        case "paywall", "pro": NavigationStack { ProView() }
         case "account-profile": NavigationStack { PublicProfileView() }
         case "account-password": NavigationStack { ChangePasswordView(hasPassword: true) }
         case "account-email": NavigationStack { ChangeEmailView(currentEmail: Demo.user?.email, hasPassword: true) }

@@ -56,6 +56,20 @@ struct AccountView: View {
                     }
                     .buttonStyle(.plain)
 
+                    if ProStore.shared.visible {
+                        section("Membership")
+                        NavigationLink { ProView() } label: {
+                            let e = ProStore.shared.entitlement
+                            AccountCard(symbol: "crown.fill", title: "MonkeyWorkout Pro",
+                                        subtitle: e.pro ? (e.source == .grant ? "Free access" : e.trial == true ? "Free week running" : "Active")
+                                            : "1 week free, then from CHF 2 / week",
+                                        gradient: AccountTint.pro, ink: true) {
+                                Text(e.pro ? "PRO" : "TRY").font(Theme.label(12)).tracking(1)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     section("Connected apps")
                     NavigationLink { MonkeyGradeView() } label: {
                         let link = MonkeyGradeLink.shared
@@ -342,6 +356,10 @@ struct DeleteAccountView: View {
                               subtitle: "Permanently deletes your account, training profile and all logged weights from the server and this device. It cannot be undone.",
                               gradient: AccountTint.danger)
                 AccountNote(text: "Tip: export your data first.")
+                if ProStore.shared.entitlement.source == .subscription {
+                    // App Store 5.1.1(v): deleting the account doesn't stop Apple billing.
+                    AccountNote(text: "Deleting your account doesn't cancel your MonkeyWorkout Pro subscription. Cancel it in Settings → Apple ID → Subscriptions.")
+                }
                 if hasPassword {
                     AccountField(label: "Password") {
                         SecureField("Password", text: $password).textContentType(.password)
