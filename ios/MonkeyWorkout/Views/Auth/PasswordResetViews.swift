@@ -81,6 +81,14 @@ struct ResetPasswordView: View {
     }
 }
 
+/// "<prefix> Terms of Use and Privacy Policy" with both as links (#125).
+enum LegalLinks {
+    static func acceptance(_ prefix: String) -> AttributedString {
+        (try? AttributedString(markdown: "\(prefix) [Terms of Use](\(AppConfig.termsURL.absoluteString)) and [Privacy Policy](\(AppConfig.privacyURL.absoluteString))."))
+            ?? AttributedString("\(prefix) Terms of Use and Privacy Policy.")
+    }
+}
+
 struct PrivacyNoticeView: View {
     var body: some View {
         ScrollView {
@@ -94,9 +102,11 @@ struct PrivacyNoticeView: View {
                 Text("• **Body** — height, weight and birth year you enter, for calorie estimates and progress. Gender and sex are optional, inclusive and never required.")
                 Text("• **History** — completed sessions (exercises, sets, weights, duration, heart rate) so you can see progress.")
                 Text("• **Security** — signed-in devices (device name, dates) so you can sign them out.")
-                Text("**Apple Health** data you allow is read and written on this iPhone only and never sent to the server.")
+                Text("**Apple Health** data you allow stays on this iPhone, except each session's summary (duration, calories, average and max heart rate) saved with your history. Never used for ads, never shared.")
+                Text("• **Community** (optional) — nickname, photo, bio and the wins you choose to share, with the audience you pick.")
                 Text("No tracking, no ads, no third-party analytics. Data is stored on the app's own server and encrypted in transit.")
                 Text("You can export everything or permanently delete your account at any time from **Account**.")
+                Text(LegalLinks.acceptance("Full details:")).font(.footnote).tint(Theme.lime).padding(.top, 4)
             }
             .padding()
         }
