@@ -12,6 +12,7 @@ struct WeekView: View {
         ScrollView {
             if let plan = model.plan, let profile = model.profile {
                 VStack(alignment: .leading, spacing: 18) {
+                    header
                     WeekHero(plan: plan, profile: profile, done: model.completedCount)
                     ReadinessCard(snapshot: health.snapshot)
                     if let next = model.nextSession {
@@ -55,20 +56,7 @@ struct WeekView: View {
         .navigationTitle("Train")
         .toolbarTitleDisplayMode(.inlineLarge)
         .navigationDestination(for: String.self) { id in SessionView(sessionId: id) }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { CalendarView() } label: { Image(systemName: "calendar") }
-                    .accessibilityLabel("Calendar")
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button("New variation", systemImage: "shuffle") { model.newVariation() }
-                    Button("Edit training profile", systemImage: "slider.horizontal.3") { editing = true }
-                } label: {
-                    Image(systemName: "slider.horizontal.3")
-                }
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $editing) {
             NavigationStack {
                 ProfileFormView(initial: model.profile) { p in
@@ -88,11 +76,68 @@ struct WeekView: View {
         }
     }
 
+    /// Title with Calendar and Plan (variation, training profile) as Explore-style gradient buttons.
+    private var header: some View {
+        HStack(spacing: 10) {
+            Text("Train").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
+            Spacer(minLength: 4)
+            NavigationLink { CalendarView() } label: {
+                HeaderChip(symbol: "calendar", title: "Calendar", detail: "\(plannedCount) planned",
+                           gradient: WorkoutEngine.Category.strength.gradient)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Calendar, \(plannedCount) sessions planned in the next 4 weeks")
+            Menu {
+                Button("New variation", systemImage: "shuffle") { model.newVariation() }
+                Button("Edit training profile", systemImage: "slider.horizontal.3") { editing = true }
+            } label: {
+                HeaderChip(symbol: "slider.horizontal.3", title: "Plan", detail: "Variation · edit",
+                           gradient: WorkoutEngine.Category.warmup.gradient)
+            }
+            .accessibilityLabel("Plan: new variation or edit training profile")
+        }
+        .padding(.top, 4)
+    }
+
+    /// Sessions still to do in the next 4 weeks (Calendar button).
+    private var plannedCount: Int {
+        model.calendarWeeks(count: 4).reduce(0) { $0 + $1.plan.sessions.filter { !model.doneIds.contains($0.id) }.count }
+    }
+
     /// Weekday of each session as the training calendar places it: unscheduled plans (no gym or climbing days
     /// picked) still show the day on each card.
     private var calendarDays: [String: Int] {
         let sessions = model.calendarWeeks(count: 1).first?.plan.sessions ?? []
         return Dictionary(sessions.compactMap { s in s.weekday.map { (s.id, $0) } }, uniquingKeysWith: { a, _ in a })
+    }
+}
+
+/// Small gradient button in the Train header: icon tile, title, one-line detail.
+private struct HeaderChip: View {
+    let symbol: String
+    let title: String
+    let detail: String
+    let gradient: LinearGradient
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .bold))
+                .frame(width: 30, height: 30)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.25)))
+            VStack(alignment: .leading, spacing: 0) {
+                Text(title).font(Theme.display(14))
+                Text(detail).font(.system(size: 10, weight: .bold, design: .rounded)).opacity(0.9)
+            }
+            .lineLimit(1)
+            .fixedSize()
+        }
+        .foregroundStyle(.white)
+        .padding(.leading, 7)
+        .padding(.trailing, 10)
+        .padding(.vertical, 7)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(gradient))
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
