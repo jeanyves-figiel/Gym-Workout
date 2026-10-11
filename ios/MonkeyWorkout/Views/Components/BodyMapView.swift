@@ -147,6 +147,41 @@ struct BodyMapPair: View {
     }
 }
 
+/// Close-up of one muscle on the figure (Explore muscle cards): the rest of the body dimmed, the muscle lit in its
+/// load colour, or white when this week's plan doesn't load it.
+struct MuscleThumbnail: View {
+    let muscle: Muscle
+    var heat: Double = 0
+    @Environment(\.bodyFigure) private var figure
+
+    var body: some View {
+        Canvas { ctx, size in
+            guard let f = BodyMapLayout.focus(muscle, figure: figure) else { return }
+            let s = min(size.width, size.height) / CGFloat(f.size)
+            ctx.translateBy(x: -CGFloat(f.x) * s, y: -CGFloat(f.y) * s)
+            for poly in BodyMapLayout.outline(f.side, figure: figure) {
+                ctx.fill(BodyMapView.smooth(poly, s: s), with: .color(.black.opacity(0.28)))
+            }
+            let lit = heat > 0 ? Theme.heat(heat) : Color.white
+            for shape in BodyMapLayout.shapes(f.side, figure: figure) {
+                let path = BodyMapView.smooth(shape.points, s: s)
+                if shape.muscle == muscle {
+                    ctx.drawLayer { glow in
+                        glow.addFilter(.blur(radius: 3 * s))
+                        glow.fill(path, with: .color(lit.opacity(0.7)))
+                    }
+                    ctx.fill(path, with: .color(lit))
+                    ctx.stroke(path, with: .color(.white), lineWidth: max(1, 1.2 * s))
+                } else {
+                    ctx.fill(path, with: .color(.white.opacity(0.16)))
+                    ctx.stroke(path, with: .color(.black.opacity(0.25)), lineWidth: max(0.4, 0.6 * s))
+                }
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 /// Heat legend: cool → hot.
 struct HeatLegend: View {
     var body: some View {

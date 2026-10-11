@@ -98,3 +98,49 @@ public enum BodyMapLayout {
         shapes(side, figure: figure).last { $0.contains(x: x, y: y) }?.muscle
     }
 }
+
+extension BodyMapLayout.Shape {
+    /// Unsigned polygon area.
+    public var area: Double {
+        var a = 0.0
+        for i in points.indices {
+            let p = points[i], q = points[(i + 1) % points.count]
+            a += p.x * q.y - q.x * p.y
+        }
+        return abs(a) / 2
+    }
+}
+
+extension BodyMapLayout {
+    /// Square close-up of one muscle for list thumbnails: the side where it is biggest, and a design-space
+    /// square around it. Paired muscles far apart (biceps, quads) frame one of the pair; nil if never drawn.
+    public struct Focus: Sendable, Equatable {
+        public let side: Side
+        public let x, y, size: Double
+    }
+
+    /// Smallest close-up edge, in design units (keeps tiny muscles in context).
+    static let minFocus = 64.0
+
+    public static func focus(_ muscle: Muscle, figure: Figure = .male) -> Focus? {
+        let candidates = Side.allCases.map { side in (side, shapes(side, figure: figure).filter { $0.muscle == muscle }) }
+            .filter { !$0.1.isEmpty }
+        guard let best = candidates.max(by: { $0.1.reduce(0) { $0 + $1.area } < $1.1.reduce(0) { $0 + $1.area } })
+        else { return nil }
+        let (side, all) = best
+        func bounds(_ s: [Shape]) -> (Double, Double, Double, Double) {
+            let pts = s.flatMap(\.points)
+            return (pts.map(\.x).min() ?? 0, pts.map(\.y).min() ?? 0, pts.map(\.x).max() ?? 0, pts.map(\.y).max() ?? 0)
+        }
+        var picked = all
+        var b = bounds(picked)
+        // A pair split across the midline: keep the screen-left one.
+        let left = all.filter { $0.midX < width / 2 }
+        if b.2 - b.0 > 80, !left.isEmpty, left.count < all.count {
+            picked = left
+            b = bounds(picked)
+        }
+        let size = max(minFocus, max(b.2 - b.0, b.3 - b.1) * 1.3)
+        return Focus(side: side, x: (b.0 + b.2 - size) / 2, y: (b.1 + b.3 - size) / 2, size: size)
+    }
+}
