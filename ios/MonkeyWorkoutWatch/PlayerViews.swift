@@ -1,7 +1,8 @@
 import SwiftUI
 import WatchKit
 
-/// Workout on the Watch: vertical pages Metrics · Set · Controls, rest/effort overlay and summary.
+/// Workout on the Watch (#131): one workout page with metrics and the current set; swipe right for
+/// controls (pause, end, discard), swipe left for Now Playing. Rest / effort overlay sits on the workout page.
 struct PlayerView: View {
     @Bindable var player: WatchPlayer
     let onClose: () -> Void
@@ -18,23 +19,11 @@ struct PlayerView: View {
                 SummaryView(player: player, kcal: workout.activeKcal, avgHR: workout.averageHeartRate, saved: saved, onDone: onClose)
             } else {
                 TabView(selection: $page) {
-                    MetricsPage(player: player).tag(0)
-                    setPage.tag(1)
-                    ControlsPage(player: player, onEnd: finish, onDiscard: discard) { page = 1 }.tag(2)
+                    ControlsPage(player: player, onEnd: finish, onDiscard: discard) { page = 1 }.tag(0)
+                    workoutPage.tag(1)
+                    NowPlayingView().tag(2)
                 }
-                .tabViewStyle(.verticalPage)
-                .overlay {
-                    if case let .rest(end, total, effortSet) = player.phase {
-                        RestOverlay(end: end, total: total, effort: effortSet != nil, next: player.upNext,
-                                    tint: player.step.map { tint($0) } ?? 0xCCFF3D) { rir in
-                            send(player.effort(rir))
-                        } onAdd: {
-                            player.addRest()
-                        } onSkip: {
-                            send(player.skipRest())
-                        }
-                    }
-                }
+                .tabViewStyle(.page)
             }
         }
         .task { await workout.start(title: player.session.title) }
@@ -50,36 +39,49 @@ struct PlayerView: View {
         .onAppear { syncCrown() }
     }
 
-    private var setPage: some View {
-        VStack(alignment: .leading, spacing: 4) {
+    private var workoutPage: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            MetricsRow(player: player)
             if let step = player.step {
                 Eyebrow(text: "\(step.name) · \(min(player.done + 1, step.sets))/\(step.sets)", color: W.color(tint(step)))
                 if step.loggable, let row = player.currentRow, player.done < step.sets {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Button { player.adjustKg(-1) } label: { Image(systemName: "minus") }.buttonStyle(.plain).font(W.label(14))
-                        Text(WatchPlayer.kg(row.kg)).font(W.display(30)).minimumScaleFactor(0.6)
+                        Text(WatchPlayer.kg(row.kg)).font(W.display(28)).minimumScaleFactor(0.6)
                         Text("kg").font(W.label(11))
                         Button { player.adjustKg(1) } label: { Image(systemName: "plus") }.buttonStyle(.plain).font(W.label(14))
                     }
-                    Text("× \(row.reps) reps").font(W.display(20))
+                    Text("× \(row.reps) reps").font(W.display(18))
                         .focusable()
                         .digitalCrownRotation($crown, from: 0, through: 50, by: 1, sensitivity: .medium, isContinuous: false, isHapticFeedbackEnabled: true)
                         .onChange(of: crown) { _, v in player.setReps(Int(v)) }
                 } else if step.timedSec != nil {
                     TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
                         let left = player.timedEnd.map { max(0, $0.timeIntervalSince(ctx.date)) } ?? player.timedRemaining ?? TimeInterval(step.timedSec ?? 0)
-                        Text(WatchPlayer.clock(left)).font(W.display(36)).monospacedDigit()
+                        Text(WatchPlayer.clock(left)).font(W.display(32)).monospacedDigit()
                     }
                     Text(step.reps).font(W.label(11)).foregroundStyle(.secondary)
                 } else {
-                    Text(step.sets > 1 ? "\(step.sets) × \(step.reps)" : step.reps).font(W.display(28)).minimumScaleFactor(0.6)
+                    Text(step.sets > 1 ? "\(step.sets) × \(step.reps)" : step.reps).font(W.display(24)).minimumScaleFactor(0.6)
                     if let i = step.intensity { Text(i).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary) }
                 }
                 LimeButton(title: player.mainLabel) { main() }
                 Text("Next: \(player.upNext)").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .overlay {
+            if case let .rest(end, total, effortSet) = player.phase {
+                RestOverlay(end: end, total: total, effort: effortSet != nil, next: player.upNext,
+                            tint: player.step.map { tint($0) } ?? 0xCCFF3D) { rir in
+                    send(player.effort(rir))
+                } onAdd: {
+                    player.addRest()
+                } onSkip: {
+                    send(player.skipRest())
+                }
+            }
+        }
     }
 
     private func tint(_ it: WItem) -> UInt32 {
@@ -123,23 +125,29 @@ struct PlayerView: View {
     }
 }
 
-private struct MetricsPage: View {
+/// Elapsed time, heart rate, kcal and position in the session, in one line above the set.
+private struct MetricsRow: View {
     let player: WatchPlayer
     @Environment(WorkoutManager.self) private var workout
 
     var body: some View {
         TimelineView(.periodic(from: player.started, by: 1)) { ctx in
-            VStack(alignment: .leading, spacing: 2) {
-                Text(WatchPlayer.clock(ctx.date.timeIntervalSince(player.started))).font(W.display(22)).foregroundStyle(W.lime).monospacedDigit()
-                Text(workout.heartRate.map { "♥ \(Int($0))" } ?? "♥ --").font(W.display(30)).foregroundStyle(W.color(0xFF3D5A))
-                Text("\(Int(workout.activeKcal)) kcal").font(W.display(20))
-                Text("\(player.totalSets) sets · \(player.index + 1)/\(player.steps.count)").font(W.label(11)).foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(WatchPlayer.clock(ctx.date.timeIntervalSince(player.started))).foregroundStyle(W.lime)
+                Text(workout.heartRate.map { "♥\(Int($0))" } ?? "♥--").foregroundStyle(W.color(0xFF3D5A))
+                Text("\(Int(workout.activeKcal))kcal")
+                Spacer(minLength: 0)
+                Text("\(player.index + 1)/\(player.steps.count)").foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .font(W.label(12))
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
         }
     }
 }
 
+/// Swipe right from the workout page: pause / resume, end & save, back / skip, discard (confirmed).
 private struct ControlsPage: View {
     let player: WatchPlayer
     let onEnd: () -> Void
@@ -147,6 +155,7 @@ private struct ControlsPage: View {
     let onBack: () -> Void
     @Environment(WorkoutManager.self) private var workout
     @State private var paused = false
+    @State private var confirmDiscard = false
 
     var body: some View {
         ScrollView {
@@ -156,14 +165,20 @@ private struct ControlsPage: View {
                         paused ? workout.resume() : workout.pause()
                         paused.toggle()
                     }
-                    control("stop.fill", "End", W.color(0xFF3D5A), action: onEnd)
+                    control("stop.fill", "End & save", W.color(0xFF3D5A), action: onEnd)
                 }
                 HStack(spacing: 6) {
                     control("backward.end.fill", "Back", W.card) { player.back(); onBack() }
                     control("forward.end.fill", "Skip", W.card) { _ = player.advance(); onBack() }
                 }
-                Button("Discard workout", role: .destructive, action: onDiscard).font(W.label(11))
+                control("xmark", "Discard workout", W.card) { confirmDiscard = true }
             }
+        }
+        .confirmationDialog("Discard this workout?", isPresented: $confirmDiscard) {
+            Button("Discard", role: .destructive, action: onDiscard)
+            Button("Keep going", role: .cancel) {}
+        } message: {
+            Text("Not saved to Apple Health.")
         }
     }
 
@@ -171,7 +186,7 @@ private struct ControlsPage: View {
         Button(action: action) {
             VStack(spacing: 2) {
                 Image(systemName: symbol).font(.system(size: 18, weight: .bold))
-                Text(title).font(W.label(10))
+                Text(title).font(W.label(10)).lineLimit(1).minimumScaleFactor(0.8)
             }
             .foregroundStyle(color == W.card ? .white : W.ink)
             .frame(maxWidth: .infinity, minHeight: 50)
