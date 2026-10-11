@@ -4,10 +4,9 @@ Angles: degrees, 0 = right, 90 = down, -90 = up (figure faces right in side view
   t        torso (hip → shoulder)          h     neck/head
   lN, lF   (thigh, shin[, foot])           aN, aF (upper arm, forearm[, hand])
   curl     bow of the torso (px, + = rounds the back)
-  front    frontal view (both sides opaque)
   pin      (joint, (x, y)) instead of floor grounding
   lift     px above the floor (lowest joint otherwise rests on it)
-  scale    shrink the whole drawing (tall poses)   top_down  no floor line (seen from above, or hanging)
+  scale    shrink the whole drawing (tall poses)
   front    True = front view, "back" = back view     lit_sides  "N" = only the near limbs light up
   inset    corner of the muscle map ("tl", "tr", "bl", "br") or None
 """
