@@ -7,31 +7,28 @@ struct ForgotPasswordView: View {
     @State private var task = FormTask()
 
     var body: some View {
-        Form {
-            Section {
-                TextField("Email", text: $email)
+        AuthScreen(title: "Reset password") {
+            AccountHeader(symbol: "lock.rotation", title: "Forgot password?",
+                          subtitle: "We'll email you a 6-digit code to set a new password.",
+                          gradient: AccountTint.password)
+            AccountField(label: "Email") {
+                TextField("you@example.com", text: $email)
                     .textContentType(.username)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-            } footer: {
-                VStack(alignment: .leading) {
-                    Text("We'll email you a 6-digit code to set a new password.")
-                    ErrorText(message: task.error)
+                    .accessibilityLabel("Email")
+            }
+            ErrorText(message: task.error)
+            LimeActionButton(title: "Send code", busy: task.busy, disabled: !email.contains("@")) {
+                let email = email.trimmingCharacters(in: .whitespaces)
+                task.run {
+                    try await model.api.forgotPassword(email: email)
+                    path.append(.reset(email: email))
                 }
             }
-            Section {
-                BusyButton(title: "Send code", busy: task.busy, disabled: !email.contains("@")) {
-                    let email = email.trimmingCharacters(in: .whitespaces)
-                    task.run {
-                        try await model.api.forgotPassword(email: email)
-                        path.append(.reset(email: email))
-                    }
-                }
-            }
+            .padding(.top, 6)
         }
-        .themedForm()
-        .navigationTitle("Reset password")
     }
 }
 
@@ -45,42 +42,42 @@ struct ResetPasswordView: View {
     @State private var done = false
 
     var body: some View {
-        Form {
+        AuthScreen(title: "New password") {
             if done {
-                Section {
-                    Label("Password updated. All devices were signed out.", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Button("Sign in") { path = [.signIn] }
-                }
+                AccountHeader(symbol: "checkmark.seal.fill", title: "Password updated",
+                              subtitle: "All devices were signed out. Sign in with your new password.",
+                              gradient: AccountTint.export)
+                LimeActionButton(title: "Sign in") { path = [.signIn] }
+                    .padding(.top, 6)
             } else {
-                Section {
-                    TextField("6-digit code", text: $code)
+                AccountHeader(symbol: "key.fill", title: "New password",
+                              subtitle: "Code sent to \(email).", gradient: AccountTint.password)
+                AccountField(label: "6-digit code") {
+                    TextField("123456", text: $code)
                         .textContentType(.oneTimeCode)
                         .keyboardType(.numberPad)
+                        .font(Theme.display(28).monospacedDigit())
+                        .tracking(6)
+                        .accessibilityLabel("6-digit code")
                         .onChange(of: code) { _, new in code = String(new.filter(\.isNumber).prefix(6)) }
-                    SecureField("New password", text: $password)
+                }
+                AccountField(label: "New password") {
+                    SecureField("At least 10 characters", text: $password)
                         .textContentType(.newPassword)
-                } header: {
-                    Text("Code sent to \(email)")
-                } footer: {
-                    VStack(alignment: .leading) {
-                        if let p = PasswordRules.problem(password) { Text(p).foregroundStyle(.red) }
-                        ErrorText(message: task.error)
+                        .accessibilityLabel("New password")
+                }
+                PasswordHint(password: password)
+                ErrorText(message: task.error)
+                LimeActionButton(title: "Set new password", busy: task.busy,
+                                 disabled: code.count != 6 || password.isEmpty || PasswordRules.problem(password) != nil) {
+                    task.run {
+                        try await model.api.resetPassword(email: email, code: code, newPassword: password)
+                        done = true
                     }
                 }
-                Section {
-                    BusyButton(title: "Set new password", busy: task.busy,
-                               disabled: code.count != 6 || password.isEmpty || PasswordRules.problem(password) != nil) {
-                        task.run {
-                            try await model.api.resetPassword(email: email, code: code, newPassword: password)
-                            done = true
-                        }
-                    }
-                }
+                .padding(.top, 6)
             }
         }
-        .themedForm()
-        .navigationTitle("New password")
     }
 }
 
@@ -88,7 +85,9 @@ struct PrivacyNoticeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Privacy notice").font(.title2.bold())
+                AccountHeader(symbol: "hand.raised.fill", title: "Privacy notice",
+                              subtitle: "Only what the app needs to work.", gradient: AccountTint.export)
+                    .padding(.bottom, 4)
                 Text("MonkeyWorkout is a personal app. It stores only what it needs to work:")
                 Text("• **Account** — email, optional name, password hash (never the password), Sign in with Apple identifier.")
                 Text("• **Training** — your training profile and the weights you log, so they sync across devices.")

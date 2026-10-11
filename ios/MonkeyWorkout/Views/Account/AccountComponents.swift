@@ -121,7 +121,8 @@ extension AccountHeader where Trailing == EmptyView {
     }
 }
 
-/// Lime full-width action with busy spinner; dims when disabled.
+/// Lime full-width action with busy spinner. Disabled turns into a neutral dark capsule with light text
+/// (#88) instead of dark ink on a dimmed lime, which was hard to read.
 struct LimeActionButton: View {
     let title: String
     var symbol: String?
@@ -140,11 +141,12 @@ struct LimeActionButton: View {
                 Text(title.uppercased())
             }
         }
-        .buttonStyle(LimeButtonStyle(fill: destructive ? Color(red: 1, green: 0.23, blue: 0.19) : Theme.lime,
-                                     text: destructive ? .white : Theme.ink))
+        .buttonStyle(LimeButtonStyle(fill: off ? Theme.cardStrong : destructive ? Color(red: 1, green: 0.23, blue: 0.19) : Theme.lime,
+                                     text: off ? Color.white.opacity(0.6) : destructive ? .white : Theme.ink))
         .disabled(busy || disabled)
-        .opacity(disabled && !busy ? 0.4 : 1)
     }
+
+    private var off: Bool { disabled && !busy }
 }
 
 /// Input field on a dark card with an eyebrow label above.
@@ -189,5 +191,18 @@ struct AccountNote: View {
     var body: some View {
         Text(text).font(.footnote).foregroundStyle(Theme.muted).padding(.horizontal, 4)
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// Live password check under a new-password field: red problem, or lime "Looks good".
+struct PasswordHint: View {
+    let password: String
+
+    var body: some View {
+        if let p = PasswordRules.problem(password) {
+            Label(p, systemImage: "xmark.circle.fill").font(.footnote.weight(.semibold)).foregroundStyle(.red).padding(.leading, 4)
+        } else if !password.isEmpty {
+            Label("Looks good", systemImage: "checkmark.circle.fill").font(.footnote.weight(.semibold)).foregroundStyle(Theme.lime).padding(.leading, 4)
+        }
     }
 }

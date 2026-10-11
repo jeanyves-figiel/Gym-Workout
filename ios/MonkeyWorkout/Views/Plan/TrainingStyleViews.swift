@@ -116,8 +116,7 @@ private struct StyleCard: View {
             .foregroundStyle(.white)
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(gradient))
-            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(.white, lineWidth: selected ? 3 : 0))
+            .selectableGradient(gradient, selected: selected)
             .overlay(alignment: .topLeading) {
                 if recommended {
                     Text("REC")
@@ -130,8 +129,6 @@ private struct StyleCard: View {
                         .offset(x: 62, y: -8)
                 }
             }
-            .opacity(selected ? 1 : 0.55)
-            .saturation(selected ? 1 : 0.7)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(title). \(subtitle)\(recommended ? ". Recommended for your goal" : "")")

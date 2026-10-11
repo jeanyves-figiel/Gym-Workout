@@ -8,37 +8,34 @@ struct VerifyEmailView: View {
     @State private var resent = false
 
     var body: some View {
-        Form {
-            Section {
-                TextField("6-digit code", text: $code)
+        AuthScreen(title: "Verify email") {
+            AccountHeader(symbol: "envelope.badge.fill", title: "Check your email",
+                          subtitle: "We sent a code to \(email). It expires in 15 minutes.",
+                          gradient: AccountTint.email)
+            AccountField(label: "6-digit code") {
+                TextField("123456", text: $code)
                     .textContentType(.oneTimeCode)
                     .keyboardType(.numberPad)
-                    .font(.title2.monospacedDigit())
+                    .font(Theme.display(28).monospacedDigit())
+                    .tracking(6)
+                    .accessibilityLabel("6-digit code")
                     .onChange(of: code) { _, new in
                         code = String(new.filter(\.isNumber).prefix(6))
                         if code.count == 6 { submit() }
                     }
-            } header: {
-                Text("Check your email")
-            } footer: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("We sent a code to \(email). It expires in 15 minutes.")
-                    ErrorText(message: task.error)
+            }
+            ErrorText(message: task.error)
+            LimeActionButton(title: "Verify", busy: task.busy, disabled: code.count != 6, action: submit)
+                .padding(.top, 6)
+            AccountPillButton(title: resent ? "Code sent" : "Resend code") {
+                Task {
+                    try? await model.api.resendVerification(email: email)
+                    resent = true
                 }
             }
-            Section {
-                BusyButton(title: "Verify", busy: task.busy, disabled: code.count != 6, action: submit)
-                Button(resent ? "Code sent" : "Resend code") {
-                    Task {
-                        try? await model.api.resendVerification(email: email)
-                        resent = true
-                    }
-                }
-                .disabled(resent)
-            }
+            .disabled(resent)
+            AccountNote(text: "No email? Check spam, or resend the code.")
         }
-        .themedForm()
-        .navigationTitle("Verify email")
     }
 
     private func submit() {

@@ -238,11 +238,7 @@ struct ChangePasswordView: View {
                 AccountField(label: "New password") {
                     SecureField("At least 10 characters", text: $new).textContentType(.newPassword)
                 }
-                if let p = PasswordRules.problem(new) {
-                    Label(p, systemImage: "xmark.circle.fill").font(.footnote.weight(.semibold)).foregroundStyle(.red).padding(.leading, 4)
-                } else if !new.isEmpty {
-                    Label("Looks good", systemImage: "checkmark.circle.fill").font(.footnote.weight(.semibold)).foregroundStyle(Theme.lime).padding(.leading, 4)
-                }
+                PasswordHint(password: new)
                 ErrorText(message: task.error)
                 LimeActionButton(title: "Save", busy: task.busy,
                                  disabled: new.isEmpty || PasswordRules.problem(new) != nil || (hasPassword && current.isEmpty)) {

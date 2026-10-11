@@ -302,13 +302,11 @@ private struct KindTile: View {
             }
             .foregroundStyle(.white)
             .padding(12)
-            .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(kind.gradient))
-            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(.white, lineWidth: selected ? 3 : 0))
-            .opacity(selected ? 1 : 0.45)
+            .selectableGradient(kind.gradient, selected: selected, cornerRadius: 20)
             .scaleEffect(selected ? 1 : 0.97)
-            .animation(.spring(duration: 0.25), value: selected)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
@@ -519,17 +517,14 @@ private struct OptionCard: View {
                 Spacer(minLength: 0)
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                     .font(.title2.weight(.bold))
-                    .opacity(selected ? 1 : 0.5)
+                    .opacity(selected ? 1 : 0.8)
             }
             .foregroundStyle(.white)
             .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .opacity(selected ? 1 : 0.28))
-            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(.white.opacity(selected ? 0.9 : 0), lineWidth: 2))
-            .animation(.spring(duration: 0.25), value: selected)
+            .selectableGradient(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing),
+                                selected: selected, cornerRadius: 22)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

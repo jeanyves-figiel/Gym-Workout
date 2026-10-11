@@ -8,7 +8,20 @@ enum AuthRoute: Hashable {
 }
 
 struct AuthFlowView: View {
-    @State private var path: [AuthRoute] = []
+    @State private var path: [AuthRoute] = {
+        #if DEBUG
+        // CI screenshots (-demoScreen signin|signup|verify) open straight on that step.
+        if Demo.enabled {
+            switch Demo.screen {
+            case "signin": return [.signIn]
+            case "signup": return [.signUp]
+            case "verify": return [.verify(email: Demo.user?.email ?? "climber@example.com")]
+            default: break
+            }
+        }
+        #endif
+        return []
+    }()
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -24,6 +37,26 @@ struct AuthFlowView: View {
                     }
                 }
         }
+    }
+}
+
+/// Scaffold for auth steps (#88): Explore-style gradient header, dark rounded fields, lime action —
+/// the same parts as Account sub-screens instead of a grey Form.
+struct AuthScreen<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                content()
+            }
+            .padding(16)
+            .padding(.bottom, 24)
+        }
+        .themedForm()
+        .navigationTitle(title)
+        .toolbarTitleDisplayMode(.inline)
     }
 }
 

@@ -1,5 +1,6 @@
 import APIClient
 import SwiftUI
+import WorkoutEngine
 
 struct SignInView: View {
     @Binding var path: [AuthRoute]
@@ -9,29 +10,31 @@ struct SignInView: View {
     @State private var task = FormTask()
 
     var body: some View {
-        Form {
-            Section {
-                TextField("Email", text: $email)
+        AuthScreen(title: "Sign in") {
+            AccountHeader(symbol: "person.crop.circle.fill", title: "Welcome back",
+                          subtitle: "Sign in to sync your plan, sessions and climbs.",
+                          gradient: WorkoutEngine.Category.strength.gradient)
+            AccountField(label: "Email") {
+                TextField("you@example.com", text: $email)
                     .textContentType(.username)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .accessibilityLabel("Email")
+            }
+            AccountField(label: "Password") {
                 SecureField("Password", text: $password)
                     .textContentType(.password)
                     .onSubmit(submit)
-            } footer: {
-                ErrorText(message: task.error)
             }
-            Section {
-                BusyButton(title: "Sign in", busy: task.busy, disabled: email.isEmpty || password.isEmpty, action: submit)
-            }
-            Section {
-                Button("Forgot password?") { path.append(.forgot) }
-                Button("Create an account") { path.append(.signUp) }
+            ErrorText(message: task.error)
+            LimeActionButton(title: "Sign in", busy: task.busy, disabled: email.isEmpty || password.isEmpty, action: submit)
+                .padding(.top, 6)
+            HStack(spacing: 10) {
+                AccountPillButton(title: "Forgot password?") { path.append(.forgot) }
+                AccountPillButton(title: "Create an account") { path.append(.signUp) }
             }
         }
-        .themedForm()
-        .navigationTitle("Sign in")
     }
 
     private func submit() {

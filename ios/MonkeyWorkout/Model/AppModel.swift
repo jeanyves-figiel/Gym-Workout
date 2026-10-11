@@ -72,7 +72,7 @@ final class AppModel {
                 state.climbs = []
                 state.prAttempts = []
             }
-            phase = Demo.screen == "welcome" ? .signedOut : .signedIn
+            phase = ["welcome", "signin", "signup", "verify"].contains(Demo.screen) ? .signedOut : .signedIn
             return
         }
         #endif
