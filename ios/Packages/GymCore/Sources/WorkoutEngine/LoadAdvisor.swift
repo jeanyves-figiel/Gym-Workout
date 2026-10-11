@@ -99,6 +99,11 @@ public struct LoadSuggestion: Sendable, Hashable {
         case increase, hold, decrease, deload
     }
 
+    /// Where the load comes from: this exercise's own log, a related logged exercise, or a first-time estimate.
+    public enum Source: String, Sendable {
+        case history, related, estimate
+    }
+
     public var kg: Double
     /// Target reps per set.
     public var reps: Int?
@@ -106,13 +111,15 @@ public struct LoadSuggestion: Sendable, Hashable {
     /// Top load of the session the suggestion is based on.
     public var basisKg: Double
     public var reason: String
+    public var source: Source
 
-    public init(kg: Double, reps: Int?, action: Action, basisKg: Double, reason: String) {
+    public init(kg: Double, reps: Int?, action: Action, basisKg: Double, reason: String, source: Source = .history) {
         self.kg = kg
         self.reps = reps
         self.action = action
         self.basisKg = basisKg
         self.reason = reason
+        self.source = source
     }
 
     public var deltaKg: Double { kg - basisKg }

@@ -34,9 +34,33 @@ extension AppModel {
             !($0.sessionId == sessionId && Calendar.current.isDateInToday($0.date)) && !PRPlanner.isPRSession($0.sessionId)
         }
         let inPlan = plan?.sessions.contains { $0.id == sessionId } ?? false
-        return LoadAdvisor.suggest(
-            exercise: Exercise.get(item.exerciseId), prescription: item.prescription,
-            week: plan?.week ?? 1, deload: inPlan && (plan?.deload ?? false), history: history)
+        let exercise = Exercise.get(item.exerciseId)
+        if let s = LoadAdvisor.suggest(
+            exercise: exercise, prescription: item.prescription,
+            week: plan?.week ?? 1, deload: inPlan && (plan?.deload ?? false), history: history) {
+            return s
+        }
+        // Never logged (#115): start from a related logged lift, else from body data and experience.
+        let related = Set(setLogs.map(\.exerciseId)).subtracting([item.exerciseId]).compactMap { id in
+            Exercise.find(id).map { e in (exercise: e, sessions: exerciseSessions(id).filter { !PRPlanner.isPRSession($0.sessionId) }) }
+        }
+        return StartingLoad.fromRelated(exercise: exercise, prescription: item.prescription, related: related)
+            ?? StartingLoad.estimate(exercise: exercise, prescription: item.prescription, athlete: athlete)
+    }
+
+    /// Body data for first-time load estimates: Apple Health first, then what was entered in the app.
+    var athlete: Athlete {
+        let snap = health?.snapshot
+        let sex: Athlete.Sex = switch body.sex ?? snap?.sex {
+        case .female: .female
+        case .male: .male
+        default: .unspecified
+        }
+        let year = body.birthYear ?? snap?.birthYear
+        return Athlete(
+            bodyKg: snap?.weightKg ?? body.weightKg, sex: sex,
+            age: year.map { Calendar.current.component(.year, from: Date()) - $0 },
+            experience: profile?.experience ?? .beginner)
     }
 
     /// Sets already logged today for this exercise in this session, by set index.

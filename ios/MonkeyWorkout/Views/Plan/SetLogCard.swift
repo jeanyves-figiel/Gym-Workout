@@ -103,13 +103,14 @@ struct SuggestionLine: View {
     }
 
     private var title: String {
-        var t = "Suggested \(LoadAdvisor.formatKg(suggestion.kg)) kg"
+        var t = "\(suggestion.source == .history ? "Suggested" : "Start at") \(LoadAdvisor.formatKg(suggestion.kg)) kg"
         if let r = suggestion.reps { t += " × \(r)" }
         return t
     }
 
     private var symbol: String {
-        switch suggestion.action {
+        if suggestion.source != .history { return "wand.and.stars" }
+        return switch suggestion.action {
         case .increase: "arrow.up.circle.fill"
         case .hold: "equal.circle.fill"
         case .decrease: "arrow.down.circle.fill"

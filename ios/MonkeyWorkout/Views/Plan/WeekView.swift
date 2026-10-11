@@ -13,6 +13,7 @@ struct WeekView: View {
         ScrollView {
             if let plan = model.plan, let profile = model.profile {
                 VStack(alignment: .leading, spacing: 18) {
+                    header
                     WeekHero(plan: plan, profile: profile, done: model.completedCount)
                     ReadinessCard(snapshot: health.snapshot)
                     if let undo = model.variationUndo {
@@ -59,20 +60,7 @@ struct WeekView: View {
         .navigationTitle("Train")
         .toolbarTitleDisplayMode(.inlineLarge)
         .navigationDestination(for: String.self) { id in SessionView(sessionId: id) }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { CalendarView() } label: { Image(systemName: "calendar") }
-                    .accessibilityLabel("Calendar")
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button("New variation", systemImage: "shuffle") { varying = true }
-                    Button("Edit training profile", systemImage: "slider.horizontal.3") { editing = true }
-                } label: {
-                    Image(systemName: "slider.horizontal.3")
-                }
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $editing) {
             NavigationStack {
                 TrainingProfileView()
@@ -92,11 +80,68 @@ struct WeekView: View {
         }
     }
 
+    /// Title with Calendar and Plan (variation, training profile) as Explore-style gradient buttons.
+    private var header: some View {
+        HStack(spacing: 10) {
+            Text("Train").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
+            Spacer(minLength: 4)
+            NavigationLink { CalendarView() } label: {
+                HeaderChip(symbol: "calendar", title: "Calendar", detail: "\(plannedCount) planned",
+                           gradient: WorkoutEngine.Category.strength.gradient)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Calendar, \(plannedCount) sessions planned in the next 4 weeks")
+            Menu {
+                Button("New variation", systemImage: "shuffle") { varying = true }
+                Button("Edit training profile", systemImage: "slider.horizontal.3") { editing = true }
+            } label: {
+                HeaderChip(symbol: "slider.horizontal.3", title: "Plan", detail: "Variation · edit",
+                           gradient: WorkoutEngine.Category.warmup.gradient)
+            }
+            .accessibilityLabel("Plan: new variation or edit training profile")
+        }
+        .padding(.top, 4)
+    }
+
+    /// Sessions still to do in the next 4 weeks (Calendar button).
+    private var plannedCount: Int {
+        model.calendarWeeks(count: 4).reduce(0) { $0 + $1.plan.sessions.filter { !model.doneIds.contains($0.id) }.count }
+    }
+
     /// Weekday of each session as the training calendar places it: unscheduled plans (no gym or climbing days
     /// picked) still show the day on each card.
     private var calendarDays: [String: Int] {
         let sessions = model.calendarWeeks(count: 1).first?.plan.sessions ?? []
         return Dictionary(sessions.compactMap { s in s.weekday.map { (s.id, $0) } }, uniquingKeysWith: { a, _ in a })
+    }
+}
+
+/// Small gradient button in the Train header: icon tile, title, one-line detail.
+private struct HeaderChip: View {
+    let symbol: String
+    let title: String
+    let detail: String
+    let gradient: LinearGradient
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .bold))
+                .frame(width: 30, height: 30)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.25)))
+            VStack(alignment: .leading, spacing: 0) {
+                Text(title).font(Theme.display(14))
+                Text(detail).font(.system(size: 10, weight: .bold, design: .rounded)).opacity(0.9)
+            }
+            .lineLimit(1)
+            .fixedSize()
+        }
+        .foregroundStyle(.white)
+        .padding(.leading, 7)
+        .padding(.trailing, 10)
+        .padding(.vertical, 7)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(gradient))
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -107,53 +152,65 @@ private struct WeekHero: View {
     @Environment(AppModel.self) private var model
     @State private var explaining = false
 
+    /// Explore-style card per cycle phase: colour, icon, one-word job and its rule.
+    private var phase: (palette: WorkoutEngine.Category, symbol: String, title: String, rule: String) {
+        switch Generator.phaseIndex(plan.week) {
+        case 0: (.cardio, "leaf.fill", "Ease in", "RPE −1")
+        case 1: (.strength, "chart.line.uptrend.xyaxis", "Build", "Target RPE")
+        case 2: (.power, "flame.fill", "Peak week", "+1 set on main lifts")
+        default: (.stretch, "bed.double.fill", "Recover", "−40% volume")
+        }
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 14) {
-                ZStack {
-                    ProgressRing(progress: Double(done) / Double(max(1, plan.sessions.count)), lineWidth: 6)
-                    Text("\(done)/\(plan.sessions.count)").font(Theme.display(15)).monospacedDigit()
-                }
-                .frame(width: 54, height: 54)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(done) of \(plan.sessions.count) sessions done")
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .firstTextBaseline, spacing: 2) {
-                        Text("Week \(plan.week)").font(Theme.display(24))
-                        Text("/\(Generator.mesocycleWeeks)").font(Theme.display(16)).foregroundStyle(Theme.muted)
+        let p = phase
+        VStack(alignment: .leading, spacing: 14) {
+            Button { explaining = true } label: {
+                HStack(spacing: 14) {
+                    IconTile(symbol: p.symbol, size: 52)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 4) {
+                            Text("Week \(plan.week) of \(Generator.mesocycleWeeks) · \(Generator.phaseName(plan.week))").tracking(1.2)
+                            Image(systemName: "info.circle.fill")
+                        }
+                        .font(Theme.label(11))
+                        .textCase(.uppercase)
+                        .opacity(0.85)
+                        Text(p.title).font(Theme.display(24)).lineLimit(1).minimumScaleFactor(0.7)
+                        Text("\(p.rule) · \(plan.sessions.count) sessions · \(plan.sessionMinutes) min")
+                            .font(.footnote.weight(.semibold))
+                            .opacity(0.9)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    Text("\(profile.goal.config.label) · \(profile.sessionsPerWeek)×/week · \(plan.sessionMinutes) min")
-                        .font(.caption)
-                        .foregroundStyle(Theme.muted)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 4)
-                Button { explaining = true } label: {
-                    HStack(spacing: 4) {
-                        Text(Generator.weekLabel(plan.week).uppercased()).tracking(1)
-                        Image(systemName: "info.circle.fill")
+                    Spacer(minLength: 4)
+                    VStack(alignment: .trailing, spacing: 0) {
+                        Text("\(done)/\(plan.sessions.count)").font(Theme.display(34)).monospacedDigit()
+                        Text("DONE").font(Theme.label(10)).tracking(1.3).opacity(0.85)
                     }
-                    .font(Theme.label(11))
-                    .lineLimit(1)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(plan.deload ? Color.orange.opacity(0.25) : Theme.lime.opacity(0.18)))
-                    .foregroundStyle(plan.deload ? .orange : Theme.lime)
+                    .fixedSize()
                 }
-                .buttonStyle(.plain)
-                .accessibilityHint("Explains this week's training phase")
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityHint("Explains this week's training phase")
             HStack(spacing: 6) {
                 ForEach(1...Generator.mesocycleWeeks, id: \.self) { w in
                     Button { model.setWeek(w) } label: {
                         Capsule()
-                            .fill(w == plan.week ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Color.white.opacity(w < plan.week ? 0.35 : 0.12)))
-                            .frame(height: 5)
+                            .fill(.white.opacity(w == plan.week ? 1 : w < plan.week ? 0.55 : 0.3))
+                            .frame(height: 6)
+                            .padding(.vertical, 6)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Week \(w)")
                 }
             }
+            .padding(.bottom, -6)
         }
+        .foregroundStyle(.white)
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(p.palette.gradient))
         .sheet(isPresented: $explaining) { WeekPhaseSheet(week: plan.week).presentationDetents([.large]) }
     }
 }

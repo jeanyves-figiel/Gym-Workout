@@ -76,8 +76,8 @@ extension Grouping {
     }
 }
 
-/// One vivid option card: icon tile, heavy title, big number on the right, REC badge for the goal's pick.
-private struct StyleCard: View {
+/// One vivid option card: icon tile, heavy title, big number on the right, badge (REC / PLAN) on the default pick.
+struct StyleCard: View {
     let title: String
     let subtitle: String
     let symbol: String
@@ -85,6 +85,7 @@ private struct StyleCard: View {
     let gradient: LinearGradient
     let selected: Bool
     let recommended: Bool
+    var badge = "REC"
     let action: () -> Void
 
     var body: some View {
@@ -119,7 +120,7 @@ private struct StyleCard: View {
             .selectableGradient(gradient, selected: selected)
             .overlay(alignment: .topLeading) {
                 if recommended {
-                    Text("REC")
+                    Text(badge)
                         .font(Theme.label(9))
                         .tracking(1)
                         .foregroundStyle(Theme.ink)
@@ -131,7 +132,7 @@ private struct StyleCard: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(title). \(subtitle)\(recommended ? ". Recommended for your goal" : "")")
+        .accessibilityLabel("\(title). \(subtitle)\(recommended ? (badge == "REC" ? ". Recommended for your goal" : ". Your plan's default") : "")")
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
