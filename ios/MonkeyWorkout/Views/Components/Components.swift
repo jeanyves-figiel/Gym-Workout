@@ -113,11 +113,13 @@ enum PasswordRules {
 }
 
 /// Round X that closes a sheet (#149): top right, so it never covers the sheet's title.
+/// Sheets with their own Save put it top left (#168) so X and Save don't share one capsule.
 struct CloseToolbarItem: ToolbarContent {
+    var placement: ToolbarItemPlacement = .topBarTrailing
     let action: () -> Void
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItem(placement: placement) {
             Button(action: action) {
                 Image(systemName: "xmark").font(.system(size: 15, weight: .bold))
             }

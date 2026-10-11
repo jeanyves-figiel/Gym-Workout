@@ -37,6 +37,21 @@ import Testing
         #expect(BodyMapLayout.muscle(at: 100, 30, side: .back) == nil) // head
     }
 
+    @Test(arguments: BodyMapLayout.Side.allCases, BodyMapLayout.Figure.allCases)
+    func toleranceSnapsToNearestMuscle(side: BodyMapLayout.Side, figure: BodyMapLayout.Figure) {
+        for shape in BodyMapLayout.shapes(side, figure: figure) {
+            // Just outside the left-most point of the shape.
+            guard let edge = shape.points.min(by: { $0.x < $1.x }) else { continue }
+            let x = edge.x - 1, y = edge.y
+            #expect(shape.distance(x: x, y: y) <= 1.0001)
+            let hit = BodyMapLayout.muscle(at: x, y, side: side, figure: figure, tolerance: 4)
+            #expect(hit != nil, "\(figure) \(side) \(shape.muscle)")
+        }
+        // Inside still wins; far away still nothing.
+        #expect(BodyMapLayout.muscle(at: 81, 95, side: .front, figure: figure, tolerance: 10) == BodyMapLayout.muscle(at: 81, 95, side: .front, figure: figure))
+        #expect(BodyMapLayout.muscle(at: 2, 2, side: side, figure: figure, tolerance: 10) == nil)
+    }
+
     @Test func everyMuscleIsOnTheMap() {
         let shown = Set(BodyMapLayout.muscles(.front) + BodyMapLayout.muscles(.back))
         #expect(shown == Set(Muscle.allCases))

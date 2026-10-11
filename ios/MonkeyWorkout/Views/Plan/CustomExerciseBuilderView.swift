@@ -16,6 +16,7 @@ struct CustomExerciseBuilderView: View {
     @State private var showCamera = false
     @State private var designing = false
     @State private var confirmArchive = false
+    @State private var pickingMuscles = false
 
     /// `prefill` seeds a new exercise, e.g. the muscle or category it is added from in Explore.
     init(existing: CustomExercise? = nil, prefill: CustomExercise? = nil, onSave: @escaping (CustomExercise) -> Void = { _ in }) {
@@ -46,14 +47,18 @@ struct CustomExerciseBuilderView: View {
             .navigationTitle(existing == nil ? "New exercise" : "Edit exercise")
             .toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
-                CloseToolbarItem { dismiss() }
+                CloseToolbarItem(placement: .topBarLeading) { dismiss() }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button {
                         let saved = model.saveCustomExercise(draft)
                         onSave(saved)
                         dismiss()
+                    } label: {
+                        Text("Save").font(.system(.body, design: .rounded).weight(.heavy))
                     }
-                    .bold()
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.lime)
+                    .foregroundStyle(Theme.ink)
                     .disabled(!draft.isComplete)
                 }
             }
@@ -64,6 +69,10 @@ struct CustomExerciseBuilderView: View {
                         set: { draft.drawing = $0 }),
                     category: draft.category, primary: draft.primary)
             }
+            .fullScreenCover(isPresented: $pickingMuscles) {
+                MusclePickerScreen(primary: draft.primary, secondary: draft.secondary, heat: heat) { cycle($0) }
+            }
+            .sensoryFeedback(.selection, trigger: draft.primary + draft.secondary)
             .fullScreenCover(isPresented: $showCamera) {
                 CameraPicker { image in
                     if let image { draft.photo = PhotoCompressor.jpeg(image) }
@@ -172,9 +181,18 @@ struct CustomExerciseBuilderView: View {
 
     private var musclesSection: some View {
         section("Muscles · tap once main, twice assist") {
-            VStack(alignment: .leading, spacing: 10) {
-                BodyMapPair(heat: heat) { cycle($0) }
-                    .frame(height: 240)
+            VStack(alignment: .leading, spacing: 12) {
+                // Full width (#168): each figure fills half the card; taps near a muscle still count.
+                BodyMapPair(heat: heat, spacing: 4, tapTolerance: 14) { cycle($0) }
+                    .frame(maxWidth: .infinity)
+                Button { pickingMuscles = true } label: {
+                    Label("Full screen", systemImage: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(.subheadline, design: .rounded).weight(.heavy))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Capsule().fill(Color.white.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
                 if draft.primary.isEmpty && draft.secondary.isEmpty {
                     Text("Pick at least one main muscle.").font(.footnote).foregroundStyle(Theme.muted)
                 } else {
@@ -186,7 +204,8 @@ struct CustomExerciseBuilderView: View {
                     }
                 }
             }
-            .card()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .card(padding: 12)
         }
     }
 
@@ -359,5 +378,61 @@ struct CameraPicker: UIViewControllerRepresentable {
             parent.onPick(nil)
             parent.dismiss()
         }
+    }
+}
+
+/// Full-screen muscle picker (#168): one large figure (Front / Back) filling the screen, generous tap
+/// tolerance, picked muscles as chips (tap a chip to cycle it too).
+struct MusclePickerScreen: View {
+    let primary: [Muscle]
+    let secondary: [Muscle]
+    let heat: [Muscle: Double]
+    let onTap: (Muscle) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var side: BodySide = .front
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 14) {
+                Picker("Side", selection: $side) {
+                    ForEach(BodySide.allCases) { Text($0.rawValue.capitalized).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Text("Tap once main, twice assist, three times to remove")
+                    .font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted)
+                BodyMapView(side: side, heat: heat, showLabel: false, onTap: onTap, tapTolerance: 18)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .id(side)
+                HeatLegend()
+                if primary.isEmpty && secondary.isEmpty {
+                    Text("Pick at least one main muscle.").font(.footnote).foregroundStyle(Theme.muted)
+                        .frame(minHeight: 30)
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(primary) { m in MuscleChip(muscle: m).onTapGesture { onTap(m) } }
+                            ForEach(secondary) { m in MuscleChip(muscle: m, primary: false).onTapGesture { onTap(m) } }
+                        }
+                    }
+                    .frame(minHeight: 30)
+                }
+            }
+            .padding(16)
+            .background(Theme.bg.ignoresSafeArea())
+            .navigationTitle("Muscles")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button { dismiss() } label: {
+                        Text("Done").font(.system(.body, design: .rounded).weight(.heavy))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.lime)
+                    .foregroundStyle(Theme.ink)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
     }
 }
