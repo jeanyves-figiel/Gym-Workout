@@ -132,9 +132,8 @@ private struct DemoScreen: View {
                                         options: MuscleWorkoutOptions(profile: model.profile ?? Profile(), groups: [.chest, .back]),
                                         replacing: false) { _, _ in }
         case "generated":
-            CustomWorkoutEditor(initial: CustomWorkout.generate(
-                MuscleWorkoutOptions(groups: [.chest, .back], minutes: 60, rest: .short, grouping: .supersets),
-                profile: model.profile ?? Profile(), seed: 7))
+            let options = MuscleWorkoutOptions(groups: [.chest, .back], minutes: 60, rest: .short, grouping: .supersets)
+            CustomWorkoutEditor(initial: CustomWorkout.generate(options, profile: model.profile ?? Profile(), seed: 7), generated: options)
         case "onboarding", "onboarding-climbing":
             NavigationStack {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
