@@ -118,7 +118,7 @@ struct MuscleWorkoutGeneratorSheet: View {
             }
             .background(Theme.bg.ignoresSafeArea())
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                CloseToolbarItem { dismiss() }
             }
         }
         .preferredColorScheme(.dark)

@@ -46,7 +46,7 @@ struct ShareWinView: View {
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Share a win")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .toolbar { CloseToolbarItem { dismiss() } }
             .onAppear(perform: buildWins)
         }
         .preferredColorScheme(.dark)

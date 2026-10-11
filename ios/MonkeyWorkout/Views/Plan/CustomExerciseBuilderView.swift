@@ -44,7 +44,7 @@ struct CustomExerciseBuilderView: View {
             .navigationTitle(existing == nil ? "New exercise" : "Edit exercise")
             .toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                CloseToolbarItem { dismiss() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         let saved = model.saveCustomExercise(draft)
