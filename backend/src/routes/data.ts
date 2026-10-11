@@ -46,7 +46,7 @@ const toLog = (r: LogRow) => ({
 });
 
 /** Profile (opaque JSON owned by the app) + workout log sync + export. */
-export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: AuthService) => {
+export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: AuthService, subscriptions?: (userId: string) => unknown) => {
   const getProfile = (userId: string) => {
     const row = db.prepare('SELECT data, updated_at FROM profiles WHERE user_id = ?').get(userId) as
       | { data: string; updated_at: string }
@@ -161,6 +161,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
       customExercises: listCustomExercises(db, req.userId!),
       prAttempts: listPrAttempts(db, req.userId!),
       notifications: pushExport(db, req.userId!),
+      subscriptions: subscriptions?.(req.userId!),
       sessions: auth.sessions(req.userId!),
     };
   });

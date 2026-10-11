@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { ensureCommunitySchema } from './community/schema.ts';
 import { ensurePushSchema } from './push/schema.ts';
 import { ensureSchemaExtras } from './schemaExtras.ts';
+import { ensureSubscriptionSchema } from './subscriptions/schema.ts';
 
 export type DB = DatabaseSync;
 
@@ -113,6 +114,7 @@ export const openDb = (path: string): DB => {
   ensureSchemaExtras(db);
   ensureCommunitySchema(db);
   ensurePushSchema(db);
+  ensureSubscriptionSchema(db);
   return db;
 };
 
