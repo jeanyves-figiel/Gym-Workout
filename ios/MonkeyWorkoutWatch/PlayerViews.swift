@@ -40,40 +40,75 @@ struct PlayerView: View {
     }
 
     private var workoutPage: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            MetricsRow(player: player)
+        let block = player.step.flatMap { blockOf($0) }
+        let accent = W.color(block?.tint ?? 0xCCFF3D)
+        let light = W.light(block?.tint ?? 0xCCFF3D)
+        return VStack(alignment: .leading, spacing: 3) {
+            StepBar(index: player.index, count: player.steps.count)
+            HStack(spacing: 4) {
+                if let block {
+                    Text(block.title.uppercased()).font(W.label(8)).tracking(0.5).lineLimit(1)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Capsule().fill(accent))
+                }
+                Spacer(minLength: 0)
+                MetricChips(player: player)
+            }
             if let step = player.step {
-                Eyebrow(text: "\(step.name) · \(min(player.done + 1, step.sets))/\(step.sets)", color: W.color(tint(step)))
+                Text(step.name).font(W.display(18)).lineLimit(1).minimumScaleFactor(0.6)
                 if step.loggable, let row = player.currentRow, player.done < step.sets {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Button { player.adjustKg(-1) } label: { Image(systemName: "minus") }.buttonStyle(.plain).font(W.label(14))
-                        Text(WatchPlayer.kg(row.kg)).font(W.display(28)).minimumScaleFactor(0.6)
-                        Text("kg").font(W.label(11))
-                        Button { player.adjustKg(1) } label: { Image(systemName: "plus") }.buttonStyle(.plain).font(W.label(14))
+                    HStack(alignment: .center, spacing: 5) {
+                        RoundIcon(symbol: "minus") { player.adjustKg(-1) }
+                        HStack(alignment: .firstTextBaseline, spacing: 2) {
+                            Text(WatchPlayer.kg(row.kg)).font(W.display(32)).foregroundStyle(light)
+                            Text("kg").font(W.label(10))
+                        }
+                        .lineLimit(1).minimumScaleFactor(0.5)
+                        Spacer(minLength: 0)
+                        RoundIcon(symbol: "plus") { player.adjustKg(1) }
                     }
-                    Text("× \(row.reps) reps").font(W.display(18))
-                        .focusable()
-                        .digitalCrownRotation($crown, from: 0, through: 50, by: 1, sensitivity: .medium, isContinuous: false, isHapticFeedbackEnabled: true)
-                        .onChange(of: crown) { _, v in player.setReps(Int(v)) }
+                    HStack {
+                        Text("× \(row.reps) reps").font(W.display(16))
+                            .focusable()
+                            .digitalCrownRotation($crown, from: 0, through: 50, by: 1, sensitivity: .medium, isContinuous: false, isHapticFeedbackEnabled: true)
+                            .onChange(of: crown) { _, v in player.setReps(Int(v)) }
+                        Spacer(minLength: 0)
+                        SetDots(done: player.done, total: step.sets)
+                    }
                 } else if step.timedSec != nil {
                     TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
                         let left = player.timedEnd.map { max(0, $0.timeIntervalSince(ctx.date)) } ?? player.timedRemaining ?? TimeInterval(step.timedSec ?? 0)
-                        Text(WatchPlayer.clock(left)).font(W.display(32)).monospacedDigit()
+                        Text(WatchPlayer.clock(left)).font(W.display(34)).monospacedDigit().foregroundStyle(light)
                     }
-                    Text(step.reps).font(W.label(11)).foregroundStyle(.secondary)
+                    HStack {
+                        Text(step.reps).font(W.label(11)).opacity(0.8)
+                        Spacer(minLength: 0)
+                        SetDots(done: player.done, total: step.sets)
+                    }
                 } else {
                     Text(step.sets > 1 ? "\(step.sets) × \(step.reps)" : step.reps).font(W.display(24)).minimumScaleFactor(0.6)
-                    if let i = step.intensity { Text(i).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary) }
+                    if let i = step.intensity { Text(i).font(.system(size: 10, weight: .semibold)).opacity(0.8) }
                 }
                 LimeButton(title: player.mainLabel) { main() }
-                Text("Next: \(player.upNext)").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1)
+                HStack(spacing: 5) {
+                    Text("NEXT").font(W.label(8)).tracking(1).foregroundStyle(.secondary)
+                    Text(player.upNext).font(W.label(10)).lineLimit(1)
+                }
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Capsule().fill(.white.opacity(0.1)))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // Colour wash of the block, like the phone player.
+        .background(alignment: .top) {
+            LinearGradient(colors: [accent.opacity(0.85), W.color(block?.tint2 ?? 0x000000).opacity(0.45), .black],
+                           startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.75))
+                .ignoresSafeArea()
+        }
         .overlay {
             if case let .rest(end, total, effortSet) = player.phase {
                 RestOverlay(end: end, total: total, effort: effortSet != nil, next: player.upNext,
-                            tint: player.step.map { tint($0) } ?? 0xCCFF3D) { rir in
+                            tint: block?.tint ?? 0xCCFF3D, tint2: block?.tint2 ?? 0x7B3DFF) { rir in
                     send(player.effort(rir))
                 } onAdd: {
                     player.addRest()
@@ -84,8 +119,8 @@ struct PlayerView: View {
         }
     }
 
-    private func tint(_ it: WItem) -> UInt32 {
-        player.session.blocks.first { $0.items.contains { $0.uid == it.uid } }?.tint ?? 0xCCFF3D
+    private func blockOf(_ it: WItem) -> WBlock? {
+        player.session.blocks.first { $0.items.contains { $0.uid == it.uid } }
     }
 
     private func main() {
@@ -125,25 +160,81 @@ struct PlayerView: View {
     }
 }
 
-/// Elapsed time, heart rate, kcal and position in the session, in one line above the set.
-private struct MetricsRow: View {
+/// Elapsed time and heart rate as small chips at the top of the workout page.
+private struct MetricChips: View {
     let player: WatchPlayer
     @Environment(WorkoutManager.self) private var workout
 
     var body: some View {
         TimelineView(.periodic(from: player.started, by: 1)) { ctx in
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(WatchPlayer.clock(ctx.date.timeIntervalSince(player.started))).foregroundStyle(W.lime)
-                Text(workout.heartRate.map { "♥\(Int($0))" } ?? "♥--").foregroundStyle(W.color(0xFF3D5A))
-                Text("\(Int(workout.activeKcal))kcal")
-                Spacer(minLength: 0)
-                Text("\(player.index + 1)/\(player.steps.count)").foregroundStyle(.secondary)
+            HStack(spacing: 3) {
+                chip(WatchPlayer.clock(ctx.date.timeIntervalSince(player.started)), W.lime)
+                chip(workout.heartRate.map { "♥\(Int($0))" } ?? "♥--", W.color(0xFF5A75))
             }
-            .font(W.label(12))
-            .monospacedDigit()
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
         }
+    }
+
+    private func chip(_ text: String, _ color: Color) -> some View {
+        Text(text).font(W.label(10)).monospacedDigit().foregroundStyle(color).lineLimit(1)
+            .padding(.horizontal, 5).padding(.vertical, 2)
+            .background(Capsule().fill(.black.opacity(0.35)))
+    }
+}
+
+/// Position in the session: one segment per exercise (a bar when there are many).
+private struct StepBar: View {
+    let index: Int
+    let count: Int
+
+    var body: some View {
+        Group {
+            if count <= 14 {
+                HStack(spacing: 2) {
+                    ForEach(0..<max(count, 1), id: \.self) { i in
+                        Capsule().fill(i <= index ? W.lime : .white.opacity(0.25)).frame(height: 3)
+                    }
+                }
+            } else {
+                GeometryReader { g in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.white.opacity(0.25))
+                        Capsule().fill(W.lime).frame(width: g.size.width * Double(index + 1) / Double(count))
+                    }
+                }
+                .frame(height: 3)
+            }
+        }
+        .padding(.horizontal, 18)
+    }
+}
+
+/// Sets of the current exercise: lime for done.
+private struct SetDots: View {
+    let done: Int
+    let total: Int
+
+    var body: some View {
+        HStack(spacing: 3) {
+            ForEach(0..<min(total, 8), id: \.self) { i in
+                Circle().fill(i < done ? W.lime : .clear)
+                    .overlay(Circle().stroke(i < done ? W.lime : .white.opacity(0.4), lineWidth: 1.5))
+                    .frame(width: 7, height: 7)
+            }
+        }
+    }
+}
+
+private struct RoundIcon: View {
+    let symbol: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 13, weight: .heavy))
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(.white.opacity(0.2)))
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -161,24 +252,41 @@ private struct ControlsPage: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 6) {
-                HStack(spacing: 6) {
-                    control(paused ? "play.fill" : "pause.fill", paused ? "Resume" : "Pause", W.color(0xFFC23D)) {
-                        paused ? workout.resume() : workout.pause()
-                        paused.toggle()
+            VStack(spacing: 5) {
+                TimelineView(.periodic(from: player.started, by: 1)) { ctx in
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(WatchPlayer.clock(ctx.date.timeIntervalSince(player.started))).font(W.display(20)).foregroundStyle(W.lime)
+                        Spacer(minLength: 0)
+                        Text(workout.heartRate.map { "♥ \(Int($0))" } ?? "♥ --").font(W.label(11)).foregroundStyle(W.color(0xFF5A75))
+                        Text("\(Int(workout.activeKcal))kcal").font(W.label(11))
                     }
-                    control("stop.fill", "End & save", W.color(0xFF3D5A)) {
-                        endingAt = Date().addingTimeInterval(3)
-                        WKInterfaceDevice.current().play(.click)
+                    .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
+                }
+                .padding(.horizontal, 4)
+                Grid(horizontalSpacing: 5, verticalSpacing: 5) {
+                    GridRow {
+                        tile(paused ? "play.fill" : "pause.fill", paused ? "Resume" : "Pause", 0xFFC23D, 0xFF7A3D, height: 62) {
+                            paused ? workout.resume() : workout.pause()
+                            paused.toggle()
+                        }
+                        tile("stop.fill", "End", 0xFF3D5A, 0xB0105A, height: 62) {
+                            endingAt = Date().addingTimeInterval(3)
+                            WKInterfaceDevice.current().play(.click)
+                        }
+                    }
+                    GridRow {
+                        tile("backward.end.fill", "Back", 0x3D5AFF, 0x7B3DFF, height: 50) { player.back(); onBack() }
+                        tile("forward.end.fill", "Skip", 0x1E9BFF, 0x3DFFB0, height: 50) { _ = player.advance(); onBack() }
                     }
                 }
-                HStack(spacing: 6) {
-                    control("backward.end.fill", "Back", W.card) { player.back(); onBack() }
-                    control("forward.end.fill", "Skip", W.card) { _ = player.advance(); onBack() }
+                Button { confirmDiscard = true } label: {
+                    Label("Discard workout", systemImage: "xmark").font(W.label(11)).foregroundStyle(W.color(0xFF6D85))
                 }
-                control("xmark", "Discard workout", W.card) { confirmDiscard = true }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
             }
         }
+        .background(RadialGradient(colors: [W.color(0x3A1030), .black], center: .top, startRadius: 0, endRadius: 170).ignoresSafeArea())
         .overlay {
             if let endingAt { EndCountdown(end: endingAt) { self.endingAt = nil } }
         }
@@ -198,15 +306,21 @@ private struct ControlsPage: View {
         }
     }
 
-    private func control(_ symbol: String, _ title: String, _ color: Color, action: @escaping () -> Void) -> some View {
+    /// Explore-style tile: icon tile top left, heavy label bottom left, vivid gradient.
+    private func tile(_ symbol: String, _ title: String, _ a: UInt32, _ b: UInt32, height: CGFloat,
+                      action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 2) {
-                Image(systemName: symbol).font(.system(size: 18, weight: .bold))
-                Text(title).font(W.label(10)).lineLimit(1).minimumScaleFactor(0.8)
+            VStack(alignment: .leading) {
+                Image(systemName: symbol).font(.system(size: 12, weight: .heavy))
+                    .frame(width: 24, height: 24)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.28)))
+                Spacer(minLength: 0)
+                Text(title).font(W.display(14)).lineLimit(1).minimumScaleFactor(0.7)
             }
-            .foregroundStyle(color == W.card ? .white : W.ink)
-            .frame(maxWidth: .infinity, minHeight: 50)
-            .background(RoundedRectangle(cornerRadius: 14).fill(color))
+            .foregroundStyle(.white)
+            .padding(7)
+            .frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(W.gradient(a, b)))
         }
         .buttonStyle(.plain)
     }
@@ -222,31 +336,33 @@ private struct EndCountdown: View {
             TimelineView(.periodic(from: .now, by: 0.1)) { ctx in
                 let left = max(0, end.timeIntervalSince(ctx.date))
                 ZStack {
-                    Circle().stroke(Color.white.opacity(0.15), lineWidth: 7)
+                    Circle().stroke(W.color(0xFF3D5A).opacity(0.18), lineWidth: 10)
                     Circle().trim(from: 0, to: left / 3)
-                        .stroke(W.color(0xFF3D5A), style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                        .stroke(W.color(0xFF3D5A), style: StrokeStyle(lineWidth: 10, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                     VStack(spacing: 0) {
-                        Eyebrow(text: "Ending")
-                        Text("\(Int(left.rounded(.up)))").font(W.display(34)).monospacedDigit()
+                        Eyebrow(text: "Ending", color: W.light(0xFF3D5A))
+                        Text("\(Int(left.rounded(.up)))").font(W.display(38)).monospacedDigit()
                     }
                 }
-                .frame(width: 92, height: 92)
+                .frame(width: 104, height: 104)
             }
             LimeButton(title: "CANCEL", action: onCancel)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black)
+        .background(RadialGradient(colors: [W.color(0x5A0A20), .black], center: UnitPoint(x: 0.5, y: 0.35), startRadius: 0, endRadius: 150)
+            .ignoresSafeArea())
     }
 }
 
-/// After a set: one-tap effort, rest ring with haptic at 0, what's next.
+/// After a set: one-tap effort, gradient rest ring with haptic at 0, next set or exercise as a card.
 struct RestOverlay: View {
     let end: Date?
     let total: Int
     let effort: Bool
     let next: String
     let tint: UInt32
+    var tint2: UInt32 = 0x7B3DFF
     let onEffort: (Int) -> Void
     let onAdd: () -> Void
     let onSkip: () -> Void
@@ -255,40 +371,58 @@ struct RestOverlay: View {
         ScrollView {
             VStack(spacing: 6) {
                 if effort {
-                    Text("How hard?").font(W.display(15))
+                    Text("How hard?").font(W.display(16))
                     EffortGrid(onEffort: onEffort)
                 }
                 if let end {
                     TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
                         let left = max(0, end.timeIntervalSince(ctx.date))
                         ZStack {
-                            Circle().stroke(Color.white.opacity(0.15), lineWidth: 8)
+                            Circle().stroke(W.lime.opacity(0.12), lineWidth: 11)
                             Circle().trim(from: 0, to: left / Double(max(1, total)))
-                                .stroke(W.lime, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                                .stroke(LinearGradient(colors: [W.lime, W.color(0x3DFFB0)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                                        style: StrokeStyle(lineWidth: 11, lineCap: .round))
                                 .rotationEffect(.degrees(-90))
                             VStack(spacing: 0) {
-                                Eyebrow(text: left > 0 ? "Rest" : "Go!")
-                                Text(WatchPlayer.clock(left)).font(W.display(28)).monospacedDigit()
+                                Eyebrow(text: left > 0 ? "Rest" : "Go!", color: W.lime)
+                                Text(WatchPlayer.clock(left)).font(W.display(30)).monospacedDigit()
                             }
                         }
-                        .frame(width: 110, height: 110)
+                        .frame(width: 118, height: 118)
                     }
-                    HStack(spacing: 6) {
-                        Button("+15 s", action: onAdd).font(W.label(12))
-                        Button("Skip", action: onSkip).font(W.label(12)).tint(W.lime)
+                    HStack(spacing: 5) {
+                        pill("+15 s", fill: .white.opacity(0.16), text: .white, action: onAdd)
+                        pill("Skip", fill: W.lime, text: W.ink, action: onSkip)
                     }
                 } else {
-                    Button("Continue", action: onSkip).font(W.label(12))
+                    pill("Continue", fill: W.lime, text: W.ink, action: onSkip)
                 }
-                Text("Next: \(next)").font(.system(size: 10, weight: .semibold)).multilineTextAlignment(.center)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("NEXT").font(W.label(8)).tracking(1).opacity(0.85)
+                    Text(next).font(W.label(12)).lineLimit(2)
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8).padding(.vertical, 5)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(W.gradient(tint, tint2)))
             }
         }
-        .background(Color.black)
+        .background(RadialGradient(colors: [W.color(effort ? 0x24301A : 0x1D3A10), .black], center: UnitPoint(x: 0.5, y: 0.35),
+                                   startRadius: 0, endRadius: 160).ignoresSafeArea())
         .task(id: end) {
             guard let end else { return }
             try? await Task.sleep(for: .seconds(max(0, end.timeIntervalSinceNow)))
             if !Task.isCancelled { WKInterfaceDevice.current().play(.notification) }
         }
+    }
+
+    private func pill(_ title: String, fill: Color, text: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(W.label(12)).foregroundStyle(text)
+                .frame(maxWidth: .infinity, minHeight: 30)
+                .background(Capsule().fill(fill))
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -374,10 +508,13 @@ struct EffortGrid: View {
 
     private func button(_ i: Int) -> some View {
         let e = W.efforts[i]
+        // Hard efforts on dark-ending gradients read white, easy ones dark.
+        let dark = i >= 2
         return Button { onEffort(e.rir) } label: {
-            Text(e.title).font(W.label(13)).foregroundStyle(W.ink)
-                .frame(maxWidth: .infinity, minHeight: 30)
-                .background(RoundedRectangle(cornerRadius: 10).fill(e.color))
+            Text(i == 4 ? "\(e.title) 😎" : e.title).font(W.display(13)).foregroundStyle(dark ? W.ink : .white)
+                .frame(maxWidth: .infinity, minHeight: 36)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(LinearGradient(colors: [e.color, W.effortEnd[i]], startPoint: .topLeading, endPoint: .bottomTrailing)))
         }
         .buttonStyle(.plain)
     }

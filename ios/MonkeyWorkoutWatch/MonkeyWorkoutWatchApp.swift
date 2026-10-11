@@ -23,6 +23,12 @@ enum W {
         Color(red: Double((v >> 16) & 0xFF) / 255, green: Double((v >> 8) & 0xFF) / 255, blue: Double(v & 0xFF) / 255)
     }
 
+    /// The colour mixed halfway with white, for big numbers on its own colour wash.
+    static func light(_ v: UInt32, _ amount: Double = 0.55) -> Color {
+        func c(_ x: UInt32) -> Double { Double(x & 0xFF) / 255 * (1 - amount) + amount }
+        return Color(red: c(v >> 16), green: c(v >> 8), blue: c(v))
+    }
+
     static func gradient(_ a: UInt32, _ b: UInt32? = nil) -> LinearGradient {
         LinearGradient(colors: [color(a), color(b ?? a).opacity(b == nil ? 0.7 : 1)], startPoint: .topLeading, endPoint: .bottomTrailing)
     }
@@ -34,6 +40,8 @@ enum W {
         (0, "Fail", color(0xFF3D5A)), (1, "1 left", color(0xFF7A3D)), (2, "2 left", color(0xFFC23D)),
         (3, "3 left", lime), (4, "4+ easy", color(0x3DFFB0)),
     ]
+    /// Second colour of each effort's gradient.
+    static let effortEnd: [Color] = [color(0xB0105A), color(0xFF3D5A), color(0xFF7A3D), color(0x7FD320), color(0x1E9BFF)]
 }
 
 struct Eyebrow: View {
@@ -56,6 +64,7 @@ struct LimeButton: View {
         .buttonStyle(.borderedProminent)
         .tint(W.lime)
         .buttonBorderShape(.capsule)
+        .shadow(color: W.lime.opacity(0.45), radius: 8)
     }
 }
 
