@@ -52,6 +52,9 @@ struct AccountView: View {
                     }
                     .buttonStyle(.plain)
 
+                    // Current gym (#160): home gym, or the trip's while away.
+                    YourGymCard()
+
                     NavigationLink { BodyHealthView() } label: {
                         AccountCard(symbol: "heart.text.square.fill", title: "Body & Health",
                                     subtitle: health.connected ? "Apple Health connected" : "Height, weight, Apple Health",
