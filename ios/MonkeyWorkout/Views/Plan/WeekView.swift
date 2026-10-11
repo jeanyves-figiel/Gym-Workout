@@ -12,6 +12,8 @@ struct WeekView: View {
     @State private var moving: Session?
     @State private var adding = false
     @State private var addingDay: Int?
+    @State private var removing: Session?
+    @State private var swipe: (id: String, dx: CGFloat)?
 
     var body: some View {
         ScrollView {
@@ -58,6 +60,7 @@ struct WeekView: View {
                     ForEach(Array(ordered.enumerated()), id: \.element.id) { i, s in
                         let done = model.state.done[s.id] ?? false
                         let day = s.weekday ?? days[s.id]
+                        let removable = s.isPlanInsert && !done
                         NavigationLink(value: s.id) {
                             SessionRowCard(session: s, done: done, climbing: profile.climbingDays, weekday: day, number: i + 1)
                         }
@@ -67,9 +70,28 @@ struct WeekView: View {
                                 Button("Move to…", systemImage: "arrow.left.arrow.right") { moving = s }
                             }
                             Button("Add workout this day", systemImage: "plus") { addingDay = day; adding = true }
+                            if removable {
+                                Button(removeTitle(s), systemImage: "trash", role: .destructive) { removing = s }
+                            }
                         }
+                        // Swipe left on an added session to remove it (#176); ScrollView has no swipeActions.
+                        .offset(x: swipe?.id == s.id ? swipe!.dx : 0)
+                        .background(alignment: .trailing) {
+                            if removable, swipe?.id == s.id {
+                                Image(systemName: "trash.fill")
+                                    .font(.system(size: 22, weight: .heavy))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 64)
+                                    .frame(maxHeight: .infinity)
+                                    .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.red.gradient))
+                            }
+                        }
+                        .simultaneousGesture(removable ? swipeToRemove(s) : nil)
+                        .accessibilityAction(named: removeTitle(s)) { if removable { removing = s } }
                     }
-                    Text("Touch and hold a session to move it to another day this week.")
+                    Text(ordered.contains { $0.isPlanInsert }
+                         ? "Touch and hold a session to move it to another day this week. Swipe left on an added session to remove it."
+                         : "Touch and hold a session to move it to another day this week.")
                         .font(.caption).foregroundStyle(Theme.muted)
                 }
                 .padding(16)
@@ -97,12 +119,38 @@ struct WeekView: View {
         .proPaywall($gate)
         .sheet(item: $moving) { s in MoveSessionSheet(sessionId: s.id) }
         .sheet(isPresented: $adding) { AddWorkoutSheet(weekday: addingDay) }
+        .confirmationDialog(removing.map(removeTitle).map { "\($0)?" } ?? "", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+                            titleVisibility: .visible, presenting: removing) { s in
+            Button(removeTitle(s), role: .destructive) {
+                if let id = s.planInsertId { withAnimation { model.removePlanInsert(id) } }
+                removing = nil
+            }
+        } message: { s in
+            Text(model.planInsert(for: s)?.replacing == nil ? "\(s.displayTitle) comes off this week's plan." : "This day goes back to its planned session.")
+        }
         .refreshable { await model.sync() }
         .task {
             // Away periods (#68): re-plan from today on (new day, period starting this week).
             model.replanCurrentWeek()
             model.persist()
         }
+    }
+
+    private func removeTitle(_ s: Session) -> String {
+        model.planInsert(for: s)?.replacing == nil ? "Remove from this week" : "Back to planned session"
+    }
+
+    private func swipeToRemove(_ s: Session) -> some Gesture {
+        DragGesture(minimumDistance: 24)
+            .onChanged { v in
+                guard abs(v.translation.width) > abs(v.translation.height) * 1.5 else { return }
+                swipe = (s.id, min(0, max(v.translation.width, -110)))
+            }
+            .onEnded { v in
+                let past = v.translation.width < -80 && abs(v.translation.width) > abs(v.translation.height) * 1.5
+                withAnimation(.snappy) { swipe = nil }
+                if past { removing = s }
+            }
     }
 
     private func byDay(_ sessions: [Session], days: [String: Int]) -> [Session] {
