@@ -203,5 +203,5 @@ extension Exercise {
         Exercise(id: "machine-curl", name: "Machine biceps curl", category: .strength, pattern: .armsFlex, primary: [.biceps], secondary: [.brachialis], equipment: [.curlMachine], level: 1, secPerRep: 3, cues: ["Elbows on the pivot line", "Slow 2 s lower"], generator: false),
         Exercise(id: "machine-triceps-extension", name: "Machine triceps extension", category: .strength, pattern: .armsExt, primary: [.triceps], equipment: [.tricepsMachine], level: 1, secPerRep: 3, cues: ["Upper arms flat on the pad", "Full lockout, slow return"], generator: false),
         Exercise(id: "jump-rope", name: "Jump rope", category: .cardio, pattern: .general, primary: [.calves, .quads], secondary: [.soleus], equipment: [.jumpRope], level: 1, cues: ["Small, quick hops on the balls of the feet", "Turn from the wrists"], generator: false),
-    ] + travelCatalog
+    ] + travelCatalog + variationCatalog
 }

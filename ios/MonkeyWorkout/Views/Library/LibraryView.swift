@@ -302,21 +302,28 @@ struct MuscleDetailView: View {
                 }
                 NewExerciseButton(prefill: CustomExercise(primary: [muscle]))
                 ForEach(Exercise.working(muscle), id: \.0) { category, hits in
+                    let main = Set(hits.filter(\.primary).map(\.exercise.id))
                     GradientSection(symbol: category.symbol, title: category.label, gradient: category.gradient) {
-                        ForEach(hits, id: \.exercise.id) { hit in
-                            Button { open = ExerciseRef(exerciseId: hit.exercise.id) } label: {
+                        // Variations fold under their base (#174); the exercise page lists them.
+                        ForEach(Exercise.folded(hits.map(\.exercise)), id: \.exercise.id) { family in
+                            let ex = family.exercise
+                            let isMain = main.contains(ex.id)
+                            Button { open = ExerciseRef(exerciseId: ex.id) } label: {
                                 HStack(spacing: 12) {
-                                    Text(hit.primary ? "MAIN" : "ASSIST")
+                                    Text(isMain ? "MAIN" : "ASSIST")
                                         .font(Theme.label(9))
                                         .tracking(1)
-                                        .foregroundStyle(hit.primary ? Theme.ink : .white)
+                                        .foregroundStyle(isMain ? Theme.ink : .white)
                                         .frame(width: 52)
                                         .padding(.vertical, 4)
                                         .background {
-                                            if hit.primary { Capsule().fill(.white) } else { Capsule().strokeBorder(Color.white.opacity(0.6)) }
+                                            if isMain { Capsule().fill(.white) } else { Capsule().strokeBorder(Color.white.opacity(0.6)) }
                                         }
-                                    ExerciseThumbnail(exercise: hit.exercise, size: 48)
-                                    Text(hit.exercise.name).font(.body.weight(.semibold)).multilineTextAlignment(.leading)
+                                    ExerciseThumbnail(exercise: ex, size: 48)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(ex.name).font(.body.weight(.semibold)).multilineTextAlignment(.leading)
+                                        VariationCount(count: family.variations.count, color: .white.opacity(0.85))
+                                    }
                                     Spacer()
                                     Image(systemName: "chevron.right").font(.caption.bold()).opacity(0.8)
                                 }
@@ -359,11 +366,15 @@ struct CategoryDetailView: View {
 
                 NewExerciseButton(prefill: CustomExercise(category: category))
 
-                ForEach(Exercise.inCategory(category)) { e in
+                ForEach(Exercise.folded(Exercise.inCategory(category)), id: \.exercise.id) { family in
+                    let e = family.exercise
                     Button { open = ExerciseRef(exerciseId: e.id) } label: {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                Text(e.name).font(.system(.headline, design: .rounded).weight(.heavy)).multilineTextAlignment(.leading)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(e.name).font(.system(.headline, design: .rounded).weight(.heavy)).multilineTextAlignment(.leading)
+                                    VariationCount(count: family.variations.count)
+                                }
                                 Spacer()
                                 Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.muted)
                             }
@@ -381,6 +392,21 @@ struct CategoryDetailView: View {
         .background(Theme.bg.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $open) { ref in NavigationStack { ExerciseDetailView(exerciseId: ref.exerciseId) } }
+    }
+}
+
+/// "+N variations" under a base exercise's name (#174); nothing for exercises without variations.
+struct VariationCount: View {
+    let count: Int
+    var color: Color = Theme.lime
+
+    var body: some View {
+        if count > 0 {
+            Label("+\(count) variation\(count == 1 ? "" : "s")", systemImage: "square.stack.3d.down.right.fill")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(color)
+                .labelStyle(.titleAndIcon)
+        }
     }
 }
 

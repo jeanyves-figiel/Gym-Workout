@@ -11,12 +11,12 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import art  # noqa: E402
-from generate import CATALOG, GRADIENT, TRAVEL  # noqa: E402
+from generate import CATALOG, GRADIENT, TRAVEL, VARIATIONS  # noqa: E402
 from scenes import SCENES  # noqa: E402
 
 
 def catalog():
-    src = CATALOG.read_text() + TRAVEL.read_text()
+    src = CATALOG.read_text() + TRAVEL.read_text() + VARIATIONS.read_text()
     out = {}
     for m in re.finditer(r'Exercise\(id: "([^"]+)", name: "([^"]+)", category: \.(\w+), pattern: \.[\w`]+, '
                          r'primary: \[([^\]]*)\](?:, secondary: \[([^\]]*)\])?', src):
@@ -68,8 +68,10 @@ if __name__ == "__main__":
     args = sys.argv[2:]
     if args[:1] == ["-m"]:
         import importlib
+        import generate
         mod = importlib.import_module(args[1])
-        SCENES.update(mod.SCENES)
+        if args[1] not in generate.SCENE_MODULES:  # registered modules already load via generate.scenes()
+            SCENES.update(mod.SCENES)
         args = args[2:] or list(mod.SCENES)
     ids = args or list(SCENES)
     sheet(ids, sys.argv[1])

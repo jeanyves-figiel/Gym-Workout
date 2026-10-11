@@ -15,6 +15,8 @@ struct ExercisePickerView: View {
     @State private var selected: [String]
     @State private var builder: BuilderSheet?
     @State private var gate: ProGate?
+    /// Bases whose variations are shown (#174).
+    @State private var expanded: Set<String> = []
 
     /// Custom exercise builder (#52): new, or edit one of the user's own.
     private enum BuilderSheet: Identifiable {
@@ -43,6 +45,17 @@ struct ExercisePickerView: View {
         return found.filter { $0.muscles.contains { $0.group == group } }
     }
 
+    /// Grid cards: without a search, variations fold under their base (#174) until the base's chip opens
+    /// them; selected variations always show.
+    private func entries(_ found: [Exercise]) -> [(exercise: Exercise, variations: Int)] {
+        guard query.trimmingCharacters(in: .whitespaces).isEmpty else { return found.map { ($0, 0) } }
+        return Exercise.folded(found).flatMap { family -> [(exercise: Exercise, variations: Int)] in
+            let head = family.exercise
+            let shown = expanded.contains(head.id) ? family.variations : family.variations.filter { selected.contains($0.id) }
+            return [(head, family.variations.count)] + shown.map { ($0, 0) }
+        }
+    }
+
     var body: some View {
         // Reading the model's list re-renders the grid when custom exercises change.
         let _ = model.customExercises.count
@@ -58,10 +71,23 @@ struct ExercisePickerView: View {
                             NewExerciseCard().overlay(alignment: .topTrailing) { ProBadge().padding(8) }
                         }
                         .buttonStyle(.plain)
-                        ForEach(results) { e in
-                            Button { toggle(e) } label: { PickerCard(exercise: e, order: selected.firstIndex(of: e.id)) }
-                                .buttonStyle(.plain)
-                                .contextMenu { customMenu(e) }
+                        ForEach(entries(results), id: \.exercise.id) { entry in
+                            let e = entry.exercise
+                            VStack(spacing: 6) {
+                                Button { toggle(e) } label: { PickerCard(exercise: e, order: selected.firstIndex(of: e.id)) }
+                                    .buttonStyle(.plain)
+                                    .contextMenu { customMenu(e) }
+                                if entry.variations > 0 {
+                                    Button {
+                                        withAnimation(.snappy) {
+                                            if expanded.contains(e.id) { expanded.remove(e.id) } else { expanded.insert(e.id) }
+                                        }
+                                    } label: {
+                                        VariationsChip(count: entry.variations, open: expanded.contains(e.id))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
                         }
                     }
                     .padding(.horizontal, 16)
@@ -300,6 +326,25 @@ private struct NewExerciseCard: View {
 }
 
 /// Picture card: photo or illustration on the category gradient, category pill, tap-order badge.
+/// "+N variations" under a base exercise's card; opens or folds them (#174).
+private struct VariationsChip: View {
+    let count: Int
+    let open: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: open ? "chevron.up" : "square.stack.3d.down.right.fill").font(.system(size: 11, weight: .heavy))
+            Text(open ? "Hide variations" : "+\(count) variation\(count == 1 ? "" : "s")").font(Theme.label(12))
+        }
+        .foregroundStyle(Theme.lime)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 7)
+        .background(Capsule().fill(Theme.cardStrong))
+        .contentShape(Capsule())
+        .accessibilityLabel(open ? "Hide variations" : "Show \(count) variations")
+    }
+}
+
 private struct PickerCard: View {
     let exercise: Exercise
     let order: Int?
