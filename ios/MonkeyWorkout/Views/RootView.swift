@@ -93,11 +93,13 @@ private struct DemoScreen: View {
         case "player-rest": WorkoutPlayerView(sessionId: second, demoRest: true)
         case "example": NavigationStack { SessionView(sessionId: WorkoutTemplate.all[1].sessionId) }
         case "explore": NavigationStack { LibraryView() }
+        case "explore-female": NavigationStack { LibraryView() }.environment(\.bodyFigure, .female)
         case "explore-workouts": NavigationStack { LibraryView(mode: .workouts) }
         case "monkeygrade": NavigationStack { MonkeyGradeView() }
         case "climb-settings": ClimbSettingsView()
         case "climb": LogClimbView(initial: ClimbLog(start: Date().addingTimeInterval(-90 * 60), effort: 8, topGrade: "6C"))
         case "muscle": NavigationStack { MuscleDetailView(muscle: .lats) }
+        case "muscle-female": NavigationStack { MuscleDetailView(muscle: .glutes) }.environment(\.bodyFigure, .female)
         case "exercise": NavigationStack { ExerciseDetailView(exerciseId: "pull-up") }
         case "pr": NavigationStack { ScrollView { PRCard(exerciseId: "bench-press").padding(16) }.background(Theme.bg.ignoresSafeArea()) }
         case "pr-attempt": PRAttemptView(exerciseId: "bench-press")
@@ -118,6 +120,11 @@ private struct DemoScreen: View {
         case "onboarding", "onboarding-climbing":
             NavigationStack {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
+                    .navigationTitle("Your training")
+            }
+        case "onboarding-figure":
+            NavigationStack {
+                ProfileFormView(initial: nil, scrollTo: "figure") { _ in }
                     .navigationTitle("Your training")
             }
         case "variation": VariationSheet(days: Set(model.variableSessions.map(\.id)), keep: model.keptSwapUids)

@@ -16,3 +16,4 @@ ios/MonkeyWorkoutWatch/Info.plist
 xcuserdata/
 DerivedData/
 .claude/worktrees/
+__pycache__/

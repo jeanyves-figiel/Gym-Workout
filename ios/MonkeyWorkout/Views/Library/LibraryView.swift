@@ -42,18 +42,7 @@ struct LibraryView: View {
 
     private var muscles: some View {
         VStack(alignment: .leading, spacing: 20) {
-            VStack(spacing: 14) {
-                Text("This week's load · tap a muscle").eyebrow()
-                HStack(spacing: 12) {
-                    ForEach(BodySide.allCases) { s in
-                        BodyMapView(side: s, heat: model.weekHeat) { tapped = $0 }
-                    }
-                }
-                .frame(height: 320)
-                .padding(.bottom, 18)
-                HeatLegend()
-            }
-            .card()
+            BodyMapCard(heat: model.weekHeat, sets: model.weeklyWorkingSets) { tapped = $0 }
 
             ForEach(MuscleGroup.allCases) { g in
                 VStack(alignment: .leading, spacing: 8) {
@@ -72,6 +61,77 @@ struct LibraryView: View {
             ForEach(WorkoutEngine.Category.allCases) { c in
                 NavigationLink(value: c) { CategoryCard(category: c) }
                     .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+/// Explore → Muscles hero (#110): gradient "this week" header with the most-worked muscles,
+/// then the front/back anatomical figures on a soft glow. Tap a muscle to open it.
+private struct BodyMapCard: View {
+    let heat: [Muscle: Double]
+    let sets: Int
+    let onTap: (Muscle) -> Void
+
+    private var top: [Muscle] {
+        heat.filter { $0.value > 0 }.sorted { $0.value > $1.value || ($0.value == $1.value && $0.key.name < $1.key.name) }
+            .prefix(3).map(\.key)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("This week").font(Theme.label(11)).tracking(2).textCase(.uppercase).opacity(0.85)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("\(sets)").font(Theme.display(40)).monospacedDigit()
+                        Text("sets").font(Theme.display(18)).opacity(0.9)
+                    }
+                    if !top.isEmpty {
+                        ViewThatFits(in: .horizontal) {
+                            chips(top)
+                            chips(Array(top.prefix(2)))
+                            chips(Array(top.prefix(1)))
+                        }
+                    }
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 26, weight: .bold))
+                    .frame(width: 56, height: 56)
+                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.white.opacity(0.2)))
+            }
+            .foregroundStyle(.white)
+            .padding(18)
+            .background(WorkoutEngine.Category.strength.gradient)
+
+            VStack(spacing: 14) {
+                HStack(spacing: 12) {
+                    ForEach(BodySide.allCases) { s in
+                        BodyMapView(side: s, heat: heat, onTap: onTap)
+                    }
+                }
+                .frame(height: 340)
+                .padding(.bottom, 18)
+                HeatLegend()
+                Text("Tap a muscle to see its exercises").font(.footnote).foregroundStyle(Theme.muted)
+            }
+            .padding(16)
+            .background(
+                RadialGradient(colors: [WorkoutEngine.Category.strength.colors[1].opacity(0.22), .clear],
+                               center: UnitPoint(x: 0.5, y: 0.4), startRadius: 0, endRadius: 220)
+            )
+        }
+        .background(Theme.card)
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+    }
+
+    private func chips(_ muscles: [Muscle]) -> some View {
+        HStack(spacing: 6) {
+            ForEach(muscles) { m in
+                Text(m.name).font(Theme.label(11)).lineLimit(1).fixedSize()
+                    .padding(.horizontal, 9).padding(.vertical, 4)
+                    .background(Capsule().fill(.white.opacity(0.22)))
             }
         }
     }
