@@ -48,10 +48,16 @@ struct BodyMetrics: Codable, Equatable, Sendable {
     var gender: Gender?
     /// Free text when `gender == .selfDescribe`.
     var genderDescription: String?
+    /// Body figure drawn on muscle maps (#110). Display only; nil = suggested from `sex`.
+    var figure: BodyMapLayout.Figure?
 
     var isEmpty: Bool {
         heightCm == nil && weightKg == nil && birthYear == nil && sex == nil && gender == nil && genderDescription == nil
+            && figure == nil
     }
+
+    /// Figure prefilled when none was picked: F for female sex, M otherwise.
+    static func suggestedFigure(sex: Sex?) -> BodyMapLayout.Figure { sex == .female ? .female : .male }
 }
 
 /// What we read from Apple Health. Stays on device (never sent to the server).
