@@ -6,6 +6,11 @@ name: TestFlight (Staging)
 # Manual only: builds ship when all open work streams are merged, not on every merge to main.
 on:
   workflow_dispatch:
+    inputs:
+      prune_ci_certs:
+        description: 'Revoke all old CI-made development certificates ("Created via API") before archiving'
+        type: boolean
+        default: false
 
 concurrency:
   group: testflight
@@ -53,6 +58,15 @@ jobs:
             printf '%s' "$ASC_KEY_P8" | base64 --decode > "$KEY"
           fi
           echo "ASC_KEY_PATH=$KEY" >> "$GITHUB_ENV"
+      - name: Signing certificates
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          pip3 install --quiet --break-system-packages 'pyjwt[crypto]==2.9.0' || pip3 install --quiet 'pyjwt[crypto]==2.9.0'
+          if [ "${{ inputs.prune_ci_certs }}" = "true" ]; then
+            python3 .github/scripts/asc_ci_certs.py prune
+          else
+            python3 .github/scripts/asc_ci_certs.py list
+          fi
       - name: Generate project
         if: steps.secrets.outputs.ok == 'true'
         run: |
@@ -101,6 +115,17 @@ jobs:
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" | tail -n 80
           echo "Uploaded build ${{ github.run_number }} (Staging → workout-staging.monkeygrade.cloud). Appears in TestFlight after Apple processing." >> "$GITHUB_STEP_SUMMARY"
+      - name: Revoke this run's development certificate
+        # Xcode made it for this runner only; its private key is gone with the runner, so keep the account under Apple's cap.
+        if: always() && steps.secrets.outputs.ok == 'true'
+        run: |
+          cd "$RUNNER_TEMP"
+          security find-certificate -a -c "Apple Development" -p 2>/dev/null \
+            | awk '/BEGIN CERT/{f="devcert"++n".pem"} f{print > f} /END CERT/{close(f); f=""}'
+          SERIALS=$(for f in devcert*.pem; do [ -f "$f" ] && openssl x509 -in "$f" -noout -serial | cut -d= -f2; done)
+          rm -f devcert*.pem
+          if [ -z "$SERIALS" ]; then echo "No development certificate in this runner's keychain"; exit 0; fi
+          python3 "$GITHUB_WORKSPACE/.github/scripts/asc_ci_certs.py" revoke-serials $SERIALS
       - name: Remove API key
         if: always()
         run: rm -rf "$RUNNER_TEMP/asc"
