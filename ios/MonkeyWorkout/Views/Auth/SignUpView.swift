@@ -65,7 +65,7 @@ struct SignUpView: View {
             .accessibilityLabel("Read privacy notice")
             .padding(.top, 6)
             Toggle(isOn: $accepted) {
-                Text("I accept the privacy notice").font(.body.weight(.semibold))
+                Text(LegalLinks.acceptance("I accept the")).font(.body.weight(.semibold)).tint(Theme.lime)
             }
             .tint(Theme.lime)
             .card(padding: 16)

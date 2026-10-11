@@ -17,6 +17,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var exerciseSwaps: [ExerciseSwap]?
     /// Member-steered exercise swaps for this week (#98). Optional so older profiles still decode.
     var variation: PlanVariation?
+    /// One-off moves of this week's sessions to another day (#113).
+    var moves: [SessionMove]?
     /// Per-workout rest / grouping overrides (#106), keyed by session id ("w2s1"); dropped on a week change.
     var sessionStyles: [String: SessionStyle]?
 
