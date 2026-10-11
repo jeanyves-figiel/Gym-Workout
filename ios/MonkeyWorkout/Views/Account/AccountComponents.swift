@@ -5,6 +5,9 @@ import WorkoutEngine
 enum AccountTint {
     static let profile = LinearGradient(colors: [Color(red: 0.48, green: 0.24, blue: 1), Color(red: 1, green: 0.30, blue: 0.85)],
                                         startPoint: .topLeading, endPoint: .bottomTrailing)
+    /// Nickname, photo, about (#108).
+    static let publicProfile = LinearGradient(colors: [Color(red: 0.08, green: 0.78, blue: 0.56), Color(red: 0.12, green: 0.5, blue: 1)],
+                                              startPoint: .topLeading, endPoint: .bottomTrailing)
     static let body = WorkoutEngine.Category.power.gradient
     static let password = WorkoutEngine.Category.strength.gradient
     static let email = WorkoutEngine.Category.cardio.gradient
