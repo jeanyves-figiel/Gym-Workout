@@ -19,6 +19,8 @@ struct BodyMapView: View {
     var onTap: ((Muscle) -> Void)?
     /// Explicit figure (picker previews); nil = the user's choice from the environment.
     var figure: BodyFigure?
+    /// Points around each muscle that still count as a tap on it (pickers, #168).
+    var tapTolerance: CGFloat = 0
     @Environment(\.bodyFigure) private var chosenFigure
 
     private var fig: BodyFigure { figure ?? chosenFigure }
@@ -31,7 +33,8 @@ struct BodyMapView: View {
                 .contentShape(Rectangle())
                 .gesture(SpatialTapGesture().onEnded { tap in
                     guard let onTap, s > 0,
-                          let m = BodyMapLayout.muscle(at: Double(tap.location.x / s), Double(tap.location.y / s), side: side, figure: fig)
+                          let m = BodyMapLayout.muscle(at: Double(tap.location.x / s), Double(tap.location.y / s), side: side, figure: fig,
+                                                  tolerance: Double(tapTolerance / s))
                     else { return }
                     onTap(m)
                 }, including: onTap == nil ? .subviews : .all)
@@ -136,12 +139,14 @@ struct BodyMapPair: View {
     var heat: [Muscle: Double]
     var selected: Muscle?
     var figure: BodyFigure?
+    var spacing: CGFloat = 12
+    var tapTolerance: CGFloat = 0
     var onTap: ((Muscle) -> Void)?
 
     var body: some View {
-        HStack(spacing: 12) {
-            BodyMapView(side: .front, heat: heat, selected: selected, onTap: onTap, figure: figure)
-            BodyMapView(side: .back, heat: heat, selected: selected, onTap: onTap, figure: figure)
+        HStack(spacing: spacing) {
+            BodyMapView(side: .front, heat: heat, selected: selected, onTap: onTap, figure: figure, tapTolerance: tapTolerance)
+            BodyMapView(side: .back, heat: heat, selected: selected, onTap: onTap, figure: figure, tapTolerance: tapTolerance)
         }
         .padding(.bottom, 18)
     }

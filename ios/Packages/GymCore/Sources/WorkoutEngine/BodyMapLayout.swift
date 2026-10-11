@@ -65,6 +65,20 @@ public enum BodyMapLayout {
             }
             return inside
         }
+
+        /// Distance from a point to the polygon's edge (0 inside).
+        public func distance(x: Double, y: Double) -> Double {
+            if contains(x: x, y: y) { return 0 }
+            var best = Double.infinity
+            for i in points.indices {
+                let p = points[i], q = points[(i + 1) % points.count]
+                let dx = q.x - p.x, dy = q.y - p.y
+                let len = dx * dx + dy * dy
+                let t = len > 0 ? max(0, min(1, ((x - p.x) * dx + (y - p.y) * dy) / len)) : 0
+                best = min(best, hypot(x - (p.x + t * dx), y - (p.y + t * dy)))
+            }
+            return best
+        }
     }
 
     private static func points(_ flat: [Double]) -> [Point] {
@@ -93,8 +107,17 @@ public enum BodyMapLayout {
     }
 
     /// Muscle under a point in design space; where polygons overlap, the top-most (last drawn) wins.
-    /// Nil outside every muscle.
-    public static func muscle(at x: Double, _ y: Double, side: Side, figure: Figure = .male) -> Muscle? {
-        shapes(side, figure: figure).last { $0.contains(x: x, y: y) }?.muscle
+    /// Nil outside every muscle. With a `tolerance` (design units), a tap just outside every muscle picks the nearest one within it,
+    /// so small muscles are easy to hit with a finger (#142).
+    public static func muscle(at x: Double, _ y: Double, side: Side, figure: Figure = .male, tolerance: Double = 0) -> Muscle? {
+        let all = shapes(side, figure: figure)
+        if let hit = all.last(where: { $0.contains(x: x, y: y) }) { return hit.muscle }
+        guard tolerance > 0 else { return nil }
+        var best: (muscle: Muscle, d: Double)?
+        for shape in all {
+            let d = shape.distance(x: x, y: y)
+            if d <= tolerance, d < (best?.d ?? .infinity) { best = (shape.muscle, d) }
+        }
+        return best?.muscle
     }
 }
