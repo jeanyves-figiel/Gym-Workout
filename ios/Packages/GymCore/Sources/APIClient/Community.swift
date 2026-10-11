@@ -51,6 +51,25 @@ public struct CommunityProfile: Codable, Sendable, Equatable {
     }
 }
 
+/// Nickname, photo and about shown on Account and in Community (#108). Set before or after joining; same record either way.
+public struct PublicProfile: Codable, Sendable, Equatable {
+    public var nickname: String?
+    public var bio: String?
+    /// Server-relative path; resolve with `APIClient.resolve(_:)`.
+    public var avatarUrl: String?
+    /// Joined the community.
+    public var member: Bool
+
+    public init(nickname: String? = nil, bio: String? = nil, avatarUrl: String? = nil, member: Bool = false) {
+        self.nickname = nickname
+        self.bio = bio
+        self.avatarUrl = avatarUrl
+        self.member = member
+    }
+
+    public var isEmpty: Bool { (nickname ?? "").isEmpty && (bio ?? "").isEmpty && avatarUrl == nil }
+}
+
 public struct CommunityMember: Codable, Sendable, Equatable {
     public var userId: String
     public var nickname: String
@@ -206,12 +225,35 @@ extension APIClient {
     /// Public web page of a post shared with visibility "public".
     public nonisolated func shareURL(postId: String) -> URL? { resolve("/share/\(postId)") }
 
+    struct PublicProfileResponse: Decodable { var profile: PublicProfile }
+
+    public func publicProfile() async throws -> PublicProfile {
+        try await authorized("GET", "/v1/me/public-profile", Empty?.none, as: PublicProfileResponse.self).profile
+    }
+
+    /// Saves nickname and about from Account. Empty clears (a member's nickname cannot be cleared).
+    public func savePublicProfile(nickname: String, bio: String) async throws -> PublicProfile {
+        struct Body: Encodable { var nickname, bio: String }
+        return try await authorized("PUT", "/v1/me/public-profile", Body(nickname: nickname, bio: bio), as: PublicProfileResponse.self).profile
+    }
+
+    /// JPEG ≤ 512 KB; works before and after joining.
+    public func uploadPublicAvatar(jpeg: Data) async throws -> PublicProfile {
+        let data = try await authorizedRaw("PUT", "/v1/me/public-profile/avatar", Empty?.none, raw: (jpeg, "image/jpeg"))
+        return try JSONDecoder().decode(PublicProfileResponse.self, from: data).profile
+    }
+
+    public func deletePublicAvatar() async throws -> PublicProfile {
+        try await authorized("DELETE", "/v1/me/public-profile/avatar", Empty?.none, as: PublicProfileResponse.self).profile
+    }
+
     /// Nil until the member joins the community.
     public func communityProfile() async throws -> CommunityProfile? {
         try await authorized("GET", "/v1/community/me", Empty?.none, as: CommunityProfileResponse.self).profile
     }
 
     /// Creates or updates the community profile. `acceptGuidelines` is required when joining. Empty bio clears it.
+    /// Joining moves the Account profile (photo included) into the community profile.
     public func saveCommunityProfile(
         nickname: String, bio: String, defaultVisibility: CommunityVisibility, autoShare: Bool, acceptGuidelines: Bool
     ) async throws -> CommunityProfile {
@@ -241,7 +283,7 @@ extension APIClient {
         return p
     }
 
-    /// Deletes the community profile, photo, posts and cheers given.
+    /// Deletes posts and cheers given. Nickname, photo and about stay on Account.
     public func leaveCommunity() async throws {
         _ = try await authorizedRaw("DELETE", "/v1/community/me", Empty?.none)
     }
