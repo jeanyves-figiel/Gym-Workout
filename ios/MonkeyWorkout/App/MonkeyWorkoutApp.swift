@@ -16,6 +16,7 @@ struct MonkeyWorkoutApp: App {
                 .environment(lock)
                 .environment(health)
                 .task {
+                    model.health = health
                     await model.bootstrap()
                     WatchSync.shared.start(model: model, health: health)
                     await AppleCredentialCheck.verify(model)

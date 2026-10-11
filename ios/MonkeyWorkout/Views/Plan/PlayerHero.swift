@@ -69,13 +69,13 @@ struct ExerciseHeroCard: View {
                 .font(Theme.label(11))
                 .opacity(0.85)
             }
-            ZStack(alignment: .bottom) {
-                // Start position; tap plays the movement once (no looping frames).
-                ExerciseMotionView(exercise: exercise)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 150)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                HStack {
+            // Start position; tap plays the movement once (no looping frames). Its "Play movement" tag sits
+            // bottom-left, so Attempt PR goes top-left and Form bottom-right.
+            ExerciseMotionView(exercise: exercise)
+                .frame(maxWidth: .infinity)
+                .frame(height: 150)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(alignment: .topLeading) {
                     if let onAttemptPR {
                         Button(action: onAttemptPR) {
                             Label("Attempt PR", systemImage: "trophy.fill")
@@ -86,8 +86,10 @@ struct ExerciseHeroCard: View {
                                 .background(Capsule().fill(Theme.lime))
                         }
                         .buttonStyle(.plain)
+                        .padding(8)
                     }
-                    Spacer()
+                }
+                .overlay(alignment: .bottomTrailing) {
                     Button(action: onForm) {
                         Label("Form", systemImage: "info.circle.fill")
                             .font(Theme.label(12))
@@ -97,9 +99,8 @@ struct ExerciseHeroCard: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Setup and technique")
+                    .padding(8)
                 }
-                .padding(8)
-            }
             HeroMuscleChips(primary: exercise.primary, secondary: exercise.secondary)
             if let n = item.prescription.note { Text(n).font(.caption.weight(.semibold)).opacity(0.85) }
         }
