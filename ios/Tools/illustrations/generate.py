@@ -32,7 +32,8 @@ ASSETS = IOS / "MonkeyWorkout/Resources/Illustrations.xcassets"
 SWIFT_OUT = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercise+Illustrations.swift"
 LEDGER = IOS / "EXERCISE_MEDIA.md"
 
-SCENE_MODULES = ["scenes", "scenes_lower", "scenes_upper", "scenes_arms_core", "scenes_power", "scenes_mobility"]
+SCENE_MODULES = ["scenes", "scenes_lower", "scenes_upper", "scenes_arms_core", "scenes_power", "scenes_mobility",
+                 "scenes_extra"]
 FRAMES = 3
 SIZE = (720, 540)
 

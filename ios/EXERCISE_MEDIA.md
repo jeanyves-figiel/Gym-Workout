@@ -5,7 +5,7 @@ own art (#170): a shaded anatomical figure in three frames (start, middle, end o
 worked muscles in the app's load colours (primary red, secondary amber), the machine or equipment drawn
 in the scene, and a small front/back muscle map. No third-party images or video.
 
-Illustrations: 201 · Total: 201
+Illustrations: 215 · Total: 215
 
 | Id | Exercise | Media | Source | License |
 |---|---|---|---|---|
@@ -192,6 +192,20 @@ Illustrations: 201 · Total: 201
 | `lying-leg-raise` | Lying leg raise | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `monster-walk` | Band monster walk | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `tib-raise` | Wall tibialis raise | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `ez-bar-curl` | EZ-bar curl | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `ez-skullcrusher` | EZ-bar skull crusher | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `db-preacher-curl` | Dumbbell preacher curl | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `machine-shoulder-press` | Machine shoulder press | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `machine-calf-raise` | Standing calf raise machine | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `t-bar-row` | Chest-supported T-bar row | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `glute-ham-raise` | Glute-ham raise | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `ball-crunch` | Stability ball crunch | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `assisted-dip` | Machine-assisted dip | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `weighted-dip` | Weighted dip | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `reverse-hyper` | Reverse hyper | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `machine-curl` | Machine biceps curl | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `machine-triceps-extension` | Machine triceps extension | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `jump-rope` | Jump rope | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `bw-squat` | Bodyweight squat | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `bw-split-squat` | Split squat (bodyweight) | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `bw-reverse-lunge` | Reverse lunge (bodyweight) | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
