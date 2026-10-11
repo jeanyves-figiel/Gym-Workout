@@ -84,6 +84,10 @@ private struct DemoScreen: View {
         let second = model.plan?.sessions.dropFirst().first?.id ?? ""
         switch Demo.screen {
         case "session": NavigationStack { SessionView(sessionId: second) }
+        case "swap":
+            if let item = model.plan?.sessions.dropFirst().first?.blocks.first(where: { $0.kind == .strength })?.items.first {
+                SwapExerciseSheet(exerciseId: item.exerciseId, uid: item.uid)
+            }
         case "player": WorkoutPlayerView(sessionId: second)
         case "player-rest": WorkoutPlayerView(sessionId: second, demoRest: true)
         case "example": NavigationStack { SessionView(sessionId: WorkoutTemplate.all[1].sessionId) }
@@ -115,6 +119,7 @@ private struct DemoScreen: View {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
                     .navigationTitle("Your training")
             }
+        case "variation": VariationSheet(days: Set(model.variableSessions.map(\.id)), keep: model.keptSwapUids)
         case "variety":
             NavigationStack {
                 ProfileFormView(initial: nil, scrollTo: "variety") { _ in }
