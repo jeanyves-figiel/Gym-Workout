@@ -142,15 +142,18 @@ final class AppModel {
     // MARK: Plan
 
     var profile: Profile? { state.synced?.profile }
-    /// Generated week with library workouts placed into it (#62).
-    var plan: WeekPlan? { state.plan?.applying(state.synced?.planInserts ?? []) }
+    /// Generated week with kept exercise swaps (#101) and library workouts placed into it (#62).
+    var plan: WeekPlan? {
+        state.plan?.applying(swaps: state.synced?.exerciseSwaps ?? []).applying(state.synced?.planInserts ?? [])
+    }
 
     func applyProfile(_ profile: Profile, seed: UInt32? = nil, week: Int = 1) {
         let s = seed ?? UInt32.random(in: 0...UInt32.max)
         let changed = state.synced?.week != week || state.synced?.seed != s || state.synced?.profile != profile
         // Plan inserts belong to one week: kept for a new variation or profile edit, dropped on a week change.
         state.synced = SyncedProfile(profile: profile, seed: s, week: week, body: state.synced?.body, away: state.synced?.away,
-                                     planInserts: state.synced?.planInserts?.filter { $0.week == week })
+                                     planInserts: state.synced?.planInserts?.filter { $0.week == week },
+                                     exerciseSwaps: state.synced?.exerciseSwaps)
         state.plan = Generator.generateWeek(profile, week: week, seed: s)
         replanCurrentWeek()
         if changed {
@@ -223,17 +226,56 @@ final class AppModel {
         persist()
     }
 
-    func swap(uid: String, to exerciseId: String) {
-        guard var plan = state.plan else { return }
-        for s in plan.sessions.indices {
-            for b in plan.sessions[s].blocks.indices {
-                for i in plan.sessions[s].blocks[b].items.indices where plan.sessions[s].blocks[b].items[i].uid == uid {
-                    plan.sessions[s].blocks[b].items[i].exerciseId = exerciseId
-                }
+    /// Replaces a planned exercise (#101). `keep`: also for that day in future weeks (synced with the profile);
+    /// otherwise this week's session only.
+    func swap(uid: String, to exerciseId: String, keep: Bool = false) {
+        guard var plan = state.plan,
+              let s = plan.sessions.firstIndex(where: { $0.blocks.contains { $0.items.contains { $0.uid == uid } } }) else { return }
+        let session = plan.sessions[s]
+        guard let generated = session.blocks.flatMap(\.items).first(where: { $0.uid == uid })?.exerciseId else { return }
+        if keep, var sp = state.synced {
+            let rule = ExerciseSwap(weekday: session.weekday, sessionIndex: session.index, from: generated, to: exerciseId)
+            var rules = sp.exerciseSwaps ?? []
+            rules.removeAll { $0.sameSlot(rule) }
+            if exerciseId != generated { rules.append(rule) }
+            sp.exerciseSwaps = rules.isEmpty ? nil : rules
+            state.synced = sp
+            state.profileDirty = true
+            persist()
+            Task { await sync() }
+            return
+        }
+        for b in plan.sessions[s].blocks.indices {
+            for i in plan.sessions[s].blocks[b].items.indices where plan.sessions[s].blocks[b].items[i].uid == uid {
+                plan.sessions[s].blocks[b].items[i].exerciseId = exerciseId
             }
         }
+        // A kept rule for the old pick no longer matches, so this week shows `exerciseId`.
         state.plan = plan
         persist()
+    }
+
+    /// Items of this week's generated plan; library inserts, examples and custom workouts are fixed lists.
+    func canSwap(uid: String) -> Bool {
+        state.plan?.sessions.contains { $0.blocks.contains { $0.items.contains { $0.uid == uid } } } ?? false
+    }
+
+    /// The kept swap that produced the planned item `uid`, if any.
+    func keptSwap(uid: String) -> ExerciseSwap? {
+        guard let raw = state.plan?.sessions.first(where: { $0.blocks.contains { $0.items.contains { $0.uid == uid } } }),
+              let item = raw.blocks.flatMap(\.items).first(where: { $0.uid == uid }) else { return nil }
+        return state.synced?.exerciseSwaps?.first { $0.matches(raw) && $0.from == item.exerciseId }
+    }
+
+    /// Stops a kept swap: the day gets the generated exercise back.
+    func removeKeptSwap(_ rule: ExerciseSwap) {
+        guard var sp = state.synced else { return }
+        sp.exerciseSwaps?.removeAll { $0.sameSlot(rule) }
+        if sp.exerciseSwaps?.isEmpty == true { sp.exerciseSwaps = nil }
+        state.synced = sp
+        state.profileDirty = true
+        persist()
+        Task { await sync() }
     }
 
     // MARK: Body & history
