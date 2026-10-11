@@ -14,6 +14,33 @@ extension AppModel {
         return away.filter { $0.end >= today }
     }
 
+    /// The travel period covering today, if any (#160).
+    var currentTrip: AwayPeriod? {
+        let today = PlanCalendar.key(Date(), planCalendar)
+        return away.first { $0.kind == .travel && $0.covers(today) }
+    }
+
+    /// The next travel period starting within two weeks (#160).
+    var nextTrip: AwayPeriod? {
+        let cal = planCalendar
+        let today = PlanCalendar.key(Date(), cal)
+        let limit = PlanCalendar.key(cal.date(byAdding: .day, value: 14, to: Date()) ?? Date(), cal)
+        return away.first { $0.kind == .travel && $0.start > today && $0.start <= limit }
+    }
+
+    /// "Away: Berlin · Hotel gym until 21 Oct" or "Trip: Berlin · Hotel gym from 18 Oct"; nil when no trip is near (#160).
+    var tripLine: String? {
+        func day(_ key: String) -> String {
+            PlanCalendar.date(key, planCalendar)?.formatted(.dateTime.day().month(.abbreviated)) ?? key
+        }
+        if let t = currentTrip { return "Away: \(t.title) until \(day(t.end))" }
+        if let t = nextTrip { return "Trip: \(t.title) from \(day(t.start))" }
+        return nil
+    }
+
+    /// Home gym name from the training profile (default gym when none saved).
+    var gymName: String { profile?.gym?.name ?? Gym.puls5.name }
+
     var doneIds: Set<String> { Set(state.done.filter(\.value).keys) }
 
     /// This week (as on the Train tab) and the coming weeks, dated and adapted around away periods.

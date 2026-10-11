@@ -453,7 +453,12 @@ struct CommunityProfileView: View {
             if let p = community.profile {
                 VStack(alignment: .leading, spacing: 16) {
                     ProfileHero(avatar: model.api.resolve(p.avatarUrl), nickname: p.nickname, bio: p.bio)
+                    if p.showGym == true, let gym = p.gym {
+                        Label(gym, systemImage: "building.2.fill").font(Theme.label(13)).foregroundStyle(Theme.lime).frame(maxWidth: .infinity)
+                    }
                     CommunityStats(shared: p.sharedPosts, cheers: p.cheersReceived, followers: p.followers)
+                    Text("Your gym").eyebrow()
+                    ShowGymCard()
                     Text("Profile").eyebrow()
                     Group {
                         NavigationLink { editView(p) } label: {
@@ -579,6 +584,10 @@ struct MemberView: View {
                 if let m = page?.member {
                     if let gym = m.gym {
                         Label(gym, systemImage: "building.2.fill").font(Theme.label(13)).foregroundStyle(Theme.lime).frame(maxWidth: .infinity)
+                    } else if isMe {
+                        // Your own page (#160): your gym, marked hidden while you don't show it.
+                        Label("\(Community.shared.profile?.gym ?? model.gymName) · hidden", systemImage: "eye.slash.fill")
+                            .font(Theme.label(13)).foregroundStyle(Theme.muted).frame(maxWidth: .infinity)
                     }
                     CommunityStats(shared: m.sharedPosts, cheers: m.cheersReceived, followers: m.followers)
                     if !isMe, page?.blockedByMe == false {
