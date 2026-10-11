@@ -277,7 +277,7 @@ struct LogClimbView: View {
             .navigationTitle("Log climb")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                CloseToolbarItem { dismiss() }
             }
         }
         .preferredColorScheme(.dark)
@@ -480,7 +480,7 @@ struct ClimbSettingsView: View {
             .navigationTitle("Around climbing")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                CloseToolbarItem { dismiss() }
             }
         }
         .preferredColorScheme(.dark)

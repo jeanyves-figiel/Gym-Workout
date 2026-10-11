@@ -535,7 +535,7 @@ struct AwayEditorView: View {
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle(isNew ? "Away" : "Edit away")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .toolbar { CloseToolbarItem { dismiss() } }
             .sheet(isPresented: $findingGym) {
                 GymFinderView(place: note) { ref in
                     draft.gym = ref

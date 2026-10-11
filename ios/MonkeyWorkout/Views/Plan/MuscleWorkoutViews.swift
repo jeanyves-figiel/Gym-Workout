@@ -119,7 +119,7 @@ struct MuscleWorkoutGeneratorSheet: View {
             .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                CloseToolbarItem { dismiss() }
             }
         }
         .preferredColorScheme(.dark)

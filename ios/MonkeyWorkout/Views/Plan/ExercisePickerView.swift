@@ -90,7 +90,7 @@ struct ExercisePickerView: View {
             .navigationTitle("Add exercises")
             .toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                CloseToolbarItem { dismiss() }
             }
         }
     }

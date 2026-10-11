@@ -16,6 +16,8 @@ struct LibraryView: View {
     @State private var tapped: Muscle?
 
     var body: some View {
+        // Reading the model's list re-renders counts and lists when custom exercises change.
+        let _ = model.customExercises.count
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 Picker("Browse", selection: $mode) {
@@ -44,6 +46,7 @@ struct LibraryView: View {
     private var muscles: some View {
         VStack(alignment: .leading, spacing: 20) {
             BodyMapCard(heat: model.weekHeat, sets: model.weeklyWorkingSets) { tapped = $0 }
+            NewExerciseButton()
 
             ForEach(MuscleGroup.allCases) { g in
                 VStack(alignment: .leading, spacing: 8) {
@@ -60,9 +63,10 @@ struct LibraryView: View {
     private var categories: some View {
         VStack(spacing: 12) {
             ForEach(WorkoutEngine.Category.allCases) { c in
-                NavigationLink(value: c) { CategoryCard(category: c) }
+                NavigationLink(value: c) { CategoryCard(category: c, count: Exercise.inCategory(c).count) }
                     .buttonStyle(.plain)
             }
+            NewExerciseButton()
         }
     }
 }
@@ -159,6 +163,7 @@ private struct MuscleRow: View {
 
 private struct CategoryCard: View {
     let category: WorkoutEngine.Category
+    let count: Int
 
     var body: some View {
         HStack(spacing: 16) {
@@ -171,7 +176,7 @@ private struct CategoryCard: View {
                 Text(category.blurb).font(.footnote.weight(.medium)).opacity(0.85).multilineTextAlignment(.leading)
             }
             Spacer()
-            Text("\(Exercise.inCategory(category).count)").font(Theme.display(22)).opacity(0.8)
+            Text("\(count)").font(Theme.display(22)).opacity(0.8)
         }
         .foregroundStyle(.white)
         .padding(18)
@@ -186,6 +191,7 @@ struct MuscleDetailView: View {
     @State private var open: ExerciseRef?
 
     var body: some View {
+        let _ = model.customExercises.count
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 VStack(alignment: .leading, spacing: 8) {
@@ -204,6 +210,7 @@ struct MuscleDetailView: View {
                     }
                     .frame(width: 130)
                 }
+                NewExerciseButton(prefill: CustomExercise(primary: [muscle]))
                 ForEach(Exercise.working(muscle), id: \.0) { category, hits in
                     GradientSection(symbol: category.symbol, title: category.label, gradient: category.gradient) {
                         ForEach(hits, id: \.exercise.id) { hit in
@@ -243,9 +250,11 @@ struct MuscleDetailView: View {
 /// Category page: what the category is for, and its exercises with muscles.
 struct CategoryDetailView: View {
     let category: WorkoutEngine.Category
+    @Environment(AppModel.self) private var model
     @State private var open: ExerciseRef?
 
     var body: some View {
+        let _ = model.customExercises.count
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 10) {
@@ -257,6 +266,8 @@ struct CategoryDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(22)
                 .background(RoundedRectangle(cornerRadius: 30, style: .continuous).fill(category.gradient))
+
+                NewExerciseButton(prefill: CustomExercise(category: category))
 
                 ForEach(Exercise.inCategory(category)) { e in
                     Button { open = ExerciseRef(exerciseId: e.id) } label: {
@@ -280,5 +291,42 @@ struct CategoryDetailView: View {
         .background(Theme.bg.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $open) { ref in NavigationStack { ExerciseDetailView(exerciseId: ref.exerciseId) } }
+    }
+}
+
+/// Explore (#142): "New exercise" card opening the custom exercise builder (#52), prefilled with the
+/// muscle or category it is added from; the saved exercise then shows in that list.
+private struct NewExerciseButton: View {
+    var prefill: CustomExercise?
+    @State private var building = false
+    @State private var gate: ProGate?
+
+    var body: some View {
+        Button { ProStore.shared.run(.customExercise, $gate) { building = true } } label: {
+            HStack(spacing: 16) {
+                Image(systemName: "plus")
+                    .font(.system(size: 24, weight: .heavy))
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: 52, height: 52)
+                    .background(Circle().fill(Theme.lime))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("New exercise").font(Theme.display(20))
+                    Text("Your own machine, photo or pose").font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted)
+                }
+                Spacer(minLength: 0)
+                ProBadge()
+            }
+            .padding(16)
+            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.card))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(Theme.lime.opacity(0.7), style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("New exercise")
+        .sheet(isPresented: $building) { CustomExerciseBuilderView(prefill: prefill) }
+        .proPaywall($gate)
     }
 }

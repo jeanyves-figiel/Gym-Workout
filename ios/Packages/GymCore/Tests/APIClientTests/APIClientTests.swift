@@ -249,6 +249,10 @@ private func tokensJSON(_ n: Int) -> String {
         let e = try d.decode(Entitlement.self, from: Data(json.utf8))
         #expect(e.mode == .preview && e.pro && e.trial == true && e.source == .subscription && e.grant == nil)
         let g = try d.decode(Entitlement.self, from: Data(#"{"mode":"enforced","pro":true,"access":true,"source":"grant","grant":{},"products":[]}"#.utf8))
-        #expect(g.source == .grant && g.grant?.until == nil)
+        #expect(g.source == .grant && g.grant?.until == nil && g.test == nil)
+        let t = try d.decode(Entitlement.self, from: Data(#"{"mode":"enforced","pro":false,"access":false,"source":"none","products":[],"test":{"mode":"enforced"}}"#.utf8))
+        #expect(t.test?.mode == .enforced)
+        let s = try d.decode(Entitlement.self, from: Data(#"{"mode":"off","pro":false,"access":true,"source":"none","products":[],"test":{}}"#.utf8))
+        #expect(s.test != nil && s.test?.mode == nil)
     }
 }

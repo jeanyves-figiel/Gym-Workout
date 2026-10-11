@@ -50,7 +50,7 @@ struct MoveSessionSheet: View {
                 .background(Theme.bg.ignoresSafeArea())
                 .navigationTitle("Move to…")
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+                .toolbar { CloseToolbarItem { dismiss() } }
         }
         .presentationDetents([.large])
         .preferredColorScheme(.dark)
@@ -204,7 +204,7 @@ struct AddWorkoutSheet: View {
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Add workout")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .toolbar { CloseToolbarItem { dismiss() } }
             .sheet(item: $logging, onDismiss: { if model.climbLogs.count > climbsBefore { dismiss() } }) {
                 LogClimbView(initial: $0)
             }

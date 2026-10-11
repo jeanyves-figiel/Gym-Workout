@@ -511,7 +511,7 @@ struct AddToPlanSheet: View {
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Add to plan")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
         .presentationDetents([.large])
     }
