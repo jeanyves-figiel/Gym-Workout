@@ -7,6 +7,12 @@ on:
     workflows: ['Deploy staging']
     types: [completed]
   workflow_dispatch:
+    inputs:
+      target:
+        description: 'API to check (production after a promote)'
+        type: choice
+        options: [staging, production]
+        default: staging
 
 permissions:
   contents: read
@@ -16,7 +22,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     env:
-      API: https://workout-staging.monkeygrade.cloud
+      API: ${{ inputs.target == 'production' && 'https://workout.monkeygrade.cloud' || 'https://workout-staging.monkeygrade.cloud' }}
     steps:
       - name: Health + real mail transport
         run: |
