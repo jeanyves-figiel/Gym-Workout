@@ -150,7 +150,7 @@ final class AppModel {
         let changed = state.synced?.week != week || state.synced?.seed != s || state.synced?.profile != profile
         // Plan inserts belong to one week: kept for a new variation or profile edit, dropped on a week change.
         state.synced = SyncedProfile(profile: profile, seed: s, week: week, body: state.synced?.body, away: state.synced?.away,
-                                     planInserts: state.synced?.planInserts?.filter { $0.week == week })
+                                     planInserts: state.synced?.planInserts?.filter { $0.week == week }, moves: state.synced?.moves)
         state.plan = Generator.generateWeek(profile, week: week, seed: s)
         replanCurrentWeek()
         if changed {
@@ -189,8 +189,11 @@ final class AppModel {
             ?? sharedWorkout(sessionId: id)?.workout.session
     }
 
-    /// First session of the week not yet completed.
-    var nextSession: Session? { plan?.sessions.first { !(state.done[$0.id] ?? false) } }
+    /// First session of the week not yet completed, by day (moved and extra sessions included).
+    var nextSession: Session? {
+        plan?.sessions.enumerated().sorted { ($0.element.weekday ?? 8, $0.offset) < ($1.element.weekday ?? 8, $1.offset) }
+            .map(\.element).first { !(state.done[$0.id] ?? false) }
+    }
 
     var completedCount: Int { plan?.sessions.filter { state.done[$0.id] ?? false }.count ?? 0 }
 
