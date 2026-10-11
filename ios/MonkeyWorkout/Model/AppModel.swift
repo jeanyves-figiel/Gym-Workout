@@ -22,6 +22,8 @@ final class AppModel {
     var variationUndo: VariationUndo?
     /// Workouts other members shared (#62), loaded on demand; not persisted.
     var sharedLibrary: [SharedWorkout] = []
+    /// Apple Health readings for first-time load estimates (#115); set at launch.
+    @ObservationIgnored weak var health: HealthManager?
 
     let api: APIClient
     private let store: LocalStore
