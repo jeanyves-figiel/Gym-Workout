@@ -29,7 +29,7 @@ struct AccountView: View {
                             let e = ProStore.shared.entitlement
                             AccountCard(symbol: "crown.fill", title: "MonkeyWorkout Pro",
                                         subtitle: e.pro ? (e.lifetime == true ? "Lifetime · all updates included" : e.source == .grant ? "Free access" : e.trial == true ? "Free week running" : "Active")
-                                            : "1 week free, then from CHF 2 / week",
+                                            : ProStore.shared.testing ? "Staging test · \(ProStore.shared.testEffect)" : "1 week free, then from CHF 2 / week",
                                         gradient: AccountTint.pro, ink: true) {
                                 Text(e.pro ? "PRO" : "TRY").font(Theme.label(12)).tracking(1)
                             }
