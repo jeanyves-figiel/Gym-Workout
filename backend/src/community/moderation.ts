@@ -36,6 +36,14 @@ export const visibleToOthersSql = (ownerCol: string, visibilityCol: string, hidd
    AND NOT EXISTS (SELECT 1 FROM community_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = ${ownerCol}) OR (b.blocker_id = ${ownerCol} AND b.blocked_id = ?))`;
 
 /**
+ * SQL predicate: member `userCol` is not hidden pending review, i.e. fewer than AUTO_HIDE_REPORTS distinct
+ * members have open reports about them as a person. For member search and suggestions.
+ */
+export const memberNotHiddenSql = (userCol: string) =>
+  `(SELECT COUNT(DISTINCT r.reporter_id) FROM community_reports r
+     WHERE r.target_user_id = ${userCol} AND r.target_type IS NULL AND r.resolved_at IS NULL) < ${AUTO_HIDE_REPORTS}`;
+
+/**
  * Members following `userId` who may be told about their shared wins: still in the community and
  * no block either way. For push fan-out (notifications).
  */
