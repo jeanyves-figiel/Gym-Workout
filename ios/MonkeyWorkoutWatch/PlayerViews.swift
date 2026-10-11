@@ -147,7 +147,7 @@ private struct MetricsRow: View {
     }
 }
 
-/// Swipe right from the workout page: pause / resume, end & save, back / skip, discard (confirmed).
+/// Swipe right from the workout page: pause / resume, end & save (3 s to cancel), back / skip, discard (confirmed).
 private struct ControlsPage: View {
     let player: WatchPlayer
     let onEnd: () -> Void
@@ -156,6 +156,8 @@ private struct ControlsPage: View {
     @Environment(WorkoutManager.self) private var workout
     @State private var paused = false
     @State private var confirmDiscard = false
+    /// Set while the End countdown runs; a mistaken tap can still be cancelled (#133).
+    @State private var endingAt: Date?
 
     var body: some View {
         ScrollView {
@@ -165,7 +167,10 @@ private struct ControlsPage: View {
                         paused ? workout.resume() : workout.pause()
                         paused.toggle()
                     }
-                    control("stop.fill", "End & save", W.color(0xFF3D5A), action: onEnd)
+                    control("stop.fill", "End & save", W.color(0xFF3D5A)) {
+                        endingAt = Date().addingTimeInterval(3)
+                        WKInterfaceDevice.current().play(.click)
+                    }
                 }
                 HStack(spacing: 6) {
                     control("backward.end.fill", "Back", W.card) { player.back(); onBack() }
@@ -173,6 +178,17 @@ private struct ControlsPage: View {
                 }
                 control("xmark", "Discard workout", W.card) { confirmDiscard = true }
             }
+        }
+        .overlay {
+            if let endingAt { EndCountdown(end: endingAt) { self.endingAt = nil } }
+        }
+        .task(id: endingAt) {
+            guard let end = endingAt else { return }
+            try? await Task.sleep(for: .seconds(max(0, end.timeIntervalSinceNow)))
+            guard !Task.isCancelled, endingAt == end else { return }
+            endingAt = nil
+            WKInterfaceDevice.current().play(.stop)
+            onEnd()
         }
         .confirmationDialog("Discard this workout?", isPresented: $confirmDiscard) {
             Button("Discard", role: .destructive, action: onDiscard)
@@ -193,6 +209,34 @@ private struct ControlsPage: View {
             .background(RoundedRectangle(cornerRadius: 14).fill(color))
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// "Ending in 3 · 2 · 1" with a big Cancel, shown after End is tapped.
+private struct EndCountdown: View {
+    let end: Date
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(spacing: 8) {
+            TimelineView(.periodic(from: .now, by: 0.1)) { ctx in
+                let left = max(0, end.timeIntervalSince(ctx.date))
+                ZStack {
+                    Circle().stroke(Color.white.opacity(0.15), lineWidth: 7)
+                    Circle().trim(from: 0, to: left / 3)
+                        .stroke(W.color(0xFF3D5A), style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    VStack(spacing: 0) {
+                        Eyebrow(text: "Ending")
+                        Text("\(Int(left.rounded(.up)))").font(W.display(34)).monospacedDigit()
+                    }
+                }
+                .frame(width: 92, height: 92)
+            }
+            LimeButton(title: "CANCEL", action: onCancel)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
     }
 }
 

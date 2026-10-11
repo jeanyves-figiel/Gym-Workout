@@ -713,18 +713,20 @@ struct HistoryDetailView: View {
                             }
                         }
                     }
-                    AccountPillButton(title: "Delete from history", role: .destructive) { confirmDelete = true }
+                    AccountPillButton(title: "Undo workout", role: .destructive) { confirmDelete = true }
                 }
                 .padding(16)
             }
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("History")
             .navigationBarTitleDisplayMode(.inline)
-            .confirmationDialog("Delete this session?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("Delete", role: .destructive) {
-                    model.deleteRecord(r.id)
+            .confirmationDialog("Undo this workout?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                Button("Undo workout", role: .destructive) {
+                    model.undoWorkout(r.id)
                     dismiss()
                 }
+            } message: {
+                Text("Removes it from history with its sets, PRs and progress, as if it never happened. This week's session can be done again.")
             }
         } else {
             ContentUnavailableView("Session not found", systemImage: "clock.arrow.circlepath")
