@@ -62,3 +62,18 @@ jobs:
           [ "$code" = 401 ] || [ "$code" = 400 ] || { echo "::error::apple returned $code"; exit 1; }
           code=$(curl -sS -m 30 -o /dev/null -w '%{http_code}' "$API/v1/me")
           [ "$code" = 401 ] || { echo "::error::/v1/me without token returned $code"; exit 1; }
+      - name: Legal pages live and complete
+        run: |
+          for p in privacy terms support; do
+            code=$(curl -sS -m 30 -o page.html -w '%{http_code}' "$API/$p")
+            [ "$code" = 200 ] || { echo "::error::/$p returned $code"; exit 1; }
+            if grep -q 'to be completed' page.html; then echo "::error::/$p still has placeholders"; exit 1; fi
+            echo "/$p ok ($(wc -c < page.html) bytes)"
+          done
+      - name: Subscription endpoints guarded
+        run: |
+          code=$(curl -sS -m 30 -o /dev/null -w '%{http_code}' "$API/v1/me/entitlement")
+          [ "$code" = 401 ] || { echo "::error::/v1/me/entitlement without token returned $code"; exit 1; }
+          code=$(curl -sS -m 30 -o /dev/null -w '%{http_code}' -X POST "$API/v1/app-store/notifications" \
+            -H 'content-type: application/json' -d '{"signedPayload":"not-a-real-apple-signed-payload"}')
+          [ "$code" = 400 ] || { echo "::error::/v1/app-store/notifications with junk returned $code"; exit 1; }
