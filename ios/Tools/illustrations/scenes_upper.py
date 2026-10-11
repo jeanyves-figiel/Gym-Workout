@@ -1135,29 +1135,43 @@ def cable_fly_scene(doc, j, layer):
 
 CE_TOWER = 80
 CE_HIP = (206, ST_HIP[1])
+CE_PHI = (-74, 34, 84)   # forearm's rotation in the horizontal plane: -90 across the belly, 0 forward, 90 out
+CE_TILT = 0.42           # front view seen slightly from above: forward-pointing forearm drops this much
 
 
 def ext_rot_poses():
-    return [B(CE_HIP, -90, front="back", aN=(92, 176), aF=(96, 88), lit_sides="N", **FR_LEGS),
-            B(CE_HIP, -90, front="back", aN=(90, 84), aF=(96, 88), lit_sides="N", **FR_LEGS),
-            B(CE_HIP, -90, front="back", aN=(88, 2), aF=(96, 88), lit_sides="N", **FR_LEGS)]
+    """Front view: the elbow stays at the side, the forearm swings from across the belly out to the side."""
+    # The rotation angle rides in the (otherwise unused) hand angle; the scene foreshortens the forearm from it.
+    return [B(CE_HIP, -90, front=True, aN=(86, 90, phi), aF=(94, 88), **FR_LEGS) for phi in CE_PHI]
+
+
+def _er_point(e, phi, r):
+    a = math.radians(phi)
+    return (e[0] + r * math.sin(a), e[1] + r * math.cos(a) * CE_TILT)
 
 
 def ext_rot_scene(doc, j, layer):
-    """Back view: the cable runs in front of the body (behind it from the viewer), towel under the elbow."""
+    """The cable runs across the front of the body from the column on the far side; towel under the elbow."""
+    e = j["elbowN"]
+    if layer == "back":
+        # Foreshorten the forearm: it moves in the horizontal plane at elbow height.
+        phi = deg(art.sub(j["handN"], j["wristN"]))
+        j["wristN"] = _er_point(e, phi, FORE)
+        j["handN"] = _er_point(e, phi, FORE + HAND)
     g = kit.grip(j)
-    py = art.ang_pt(fr_sh(CE_HIP)[0], 90, UPPER)[1]
-    p = (CE_TOWER + 12, py)
+    p = (CE_TOWER + 12, e[1])
     if layer == "back":
         floor(doc, 160, 120)
-        tower(doc, CE_TOWER, py, max(0, (kit.dist(g, p) - 116) * 0.3), "R")
+        tower(doc, CE_TOWER, p[1], max(0, (kit.dist(g, p) - 96) * 0.3), "R")
+    else:
+        # Rotation path: the hand's circle around the elbow (in front of the belly), seen from slightly above.
+        pts = [_er_point(e, a, FORE + 8) for a in range(-84, 97, 6)]
+        doc.add(f'<path d="{art.smooth(pts, closed=False)}" fill="none" stroke="#fff" stroke-opacity="0.7" '
+                f'stroke-width="2.4" stroke-dasharray="2 6" stroke-linecap="round"/>')
+        doc.add(f'<rect x="{e[0] - 12:.1f}" y="{e[1] - 13:.1f}" width="7" height="12" rx="2" fill="#EDEFF2" '
+                f'stroke="#8A939E" stroke-width="0.7"/>')
         art.cable(doc, [art.add(p, (5, 0)), g])
         kit.handle(doc, g)
-    else:
-        e = j["elbowN"]
-        doc.add(f'<rect x="{e[0] - 13:.1f}" y="{e[1] - 11:.1f}" width="7" height="12" rx="2" fill="#EDEFF2" '
-                f'stroke="#8A939E" stroke-width="0.7"/>')
-        kit.arc(doc, e, 30, 8, 172)
 
 
 def pull_apart_poses():
@@ -1173,27 +1187,56 @@ def pull_apart_scene(doc, j, layer):
 
 
 # ---- prone Y-T-W ---------------------------------------------------------------------------------
+# Seen from above and a little from the side: the back faces the viewer so the Y, T and W read as letters,
+# the body lies chest-down along an incline bench whose head end stands higher (longer legs), its frame and
+# the lifter's feet on the floor below. Height above the floor shifts things up the picture (YT_K px per px).
+
+YT_HIP = (165, 150)
+YT_T = -12            # body axis (hip → shoulder), head end raised
+YT_FLOOR = 190        # floor level under the bench's centre line
+YT_K = 0.4            # picture shift per unit of height
+YT_LEGS = dict(lN=(150, 160, 160), lF=(164, 166, 166))
+
 
 def ytw_poses():
-    legs = dict(lN=(74, 96, 12), lF=(106, 84, 168))
-    return [B(FR_HIP, -90, front="back", aN=(-48, -48), aF=(-132, -132), **legs),
-            B(FR_HIP, -90, front="back", aN=(0, 0), aF=(180, 180), **legs),
-            B(FR_HIP, -90, front="back", aN=(32, -58), aF=(148, -122), **legs)]
+    a = YT_T
+    arms = [((a + 40, a + 40, a + 40), (a - 40, a - 40, a - 40)),            # Y: overhead in a V
+            ((a + 90, a + 90, a + 90), (a - 90, a - 90, a - 90)),            # T: straight out to the sides
+            ((a + 122, a + 34, a + 34), (a - 122, a - 34, a - 34))]          # W: elbows bent, squeezed back
+    return [B(YT_HIP, a, front="back", h=a, aN=n, aF=f, **YT_LEGS) for n, f in arms]
+
+
+def _yt_line(x):
+    """Pad centre line (picture y) at x: just under the body, rising with the body axis."""
+    return YT_HIP[1] + 12 + (x - YT_HIP[0]) * math.tan(math.radians(YT_T))
+
+
+def _slab(doc, x0, x1, y0, y1, half=19, side=6):
+    """Upholstered pad seen from above: top face (x0, y0)→(x1, y1) ± half, near side face below it."""
+    top = [(x0, y0 - half), (x1, y1 - half), (x1, y1 + half), (x0, y0 + half)]
+    face = [(x0, y0 + half), (x1, y1 + half), (x1, y1 + half + side), (x0, y0 + half + side)]
+    g = doc.lin((x0, min(y0, y1) - half), (x0, max(y0, y1) + half), [(0, "#4A515A"), (0.35, art.PAD[1]), (1, art.PAD[2])])
+    pts = lambda ps: " ".join(f"{x:.1f},{y:.1f}" for x, y in ps)
+    doc.add(f'<polygon points="{pts(face)}" fill="#0F1113" stroke="#0A0B0D" stroke-width="0.8" stroke-linejoin="round"/>')
+    doc.add(f'<polygon points="{pts(top)}" fill="{g}" stroke="#0A0B0D" stroke-width="0.9" stroke-linejoin="round"/>')
+    doc.add(f'<line x1="{x0 + 4:.1f}" y1="{y0 - half + 3:.1f}" x2="{x1 - 4:.1f}" y2="{y1 - half + 3:.1f}" stroke="#6B737D" '
+            f'stroke-opacity="0.5" stroke-width="0.6" stroke-dasharray="2 1.6"/>')
 
 
 def ytw_scene(doc, j, layer):
     if layer == "back":
-        floor(doc, 200, 70)
-        hip, sh = j["hip"], j["shoulder"]
-        # Incline bench seen from behind: the pad shows above the shoulders and between the thighs,
-        # its post and base on the floor.
-        bot = hip[1] + 44
-        art.tube(doc, (hip[0], bot), (hip[0], GROUND - 2), 10, "butt")
-        art.tube(doc, (hip[0] - 4, bot + 8), (hip[0] - 4, GROUND - 2), 6)
-        kit.feet(doc, hip[0] - 50, hip[0] + 50)
-        g = doc.box_grad([(0, art.PAD[0]), (0.3, art.PAD[1]), (1, art.PAD[2])], vertical=False)
-        doc.add(f'<rect x="{sh[0] - 17:.1f}" y="{sh[1] - 26:.1f}" width="34" height="{bot - sh[1] + 26:.1f}" rx="8" '
-                f'fill="{g}" stroke="#0A0B0D" stroke-width="0.9"/>')
+        f = YT_FLOOR
+        doc.add(f'<ellipse cx="150" cy="{f + 4}" rx="125" ry="16" fill="#000" fill-opacity="0.2"/>')
+        # Base rail and cross feet on the floor, posts up to the pads (the head end stands higher).
+        seat_x0, seat_x1, back_x1 = 98, 150, 242
+        art.tube(doc, (seat_x0 - 8, f), (back_x1 + 2, f), 7)
+        for x in (seat_x0 - 4, back_x1 - 2):
+            art.tube(doc, (x, f - 20), (x, f + 20), 7)
+        art.tube(doc, (seat_x0 + 6, f), (seat_x0 + 6, _yt_line(seat_x0) + 10), 6, "butt")
+        art.tube(doc, (back_x1 - 6, f), (back_x1 - 6, _yt_line(back_x1) + 10), 6, "butt")
+        art.tube(doc, (196, f), (214, _yt_line(214) + 10), 5, "butt")
+        _slab(doc, seat_x0, seat_x1, _yt_line(seat_x0) + 6, _yt_line(seat_x0) + 6, half=17)
+        _slab(doc, seat_x1 + 2, back_x1, _yt_line(seat_x1), _yt_line(back_x1))
     else:
         kit.dumbbell(doc, kit.grip(j), r=8)
         kit.dumbbell(doc, kit.grip(j, "F"), r=8)
@@ -1361,7 +1404,8 @@ SCENES = {
     "cable-external-rotation": S(ext_rot_scene, ext_rot_poses(), [tower_box(CE_TOWER, "R")],
                                  along(grip_n, (CE_TOWER + 12, 150))),
     "band-pull-apart": S(pull_apart_scene, pull_apart_poses()),
-    "prone-ytw": S(ytw_scene, ytw_poses(), held=both(held_at("N", 10), held_at("F", 10))),
+    "prone-ytw": S(ytw_scene, ytw_poses(), [(84, YT_FLOOR - 30, 250, YT_FLOOR + 22)],
+                   held=both(held_at("N", 10), held_at("F", 10)), floor=False),
     "pec-deck-fly": S(pec_deck_scene, pec_deck_poses(), PEC_FRAME, m=12),
     "reverse-pec-deck": S(reverse_deck_scene, reverse_deck_poses(), PEC_FRAME, m=12),
 }
