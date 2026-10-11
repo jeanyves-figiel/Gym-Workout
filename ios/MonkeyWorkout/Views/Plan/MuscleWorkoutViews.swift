@@ -91,7 +91,7 @@ struct MuscleWorkoutGeneratorSheet: View {
                     ForEach(Grouping.allCases) { g in
                         StyleCard(
                             title: g.label, subtitle: g.blurb, symbol: g.symbol, big: g.size, gradient: g.gradient,
-                            selected: options.grouping == g, recommended: profile.goal.defaultGrouping == g
+                            selected: options.grouping == g, recommended: profile.defaultGrouping == g
                         ) { options.grouping = g }
                     }
                     Text("REC = best for your goal. Main lifts stay straight sets with at least 90 s rest.")

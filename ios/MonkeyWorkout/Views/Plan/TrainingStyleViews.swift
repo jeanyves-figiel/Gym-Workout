@@ -29,8 +29,8 @@ struct TrainingStyleSection: View {
             ForEach(Grouping.allCases) { g in
                 StyleCard(
                     title: g.label, subtitle: g.blurb, symbol: g.symbol, big: g.size,
-                    gradient: g.gradient, selected: profile.group == g, recommended: profile.goal.defaultGrouping == g
-                ) { profile.grouping = g == profile.goal.defaultGrouping ? nil : g }
+                    gradient: g.gradient, selected: profile.group == g, recommended: profile.defaultGrouping == g
+                ) { profile.grouping = g == profile.defaultGrouping ? nil : g }
             }
         }
         .animation(.spring(duration: 0.3), value: profile.rest)

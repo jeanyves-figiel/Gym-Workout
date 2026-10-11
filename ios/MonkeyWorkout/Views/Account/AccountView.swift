@@ -65,6 +65,17 @@ struct AccountView: View {
                     }
                     .buttonStyle(.plain)
 
+                    if let method = model.profile?.trainingMethod {
+                        // Training method (#156): same editor as Training profile → Training method.
+                        NavigationLink { ProfileSectionView(section: .method) } label: {
+                            AccountCard(symbol: method.symbol, title: "Training method", subtitle: method.label,
+                                        gradient: method.gradient) {
+                                AccountChevron()
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     NavigationLink { NotificationSettingsView() } label: {
                         AccountCard(symbol: "bell.badge.fill", title: "Reminders & alerts",
                                     subtitle: "Session reminders, check-ins, cheers",
