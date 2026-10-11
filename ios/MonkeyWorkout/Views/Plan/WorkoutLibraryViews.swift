@@ -365,8 +365,8 @@ struct LibraryActionsPanel: View {
         HStack(spacing: 12) {
             Image(systemName: "calendar.badge.checkmark").font(.system(size: 22, weight: .bold)).foregroundStyle(Theme.lime)
             VStack(alignment: .leading, spacing: 2) {
-                Text("From your library").font(.system(.headline, design: .rounded).weight(.heavy))
-                Text("Placed into this week's plan.").font(.caption).foregroundStyle(Theme.muted)
+                Text(isExtra ? "Extra session" : "From your library").font(.system(.headline, design: .rounded).weight(.heavy))
+                Text(isExtra ? "Added to this week." : "Placed into this week's plan.").font(.caption).foregroundStyle(Theme.muted)
             }
             Spacer()
             Button("Remove") { confirmRemove = true }
@@ -379,9 +379,11 @@ struct LibraryActionsPanel: View {
                 if let id = session.planInsertId { model.removePlanInsert(id) }
             }
         } message: {
-            Text("A replaced day goes back to its planned session.")
+            Text(isExtra ? "It comes off this week's plan." : "A replaced day goes back to its planned session.")
         }
     }
+
+    private var isExtra: Bool { model.planInsert(for: session)?.replacing == nil }
 
     private func pill(_ title: String, _ symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
