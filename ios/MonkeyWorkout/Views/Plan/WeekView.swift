@@ -103,53 +103,65 @@ private struct WeekHero: View {
     @Environment(AppModel.self) private var model
     @State private var explaining = false
 
+    /// Explore-style card per cycle phase: colour, icon, one-word job and its rule.
+    private var phase: (palette: WorkoutEngine.Category, symbol: String, title: String, rule: String) {
+        switch Generator.phaseIndex(plan.week) {
+        case 0: (.cardio, "leaf.fill", "Ease in", "RPE −1")
+        case 1: (.strength, "chart.line.uptrend.xyaxis", "Build", "Target RPE")
+        case 2: (.power, "flame.fill", "Peak week", "+1 set on main lifts")
+        default: (.stretch, "bed.double.fill", "Recover", "−40% volume")
+        }
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 14) {
-                ZStack {
-                    ProgressRing(progress: Double(done) / Double(max(1, plan.sessions.count)), lineWidth: 6)
-                    Text("\(done)/\(plan.sessions.count)").font(Theme.display(15)).monospacedDigit()
-                }
-                .frame(width: 54, height: 54)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(done) of \(plan.sessions.count) sessions done")
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .firstTextBaseline, spacing: 2) {
-                        Text("Week \(plan.week)").font(Theme.display(24))
-                        Text("/\(Generator.mesocycleWeeks)").font(Theme.display(16)).foregroundStyle(Theme.muted)
+        let p = phase
+        VStack(alignment: .leading, spacing: 14) {
+            Button { explaining = true } label: {
+                HStack(spacing: 14) {
+                    IconTile(symbol: p.symbol, size: 52)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 4) {
+                            Text("Week \(plan.week) of \(Generator.mesocycleWeeks) · \(Generator.phaseName(plan.week))").tracking(1.2)
+                            Image(systemName: "info.circle.fill")
+                        }
+                        .font(Theme.label(11))
+                        .textCase(.uppercase)
+                        .opacity(0.85)
+                        Text(p.title).font(Theme.display(24)).lineLimit(1).minimumScaleFactor(0.7)
+                        Text("\(p.rule) · \(plan.sessions.count) sessions · \(plan.sessionMinutes) min")
+                            .font(.footnote.weight(.semibold))
+                            .opacity(0.9)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    Text("\(profile.goal.config.label) · \(profile.sessionsPerWeek)×/week · \(plan.sessionMinutes) min")
-                        .font(.caption)
-                        .foregroundStyle(Theme.muted)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 4)
-                Button { explaining = true } label: {
-                    HStack(spacing: 4) {
-                        Text(Generator.weekLabel(plan.week).uppercased()).tracking(1)
-                        Image(systemName: "info.circle.fill")
+                    Spacer(minLength: 4)
+                    VStack(alignment: .trailing, spacing: 0) {
+                        Text("\(done)/\(plan.sessions.count)").font(Theme.display(34)).monospacedDigit()
+                        Text("DONE").font(Theme.label(10)).tracking(1.3).opacity(0.85)
                     }
-                    .font(Theme.label(11))
-                    .lineLimit(1)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(plan.deload ? Color.orange.opacity(0.25) : Theme.lime.opacity(0.18)))
-                    .foregroundStyle(plan.deload ? .orange : Theme.lime)
+                    .fixedSize()
                 }
-                .buttonStyle(.plain)
-                .accessibilityHint("Explains this week's training phase")
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityHint("Explains this week's training phase")
             HStack(spacing: 6) {
                 ForEach(1...Generator.mesocycleWeeks, id: \.self) { w in
                     Button { model.setWeek(w) } label: {
                         Capsule()
-                            .fill(w == plan.week ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Color.white.opacity(w < plan.week ? 0.35 : 0.12)))
-                            .frame(height: 5)
+                            .fill(.white.opacity(w == plan.week ? 1 : w < plan.week ? 0.55 : 0.3))
+                            .frame(height: 6)
+                            .padding(.vertical, 6)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Week \(w)")
                 }
             }
+            .padding(.bottom, -6)
         }
+        .foregroundStyle(.white)
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(p.palette.gradient))
         .sheet(isPresented: $explaining) { WeekPhaseSheet(week: plan.week).presentationDetents([.large]) }
     }
 }
