@@ -69,11 +69,18 @@ struct CustomWorkoutEditor: View {
     /// Last generator choices (#119), kept so "Generate again" starts from them.
     @State private var generated: MuscleWorkoutOptions?
     @State private var gate: ProGate?
+    /// Quick start of a generated workout: saved first, then played now or placed on a day of this week.
+    @State private var saved = false
+    @State private var playing = false
+    @State private var planning = false
+    @State private var planned = false
     private let initial: CustomWorkout
 
-    init(initial: CustomWorkout) {
+    /// `generated`: the generator choices behind `initial`, when it was just generated (shows the quick start).
+    init(initial: CustomWorkout, generated: MuscleWorkoutOptions? = nil) {
         self.initial = initial
         _draft = State(initialValue: initial)
+        _generated = State(initialValue: generated)
     }
 
     private var isNew: Bool { model.customWorkout(initial.id) == nil }
@@ -157,6 +164,20 @@ struct CustomWorkoutEditor: View {
                     }
                     .cardRow()
                 }
+
+                if generated != nil && canSave {
+                    HStack(spacing: 10) {
+                        QuickActionCard(title: "Start now", symbol: "play.fill", gradient: WorkoutEngine.Category.strength.gradient) {
+                            ProStore.shared.run(.generateWorkout, $gate) { saveThen { playing = true } }
+                        }
+                        QuickActionCard(title: "Add to a day", symbol: "calendar.badge.plus", gradient: WorkoutEngine.Category.mobility.gradient) {
+                            ProStore.shared.run(.generateWorkout, $gate) { saveThen { planning = true } }
+                        }
+                    }
+                    .cardRow()
+                    AccountNote(text: "Saves it to your workouts. Your plan stays as it is: Add to a day places it in this week only.")
+                        .cardRow()
+                }
             }
             .listStyle(.plain)
             .environment(\.editMode, $editMode)
@@ -166,7 +187,7 @@ struct CustomWorkoutEditor: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        if draft != initial && !(isNew && draft.items.isEmpty && trimmedName.isEmpty) { confirmDiscard = true } else { dismiss() }
+                        if saved { dismiss() } else if draft != initial && !(isNew && draft.items.isEmpty && trimmedName.isEmpty) { confirmDiscard = true } else { dismiss() }
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -187,6 +208,12 @@ struct CustomWorkoutEditor: View {
                 }
             }
             .proPaywall($gate)
+            .fullScreenCover(isPresented: $playing, onDismiss: { dismiss() }) {
+                WorkoutPlayerView(sessionId: draft.sessionId)
+            }
+            .sheet(isPresented: $planning, onDismiss: { if planned { dismiss() } }) {
+                AddToPlanSheet(workout: draft) { _ in planned = true }
+            }
             .sheet(isPresented: $generating) {
                 if let profile = model.profile {
                     MuscleWorkoutGeneratorSheet(profile: profile, options: generated, replacing: !draft.items.isEmpty) { w, options in
@@ -199,7 +226,38 @@ struct CustomWorkoutEditor: View {
                 }
             }
         }
-        .interactiveDismissDisabled(draft != initial)
+        .interactiveDismissDisabled(draft != initial && !saved)
+    }
+
+    /// Saves the draft (once per change), then runs `next`.
+    private func saveThen(_ next: () -> Void) {
+        model.saveCustomWorkout(draft)
+        saved = true
+        next()
+    }
+}
+
+/// Half-width vivid action card (icon tile over a heavy label) for the builder's quick start.
+private struct QuickActionCard: View {
+    let title: String
+    let symbol: String
+    let gradient: LinearGradient
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    IconTile(symbol: symbol, size: 40)
+                    Spacer(minLength: 4)
+                    ProBadge()
+                }
+                Text(title).font(Theme.display(18)).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .gradientCard(gradient, padding: 14)
+        }
+        .buttonStyle(.borderless)
     }
 }
 
