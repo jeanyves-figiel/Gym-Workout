@@ -72,6 +72,7 @@ final class AppModel {
             if ["paywall", "pro", "pro-offer", "pro-gate"].contains(Demo.screen) { ProStore.shared.loadDemo(pro: Demo.screen == "pro") }
             state.customExerciseList = [Demo.customExercise]
             state.synced?.away = Demo.away()
+            state.synced?.savedGyms = Demo.savedGyms
             replanCurrentWeek()
             if Demo.screen == "workout-style", let id = state.plan?.sessions.dropFirst().first?.id {
                 setSessionStyle(id, SessionStyle(rest: .short, grouping: .supersets))
@@ -191,7 +192,8 @@ final class AppModel {
         let sp = SyncedProfile(profile: profile, seed: s, week: week, body: state.synced?.body, away: state.synced?.away,
                                planInserts: state.synced?.planInserts?.filter { $0.week == week },
                                exerciseSwaps: state.synced?.exerciseSwaps, variation: variation, moves: state.synced?.moves,
-                               sessionStyles: state.synced?.sessionStyles?.filter { $0.key.hasPrefix("w\(week)s") })
+                               sessionStyles: state.synced?.sessionStyles?.filter { $0.key.hasPrefix("w\(week)s") },
+                               savedGyms: state.synced?.savedGyms)
         state.synced = sp
         state.plan = Generator.generateWeek(sp.planProfile, week: week, seed: s)
         replanCurrentWeek()

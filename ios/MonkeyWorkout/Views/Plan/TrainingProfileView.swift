@@ -49,6 +49,8 @@ struct ProfileSectionView: View {
     var body: some View {
         ProfileFormView(initial: model.profile, section: section) { p in
             model.updateProfile(p)
+            // Keeps the gym's own list for switching back later (#162).
+            if section == .gym { model.rememberHomeGym() }
             dismiss()
         }
         .navigationTitle(section.title)

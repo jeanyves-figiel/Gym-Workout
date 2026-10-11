@@ -74,6 +74,20 @@ public enum Equipment: String, Codable, CaseIterable, Sendable, Identifiable {
     case hipAdAbductor = "hip-ad-abductor"
     case abCrunch = "ab-crunch"
     case torsoRotation = "torso-rotation"
+    // Gym audit (#162): common in commercial gyms, each with at least one exercise.
+    case ezBar = "ez-bar"
+    case preacherBench = "preacher-bench"
+    case shoulderPress = "shoulder-press-machine"
+    case standingCalf = "standing-calf"
+    case tBarRow = "t-bar-row"
+    case ghd
+    case stabilityBall = "stability-ball"
+    case jumpRope = "jump-rope"
+    case assistedMachine = "assisted-pullup-dip"
+    case reverseHyper = "reverse-hyper"
+    case curlMachine = "biceps-curl-machine"
+    case tricepsMachine = "triceps-machine"
+    case dipBelt = "dip-belt"
     public var id: String { rawValue }
 }
 

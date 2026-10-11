@@ -27,6 +27,8 @@ struct WorkoutPlayerView: View {
     @State private var discarded = false
     @State private var formFor: Exercise?
     @State private var prFor: Exercise?
+    /// "Not here?" (#162): the planned item whose equipment the gym lacks.
+    @State private var notHereFor: PlannedExercise?
     @State private var gate: ProGate?
     @State private var log = SetLogState()
     @State private var live = LiveWorkout()
@@ -71,6 +73,7 @@ struct WorkoutPlayerView: View {
         }
         .preferredColorScheme(.dark)
         .sheet(item: $formFor) { FormSheet(exercise: $0) }
+        .sheet(item: $notHereFor) { NotHereSheet(exerciseId: $0.exerciseId, uid: $0.uid) }
         .fullScreenCover(item: $prFor) { PRAttemptView(exerciseId: $0.id) }
         .proPaywall($gate)
         .confirmationDialog("Leave workout?", isPresented: $closing, titleVisibility: .visible) {
@@ -127,6 +130,13 @@ struct WorkoutPlayerView: View {
                                          onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil) { formFor = step.exercise }
                             .id(step.item.uid)
                             .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
+                        if !step.exercise.equipment.isEmpty && model.canSwap(uid: step.item.uid) && (setsDone[step.item.uid] ?? 0) == 0 {
+                            Button { notHereFor = step.item } label: {
+                                Label("Not at this gym?", systemImage: "questionmark.circle")
+                                    .font(Theme.label(13)).foregroundStyle(Theme.muted)
+                            }
+                            .buttonStyle(.plain)
+                        }
                         if let run = timed, run.uid == step.item.uid {
                             TimedRing(run: run, color: [cat.colors[1], cat.colors[0]])
                         }
