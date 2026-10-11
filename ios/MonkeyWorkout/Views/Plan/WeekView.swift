@@ -83,12 +83,9 @@ struct WeekView: View {
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $editing) {
             NavigationStack {
-                ProfileFormView(initial: model.profile) { p in
-                    model.applyProfile(p)
-                    editing = false
-                }
-                .navigationTitle("Training profile")
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { editing = false } } }
+                TrainingProfileView()
+                    .navigationTitle("Training profile")
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { editing = false } } }
             }
         }
         .sheet(isPresented: $varying) {

@@ -183,6 +183,12 @@ final class AppModel {
         applyProfile(sp.profile, seed: sp.seed, week: week)
     }
 
+    /// Section edit from the Training profile hub or Community (#99): keeps this week and its variation seed.
+    func updateProfile(_ profile: Profile) {
+        guard let sp = state.synced else { return applyProfile(profile) }
+        applyProfile(profile, seed: sp.seed, week: sp.week)
+    }
+
     func setTicked(_ uid: String, _ on: Bool = true) {
         guard state.ticked[uid] != on else { return }
         state.ticked[uid] = on

@@ -137,6 +137,9 @@ struct AppleSignInButton: View {
             .frame(height: 56)
             .clipShape(Capsule())
             .disabled(task.busy)
+            Text(LegalLinks.acceptance("By continuing you agree to the"))
+                .font(.caption).foregroundStyle(.white.opacity(0.75)).tint(.white)
+                .multilineTextAlignment(.center)
             ErrorText(message: task.error)
         }
     }
