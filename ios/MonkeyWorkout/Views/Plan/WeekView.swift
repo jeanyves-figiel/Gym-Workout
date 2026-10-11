@@ -42,13 +42,14 @@ struct WeekView: View {
                         Label(e, systemImage: "icloud.slash").font(.footnote).foregroundStyle(Theme.muted)
                     }
                     Text("This week").eyebrow()
+                    let days = calendarDays
                     ForEach(plan.sessions) { s in
                         NavigationLink(value: s.id) {
-                            SessionRowCard(session: s, done: model.state.done[s.id] ?? false, climbing: profile.climbingDays)
+                            SessionRowCard(session: s, done: model.state.done[s.id] ?? false, climbing: profile.climbingDays,
+                                           weekday: s.weekday ?? days[s.id])
                         }
                         .buttonStyle(.plain)
                     }
-                    WorkoutLibrarySection()
                 }
                 .padding(16)
             } else {
@@ -89,6 +90,13 @@ struct WeekView: View {
             model.replanCurrentWeek()
             model.persist()
         }
+    }
+
+    /// Weekday of each session as the training calendar places it: unscheduled plans (no gym or climbing days
+    /// picked) still show the day on each card.
+    private var calendarDays: [String: Int] {
+        let sessions = model.calendarWeeks(count: 1).first?.plan.sessions ?? []
+        return Dictionary(sessions.compactMap { s in s.weekday.map { (s.id, $0) } }, uniquingKeysWith: { a, _ in a })
     }
 }
 
@@ -220,6 +228,8 @@ struct SessionRowCard: View {
     let done: Bool
     /// Climbing weekdays, for the "climbing tomorrow" hint on weekday-scheduled sessions.
     var climbing: [Int] = []
+    /// Day shown on the card; defaults to the session's scheduled weekday.
+    var weekday: Int?
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -237,7 +247,7 @@ struct SessionRowCard: View {
                         Text("\(session.estMin)′").font(Theme.label(14)).foregroundStyle(Theme.muted)
                     }
                 }
-                if let day = session.weekday {
+                if let day = weekday ?? session.weekday {
                     SessionDayLine(weekday: day, climbing: climbing)
                 }
                 BlockStripe(blocks: session.blocks, height: 6)
