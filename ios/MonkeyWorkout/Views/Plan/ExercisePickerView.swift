@@ -14,6 +14,7 @@ struct ExercisePickerView: View {
     @State private var muscle: Muscle?
     @State private var selected: [String]
     @State private var builder: BuilderSheet?
+    @State private var gate: ProGate?
 
     /// Custom exercise builder (#52): new, or edit one of the user's own.
     private enum BuilderSheet: Identifiable {
@@ -53,8 +54,10 @@ struct ExercisePickerView: View {
                     muscleChips
                     Text("\(results.count) exercises").eyebrow().padding(.horizontal, 16).padding(.top, 4)
                     LazyVGrid(columns: Self.columns, spacing: 12) {
-                        Button { builder = .new } label: { NewExerciseCard() }
-                            .buttonStyle(.plain)
+                        Button { ProStore.shared.run(.customExercise, $gate) { builder = .new } } label: {
+                            NewExerciseCard().overlay(alignment: .topTrailing) { ProBadge().padding(8) }
+                        }
+                        .buttonStyle(.plain)
                         ForEach(results) { e in
                             Button { toggle(e) } label: { PickerCard(exercise: e, order: selected.firstIndex(of: e.id)) }
                                 .buttonStyle(.plain)
@@ -75,6 +78,7 @@ struct ExercisePickerView: View {
                     CustomExerciseBuilderView(existing: e)
                 }
             }
+            .proPaywall($gate)
             .safeAreaInset(edge: .bottom) {
                 if !selected.isEmpty { addBar }
             }

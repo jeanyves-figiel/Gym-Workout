@@ -282,7 +282,7 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
     static func focus(_ exercises: [Exercise]) -> Focus {
         guard !exercises.isEmpty else { return .upper }
         if exercises.allSatisfy({ $0.category == .cardio }) { return .conditioning }
-        let lowerMuscles: Set<Muscle> = [.glutes, .hipFlexors, .adductors, .quads, .hamstrings, .calves]
+        let lowerMuscles: Set<Muscle> = [.glutes, .gluteMed, .hipFlexors, .adductors, .quads, .hamstrings, .calves, .soleus, .tibialis]
         let lower = exercises.filter { e in e.primary.contains { lowerMuscles.contains($0) } }.count
         if lower * 3 >= exercises.count * 2 { return .lower }
         if lower * 3 <= exercises.count { return .upper }

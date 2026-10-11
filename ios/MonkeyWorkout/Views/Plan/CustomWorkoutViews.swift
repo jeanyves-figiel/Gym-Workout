@@ -16,6 +16,7 @@ private struct StandaloneWorkoutActions: ViewModifier {
     @Environment(\.dismiss) private var dismiss
     @State private var editing: CustomWorkout?
     @State private var confirmDelete = false
+    @State private var gate: ProGate?
 
     func body(content: Content) -> some View {
         content
@@ -23,6 +24,7 @@ private struct StandaloneWorkoutActions: ViewModifier {
                 ToolbarItem(placement: .topBarTrailing) { actions }
             }
             .sheet(item: $editing) { w in CustomWorkoutEditor(initial: w) }
+            .proPaywall($gate)
             .confirmationDialog("Delete this workout?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete", role: .destructive) {
                     guard let w = model.customWorkout(sessionId: session.id) else { return }
@@ -39,14 +41,14 @@ private struct StandaloneWorkoutActions: ViewModifier {
         if let w = model.customWorkout(sessionId: session.id) {
             Menu {
                 Button("Edit", systemImage: "pencil") { editing = w }
-                Button("Duplicate", systemImage: "plus.square.on.square") { editing = w.duplicated() }
+                Button("Duplicate", systemImage: "plus.square.on.square") { ProStore.shared.run(.buildWorkout, $gate) { editing = w.duplicated() } }
                 Button("Delete", systemImage: "trash", role: .destructive) { confirmDelete = true }
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
             .accessibilityLabel("Workout actions")
         } else if let t = WorkoutTemplate.find(sessionId: session.id) {
-            Button { editing = CustomWorkout(duplicating: t) } label: {
+            Button { ProStore.shared.run(.buildWorkout, $gate) { editing = CustomWorkout(duplicating: t) } } label: {
                 Label("Duplicate & edit", systemImage: "plus.square.on.square")
             }
         }
@@ -66,6 +68,7 @@ struct CustomWorkoutEditor: View {
     @State private var generating = false
     /// Last generator choices (#119), kept so "Generate again" starts from them.
     @State private var generated: MuscleWorkoutOptions?
+    @State private var gate: ProGate?
     private let initial: CustomWorkout
 
     init(initial: CustomWorkout) {
@@ -107,7 +110,9 @@ struct CustomWorkoutEditor: View {
                 .cardRow()
 
                 if model.profile != nil {
-                    GenerateWorkoutCard(regenerate: !draft.items.isEmpty) { generating = true }
+                    GenerateWorkoutCard(regenerate: !draft.items.isEmpty) {
+                        ProStore.shared.run(.generateWorkout, $gate) { generating = true }
+                    }
                         .cardRow()
                 }
 
@@ -181,6 +186,7 @@ struct CustomWorkoutEditor: View {
                     draft.items += picked.map { CustomWorkout.Item(adding: $0) }
                 }
             }
+            .proPaywall($gate)
             .sheet(isPresented: $generating) {
                 if let profile = model.profile {
                     MuscleWorkoutGeneratorSheet(profile: profile, options: generated, replacing: !draft.items.isEmpty) { w, options in

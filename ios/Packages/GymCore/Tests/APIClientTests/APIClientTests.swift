@@ -237,3 +237,18 @@ private func tokensJSON(_ n: Int) -> String {
         #expect(!legacy.contains("rir"))
     }
 }
+
+@Suite struct EntitlementTests {
+    @Test func decodesServerEntitlement() throws {
+        let json = #"{"mode":"preview","pro":true,"access":true,"source":"subscription","productId":"monkeyworkout.pro.yearly","expiresAt":"2026-10-18T10:00:00.000Z","trial":true,"willRenew":true,"environment":"Sandbox","products":["monkeyworkout.pro.weekly"]}"#
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .custom { dec in
+            let s = try dec.singleValueContainer().decode(String.self)
+            return APIClient.parseISO(s)!
+        }
+        let e = try d.decode(Entitlement.self, from: Data(json.utf8))
+        #expect(e.mode == .preview && e.pro && e.trial == true && e.source == .subscription && e.grant == nil)
+        let g = try d.decode(Entitlement.self, from: Data(#"{"mode":"enforced","pro":true,"access":true,"source":"grant","grant":{},"products":[]}"#.utf8))
+        #expect(g.source == .grant && g.grant?.until == nil)
+    }
+}

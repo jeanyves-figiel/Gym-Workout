@@ -19,8 +19,9 @@ extension AppModel {
     /// This week (as on the Train tab) and the coming weeks, dated and adapted around away periods.
     func calendarWeeks(count: Int = PlanCalendar.horizonWeeks, now: Date = Date()) -> [PlanCalendar.Week] {
         guard let sp = state.synced else { return [] }
-        return PlanCalendar.weeks(sp.profile, seed: sp.seed, currentWeek: sp.week, current: state.plan, done: doneIds,
-                                  away: away, now: now, count: count, calendar: planCalendar)
+        // Library extras and one-off moves (#113) show on their day this week.
+        return PlanCalendar.weeks(sp.profile, seed: sp.seed, currentWeek: sp.week, current: plan, done: doneIds,
+                                  away: away, now: now, count: count, fixed: movesThisWeek(now), calendar: planCalendar)
     }
 
     /// Planned, not yet done sessions with their date, from `from` to `to` inclusive (e.g. for reminders).
@@ -90,15 +91,102 @@ extension AppModel {
             }
             let today = WeekSchedule.fromCalendar(cal.component(.weekday, from: now))
             let adapted = PlanCalendar.adapt(sp.planProfile, week: sp.week, seed: sp.seed, weekStart: monday, away: away,
-                                             base: regular, done: done, firstDay: today, calendar: cal).plan
+                                             base: regular, done: done, firstDay: today, fixed: movesThisWeek(now), calendar: cal).plan
             if adapted != state.plan { state.plan = adapted }
-        } else if let plan = state.plan, layout(plan) != layout(regular) {
-            state.plan = regular
+        } else if let plan = state.plan {
+            // Same sessions (exercise swaps kept) back on their regular days, in plan order, then this week's moves.
+            var target = layout(plan) == layout(regular) ? plan : regular
+            let days = Dictionary(regular.sessions.map { ($0.id, $0.weekday) }, uniquingKeysWith: { a, _ in a })
+            for i in target.sessions.indices { target.sessions[i].weekday = days[target.sessions[i].id] ?? nil }
+            target.sessions.sort { $0.index < $1.index }
+            target = target.pinning(movesThisWeek(now))
+            if target != plan { state.plan = target }
         }
     }
 
-    /// Ids, days and titles: what adapting changes (exercise swaps don't).
+    /// Ids, titles and foci: what adapting changes apart from days (exercise swaps don't).
     private func layout(_ plan: WeekPlan) -> [String] {
-        plan.sessions.map { "\($0.id)|\($0.weekday ?? 0)|\($0.title)|\($0.focus.rawValue)" }
+        plan.sessions.map { "\($0.id)|\($0.title)|\($0.focus.rawValue)" }.sorted()
+    }
+
+    // MARK: One-off changes (#113)
+
+    private func mondayKey(_ now: Date) -> String { PlanCalendar.key(Progression.weekStart(now, planCalendar), planCalendar) }
+
+    /// Generated sessions moved this week (id → weekday).
+    func movesThisWeek(_ now: Date = Date()) -> [String: Int] {
+        let monday = mondayKey(now)
+        return Dictionary((state.synced?.moves ?? []).filter { $0.weekOf == monday }.map { ($0.sessionId, $0.weekday) },
+                          uniquingKeysWith: { _, b in b })
+    }
+
+    /// Days a session of this week can move to: any day of this week but its own and days off.
+    func moveTargets(_ sessionId: String, now: Date = Date()) -> [Int] {
+        guard let week = calendarWeeks(count: 1, now: now).first,
+              let s = week.plan.sessions.first(where: { $0.id == sessionId }), !doneIds.contains(sessionId) else { return [] }
+        return WeekSchedule.weekdays.filter { $0 != s.weekday && week.off[$0] == nil }
+    }
+
+    /// Moves a session of this week to `weekday`, this week only; a session already there (not done) takes its day.
+    func moveSession(_ sessionId: String, to weekday: Int, now: Date = Date()) {
+        guard var sp = state.synced, let week = calendarWeeks(count: 1, now: now).first else { return }
+        let changes = PlanCalendar.moving(sessionId, to: weekday, in: week.plan, done: doneIds)
+        guard !changes.isEmpty else { return }
+        let monday = mondayKey(now)
+        var moves = (sp.moves ?? []).filter { $0.weekOf == monday }
+        for (id, wd) in changes {
+            if let insId = week.plan.sessions.first(where: { $0.id == id })?.planInsertId,
+               let i = sp.planInserts?.firstIndex(where: { $0.id == insId }) {
+                if let r = sp.planInserts?[i].replacing {
+                    // A library workout in place of a planned day moves with that day's slot.
+                    guard let base = state.plan, base.sessions.indices.contains(r) else { continue }
+                    moves.removeAll { $0.sessionId == base.sessions[r].id }
+                    moves.append(SessionMove(weekOf: monday, sessionId: base.sessions[r].id, weekday: wd))
+                } else {
+                    sp.planInserts?[i].weekday = wd
+                }
+            } else {
+                moves.removeAll { $0.sessionId == id }
+                moves.append(SessionMove(weekOf: monday, sessionId: id, weekday: wd))
+            }
+        }
+        sp.moves = moves
+        state.synced = sp
+        state.profileDirty = true
+        replanCurrentWeek(now: now)
+        persist()
+        Task { await sync() }
+    }
+
+    /// Puts this week's moved sessions back on their planned days.
+    func clearMoves(now: Date = Date()) {
+        guard state.synced?.moves?.isEmpty == false else { return }
+        state.synced?.moves = nil
+        state.profileDirty = true
+        replanCurrentWeek(now: now)
+        persist()
+        Task { await sync() }
+    }
+
+    /// Adds an extra session to a day of this week: a library workout, or a generated one (`generated` set).
+    @discardableResult
+    func addExtra(_ workout: CustomWorkout, generated: Session? = nil, weekday: Int) -> PlanInsert? {
+        guard generated == nil else {
+            guard var sp = state.synced, let base = state.plan else { return nil }
+            let insert = PlanInsert(week: base.week, weekday: weekday, workout: CustomWorkout(name: workout.name), generated: generated)
+            sp.planInserts = (sp.planInserts ?? []) + [insert]
+            state.synced = sp
+            state.profileDirty = true
+            persist()
+            Task { await sync() }
+            return insert
+        }
+        return insertIntoPlan(workout, replacing: nil, weekday: weekday)
+    }
+
+    /// A quick generated session of `focus` for this week (equipment, goal and style from the profile).
+    func quickSession(_ focus: Focus) -> Session? {
+        guard let sp = state.synced else { return nil }
+        return Generator.quickSession(sp.profile, focus: focus, week: sp.week, seed: sp.seed &+ UInt32(truncatingIfNeeded: (state.synced?.planInserts?.count ?? 0) + 1))
     }
 }
