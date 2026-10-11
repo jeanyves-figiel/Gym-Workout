@@ -5,6 +5,7 @@ import WorkoutEngine
 /// evidence behind the chosen one. Block periodization carries a DEFAULT badge; picking it stores nil.
 struct TrainingMethodSection: View {
     @Binding var profile: Profile
+    @State private var showingSources = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -21,12 +22,62 @@ struct TrainingMethodSection: View {
                 .font(.footnote)
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
+            Button { showingSources = true } label: {
+                Label("Sources for each method", systemImage: "book.closed.fill")
+                    .font(.footnote.weight(.semibold))
+            }
+            .accessibilityHint("Lists the studies behind every training method")
             Text("Every method keeps ramp-up sets, a deload week, level-appropriate exercises and climbing-day rules, and eases loads back in after 2 weeks off.")
                 .font(.footnote)
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .animation(.spring(duration: 0.3), value: profile.trainingMethod)
+        .sheet(isPresented: $showingSources) { MethodSourcesSheet(selected: profile.trainingMethod) }
+    }
+}
+
+/// The studies behind every training method (#156), grouped by method; each opens on PubMed.
+struct MethodSourcesSheet: View {
+    let selected: TrainingMethod
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(TrainingMethod.allCases) { m in
+                    Section {
+                        ForEach(m.sources) { s in
+                            if let url = s.url {
+                                Link(destination: url) { row(s) }
+                            } else {
+                                row(s)
+                            }
+                        }
+                    } header: {
+                        Label(m.label + (m == selected ? " · yours" : ""), systemImage: m.symbol)
+                    }
+                }
+                Section {
+                    Text("Peer-reviewed studies and reviews. Links open a PubMed search for the title.")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.muted)
+                }
+            }
+            .navigationTitle("Sources")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+        }
+    }
+
+    private func row(_ s: MethodSource) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(s.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+            Text("\(s.short) · \(s.journal)").font(.caption).foregroundStyle(Theme.muted)
+        }
+        .padding(.vertical, 2)
     }
 }
 

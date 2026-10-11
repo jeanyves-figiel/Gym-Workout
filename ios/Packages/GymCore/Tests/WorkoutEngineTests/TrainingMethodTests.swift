@@ -129,4 +129,12 @@ private let rx = Prescription(sets: 3, reps: "6–10", restSec: 120, intensity: 
         #expect(eased.estMin <= session.estMin)
         #expect(after.note?.hasPrefix("Low readiness") == true)
     }
+
+    @Test func everyMethodCitesSources() {
+        for m in TrainingMethod.allCases {
+            #expect(m.sources.count >= 2)
+            #expect(m.sources.allSatisfy { $0.url?.host == "pubmed.ncbi.nlm.nih.gov" && $0.year >= 2000 })
+        }
+        #expect(Set(TrainingMethod.allCases.flatMap(\.sources)).count == TrainingMethod.allCases.reduce(0) { $0 + $1.sources.count })
+    }
 }

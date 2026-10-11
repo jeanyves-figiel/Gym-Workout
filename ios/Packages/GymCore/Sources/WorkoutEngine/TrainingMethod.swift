@@ -248,3 +248,81 @@ extension Prescription {
     /// "RPE 8" → 8.
     var rpeValue: Int? { targetRIR.map { 10 - $0 } }
 }
+
+// MARK: - Sources
+
+/// A peer-reviewed reference behind a training method (#156), shown on the method's Sources page.
+public struct MethodSource: Hashable, Sendable, Identifiable {
+    public let authors: String
+    public let year: Int
+    public let title: String
+    /// Journal, volume(issue):pages.
+    public let journal: String
+    public var id: String { title }
+
+    /// "Rhea MR et al. (2002)".
+    public var short: String { "\(authors) (\(year))" }
+
+    /// PubMed search for the exact title: stable without hard-coding DOIs.
+    public var url: URL? {
+        var c = URLComponents(string: "https://pubmed.ncbi.nlm.nih.gov/")
+        c?.queryItems = [URLQueryItem(name: "term", value: "\"\(title)\"")]
+        return c?.url
+    }
+}
+
+extension TrainingMethod {
+    public var sources: [MethodSource] {
+        switch self {
+        case .block: [
+            MethodSource(authors: "Williams TD et al.", year: 2017,
+                         title: "Comparison of periodized and non-periodized resistance training on maximal strength: a meta-analysis",
+                         journal: "Sports Med 47(10):2083–2100"),
+            MethodSource(authors: "Bell L et al.", year: 2023,
+                         title: "Integrating deloading into strength and physique sports training programmes: an international Delphi consensus approach",
+                         journal: "Sports Med Open 9:87"),
+        ]
+        case .undulating: [
+            MethodSource(authors: "Rhea MR et al.", year: 2002,
+                         title: "A comparison of linear and daily undulating periodized programs with equated volume and intensity for strength",
+                         journal: "J Strength Cond Res 16(2):250–255"),
+            MethodSource(authors: "Moesgaard L et al.", year: 2022,
+                         title: "Effects of periodization on strength and muscle hypertrophy in volume-equated resistance training programs: a systematic review and meta-analysis",
+                         journal: "Sports Med 52(7):1647–1666"),
+            MethodSource(authors: "Harries SK et al.", year: 2015,
+                         title: "Systematic review and meta-analysis of linear and undulating periodized resistance training programs on muscular strength",
+                         journal: "J Strength Cond Res 29(4):1113–1125"),
+        ]
+        case .autoregulated: [
+            MethodSource(authors: "Helms ER et al.", year: 2018,
+                         title: "RPE vs. percentage 1RM loading in periodized programs matched for sets and repetitions",
+                         journal: "Front Physiol 9:247"),
+            MethodSource(authors: "Graham T, Cleather DJ", year: 2021,
+                         title: "Autoregulation by \"repetitions in reserve\" leads to greater improvements in strength over a 12-week training program than fixed loading",
+                         journal: "J Strength Cond Res 35(9):2451–2456"),
+            MethodSource(authors: "Larsen S et al.", year: 2021,
+                         title: "Effects of subjective and objective autoregulation methods for intensity and volume on enhancing maximal strength during resistance-training interventions: a systematic review",
+                         journal: "PeerJ 9:e10663"),
+        ]
+        case .volume: [
+            MethodSource(authors: "Schoenfeld BJ et al.", year: 2017,
+                         title: "Dose-response relationship between weekly resistance training volume and increases in muscle mass: a systematic review and meta-analysis",
+                         journal: "J Sports Sci 35(11):1073–1082"),
+            MethodSource(authors: "Baz-Valle E et al.", year: 2022,
+                         title: "A systematic review of the effects of different resistance training volumes on muscle hypertrophy",
+                         journal: "J Hum Kinet 81:199–210"),
+            MethodSource(authors: "Refalo MC et al.", year: 2023,
+                         title: "Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: a systematic review with meta-analysis",
+                         journal: "Sports Med 53(3):649–665"),
+        ]
+        case .minimal: [
+            MethodSource(authors: "Iversen VM et al.", year: 2021,
+                         title: "No time to lift? Designing time-efficient training programs for strength and hypertrophy: a narrative review",
+                         journal: "Sports Med 51(10):2079–2095"),
+            MethodSource(authors: "Androulakis-Korakakis P et al.", year: 2020,
+                         title: "The minimum effective training dose required to increase 1RM strength in resistance-trained men: a systematic review and meta-analysis",
+                         journal: "Sports Med 50(4):751–765"),
+        ]
+        }
+    }
+}
