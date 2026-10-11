@@ -231,12 +231,82 @@ MUSCLES = {
     "forearmExtensors": [("fore", [(0.04, -0.2), (0.1, -1.03), (0.45, -0.98), (0.76, -0.6), (0.7, -0.1), (0.3, 0.0)], "u")],
 }
 
+def _mirror(poly):
+    return [(u, -v) for u, v in poly]
+
+
+def _both(seg, poly, fib="u"):
+    return [(seg, poly, fib), (seg, _mirror(poly), fib)]
+
+
+# Front and back views: v runs across the segment (-1 one edge, +1 the other); shapes are symmetric.
+FRONT_MUSCLES = {
+    "chest": _both("torso", [(0.64, 0.06), (0.64, 0.9), (0.8, 1.02), (0.95, 0.9), (0.98, 0.4), (0.93, 0.06)], "v"),
+    "abs": [("torso", [(0.2, -0.3), (0.2, 0.3), (0.64, 0.34), (0.64, -0.34)], "u")],
+    "lowerAbs": [("torso", [(0.04, -0.28), (0.04, 0.28), (0.21, 0.3), (0.21, -0.3)], "u")],
+    "obliques": _both("torso", [(0.16, 0.38), (0.2, 1.02), (0.6, 1.02), (0.64, 0.4)], "uv"),
+    "serratus": _both("torso", [(0.58, 0.72), (0.6, 1.02), (0.74, 1.02), (0.72, 0.74)], "v"),
+    "deepCore": [("torso", [(0.08, -0.62), (0.08, 0.62), (0.45, 0.62), (0.45, -0.62)], "v")],
+    "hipFlexors": _both("torso", [(-0.02, 0.32), (-0.02, 0.78), (0.12, 0.72), (0.12, 0.38)], "u")
+                  + [("thigh", [(0.0, -0.5), (0.0, 0.5), (0.22, 0.38), (0.22, -0.38)], "u")],
+    "traps": _both("torso", [(0.94, 0.28), (1.12, 0.14), (1.12, 0.42), (1.0, 0.78)], "u"),
+    "quads": [("thigh", [(0.14, -0.82), (0.14, 0.82), (0.96, 0.62), (0.96, -0.62)], "u")],
+    "adductors": [("thigh", [(0.08, -0.3), (0.08, 0.3), (0.55, 0.28), (0.55, -0.28)], "u")],
+    "tibialis": [("shin", [(0.1, -0.15), (0.1, 0.6), (0.72, 0.5), (0.72, -0.15)], "u")],
+    "calves": _both("shin", [(0.1, 0.62), (0.1, 1.02), (0.5, 1.02), (0.5, 0.62)], "u"),
+    "biceps": [("upper", [(0.3, -0.72), (0.3, 0.72), (0.9, 0.5), (0.9, -0.5)], "u")],
+    "brachialis": _both("upper", [(0.6, 0.55), (0.6, 1.02), (0.96, 1.02), (0.96, 0.55)], "u"),
+    "frontDelts": [("upper", [(-0.16, -0.92), (-0.16, 0.92), (0.34, 0.72), (0.34, -0.72)], "u")],
+    "sideDelts": [("upper", [(-0.18, -1.02), (-0.18, 1.02), (0.4, 0.8), (0.4, -0.8)], "u")],
+    "forearms": [("fore", [(0.05, -0.82), (0.05, 0.82), (0.76, 0.42), (0.76, -0.42)], "u")],
+}
+BACK_MUSCLES = {
+    "lats": _both("torso", [(0.34, 0.2), (0.52, 1.02), (0.86, 1.02), (0.93, 0.5), (0.7, 0.14)], "uv"),
+    "upperBack": [("torso", [(0.62, -0.48), (0.62, 0.48), (0.96, 0.62), (0.96, -0.62)], "v")],
+    "traps": [("torso", [(0.58, 0.0), (0.94, 0.76), (1.12, 0.3), (1.12, -0.3), (0.94, -0.76)], "u")],
+    "lowerBack": [("torso", [(0.06, -0.4), (0.06, 0.4), (0.46, 0.3), (0.46, -0.3)], "u")],
+    "rotatorCuff": _both("torso", [(0.72, 0.42), (0.75, 0.86), (0.92, 0.86), (0.92, 0.42)], "v"),
+    "glutes": [("torso", [(-0.04, -0.96), (-0.04, 0.96), (0.18, 0.9), (0.18, -0.9)], "v"),
+               ("thigh", [(-0.06, -1.0), (-0.06, 1.0), (0.26, 0.9), (0.26, -0.9)], "v")],
+    "gluteMed": _both("torso", [(0.1, 0.6), (0.1, 1.02), (0.24, 1.02), (0.24, 0.6)], "u"),
+    "hamstrings": [("thigh", [(0.24, -0.82), (0.24, 0.82), (0.96, 0.6), (0.96, -0.6)], "u")],
+    "adductors": [("thigh", [(0.1, -0.3), (0.1, 0.3), (0.5, 0.26), (0.5, -0.26)], "u")],
+    "calves": [("shin", [(0.05, -0.92), (0.05, 0.92), (0.55, 0.72), (0.55, -0.72)], "u")],
+    "soleus": [("shin", [(0.46, -0.72), (0.46, 0.72), (0.86, 0.42), (0.86, -0.42)], "u")],
+    "triceps": [("upper", [(0.24, -0.76), (0.24, 0.76), (0.92, 0.5), (0.92, -0.5)], "u")],
+    "rearDelts": [("upper", [(-0.16, -0.92), (-0.16, 0.92), (0.34, 0.72), (0.34, -0.72)], "u")],
+    "sideDelts": [("upper", [(-0.18, -1.02), (-0.18, 1.02), (0.4, 0.8), (0.4, -0.8)], "u")],
+    "forearmExtensors": [("fore", [(0.05, -0.82), (0.05, 0.82), (0.76, 0.42), (0.76, -0.42)], "u")],
+}
+TABLES = {"side": MUSCLES, "front": FRONT_MUSCLES, "back": BACK_MUSCLES}
+
+
+def view_of(pose):
+    f = pose.get("front", False)
+    return "back" if f == "back" else ("front" if f else "side")
+
+
 # Faint anatomical definition on the body (not highlighted).
 DEFINITION = ["quads", "hamstrings", "calves", "tibialis", "chest", "abs", "lats", "biceps", "triceps",
               "forearms", "glutes", "sideDelts"]
 
 FRONT_VIEW_SKIP = {"hamstrings", "calves", "soleus", "lats", "upperBack", "traps", "lowerBack", "rotatorCuff",
                    "rearDelts", "triceps", "glutes", "forearmExtensors"}
+
+
+def frontal(j):
+    """Front/back view: arms hang from either shoulder, legs from either hip (joints shifted sideways)."""
+    t = norm(sub(j["shoulder"], j["hip"]))
+    n = (-t[1], t[0])
+    sw, hw = PROFILES["torso"][-1][1] * 1.45 * 0.9, 9.0
+    for side, s in (("N", 1), ("F", -1)):
+        for k in ("elbow", "wrist", "hand"):
+            j[k + side] = add(j[k + side], n, s * sw)
+        for k in ("knee", "ankle", "toe"):
+            j[k + side] = add(j[k + side], n, s * hw)
+        j["shoulder" + side] = add(j["shoulder"], n, s * sw)
+        j["hip" + side] = add(j["hip"], n, s * hw)
+    return j
 
 
 def body_segments(j, front=False):
@@ -250,20 +320,23 @@ def body_segments(j, front=False):
         c = (mx - nx * j["_curl"] * 1.6, my - ny * j["_curl"] * 1.6)
     torso_prof = PROFILES["torso"]
     if front:  # wider, symmetric trunk seen from the front
-        torso_prof = [(u, max(f, b) * 1.35, max(f, b) * 1.35) for u, f, b in torso_prof]
+        torso_prof = [(u, max(f, b) * (1.2 + 0.35 * u), max(f, b) * (1.2 + 0.35 * u)) for u, f, b in torso_prof]
     torso = Seg(hip, sh, torso_prof, "up", c)
     hd = norm(sub(j["head"], j["neck"]))
     head = Seg(add(j["neck"], hd, -3), add(j["neck"], hd, 2 * F.HEAD_R + 3), PROFILES["head"], "up")
     neck = Seg(add(sh, hd, -6), j["neck"], PROFILES["neck"], "up")
 
+    def sym(p):
+        return [(u, max(f, b) * 0.92, max(f, b) * 0.92) for u, f, b in p] if front else p
+
     def limbs(side):
         k = side
         return {
-            "thigh": Seg(hip, j["knee" + k], PROFILES["thigh"]),
-            "shin": Seg(j["knee" + k], j["ankle" + k], PROFILES["shin"]),
+            "thigh": Seg(j.get("hip" + k, hip), j["knee" + k], sym(PROFILES["thigh"])),
+            "shin": Seg(j["knee" + k], j["ankle" + k], sym(PROFILES["shin"])),
             "foot": Seg(add(j["ankle" + k], norm(sub(j["toe" + k], j["ankle" + k])), -5), j["toe" + k], PROFILES["foot"]),
-            "upper": Seg(sh, j["elbow" + k], PROFILES["upper"]),
-            "fore": Seg(j["elbow" + k], j["wrist" + k], PROFILES["fore"]),
+            "upper": Seg(j.get("shoulder" + k, sh), j["elbow" + k], sym(PROFILES["upper"])),
+            "fore": Seg(j["elbow" + k], j["wrist" + k], sym(PROFILES["fore"])),
             "hand": Seg(j["wrist" + k], j["hand" + k], PROFILES["hand"]),
         }
     return limbs("F"), {"torso": torso, "neck": neck, "head": head}, limbs("N")
@@ -284,13 +357,11 @@ def draw_segment(doc, seg, tones, outline_op=0.75):
     return d
 
 
-def draw_muscles(doc, seg, name, levels, clip_d, far, front):
+def draw_muscles(doc, seg, name, levels, clip_d, far, view):
     clip = None
-    for m, pieces in MUSCLES.items():
+    for m, pieces in TABLES[view].items():
         for seg_name, poly, fib in pieces:
-            if seg_name != name or (front and m in FRONT_VIEW_SKIP and m not in levels):
-                continue
-            if front and m in FRONT_VIEW_SKIP:
+            if seg_name != name:
                 continue
             if m not in levels and m not in DEFINITION:
                 continue
@@ -330,9 +401,17 @@ def draw_muscles(doc, seg, name, levels, clip_d, far, front):
             doc.add("</g>")
 
 
-def draw_head_details(doc, head, far=False):
-    hair = [head.at(u, v) for u, v in [(0.62, -0.2), (0.62, -1.03), (0.9, -1.04), (1.06, -0.2), (1.02, 0.6), (0.9, 0.86), (0.78, 0.4)]]
+def draw_head_details(doc, head, view="side"):
     clip = doc.clip(smooth(head.outline()))
+    if view != "side":
+        cap = [(0.66, -1.04), (1.06, -1.04), (1.06, 1.04), (0.66, 1.04)] if view == "front" else \
+              [(0.38, -1.04), (1.06, -1.04), (1.06, 1.04), (0.38, 1.04)]
+        doc.add(f'<path d="{smooth([head.at(u, v) for u, v in cap])}" fill="#2B2F36" fill-opacity="0.9" clip-path="{clip}"/>')
+        for s in (-1, 1):
+            ear = head.at(0.5, s * 1.02)
+            doc.add(f'<circle cx="{ear[0]:.1f}" cy="{ear[1]:.1f}" r="2.8" fill="#B9C1CC" stroke="{OUTLINE}" stroke-opacity="0.5" stroke-width="0.8"/>')
+        return
+    hair = [head.at(u, v) for u, v in [(0.62, -0.2), (0.62, -1.03), (0.9, -1.04), (1.06, -0.2), (1.02, 0.6), (0.9, 0.86), (0.78, 0.4)]]
     doc.add(f'<path d="{smooth(hair)}" fill="#2B2F36" fill-opacity="0.9" clip-path="{clip}"/>')
     ear = head.at(0.5, -0.12)
     doc.add(f'<ellipse cx="{ear[0]:.1f}" cy="{ear[1]:.1f}" rx="2.6" ry="3.6" fill="#B9C1CC" stroke="{OUTLINE}" '
@@ -340,29 +419,40 @@ def draw_head_details(doc, head, far=False):
 
 
 def draw_figure(doc, j, ex, pose):
-    front = pose.get("front", False)
+    view = view_of(pose)
+    front = view != "side"
     far_l, trunk, near_l = body_segments(j, front)
     levels = muscle_levels(ex)
     sides = pose.get("lit_sides", "NF")
-    far_tones = SKIN_NEAR if front else SKIN_FAR
-    # Far arm behind everything, then far leg, trunk, near leg, near arm.
-    for group, tones, far, side in [(("upper", "fore", "hand"), far_tones, not front, "F"),
-                                    (("foot", "shin", "thigh"), far_tones, not front, "F")]:
-        for name in group:
-            seg = far_l[name]
-            d = draw_segment(doc, seg, tones, 0.55 if far else 0.75)
-            draw_muscles(doc, seg, name, levels if side in sides else {}, d, far, front)
+
+    def seg(limbs, name, side, tones, far):
+        sg = limbs[name]
+        d = draw_segment(doc, sg, tones, 0.55 if far else 0.75)
+        draw_muscles(doc, sg, name, levels if side in sides else {}, d, far, view)
+
+    if front:
+        # Legs, trunk, then both arms in front of it.
+        for limbs, side in ((far_l, "F"), (near_l, "N")):
+            for name in ("foot", "shin", "thigh"):
+                seg(limbs, name, side, SKIN_NEAR, False)
+    else:
+        # Far arm, far leg, trunk, near leg, near arm.
+        for name in ("upper", "fore", "hand", "foot", "shin", "thigh"):
+            seg(far_l, name, "F", SKIN_FAR, True)
     for name in ("neck", "torso"):
-        seg = trunk[name]
-        d = draw_segment(doc, seg, SKIN_NEAR)
-        draw_muscles(doc, seg, name, levels, d, False, front)
+        sg = trunk[name]
+        d = draw_segment(doc, sg, SKIN_NEAR)
+        draw_muscles(doc, sg, name, levels, d, False, view)
     head = trunk["head"]
     draw_segment(doc, head, SKIN_NEAR)
-    draw_head_details(doc, head)
-    for name in ("foot", "shin", "thigh", "upper", "fore", "hand"):
-        seg = near_l[name]
-        d = draw_segment(doc, seg, SKIN_NEAR)
-        draw_muscles(doc, seg, name, levels if "N" in sides else {}, d, False, front)
+    draw_head_details(doc, head, view)
+    if front:
+        for limbs, side in ((far_l, "F"), (near_l, "N")):
+            for name in ("upper", "fore", "hand"):
+                seg(limbs, name, side, SKIN_NEAR, False)
+    else:
+        for name in ("foot", "shin", "thigh", "upper", "fore", "hand"):
+            seg(near_l, name, "N", SKIN_NEAR, False)
 
 
 # ---- equipment ---------------------------------------------------------------------------------
@@ -581,6 +671,8 @@ def render(pose, ex, scene=None, prefix="a", view=None):
     doc = Doc(prefix)
     doc.view = view
     j = F.place(pose)
+    if view_of(pose) != "side":
+        frontal(j)
     if scene:
         scene(doc, j, "back")
     draw_props(doc, j, pose.get("props", []))
