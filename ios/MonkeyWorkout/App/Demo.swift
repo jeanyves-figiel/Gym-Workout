@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-method|paywall|pro|pro-offer|pro-gate]`
+/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-method|paywall|pro|pro-offer|pro-gate|equipment|gym-setup|gym-swipe|gym-result|not-here]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("-demo") }
@@ -138,6 +138,23 @@ enum Demo {
             AwayPeriod(kind: .travel, start: key(7), end: key(10), note: "Berlin", setup: .hotelGym),
         ]
     }
+
+    /// Gyms set up before (#162): a hotel used on a trip and a day-pass gym.
+    static let savedGyms: [SavedGym] = [
+        SavedGym(ref: GymRef(id: "custom:demo-adlon", name: "Hotel Adlon gym", address: ""), kind: .hotel,
+                 equipment: GymKind.hotel.equipment, updated: Date().addingTimeInterval(-20 * 86_400)),
+        SavedGym(ref: GymRef(id: "map:52.52000,13.40500", name: "McFit Berlin-Mitte", address: "Alexanderplatz, Berlin"), kind: .budget,
+                 equipment: GymKind.budget.equipment, updated: Date().addingTimeInterval(-40 * 86_400)),
+    ]
+
+    /// What other members found at Holmes Place (#162).
+    static let knownGym = KnownGym(
+        place: GymTally(members: 7, votes: [:], equipment: GymKind.bigClub.equipment.filter { $0 != .sled && $0 != .skiErg }.map(\.rawValue)),
+        chain: GymTally(members: 3, votes: [:], equipment: GymKind.budget.equipment.map(\.rawValue), name: "holmes place", gyms: 2)
+    )
+
+    static let holmes = GymRef(id: "map:47.37800,8.53000", name: "Holmes Place Europaallee", address: "Europaallee 15, 8004 Zürich",
+                               latitude: 47.378, longitude: 8.53)
 
     /// Climbs logged in the app: a hard boulder session yesterday and a lead session last week.
     static func climbs() -> [ClimbLog] {

@@ -463,6 +463,8 @@ struct AwayEditorView: View {
     @State private var results: [GymRef] = []
     @State private var searching = false
     @State private var findingGym = false
+    @State private var settingUp = false
+    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
     init(initial: AwayPeriod, isNew: Bool, onDone: @escaping (AwayPeriod?) -> Void) {
@@ -495,6 +497,18 @@ struct AwayEditorView: View {
 
                     if draft.kind == .travel {
                         Text("What's there").eyebrow().padding(.top, 4)
+                        // Saved gyms and the swipe setup (#162).
+                        ForEach(model.savedGyms.filter { $0.id != model.homeGym.id }) { g in
+                            SavedGymRow(gym: g, selected: draft.gym?.id == g.id) { pick(g) }
+                                .card(padding: 10)
+                        }
+                        Button { settingUp = true } label: {
+                            Label("Set up this gym in a few swipes", systemImage: "rectangle.stack.badge.plus")
+                                .font(Theme.label(14)).foregroundStyle(Theme.lime)
+                                .frame(maxWidth: .infinity).padding(.vertical, 12)
+                                .background(Capsule().strokeBorder(Theme.lime, lineWidth: 2))
+                        }
+                        .buttonStyle(.plain)
                         ForEach(TravelSetup.allCases) { setup in setupCard(setup) }
                         if draft.setup == .fullGym { gymSearch }
                         Button { showEquipment = true } label: {
@@ -540,6 +554,12 @@ struct AwayEditorView: View {
                 GymFinderView(place: note) { ref in
                     draft.gym = ref
                     draft.setup = .fullGym
+                }
+            }
+            .sheet(isPresented: $settingUp) {
+                GymSetupView(ref: draft.setup == .fullGym ? draft.gym : nil, name: note, actionTitle: "USE FOR THIS TRIP") { g in
+                    model.saveGym(g)
+                    pick(g)
                 }
             }
             .sheet(isPresented: $showEquipment) {
@@ -659,6 +679,12 @@ struct AwayEditorView: View {
             }
         }
         .card(padding: 12)
+    }
+
+    private func pick(_ g: SavedGym) {
+        draft.gym = g.ref
+        draft.setup = .fullGym
+        draft.equipment = g.equipment
     }
 
     private func save() {
