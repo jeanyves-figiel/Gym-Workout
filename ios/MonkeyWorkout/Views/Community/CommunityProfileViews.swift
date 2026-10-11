@@ -209,9 +209,8 @@ struct CommunityProfileForm: View {
 
     private var saveButton: some View {
         Button(task.busy ? "SAVING…" : (joining ? "JOIN THE COMMUNITY" : "SAVE")) { save() }
-            .buttonStyle(LimeButtonStyle())
+            .buttonStyle(LimeButtonStyle(fill: canSave ? Theme.lime : Theme.cardStrong, text: canSave ? Theme.ink : Color.white.opacity(0.6)))
             .disabled(!canSave || task.busy)
-            .opacity(canSave ? 1 : 0.5)
     }
 
     private var photoRow: some View {

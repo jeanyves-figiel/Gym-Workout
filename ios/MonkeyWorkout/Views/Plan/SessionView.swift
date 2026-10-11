@@ -75,9 +75,12 @@ struct SessionView: View {
                 Text("\(kcal) kcal").font(Theme.label(14)).foregroundStyle(Theme.lime)
             }
             HStack(spacing: 10) {
-                StatTile(value: "\(s.estMin)′", label: "Duration")
-                StatTile(value: "\(s.blocks.reduce(0) { $0 + $1.items.count })", label: "Exercises")
-                StatTile(value: "\(s.blocks.filter { [BlockKind.power, .strength].contains($0.kind) }.flatMap(\.items).reduce(0) { $0 + $1.prescription.sets })", label: "Work sets")
+                GradientStat(symbol: "stopwatch.fill", value: "\(s.estMin)′", label: "Duration",
+                             gradient: WorkoutEngine.Category.cardio.gradient)
+                GradientStat(symbol: "figure.strengthtraining.traditional", value: "\(s.blocks.reduce(0) { $0 + $1.items.count })", label: "Exercises",
+                             gradient: WorkoutEngine.Category.mobility.gradient)
+                GradientStat(symbol: "square.stack.3d.up.fill", value: "\(s.blocks.filter { [BlockKind.power, .strength].contains($0.kind) }.flatMap(\.items).reduce(0) { $0 + $1.prescription.sets })", label: "Work sets",
+                             gradient: WorkoutEngine.Category.strength.gradient)
             }
             VStack(alignment: .leading, spacing: 12) {
                 Text("Muscles worked · tap to explore").eyebrow()

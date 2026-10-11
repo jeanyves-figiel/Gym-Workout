@@ -36,9 +36,9 @@ struct ShareWinView: View {
 
                     ErrorText(message: task.error)
                     Button(task.busy ? "SHARING…" : "SHARE") { share() }
-                        .buttonStyle(LimeButtonStyle())
+                        .buttonStyle(LimeButtonStyle(fill: selected == nil ? Theme.cardStrong : Theme.lime,
+                                                     text: selected == nil ? Color.white.opacity(0.6) : Theme.ink))
                         .disabled(selected == nil || task.busy)
-                        .opacity(selected == nil ? 0.5 : 1)
                 }
                 .padding(16)
             }
