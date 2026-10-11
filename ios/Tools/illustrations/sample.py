@@ -68,8 +68,10 @@ if __name__ == "__main__":
     args = sys.argv[2:]
     if args[:1] == ["-m"]:
         import importlib
+        import generate
         mod = importlib.import_module(args[1])
-        SCENES.update(mod.SCENES)
+        if args[1] not in generate.SCENE_MODULES:  # registered modules already load via generate.scenes()
+            SCENES.update(mod.SCENES)
         args = args[2:] or list(mod.SCENES)
     ids = args or list(SCENES)
     sheet(ids, sys.argv[1])
