@@ -142,7 +142,7 @@ struct VariationSheet: View {
             .navigationTitle("New variation")
             .toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                CloseToolbarItem { dismiss() }
                 if !model.currentSwaps.isEmpty {
                     ToolbarItem(placement: .primaryAction) { Button("Reset") { confirmReset = true } }
                 }
