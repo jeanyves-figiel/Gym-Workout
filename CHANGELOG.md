@@ -126,6 +126,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Repository bootstrap (README, CHANGELOG, .gitignore).
 
 ### Fixed
+- **Explore muscle card names** (#171): on a Volume plan, cards with a target bar no longer shrink the muscle name.
 - **Your week recap and card value** (#145): the Your week editor shows the recap (per session, gym / week, per week) at the top instead of above Save. The Training profile **Your week** card shows total hours per week (e.g. 3.5h PER WEEK) and no longer truncates to "…" with the label wrapped letter by letter when the subtitle is long.
 - **TestFlight no longer runs out of Apple certificates** (#140): each TestFlight run revokes the development certificate Xcode created for it ("Created via API") once the upload is done, and the **prune_ci_certs** option revokes old CI-made ones before archiving. Certificates made on a Mac are never touched.
 - **Similar exercises open their page** (#129): on an exercise page, each Similar exercises row (now with picture and chevron) opens that exercise, pushed in the same sheet; Back returns.

@@ -185,6 +185,7 @@ private struct MuscleCard: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(muscle.name).font(Theme.display(20)).lineLimit(2).minimumScaleFactor(0.7)
                         .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                     ViewThatFits(in: .horizontal) {
                         HStack(spacing: 6) {
                             chip("dumbbell.fill", exercises == 1 ? "1 exercise" : "\(exercises) exercises")
@@ -213,13 +214,12 @@ private struct MuscleCard: View {
                 }
             }
             if let sets, let target, target > 0 {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(.white.opacity(0.25))
-                        Capsule().fill(.white).frame(width: geo.size.width * min(1, CGFloat(sets) / CGFloat(target)))
+                Capsule().fill(.white.opacity(0.25))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 6)
+                    .overlay(alignment: .leading) {
+                        Capsule().fill(.white).scaleEffect(x: min(1, CGFloat(sets) / CGFloat(target)), anchor: .leading)
                     }
-                }
-                .frame(height: 6)
             }
         }
         .foregroundStyle(.white)
