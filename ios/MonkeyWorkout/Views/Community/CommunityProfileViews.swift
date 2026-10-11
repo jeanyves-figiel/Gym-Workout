@@ -157,43 +157,50 @@ struct CommunityProfileForm: View {
         .onAppear {
             guard !loaded else { return }
             loaded = true
-            let me = Community.shared.me
-            nickname = profile?.nickname ?? me.nickname ?? ""
-            bio = profile?.bio ?? me.bio ?? ""
-            prefilled = joining && (me.nickname ?? "").range(of: "^[A-Za-z0-9_.]{3,20}$", options: .regularExpression) != nil
+            fillFromProfile()
             visibility = profile?.defaultVisibility ?? .members  // join preselects Members (#90)
             autoShare = profile?.autoShare ?? false
         }
+        // The join screen stays alive in its tab: follow Account edits made meanwhile (#122).
+        .onChange(of: Community.shared.me) { _, _ in if joining { fillFromProfile() } }
+    }
+
+    private func fillFromProfile() {
+        let me = Community.shared.me
+        nickname = profile?.nickname ?? me.nickname ?? ""
+        bio = profile?.bio ?? me.bio ?? ""
+        prefilled = joining && (me.nickname ?? "").range(of: "^[A-Za-z0-9_.]{3,20}$", options: .regularExpression) != nil
     }
 
     /// Join: hero, nickname and the visibility choice first; the guidelines toggle and the join
     /// button are pinned to the bottom so the call to action is always above the fold.
     private var joinLayout: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                JoinHero()
-                if prefilled { prefilledCard } else { nicknameField }
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Who sees your wins?").eyebrow()
-                    JoinVisibilityCards(selection: $visibility)
-                    Text("You can change this any time, or per post.").font(.footnote).foregroundStyle(Theme.muted)
+        // Footer below the scroll view, not over it, so nothing scrolls behind it (#122).
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    JoinHero()
+                    if prefilled { prefilledCard } else { nicknameField }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Who sees your wins?").eyebrow()
+                        JoinVisibilityCards(selection: $visibility)
+                        Text("You can change this any time, or per post.").font(.footnote).foregroundStyle(Theme.muted)
+                    }
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Community guidelines").eyebrow()
+                        GuidelinesText()
+                        Button("Read the full guidelines") { showGuidelines = true }.font(.footnote.bold())
+                    }
+                    .card()
+                    if !prefilled {
+                        photoRow
+                        bioField
+                    }
+                    autoShareToggle
                 }
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Community guidelines").eyebrow()
-                    GuidelinesText()
-                    Button("Read the full guidelines") { showGuidelines = true }.font(.footnote.bold())
-                }
-                .card()
-                if !prefilled {
-                    photoRow
-                    bioField
-                }
-                autoShareToggle
+                .padding(16)
             }
-            .padding(16)
-        }
-        .scrollDismissesKeyboard(.interactively)
-        .safeAreaInset(edge: .bottom) {
+            .scrollDismissesKeyboard(.interactively)
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("I agree to the community guidelines", isOn: $accepted).font(.subheadline.weight(.bold))
                 ErrorText(message: task.error)
@@ -202,7 +209,7 @@ struct CommunityProfileForm: View {
             .padding(.horizontal, 16)
             .padding(.top, 12)
             .padding(.bottom, 8)
-            .background(Theme.bg.opacity(0.96).ignoresSafeArea(edges: .bottom))
+            .background(Theme.bg)
             .overlay(alignment: .top) { Rectangle().fill(Theme.stroke).frame(height: 1) }
         }
     }
