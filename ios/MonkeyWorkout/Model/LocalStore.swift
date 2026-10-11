@@ -13,6 +13,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var away: [AwayPeriod]?
     /// Library workouts placed into the plan (#62): replaced or extra sessions of the current week.
     var planInserts: [PlanInsert]?
+    /// Exercise swaps kept for future weeks (#101), per plan day. Kept across variations and weeks.
+    var exerciseSwaps: [ExerciseSwap]?
     /// Per-workout rest / grouping overrides (#106), keyed by session id ("w2s1"); dropped on a week change.
     var sessionStyles: [String: SessionStyle]?
 
