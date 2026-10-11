@@ -51,6 +51,8 @@ Each: region `fra`, 1 machine + 1 GB volume (`/data`, SQLite), `/healthz` check.
 
 Remote push (#69): Apple Developer → Keys → new key with **Apple Push Notifications service (APNs)** → repo secrets `APNS_KEY_ID` (10 chars) and `APNS_PRIVATE_KEY` (.p8 contents), then re-run **Fly setup** per environment. Team id from `APPLE_TEAM_ID`. Without them pushes are skipped (logged once). Quiet hours: pushes still arrive, as passive (silent) notifications. Followers come from `app.push.setFollowersProvider` (Community follow model).
 
+Subscriptions (#126): `SUBSCRIPTIONS=off|preview|enforced` (default off) in `[env]`; free access per account via Actions → **Free access** (`src/admin.ts`). See `docs/subscriptions.md`.
+
 App name taken → change it in the `fly.*.toml`, `deploy-staging.yml` / `promote.yml` and `fly-setup.yml`.
 Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode: email codes appear in the app's logs (Fly dashboard → Monitoring).
 
@@ -105,6 +107,9 @@ Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode
 | GET / PUT | `/me/notification-prefs` | ✓ | `{prefs}`: toggles, reminder/check-in times, quiet hours (minutes after midnight) |
 | POST | `/me/achievements` | ✓ | `{achievements: [{id, type, text}]}` ≤30 → pushes each new id once to followers → `{announced}` |
 | POST | `/me/push-test` | ✓ | test push to own devices → `{devices, sent, pushConfigured}` |
+| GET | `/me/entitlement` | ✓ | MonkeyWorkout Pro (#126): `{mode, pro, access, source subscription\|grant\|none, productId, expiresAt, trial, willRenew, grant, products}` |
+| POST | `/me/subscriptions/transactions` | ✓ | `{signedTransaction, signedRenewalInfo?}` StoreKit 2 JWS, verified against Apple Root CA - G3 → entitlement; 403/409 `subscription_other_account` |
+| POST | `/app-store/notifications` | Apple-signed | App Store Server Notifications V2 `{signedPayload}` |
 | GET | `/healthz` | – | |
 
 Errors: `{error: <code>, message}`. Password endpoints (register, reset, change) may return 400 `weak_password` or `breached_password`.

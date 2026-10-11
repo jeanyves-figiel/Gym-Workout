@@ -16,6 +16,7 @@ private struct StandaloneWorkoutActions: ViewModifier {
     @Environment(\.dismiss) private var dismiss
     @State private var editing: CustomWorkout?
     @State private var confirmDelete = false
+    @State private var gate: ProGate?
 
     func body(content: Content) -> some View {
         content
@@ -23,6 +24,7 @@ private struct StandaloneWorkoutActions: ViewModifier {
                 ToolbarItem(placement: .topBarTrailing) { actions }
             }
             .sheet(item: $editing) { w in CustomWorkoutEditor(initial: w) }
+            .proPaywall($gate)
             .confirmationDialog("Delete this workout?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete", role: .destructive) {
                     guard let w = model.customWorkout(sessionId: session.id) else { return }
@@ -39,14 +41,14 @@ private struct StandaloneWorkoutActions: ViewModifier {
         if let w = model.customWorkout(sessionId: session.id) {
             Menu {
                 Button("Edit", systemImage: "pencil") { editing = w }
-                Button("Duplicate", systemImage: "plus.square.on.square") { editing = w.duplicated() }
+                Button("Duplicate", systemImage: "plus.square.on.square") { ProStore.shared.run(.buildWorkout, $gate) { editing = w.duplicated() } }
                 Button("Delete", systemImage: "trash", role: .destructive) { confirmDelete = true }
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
             .accessibilityLabel("Workout actions")
         } else if let t = WorkoutTemplate.find(sessionId: session.id) {
-            Button { editing = CustomWorkout(duplicating: t) } label: {
+            Button { ProStore.shared.run(.buildWorkout, $gate) { editing = CustomWorkout(duplicating: t) } } label: {
                 Label("Duplicate & edit", systemImage: "plus.square.on.square")
             }
         }

@@ -138,6 +138,8 @@ schemes:
         MonkeyWorkout: all
     run:
       config: Debug
+      # Local StoreKit testing in Xcode (#126): Pro products, CHF prices, free week. Device/TestFlight use App Store sandbox.
+      storeKitConfiguration: Config/MonkeyWorkout.storekit
     archive:
       config: Release
   MonkeyWorkout Staging:

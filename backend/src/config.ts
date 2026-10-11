@@ -27,6 +27,8 @@ export interface Config {
   moderationEmail?: string;
   /** APNs token auth (.p8 with Apple Push Notifications service enabled). Unset → remote push skipped (#69). */
   apns: { teamId?: string; keyId?: string; privateKey?: string };
+  /** In-app subscriptions (#126). SUBSCRIPTIONS=off|preview|enforced (default off: nothing shown or locked). */
+  subscriptions: { mode: 'off' | 'preview' | 'enforced'; productIds: string[] };
   /** Who runs the app, shown on /privacy, /terms and /support (#125). Unset → placeholder text the owner must fill. */
   legal: { operator?: string; address?: string; email?: string; law: string; venue?: string };
 }
@@ -36,6 +38,12 @@ const required = (name: string, env: NodeJS.ProcessEnv, prod: boolean, dev: stri
   if (v) return v;
   if (prod) throw new Error(`Missing required env ${name}`);
   return dev;
+};
+
+const subscriptionMode = (v?: string): Config['subscriptions']['mode'] => {
+  const m = (v ?? 'off').toLowerCase();
+  if (m !== 'off' && m !== 'preview' && m !== 'enforced') throw new Error('SUBSCRIPTIONS must be off, preview or enforced');
+  return m;
 };
 
 export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
@@ -81,6 +89,13 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
       teamId: env.APNS_TEAM_ID || env.APPLE_TEAM_ID || undefined,
       keyId: env.APNS_KEY_ID || undefined,
       privateKey: env.APNS_PRIVATE_KEY ? env.APNS_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined,
+    },
+    subscriptions: {
+      mode: subscriptionMode(env.SUBSCRIPTIONS),
+      productIds: (env.SUBSCRIPTION_PRODUCT_IDS ?? 'monkeyworkout.pro.weekly,monkeyworkout.pro.monthly,monkeyworkout.pro.yearly,monkeyworkout.pro.lifetime')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
     },
     legal: {
       operator: env.LEGAL_OPERATOR || undefined,

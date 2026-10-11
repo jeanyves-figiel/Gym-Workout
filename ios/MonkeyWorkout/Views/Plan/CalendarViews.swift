@@ -223,7 +223,8 @@ struct WeekCalendarCard: View {
         let climb = week.climbing.contains(wd)
         let past = key < today
         let day = week.date(wd, cal).map { cal.component(.day, from: $0) } ?? 0
-        let tag: String? = session.map { short($0.focus) } ?? (off ? "Off" : climb ? "Climb" : nil)
+        let count = week.plan.sessions.filter { $0.weekday == wd }.count
+        let tag: String? = session.map { short($0.focus) + (count > 1 ? " +\(count - 1)" : "") } ?? (off ? "Off" : climb ? "Climb" : nil)
         let fill = tileFill(session: session != nil, off: off, travel: travel, climb: climb)
         VStack(spacing: 1) {
             Text(WeekSchedule.shortName(wd).uppercased()).font(Theme.label(9))
@@ -315,12 +316,16 @@ struct DaySheet: View {
     let onAdd: (AwayKind, String) -> Void
     let onEdit: (AwayPeriod) -> Void
     @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var moving: Session?
+    @State private var adding = false
+    @State private var insertsBefore = 0
 
     var body: some View {
         let cal = model.planCalendar
         let wd = selection.weekday
         let key = selection.week.days[wd - 1]
-        let session = selection.week.plan.sessions.first { $0.weekday == wd }
+        let sessions = selection.week.plan.sessions.filter { $0.weekday == wd }
         let away = selection.week.off[wd] ?? selection.week.travel[wd]
         NavigationStack {
             ScrollView {
@@ -336,10 +341,26 @@ struct DaySheet: View {
                             .padding(.horizontal, 14).padding(.vertical, 10)
                             .background(Capsule().fill(WorkoutEngine.Category.warmup.gradient))
                     }
-                    if let session {
-                        SessionPreview(session: session, current: selection.current, done: selection.current && model.doneIds.contains(session.id))
-                    } else if away == nil {
+                    ForEach(sessions) { session in
+                        let done = selection.current && model.doneIds.contains(session.id)
+                        SessionPreview(session: session, current: selection.current, done: done, canMove: selection.current && !done) {
+                            moving = session
+                        }
+                    }
+                    if sessions.isEmpty && away == nil {
                         Text("No gym session planned.").foregroundStyle(Theme.muted)
+                    }
+                    if selection.current && selection.week.off[wd] == nil {
+                        Button {
+                            insertsBefore = model.state.synced?.planInserts?.count ?? 0
+                            adding = true
+                        } label: {
+                            Label(sessions.isEmpty ? "Add workout" : "Add another workout", systemImage: "plus.circle.fill")
+                                .font(Theme.label(15)).foregroundStyle(Theme.ink)
+                                .frame(maxWidth: .infinity).padding(.vertical, 14)
+                                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.lime))
+                        }
+                        .buttonStyle(.plain)
                     }
                     if away == nil {
                         HStack(spacing: 10) {
@@ -360,6 +381,8 @@ struct DaySheet: View {
             .background(Theme.bg.ignoresSafeArea())
         }
         .preferredColorScheme(.dark)
+        .sheet(item: $moving) { s in MoveSessionSheet(sessionId: s.id) { _ in dismiss() } }
+        .sheet(isPresented: $adding, onDismiss: { if (model.state.synced?.planInserts?.count ?? 0) > insertsBefore { dismiss() } }) { AddWorkoutSheet(weekday: wd) }
     }
 }
 
@@ -368,11 +391,14 @@ private struct SessionPreview: View {
     let session: Session
     let current: Bool
     let done: Bool
+    /// This week, not done: "Move to…".
+    var canMove = false
+    var onMove: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(session.focus.label).font(.system(.title3, design: .rounded).weight(.heavy))
+                Text(session.displayTitle).font(.system(.title3, design: .rounded).weight(.heavy))
                 Spacer()
                 if done {
                     Image(systemName: "checkmark.seal.fill").foregroundStyle(Theme.lime)
@@ -394,12 +420,24 @@ private struct SessionPreview: View {
                 }
             }
             if current {
-                NavigationLink {
-                    SessionView(sessionId: session.id)
-                } label: {
-                    Label("Open session", systemImage: "list.bullet")
+                HStack(spacing: 10) {
+                    NavigationLink {
+                        SessionView(sessionId: session.id)
+                    } label: {
+                        Label(canMove ? "Open" : "Open session", systemImage: "list.bullet").lineLimit(1)
+                    }
+                    .buttonStyle(LimeButtonStyle())
+                    if canMove {
+                        Button(action: onMove) {
+                            Label("Move to…", systemImage: "arrow.left.arrow.right")
+                                .lineLimit(1)
+                                .font(Theme.label(15)).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).frame(height: 56)
+                                .background(Capsule().fill(Color.white.opacity(0.15)))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .buttonStyle(LimeButtonStyle())
             } else {
                 Text("Exercises may still change with your progress and plan settings.")
                     .font(.caption).foregroundStyle(Theme.muted)
@@ -631,7 +669,7 @@ struct AwayEditorView: View {
     }
 }
 
-/// Moves one session of this week to the next free day (e.g. from a missed-session reminder).
+/// Moves one session of this week to the next free day or a picked day (e.g. from a missed-session reminder).
 struct RescheduleSheet: View {
     let sessionId: String
     @Environment(AppModel.self) private var model
@@ -666,6 +704,20 @@ struct RescheduleSheet: View {
                     }
                     .buttonStyle(LimeButtonStyle())
                     .disabled(session == nil)
+                }
+                if result == nil, session != nil {
+                    NavigationLink {
+                        ScrollView { MoveDayPicker(sessionId: sessionId) { _ in dismiss() }.padding(16) }
+                            .background(Theme.bg.ignoresSafeArea())
+                            .navigationTitle("Pick a day")
+                            .navigationBarTitleDisplayMode(.inline)
+                    } label: {
+                        Label("Pick a day this week…", systemImage: "calendar")
+                            .font(Theme.label(15)).foregroundStyle(.white)
+                            .frame(maxWidth: .infinity).padding(.vertical, 14)
+                            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(WorkoutEngine.Category.strength.gradient))
+                    }
+                    .buttonStyle(.plain)
                 }
                 Button {
                     let today = PlanCalendar.key(Date(), model.planCalendar)

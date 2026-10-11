@@ -98,13 +98,16 @@ public struct PlanInsert: Codable, Hashable, Sendable, Identifiable {
     /// 1 = Monday … 7 = Sunday for an extra session; a replacement keeps the replaced day's weekday.
     public var weekday: Int?
     public var workout: CustomWorkout
+    /// A generated session added as a quick extra (#113); `workout` then only carries its name.
+    public var generated: Session?
 
-    public init(id: UUID = UUID(), week: Int, replacing: Int? = nil, weekday: Int? = nil, workout: CustomWorkout) {
+    public init(id: UUID = UUID(), week: Int, replacing: Int? = nil, weekday: Int? = nil, workout: CustomWorkout, generated: Session? = nil) {
         self.id = id
         self.week = week
         self.replacing = replacing
         self.weekday = weekday
         self.workout = workout
+        self.generated = generated
     }
 
     static let marker = "~plan-"
@@ -115,6 +118,15 @@ public struct PlanInsert: Codable, Hashable, Sendable, Identifiable {
     /// The workout as a plan session at `index`.
     public func session(index: Int, weekday: Int?) -> Session {
         var s = workout.session
+        if let g = generated {
+            s.blocks = g.blocks
+            s.focus = g.focus
+            s.estMin = g.estMin
+            s.targetMin = g.targetMin
+            for b in s.blocks.indices {
+                for i in s.blocks[b].items.indices { s.blocks[b].items[i].uid = s.id + "-" + s.blocks[b].items[i].uid }
+            }
+        }
         let base = s.id
         s.id = sessionId
         s.index = index
