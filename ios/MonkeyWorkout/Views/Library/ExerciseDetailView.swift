@@ -34,6 +34,14 @@ struct ExerciseDetailView: View {
                         Label(machine, systemImage: "gearshape.2.fill").font(.subheadline.weight(.semibold))
                     }
                     Text(e.category.blurb).font(.subheadline).foregroundStyle(Theme.muted)
+                    if let base = e.baseId.flatMap(Exercise.find) {
+                        NavigationLink { ExerciseDetailView(exerciseId: base.id) } label: {
+                            Label("Variation of \(base.name)", systemImage: "square.stack.3d.down.right.fill")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(Theme.lime)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 if let uid = plannedUid, model.canSwap(uid: uid) {
                     Button { swapping = true } label: {
@@ -49,6 +57,8 @@ struct ExerciseDetailView: View {
                     muscleRows
                 }
                 .card()
+
+                variationsSection
 
                 if plannedUid != nil && e.category == .strength && !e.equipment.isEmpty && e.unit != .sec {
                     weightLog
@@ -135,14 +145,31 @@ struct ExerciseDetailView: View {
         .card()
     }
 
+    /// The exercise's family (#174): its base and the other variations, each opening its own page.
+    @ViewBuilder
+    private var variationsSection: some View {
+        let family = custom == nil ? e.relatives : []
+        if !family.isEmpty {
+            GradientSection(symbol: "square.stack.3d.down.right.fill", title: e.baseId == nil ? "Variations" : "Same family",
+                            gradient: e.category.gradient) {
+                ForEach(family) { a in
+                    NavigationLink { ExerciseDetailView(exerciseId: a.id) } label: { alternativeRow(a) }
+                        .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
     /// Related moves; each opens its own page, pushed in this sheet (#129). Planned items swap from the Swap
     /// exercise button (#101).
     @ViewBuilder
     private var alternativesSection: some View {
         let alts = custom != nil || plannedUid.map { model.canSwap(uid: $0) } == true ? [] : (model.profile.map { e.alternatives(for: $0) } ?? [])
-        if !alts.isEmpty {
+        let family = Set(e.family.map(\.id))
+        let others = alts.filter { !family.contains($0.id) }
+        if !others.isEmpty {
             GradientSection(symbol: "square.grid.2x2.fill", title: "Similar exercises", gradient: e.category.gradient) {
-                ForEach(alts.prefix(8)) { a in
+                ForEach(others.prefix(8)) { a in
                     NavigationLink { ExerciseDetailView(exerciseId: a.id) } label: { alternativeRow(a) }
                         .buttonStyle(.plain)
                 }

@@ -1,7 +1,7 @@
 import SwiftUI
 import WorkoutEngine
 
-/// Swap a planned exercise (#101): best matches for the same muscles with the member's equipment, or any
+/// Swap a planned exercise (#101): variations of it (#174), best matches for the same muscles with the member's equipment, or any
 /// exercise from the full library (custom ones included). This session only, or kept for that day in future weeks.
 struct SwapExerciseSheet: View {
     let exerciseId: String
@@ -26,9 +26,15 @@ struct SwapExerciseSheet: View {
         session?.weekday.map(WeekSchedule.name) ?? "this day"
     }
 
+    /// Same exercise, another variation (#174): offered first, then the best matches.
+    private var variations: [Exercise] {
+        guard let profile = model.profile else { return [] }
+        return exercise.variationOptions(for: profile)
+    }
+
     private var options: [Exercise] {
         guard let profile = model.profile else { return [] }
-        return Array(exercise.swapOptions(for: profile).prefix(12))
+        return Array(exercise.swapOptions(for: profile, excluding: Set(variations.map(\.id))).prefix(12))
     }
 
     var body: some View {
@@ -67,6 +73,14 @@ struct SwapExerciseSheet: View {
                                 .card(padding: 0)
                         }
                         .buttonStyle(.plain)
+                    }
+                    if !variations.isEmpty {
+                        GradientSection(symbol: "square.stack.3d.down.right.fill", title: "Variations", gradient: exercise.category.gradient) {
+                            ForEach(variations) { e in
+                                Button { apply(e.id) } label: { OptionRow(exercise: e) }
+                                    .buttonStyle(.plain)
+                            }
+                        }
                     }
                     if !options.isEmpty {
                         GradientSection(symbol: "arrow.triangle.2.circlepath", title: "Best matches", gradient: exercise.category.gradient) {
