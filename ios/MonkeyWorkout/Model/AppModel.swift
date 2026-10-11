@@ -67,6 +67,7 @@ final class AppModel {
             state.prAttempts = Demo.prAttempts()
             MonkeyGradeLink.shared.loadDemo(ownerId: Demo.user?.id ?? "demo")
             state.synced?.profile.climbDayAddon = true
+            if Demo.screen == "explore-volume" { state.synced?.profile.method = .volume }
             Community.shared.loadDemo(joined: Demo.screen != "community-join")
             if ["paywall", "pro", "pro-offer", "pro-gate"].contains(Demo.screen) { ProStore.shared.loadDemo(pro: Demo.screen == "pro") }
             state.customExerciseList = [Demo.customExercise]
@@ -263,6 +264,27 @@ final class AppModel {
         return plan.sessions.flatMap { $0.blocks.filter { [BlockKind.power, .strength].contains($0.kind) }.flatMap(\.items) }
             .filter { Exercise.get($0.exerciseId).primary.contains(muscle) }
             .reduce(0) { $0 + $1.prescription.sets }
+    }
+
+    /// This week's hard-set target for `muscle` on a Volume-method plan (#156); nil when the method or muscle has none.
+    func volumeTarget(for muscle: Muscle) -> Int? {
+        guard let plan, let profile, profile.trainingMethod == .volume, VolumeTargets.tracked.contains(muscle) else { return nil }
+        return VolumeTargets.target(week: plan.week, experience: profile.experience)
+    }
+
+    /// Hard sets per muscle the way Volume targets count them (primary 1, secondary ½, strength blocks).
+    var weeklyHardSets: [Muscle: Double] { plan.map { VolumeTargets.sets($0.sessions) } ?? [:] }
+
+    /// Most recent finished workout that loaded each muscle.
+    var lastTrained: [Muscle: Date] {
+        var out: [Muscle: Date] = [:]
+        for r in state.history {
+            for (k, v) in r.muscleLoad where v > 0 {
+                guard let m = Muscle(rawValue: k) else { continue }
+                if r.startedAt > out[m] ?? .distantPast { out[m] = r.startedAt }
+            }
+        }
+        return out
     }
 
     func toggleDone(_ sessionId: String) {

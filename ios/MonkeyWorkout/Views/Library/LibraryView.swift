@@ -11,13 +11,20 @@ struct LibraryView: View {
     @Environment(AppModel.self) private var model
     @State private var mode: Mode
 
-    init(mode: Mode = .muscles) { _mode = State(initialValue: mode) }
+    /// Muscle group scrolled to on appear (CI screenshots of the muscle cards).
+    private let scrollTo: MuscleGroup?
+
+    init(mode: Mode = .muscles, scrollTo: MuscleGroup? = nil) {
+        _mode = State(initialValue: mode)
+        self.scrollTo = scrollTo
+    }
     /// Muscle tapped on the body map; pushes its page.
     @State private var tapped: Muscle?
 
     var body: some View {
         // Reading the model's list re-renders counts and lists when custom exercises change.
         let _ = model.customExercises.count
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 Picker("Browse", selection: $mode) {
@@ -32,6 +39,10 @@ struct LibraryView: View {
                 }
             }
             .padding(16)
+        }
+        .onAppear {
+            if let scrollTo { DispatchQueue.main.async { proxy.scrollTo(scrollTo, anchor: .top) } }
+        }
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
@@ -48,14 +59,24 @@ struct LibraryView: View {
             BodyMapCard(heat: model.weekHeat, sets: model.weeklyWorkingSets) { tapped = $0 }
             NewExerciseButton()
 
+            let heat = model.weekHeat, hard = model.weeklyHardSets, last = model.lastTrained, planned = model.plan != nil
             ForEach(MuscleGroup.allCases) { g in
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 10) {
                     Text(g.label).eyebrow()
                     ForEach(g.muscles) { m in
-                        NavigationLink(value: m) { MuscleRow(muscle: m, heat: model.weekHeat[m] ?? 0, sets: model.weeklySets(for: m)) }
-                            .buttonStyle(.plain)
+                        let target = model.volumeTarget(for: m)
+                        NavigationLink(value: m) {
+                            MuscleCard(
+                                muscle: m, heat: heat[m] ?? 0,
+                                sets: !planned ? nil : target != nil ? Int((hard[m] ?? 0).rounded()) : model.weeklySets(for: m),
+                                target: target,
+                                exercises: Exercise.working(m).reduce(0) { $0 + $1.1.count },
+                                last: last[m])
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
+                .id(g)
             }
         }
     }
@@ -142,22 +163,91 @@ private struct BodyMapCard: View {
     }
 }
 
-private struct MuscleRow: View {
+/// Explore muscle card: close-up of the muscle on the figure (lit in its load colour), exercise count and
+/// last trained, and this week's sets on the right, against the Volume target when the plan has one.
+private struct MuscleCard: View {
     let muscle: Muscle
     let heat: Double
-    let sets: Int
+    /// Nil without a plan.
+    let sets: Int?
+    let target: Int?
+    let exercises: Int
+    let last: Date?
 
     var body: some View {
-        HStack(spacing: 12) {
-            Circle().fill(heat > 0 ? Theme.heat(heat) : Color.white.opacity(0.15)).frame(width: 12, height: 12)
-            Text(muscle.name).font(.system(.body, design: .rounded).weight(.bold))
-            Spacer()
-            if sets > 0 {
-                Text("\(sets) sets / wk").font(Theme.label(12)).foregroundStyle(Theme.muted)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 14) {
+                MuscleThumbnail(muscle: muscle, heat: heat)
+                    .frame(width: 58, height: 58)
+                    .padding(3)
+                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.white.opacity(0.2)))
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(muscle.name).font(Theme.display(20)).lineLimit(2).minimumScaleFactor(0.7)
+                        .multilineTextAlignment(.leading)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 6) {
+                            chip("dumbbell.fill", exercises == 1 ? "1 exercise" : "\(exercises) exercises")
+                            if let last { chip("clock.fill", Self.ago(last)) }
+                        }
+                        HStack(spacing: 6) {
+                            chip("dumbbell.fill", "\(exercises)")
+                            if let last { chip("clock.fill", Self.ago(last)) }
+                        }
+                        chip("dumbbell.fill", "\(exercises)")
+                    }
+                }
+                .layoutPriority(1)
+                Spacer(minLength: 4)
+                if let sets {
+                    VStack(alignment: .trailing, spacing: 0) {
+                        HStack(alignment: .firstTextBaseline, spacing: 1) {
+                            Text("\(sets)").font(Theme.display(30)).monospacedDigit()
+                            if let target { Text("/\(target)").font(Theme.display(16)).opacity(0.75) }
+                        }
+                        Text("sets / wk").font(Theme.label(10)).opacity(0.85)
+                    }
+                    .lineLimit(1)
+                    .fixedSize()
+                    .opacity(sets == 0 ? 0.55 : 1)
+                }
             }
-            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.muted)
+            if let sets, let target, target > 0 {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.white.opacity(0.25))
+                        Capsule().fill(.white).frame(width: geo.size.width * min(1, CGFloat(sets) / CGFloat(target)))
+                    }
+                }
+                .frame(height: 6)
+            }
         }
-        .card(padding: 14)
+        .foregroundStyle(.white)
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(muscle.group.gradient))
+        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func chip(_ symbol: String, _ text: String) -> some View {
+        Label(text, systemImage: symbol)
+            .labelStyle(.titleAndIcon)
+            .font(Theme.label(11))
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(Capsule().fill(.white.opacity(0.22)))
+    }
+
+    static func ago(_ d: Date, now: Date = Date()) -> String {
+        let cal = Calendar.current
+        let days = cal.dateComponents([.day], from: cal.startOfDay(for: d), to: cal.startOfDay(for: now)).day ?? 0
+        switch days {
+        case ..<1: return "Today"
+        case 1: return "Yesterday"
+        case ..<14: return "\(days)d ago"
+        default: return "\(days / 7)w ago"
+        }
     }
 }
 

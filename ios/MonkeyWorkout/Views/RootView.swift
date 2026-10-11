@@ -110,6 +110,8 @@ private struct DemoScreen: View {
         case "example": NavigationStack { SessionView(sessionId: WorkoutTemplate.all[1].sessionId) }
         case "explore": NavigationStack { LibraryView() }
         case "explore-female": NavigationStack { LibraryView() }.environment(\.bodyFigure, .female)
+        case "explore-list": NavigationStack { LibraryView(scrollTo: .back) }
+        case "explore-volume": NavigationStack { LibraryView(scrollTo: .shoulders) }
         case "explore-workouts": NavigationStack { LibraryView(mode: .workouts) }
         case "monkeygrade": NavigationStack { MonkeyGradeView() }
         case "climb-settings": ClimbSettingsView()
