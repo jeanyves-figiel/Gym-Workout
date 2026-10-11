@@ -424,12 +424,13 @@ private struct SessionPreview: View {
                     NavigationLink {
                         SessionView(sessionId: session.id)
                     } label: {
-                        Label("Open session", systemImage: "list.bullet")
+                        Label(canMove ? "Open" : "Open session", systemImage: "list.bullet").lineLimit(1)
                     }
                     .buttonStyle(LimeButtonStyle())
                     if canMove {
                         Button(action: onMove) {
                             Label("Move to…", systemImage: "arrow.left.arrow.right")
+                                .lineLimit(1)
                                 .font(Theme.label(15)).foregroundStyle(.white)
                                 .frame(maxWidth: .infinity).frame(height: 56)
                                 .background(Capsule().fill(Color.white.opacity(0.15)))
