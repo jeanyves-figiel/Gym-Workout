@@ -9,6 +9,7 @@ struct SessionView: View {
     @State private var playing = false
     @State private var detail: ExerciseRef?
     @State private var muscle: Muscle?
+    @State private var swapping: ExerciseRef?
 
     private var session: Session? { model.session(sessionId) }
 
@@ -19,9 +20,11 @@ struct SessionView: View {
                     header(session)
                     FlowOverview(session: session)
                     ForEach(session.blocks) { block in
-                        BlockSection(block: block, sessionId: session.id) { item in
-                            // Example and custom workouts are fixed lists (custom ones are edited in the builder): no swap.
+                        BlockSection(block: block, sessionId: session.id, canSwap: { model.canSwap(uid: $0.uid) }) { item in
+                            // Example and custom workouts are fixed lists: no planned item behind them.
                             detail = ExerciseRef(exerciseId: item.exerciseId, uid: session.isStandalone ? nil : item.uid)
+                        } onSwap: { item in
+                            swapping = ExerciseRef(exerciseId: item.exerciseId, uid: item.uid)
                         }
                     }
                     finishButton(session)
@@ -52,6 +55,9 @@ struct SessionView: View {
             }
             .sheet(item: $muscle) { m in
                 NavigationStack { MuscleDetailView(muscle: m) }
+            }
+            .sheet(item: $swapping) { ref in
+                if let uid = ref.uid { SwapExerciseSheet(exerciseId: ref.exerciseId, uid: uid) }
             }
         } else {
             ContentUnavailableView("Session not found", systemImage: "questionmark")
@@ -145,7 +151,9 @@ private struct FlowOverview: View {
 private struct BlockSection: View {
     let block: Block
     let sessionId: String
+    let canSwap: (PlannedExercise) -> Bool
     let onOpen: (PlannedExercise) -> Void
+    let onSwap: (PlannedExercise) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -156,17 +164,20 @@ private struct BlockSection: View {
             }
             if let note = block.note { Text(note).font(.footnote).foregroundStyle(Theme.muted) }
             ForEach(block.items) { item in
-                ExerciseCard(item: item, block: block, sessionId: sessionId) { onOpen(item) }
+                ExerciseCard(item: item, block: block, sessionId: sessionId,
+                             onOpen: { onOpen(item) }, onSwap: canSwap(item) ? { onSwap(item) } : nil)
             }
         }
     }
 }
 
+/// One planned exercise. The whole card opens the exercise page (#101); Swap and the long-press menu replace it.
 struct ExerciseCard: View {
     let item: PlannedExercise
     let block: Block
     let sessionId: String
     let onOpen: () -> Void
+    var onSwap: (() -> Void)? = nil
     @Environment(AppModel.self) private var model
 
     private var exercise: Exercise { Exercise.get(item.exerciseId) }
@@ -180,39 +191,52 @@ struct ExerciseCard: View {
                 .foregroundStyle(ticked ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Color.white.opacity(0.15)))
                 .accessibilityLabel(ticked ? "Done" : "Not done yet")
 
-            ExerciseThumbnail(exercise: exercise, size: 52).onTapGesture(perform: onOpen)
+            ExerciseThumbnail(exercise: exercise, size: 52)
 
             VStack(alignment: .leading, spacing: 8) {
-                Button(action: onOpen) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(alignment: .firstTextBaseline) {
-                            if let group = item.group {
-                                // Superset / circuit label (#78): same letter = back to back.
-                                Text(group)
-                                    .font(Theme.label(11))
-                                    .foregroundStyle(Theme.ink)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(RoundedRectangle(cornerRadius: 6).fill(Theme.lime))
-                                    .accessibilityLabel("Group \(group)")
-                            }
-                            Text(exercise.name)
-                                .font(.system(.headline, design: .rounded).weight(.heavy))
-                                .strikethrough(ticked)
-                                .multilineTextAlignment(.leading)
-                            Spacer(minLength: 4)
-                            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.muted)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline) {
+                        if let group = item.group {
+                            // Superset / circuit label (#78): same letter = back to back.
+                            Text(group)
+                                .font(Theme.label(11))
+                                .foregroundStyle(Theme.ink)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(RoundedRectangle(cornerRadius: 6).fill(Theme.lime))
+                                .accessibilityLabel("Group \(group)")
                         }
-                        Text(Format.prescription(item.prescription)).font(.subheadline.weight(.semibold)).foregroundStyle(block.kind.category.color)
-                        let meta = [item.prescription.intensity, item.prescription.note].compactMap { $0 }
-                        if !meta.isEmpty {
-                            Text(meta.joined(separator: " · ")).font(.caption).foregroundStyle(Theme.muted).multilineTextAlignment(.leading)
-                        }
+                        Text(exercise.name)
+                            .font(.system(.headline, design: .rounded).weight(.heavy))
+                            .strikethrough(ticked)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 4)
+                        Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.muted)
+                    }
+                    Text(Format.prescription(item.prescription)).font(.subheadline.weight(.semibold)).foregroundStyle(block.kind.category.color)
+                    let meta = [item.prescription.intensity, item.prescription.note].compactMap { $0 }
+                    if !meta.isEmpty {
+                        Text(meta.joined(separator: " · ")).font(.caption).foregroundStyle(Theme.muted).multilineTextAlignment(.leading)
                     }
                 }
-                .buttonStyle(.plain)
                 MuscleChips(primary: exercise.primary, secondary: exercise.secondary)
-                EquipmentLine(equipment: exercise.equipment)
+                HStack(alignment: .center) {
+                    EquipmentLine(equipment: exercise.equipment)
+                    Spacer(minLength: 8)
+                    if let onSwap {
+                        // A real button inside the tappable card: it wins over the card's tap.
+                        Button(action: onSwap) {
+                            Label("Swap", systemImage: "arrow.triangle.2.circlepath")
+                                .font(Theme.label(13))
+                                .foregroundStyle(Theme.ink)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 7)
+                                .background(Capsule().fill(Theme.lime))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Swap \(exercise.name)")
+                    }
+                }
                 if let paired = item.pairedWith.flatMap(Exercise.find) {
                     Label("During rest: \(paired.name)", systemImage: "figure.flexibility")
                         .font(.caption.weight(.semibold))
@@ -228,5 +252,19 @@ struct ExerciseCard: View {
             }
         }
         .card(padding: 14)
+        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .onTapGesture(perform: onOpen)
+        .contextMenu {
+            Button(action: onOpen) { Label("Exercise details", systemImage: "info.circle") }
+            if let onSwap {
+                Button(action: onSwap) { Label("Swap exercise", systemImage: "arrow.triangle.2.circlepath") }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: "Exercise details", onOpen)
+        .accessibilityActions {
+            if let onSwap { Button("Swap exercise", action: onSwap) }
+        }
     }
 }
