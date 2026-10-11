@@ -18,45 +18,30 @@ struct ReadinessCard: View {
         }
     }
 
+    /// One compact row: verdict, key markers, info. Advice and details live in the sheet.
     private func content(_ r: Readiness, _ reasons: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 14) {
-                IconTile(symbol: r.symbol, size: 48)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Readiness").font(Theme.label(11)).tracking(1.4).textCase(.uppercase).opacity(0.7)
-                    Text(r.title).font(Theme.display(26))
-                }
-                Spacer()
-                Image(systemName: "info.circle.fill").font(.title3).opacity(0.7)
+        HStack(spacing: 12) {
+            IconTile(symbol: r.symbol, size: 38)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Readiness").font(Theme.label(10)).tracking(1.2).textCase(.uppercase).opacity(0.7)
+                Text(r.title).font(Theme.display(18)).lineLimit(1).minimumScaleFactor(0.8)
+                Text(markers).font(.caption.weight(.semibold)).monospacedDigit().opacity(0.8).lineLimit(1).minimumScaleFactor(0.8)
             }
-            Text(reasons.isEmpty ? r.advice : reasons.joined(separator: " · ") + ". " + r.advice)
-                .font(.footnote.weight(.semibold))
-                .opacity(0.8)
-            HStack(alignment: .top, spacing: 8) {
-                if let s = snapshot.sleepHours { metric(String(format: "%.1f h", s), "Sleep", nil) }
-                if let h = snapshot.hrv { metric("\(Int(h)) ms", "HRV", snapshot.hrvBaseline.map { "avg \(Int($0))" }) }
-                if let r = snapshot.restingHR { metric("\(Int(r)) bpm", "Rest HR", snapshot.restingHRBaseline.map { "avg \(Int($0))" }) }
-                if let v = snapshot.vo2Max { metric(String(format: "%.0f", v), "VO₂max", "fitness") }
-            }
-            Label("From Apple Health · tap for what this means", systemImage: "heart.fill")
-                .font(.caption2.weight(.bold))
-                .opacity(0.75)
+            Spacer(minLength: 4)
+            Image(systemName: "info.circle.fill").font(.body).opacity(0.7)
         }
         .foregroundStyle(Theme.ink)
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 24, style: .continuous)
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
             .fill(LinearGradient(colors: r.colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
     }
 
-    private func metric(_ value: String, _ label: String, _ sub: String?) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value).font(Theme.display(18)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
-            Text(label.uppercased()).font(Theme.label(10)).tracking(1).opacity(0.7)
-            if let sub { Text(sub).font(.caption2.weight(.semibold)).opacity(0.7) }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.3)))
+    private var markers: String {
+        [
+            snapshot.hrv.map { "HRV \(Int($0)) ms" },
+            snapshot.restingHR.map { "RHR \(Int($0))" },
+            snapshot.sleepHours.map { String(format: "Sleep %.1f h", $0) },
+        ].compactMap { $0 }.joined(separator: " · ")
     }
 }
 

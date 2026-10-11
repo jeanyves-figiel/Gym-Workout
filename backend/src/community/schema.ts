@@ -14,6 +14,15 @@ export const ensureCommunitySchema = (db: DB): void => {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    -- Account profile (#108) of users who have not joined the community. Members keep it in community_profiles;
+    -- joining moves it there, leaving moves it back, so nickname, photo and about are set once for both screens.
+    CREATE TABLE IF NOT EXISTS user_profiles (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      nickname TEXT UNIQUE COLLATE NOCASE,
+      bio TEXT,
+      avatar_id TEXT,
+      updated_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS community_avatars (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
