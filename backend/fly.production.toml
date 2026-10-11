@@ -13,6 +13,12 @@ primary_region = 'fra'
   #   add as GitHub repo secrets, then run the "Fly setup" workflow (.github/workflows/fly-setup.yml).
   APPLE_TEAM_ID = 'U7VAR53G86'
   APPLE_CLIENT_ID = 'Com.app.MonkeyWorkout'
+  # Legal + support pages /privacy /terms /support (#125).
+  LEGAL_OPERATOR = 'MonkeyWorkout by Figiel'
+  LEGAL_ADDRESS = 'Schulstrasse 31, 8952 Schlieren, Switzerland'
+  LEGAL_EMAIL = 'contact@monkeygrade.cloud'
+  LEGAL_LAW = 'Switzerland'
+  LEGAL_VENUE = 'Zurich, Switzerland'
 
 # SQLite lives on this volume → exactly one machine.
 [mounts]
