@@ -14,6 +14,7 @@ struct AccountView: View {
     @State private var signOutAllTask = FormTask()
     @State private var deviceCount: Int?
     @State private var gate: ProGate?
+    @State private var webPage: WebPage?
 
     var body: some View {
         ScrollView {
@@ -145,6 +146,14 @@ struct AccountView: View {
                 }
                 ErrorText(message: exportTask.error)
 
+                section("Legal & support")
+                legalCard(symbol: "hand.raised.fill", title: "Privacy policy",
+                          subtitle: "What's stored, why, your rights", url: AppConfig.privacyURL, gradient: AccountTint.privacy)
+                legalCard(symbol: "doc.text.fill", title: "Terms of use",
+                          subtitle: "EULA, subscriptions, community rules", url: AppConfig.termsURL, gradient: AccountTint.terms)
+                legalCard(symbol: "questionmark.bubble.fill", title: "Support",
+                          subtitle: "Contact and common questions", url: AppConfig.supportURL, gradient: AccountTint.support)
+
                 section("Session")
                 HStack(spacing: 10) {
                     AccountPillButton(title: "Sign out") { Task { await model.signOut() } }
@@ -177,6 +186,7 @@ struct AccountView: View {
         .onChange(of: model.user?.name) { _, new in name = new ?? "" }
         .task { deviceCount = try? await model.api.sessions().count }
         .proPaywall($gate)
+        .sheet(item: $webPage) { SafariView(url: $0.url).ignoresSafeArea() }
         .confirmationDialog("Sign out everywhere?", isPresented: $confirmSignOutAll, titleVisibility: .visible) {
             Button("Sign out all devices", role: .destructive) {
                 signOutAllTask.run { try await model.signOutEverywhere() }
@@ -184,6 +194,16 @@ struct AccountView: View {
         } message: {
             Text("Every device, including this one, will need to sign in again.")
         }
+    }
+
+    private func legalCard(symbol: String, title: String, subtitle: String, url: URL, gradient: LinearGradient) -> some View {
+        Button { webPage = WebPage(url: url) } label: {
+            AccountCard(symbol: symbol, title: title, subtitle: subtitle, gradient: gradient) {
+                Image(systemName: "arrow.up.right").font(.footnote.weight(.heavy)).opacity(0.8)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens \(title.lowercased())")
     }
 
     private func section(_ title: String) -> some View {

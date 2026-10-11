@@ -22,6 +22,10 @@ Optional env:
 | `HIBP_CHECK` | on (off when `NODE_ENV=test`) | `0` disables the breached-password check |
 | `PURGE_INTERVAL_MIN` | `60` | purge of expired codes / refresh tokens (also runs at startup; `0` = startup only) |
 | `MODERATION_EMAIL` | – | receives community reports (unset → stored only) |
+| `LEGAL_OPERATOR` / `LEGAL_ADDRESS` | – | operator name and postal address on `/privacy`, `/terms`, `/support` (unset → visible placeholder) |
+| `LEGAL_EMAIL` | `MODERATION_EMAIL` | contact email on the legal and support pages |
+| `LEGAL_LAW` | `Switzerland` | governing law in the Terms of Use |
+| `LEGAL_VENUE` | – | place of jurisdiction in the Terms of Use |
 
 Without the three `APPLE_*` key settings the Apple code exchange and token revocation are skipped (logged once).
 With them: `/auth/apple` exchanges `authorizationCode` at `appleid.apple.com/auth/token` (ES256 client-secret JWT, 5 min)

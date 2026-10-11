@@ -54,7 +54,7 @@ let clock: Date;
 let db: DB;
 
 const start = (env: Record<string, string> = {}) => {
-  clock = new Date('2026-10-11T10:00:00Z');
+  clock = new Date(Math.floor(Date.now() / 1000) * 1000 + 60_000); // after the test chain's notBefore
   mailer = new ConsoleMailer(() => {});
   db = openDb(':memory:');
   app = buildApp({

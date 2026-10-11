@@ -29,6 +29,8 @@ export interface Config {
   apns: { teamId?: string; keyId?: string; privateKey?: string };
   /** In-app subscriptions (#126). SUBSCRIPTIONS=off|preview|enforced (default off: nothing shown or locked). */
   subscriptions: { mode: 'off' | 'preview' | 'enforced'; productIds: string[] };
+  /** Who runs the app, shown on /privacy, /terms and /support (#125). Unset → placeholder text the owner must fill. */
+  legal: { operator?: string; address?: string; email?: string; law: string; venue?: string };
 }
 
 const required = (name: string, env: NodeJS.ProcessEnv, prod: boolean, dev: string): string => {
@@ -94,6 +96,13 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean),
+    },
+    legal: {
+      operator: env.LEGAL_OPERATOR || undefined,
+      address: env.LEGAL_ADDRESS || undefined,
+      email: env.LEGAL_EMAIL || env.MODERATION_EMAIL || undefined,
+      law: env.LEGAL_LAW || 'Switzerland',
+      venue: env.LEGAL_VENUE || undefined,
     },
   };
 };

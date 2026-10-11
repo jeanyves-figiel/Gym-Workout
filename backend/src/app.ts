@@ -24,6 +24,7 @@ import { libraryRoutes } from './routes/library.ts';
 import { appStoreNotificationRoutes, subscriptionRoutes } from './routes/subscriptions.ts';
 import { type AppStoreDecoder, createAppStoreDecoder } from './subscriptions/appStore.ts';
 import { SubscriptionService } from './subscriptions/service.ts';
+import { legalRoutes } from './routes/legal.ts';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -111,6 +112,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
 
   communityPublicRoutes(app, deps.db, deps.config.appName);
   appStoreNotificationRoutes(app, subscriptions);
+  legalRoutes(app, deps.config);
 
   const authenticate = async (req: FastifyRequest) => {
     const h = req.headers.authorization;

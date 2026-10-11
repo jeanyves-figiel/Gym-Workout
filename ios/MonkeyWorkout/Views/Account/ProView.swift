@@ -401,8 +401,8 @@ struct ProView: View {
             Text("Subscriptions: payment is charged to your Apple ID when you confirm (after the free week, if you're eligible) and renews automatically at the same price unless you cancel at least 24 hours before the end of the period. Manage or cancel in Settings → Apple ID → Subscriptions. Lifetime is a one-time purchase.")
                 .font(.caption).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
             HStack(spacing: 18) {
-                Link("Terms of Use", destination: AppConfig.apiBaseURL.appendingPathComponent("terms"))
-                Link("Privacy Policy", destination: AppConfig.apiBaseURL.appendingPathComponent("privacy"))
+                Link("Terms of Use", destination: AppConfig.termsURL)
+                Link("Privacy Policy", destination: AppConfig.privacyURL)
             }
             .font(.caption.weight(.bold)).tint(Theme.lime)
         }
