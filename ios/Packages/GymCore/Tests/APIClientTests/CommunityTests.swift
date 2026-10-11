@@ -47,6 +47,24 @@ private let postJSON = #"""
         _ = try await api.react("p1", .strong, on: true)
     }
 
+    @Test func searchesMembersAndListsFollowing() async throws {
+        let row = #"{"userId":"u2","nickname":"bench_bea","bio":null,"avatarUrl":null,"sharedPosts":3,"followers":5,"followedByMe":true}"#
+        StubProtocol.register("members.test") { req, _ in
+            switch (req.httpMethod!, req.url!.path) {
+            case ("GET", "/v1/community/members"):
+                guard req.url!.query?.contains("q=bench_bea") == true else { return (400, "{}") }
+                return (200, #"{"members":[\#(row)]}"#)
+            case ("GET", "/v1/community/follows"):
+                return (200, #"{"following":[\#(row)]}"#)
+            default: return (404, #"{"error":"not_found","message":"x"}"#)
+            }
+        }
+        let api = client("members.test")
+        let found = try await api.searchMembers(" bench_bea ")
+        #expect(found == [CommunityMemberSummary(userId: "u2", nickname: "bench_bea", sharedPosts: 3, followers: 5, followedByMe: true)])
+        #expect(try await api.followingMembers().first?.author.nickname == "bench_bea")
+    }
+
     @Test func uploadsAvatarAsJPEG() async throws {
         StubProtocol.register("avatar.test") { req, body in
             guard req.value(forHTTPHeaderField: "Content-Type") == "image/jpeg", body == Data([0xFF, 0xD8, 0xFF, 0xD9]) else { return (400, "{}") }

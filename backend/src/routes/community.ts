@@ -6,6 +6,7 @@ import {
   assertClean as checkClean,
   AUTO_HIDE_REPORTS,
   isBlockedBetween,
+  memberNotHiddenSql,
   reportContent,
   REPORT_REASONS,
   type Visibility,
@@ -182,6 +183,20 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     createdAt: p.created_at,
     ...stats(p.user_id),
   });
+
+  /** Row in Find members and Following lists (#152). */
+  const memberSummary = (p: ProfileRow, viewer: string) => {
+    const s = stats(p.user_id);
+    return {
+      userId: p.user_id,
+      nickname: p.nickname,
+      bio: p.bio,
+      avatarUrl: avatarUrl(p.avatar_id),
+      sharedPosts: s.sharedPosts,
+      followers: s.followers,
+      followedByMe: !!db.prepare('SELECT 1 FROM community_follows WHERE follower_id = ? AND followed_id = ?').get(viewer, p.user_id),
+    };
+  };
 
   const SELECT_POSTS = `SELECT p.*, cp.nickname, cp.avatar_id FROM community_posts p LEFT JOIN community_profiles cp ON cp.user_id = p.user_id`;
   /** Posts `viewer` may see that are not their own. */
@@ -445,6 +460,40 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
 
   // ───────────── members
 
+  /**
+   * Find members (#152): nickname search, or suggestions (most followed, then most shared) when `q` is empty.
+   * Never yourself, anyone blocked either way, or a member hidden by reports.
+   */
+  r.get('/community/members', async (req) => {
+    const p = z.object({ q: z.string().trim().max(20).default(''), limit: z.coerce.number().int().min(1).max(50).default(25) }).parse(req.query);
+    const viewer = req.userId!;
+    requireProfile(viewer);
+    const q = p.q.replace(/[^A-Za-z0-9_.]/g, '');
+    const like = q.replace(/_/g, '\\_');
+    const base = `FROM community_profiles cp
+      WHERE cp.user_id != ? AND ${memberNotHiddenSql('cp.user_id')}
+        AND NOT EXISTS (SELECT 1 FROM community_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = cp.user_id) OR (b.blocker_id = cp.user_id AND b.blocked_id = ?))`;
+    const rows = (
+      q
+        ? db
+            .prepare(
+              `SELECT cp.* ${base} AND cp.nickname LIKE ? ESCAPE '\\'
+               ORDER BY (cp.nickname LIKE ? ESCAPE '\\') DESC, length(cp.nickname), cp.nickname LIMIT ?`,
+            )
+            .all(viewer, viewer, viewer, `%${like}%`, `${like}%`, p.limit)
+        : db
+            .prepare(
+              `SELECT cp.* ${base}
+                 AND NOT EXISTS (SELECT 1 FROM community_follows f WHERE f.follower_id = ? AND f.followed_id = cp.user_id)
+               ORDER BY (SELECT COUNT(*) FROM community_follows f WHERE f.followed_id = cp.user_id) DESC,
+                 (SELECT COUNT(*) FROM community_posts x WHERE x.user_id = cp.user_id AND x.hidden_at IS NULL AND x.visibility != 'private') DESC,
+                 cp.created_at DESC LIMIT ?`,
+            )
+            .all(viewer, viewer, viewer, viewer, p.limit)
+    ) as unknown as ProfileRow[];
+    return { members: rows.map((m) => memberSummary(m, viewer)) };
+  });
+
   r.get('/community/members/:userId', async (req) => {
     const { userId } = z.object({ userId: z.string().min(1).max(64) }).parse(req.params);
     const viewer = req.userId!;
@@ -464,16 +513,14 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
   // ───────────── follows
 
   r.get('/community/follows', async (req) => ({
-    following: db
-      .prepare(
-        `SELECT f.followed_id AS userId, cp.nickname, cp.avatar_id FROM community_follows f
-         JOIN community_profiles cp ON cp.user_id = f.followed_id WHERE f.follower_id = ? ORDER BY cp.nickname`,
-      )
-      .all(req.userId!)
-      .map((x) => {
-        const r = x as { userId: string; nickname: string; avatar_id: string | null };
-        return { userId: r.userId, nickname: r.nickname, avatarUrl: avatarUrl(r.avatar_id) };
-      }),
+    following: (
+      db
+        .prepare(
+          `SELECT cp.* FROM community_follows f JOIN community_profiles cp ON cp.user_id = f.followed_id
+           WHERE f.follower_id = ? ORDER BY cp.nickname`,
+        )
+        .all(req.userId!) as unknown as ProfileRow[]
+    ).map((p) => memberSummary(p, req.userId!)),
   }));
 
   r.put('/community/follows/:userId', async (req, reply) => {

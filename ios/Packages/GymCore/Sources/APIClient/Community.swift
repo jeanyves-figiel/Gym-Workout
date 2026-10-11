@@ -209,12 +209,37 @@ public struct BlockedMember: Decodable, Sendable, Identifiable, Equatable {
     public var id: String { userId }
 }
 
+/// Row in Find members and the Following list (#152).
+public struct CommunityMemberSummary: Decodable, Sendable, Identifiable, Equatable, Hashable {
+    public var userId: String
+    public var nickname: String
+    public var bio: String?
+    public var avatarUrl: String?
+    public var sharedPosts: Int
+    public var followers: Int
+    public var followedByMe: Bool
+    public var id: String { userId }
+    public var author: CommunityAuthor { CommunityAuthor(userId: userId, nickname: nickname, avatarUrl: avatarUrl) }
+
+    public init(userId: String, nickname: String, bio: String? = nil, avatarUrl: String? = nil, sharedPosts: Int = 0, followers: Int = 0, followedByMe: Bool = false) {
+        self.userId = userId
+        self.nickname = nickname
+        self.bio = bio
+        self.avatarUrl = avatarUrl
+        self.sharedPosts = sharedPosts
+        self.followers = followers
+        self.followedByMe = followedByMe
+    }
+}
+
 public enum CommunityFeedScope: String, Sendable, CaseIterable { case members, following, mine }
 
 extension APIClient {
     struct CommunityProfileResponse: Decodable { var profile: CommunityProfile? }
     struct CommunityPostResponse: Decodable { var post: CommunityPost }
     struct BlockedResponse: Decodable { var blocked: [BlockedMember] }
+    struct MembersResponse: Decodable { var members: [CommunityMemberSummary] }
+    struct FollowingResponse: Decodable { var following: [CommunityMemberSummary] }
 
     /// Absolute URL for a server-relative path such as an avatar.
     public nonisolated func resolve(_ path: String?) -> URL? {
@@ -326,6 +351,17 @@ extension APIClient {
 
     public func communityMember(_ userId: String) async throws -> CommunityMemberPage {
         try await authorized("GET", "/v1/community/members/\(userId)", Empty?.none, as: CommunityMemberPage.self)
+    }
+
+    /// Members whose nickname contains `query` (prefix matches first); suggestions when empty (#152).
+    public func searchMembers(_ query: String, limit: Int = 25) async throws -> [CommunityMemberSummary] {
+        let q = query.trimmingCharacters(in: .whitespaces).addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "_."))) ?? ""
+        return try await authorized("GET", "/v1/community/members?q=\(q)&limit=\(limit)", Empty?.none, as: MembersResponse.self).members
+    }
+
+    /// Members you follow, by nickname.
+    public func followingMembers() async throws -> [CommunityMemberSummary] {
+        try await authorized("GET", "/v1/community/follows", Empty?.none, as: FollowingResponse.self).following
     }
 
     public func report(postId: String?, userId: String?, reason: CommunityReportReason, details: String?) async throws {

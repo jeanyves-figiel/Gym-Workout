@@ -1,3 +1,4 @@
+import APIClient
 import SwiftUI
 import WorkoutEngine
 
@@ -125,6 +126,8 @@ private struct DemoScreen: View {
         case "community", "community-join": NavigationStack { CommunityView() }
         case "community-share": ShareWinView()
         case "community-profile": NavigationStack { CommunityProfileView() }
+        case "community-members":
+            NavigationStack { FindMembersView().navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) } }
         case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", Demo.customExercise.exerciseId]) { _ in }
         case "builder": CustomExerciseBuilderView(existing: Demo.customExercise)
         case "generate":

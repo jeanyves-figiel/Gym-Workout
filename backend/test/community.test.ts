@@ -195,6 +195,41 @@ describe('community feed', () => {
     expect(followerIds(db, a.id)).toEqual([]);
   });
 
+  it('finds members by nickname, suggests, lists follows; skips self, blocks and reported members (#152)', async () => {
+    const a = await join('a@example.com', 'bea', { defaultVisibility: 'members' });
+    const b = await join('b@example.com', 'monkey_jy');
+    const c = await join('c@example.com', 'crimpy');
+    const d = await join('d@example.com', 'beast_mode');
+    const e = await join('e@example.com', 'bxeast');
+    await signUp('x@example.com'); // not a member: never listed
+    const nicks = (r: { json(): { members: { nickname: string }[] } }) => r.json().members.map((m) => m.nickname);
+
+    // Prefix matches first, then shortest; case-insensitive, never yourself; "_" is literal, not a wildcard.
+    expect(nicks(await req('GET', '/v1/community/members?q=BE', b.t))).toEqual(['bea', 'beast_mode']);
+    expect(nicks(await req('GET', '/v1/community/members?q=ea', b.t))).toEqual(['bea', 'bxeast', 'beast_mode']);
+    expect(nicks(await req('GET', '/v1/community/members?q=t_m', b.t))).toEqual(['beast_mode']);
+    expect(nicks(await req('GET', '/v1/community/members?q=monkey', b.t))).toEqual([]);
+    expect(nicks(await req('GET', '/v1/community/members?q=%25', b.t))).toHaveLength(4);
+    expect((await req('GET', '/v1/community/members?q=bea', (await signUp('y@example.com')).t)).statusCode).toBe(403);
+
+    // Suggestions: not followed yet, most followed first.
+    await req('PUT', `/v1/community/follows/${c.id}`, a.t);
+    await share(a.t);
+    const sug = (await req('GET', '/v1/community/members', b.t)).json().members;
+    expect(sug.map((m: { nickname: string }) => m.nickname).slice(0, 2)).toEqual(['crimpy', 'bea']);
+    expect(sug[0]).toMatchObject({ userId: c.id, followers: 1, followedByMe: false });
+    await req('PUT', `/v1/community/follows/${c.id}`, b.t);
+    expect(nicks(await req('GET', '/v1/community/members', b.t))).not.toContain('crimpy');
+    expect((await req('GET', '/v1/community/members?q=crim', b.t)).json().members[0].followedByMe).toBe(true);
+    expect((await req('GET', '/v1/community/follows', b.t)).json().following[0]).toMatchObject({ nickname: 'crimpy', followers: 2, followedByMe: true });
+
+    // Block either way hides them; 3 open member reports hide them.
+    await req('POST', '/v1/community/blocks', d.t, { userId: b.id });
+    expect(nicks(await req('GET', '/v1/community/members?q=be', b.t))).toEqual(['bea']);
+    for (const r of [b, c, d]) await req('POST', '/v1/community/reports', r.t, { userId: e.id, reason: 'spam' });
+    expect(nicks(await req('GET', '/v1/community/members?q=bx', a.t))).toEqual([]);
+  });
+
   it('dedupes by refId, filters captions and paginates', async () => {
     const a = await join('a@example.com', 'bea');
     const first = (await share(a.t, { refId: 'w1', caption: 'v1' })).json().post;
