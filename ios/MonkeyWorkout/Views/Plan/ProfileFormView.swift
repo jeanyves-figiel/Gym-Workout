@@ -600,11 +600,23 @@ private struct DayTiles: View {
 private struct GymPicker: View {
     @Binding var profile: Profile
     @Binding var showEquipment: Bool
+    @Environment(AppModel.self) private var model
     @State private var query = ""
     @State private var results: [GymRef] = []
     @State private var searching = false
     /// Map of gyms around you (#165), same finder as for trips.
     @State private var findingNearby = false
+    @State private var nearbyPick: GymRef?
+    /// New gym setup (#162): a searched place, or `custom` for one without a map place.
+    @State private var settingUp: SetupTarget?
+
+    struct SetupTarget: Identifiable {
+        let ref: GymRef?
+        var id: String { ref?.id ?? "custom" }
+    }
+
+    /// Saved gyms other than the selected one (#162).
+    private var otherSaved: [SavedGym] { model.savedGyms.filter { $0.id != selectedId } }
 
     private var selectedId: String { profile.gym?.id ?? Gym.puls5.id }
 
@@ -619,6 +631,30 @@ private struct GymPicker: View {
                     .font(Theme.label(14)).foregroundStyle(Theme.ink)
                     .frame(maxWidth: .infinity).padding(.vertical, 12)
                     .background(Capsule().fill(Theme.lime))
+            }
+            .buttonStyle(.plain)
+
+            if !otherSaved.isEmpty {
+                Text("Your other gyms").font(Theme.label(12)).tracking(1).foregroundStyle(Theme.muted).padding(.top, 4)
+                ForEach(otherSaved) { g in SavedGymRow(gym: g) { use(g) } }
+            }
+
+            Button { settingUp = SetupTarget(ref: nil) } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "rectangle.stack.badge.plus")
+                        .font(.system(size: 18, weight: .bold))
+                        .frame(width: 42, height: 42)
+                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.lime.opacity(0.18)))
+                        .foregroundStyle(Theme.lime)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Set up a gym in a few swipes").font(.system(size: 15, weight: .bold, design: .rounded))
+                        Text("Home, hotel, or a gym that isn't on the map").font(.caption).foregroundStyle(Theme.muted)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.footnote.bold()).foregroundStyle(Theme.muted)
+                }
+                .foregroundStyle(.white)
+                .card(padding: 12)
             }
             .buttonStyle(.plain)
 
@@ -653,7 +689,7 @@ private struct GymPicker: View {
 
             Button { showEquipment = true } label: {
                 HStack {
-                    Image(systemName: "dumbbell.fill").foregroundStyle(Theme.lime)
+                    Image(systemName: "photo.on.rectangle.angled").foregroundStyle(Theme.lime)
                     Text("Equipment").bold()
                     Spacer()
                     Text("\(profile.equipment.count) items").foregroundStyle(Theme.lime).bold()
@@ -666,8 +702,18 @@ private struct GymPicker: View {
 
             Text(note).font(.footnote).foregroundStyle(Theme.muted)
         }
-        .sheet(isPresented: $findingNearby) {
-            GymFinderView { ref in select(ref) }
+        .sheet(isPresented: $findingNearby, onDismiss: {
+            // After the map closes, so an unknown gym's setup sheet can open.
+            if let ref = nearbyPick { nearbyPick = nil; select(ref) }
+        }) {
+            GymFinderView { ref in nearbyPick = ref }
+        }
+        .sheet(item: $settingUp) { t in
+            GymSetupView(ref: t.ref, actionTitle: "USE THIS GYM") { g in
+                model.saveGym(g)
+                profile.gym = g.ref
+                profile.equipment = g.equipment
+            }
         }
         .task(id: query) {
             let q = query.trimmingCharacters(in: .whitespaces)
@@ -723,15 +769,20 @@ private struct GymPicker: View {
     }
 
     private func select(_ g: GymRef) {
+        query = ""
+        if let saved = model.savedGyms.first(where: { $0.id == g.id }) { return use(saved) }
         if let gym = g.scoped {
             profile.gym = gym.ref
             profile.equipment = gym.equipment
-        } else {
-            // Unknown inventory: start from a full commercial gym; the user unticks what's missing.
-            if profile.gym?.id != g.id { profile.equipment = Equipment.allCases }
-            profile.gym = g
+        } else if profile.gym?.id != g.id {
+            // Unknown inventory (#162): what members found there, or a few swipes.
+            settingUp = SetupTarget(ref: g)
         }
-        query = ""
+    }
+
+    private func use(_ g: SavedGym) {
+        profile.gym = g.ref
+        profile.equipment = g.equipment
     }
 }
 
@@ -797,34 +848,36 @@ enum GymSearch {
     }
 }
 
-struct EquipmentSheet: View {
-    @Binding var equipment: [Equipment]
-    @Environment(\.dismiss) private var dismiss
-
-    init(equipment: Binding<[Equipment]>) {
-        _equipment = equipment
-    }
+/// A saved gym (#162): tap to switch to it with its own equipment.
+struct SavedGymRow: View {
+    let gym: SavedGym
+    var selected = false
+    let action: () -> Void
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    ForEach(Equipment.allCases) { e in
-                        Toggle(e.label, isOn: Binding(
-                            get: { equipment.contains(e) },
-                            set: { on in
-                                if on { equipment.append(e) } else { equipment.removeAll { $0 == e } }
-                            }))
-                    }
-                } footer: {
-                    Text("Untick anything your gym doesn't have.")
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: gym.kind?.symbol ?? (gym.isPlace ? "mappin.and.ellipse" : "house.fill"))
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 42, height: 42)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill((gym.kind?.category ?? .strength).gradient))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(gym.ref.name).font(.system(size: 15, weight: .bold, design: .rounded)).lineLimit(1)
+                    Text([gym.kind?.label, gym.ref.address.isEmpty ? nil : gym.ref.address].compactMap { $0 }.joined(separator: " · "))
+                        .font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
+                }
+                Spacer()
+                Text("\(gym.equipment.count)").font(Theme.display(18)).foregroundStyle(Theme.lime)
+                if selected {
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 22)).foregroundStyle(Theme.ink, Theme.lime)
                 }
             }
-            .themedForm()
-            .navigationTitle("Equipment")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
         }
-        .preferredColorScheme(.dark)
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(gym.ref.name), \(gym.equipment.count) items")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

@@ -16,11 +16,11 @@ public enum GymZone: String, Sendable, CaseIterable {
 extension Equipment {
     public var zone: GymZone {
         switch self {
-        case .barbell, .trapBar, .rack, .bench, .dumbbells, .smith, .landmine: .freeWeights
+        case .barbell, .trapBar, .rack, .bench, .dumbbells, .smith, .landmine, .ezBar, .preacherBench: .freeWeights
         case .cable, .legPress, .hackSquat, .legCurl, .legExtension, .latPulldown, .seatedRow, .chestPress, .pecDeck,
              .hipThrustMachine, .backExtension, .dipStation, .pullupBar, .seatedCalf, .hipAdAbductor, .abCrunch,
-             .torsoRotation: .machines
-        case .kettlebells, .rings, .trx, .plyoBox, .medBall, .slamBall, .sled, .battleRope, .abWheel, .bands: .functional
+             .torsoRotation, .shoulderPress, .standingCalf, .tBarRow, .ghd: .machines
+        case .kettlebells, .rings, .trx, .plyoBox, .medBall, .slamBall, .sled, .battleRope, .abWheel, .bands, .stabilityBall, .jumpRope: .functional
         case .treadmill, .bike, .airBike, .rower, .skiErg, .stairClimber, .elliptical: .cardio
         case .foamRoller, .mat: .stretch
         }
@@ -72,6 +72,14 @@ extension Equipment {
         case .hipAdAbductor: "Set the leg pads to the range you can control; start with a small opening."
         case .abCrunch: "Seat so the chest pad or handles sit at upper-chest height."
         case .torsoRotation: "Lock the start angle to a range you can control; knees pinned by the pads."
+        case .ezBar: "Angled grips are easier on the wrists; use collars like any barbell."
+        case .preacherBench: "Seat height so the armpits sit snug over the top of the pad."
+        case .shoulderPress: "Seat so the handles start at shoulder height; back flat on the pad."
+        case .standingCalf: "Shoulder pads set so the knees are just soft at the bottom; balls of the feet on the edge."
+        case .tBarRow: "Chest pad high enough that the arms hang straight; feet planted on the platform."
+        case .ghd: "Foot plate so the knees sit just behind the pad; ankles locked under the rollers."
+        case .stabilityBall: "Pick a size where thighs are level when you sit on it; pumped firm."
+        case .jumpRope: "Handles at the armpits when you stand on the middle of the rope."
         }
     }
 }

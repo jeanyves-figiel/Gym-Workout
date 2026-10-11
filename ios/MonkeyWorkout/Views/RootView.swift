@@ -153,6 +153,15 @@ private struct DemoScreen: View {
         case "profile": NavigationStack { TrainingProfileView().navigationTitle("Training profile") }
         case "profile-gym": NavigationStack { ProfileSectionView(section: .gym) }
         case "profile-method": NavigationStack { ProfileSectionView(section: .method) }
+        case "equipment": EquipmentSheet(equipment: .constant(GymKind.budget.equipment))
+        case "gym-setup": GymSetupView(ref: Demo.holmes, actionTitle: "USE THIS GYM") { _ in }
+        case "gym-swipe": GymSetupView(ref: nil, actionTitle: "USE THIS GYM", startStep: .swipe, startKind: .budget) { _ in }
+        case "gym-result": GymSetupView(ref: nil, name: "Hotel Adlon", actionTitle: "USE FOR THIS TRIP", startStep: .result, startKind: .hotel) { _ in }
+        case "not-here":
+            if let item = model.plan?.sessions.dropFirst().first?.blocks.first(where: { $0.kind == .strength })?.items
+                .first(where: { Exercise.get($0.exerciseId).equipment.count >= 2 }) {
+                NotHereSheet(exerciseId: item.exerciseId, uid: item.uid)
+            }
         case "onboarding-figure":
             NavigationStack {
                 ProfileFormView(initial: nil, scrollTo: "figure") { _ in }

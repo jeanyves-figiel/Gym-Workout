@@ -14,6 +14,7 @@ struct SwapExerciseSheet: View {
     @State private var searching = false
     @State private var picked: String?
     @State private var gate: ProGate?
+    @State private var notHere = false
 
     private var exercise: Exercise { Exercise.get(exerciseId) }
 
@@ -35,6 +36,23 @@ struct SwapExerciseSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     current
+                    if !exercise.equipment.isEmpty {
+                        // The gym doesn't have it (#162): fix the gym's list, not just this session.
+                        Button { notHere = true } label: {
+                            HStack {
+                                Image(systemName: "questionmark.circle.fill").foregroundStyle(Theme.lime)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Not at this gym?").bold()
+                                    Text("Remove it from the gym and swap it everywhere this week").font(.caption).foregroundStyle(Theme.muted)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right").font(.footnote.bold()).foregroundStyle(Theme.muted)
+                            }
+                            .foregroundStyle(.white)
+                            .card(padding: 14)
+                        }
+                        .buttonStyle(.plain)
+                    }
                     keepToggle
                     if let rule = model.keptSwap(uid: uid), let original = Exercise.find(rule.from) {
                         Button {
@@ -71,6 +89,12 @@ struct SwapExerciseSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 CloseToolbarItem { dismiss() }
+            }
+            .sheet(isPresented: $notHere) {
+                NotHereSheet(exerciseId: exerciseId, uid: uid) {
+                    onDone?()
+                    dismiss()
+                }
             }
             .sheet(isPresented: $searching, onDismiss: {
                 if let picked { apply(picked) }

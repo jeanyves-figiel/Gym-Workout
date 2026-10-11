@@ -8,7 +8,7 @@ attribution required; the app still credits it). Illustrations are drawn by the 
 No video: no free-to-use (public domain / CC0 / CC-BY) video set covers this catalog consistently,
 so every exercise animates its two frames (start, end) instead.
 
-Photos: 138 · Illustrations: 63 · Total: 201
+Photos: 147 · Illustrations: 63 · Total: 210
 
 | Id | Exercise | Media | Source | License |
 |---|---|---|---|---|
@@ -195,6 +195,15 @@ Photos: 138 · Illustrations: 63 · Total: 201
 | `lying-leg-raise` | Lying leg raise | Photo (2 frames) | [free-exercise-db `Flat_Bench_Lying_Leg_Raise`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Flat_Bench_Lying_Leg_Raise) | Public domain (Unlicense) |
 | `monster-walk` | Band monster walk | Photo (2 frames) | [free-exercise-db `Monster_Walk`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Monster_Walk) | Public domain (Unlicense) |
 | `tib-raise` | Wall tibialis raise | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `ez-bar-curl` | EZ-bar curl | Photo (2 frames) | [free-exercise-db `EZ-Bar_Curl`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/EZ-Bar_Curl) | Public domain (Unlicense) |
+| `ez-skullcrusher` | EZ-bar skull crusher | Photo (2 frames) | [free-exercise-db `EZ-Bar_Skullcrusher`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/EZ-Bar_Skullcrusher) | Public domain (Unlicense) |
+| `db-preacher-curl` | Dumbbell preacher curl | Photo (2 frames) | [free-exercise-db `Two-Arm_Dumbbell_Preacher_Curl`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Two-Arm_Dumbbell_Preacher_Curl) | Public domain (Unlicense) |
+| `machine-shoulder-press` | Machine shoulder press | Photo (2 frames) | [free-exercise-db `Machine_Shoulder_Military_Press`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Machine_Shoulder_Military_Press) | Public domain (Unlicense) |
+| `machine-calf-raise` | Standing calf raise machine | Photo (2 frames) | [free-exercise-db `Standing_Calf_Raises`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Standing_Calf_Raises) | Public domain (Unlicense) |
+| `t-bar-row` | Chest-supported T-bar row | Photo (2 frames) | [free-exercise-db `Lying_T-Bar_Row`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Lying_T-Bar_Row) | Public domain (Unlicense) |
+| `glute-ham-raise` | Glute-ham raise | Photo (2 frames) | [free-exercise-db `Glute_Ham_Raise`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Glute_Ham_Raise) | Public domain (Unlicense) |
+| `ball-crunch` | Stability ball crunch | Photo (2 frames) | [free-exercise-db `Exercise_Ball_Crunch`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Exercise_Ball_Crunch) | Public domain (Unlicense) |
+| `jump-rope` | Jump rope | Photo (2 frames) | [free-exercise-db `Rope_Jumping`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Rope_Jumping) | Public domain (Unlicense) |
 | `bw-squat` | Bodyweight squat | Photo (2 frames) | [free-exercise-db `Bodyweight_Squat`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Bodyweight_Squat) | Public domain (Unlicense) |
 | `bw-split-squat` | Split squat (bodyweight) | Photo (2 frames) | [free-exercise-db `Split_Squats`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Split_Squats) | Public domain (Unlicense) |
 | `bw-reverse-lunge` | Reverse lunge (bodyweight) | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
