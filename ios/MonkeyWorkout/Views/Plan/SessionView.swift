@@ -82,6 +82,7 @@ struct SessionView: View {
                 GradientStat(symbol: "square.stack.3d.up.fill", value: "\(s.blocks.filter { [BlockKind.power, .strength].contains($0.kind) }.flatMap(\.items).reduce(0) { $0 + $1.prescription.sets })", label: "Work sets",
                              gradient: WorkoutEngine.Category.strength.gradient)
             }
+            WorkoutStyleCard(session: s)
             VStack(alignment: .leading, spacing: 12) {
                 Text("Muscles worked · tap to explore").eyebrow()
                 BodyMapPair(heat: s.muscleHeat) { muscle = $0 }

@@ -37,6 +37,31 @@ final class Ctx {
     private var block = ""
     private var calls = 0
     var usedSession: Set<String> = []
+    /// Training-style override of the session being generated (#106).
+    var style: SessionStyle?
+    /// Rest style and grouping in effect: the session's override, else the profile's.
+    var rest: RestStyle { style?.rest ?? profile.rest }
+    var group: Grouping { style?.grouping ?? profile.group }
+
+    /// Pick state, so one session can be generated twice from the same starting point.
+    struct Snapshot {
+        let rng: Rng, mainRng: Rng
+        let usedMain: Set<String>, usedWeek: Set<String>, usedSession: Set<String>
+        let picks: [String: String]
+        let block: String, calls: Int
+    }
+
+    func snapshot() -> Snapshot {
+        Snapshot(rng: rng, mainRng: mainRng, usedMain: usedMain, usedWeek: usedWeek, usedSession: usedSession,
+                 picks: picks, block: block, calls: calls)
+    }
+
+    func restore(_ s: Snapshot) {
+        rng = s.rng; mainRng = s.mainRng
+        usedMain = s.usedMain; usedWeek = s.usedWeek; usedSession = s.usedSession
+        picks = s.picks
+        block = s.block; calls = s.calls
+    }
 
     init(profile: Profile, week: Int, seed: UInt32) {
         self.profile = profile

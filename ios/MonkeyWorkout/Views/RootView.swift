@@ -84,6 +84,7 @@ private struct DemoScreen: View {
         let second = model.plan?.sessions.dropFirst().first?.id ?? ""
         switch Demo.screen {
         case "session": NavigationStack { SessionView(sessionId: second) }
+        case "workout-style": if let s = model.session(second) { WorkoutStyleSheet(session: s) }
         case "player": WorkoutPlayerView(sessionId: second)
         case "player-rest": WorkoutPlayerView(sessionId: second, demoRest: true)
         case "example": NavigationStack { SessionView(sessionId: WorkoutTemplate.all[1].sessionId) }

@@ -13,6 +13,15 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var away: [AwayPeriod]?
     /// Library workouts placed into the plan (#62): replaced or extra sessions of the current week.
     var planInserts: [PlanInsert]?
+    /// Per-workout rest / grouping overrides (#106), keyed by session id ("w2s1"); dropped on a week change.
+    var sessionStyles: [String: SessionStyle]?
+
+    /// Profile the plan is generated from: the training profile plus this week's per-workout overrides.
+    var planProfile: Profile {
+        var p = profile
+        p.sessionStyles = sessionStyles?.filter { $0.key.hasPrefix("w\(week)s") }
+        return p
+    }
 }
 
 struct LocalState: Codable {
