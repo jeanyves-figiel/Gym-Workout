@@ -1,15 +1,17 @@
 import SwiftUI
 import WorkoutEngine
 
-/// "Muscles" tab: explore by body map / muscle group, or by training category.
+/// "Explore" tab: exercises by body map / muscle group or training category, and the workout library.
 struct LibraryView: View {
     enum Mode: String, CaseIterable, Identifiable {
-        case muscles = "Muscles", categories = "Categories"
+        case muscles = "Muscles", categories = "Categories", workouts = "Workouts"
         var id: String { rawValue }
     }
 
     @Environment(AppModel.self) private var model
-    @State private var mode: Mode = .muscles
+    @State private var mode: Mode
+
+    init(mode: Mode = .muscles) { _mode = State(initialValue: mode) }
     /// Muscle tapped on the body map; pushes its page.
     @State private var tapped: Muscle?
 
@@ -24,6 +26,7 @@ struct LibraryView: View {
                 switch mode {
                 case .muscles: muscles
                 case .categories: categories
+                case .workouts: WorkoutLibrarySection()
                 }
             }
             .padding(16)
@@ -33,6 +36,7 @@ struct LibraryView: View {
         .toolbarTitleDisplayMode(.inlineLarge)
         .navigationDestination(for: Muscle.self) { MuscleDetailView(muscle: $0) }
         .navigationDestination(for: WorkoutEngine.Category.self) { CategoryDetailView(category: $0) }
+        .navigationDestination(for: String.self) { SessionView(sessionId: $0) }
         .navigationDestination(item: $tapped) { MuscleDetailView(muscle: $0) }
     }
 
