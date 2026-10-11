@@ -197,6 +197,9 @@ public struct Profile: Codable, Hashable, Sendable {
     public var restStyle: RestStyle?
     /// Supersets / circuits (#78); nil = the goal's default.
     public var grouping: Grouping?
+    /// Per-workout overrides (#106) keyed by session id ("w2s1"). Set by the app from the synced overrides when
+    /// generating; not part of the profile form.
+    public var sessionStyles: [String: SessionStyle]?
 
     public init(
         goal: Goal = .balanced, sessionsPerWeek: Int = 3, experience: Experience = .intermediate,

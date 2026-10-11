@@ -84,6 +84,7 @@ private struct DemoScreen: View {
         let second = model.plan?.sessions.dropFirst().first?.id ?? ""
         switch Demo.screen {
         case "session": NavigationStack { SessionView(sessionId: second) }
+        case "workout-style": if let s = model.session(second) { WorkoutStyleSheet(session: s) }
         case "swap":
             if let item = model.plan?.sessions.dropFirst().first?.blocks.first(where: { $0.kind == .strength })?.items.first {
                 SwapExerciseSheet(exerciseId: item.exerciseId, uid: item.uid)

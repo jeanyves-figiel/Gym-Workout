@@ -143,6 +143,26 @@ extension Goal {
     }
 }
 
+/// One workout's training style (#106): nil fields follow the plan.
+public struct SessionStyle: Codable, Hashable, Sendable {
+    public var rest: RestStyle?
+    public var grouping: Grouping?
+
+    public init(rest: RestStyle? = nil, grouping: Grouping? = nil) {
+        self.rest = rest
+        self.grouping = grouping
+    }
+
+    public var isEmpty: Bool { rest == nil && grouping == nil }
+}
+
+extension Session {
+    /// Whether rest and grouping apply: generated plan sessions with a strength block (not conditioning circuits).
+    public var stylable: Bool {
+        focus != .conditioning && blocks.contains { $0.kind == .strength && $0.title == "Strength" }
+    }
+}
+
 extension Profile {
     /// Rest style in effect: the user's choice, else the goal's default.
     public var rest: RestStyle { restStyle ?? goal.defaultRest }

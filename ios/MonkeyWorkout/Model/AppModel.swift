@@ -69,6 +69,9 @@ final class AppModel {
             state.customExerciseList = [Demo.customExercise]
             state.synced?.away = Demo.away()
             replanCurrentWeek()
+            if Demo.screen == "workout-style", let id = state.plan?.sessions.dropFirst().first?.id {
+                setSessionStyle(id, SessionStyle(rest: .short, grouping: .supersets))
+            }
             if Demo.screen == "progress-empty" {
                 // New user: no sessions, PRs or logged climbs yet.
                 state.history = []
@@ -158,10 +161,13 @@ final class AppModel {
         // Plan inserts belong to one week: kept for a new variation or profile edit, dropped on a week change.
         // A variation's swaps only fit the exact plan they were made for.
         let variation = changed ? nil : state.synced?.variation
-        state.synced = SyncedProfile(profile: profile, seed: s, week: week, body: state.synced?.body, away: state.synced?.away,
-                                     planInserts: state.synced?.planInserts?.filter { $0.week == week },
-                                     exerciseSwaps: state.synced?.exerciseSwaps, variation: variation, moves: state.synced?.moves)
-        state.plan = Generator.generateWeek(profile, week: week, seed: s)
+        // Per-workout styles (#106) are kept for a new variation or profile edit, dropped on a week change.
+        let sp = SyncedProfile(profile: profile, seed: s, week: week, body: state.synced?.body, away: state.synced?.away,
+                               planInserts: state.synced?.planInserts?.filter { $0.week == week },
+                               exerciseSwaps: state.synced?.exerciseSwaps, variation: variation, moves: state.synced?.moves,
+                               sessionStyles: state.synced?.sessionStyles?.filter { $0.key.hasPrefix("w\(week)s") })
+        state.synced = sp
+        state.plan = Generator.generateWeek(sp.planProfile, week: week, seed: s)
         replanCurrentWeek()
         if changed {
             state.done = [:]
@@ -376,7 +382,7 @@ final class AppModel {
         guard let remote = try? await api.fetchProfile(SyncedProfile.self) else { return }
         if state.synced == nil || !state.profileDirty {
             state.synced = remote
-            state.plan = Generator.generateWeek(remote.profile, week: remote.week, seed: remote.seed)
+            state.plan = Generator.generateWeek(remote.planProfile, week: remote.week, seed: remote.seed)
             replanCurrentWeek()
             state.profileDirty = false
             persist()

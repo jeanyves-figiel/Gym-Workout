@@ -19,6 +19,15 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var variation: PlanVariation?
     /// One-off moves of this week's sessions to another day (#113).
     var moves: [SessionMove]?
+    /// Per-workout rest / grouping overrides (#106), keyed by session id ("w2s1"); dropped on a week change.
+    var sessionStyles: [String: SessionStyle]?
+
+    /// Profile the plan is generated from: the training profile plus this week's per-workout overrides.
+    var planProfile: Profile {
+        var p = profile
+        p.sessionStyles = sessionStyles?.filter { $0.key.hasPrefix("w\(week)s") }
+        return p
+    }
 }
 
 struct LocalState: Codable {

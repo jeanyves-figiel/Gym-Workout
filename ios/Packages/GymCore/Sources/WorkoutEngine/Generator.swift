@@ -73,7 +73,18 @@ public enum Generator {
             ctx.preClimbGrip = beforeClimb && prefs.before == .strong
             // `.rotate`: A/B slot orders swap weekly too.
             let variant = (n + (rotate ? week - 1 : 0)) % 2
+            let start = ctx.snapshot()
             var session = generateSession(ctx, focus: focus, variant: variant, index: i, minutes: minutes, cardio: mode)
+            // Per-workout training style (#106): regenerate this session from the same pick state with the override,
+            // then carry on from the default's state so the other sessions stay the same.
+            if let style = profile.sessionStyles?["w\(week)s\(i + 1)"], !style.isEmpty {
+                let after = ctx.snapshot()
+                ctx.restore(start)
+                ctx.style = style
+                session = generateSession(ctx, focus: focus, variant: variant, index: i, minutes: minutes, cardio: mode)
+                ctx.style = nil
+                ctx.restore(after)
+            }
             session.weekday = weekday
             sessions.append(session)
         }
@@ -124,7 +135,7 @@ public enum Generator {
         let powerLeft = pw.map { max(0, powerMin - Int($0.estMin.rounded())) } ?? powerMin
         var st = strength(ctx, focus, variant, strengthMin + powerLeft, "\(id)-st", regions, leadStep: ctx.week - 1 + index)
         // Supersets / circuits (#78); the rest time they save goes back into extra rounds (not in a deload week).
-        let grouping = focus == .conditioning ? Grouping.straight : ctx.profile.group
+        let grouping = focus == .conditioning ? Grouping.straight : ctx.group
         st = applyGrouping(st, grouping)
         if grouping != .straight && !ctx.deload { st = fillGroupedTime(st, targetMin: st.targetMin) }
         if ctx.preClimb {
@@ -254,7 +265,7 @@ public enum Generator {
         else if light { d = Dose(sets: beginner ? 2 : 3, reps: e.unit == .sec ? "30–45 s" : "12–15", repsMid: 13, restSec: 45, rpe: 7) }
         else { d = g.accessory }
         if circuit { d.sets = 3; d.restSec = 30; d.rpe = 7 }
-        else { d.restSec = ctx.profile.rest.restSec(d.restSec, main: isMain, light: light) }
+        else { d.restSec = ctx.rest.restSec(d.restSec, main: isMain, light: light) }
 
         var sets = d.sets - (beginner && !light && !circuit ? 1 : 0)
         if isMain && ctx.week % mesocycleWeeks == 3 && !beginner { sets += 1 }
