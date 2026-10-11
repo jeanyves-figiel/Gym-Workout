@@ -58,12 +58,20 @@ struct MainTabView: View {
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
         }
         .toolbarBackground(Theme.bg, for: .tabBar)
+        .sidebarAdaptableTabs()
         // Community profile early so auto-share works for the first workout of the session.
         .task(id: model.user?.id) { await Community.shared.load(api: model.api, userId: model.user?.id) }
         .modifier(NotificationsHost())
         .fullScreenCover(isPresented: Binding(get: { model.offerPro }, set: { model.offerPro = $0 })) {
             NavigationStack { ProView(context: .onboarding) { model.offerPro = false } }
         }
+    }
+}
+
+private extension View {
+    /// iPad and unfolded iPhone Duo: tab bar that can become a sidebar (iOS 18+). iPhone keeps the bottom tab bar.
+    @ViewBuilder func sidebarAdaptableTabs() -> some View {
+        if #available(iOS 18, *) { tabViewStyle(.sidebarAdaptable) } else { self }
     }
 }
 
@@ -109,7 +117,7 @@ private struct DemoScreen: View {
         case "muscle": NavigationStack { MuscleDetailView(muscle: .lats) }
         case "muscle-female": NavigationStack { MuscleDetailView(muscle: .glutes) }.environment(\.bodyFigure, .female)
         case "exercise": NavigationStack { ExerciseDetailView(exerciseId: "pull-up") }
-        case "pr": NavigationStack { ScrollView { PRCard(exerciseId: "bench-press").padding(16) }.background(Theme.bg.ignoresSafeArea()) }
+        case "pr": NavigationStack { ScrollView { PRCard(exerciseId: "bench-press").padding(16) }.readableWidth().background(Theme.bg.ignoresSafeArea()) }
         case "pr-attempt": PRAttemptView(exerciseId: "bench-press")
         case "pr-result": PRAttemptView(exerciseId: "bench-press", showing: Demo.prResult)
         case "technique": FormSheet(exercise: Exercise.get("leg-press"))

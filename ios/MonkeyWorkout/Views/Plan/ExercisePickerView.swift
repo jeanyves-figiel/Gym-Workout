@@ -68,6 +68,7 @@ struct ExercisePickerView: View {
                 }
                 .padding(.bottom, 16)
             }
+            .readableWidth()
             .sheet(item: $builder) { sheet in
                 switch sheet {
                 case .new:
@@ -182,6 +183,7 @@ struct ExercisePickerView: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
+        .readableColumn()
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 

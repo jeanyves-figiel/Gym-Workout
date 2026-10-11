@@ -63,6 +63,7 @@ struct ExerciseDetailView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Exercise")
         .navigationBarTitleDisplayMode(.inline)

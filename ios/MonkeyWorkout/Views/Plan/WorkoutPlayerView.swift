@@ -148,6 +148,7 @@ struct WorkoutPlayerView: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
+            .readableColumn()
 
             if let p = pause {
                 PauseOverlay(
@@ -642,6 +643,7 @@ private struct SummaryView: View {
             }
             .padding(20)
         }
+        .readableWidth()
         .onAppear { withAnimation(.spring(duration: 0.6, bounce: 0.5)) { pop = true } }
     }
 }

@@ -77,6 +77,7 @@ struct WeekView: View {
                 ContentUnavailableView("No plan yet", systemImage: "calendar.badge.plus")
             }
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Train")
         .toolbarTitleDisplayMode(.inlineLarge)

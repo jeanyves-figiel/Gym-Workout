@@ -358,6 +358,7 @@ private struct CustomItemForm: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .sheet(isPresented: $info) {
             if let e = item.exercise {
                 NavigationStack { ExerciseDetailView(exerciseId: e.id) }

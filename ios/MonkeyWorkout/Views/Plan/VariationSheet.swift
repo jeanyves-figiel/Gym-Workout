@@ -138,6 +138,7 @@ struct VariationSheet: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("New variation")
             .toolbarTitleDisplayMode(.inlineLarge)
@@ -178,6 +179,7 @@ struct VariationSheet: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
+                .readableColumn()
                 .background(Theme.bg.opacity(0.92).ignoresSafeArea())
             }
             .animation(.spring(duration: 0.3), value: parts)

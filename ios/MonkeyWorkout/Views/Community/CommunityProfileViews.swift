@@ -200,6 +200,7 @@ struct CommunityProfileForm: View {
                 }
                 .padding(16)
             }
+            .readableWidth()
             .scrollDismissesKeyboard(.interactively)
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("I agree to the community guidelines", isOn: $accepted).font(.subheadline.weight(.bold))
@@ -431,6 +432,7 @@ struct GuidelinesView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Community guidelines")
         .navigationBarTitleDisplayMode(.inline)
@@ -485,6 +487,7 @@ struct CommunityProfileView: View {
                 .padding(.bottom, 32)
             }
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Your profile")
         .navigationBarTitleDisplayMode(.inline)
@@ -517,6 +520,7 @@ private struct EditCommunityProfileView: View {
         ScrollView {
             CommunityProfileForm(profile: profile) { dismiss() }.padding(16)
         }
+        .readableWidth()
         .scrollDismissesKeyboard(.interactively)
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Edit profile")
@@ -605,6 +609,7 @@ struct MemberView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle(author.nickname)
         .navigationBarTitleDisplayMode(.inline)
@@ -840,6 +845,7 @@ struct PublicProfileView: View {
             .padding(16)
             .padding(.bottom, 24)
         }
+        .readableWidth()
         .scrollDismissesKeyboard(.interactively)
         .themedForm()
         .navigationTitle("Profile")

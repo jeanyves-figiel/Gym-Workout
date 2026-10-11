@@ -11,6 +11,8 @@ enum Theme {
     static let lime = Color(red: 0.80, green: 1.0, blue: 0.24)
     static let ink = Color(red: 0.04, green: 0.05, blue: 0.06)
     static let muted = Color.white.opacity(0.55)
+    /// Widest content column on iPad and the unfolded iPhone Duo; narrower screens use their full width.
+    static let readableWidth: CGFloat = 720
 
     static func display(_ size: CGFloat) -> Font { .system(size: size, weight: .black, design: .rounded) }
     static func label(_ size: CGFloat = 12) -> Font { .system(size: size, weight: .heavy, design: .rounded) }
@@ -275,6 +277,28 @@ struct LimeButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .shadow(color: fill.opacity(0.35), radius: configuration.isPressed ? 4 : 16, y: 6)
             .animation(.spring(duration: 0.25), value: configuration.isPressed)
+    }
+}
+
+/// Centres a vertical scroll view's content in a `Theme.readableWidth` column on wide screens
+/// (iPad, unfolded iPhone Duo). The scroll view and its background stay full width; no effect on iPhone.
+struct ReadableWidth: ViewModifier {
+    @State private var width: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        // Measured outside the padding: the measured width never depends on the padding it sets.
+        content
+            .safeAreaPadding(.horizontal, max(0, (width - Theme.readableWidth) / 2))
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+    }
+}
+
+extension View {
+    func readableWidth() -> some View { modifier(ReadableWidth()) }
+
+    /// Fixed (non-scrolling) layouts: caps width at `Theme.readableWidth`, centred.
+    func readableColumn() -> some View {
+        frame(maxWidth: Theme.readableWidth).frame(maxWidth: .infinity)
     }
 }
 

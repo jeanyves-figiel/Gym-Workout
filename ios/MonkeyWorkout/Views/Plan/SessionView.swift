@@ -33,6 +33,7 @@ struct SessionView: View {
                 .padding(16)
                 .padding(.bottom, 24)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             // The big display title below is the page's one title (#88); the bar stays clear.
             .navigationTitle("")
@@ -45,6 +46,7 @@ struct SessionView: View {
                     .disabled(session.blocks.allSatisfy { $0.items.isEmpty })
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
+                    .readableColumn()
                     // Opaque bar (as on the profile form): content ends above the button instead of sliding under it.
                     .background(Theme.bg.ignoresSafeArea())
             }
