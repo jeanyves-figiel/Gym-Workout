@@ -121,6 +121,7 @@ private struct DemoScreen: View {
             }
         case "profile": NavigationStack { TrainingProfileView().navigationTitle("Training profile") }
         case "profile-gym": NavigationStack { ProfileSectionView(section: .gym) }
+        case "variation": VariationSheet(days: Set(model.variableSessions.map(\.id)), keep: model.keptSwapUids)
         case "variety":
             NavigationStack {
                 ProfileFormView(initial: nil, scrollTo: "variety") { _ in }
