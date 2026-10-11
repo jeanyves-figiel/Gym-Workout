@@ -11,7 +11,7 @@ import art
 from art import CHROME, GROUND, add, norm, sub
 
 
-def floor(doc, cx=200, rx=120, x0=16, x1=art.W - 16):
+def floor(doc, cx=200, rx=120, x0=-200, x1=art.W + 200):
     art.floor(doc, x0, x1)
     art.shadow(doc, cx, rx)
 

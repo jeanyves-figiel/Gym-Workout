@@ -1,15 +1,12 @@
 {
   "images": [
     {
-      "filename": "illustration-scap-push-up-1.svg",
+      "filename": "illustration-scap-push-up-1.png",
       "idiom": "universal"
     }
   ],
   "info": {
     "author": "xcode",
     "version": 1
-  },
-  "properties": {
-    "preserves-vector-representation": true
   }
 }

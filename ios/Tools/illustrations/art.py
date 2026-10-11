@@ -250,6 +250,7 @@ FRONT_MUSCLES = {
     "hipFlexors": _both("torso", [(-0.02, 0.32), (-0.02, 0.78), (0.12, 0.72), (0.12, 0.38)], "u")
                   + [("thigh", [(0.0, -0.5), (0.0, 0.5), (0.22, 0.38), (0.22, -0.38)], "u")],
     "traps": _both("torso", [(0.94, 0.28), (1.12, 0.14), (1.12, 0.42), (1.0, 0.78)], "u"),
+    "gluteMed": _both("torso", [(0.02, 0.8), (0.04, 1.02), (0.2, 1.02), (0.2, 0.84)], "u"),
     "quads": [("thigh", [(0.14, -0.82), (0.14, 0.82), (0.96, 0.62), (0.96, -0.62)], "u")],
     "adductors": [("thigh", [(0.08, -0.3), (0.08, 0.3), (0.55, 0.28), (0.55, -0.28)], "u")],
     "tibialis": [("shin", [(0.1, -0.15), (0.1, 0.6), (0.72, 0.5), (0.72, -0.15)], "u")],
@@ -557,7 +558,7 @@ def shroud(doc, x, top, bottom, w):
     doc.add(f'<rect x="{x:.1f}" y="{top:.1f}" width="{w:.1f}" height="{bottom - top:.1f}" rx="3" fill="{g}" stroke="#0A0B0D" stroke-width="0.8"/>')
 
 
-def floor(doc, x0=16, x1=W - 16):
+def floor(doc, x0=-200, x1=W + 200):
     doc.add(f'<rect x="{x0}" y="{GROUND}" width="{x1 - x0}" height="3" rx="1.5" fill="#000" fill-opacity="0.28"/>')
 
 

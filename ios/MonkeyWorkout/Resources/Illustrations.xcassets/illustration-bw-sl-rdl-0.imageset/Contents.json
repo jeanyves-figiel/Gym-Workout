@@ -1,15 +1,12 @@
 {
   "images": [
     {
-      "filename": "illustration-bw-sl-rdl-0.svg",
+      "filename": "illustration-bw-sl-rdl-0.png",
       "idiom": "universal"
     }
   ],
   "info": {
     "author": "xcode",
     "version": 1
-  },
-  "properties": {
-    "preserves-vector-representation": true
   }
 }

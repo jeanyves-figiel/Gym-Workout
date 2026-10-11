@@ -26,8 +26,12 @@ def catalog():
 
 
 def render(ex_id, cat):
-    scene, poses, view = SCENES[ex_id]
-    return [art.render(p, cat[ex_id], scene, prefix=f"f{i}", view=view) for i, p in enumerate(art.frames(poses))]
+    import generate
+    try:
+        everything = {**generate.scenes(), **SCENES}
+    except ImportError:
+        everything = SCENES
+    return generate.render(ex_id, cat, everything)
 
 
 def sheet(ids, out, width=800):
