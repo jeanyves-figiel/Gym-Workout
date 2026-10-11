@@ -23,7 +23,16 @@ public enum Generator {
     }
 
     public static func weekLabel(_ week: Int) -> String {
-        ["Base · RPE −1", "Build · target RPE", "Peak · +1 set on main lifts", "Deload · −40 % volume"][(week - 1) % mesocycleWeeks]
+        ["Base · RPE −1", "Build · target RPE", "Peak · +1 set on main lifts", "Deload · −40% volume"][phaseIndex(week)]
+    }
+
+    /// 0-based position of `week` in the 4-week cycle (Base, Build, Peak, Deload).
+    /// Single source of truth for every screen that shows the current phase.
+    public static func phaseIndex(_ week: Int) -> Int { ((max(1, week) - 1) % mesocycleWeeks) }
+
+    /// Phase name only ("Base", "Build", "Peak", "Deload").
+    public static func phaseName(_ week: Int) -> String {
+        weekLabel(week).components(separatedBy: " · ").first ?? ""
     }
 
     // MARK: Week

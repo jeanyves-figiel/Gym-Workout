@@ -135,13 +135,15 @@ struct UpNextCard: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            if let exercise {
+            // Photos read at 48 pt; the app's line illustrations (wall + floor + thin figure) shrink to a stray
+            // "L" shape, so those get the category icon tile instead, as on Explore.
+            if let exercise, exercise.imageId != nil {
                 ExerciseThumbnail(exercise: exercise, size: 48)
             } else {
-                Image(systemName: symbol)
+                Image(systemName: exercise?.category.symbol ?? symbol)
                     .font(.system(size: 20, weight: .heavy))
                     .frame(width: 48, height: 48)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.2)))
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.2)))
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(eyebrow).font(Theme.label(10)).tracking(1.2).textCase(.uppercase).opacity(0.85)

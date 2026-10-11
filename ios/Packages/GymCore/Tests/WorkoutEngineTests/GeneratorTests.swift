@@ -39,6 +39,12 @@ private func allItems(_ p: WeekPlan) -> [PlannedExercise] { p.sessions.flatMap {
         #expect(Generator.generateWeek(base, seed: 42) != Generator.generateWeek(base, seed: 43))
     }
 
+    @Test func phaseNameMatchesWeekLabel() {
+        #expect((1...8).map(Generator.phaseName) == ["Base", "Build", "Peak", "Deload", "Base", "Build", "Peak", "Deload"])
+        #expect(Generator.phaseIndex(2) == 1)
+        #expect(Generator.weekLabel(2).hasPrefix(Generator.phaseName(2)))
+    }
+
     @Test(arguments: Goal.allCases)
     func fitsTargetTime(goal: Goal) {
         for n in 2...6 {

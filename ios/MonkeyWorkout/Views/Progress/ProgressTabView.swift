@@ -74,7 +74,7 @@ struct ProgressTabView: View {
                          gradient: WorkoutEngine.Category.strength.gradient)
             GradientStat(symbol: "stopwatch.fill", value: Self.hours(s.totalMinutes), label: "Trained",
                          gradient: WorkoutEngine.Category.cardio.gradient)
-            GradientStat(symbol: "scalemass.fill", value: String(format: "%.1f t", s.totalVolumeKg / 1000), label: "Lifted",
+            GradientStat(symbol: "scalemass.fill", value: Format.volume(s.totalVolumeKg), label: "Lifted",
                          gradient: WorkoutEngine.Category.power.gradient)
             if recent.isEmpty {
                 GradientStat(symbol: "square.stack.3d.up.fill", value: "\(s.totalSets)", label: "Sets",
@@ -644,7 +644,7 @@ struct HistoryRow: View {
             .frame(width: 48)
             VStack(alignment: .leading, spacing: 4) {
                 Text(record.title).font(.system(.headline, design: .rounded).weight(.heavy))
-                Text("\(record.durationSec / 60) min · \(record.totalSets) sets" + (record.volumeKg > 0 ? " · \(Format.kg((record.volumeKg / 100).rounded() / 10)) t" : ""))
+                Text("\(record.durationSec / 60) min · \(record.totalSets) sets" + (record.volumeKg > 0 ? " · \(Format.volume(record.volumeKg))" : ""))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Theme.muted)
                 if let hr = record.avgHeartRate {
@@ -677,7 +677,7 @@ struct HistoryDetailView: View {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                         StatTile(value: "\(r.durationSec / 60)′", label: "Duration")
                         StatTile(value: "\(r.totalSets)", label: "Sets")
-                        StatTile(value: r.volumeKg > 0 ? "\(Int(r.volumeKg)) kg" : "—", label: "Volume")
+                        StatTile(value: r.volumeKg > 0 ? Format.volume(r.volumeKg) : "—", label: "Volume")
                         StatTile(value: r.kcal.map { "\(Int($0))" } ?? "—", label: "kcal (est.)")
                         if let a = r.avgHeartRate { StatTile(value: "\(Int(a))", label: "Avg bpm") }
                         if let m = r.maxHeartRate { StatTile(value: "\(Int(m))", label: "Max bpm") }

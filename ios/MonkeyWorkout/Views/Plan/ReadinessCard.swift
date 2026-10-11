@@ -125,6 +125,7 @@ struct ReadinessSheet: View {
                     RPEExplainer()
                 }
                 .padding(16)
+                .padding(.bottom, 32)
             }
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Readiness")
@@ -212,7 +213,7 @@ struct RPEExplainer: View {
             Text("RPE = Rate of Perceived Exertion").font(.system(.headline, design: .rounded).weight(.heavy))
             Text("How hard a set felt, from 1 to 10. Count the reps you could still have done with good form:")
                 .font(.footnote.weight(.medium)).foregroundStyle(Theme.muted)
-            ForEach([(10, "0 left · absolute max"), (9, "1 rep left"), (8, "2 reps left"), (7, "3 reps left"), (5, "easy · could chat")], id: \.0) { n, text in
+            ForEach([(10, "0 left · absolute max"), (9, "1 rep left"), (8, "2 reps left"), (7, "3 reps left"), (6, "4 reps left"), (5, "easy · could chat")], id: \.0) { n, text in
                 HStack(spacing: 10) {
                     Text("\(n)").font(Theme.display(18)).monospacedDigit().foregroundStyle(Theme.ink)
                         .frame(width: 34, height: 28)
@@ -243,7 +244,7 @@ struct WeekPhaseSheet: View {
         ("Base", "RPE −1", "Ease in: every set one rep further from failure than its target (e.g. RPE 7 instead of 8). Lets you learn the loads."),
         ("Build", "Target RPE", "Train at the RPE written in each exercise."),
         ("Peak", "+1 set", "Hardest week: one extra set on main lifts at target RPE."),
-        ("Deload", "−40 % volume", "Recovery week: fewer sets, RPE 2 lower, shorter sessions. You come back stronger."),
+        ("Deload", "−40% volume", "Recovery week: fewer sets, RPE 2 lower, shorter sessions. You come back stronger."),
     ]
 
     var body: some View {
@@ -253,7 +254,7 @@ struct WeekPhaseSheet: View {
                     Text("Your plan runs in 4-week cycles. Each week has a job; the chip on Train shows this week's.")
                         .font(.subheadline.weight(.medium)).foregroundStyle(Theme.muted)
                     ForEach(Array(phases.enumerated()), id: \.offset) { i, p in
-                        let current = i + 1 == (week - 1) % Generator.mesocycleWeeks + 1
+                        let current = i == Generator.phaseIndex(week)
                         HStack(alignment: .top, spacing: 14) {
                             Text("\(i + 1)").font(Theme.display(34)).foregroundStyle(current ? Theme.ink : .white)
                                 .frame(width: 52, height: 52)
@@ -275,6 +276,7 @@ struct WeekPhaseSheet: View {
                     RPEExplainer()
                 }
                 .padding(16)
+                .padding(.bottom, 32)
             }
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Training cycle")

@@ -186,8 +186,17 @@ public enum PlanCalendar {
             return Week(start: weekStart, days: days, plan: plan, off: off, travel: travel, climbing: climbing, dropped: 0, adapted: false)
         }
 
-        let pinned = plan.sessions.filter { done.contains($0.id) }
-        let taken = Set(pinned.compactMap(\.weekday))
+        var pinned = plan.sessions.filter { done.contains($0.id) }
+        var taken = Set(pinned.compactMap(\.weekday))
+        // Done sessions of an unscheduled plan (no weekday) get a day too, so every session the week counts has a
+        // tile: past days first (that's when they were done), else the first day still open.
+        for i in pinned.indices where pinned[i].weekday == nil {
+            let open = WeekSchedule.weekdays.filter { off[$0] == nil && !taken.contains($0) }
+            if let wd = open.first(where: { $0 < firstDay }) ?? open.first {
+                pinned[i].weekday = wd
+                taken.insert(wd)
+            }
+        }
         let free = WeekSchedule.weekdays.filter { $0 >= firstDay && off[$0] == nil && !taken.contains($0) }
         let regular = Dictionary(plan.sessions.map { ($0.id, $0.weekday) }, uniquingKeysWith: { a, _ in a })
         var used = profile

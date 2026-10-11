@@ -27,7 +27,7 @@ struct SessionView: View {
                     finishButton(session)
                 }
                 .padding(16)
-                .padding(.bottom, 90)
+                .padding(.bottom, 24)
             }
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle(model.libraryTitle(session) ?? session.dayLabel)
@@ -39,7 +39,9 @@ struct SessionView: View {
                     .buttonStyle(LimeButtonStyle())
                     .disabled(session.blocks.allSatisfy { $0.items.isEmpty })
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
+                    .padding(.vertical, 10)
+                    // Opaque bar (as on the profile form): content ends above the button instead of sliding under it.
+                    .background(Theme.bg.opacity(0.92).ignoresSafeArea())
             }
             .standaloneWorkoutActions(session)
             .fullScreenCover(isPresented: $playing) { WorkoutPlayerView(sessionId: session.id) }

@@ -219,8 +219,9 @@ struct WinCard: Identifiable {
     static func workout(_ r: WorkoutRecord) -> WinCard {
         let minutes = max(1, r.durationSec / 60)
         let volume = r.volumeKg
+        let lifted = Format.volumeParts(volume)
         let metric: CommunityCard.Metric = volume >= 1000
-            ? .init(value: String(format: "%.1f", volume / 1000), unit: "t lifted")
+            ? .init(value: lifted.value, unit: "\(lifted.unit) lifted")
             : .init(value: "\(minutes)", unit: "min")
         var stats: [CommunityCard.Stat] = [.init(label: "min", value: "\(minutes)"), .init(label: "sets", value: "\(r.totalSets)")]
         stats.append(.init(label: "exercises", value: "\(r.exercises.filter { $0.setsDone > 0 }.count)"))

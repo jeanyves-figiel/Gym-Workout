@@ -53,8 +53,11 @@ enum Demo {
         return CustomExercise(
             id: UUID(uuidString: "6F0C2B1E-5A47-4E4B-9C3A-2B7D7F1A9E10")!, name: "Hip abductor machine",
             createdAt: Date(timeIntervalSince1970: 1_791_000_000), category: .strength, primary: [.glutes],
-            secondary: [.adductors], machine: "Technogym Selection 700", cues: ["Slow return, 2 s"], drawing: pose)
+            secondary: [.adductors], equipment: [.hipAdAbductor], machine: "Technogym Selection 700", cues: ["Slow return, 2 s"], drawing: pose)
     }()
+
+    /// Current cycle week (2 = Build). Every demo screen (Train chip, cycle sheet, calendar, library) reads it via the plan.
+    static let week = 2
 
     static let profile = Profile(goal: .balanced, sessionsPerWeek: 4, experience: .intermediate, climbingDaysPerWeek: 2)
 
@@ -94,7 +97,8 @@ enum Demo {
         var records: [WorkoutRecord] = []
         var logs: [LogEntry] = []
         for w in 0..<6 {
-            let week = w % 4 + 1
+            // Cycle weeks counted back from the current one, so last week is the phase before this one.
+            let week = PlanCalendar.cycleWeek(current: Self.week, offset: w - 6)
             let plan = Generator.generateWeek(profile, week: week, seed: 7)
             let start = cal.date(byAdding: .weekOfYear, value: w - 6, to: thisWeek)!
             for (i, session) in plan.sessions.enumerated() where !(w == 2 && i == 3) {

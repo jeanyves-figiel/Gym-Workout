@@ -445,7 +445,7 @@ struct AddToPlanSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Week \(model.plan?.week ?? 1): replace a planned day, or add an extra session. A new variation keeps it; changing week clears it.")
+                    Text("Week \(model.plan?.week ?? 1) · \(Generator.phaseName(model.plan?.week ?? 1)): replace a planned day, or add an extra session. A new variation keeps it; changing week clears it.")
                         .font(.footnote)
                         .foregroundStyle(Theme.muted)
                         .padding(.bottom, 6)

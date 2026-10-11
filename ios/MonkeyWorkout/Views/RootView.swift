@@ -120,7 +120,7 @@ private struct DemoScreen: View {
             }
         case "readiness":
             ReadinessSheet(snapshot: Demo.health, readiness: Readiness.assess(Demo.health)?.0 ?? .normal, flags: Readiness.assess(Demo.health)?.1 ?? [])
-        case "cycle": WeekPhaseSheet(week: 1)
+        case "cycle": WeekPhaseSheet(week: model.plan?.week ?? 1)
         case "library": NavigationStack { WorkoutLibraryView().navigationDestination(for: String.self) { SessionView(sessionId: $0) } }
         case "library-plan": AddToPlanSheet(workout: model.libraryWorkout(for: WorkoutTemplate.all[0].session) ?? Demo.customWorkouts[0])
         case "calendar": NavigationStack { CalendarView() }

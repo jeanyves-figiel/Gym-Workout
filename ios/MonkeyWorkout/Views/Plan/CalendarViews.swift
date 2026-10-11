@@ -163,7 +163,7 @@ struct CalendarView: View {
     }
 
     private func header(_ i: Int, _ w: PlanCalendar.Week) -> String {
-        let phase = Generator.weekLabel(w.plan.week).components(separatedBy: " · ").first ?? ""
+        let phase = Generator.phaseName(w.plan.week)
         switch i {
         case 0: return "This week · \(phase)"
         case 1: return "Next week · \(phase)"
@@ -236,8 +236,9 @@ struct WeekCalendarCard: View {
     }
 
     private func equipmentLine(_ p: AwayPeriod) -> String {
-        let items = p.travelEquipment.filter { $0 != .mat }
-        if items.isEmpty { return "bodyweight" }
+        // Same list and count as the away editor ("7 items"); a mat alone is still bodyweight.
+        let items = p.travelEquipment
+        if items.allSatisfy({ $0 == .mat }) { return "bodyweight" }
         if items.count > 5 { return "\(items.count) items" }
         return items.map { $0.label.lowercased() }.joined(separator: ", ")
     }
