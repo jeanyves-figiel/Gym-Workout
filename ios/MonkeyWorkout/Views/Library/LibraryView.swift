@@ -183,13 +183,21 @@ private struct MuscleCard: View {
                     .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.white.opacity(0.2)))
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(muscle.name).font(Theme.display(20)).lineLimit(2).minimumScaleFactor(0.8)
+                    Text(muscle.name).font(Theme.display(20)).lineLimit(2).minimumScaleFactor(0.7)
                         .multilineTextAlignment(.leading)
-                    HStack(spacing: 6) {
-                        chip("dumbbell.fill", exercises == 1 ? "1 exercise" : "\(exercises) exercises")
-                        if let last { chip("clock.fill", Self.ago(last)) }
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 6) {
+                            chip("dumbbell.fill", exercises == 1 ? "1 exercise" : "\(exercises) exercises")
+                            if let last { chip("clock.fill", Self.ago(last)) }
+                        }
+                        HStack(spacing: 6) {
+                            chip("dumbbell.fill", "\(exercises)")
+                            if let last { chip("clock.fill", Self.ago(last)) }
+                        }
+                        chip("dumbbell.fill", "\(exercises)")
                     }
                 }
+                .layoutPriority(1)
                 Spacer(minLength: 4)
                 if let sets {
                     VStack(alignment: .trailing, spacing: 0) {
@@ -199,6 +207,8 @@ private struct MuscleCard: View {
                         }
                         Text("sets / wk").font(Theme.label(10)).opacity(0.85)
                     }
+                    .lineLimit(1)
+                    .fixedSize()
                     .opacity(sets == 0 ? 0.55 : 1)
                 }
             }
