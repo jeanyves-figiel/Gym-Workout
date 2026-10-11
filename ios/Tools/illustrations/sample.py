@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Contact sheet of the realistic exercise art (#168) on the category gradients.
 
-    python3 ios/Tools/illustrations/sample.py out.png [exercise-id ...]
+    python3 ios/Tools/illustrations/sample.py out.png [-m scenes_module] [exercise-id ...]
 """
 import io
 import re
@@ -61,5 +61,11 @@ def sheet(ids, out, width=800):
 
 
 if __name__ == "__main__":
-    ids = sys.argv[2:] or list(SCENES)
+    args = sys.argv[2:]
+    if args[:1] == ["-m"]:
+        import importlib
+        mod = importlib.import_module(args[1])
+        SCENES.update(mod.SCENES)
+        args = args[2:] or list(mod.SCENES)
+    ids = args or list(SCENES)
     sheet(ids, sys.argv[1])
