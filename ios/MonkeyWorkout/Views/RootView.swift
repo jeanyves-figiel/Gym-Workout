@@ -141,6 +141,7 @@ private struct DemoScreen: View {
             }
         case "profile": NavigationStack { TrainingProfileView().navigationTitle("Training profile") }
         case "profile-gym": NavigationStack { ProfileSectionView(section: .gym) }
+        case "profile-method": NavigationStack { ProfileSectionView(section: .method) }
         case "onboarding-figure":
             NavigationStack {
                 ProfileFormView(initial: nil, scrollTo: "figure") { _ in }

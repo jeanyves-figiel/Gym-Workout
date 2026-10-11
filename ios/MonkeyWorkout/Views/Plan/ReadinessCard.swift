@@ -4,6 +4,8 @@ import WorkoutEngine
 /// Recovery card on the Train tab (only when Health has data). Tap → plain-language explanation.
 struct ReadinessCard: View {
     let snapshot: HealthSnapshot
+    /// Today's session was eased automatically (RIR-autoregulated plans, #156).
+    var eased = false
     @State private var explaining = false
 
     var body: some View {
@@ -25,7 +27,7 @@ struct ReadinessCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Readiness").font(Theme.label(10)).tracking(1.2).textCase(.uppercase).opacity(0.7)
                 Text(r.title).font(Theme.display(18)).lineLimit(1).minimumScaleFactor(0.8)
-                Text(markers).font(.caption.weight(.semibold)).monospacedDigit().opacity(0.8).lineLimit(1).minimumScaleFactor(0.8)
+                Text(eased ? "Today's session eased: −1 RPE, 1 set less" : markers).font(.caption.weight(.semibold)).monospacedDigit().opacity(0.8).lineLimit(1).minimumScaleFactor(0.8)
             }
             Spacer(minLength: 4)
             Image(systemName: "info.circle.fill").font(.body).opacity(0.7)

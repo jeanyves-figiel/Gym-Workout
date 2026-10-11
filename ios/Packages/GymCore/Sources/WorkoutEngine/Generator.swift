@@ -3,6 +3,10 @@ import Foundation
 /// Builds weekly plans: warm-up → explosive → strength → mobility → cardio → cool-down.
 public enum Generator {
     public static let mesocycleWeeks = Rules.mesocycleWeeks
+    /// Session length cap of minimal-dose plans (#156).
+    public static let minimalSessionMinutes = 40
+    /// Strength exercises per session in minimal-dose plans (prehab riding another exercise's rest not counted).
+    static let minimalStrengthItems = 4
     static let transitionSec = 30.0
 
     // MARK: Session length
@@ -19,7 +23,9 @@ public enum Generator {
         let clamped = min(Double(Rules.maxSession), max(Double(Rules.minSession), raw))
         let rounded = round5(clamped)
         let cap = p.maxSessionMinutes.map { max(Rules.minSession - 10, $0) } ?? Rules.maxSession
-        return min(rounded, cap)
+        // Minimal dose (#156): short sessions by design.
+        let methodCap = p.trainingMethod == .minimal ? minimalSessionMinutes : Rules.maxSession
+        return min(rounded, cap, methodCap)
     }
 
     public static func weekLabel(_ week: Int) -> String {
@@ -60,6 +66,7 @@ public enum Generator {
         let slots = WeekSchedule.assign(split, climbing: profile.climbingDays, gym: profile.gymDays, prefs: prefs)
         let order = slots?.map(\.focus) ?? split
         var seen: [Focus: Int] = [:]
+        let undulating = profile.trainingMethod == .undulating
         let rotation = profile.goal.config.cardio
         var sessions: [Session] = []
         for (i, focus) in order.enumerated() {
@@ -73,6 +80,8 @@ public enum Generator {
             ctx.preClimbGrip = beforeClimb && prefs.before == .strong
             // `.rotate`: A/B slot orders swap weekly too.
             let variant = (n + (rotate ? week - 1 : 0)) % 2
+            // Daily undulating (#156): each repeat of a session type moves to the next rep zone.
+            ctx.zone = undulating ? DayZone.of(firstIndex: order.firstIndex(of: focus) ?? i, occurrence: n) : nil
             let start = ctx.snapshot()
             var session = generateSession(ctx, focus: focus, variant: variant, index: i, minutes: minutes, cardio: mode)
             // Per-workout training style (#106): regenerate this session from the same pick state with the override,
@@ -90,6 +99,10 @@ public enum Generator {
         }
         ctx.preClimb = false
         ctx.preClimbGrip = false
+        ctx.zone = nil
+        if profile.trainingMethod == .volume {
+            sessions = VolumeTargets.balance(sessions, week: week, experience: profile.experience)
+        }
         return WeekPlan(week: week, deload: ctx.deload, seed: ctx.seed, sessionMinutes: minutes, sessions: sessions)
     }
 
@@ -137,7 +150,8 @@ public enum Generator {
         // Supersets / circuits (#78); the rest time they save goes back into extra rounds (not in a deload week).
         let grouping = focus == .conditioning ? Grouping.straight : ctx.group
         st = applyGrouping(st, grouping)
-        if grouping != .straight && !ctx.deload { st = fillGroupedTime(st, targetMin: st.targetMin) }
+        // Minimal dose (#156) keeps its 2 hard sets: saved time shortens the session instead.
+        if grouping != .straight && !ctx.deload && ctx.method != .minimal { st = fillGroupedTime(st, targetMin: st.targetMin) }
         if ctx.preClimb {
             st.note = ["Climbing tomorrow: no jumps or heavy grip work today.", st.note].compactMap { $0 }.joined(separator: " ")
         } else if ctx.preClimbGrip {
@@ -264,11 +278,16 @@ public enum Generator {
         if isMain { d = g.main }
         else if light { d = Dose(sets: beginner ? 2 : 3, reps: e.unit == .sec ? "30–45 s" : "12–15", repsMid: 13, restSec: 45, rpe: 7) }
         else { d = g.accessory }
+        if let zone = ctx.zone, !light, !circuit { d = zone.dose(d, main: isMain) }
+        let minimal = ctx.method == .minimal && !circuit
+        // Minimal dose (#156): 2 hard sets close to failure.
+        if minimal { d.sets = 2; d.rpe = beginner ? 8 : 9 }
         if circuit { d.sets = 3; d.restSec = 30; d.rpe = 7 }
         else { d.restSec = ctx.rest.restSec(d.restSec, main: isMain, light: light) }
 
-        var sets = d.sets - (beginner && !light && !circuit ? 1 : 0)
-        if isMain && ctx.week % mesocycleWeeks == 3 && !beginner { sets += 1 }
+        var sets = d.sets - (beginner && !light && !circuit && !minimal ? 1 : 0)
+        // Peak week: +1 set on the main lift (daily undulating: not on the light day).
+        if isMain && ctx.week % mesocycleWeeks == 3 && !beginner && ctx.zone != .light { sets += 1 }
         var notes: [String] = []
         if ctx.spareGrip && (pattern == .vPull || pattern == .hPull) {
             sets = max(2, sets - 1)
@@ -280,6 +299,23 @@ public enum Generator {
         let reps = pattern == .carry ? "40 s" : (e.unit == .sec && !light ? "30–45 s" : d.reps)
         return (Prescription(sets: sets, reps: reps + perSide(e), restSec: d.restSec, intensity: "RPE \(rpe(ctx, d.rpe))",
                              note: notes.isEmpty ? nil : notes.joined(separator: " · ")), d.repsMid)
+    }
+
+    /// Strength-block lead line for the training method (#156).
+    static func methodNote(_ ctx: Ctx) -> String? {
+        if let zone = ctx.zone {
+            return switch zone {
+            case .heavy: "Heavy day: low reps, long rests."
+            case .moderate: "Moderate day: your goal's usual range."
+            case .light: "Light day: higher reps, crisp technique."
+            }
+        }
+        return switch ctx.method {
+        case .autoregulated: "Autoregulated: pick each set's load to finish at the target RPE (RIR = 10 − RPE) and log reps left."
+        case .volume: "Volume block: sets per muscle rise each week until the deload."
+        case .minimal: "Minimal dose: 2 hard sets, last reps should be a real grind."
+        case .block, .undulating: nil
+        }
     }
 
     static func strength(_ ctx: Ctx, _ focus: Focus, _ variant: Int, _ minutes: Int, _ uid: String, _ pairRegions: [Region], leadStep: Int = 0) -> Block {
@@ -295,6 +331,7 @@ public enum Generator {
 
         for (i, pattern) in slots.enumerated() {
             if items.count >= 2 && used >= budget * 1.05 { break }
+            if ctx.method == .minimal && !circuit && items.filter({ $0.supersetWith == nil }).count >= minimalStrengthItems { break }
             let isMain = items.isEmpty && !circuit
             guard let e = Selector.select(ctx, Query(category: .strength, pattern: pattern, main: isMain)) else { continue }
             var (p, repsMid) = dose(ctx, isMain: isMain, circuit: circuit, pattern, e)
@@ -336,11 +373,12 @@ public enum Generator {
             used += est
         }
 
+        let baseNote = circuit
+            ? "Circuit: move straight between exercises, 30 s transition. Rest 60–90 s after each round."
+            : "Leave 1–3 reps in reserve per RPE. Paired mobility drills and supersets happen during rest — no extra time."
         return Block(
             kind: .strength, title: circuit ? "Strength circuit" : "Strength", targetMin: minutes, items: items,
-            note: circuit
-                ? "Circuit: move straight between exercises, 30 s transition. Rest 60–90 s after each round."
-                : "Leave 1–3 reps in reserve per RPE. Paired mobility drills and supersets happen during rest — no extra time.")
+            note: circuit ? baseNote : [methodNote(ctx), baseNote].compactMap { $0 }.joined(separator: " "))
     }
 
     // MARK: Mobility

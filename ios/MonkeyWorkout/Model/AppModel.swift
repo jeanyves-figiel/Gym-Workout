@@ -157,7 +157,26 @@ final class AppModel {
     var profile: Profile? { state.synced?.profile }
     /// Generated week with kept exercise swaps (#101), the member's variation (#98) on top, and library workouts
     /// placed into it (#62).
-    var plan: WeekPlan? { swappedPlan?.applying(state.synced?.variation).applying(state.synced?.planInserts ?? []) }
+    /// On a low-readiness day, RIR-autoregulated plans (#156) ease today's session.
+    var plan: WeekPlan? {
+        guard let p = swappedPlan?.applying(state.synced?.variation).applying(state.synced?.planInserts ?? []) else { return nil }
+        return p.easedForReadiness(readinessEasedIds(p))
+    }
+
+    /// Today's sessions when an RIR-autoregulated plan meets a "Take it easier" readiness (#156): sessions on
+    /// today's weekday, or the next one not done when the plan has no weekdays.
+    func readinessEasedIds(_ p: WeekPlan) -> Set<String> {
+        guard profile?.trainingMethod == .autoregulated, let snap = health?.snapshot,
+              Readiness.assess(snap)?.0 == .easy else { return [] }
+        let today = WeekSchedule.fromCalendar(Calendar.current.component(.weekday, from: Date()))
+        let dated = p.sessions.filter { $0.weekday == today }
+        if !dated.isEmpty { return Set(dated.map(\.id)) }
+        if p.sessions.contains(where: { $0.weekday != nil }) { return [] }
+        return p.sessions.first { state.done[$0.id] != true }.map { [$0.id] } ?? []
+    }
+
+    /// Whether today's session is eased for low readiness (#156).
+    var readinessEased: Bool { plan.map { !readinessEasedIds($0).isEmpty } ?? false }
     /// Generated week with kept exercise swaps only: what a variation is made from.
     var swappedPlan: WeekPlan? { state.plan?.applying(swaps: state.synced?.exerciseSwaps ?? []) }
 
