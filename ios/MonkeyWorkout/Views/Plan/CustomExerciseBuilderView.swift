@@ -17,10 +17,11 @@ struct CustomExerciseBuilderView: View {
     @State private var designing = false
     @State private var confirmArchive = false
 
-    init(existing: CustomExercise? = nil, onSave: @escaping (CustomExercise) -> Void = { _ in }) {
+    /// `prefill` seeds a new exercise, e.g. the muscle or category it is added from in Explore.
+    init(existing: CustomExercise? = nil, prefill: CustomExercise? = nil, onSave: @escaping (CustomExercise) -> Void = { _ in }) {
         self.existing = existing
         self.onSave = onSave
-        _draft = State(initialValue: existing ?? CustomExercise())
+        _draft = State(initialValue: existing ?? prefill ?? CustomExercise())
     }
 
     var body: some View {
