@@ -13,26 +13,20 @@ struct ExerciseProgressCard: View {
         let suggestion = plannedUid.flatMap { model.plannedItem(uid: $0) }.flatMap { model.loadSuggestion(for: $0.item, sessionId: $0.sessionId) }
         let fromRecords = !Progression.oneRepMaxTrend(exerciseId, records: model.state.history).isEmpty
         if suggestion != nil || !sessions.isEmpty || fromRecords {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 Text("Progression").eyebrow()
-                if let suggestion { SuggestionLine(suggestion: suggestion) }
+                if let suggestion {
+                    SuggestionLine(suggestion: suggestion).card(padding: 14)
+                }
                 NavigationLink {
                     ExerciseHistoryView(exerciseId: exerciseId)
                 } label: {
-                    HStack {
-                        Image(systemName: "chart.line.uptrend.xyaxis").foregroundStyle(Theme.lime)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("History").font(.body.weight(.bold))
-                            Text(summary(sessions)).font(.caption).foregroundStyle(Theme.muted)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.muted)
-                    }
+                    AccountCard(symbol: "chart.line.uptrend.xyaxis", title: "History", subtitle: summary(sessions),
+                                gradient: WorkoutEngine.Category.cardio.gradient)
                 }
                 .buttonStyle(.plain)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .card()
         }
     }
 
@@ -121,9 +115,10 @@ struct ExerciseHistoryView: View {
         let best = sessions.compactMap(\.bestOneRepMax).max()
         let top = sessions.map(\.topKg).max() ?? 0
         return HStack(spacing: 10) {
-            StatTile(value: "\(sessions.count)", label: "Sessions")
-            StatTile(value: LoadAdvisor.formatKg(top), label: "Top kg")
-            StatTile(value: best.map { "\(Int($0.rounded()))" } ?? "–", label: "Best e1RM")
+            GradientStat(symbol: "calendar", value: "\(sessions.count)", label: "Sessions", gradient: WorkoutEngine.Category.cardio.gradient)
+            GradientStat(symbol: "scalemass.fill", value: LoadAdvisor.formatKg(top), label: "Top kg", gradient: WorkoutEngine.Category.strength.gradient)
+            GradientStat(symbol: "trophy.fill", value: best.map { "\(Int($0.rounded()))" } ?? "–", label: "Best e1RM",
+                         gradient: WorkoutEngine.Category.power.gradient)
         }
     }
 

@@ -331,7 +331,7 @@ private struct StreakHero: View {
 }
 
 /// Square gradient tile: icon tile top-left, big number, label.
-private struct GradientStat: View {
+struct GradientStat: View {
     let symbol: String
     let value: String
     let label: String
@@ -674,13 +674,21 @@ struct HistoryDetailView: View {
                         Text(r.title).font(Theme.display(34))
                         if r.deload { Text("Deload week").font(Theme.label(12)).foregroundStyle(.orange) }
                     }
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                        StatTile(value: "\(r.durationSec / 60)′", label: "Duration")
-                        StatTile(value: "\(r.totalSets)", label: "Sets")
-                        StatTile(value: r.volumeKg > 0 ? Format.volume(r.volumeKg) : "—", label: "Volume")
-                        StatTile(value: r.kcal.map { "\(Int($0))" } ?? "—", label: "kcal (est.)")
-                        if let a = r.avgHeartRate { StatTile(value: "\(Int(a))", label: "Avg bpm") }
-                        if let m = r.maxHeartRate { StatTile(value: "\(Int(m))", label: "Max bpm") }
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible())], spacing: 10) {
+                        GradientStat(symbol: "stopwatch.fill", value: "\(r.durationSec / 60)′", label: "Duration",
+                                     gradient: WorkoutEngine.Category.cardio.gradient)
+                        GradientStat(symbol: "square.stack.3d.up.fill", value: "\(r.totalSets)", label: "Sets",
+                                     gradient: WorkoutEngine.Category.mobility.gradient)
+                        GradientStat(symbol: "scalemass.fill", value: r.volumeKg > 0 ? Format.volume(r.volumeKg) : "—", label: "Volume",
+                                     gradient: WorkoutEngine.Category.strength.gradient)
+                        GradientStat(symbol: "flame.fill", value: r.kcal.map { "\(Int($0))" } ?? "—", label: "kcal (est.)",
+                                     gradient: WorkoutEngine.Category.warmup.gradient)
+                        if let a = r.avgHeartRate {
+                            GradientStat(symbol: "heart.fill", value: "\(Int(a))", label: "Avg bpm", gradient: WorkoutEngine.Category.power.gradient)
+                        }
+                        if let m = r.maxHeartRate {
+                            GradientStat(symbol: "bolt.heart.fill", value: "\(Int(m))", label: "Max bpm", gradient: AccountTint.danger)
+                        }
                     }
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Muscles worked").eyebrow()
@@ -691,29 +699,26 @@ struct HistoryDetailView: View {
                     ForEach(WorkoutEngine.Category.allCases) { cat in
                         let items = r.exercises.filter { $0.category == cat }
                         if !items.isEmpty {
-                            VStack(alignment: .leading, spacing: 10) {
-                                CategoryPill(category: cat)
+                            GradientSection(symbol: cat.symbol, title: cat.label, gradient: cat.gradient) {
                                 ForEach(items) { e in
                                     HStack {
                                         Image(systemName: e.setsDone >= e.setsPlanned ? "checkmark.circle.fill" : (e.setsDone > 0 ? "circle.lefthalf.filled" : "circle"))
-                                            .foregroundStyle(e.setsDone > 0 ? Theme.lime : Theme.muted)
+                                            .opacity(e.setsDone > 0 ? 1 : 0.6)
                                         Text(Exercise.find(e.exerciseId)?.name ?? e.exerciseId).font(.body.weight(.semibold))
                                         Spacer()
-                                        Text("\(e.setsDone)/\(e.setsPlanned)").font(Theme.label(13)).foregroundStyle(Theme.muted)
+                                        Text("\(e.setsDone)/\(e.setsPlanned)").font(Theme.label(13)).opacity(0.8)
                                         if let kg = e.weightKg { Text("\(Format.kg(kg)) kg").font(Theme.label(13)) }
                                     }
                                 }
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .card()
                         }
                     }
-                    Button("Delete from history", role: .destructive) { confirmDelete = true }
-                        .frame(maxWidth: .infinity)
+                    AccountPillButton(title: "Delete from history", role: .destructive) { confirmDelete = true }
                 }
                 .padding(16)
             }
             .background(Theme.bg.ignoresSafeArea())
+            .navigationTitle("History")
             .navigationBarTitleDisplayMode(.inline)
             .confirmationDialog("Delete this session?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete", role: .destructive) {

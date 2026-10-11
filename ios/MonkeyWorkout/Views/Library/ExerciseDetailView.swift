@@ -48,7 +48,7 @@ struct ExerciseDetailView: View {
                 ExerciseProgressCard(exerciseId: e.id, plannedUid: plannedUid)
                 PRCard(exerciseId: e.id)
 
-                EquipmentSection(equipment: e.equipment, accent: e.category.color)
+                EquipmentSection(equipment: e.equipment)
                 TechniqueView(exercise: e)
 
                 alternativesSection
@@ -56,6 +56,7 @@ struct ExerciseDetailView: View {
             .padding(16)
         }
         .background(Theme.bg.ignoresSafeArea())
+        .navigationTitle("Exercise")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if let custom, !custom.archived {
@@ -123,30 +124,36 @@ struct ExerciseDetailView: View {
     private var alternativesSection: some View {
         let alts = custom != nil ? [] : (model.profile.map { e.alternatives(for: $0) } ?? [])
         if !alts.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(plannedUid == nil ? "Similar exercises" : "Swap for").eyebrow()
+            GradientSection(symbol: plannedUid == nil ? "square.grid.2x2.fill" : "arrow.triangle.2.circlepath",
+                            title: plannedUid == nil ? "Similar exercises" : "Swap for", gradient: e.category.gradient) {
                 ForEach(alts.prefix(8)) { a in
-                    Button {
-                        if let uid = plannedUid {
+                    if let uid = plannedUid {
+                        Button {
                             model.swap(uid: uid, to: a.id)
                             dismiss()
+                        } label: {
+                            alternativeRow(a, swap: true)
                         }
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(a.name).font(.body.weight(.bold))
-                                Text(a.primary.map(\.name).joined(separator: " · ")).font(.caption).foregroundStyle(Theme.muted)
-                            }
-                            Spacer()
-                            if plannedUid != nil { Image(systemName: "arrow.triangle.2.circlepath").foregroundStyle(Theme.lime) }
-                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        alternativeRow(a, swap: false)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(plannedUid == nil)
-                    Divider().overlay(Theme.stroke)
                 }
             }
-            .card()
         }
+    }
+
+    private func alternativeRow(_ a: Exercise, swap: Bool) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(a.name).font(.body.weight(.bold)).multilineTextAlignment(.leading)
+                Text(a.primary.map(\.name).joined(separator: " · ")).font(.caption.weight(.medium)).opacity(0.85)
+            }
+            Spacer()
+            if swap { Image(systemName: "arrow.triangle.2.circlepath").font(.body.weight(.bold)) }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.16)))
+        .contentShape(Rectangle())
     }
 }

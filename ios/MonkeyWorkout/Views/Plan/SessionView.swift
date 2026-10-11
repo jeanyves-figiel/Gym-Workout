@@ -30,7 +30,8 @@ struct SessionView: View {
                 .padding(.bottom, 24)
             }
             .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle(model.libraryTitle(session) ?? session.dayLabel)
+            // The big display title below is the page's one title (#88); the bar stays clear.
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
                 Button { playing = true } label: {
@@ -63,7 +64,10 @@ struct SessionView: View {
             if let day = s.weekday {
                 SessionDayLine(weekday: day, climbing: model.profile?.climbingDays ?? [])
             }
-            Text(s.displayTitle).font(Theme.display(38)).fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 6) {
+                if s.weekday == nil, let context = model.libraryTitle(s) { Text(context).eyebrow() }
+                Text(s.displayTitle).font(Theme.display(38)).fixedSize(horizontal: false, vertical: true)
+            }
             LibraryActionsPanel(session: s)
             if let t = WorkoutTemplate.find(sessionId: s.id) {
                 Text("\(t.kcal) kcal · \(t.activityPoints) activity points").font(Theme.label(14)).foregroundStyle(Theme.lime)

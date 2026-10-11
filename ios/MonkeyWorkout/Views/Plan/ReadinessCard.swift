@@ -20,16 +20,19 @@ struct ReadinessCard: View {
 
     private func content(_ r: Readiness, _ reasons: [String]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Readiness").eyebrow()
+            HStack(spacing: 14) {
+                IconTile(symbol: r.symbol, size: 48)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Readiness").font(Theme.label(11)).tracking(1.4).textCase(.uppercase).opacity(0.7)
+                    Text(r.title).font(Theme.display(26))
+                }
                 Spacer()
-                Image(systemName: "info.circle.fill").font(.title3).foregroundStyle(Theme.muted)
+                Image(systemName: "info.circle.fill").font(.title3).opacity(0.7)
             }
-            Text(r.title).font(Theme.display(26)).foregroundStyle(r.colors[0])
             Text(reasons.isEmpty ? r.advice : reasons.joined(separator: " · ") + ". " + r.advice)
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(Theme.muted)
-            HStack(alignment: .top, spacing: 10) {
+                .font(.footnote.weight(.semibold))
+                .opacity(0.8)
+            HStack(alignment: .top, spacing: 8) {
                 if let s = snapshot.sleepHours { metric(String(format: "%.1f h", s), "Sleep", nil) }
                 if let h = snapshot.hrv { metric("\(Int(h)) ms", "HRV", snapshot.hrvBaseline.map { "avg \(Int($0))" }) }
                 if let r = snapshot.restingHR { metric("\(Int(r)) bpm", "Rest HR", snapshot.restingHRBaseline.map { "avg \(Int($0))" }) }
@@ -37,18 +40,23 @@ struct ReadinessCard: View {
             }
             Label("From Apple Health · tap for what this means", systemImage: "heart.fill")
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(.pink)
+                .opacity(0.75)
         }
-        .card()
+        .foregroundStyle(Theme.ink)
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous)
+            .fill(LinearGradient(colors: r.colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
     }
 
     private func metric(_ value: String, _ label: String, _ sub: String?) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(value).font(Theme.display(18)).monospacedDigit()
-            Text(label).eyebrow()
-            if let sub { Text(sub).font(.caption2.weight(.semibold)).foregroundStyle(Theme.muted) }
+            Text(value).font(Theme.display(18)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
+            Text(label.uppercased()).font(Theme.label(10)).tracking(1).opacity(0.7)
+            if let sub { Text(sub).font(.caption2.weight(.semibold)).opacity(0.7) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.3)))
     }
 }
 
@@ -102,25 +110,25 @@ struct ReadinessSheet: View {
                         value: snapshot.hrv.map { "\(Int($0)) ms" }, avg: snapshot.hrvBaseline.map { "\(Int($0)) ms" },
                         what: "Tiny changes in time between heartbeats, in milliseconds. Higher than your normal = well recovered. Lower = stress, poor sleep, illness or hard training is still in your body.",
                         rule: "Counts as off when more than \(Int((1 - Readiness.hrvFloor) * 100)) % below your 30-day average.",
-                        off: flags.contains("HRV below your baseline"))
+                        off: flags.contains("HRV below your baseline"), gradient: WorkoutEngine.Category.mobility.gradient)
                     marker(
                         "Rest HR", "Resting heart rate", "heart.fill",
                         value: snapshot.restingHR.map { "\(Int($0)) bpm" }, avg: snapshot.restingHRBaseline.map { "\(Int($0)) bpm" },
                         what: "Heartbeats per minute when you're calm. A few beats above your normal often means you're tired, dehydrated or getting sick.",
                         rule: "Counts as off when more than \(Int(Readiness.restHRRise)) bpm above your 30-day average.",
-                        off: flags.contains("Resting HR elevated"))
+                        off: flags.contains("Resting HR elevated"), gradient: WorkoutEngine.Category.power.gradient)
                     marker(
                         "Sleep", "Last night's sleep", "bed.double.fill",
                         value: snapshot.sleepHours.map { String(format: "%.1f h", $0) }, avg: nil,
                         what: "Time asleep since 6 pm yesterday, from your watch or sleep app.",
                         rule: "Counts as off under \(Int(Readiness.minSleep)) h. Hidden when Health has no sleep data.",
-                        off: flags.contains("Short sleep"))
+                        off: flags.contains("Short sleep"), gradient: WorkoutEngine.Category.strength.gradient)
                     marker(
                         "VO₂max", "Cardio fitness", "lungs.fill",
                         value: snapshot.vo2Max.map { String(format: "%.0f", $0) }, avg: nil,
                         what: "How much oxygen your body can use at full effort (ml per kg per minute). A long-term fitness score that moves over weeks, so it is shown for context only.",
                         rule: "Not used for today's verdict.",
-                        off: false)
+                        off: false, gradient: WorkoutEngine.Category.cardio.gradient)
                     Text("Effort words").eyebrow()
                     RPEExplainer()
                 }
@@ -159,50 +167,53 @@ struct ReadinessSheet: View {
     private func verdictRow(_ r: Readiness) -> some View {
         let current = r == readiness
         return HStack(alignment: .top, spacing: 12) {
-            Image(systemName: r.symbol)
-                .font(.system(size: 16, weight: .black))
-                .foregroundStyle(Theme.ink)
-                .frame(width: 36, height: 36)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(LinearGradient(colors: r.colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
+            IconTile(symbol: r.symbol, size: 40)
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
-                    Text(r.title).font(.system(.headline, design: .rounded).weight(.heavy))
+                    Text(r.title).font(Theme.display(18))
+                    if current {
+                        Text("TODAY").font(Theme.label(9)).tracking(1)
+                            .padding(.horizontal, 6).padding(.vertical, 3)
+                            .background(Capsule().fill(Theme.ink.opacity(0.15)))
+                    }
                     Spacer()
-                    Text(r.rule).font(Theme.label(11)).foregroundStyle(r.colors[0])
+                    Text(r.rule).font(Theme.label(11)).opacity(0.75)
                 }
-                Text(r.advice).font(.footnote.weight(.medium)).foregroundStyle(Theme.muted)
+                Text(r.advice).font(.footnote.weight(.semibold)).opacity(0.8)
             }
         }
-        .card(padding: 14)
-        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(current ? r.colors[0] : .clear, lineWidth: 2))
+        .foregroundStyle(Theme.ink)
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous)
+            .fill(LinearGradient(colors: r.colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(.white, lineWidth: current ? 3 : 0))
     }
 
     private func marker(_ short: String, _ name: String, _ icon: String, value: String?, avg: String?,
-                        what: String, rule: String, off: Bool) -> some View {
+                        what: String, rule: String, off: Bool, gradient: LinearGradient) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                Image(systemName: icon).font(.system(size: 18, weight: .bold)).foregroundStyle(.pink)
-                    .frame(width: 36, height: 36)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.pink.opacity(0.18)))
+                IconTile(symbol: icon, size: 44)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(short).font(.system(.headline, design: .rounded).weight(.heavy))
-                    Text(name).font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
+                    Text(short).font(Theme.display(19))
+                    Text(name).font(.caption.weight(.semibold)).opacity(0.85)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 0) {
-                    Text(value ?? "—").font(Theme.display(22)).monospacedDigit()
-                        .foregroundStyle(off ? Color.orange : Color.white)
-                    if let avg { Text("avg \(avg)").font(.caption2.weight(.bold)).foregroundStyle(Theme.muted) }
-                    else if value == nil { Text("no data").font(.caption2.weight(.bold)).foregroundStyle(Theme.muted) }
+                    Text(value ?? "—").font(Theme.display(24)).monospacedDigit()
+                    if let avg { Text("AVG \(avg)".uppercased()).font(Theme.label(9)).tracking(1).opacity(0.8) }
+                    else if value == nil { Text("NO DATA").font(Theme.label(9)).tracking(1).opacity(0.8) }
                 }
             }
-            Text(what).font(.footnote.weight(.medium)).foregroundStyle(.white.opacity(0.85))
+            Text(what).font(.footnote.weight(.medium)).opacity(0.9)
             Label(rule, systemImage: off ? "exclamationmark.triangle.fill" : "ruler")
                 .font(.caption.weight(.bold))
-                .foregroundStyle(off ? .orange : Theme.muted)
+                .padding(.horizontal, off ? 10 : 0)
+                .padding(.vertical, off ? 6 : 0)
+                .background { if off { Capsule().fill(.black.opacity(0.3)) } }
+                .opacity(off ? 1 : 0.85)
         }
-        .card(padding: 14)
+        .gradientCard(gradient, padding: 14)
     }
 }
 

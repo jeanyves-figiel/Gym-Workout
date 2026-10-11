@@ -386,34 +386,35 @@ struct CommunityProfileView: View {
             if let p = community.profile {
                 VStack(alignment: .leading, spacing: 16) {
                     ProfileHero(avatar: model.api.resolve(p.avatarUrl), nickname: p.nickname, bio: p.bio)
-                    HStack(spacing: 10) {
-                        StatTile(value: "\(p.sharedPosts)", label: "Shared")
-                        StatTile(value: "\(p.cheersReceived)", label: "Cheers")
-                        StatTile(value: "\(p.followers)", label: "Followers")
-                    }
+                    CommunityStats(shared: p.sharedPosts, cheers: p.cheersReceived, followers: p.followers)
                     Text("Profile").eyebrow()
-                    NavigationLink { editView(p) } label: {
-                        ProfileRow(symbol: "pencil", title: "Nickname, photo, bio", detail: nil, category: .strength)
+                    Group {
+                        NavigationLink { editView(p) } label: {
+                            AccountCard(symbol: "pencil", title: "Nickname, photo, bio", gradient: WorkoutEngine.Category.strength.gradient)
+                        }
+                        NavigationLink { editView(p) } label: {
+                            AccountCard(symbol: p.defaultVisibility.symbol, title: "Default visibility", subtitle: p.defaultVisibility.title,
+                                        gradient: WorkoutEngine.Category.cardio.gradient)
+                        }
+                        NavigationLink { editView(p) } label: {
+                            AccountCard(symbol: "bolt.fill", title: "Auto-share workouts", subtitle: p.autoShare ? "On" : "Off",
+                                        gradient: WorkoutEngine.Category.warmup.gradient)
+                        }
+                        NavigationLink { BlockedMembersView() } label: {
+                            AccountCard(symbol: "hand.raised.fill", title: "Blocked members", gradient: WorkoutEngine.Category.mobility.gradient)
+                        }
+                        NavigationLink { GuidelinesView() } label: {
+                            AccountCard(symbol: "checkmark.seal.fill", title: "Community guidelines", gradient: WorkoutEngine.Category.stretch.gradient)
+                        }
                     }
-                    NavigationLink { editView(p) } label: {
-                        ProfileRow(symbol: p.defaultVisibility.symbol, title: "Default visibility", detail: p.defaultVisibility.title, category: .cardio)
-                    }
-                    NavigationLink { editView(p) } label: {
-                        ProfileRow(symbol: "bolt.fill", title: "Auto-share workouts", detail: p.autoShare ? "On" : "Off", category: .warmup)
-                    }
-                    NavigationLink { BlockedMembersView() } label: {
-                        ProfileRow(symbol: "hand.raised.fill", title: "Blocked members", detail: nil, category: nil)
-                    }
-                    NavigationLink { GuidelinesView() } label: {
-                        ProfileRow(symbol: "checkmark.seal.fill", title: "Community guidelines", detail: nil, category: nil)
-                    }
+                    .buttonStyle(.plain)
                     ErrorText(message: task.error)
-                    Button("Leave the community", role: .destructive) { confirmLeave = true }
-                        .font(.subheadline.bold())
-                        .frame(maxWidth: .infinity)
+                    AccountPillButton(title: "Leave the community", role: .destructive) { confirmLeave = true }
                         .padding(.top, 8)
                 }
                 .padding(16)
+                // Keeps the last button clear of the home indicator.
+                .padding(.bottom, 32)
             }
         }
         .background(Theme.bg.ignoresSafeArea())
@@ -473,34 +474,18 @@ private struct ProfileHero: View {
     }
 }
 
-private struct ProfileRow: View {
-    let symbol: String
-    let title: String
-    let detail: String?
-    let category: WorkoutEngine.Category?
+/// Shared · Cheers · Followers as gradient tiles (own profile and member pages).
+private struct CommunityStats: View {
+    let shared: Int
+    let cheers: Int
+    let followers: Int
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 40, height: 40)
-                .background {
-                    if let category {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous).fill(category.gradient)
-                    } else {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.cardStrong)
-                    }
-                }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(.body, design: .rounded).weight(.heavy))
-                if let detail { Text(detail).font(.footnote.weight(.medium)).foregroundStyle(Theme.muted) }
-            }
-            Spacer()
-            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.muted)
+        HStack(spacing: 10) {
+            GradientStat(symbol: "square.and.arrow.up.fill", value: "\(shared)", label: "Shared", gradient: WorkoutEngine.Category.strength.gradient)
+            GradientStat(symbol: "hands.clap.fill", value: "\(cheers)", label: "Cheers", gradient: WorkoutEngine.Category.power.gradient)
+            GradientStat(symbol: "person.2.fill", value: "\(followers)", label: "Followers", gradient: WorkoutEngine.Category.cardio.gradient)
         }
-        .foregroundStyle(.white)
-        .card(padding: 12)
     }
 }
 
@@ -524,11 +509,7 @@ struct MemberView: View {
                 ProfileHero(avatar: model.api.resolve(page?.member.avatarUrl ?? author.avatarUrl),
                             nickname: page?.member.nickname ?? author.nickname, bio: page?.member.bio)
                 if let m = page?.member {
-                    HStack(spacing: 10) {
-                        StatTile(value: "\(m.sharedPosts)", label: "Shared")
-                        StatTile(value: "\(m.cheersReceived)", label: "Cheers")
-                        StatTile(value: "\(m.followers)", label: "Followers")
-                    }
+                    CommunityStats(shared: m.sharedPosts, cheers: m.cheersReceived, followers: m.followers)
                     if !isMe, page?.blockedByMe == false {
                         let on = page?.followedByMe == true
                         Button(on ? "FOLLOWING ✓" : "FOLLOW") { toggleFollow(on) }

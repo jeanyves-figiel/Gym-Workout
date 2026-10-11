@@ -106,28 +106,26 @@ private struct WinRow: View {
 
     var body: some View {
         Button(action: tap) {
-            HStack(spacing: 12) {
-                Image(systemName: win.symbol)
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(win.card.gradient))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(win.card.title).font(.system(.body, design: .rounded).weight(.heavy)).lineLimit(1)
-                    Text(detail).font(.footnote.weight(.medium)).foregroundStyle(Theme.muted).lineLimit(1)
+            HStack(spacing: 14) {
+                IconTile(symbol: win.symbol, size: 48)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(win.card.title).font(Theme.display(18)).lineLimit(2).minimumScaleFactor(0.75)
+                        .multilineTextAlignment(.leading)
+                    Text(detail).font(.footnote.weight(.medium)).opacity(0.85).lineLimit(2).multilineTextAlignment(.leading)
                 }
-                Spacer()
+                Spacer(minLength: 6)
                 if let m = win.card.metric {
-                    Text("\(m.value) \(m.unit)").font(Theme.label(13)).foregroundStyle(Theme.muted)
+                    AccountValue(value: m.value, unit: m.unit)
                 }
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(selected ? Theme.lime : Theme.muted)
+                    .font(.title2.weight(.bold))
+                    .opacity(selected ? 1 : 0.7)
             }
-            .padding(12)
-            .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Theme.card))
-            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(selected ? Theme.lime : Theme.stroke, lineWidth: selected ? 2 : 1))
-            .contentShape(Rectangle())
+            .foregroundStyle(.white)
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(win.card.gradient))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(Theme.lime, lineWidth: selected ? 3 : 0))
+            .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])

@@ -98,6 +98,13 @@ extension View {
         modifier(SelectableGradient(fill: AnyShapeStyle(fill), selected: selected, cornerRadius: cornerRadius, ring: ring))
     }
 
+    /// Explore-style card: vivid gradient fill, white type. The gradient counterpart of `card()`.
+    func gradientCard(_ gradient: LinearGradient, padding: CGFloat = 16) -> some View {
+        foregroundStyle(.white)
+            .padding(padding)
+            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(gradient))
+    }
+
     /// Dark canvas behind system forms/lists; keyboard dismisses on scroll or via a Done button.
     func themedForm() -> some View {
         scrollContentBackground(.hidden)
@@ -217,6 +224,39 @@ struct StatTile: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(padding: 14)
+    }
+}
+
+/// White ~20 % rounded tile holding an icon, left of Explore-style gradient cards.
+struct IconTile: View {
+    let symbol: String
+    var size: CGFloat = 48
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: size * 0.45, weight: .bold))
+            .frame(width: size, height: size)
+            .background(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).fill(.white.opacity(0.2)))
+    }
+}
+
+/// Explore-style section: gradient card with an icon tile and heavy title over its content.
+struct GradientSection<Content: View>: View {
+    let symbol: String
+    let title: String
+    let gradient: LinearGradient
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                IconTile(symbol: symbol, size: 40)
+                Text(title).font(Theme.display(20)).lineLimit(2).minimumScaleFactor(0.8)
+            }
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .gradientCard(gradient)
     }
 }
 

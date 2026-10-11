@@ -29,7 +29,7 @@ struct CommunityView: View {
             }
         }
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Community")
+        .navigationTitle(community.loaded && community.profile == nil ? "Join the community" : "Community")
         .toolbarTitleDisplayMode(.inlineLarge)
         .toolbar {
             if let p = community.profile {
