@@ -15,6 +15,7 @@ struct MonkeyWorkoutApp: App {
                 .environment(model)
                 .environment(lock)
                 .environment(health)
+                .environment(\.bodyFigure, model.bodyFigure)
                 .task {
                     model.health = health
                     await model.bootstrap()
