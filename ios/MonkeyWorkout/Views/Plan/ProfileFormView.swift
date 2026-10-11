@@ -603,6 +603,8 @@ private struct GymPicker: View {
     @State private var query = ""
     @State private var results: [GymRef] = []
     @State private var searching = false
+    /// Map of gyms around you (#165), same finder as for trips.
+    @State private var findingNearby = false
 
     private var selectedId: String { profile.gym?.id ?? Gym.puls5.id }
 
@@ -611,6 +613,14 @@ private struct GymPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(Gym.scoped) { gym in ScopedGymCard(gym: gym, selected: gym.id == selectedId) { select(gym.ref) } }
+
+            Button { findingNearby = true } label: {
+                Label("Gyms near me", systemImage: "location.magnifyingglass")
+                    .font(Theme.label(14)).foregroundStyle(Theme.ink)
+                    .frame(maxWidth: .infinity).padding(.vertical, 12)
+                    .background(Capsule().fill(Theme.lime))
+            }
+            .buttonStyle(.plain)
 
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
@@ -655,6 +665,9 @@ private struct GymPicker: View {
             .buttonStyle(.plain)
 
             Text(note).font(.footnote).foregroundStyle(Theme.muted)
+        }
+        .sheet(isPresented: $findingNearby) {
+            GymFinderView { ref in select(ref) }
         }
         .task(id: query) {
             let q = query.trimmingCharacters(in: .whitespaces)
