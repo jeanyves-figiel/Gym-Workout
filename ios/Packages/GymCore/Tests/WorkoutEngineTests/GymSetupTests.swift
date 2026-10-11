@@ -50,7 +50,7 @@ import Testing
                 continue
             }
             #expect(ex.equipment.contains(e), "\(e) picture \(ex.id)")
-            #expect(ex.hasIllustration || !ex.imageURLs.isEmpty, "\(e) picture has media")
+            #expect(ex.hasMedia, "\(e) picture has media")
         }
     }
 
