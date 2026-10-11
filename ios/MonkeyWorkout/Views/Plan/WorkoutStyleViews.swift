@@ -20,8 +20,8 @@ struct WorkoutStyleCard: View {
                         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.22)))
                     VStack(alignment: .leading, spacing: 3) {
                         Text(style.isEmpty ? "PLAN DEFAULT" : "THIS WORKOUT ONLY").font(Theme.label(10)).tracking(1.2).opacity(0.85)
-                        Text("\(rest.label) · \(group.label)").font(Theme.display(19)).lineLimit(1).minimumScaleFactor(0.7)
-                        Text("Tap to change rest and grouping").font(.footnote.weight(.semibold)).opacity(0.85)
+                        Text(rest.label).font(Theme.display(20)).lineLimit(1).minimumScaleFactor(0.7)
+                        Text("\(group.label) · tap to change").font(.footnote.weight(.semibold)).opacity(0.85)
                     }
                     Spacer(minLength: 4)
                     VStack(alignment: .trailing, spacing: 0) {
