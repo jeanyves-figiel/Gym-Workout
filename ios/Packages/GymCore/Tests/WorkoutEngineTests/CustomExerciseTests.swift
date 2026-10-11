@@ -91,7 +91,7 @@ import Testing
         gone.archived = true
         registry.replaceAll([live, gone])
 
-        let ids = { (c: Category) in Exercise.inCategory(c, custom: registry).map(\.id) }
+        let ids = { (c: WorkoutEngine.Category) in Exercise.inCategory(c, custom: registry).map(\.id) }
         #expect(ids(.strength).contains(live.exerciseId))
         #expect(!ids(.strength).contains(gone.exerciseId))
         #expect(ids(.strength).count == Exercise.inCategory(.strength, custom: CustomExercises()).count + 1)
