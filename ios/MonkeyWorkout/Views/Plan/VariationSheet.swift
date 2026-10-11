@@ -138,6 +138,7 @@ struct VariationSheet: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("New variation")
             .toolbarTitleDisplayMode(.inlineLarge)

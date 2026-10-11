@@ -96,6 +96,7 @@ struct ProfileFormView: View {
                 .padding(.top, section == nil ? 0 : 8)
                 .padding(.bottom, 24)
             }
+            .readableWidth()
             .onAppear { if let scrollTo { proxy.scrollTo(scrollTo, anchor: .top) } }
         }
         .background(Theme.bg.ignoresSafeArea())

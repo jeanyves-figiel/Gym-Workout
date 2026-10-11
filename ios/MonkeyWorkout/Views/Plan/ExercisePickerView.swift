@@ -68,6 +68,7 @@ struct ExercisePickerView: View {
                 }
                 .padding(.bottom, 16)
             }
+            .readableWidth()
             .sheet(item: $builder) { sheet in
                 switch sheet {
                 case .new:

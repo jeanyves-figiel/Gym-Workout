@@ -42,6 +42,7 @@ struct ShareWinView: View {
                 }
                 .padding(16)
             }
+            .readableWidth()
             .scrollDismissesKeyboard(.interactively)
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Share a win")

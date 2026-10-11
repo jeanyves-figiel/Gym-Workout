@@ -95,6 +95,7 @@ struct WorkoutStyleSheet: View {
                     .padding(16)
                     .animation(.spring(duration: 0.3), value: style)
                 }
+                .readableWidth()
                 .background(Theme.bg.ignoresSafeArea())
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }

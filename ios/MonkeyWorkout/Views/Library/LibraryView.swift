@@ -31,6 +31,7 @@ struct LibraryView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Explore")
         .toolbarTitleDisplayMode(.inlineLarge)
@@ -231,6 +232,7 @@ struct MuscleDetailView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Muscle")
         .navigationBarTitleDisplayMode(.inline)
@@ -274,6 +276,7 @@ struct CategoryDetailView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $open) { ref in NavigationStack { ExerciseDetailView(exerciseId: ref.exerciseId) } }

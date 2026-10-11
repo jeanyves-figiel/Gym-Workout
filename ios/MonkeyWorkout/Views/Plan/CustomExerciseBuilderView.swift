@@ -39,6 +39,7 @@ struct CustomExerciseBuilderView: View {
                 }
                 .padding(16)
             }
+            .readableWidth()
             .scrollDismissesKeyboard(.interactively)
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle(existing == nil ? "New exercise" : "Edit exercise")

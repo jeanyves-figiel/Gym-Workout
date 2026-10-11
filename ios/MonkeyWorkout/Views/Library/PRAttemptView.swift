@@ -90,6 +90,7 @@ struct PRAttemptView: View {
             }
             .padding(16)
         }
+        .readableWidth()
     }
 
     private func kindCard(_ k: PRKind) -> some View {
@@ -248,6 +249,7 @@ struct PRAttemptView: View {
             }
             .padding(16)
         }
+        .readableWidth()
     }
 
     private var attemptCard: some View {
@@ -364,6 +366,7 @@ struct PRAttemptView: View {
             .foregroundStyle(.white)
             .padding(16)
         }
+        .readableWidth()
         .background(
             LinearGradient(colors: colors + [Theme.bg], startPoint: .top, endPoint: .center).ignoresSafeArea()
         )

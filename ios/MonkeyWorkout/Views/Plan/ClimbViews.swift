@@ -272,6 +272,7 @@ struct LogClimbView: View {
                 }
                 .padding(16)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Log climb")
             .navigationBarTitleDisplayMode(.inline)
@@ -474,6 +475,7 @@ struct ClimbSettingsView: View {
                 }
                 .padding(16)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Around climbing")
             .navigationBarTitleDisplayMode(.inline)

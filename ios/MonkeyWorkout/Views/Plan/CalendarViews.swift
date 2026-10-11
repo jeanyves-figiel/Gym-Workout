@@ -74,6 +74,7 @@ struct CalendarView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Calendar")
         .toolbarTitleDisplayMode(.inlineLarge)
@@ -378,6 +379,7 @@ struct DaySheet: View {
                 }
                 .padding(20)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
         }
         .preferredColorScheme(.dark)
@@ -528,6 +530,7 @@ struct AwayEditorView: View {
                 }
                 .padding(16)
             }
+            .readableWidth()
             .scrollDismissesKeyboard(.interactively)
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle(isNew ? "Away" : "Edit away")
@@ -708,6 +711,7 @@ struct RescheduleSheet: View {
                 if result == nil, session != nil {
                     NavigationLink {
                         ScrollView { MoveDayPicker(sessionId: sessionId) { _ in dismiss() }.padding(16) }
+                            .readableWidth()
                             .background(Theme.bg.ignoresSafeArea())
                             .navigationTitle("Pick a day")
                             .navigationBarTitleDisplayMode(.inline)

@@ -73,6 +73,7 @@ struct CommunityView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .refreshable { await community.refresh(api: model.api) }
     }
 }

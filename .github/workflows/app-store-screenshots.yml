@@ -1,0 +1,98 @@
+name: App Store screenshots
+
+# Full-resolution App Store Connect screenshots (#120) from the demo-mode Debug build:
+# iPhone 6.9" + 6.3", iPad 13", iPhone Duo outer + inner. Published to the `app-store-screenshots`
+# branch (full size JPEG, no alpha, plus 800 px previews) and as an artifact.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['.github/workflows/app-store-screenshots.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: app-store-screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select newest Xcode
+        run: |
+          XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+          xcrun simctl list devicetypes | grep -iE "iphone 1[6-9]|iphone air|ipad pro|duo|fold" || true
+          xcrun simctl help 2>&1 | grep -iE "fold|posture|display" || true
+      - run: brew install xcodegen
+      - run: xcodegen generate --spec ios/project.yml
+      - name: Build for simulator
+        run: |
+          set -o pipefail
+          xcodebuild build -project ios/MonkeyWorkout.xcodeproj -scheme MonkeyWorkout -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO | tail -n 5
+      - name: Capture
+        run: |
+          APP=build/Build/Products/Debug-iphonesimulator/MonkeyWorkout.app
+          # Order = App Store order (max 10 per size).
+          SCREENS="week session player explore muscle progress calendar library community pr-result"
+          mkdir -p out preview
+
+          # $1 = folder name, $2 = device type regex (first match wins)
+          capture() {
+            local name="$1" pattern="$2"
+            local type
+            type=$(xcrun simctl list devicetypes | grep -m1 -E "$pattern" | sed -E 's/ \(com\.apple.*//')
+            if [ -z "$type" ]; then echo "::warning::No device type for $name ($pattern)"; return 0; fi
+            local udid
+            udid=$(xcrun simctl create "shots-$name" "$type")
+            echo "$name -> $type ($udid)"
+            xcrun simctl boot "$udid"
+            xcrun simctl bootstatus "$udid" -b
+            xcrun simctl status_bar "$udid" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3 || true
+            xcrun simctl install "$udid" "$APP"
+            mkdir -p "out/$name" "preview/$name"
+            local i=1
+            for s in $SCREENS; do
+              xcrun simctl launch --terminate-running-process "$udid" Com.app.MonkeyWorkout.dev -demo -demoScreen "$s" >/dev/null
+              sleep 7
+              local f
+              f=$(printf "%02d-%s" "$i" "$s")
+              xcrun simctl io "$udid" screenshot "out/$name/$f.png"
+              # App Store Connect rejects alpha: ship JPEG.
+              sips -s format jpeg -s formatOptions 95 "out/$name/$f.png" --out "out/$name/$f.jpg" >/dev/null
+              rm "out/$name/$f.png"
+              sips -Z 800 -s format jpeg "out/$name/$f.jpg" --out "preview/$name/$f.jpg" >/dev/null
+              i=$((i + 1))
+            done
+            sips -g pixelWidth -g pixelHeight "out/$name/01-week.jpg" | tail -2
+            xcrun simctl shutdown "$udid" || true
+            xcrun simctl delete "$udid" || true
+          }
+
+          capture iphone-6.9 "iPhone 17 Pro Max|iPhone 16 Pro Max"
+          capture iphone-6.3 "iPhone 17 Pro \(|iPhone 16 Pro \("
+          capture ipad-13 "iPad Pro 13-inch"
+          capture iphone-duo "iPhone Duo"
+          find out -name '*.jpg' | sort
+      - name: Publish to app-store-screenshots branch
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          mkdir site && cp -R out site/full && cp -R preview site/preview
+          cd site
+          git init -q -b shots
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com add .
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "App Store screenshots for ${GITHUB_SHA}"
+          git push -qf "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/app-store-screenshots"
+          echo "Screenshots on branch \`app-store-screenshots\`" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-store-screenshots
+          path: out

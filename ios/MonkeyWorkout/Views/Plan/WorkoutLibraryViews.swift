@@ -245,6 +245,7 @@ struct WorkoutLibraryView: View {
             }
             .padding(16)
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Workout library")
         .toolbarTitleDisplayMode(.inlineLarge)
@@ -506,6 +507,7 @@ struct AddToPlanSheet: View {
                 }
                 .padding(16)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Add to plan")
             .navigationBarTitleDisplayMode(.inline)

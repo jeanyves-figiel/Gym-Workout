@@ -38,6 +38,7 @@ struct SetLogCard: View {
         .card(padding: 14)
         .sheet(isPresented: $explaining) {
             ScrollView { RPEExplainer().padding(16) }
+                .readableWidth()
                 .background(Theme.bg.ignoresSafeArea())
                 .presentationDetents([.medium, .large])
                 .preferredColorScheme(.dark)
