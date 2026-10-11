@@ -8,6 +8,7 @@ struct WeekView: View {
     @State private var editing = false
     @State private var varying = false
     @State private var playing: Session?
+    @State private var gate: ProGate?
     @State private var moving: Session?
     @State private var adding = false
     @State private var addingDay: Int?
@@ -92,6 +93,7 @@ struct WeekView: View {
             VariationSheet(days: Set(model.variableSessions.map(\.id)), keep: model.keptSwapUids)
         }
         .fullScreenCover(item: $playing) { s in WorkoutPlayerView(sessionId: s.id) }
+        .proPaywall($gate)
         .sheet(item: $moving) { s in MoveSessionSheet(sessionId: s.id) }
         .sheet(isPresented: $adding) { AddWorkoutSheet(weekday: addingDay) }
         .refreshable { await model.sync() }
@@ -119,7 +121,9 @@ struct WeekView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Calendar, \(plannedCount) sessions planned in the next 4 weeks")
             Menu {
-                Button("New variation", systemImage: "shuffle") { varying = true }
+                Button(ProStore.shared.badged ? "New variation · PRO" : "New variation", systemImage: "shuffle") {
+                    ProStore.shared.run(.variation, $gate) { varying = true }
+                }
                 Button("Edit training profile", systemImage: "slider.horizontal.3") { editing = true }
             } label: {
                 HeaderChip(symbol: "slider.horizontal.3", title: "Plan", detail: "Variation · edit",

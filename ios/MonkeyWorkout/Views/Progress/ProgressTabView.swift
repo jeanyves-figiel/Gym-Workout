@@ -9,11 +9,19 @@ struct ProgressTabView: View {
     @Environment(HealthManager.self) private var health
     @State private var badge: Badge?
     @State private var lift: String?
+    @State private var gate: ProGate?
 
     private var target: Int { model.profile?.sessionsPerWeek ?? 3 }
 
+    /// Free shows charts and trends for the last 4 weeks; Pro (#126) all of it. The history list stays complete.
+    private var charted: [WorkoutRecord] {
+        guard ProStore.shared.locked else { return model.state.history }
+        let from = Calendar.current.date(byAdding: .day, value: -28, to: .now) ?? .now
+        return model.state.history.filter { $0.startedAt >= from }
+    }
+
     private var stats: ProgressStats {
-        Progression.stats(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
+        Progression.stats(records: charted, weights: model.weightEntries, targetPerWeek: target)
     }
 
     private var badges: [Badge] {
@@ -43,7 +51,14 @@ struct ProgressTabView: View {
                 if !health.snapshot.weightTrend.isEmpty || !health.snapshot.vo2Trend.isEmpty { bodyTrends }
                 records(s)
                 if !climbList.isEmpty { ClimbingCard(climbs: climbList) }
-                if !s.muscleBalance.isEmpty {
+                if ProStore.shared.locked && !fresh {
+                    Button { gate = .progress } label: {
+                        AccountCard(symbol: "chart.xyaxis.line", title: "Full progress",
+                                    subtitle: "All your history in the charts, trends and the muscle heat map",
+                                    gradient: AccountTint.pro, ink: true) { ProBadge() }
+                    }
+                    .buttonStyle(.plain)
+                } else if !s.muscleBalance.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Muscle balance · last 28 days").eyebrow()
                         BodyMapPair(heat: s.muscleBalance).frame(height: 240)
@@ -58,6 +73,7 @@ struct ProgressTabView: View {
             .padding(16)
         }
         .background(Theme.bg.ignoresSafeArea())
+        .proPaywall($gate)
         .navigationTitle("Progress")
         .toolbarTitleDisplayMode(.inlineLarge)
         .navigationDestination(for: UUID.self) { id in HistoryDetailView(recordId: id) }
@@ -133,7 +149,7 @@ struct ProgressTabView: View {
     private var strengthTrend: some View {
         let options = liftOptions
         if let selected = lift ?? options.first?.id {
-            let points = Progression.oneRepMaxTrend(selected, records: model.state.history)
+            let points = Progression.oneRepMaxTrend(selected, records: charted)
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 4) {

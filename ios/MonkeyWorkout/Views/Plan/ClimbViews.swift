@@ -36,6 +36,7 @@ struct ClimbSection: View {
     @Environment(HealthManager.self) private var health
     @State private var logging: ClimbLog?
     @State private var settings = false
+    @State private var gate: ProGate?
 
     private var monkeyGrade: MonkeyGradeLink { .shared }
 
@@ -56,15 +57,23 @@ struct ClimbSection: View {
                 HardClimbNote(climb: hard)
             }
             if model.profile?.climbDayAddon == true {
-                NavigationLink(value: WorkoutTemplate.climbAddon.sessionId) {
-                    ClimbAddonCard(today: isClimbingDay)
+                if ProStore.shared.locked {
+                    Button { gate = .climbing } label: { ClimbAddonCard(today: isClimbingDay) }
+                        .buttonStyle(.plain)
+                } else {
+                    NavigationLink(value: WorkoutTemplate.climbAddon.sessionId) {
+                        ClimbAddonCard(today: isClimbingDay)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
-            Button { settings = true } label: {
-                Label("Around climbing days", systemImage: "slider.horizontal.3")
-                    .font(Theme.label(13))
-                    .foregroundStyle(Theme.lime)
+            Button { ProStore.shared.run(.climbing, $gate) { settings = true } } label: {
+                HStack(spacing: 6) {
+                    Label("Around climbing days", systemImage: "slider.horizontal.3")
+                        .font(Theme.label(13))
+                        .foregroundStyle(Theme.lime)
+                    ProBadge()
+                }
             }
             .buttonStyle(.plain)
             if !all.isEmpty {
@@ -86,6 +95,7 @@ struct ClimbSection: View {
         }
         .sheet(item: $logging) { LogClimbView(initial: $0) }
         .sheet(isPresented: $settings) { ClimbSettingsView() }
+        .proPaywall($gate)
         .task { if monkeyGrade.isConnected(for: model.user?.id) { await monkeyGrade.refresh() } }
     }
 
