@@ -183,6 +183,7 @@ struct ExercisePickerView: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
+        .readableColumn()
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 

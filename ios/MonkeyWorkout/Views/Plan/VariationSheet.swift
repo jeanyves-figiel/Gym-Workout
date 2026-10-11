@@ -179,6 +179,7 @@ struct VariationSheet: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
+                .readableColumn()
                 .background(Theme.bg.opacity(0.92).ignoresSafeArea())
             }
             .animation(.spring(duration: 0.3), value: parts)

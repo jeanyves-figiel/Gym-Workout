@@ -110,6 +110,7 @@ struct ProfileFormView: View {
             .buttonStyle(LimeButtonStyle())
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
+            .readableColumn()
             .background(Theme.bg.opacity(0.92).ignoresSafeArea())
         }
         .sheet(isPresented: $showEquipment) {
