@@ -1,7 +1,7 @@
 import SwiftUI
 import WorkoutEngine
 
-/// Exercise page: body map, primary/secondary muscles, equipment, cues, swap (when planned), related exercises.
+/// Exercise page: body map, primary/secondary muscles, equipment, cues, swap (when planned), similar exercises.
 struct ExerciseDetailView: View {
     let exerciseId: String
     /// Set when opened from a planned session item → enables swap + weight log.
@@ -11,6 +11,8 @@ struct ExerciseDetailView: View {
     @State private var muscle: Muscle?
     @State private var kgText = ""
     @State private var editing: CustomExercise?
+    @State private var swapping = false
+    @State private var swapped = false
 
     private var e: Exercise { Exercise.get(exerciseId) }
 
@@ -32,6 +34,12 @@ struct ExerciseDetailView: View {
                         Label(machine, systemImage: "gearshape.2.fill").font(.subheadline.weight(.semibold))
                     }
                     Text(e.category.blurb).font(.subheadline).foregroundStyle(Theme.muted)
+                }
+                if let uid = plannedUid, model.canSwap(uid: uid) {
+                    Button { swapping = true } label: {
+                        Label("Swap exercise", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .buttonStyle(LimeButtonStyle())
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -58,6 +66,12 @@ struct ExerciseDetailView: View {
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Exercise")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $swapping, onDismiss: {
+            // The planned item now shows another exercise: back to the session.
+            if swapped { dismiss() }
+        }) {
+            if let uid = plannedUid { SwapExerciseSheet(exerciseId: e.id, uid: uid) { swapped = true } }
+        }
         .toolbar {
             if let custom, !custom.archived {
                 ToolbarItem(placement: .topBarLeading) { Button("Edit") { editing = custom } }
@@ -120,37 +134,24 @@ struct ExerciseDetailView: View {
         .card()
     }
 
+    /// Related moves. Planned items swap from the Swap exercise button (#101).
     @ViewBuilder
     private var alternativesSection: some View {
-        let alts = custom != nil ? [] : (model.profile.map { e.alternatives(for: $0) } ?? [])
+        let alts = custom != nil || plannedUid.map { model.canSwap(uid: $0) } == true ? [] : (model.profile.map { e.alternatives(for: $0) } ?? [])
         if !alts.isEmpty {
-            GradientSection(symbol: plannedUid == nil ? "square.grid.2x2.fill" : "arrow.triangle.2.circlepath",
-                            title: plannedUid == nil ? "Similar exercises" : "Swap for", gradient: e.category.gradient) {
-                ForEach(alts.prefix(8)) { a in
-                    if let uid = plannedUid {
-                        Button {
-                            model.swap(uid: uid, to: a.id)
-                            dismiss()
-                        } label: {
-                            alternativeRow(a, swap: true)
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        alternativeRow(a, swap: false)
-                    }
-                }
+            GradientSection(symbol: "square.grid.2x2.fill", title: "Similar exercises", gradient: e.category.gradient) {
+                ForEach(alts.prefix(8)) { a in alternativeRow(a) }
             }
         }
     }
 
-    private func alternativeRow(_ a: Exercise, swap: Bool) -> some View {
+    private func alternativeRow(_ a: Exercise) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(a.name).font(.body.weight(.bold)).multilineTextAlignment(.leading)
                 Text(a.primary.map(\.name).joined(separator: " · ")).font(.caption.weight(.medium)).opacity(0.85)
             }
             Spacer()
-            if swap { Image(systemName: "arrow.triangle.2.circlepath").font(.body.weight(.bold)) }
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.16)))
