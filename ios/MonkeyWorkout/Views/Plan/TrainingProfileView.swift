@@ -25,7 +25,6 @@ struct TrainingProfileView: View {
         ScrollView {
             if let p = model.profile {
                 VStack(spacing: 12) {
-                    summary(p)
                     ForEach(ProfileSection.allCases) { s in
                         NavigationLink(value: s) { ProfileSectionCard(section: s, profile: p) }
                             .buttonStyle(.plain)
@@ -36,26 +35,6 @@ struct TrainingProfileView: View {
         }
         .background(Theme.bg.ignoresSafeArea())
         .navigationDestination(for: ProfileSection.self) { ProfileSectionView(section: $0) }
-    }
-
-    private func summary(_ p: Profile) -> some View {
-        let minutes = Generator.sessionMinutes(p)
-        return HStack(spacing: 0) {
-            stat("\(minutes)′", "per session")
-            stat("\(p.sessionsPerWeek)×", "gym / week")
-            stat(String(format: "%.1fh", Double(minutes * p.sessionsPerWeek) / 60), "per week")
-        }
-        .foregroundStyle(.white)
-        .padding(.vertical, 18)
-        .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(p.goal.gradient))
-    }
-
-    private func stat(_ value: String, _ label: String) -> some View {
-        VStack(spacing: 2) {
-            Text(value).font(Theme.display(30)).monospacedDigit()
-            Text(label).font(Theme.label(11)).tracking(1.4).textCase(.uppercase).opacity(0.85)
-        }
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -90,9 +69,10 @@ struct ProfileSectionCard: View {
                 Text(section.title).font(Theme.display(21)).lineLimit(1).minimumScaleFactor(0.75)
                 Text(value).font(.footnote.weight(.semibold)).opacity(0.88).lineLimit(2)
             }
+            .layoutPriority(1)
             Spacer(minLength: 4)
             VStack(alignment: .trailing, spacing: 0) {
-                Text(big.0).font(Theme.display(26)).lineLimit(1).minimumScaleFactor(0.6)
+                Text(big.0).font(Theme.display(26)).lineLimit(1).minimumScaleFactor(0.5)
                 Text(big.1).font(Theme.label(9)).tracking(1.2).opacity(0.8)
             }
             Image(systemName: "chevron.right").font(.footnote.bold()).opacity(0.7)
