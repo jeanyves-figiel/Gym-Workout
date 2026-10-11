@@ -2,10 +2,13 @@ import MapKit
 import SwiftUI
 import WorkoutEngine
 
-/// Training profile editor (onboarding + Train → edit): goal tiles with their recommended week,
-/// visual day pickers, an "I climb" switch for climbing days, and a gym picker with map search.
+/// Training profile editor: goal tiles with their recommended week, visual day pickers, an "I climb" switch
+/// for climbing days, and a gym picker with map search. Onboarding shows every section in one guided form;
+/// the Training profile hub (#99) opens one `section` at a time.
 struct ProfileFormView: View {
     let onSave: (Profile) -> Void
+    /// Only this section (hub / Community entry); nil = full onboarding form.
+    private let section: ProfileSection?
     @State private var p: Profile
     @State private var showEquipment = false
     @Environment(HealthManager.self) private var health
@@ -13,8 +16,9 @@ struct ProfileFormView: View {
     /// Section to scroll to on appear (demo screenshots).
     private let scrollTo: String?
 
-    init(initial: Profile?, scrollTo: String? = nil, onSave: @escaping (Profile) -> Void) {
+    init(initial: Profile?, section: ProfileSection? = nil, scrollTo: String? = nil, onSave: @escaping (Profile) -> Void) {
         self.onSave = onSave
+        self.section = section
         self.scrollTo = scrollTo
         isNew = initial == nil
         var start = initial ?? Profile()
@@ -64,25 +68,21 @@ struct ProfileFormView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Pick a goal. Your week is sized around it.")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.muted)
-
-                    goals
-
-                    Text("Your week").eyebrow().padding(.top, 14)
-                    week
-                    summary
-
-                    Text("Week to week").eyebrow().padding(.top, 14).id("variety")
-                    variety
-
-                    TrainingStyleSection(profile: $p).id("style")
-
-                    Text("Your gym").eyebrow().padding(.top, 14)
-                    GymPicker(profile: $p, showEquipment: $showEquipment)
+                    if let section {
+                        content(section)
+                    } else {
+                        content(.goal)
+                        Text("Your week").eyebrow().padding(.top, 14)
+                        content(.week)
+                        Text("Week to week").eyebrow().padding(.top, 14).id("variety")
+                        content(.variety)
+                        content(.style).id("style")
+                        Text("Your gym").eyebrow().padding(.top, 14)
+                        content(.gym)
+                    }
                 }
                 .padding(.horizontal, 16)
+                .padding(.top, section == nil ? 0 : 8)
                 .padding(.bottom, 24)
             }
             .onAppear { if let scrollTo { proxy.scrollTo(scrollTo, anchor: .top) } }
@@ -93,7 +93,7 @@ struct ProfileFormView: View {
                 var out = p
                 onSave(out)
             } label: {
-                Text("GENERATE PLAN")
+                Text(section == nil ? "GENERATE PLAN" : "SAVE")
             }
             .buttonStyle(LimeButtonStyle())
             .padding(.horizontal, 16)
@@ -114,6 +114,26 @@ struct ProfileFormView: View {
     }
 
     // MARK: Sections
+
+    @ViewBuilder
+    private func content(_ s: ProfileSection) -> some View {
+        switch s {
+        case .goal:
+            Text("Pick a goal. Your week is sized around it.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.muted)
+            goals
+        case .week:
+            week
+            summary
+        case .variety:
+            variety
+        case .style:
+            TrainingStyleSection(profile: $p)
+        case .gym:
+            GymPicker(profile: $p, showEquipment: $showEquipment)
+        }
+    }
 
     private var goals: some View {
         VStack(spacing: 12) {

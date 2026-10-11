@@ -67,12 +67,9 @@ struct WeekView: View {
         }
         .sheet(isPresented: $editing) {
             NavigationStack {
-                ProfileFormView(initial: model.profile) { p in
-                    model.applyProfile(p)
-                    editing = false
-                }
-                .navigationTitle("Training profile")
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { editing = false } } }
+                TrainingProfileView()
+                    .navigationTitle("Training profile")
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { editing = false } } }
             }
         }
         .fullScreenCover(item: $playing) { s in WorkoutPlayerView(sessionId: s.id) }

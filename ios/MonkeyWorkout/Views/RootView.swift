@@ -113,6 +113,8 @@ private struct DemoScreen: View {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
                     .navigationTitle("Your training")
             }
+        case "profile": NavigationStack { TrainingProfileView().navigationTitle("Training profile") }
+        case "profile-gym": NavigationStack { ProfileSectionView(section: .gym) }
         case "variety":
             NavigationStack {
                 ProfileFormView(initial: nil, scrollTo: "variety") { _ in }
