@@ -12,6 +12,9 @@ struct ProfileFormView: View {
     @State private var p: Profile
     @State private var showEquipment = false
     @Environment(HealthManager.self) private var health
+    @Environment(AppModel.self) private var model
+    /// Body figure for muscle maps, asked once in onboarding (#110); changed later in Account → Body & Health.
+    @State private var figure: BodyFigure = .male
     private let isNew: Bool
     /// Section to scroll to on appear (demo screenshots).
     private let scrollTo: String?
@@ -79,6 +82,14 @@ struct ProfileFormView: View {
                         content(.style).id("style")
                         Text("Your gym").eyebrow().padding(.top, 14)
                         content(.gym)
+
+                        if isNew {
+                            Text("Your body figure").eyebrow().padding(.top, 14).id("figure")
+                            Text("The figure drawn on your muscle maps. Change it any time in Account → Body & Health.")
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.muted)
+                            BodyFigurePicker(selection: $figure)
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
@@ -90,8 +101,8 @@ struct ProfileFormView: View {
         .background(Theme.bg.ignoresSafeArea())
         .safeAreaInset(edge: .bottom) {
             Button {
-                var out = p
-                onSave(out)
+                onSave(p)
+                if isNew { model.setBodyFigure(figure) }
             } label: {
                 Text(section == nil ? "GENERATE PLAN" : "SAVE")
             }
@@ -106,6 +117,7 @@ struct ProfileFormView: View {
         .animation(.spring(duration: 0.3), value: p.goal)
         .animation(.spring(duration: 0.3), value: p.climbs)
         .onAppear {
+            if isNew { figure = model.body.figure ?? BodyMetrics.suggestedFigure(sex: health.snapshot.sex ?? model.body.sex) }
             // New profile: climbing on when Apple Health shows climbing workouts.
             if isNew, !p.climbs, let perWeek = health.snapshot.climbingPerWeek4w, perWeek >= 0.5 {
                 p.climbingDaysPerWeek = min(4, max(1, Int(perWeek.rounded())))
