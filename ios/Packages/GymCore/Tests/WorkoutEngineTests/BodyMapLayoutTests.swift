@@ -91,3 +91,22 @@ import Testing
         #expect(Muscle.allCases.count == 28)
     }
 }
+
+/// Explore muscle cards: each muscle gets a close-up thumbnail of the figure.
+@Suite struct BodyMapFocusTests {
+    @Test(arguments: Muscle.allCases, BodyMapLayout.Figure.allCases)
+    func everyMuscleHasACloseUpAroundIt(muscle: Muscle, figure: BodyMapLayout.Figure) throws {
+        let f = try #require(BodyMapLayout.focus(muscle, figure: figure), "\(muscle)")
+        #expect(f.size >= 64 && f.size < 200, "\(muscle) \(f.size)")
+        let hit = BodyMapLayout.shapes(f.side, figure: figure).filter { $0.muscle == muscle }
+            .contains { $0.midX > f.x && $0.midX < f.x + f.size && $0.midY > f.y && $0.midY < f.y + f.size }
+        #expect(hit, "\(muscle)")
+    }
+
+    @Test func pairedLimbMusclesFrameOneSide() throws {
+        let biceps = try #require(BodyMapLayout.focus(.biceps))
+        #expect(biceps.side == .front)
+        #expect(biceps.x + biceps.size / 2 < BodyMapLayout.width / 2)
+        #expect(try #require(BodyMapLayout.focus(.lats)).side == .back)
+    }
+}
