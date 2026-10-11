@@ -9,6 +9,8 @@ final class Community {
     static let shared = Community()
 
     private(set) var profile: CommunityProfile?
+    /// Account profile (#108): nickname, photo, about. Mirrors `profile` once joined.
+    private(set) var publicProfile: PublicProfile?
     /// Profile fetched at least once for `ownerId` (distinguishes "not joined" from "not loaded").
     private(set) var loaded = false
     private(set) var feed: [CommunityPost] = []
@@ -35,6 +37,7 @@ final class Community {
         if ownerId != userId {
             ownerId = userId
             profile = nil
+            publicProfile = nil
             loaded = false
             feed = []
             mine = []
@@ -42,7 +45,9 @@ final class Community {
             next = [:]
         }
         do {
+            async let pub = api.publicProfile()
             profile = try await api.communityProfile()
+            publicProfile = try await pub
             loaded = true
             error = nil
             if profile != nil { await refresh(api: api) }
@@ -87,14 +92,32 @@ final class Community {
         }
     }
 
+    /// Nickname, photo and about for Account and the join form, joined or not.
+    var me: PublicProfile {
+        if let p = profile { return PublicProfile(nickname: p.nickname, bio: p.bio, avatarUrl: p.avatarUrl, member: true) }
+        return publicProfile ?? PublicProfile()
+    }
+
     func setProfile(_ p: CommunityProfile) {
         let joined = profile == nil
         profile = p
+        publicProfile = PublicProfile(nickname: p.nickname, bio: p.bio, avatarUrl: p.avatarUrl, member: true)
         loaded = true
         if joined { feed = []; mine = []; following = [] }
     }
 
+    /// Saved from Account; a member's community profile shows the same values.
+    func setPublic(_ p: PublicProfile) {
+        publicProfile = p
+        guard profile != nil else { return }
+        if let n = p.nickname, !n.isEmpty { profile!.nickname = n }
+        profile!.bio = p.bio
+        profile!.avatarUrl = p.avatarUrl
+    }
+
+    /// Leaving keeps nickname, photo and about on Account.
     func left() {
+        publicProfile = PublicProfile(nickname: profile?.nickname, bio: profile?.bio, avatarUrl: profile?.avatarUrl, member: false)
         profile = nil
         feed = []
         mine = []
@@ -176,6 +199,8 @@ final class Community {
     func loadDemo(joined: Bool = true) {
         demo = true
         loaded = true
+        // Not joined yet: the Account profile is already set, so joining is prefilled (#108).
+        publicProfile = PublicProfile(nickname: "monkey_jy", bio: "Climber who lifts. Chasing a strict one-arm hang.", member: joined)
         guard joined else { return }
         profile = CommunityProfile(
             userId: "demo", nickname: "monkey_jy", bio: "Climber who lifts. Chasing a strict one-arm hang.", avatarUrl: nil,

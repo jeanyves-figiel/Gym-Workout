@@ -104,10 +104,13 @@ private struct JoinVisibilityCard: View {
     }
 }
 
-// MARK: - Profile form (join + edit)
+// MARK: - Profile form (join + edit + Account)
 
+/// One form for the nickname, photo and about shown on Account and in Community (#108).
+/// `account`: edited from Account (works before joining; nickname optional until then).
 struct CommunityProfileForm: View {
     let profile: CommunityProfile?
+    var account = false
     var onSaved: () -> Void = {}
     @Environment(AppModel.self) private var model
     @State private var nickname = ""
@@ -121,15 +124,23 @@ struct CommunityProfileForm: View {
     @State private var removePhoto = false
     @State private var task = FormTask()
     @State private var loaded = false
+    /// Join with an Account profile already set: show it as a card instead of the fields.
+    @State private var prefilled = false
 
-    private var joining: Bool { profile == nil }
+    private var joining: Bool { profile == nil && !account }
+    private var member: Bool { Community.shared.profile != nil }
     private var nicknameValid: Bool { nickname.range(of: "^[A-Za-z0-9_.]{3,20}$", options: .regularExpression) != nil }
+    /// Photo already saved (Account or community profile, same record).
+    private var savedAvatar: String? { profile?.avatarUrl ?? Community.shared.me.avatarUrl }
 
-    private var canSave: Bool { nicknameValid && (!joining || accepted) }
+    private var canSave: Bool {
+        if account { return nicknameValid || (nickname.isEmpty && !member) }
+        return nicknameValid && (!joining || accepted)
+    }
 
     var body: some View {
         Group {
-            if joining { joinLayout } else { editLayout }
+            if joining { joinLayout } else if account { accountLayout } else { editLayout }
         }
         .sheet(isPresented: $showGuidelines) { NavigationStack { GuidelinesView() } }
         .onChange(of: photoItem) { _, item in
@@ -146,8 +157,10 @@ struct CommunityProfileForm: View {
         .onAppear {
             guard !loaded else { return }
             loaded = true
-            nickname = profile?.nickname ?? ""
-            bio = profile?.bio ?? ""
+            let me = Community.shared.me
+            nickname = profile?.nickname ?? me.nickname ?? ""
+            bio = profile?.bio ?? me.bio ?? ""
+            prefilled = joining && (me.nickname ?? "").range(of: "^[A-Za-z0-9_.]{3,20}$", options: .regularExpression) != nil
             visibility = profile?.defaultVisibility ?? .members  // join preselects Members (#90)
             autoShare = profile?.autoShare ?? false
         }
@@ -159,7 +172,7 @@ struct CommunityProfileForm: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 JoinHero()
-                nicknameField
+                if prefilled { prefilledCard } else { nicknameField }
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Who sees your wins?").eyebrow()
                     JoinVisibilityCards(selection: $visibility)
@@ -171,8 +184,10 @@ struct CommunityProfileForm: View {
                     Button("Read the full guidelines") { showGuidelines = true }.font(.footnote.bold())
                 }
                 .card()
-                photoRow
-                bioField
+                if !prefilled {
+                    photoRow
+                    bioField
+                }
                 autoShareToggle
             }
             .padding(16)
@@ -189,6 +204,45 @@ struct CommunityProfileForm: View {
             .padding(.bottom, 8)
             .background(Theme.bg.opacity(0.96).ignoresSafeArea(edges: .bottom))
             .overlay(alignment: .top) { Rectangle().fill(Theme.stroke).frame(height: 1) }
+        }
+    }
+
+    /// Account → Profile: the same three fields, shown in Community too.
+    private var accountLayout: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            photoRow
+            nicknameField
+            bioField
+            Text(member ? "Shown on your community profile and posts." : "Used when you join the community. Nothing is shared until then.")
+                .font(.footnote).foregroundStyle(Theme.muted)
+            ErrorText(message: task.error)
+            saveButton
+        }
+    }
+
+    /// Join with the Account profile already set: who you'll appear as, with Edit to change it here.
+    private var prefilledCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("You'll appear as").eyebrow()
+            HStack(spacing: 14) {
+                AvatarView(url: model.api.resolve(savedAvatar), nickname: nickname, size: 60, ring: .white)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(nickname).font(Theme.display(22)).lineLimit(1).minimumScaleFactor(0.7)
+                    if !bio.isEmpty {
+                        Text(bio).font(.footnote.weight(.semibold)).opacity(0.88).lineLimit(2)
+                    }
+                    Text("From your Account").font(Theme.label(10)).tracking(1).opacity(0.75)
+                }
+                Spacer(minLength: 4)
+                Button("Edit") { withAnimation(.snappy) { prefilled = false } }
+                    .font(.subheadline.bold())
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(Capsule().fill(.white.opacity(0.25)))
+            }
+            .foregroundStyle(.white)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(AccountTint.publicProfile))
         }
     }
 
@@ -221,7 +275,7 @@ struct CommunityProfileForm: View {
                         Image(uiImage: img).resizable().scaledToFill().frame(width: 84, height: 84).clipShape(Circle())
                             .overlay(Circle().strokeBorder(Theme.lime, lineWidth: 3))
                     } else {
-                        AvatarView(url: removePhoto ? nil : model.api.resolve(profile?.avatarUrl),
+                        AvatarView(url: removePhoto ? nil : model.api.resolve(savedAvatar),
                                    nickname: nickname.isEmpty ? "?" : nickname, size: 84, ring: Theme.lime)
                     }
                     Image(systemName: "camera.fill").font(.caption.bold()).foregroundStyle(Theme.ink)
@@ -232,7 +286,7 @@ struct CommunityProfileForm: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Profile photo").font(.system(.body, design: .rounded).weight(.heavy))
                 Text("Optional. Location and camera details are removed.").font(.footnote).foregroundStyle(Theme.muted)
-                if photo != nil || (profile?.avatarUrl != nil && !removePhoto) {
+                if photo != nil || (savedAvatar != nil && !removePhoto) {
                     Button("Remove photo", role: .destructive) {
                         photo = nil
                         photoItem = nil
@@ -252,7 +306,7 @@ struct CommunityProfileForm: View {
                 .autocorrectionDisabled()
                 .font(.system(.title3, design: .rounded).weight(.bold))
                 .card(padding: 14)
-            Text("3–20 letters, digits, _ or . · shown instead of your name")
+            Text(account && !member ? "3–20 letters, digits, _ or . · optional until you join the community" : "3–20 letters, digits, _ or . · shown instead of your name")
                 .font(.footnote).foregroundStyle(nickname.isEmpty || nicknameValid ? Theme.muted : .red)
         }
     }
@@ -290,6 +344,13 @@ struct CommunityProfileForm: View {
                 return
             }
             #endif
+            if account {
+                var pp = try await api.savePublicProfile(nickname: n, bio: b)
+                if let newPhoto { pp = try await api.uploadPublicAvatar(jpeg: newPhoto) } else if remove, pp.avatarUrl != nil { pp = try await api.deletePublicAvatar() }
+                Community.shared.setPublic(pp)
+                onSaved()
+                return
+            }
             var p = try await api.saveCommunityProfile(nickname: n, bio: b, defaultVisibility: v, autoShare: a, acceptGuidelines: join)
             if let newPhoto { p = try await api.uploadAvatar(jpeg: newPhoto) } else if remove, p.avatarUrl != nil { p = try await api.deleteAvatar() }
             Community.shared.setProfile(p)
@@ -356,7 +417,7 @@ struct GuidelinesView: View {
                 Content that breaks the rules is removed and repeat offenders are removed from the community.
 
                 You choose who sees each post: only you, members, or public (anyone with the link). \
-                You can change it or delete a post at any time. Leaving the community deletes your profile, photo and posts.
+                You can change it or delete a post at any time. Leaving the community deletes your posts; your nickname, photo and about stay on your Account.
                 """)
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.85))
@@ -389,7 +450,8 @@ struct CommunityProfileView: View {
                     Text("Profile").eyebrow()
                     Group {
                         NavigationLink { editView(p) } label: {
-                            AccountCard(symbol: "pencil", title: "Nickname, photo, bio", gradient: WorkoutEngine.Category.strength.gradient)
+                            AccountCard(symbol: "pencil", title: "Nickname, photo, about", subtitle: "Also on your Account",
+                                        gradient: WorkoutEngine.Category.strength.gradient)
                         }
                         NavigationLink { editView(p) } label: {
                             AccountCard(symbol: p.defaultVisibility.symbol, title: "Default visibility", subtitle: p.defaultVisibility.title,
@@ -422,7 +484,7 @@ struct CommunityProfileView: View {
         .confirmationDialog("Leave the community?", isPresented: $confirmLeave, titleVisibility: .visible) {
             Button("Leave and delete my posts", role: .destructive) { leave() }
         } message: {
-            Text("Your community profile, photo, posts and cheers are deleted. Your training data stays.")
+            Text("Your posts and cheers are deleted. Your nickname, photo, about and training data stay on your Account.")
         }
     }
 
@@ -749,5 +811,28 @@ extension CommunityReportReason {
         case .violence: "Violence or self-harm"
         case .other: "Something else"
         }
+    }
+}
+
+// MARK: - Account → Profile (#108)
+
+/// Nickname, photo and about edited from Account; the same record as the community profile.
+struct PublicProfileView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                AccountHeader(symbol: "person.crop.circle.fill", title: "Profile",
+                              subtitle: "Set once, shown on Account and in Community.", gradient: AccountTint.publicProfile)
+                CommunityProfileForm(profile: Community.shared.profile, account: true) { dismiss() }
+            }
+            .padding(16)
+            .padding(.bottom, 24)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .themedForm()
+        .navigationTitle("Profile")
+        .toolbarTitleDisplayMode(.inline)
     }
 }
