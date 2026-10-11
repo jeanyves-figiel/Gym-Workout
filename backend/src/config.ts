@@ -28,7 +28,7 @@ export interface Config {
   /** APNs token auth (.p8 with Apple Push Notifications service enabled). Unset → remote push skipped (#69). */
   apns: { teamId?: string; keyId?: string; privateKey?: string };
   /** Who runs the app, shown on /privacy, /terms and /support (#125). Unset → placeholder text the owner must fill. */
-  legal: { operator?: string; address?: string; email?: string; law: string };
+  legal: { operator?: string; address?: string; email?: string; law: string; venue?: string };
 }
 
 const required = (name: string, env: NodeJS.ProcessEnv, prod: boolean, dev: string): string => {
@@ -87,6 +87,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
       address: env.LEGAL_ADDRESS || undefined,
       email: env.LEGAL_EMAIL || env.MODERATION_EMAIL || undefined,
       law: env.LEGAL_LAW || 'Switzerland',
+      venue: env.LEGAL_VENUE || undefined,
     },
   };
 };

@@ -13,7 +13,7 @@
 
 Staging copies for checking: https://workout-staging.monkeygrade.cloud/privacy, `/terms`, `/support`.
 
-## Owner must fill (Fly secrets / env, both apps)
+## Operator details (`[env]` in `backend/fly.*.toml`)
 
 | Env | Used for |
 |---|---|
@@ -21,8 +21,9 @@ Staging copies for checking: https://workout-staging.monkeygrade.cloud/privacy, 
 | `LEGAL_ADDRESS` | Postal address (required under FADP/GDPR for the controller) |
 | `LEGAL_EMAIL` | Contact for privacy and support (falls back to `MODERATION_EMAIL`) |
 | `LEGAL_LAW` | Governing law of the Terms (default `Switzerland`) |
+| `LEGAL_VENUE` | Place of jurisdiction |
 
-Until set, the pages show a yellow `[… to be completed]` placeholder. Review should not be submitted with placeholders.
+Set for staging and prod: MonkeyWorkout by Figiel, Schlieren, contact@monkeygrade.cloud, Swiss law, Zurich courts. Unset → yellow `[… to be completed]` placeholder.
 
 ## Guideline coverage
 

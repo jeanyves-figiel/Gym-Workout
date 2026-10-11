@@ -25,6 +25,7 @@ Optional env:
 | `LEGAL_OPERATOR` / `LEGAL_ADDRESS` | – | operator name and postal address on `/privacy`, `/terms`, `/support` (unset → visible placeholder) |
 | `LEGAL_EMAIL` | `MODERATION_EMAIL` | contact email on the legal and support pages |
 | `LEGAL_LAW` | `Switzerland` | governing law in the Terms of Use |
+| `LEGAL_VENUE` | – | place of jurisdiction in the Terms of Use |
 
 Without the three `APPLE_*` key settings the Apple code exchange and token revocation are skipped (logged once).
 With them: `/auth/apple` exchanges `authorizationCode` at `appleid.apple.com/auth/token` (ES256 client-secret JWT, 5 min)

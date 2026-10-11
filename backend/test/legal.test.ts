@@ -38,12 +38,14 @@ describe('legal pages (#125)', () => {
       LEGAL_ADDRESS: 'Street 1, 1000 Town',
       MODERATION_EMAIL: 'mod@example.com',
       LEGAL_LAW: 'France',
+      LEGAL_VENUE: 'Paris',
     }).inject({ method: 'GET', url: '/privacy' });
     expect(res.body).toContain('Jane &#60;Doe&#62;');
     expect(res.body).toContain('mailto:mod@example.com');
     expect(res.body).not.toContain('to be completed');
     const terms = await app.inject({ method: 'GET', url: '/terms' });
     expect(terms.body).toContain('laws of France');
+    expect(terms.body).toContain('Place of jurisdiction is Paris');
     expect(terms.body).toContain('third-party beneficiaries');
   });
 });

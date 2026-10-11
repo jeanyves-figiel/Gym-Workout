@@ -17,12 +17,13 @@ interface Legal {
   email: string;
   emailLink: string;
   law: string;
+  venue?: string;
 }
 
 const MISSING = (what: string) => `<mark>[${what} to be completed]</mark>`;
 
 const legalInfo = (config: Config): Legal => {
-  const { operator, address, email, law } = config.legal;
+  const { operator, address, email, law, venue } = config.legal;
   return {
     app: esc(config.appName),
     operator: operator ? esc(operator) : MISSING('operator name'),
@@ -30,6 +31,7 @@ const legalInfo = (config: Config): Legal => {
     email: email ? esc(email) : MISSING('contact email'),
     emailLink: email ? `<a href="mailto:${esc(email)}">${esc(email)}</a>` : MISSING('contact email'),
     law: esc(law),
+    venue: venue ? esc(venue) : undefined,
   };
 };
 
@@ -196,7 +198,7 @@ const terms = (l: Legal) => `
 </ul>
 
 <h2>12. Governing law</h2>
-<p>These terms are governed by the laws of ${l.law}, without prejudice to mandatory consumer protection laws of your country of residence.</p>
+<p>These terms are governed by the laws of ${l.law}, without prejudice to mandatory consumer protection laws of your country of residence.${l.venue ? ` Place of jurisdiction is ${l.venue}, subject to any mandatory place of jurisdiction for consumers.` : ''}</p>
 
 <h2>13. Contact</h2>
 <div class="card">${l.operator}<br>${l.address}<br>${l.emailLink}</div>
