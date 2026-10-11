@@ -6,6 +6,7 @@ struct WeekView: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @State private var editing = false
+    @State private var varying = false
     @State private var playing: Session?
 
     var body: some View {
@@ -15,6 +16,9 @@ struct WeekView: View {
                     header
                     WeekHero(plan: plan, profile: profile, done: model.completedCount)
                     ReadinessCard(snapshot: health.snapshot)
+                    if let undo = model.variationUndo {
+                        VariationUndoCard(undo: undo)
+                    }
                     if let next = model.nextSession {
                         NextUpCard(session: next) { playing = next }
                     } else {
@@ -67,6 +71,9 @@ struct WeekView: View {
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { editing = false } } }
             }
         }
+        .sheet(isPresented: $varying) {
+            VariationSheet(days: Set(model.variableSessions.map(\.id)), keep: model.keptSwapUids)
+        }
         .fullScreenCover(item: $playing) { s in WorkoutPlayerView(sessionId: s.id) }
         .refreshable { await model.sync() }
         .task {
@@ -88,7 +95,7 @@ struct WeekView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Calendar, \(plannedCount) sessions planned in the next 4 weeks")
             Menu {
-                Button("New variation", systemImage: "shuffle") { model.newVariation() }
+                Button("New variation", systemImage: "shuffle") { varying = true }
                 Button("Edit training profile", systemImage: "slider.horizontal.3") { editing = true }
             } label: {
                 HeaderChip(symbol: "slider.horizontal.3", title: "Plan", detail: "Variation · edit",
@@ -337,5 +344,36 @@ struct SessionDayLine: View {
                     .lineLimit(1)
             }
         }
+    }
+}
+
+/// Shown after applying a variation (#98): what changed, Undo.
+private struct VariationUndoCard: View {
+    let undo: VariationUndo
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "shuffle")
+                .font(.system(size: 16, weight: .bold))
+                .frame(width: 36, height: 36)
+                .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(.white.opacity(0.22)))
+            Text(undo.days == 0 ? "Back to the original plan" : "New variation on \(undo.days) day\(undo.days == 1 ? "" : "s")")
+                .font(.system(size: 15, weight: .heavy, design: .rounded))
+            Spacer()
+            Button("Undo") { withAnimation { model.undoVariation() } }
+                .font(.system(size: 14, weight: .heavy, design: .rounded))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(.white))
+                .foregroundStyle(Theme.ink)
+            Button { withAnimation { model.variationUndo = nil } } label: {
+                Image(systemName: "xmark").font(.footnote.bold()).opacity(0.8)
+            }
+            .accessibilityLabel("Dismiss")
+        }
+        .foregroundStyle(.white)
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(WorkoutEngine.Category.warmup.gradient))
     }
 }

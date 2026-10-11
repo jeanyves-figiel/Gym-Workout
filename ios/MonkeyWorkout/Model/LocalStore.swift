@@ -15,6 +15,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var planInserts: [PlanInsert]?
     /// Exercise swaps kept for future weeks (#101), per plan day. Kept across variations and weeks.
     var exerciseSwaps: [ExerciseSwap]?
+    /// Member-steered exercise swaps for this week (#98). Optional so older profiles still decode.
+    var variation: PlanVariation?
 }
 
 struct LocalState: Codable {

@@ -119,6 +119,7 @@ private struct DemoScreen: View {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
                     .navigationTitle("Your training")
             }
+        case "variation": VariationSheet(days: Set(model.variableSessions.map(\.id)), keep: model.keptSwapUids)
         case "variety":
             NavigationStack {
                 ProfileFormView(initial: nil, scrollTo: "variety") { _ in }
