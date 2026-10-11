@@ -264,6 +264,24 @@ private struct NextUpCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            // Tapping the card opens the session page, same as the list button (#150).
+            NavigationLink(value: session.id) {
+                summary
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens the session overview")
+            actions
+        }
+        .padding(20)
+        .background {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(LinearGradient(colors: [lead.colors[0].opacity(0.85), lead.colors[1].opacity(0.55), Theme.bg], startPoint: .topLeading, endPoint: .bottomTrailing))
+        }
+        .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Color.white.opacity(0.15)))
+    }
+
+    private var summary: some View {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Next up · \(session.dayLabel)").font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
@@ -278,27 +296,25 @@ private struct NextUpCard: View {
                 ForEach(session.topMuscles(4)) { MuscleChip(muscle: $0) }
             }
             BlockStripe(blocks: session.blocks)
-            HStack(spacing: 10) {
-                Button(action: onStart) {
-                    Label(model.activeWorkout(session.id) == nil ? "Start workout" : "Resume workout", systemImage: "play.fill")
-                }
-                .buttonStyle(LimeButtonStyle())
-                NavigationLink(value: session.id) {
-                    Image(systemName: "list.bullet")
-                        .font(.system(size: 18, weight: .heavy))
-                        .foregroundStyle(.white)
-                        .frame(width: 56, height: 56)
-                        .background(Circle().fill(Color.white.opacity(0.15)))
-                }
-                .accessibilityLabel("Session overview")
+        }
+        .contentShape(Rectangle())
+    }
+
+    private var actions: some View {
+        HStack(spacing: 10) {
+            Button(action: onStart) {
+                Label(model.activeWorkout(session.id) == nil ? "Start workout" : "Resume workout", systemImage: "play.fill")
             }
+            .buttonStyle(LimeButtonStyle())
+            NavigationLink(value: session.id) {
+                Image(systemName: "list.bullet")
+                    .font(.system(size: 18, weight: .heavy))
+                    .foregroundStyle(.white)
+                    .frame(width: 56, height: 56)
+                    .background(Circle().fill(Color.white.opacity(0.15)))
+            }
+            .accessibilityLabel("Session overview")
         }
-        .padding(20)
-        .background {
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(LinearGradient(colors: [lead.colors[0].opacity(0.85), lead.colors[1].opacity(0.55), Theme.bg], startPoint: .topLeading, endPoint: .bottomTrailing))
-        }
-        .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Color.white.opacity(0.15)))
     }
 }
 

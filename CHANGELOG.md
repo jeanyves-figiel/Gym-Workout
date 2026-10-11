@@ -78,6 +78,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Bold dark design system (#14): heavy rounded type, lime accent, gradient per category, progress rings, animated welcome screen.
 
 ### Changed
+- **Train: tap the Next up card to open the session** (#150): tapping anywhere on the Next up card (title, muscles, body map) opens the session overview, same as the list button. Start workout stays a separate button.
 - **Sheets close with a round X** (#149): the "Cancel" capsule that covered the title (New variation and others) becomes a small round **X** at the top right on every dismiss-only sheet: New variation, Add exercises, Generate from muscles, Swap exercise, Log climb, Around climbing, Add to plan, Away, Move to, Add workout, Share a win, New exercise.
 - **Train: Plan button split into Variation and Edit plan** (#147): the "Plan · Variation · edit" menu button becomes two gradient buttons, **Variation** (opens New variation, Pro badge when locked) and **Edit plan** (opens the training profile). Calendar, Variation and Edit plan now sit in one equal-width row under the Train title.
 - **Smoke test covers legal pages and subscriptions**: staging / production smoke checks `/privacy`, `/terms`, `/support` return 200 with no "to be completed" placeholders, `GET /v1/me/entitlement` refuses requests without a token and `POST /v1/app-store/notifications` rejects an unsigned payload.
