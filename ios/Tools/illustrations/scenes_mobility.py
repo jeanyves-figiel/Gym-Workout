@@ -415,11 +415,34 @@ def _side_lying(arm_f, arm_n=(22, 4, 4), x=196, h=-6, **kw):
     return dict(p, pin=pin)
 
 
-add("open-book", floor_entry([
-    _side_lying((28, 6, 6)),
-    _side_lying((-92, -92, -92), h=-24),
-    _side_lying((-150, -150, -150), h=-40),
-], mat=(66, 346)))
+# Open book: side-lying, seen from the front (as _side_lying) a little from the feet, so the top arm's sweep from
+# the front over the top to the floor behind shows as an arc (dotted path). Knees stacked and bent. When the arm
+# is behind the body the scene draws it itself under the torso (the posed arm is parked off-screen).
+
+def _open_book(stage):
+    arm = [(28, 6, 6), (-90, -90, -90), (-160, -164, -164)][stage]
+    h = [-6, -30, -58][stage]
+    p = P(front=True, t=0, h=h, lN=(166, 192, 196), lF=(162, 190, 194), aN=(22, 4, 4), aF=arm)
+    pin = rest(dict(p, aF=(30, 4, 4)), "hip", 200, MAT)["pin"]
+    return dict(p, pin=pin)
+
+
+def _ob_back(doc, j):
+    sh = j["shoulderF"]
+    kit.arc(doc, sh, 104, -166, 24)
+    if j["handF"][0] < sh[0] - 20:
+        # Arm reaching to the floor behind the body: draw it under the torso, fold the posed one away.
+        prof = {k: [(u, max(f, b) * 0.92, max(f, b) * 0.92) for u, f, b in art.PROFILES[k]] for k in ("upper", "fore")}
+        segs = [art.Seg(sh, j["elbowF"], prof["upper"]), art.Seg(j["elbowF"], j["wristF"], prof["fore"]),
+                art.Seg(j["wristF"], j["handF"], art.PROFILES["hand"])]
+        for s in segs[::-1]:
+            art.draw_segment(doc, s, art.SKIN_FAR, 0.6)
+        for k in ("shoulderF", "elbowF", "wristF", "handF"):
+            j[k] = (-2000, -2000)  # park the posed arm off-screen
+
+
+add("open-book", floor_entry(tween(_open_book, (0, 1, 2)), mat=(66, 346), back=_ob_back,
+                             boxes=[(70, 100, 330, 120)]))
 
 
 
@@ -649,19 +672,78 @@ add("cross-body", floor_entry(tween(_cross)))
 
 
 # ---- sleeper stretch (side-lying, front view) -----------------------------------------------------------------
+# Seen from the front and from above: the mat shows in front of the body. The bottom upper arm lies on the mat
+# at 90 deg to the body, pointing at the viewer (foreshortened: elbow on the mat in front of the shoulder); the
+# forearm points at the ceiling and the top hand presses it down towards the feet and the floor (dotted path).
+# The forearm's rotation angle rides in the posed bottom hand's angle; the scene lays the arm out from it.
 
-def _sleeper(k):
-    p = _side_lying((40, 10, 10), arm_n=(20, -90, -90), lit_sides="N")
+SL_TILT = 0.55        # sin of the view elevation: an arm pointing at the viewer drops this much
+SL_SKEW = (-0.5, 0.86)  # seen a little from the head end: forward shows down-left, the long axis shortens
+SL_PHI = (0, 38, 74)  # forearm rotation from vertical towards the feet
+SL_MAT = (60, 348, 26)  # mat x0, x1, depth in front of the body
+
+
+def _sl_arm(sh, phi):
+    """Bottom arm joints: elbow in front of the shoulder, forearm rotated phi deg from vertical towards the feet."""
+    e = (sh[0] + F.UPPER_ARM * SL_SKEW[0], sh[1] + F.UPPER_ARM * SL_TILT)
+    a = math.radians(phi)
+    up = math.sqrt(1 - SL_TILT * SL_TILT)
+
+    def at(r):
+        return (e[0] - r * math.sin(a) * SL_SKEW[1], e[1] - r * math.cos(a) * up)
+    return e, at(F.FOREARM), at(F.FOREARM + F.HAND)
+
+
+def _sleeper(phi, press):
+    p = _side_lying((40, 10, 10), lit_sides="N", h=-10)
+    p["aN"] = (22, 4, phi)
     j = joints(p)
+    _, w, hnd = _sl_arm(j["shoulderN"], phi)
+    if press is None:  # start: top arm rests along the side, the forearm stands free
+        return dict(p, aF=(172, 176, 176))
+    target = lerp2(w, hnd, 0.3)
+    target = (target[0] + 2, target[1] - 5)
+    return reach(p, "aF", target, end=press, pick=lambda m: -m[1])
+
+
+def _sl_back(doc, j):
+    x0, x1, depth = SL_MAT
+    g = doc.lin((0, MAT - 16), (0, MAT + depth), [(0, "#2A6585"), (1, "#3A82A6")])
+    doc.add(f'<path d="M{x0 + 6},{MAT - 16} L{x1 - 6},{MAT - 16} L{x1},{MAT + depth} L{x0},{MAT + depth} Z" fill="{g}" '
+            f'stroke="#0A0B0D" stroke-opacity="0.5" stroke-width="0.8" stroke-linejoin="round"/>'
+            f'<rect x="{x0}" y="{MAT + depth}" width="{x1 - x0}" height="4" rx="2" fill="#1E4A62"/>')
     sh = j["shoulderN"]
-    up = math.degrees(math.asin(max(-1, min(1, (MAT - 7 - sh[1]) / F.UPPER_ARM))))
-    fore = lerp(-92, -150, k)
-    p["aN"] = (up, fore, fore)
-    j = joints(p)
-    return reach(p, "aF", lerp2(j["wristN"], j["handN"], 0.2), end=lerp(-60, -100, k), pick=lambda m: -m[1])
+    phi = math.degrees(math.atan2(*reversed(art.sub(j["handN"], j["wristN"]))))
+    j["elbowN"], j["wristN"], j["handN"] = _sl_arm(sh, phi)
 
 
-add("sleeper-stretch", floor_entry(tween(_sleeper), mat=(66, 346)))
+def _sl_limb(doc, j, side, halo):
+    sym = {k: [(u, max(f, b) * 0.92, max(f, b) * 0.92) for u, f, b in art.PROFILES[k]] for k in ("upper", "fore")}
+    for a, b, prof in (("elbow", "wrist", sym["fore"]), ("wrist", "hand", art.PROFILES["hand"])):
+        s = art.Seg(j[a + side], j[b + side], prof)
+        if halo:
+            doc.add(f'<path d="{art.smooth(s.outline())}" fill="none" stroke="#1F252E" stroke-opacity="0.45" '
+                    f'stroke-width="3.2" stroke-linejoin="round"/>')
+        art.draw_segment(doc, s, art.SKIN_NEAR)
+
+
+def _sl_front(doc, j):
+    # Lift the bottom forearm off the chest (dark halo), keep the pressing hand on top of it.
+    _sl_limb(doc, j, "N", True)
+    if kit.dist(j["handF"], j["wristN"]) < 30:
+        _sl_limb(doc, j, "F", False)
+    e = j["elbowN"]
+    up = math.sqrt(1 - SL_TILT * SL_TILT)
+    r = F.FOREARM + F.HAND + 8
+    pts = [(e[0] - r * math.sin(math.radians(a)) * SL_SKEW[1], e[1] - r * math.cos(math.radians(a)) * up)
+           for a in range(-4, 93, 6)]
+    doc.add(f'<path d="{art.smooth(pts, closed=False)}" fill="none" stroke="#fff" stroke-opacity="0.7" '
+            f'stroke-width="2.4" stroke-dasharray="2 6" stroke-linecap="round"/>')
+
+
+add("sleeper-stretch", entry(make_scene(back=_sl_back, front=_sl_front),
+                             [_sleeper(phi, press) for phi, press in zip(SL_PHI, (None, -80, -112))],
+                             [(SL_MAT[0], MAT - 4, SL_MAT[1], MAT + SL_MAT[2] + 4)]))
 
 
 # ---- overhead triceps stretch -----------------------------------------------------------------------------------

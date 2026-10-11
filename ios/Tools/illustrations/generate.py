@@ -34,7 +34,7 @@ SWIFT_OUT = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercise+Illustrations
 LEDGER = IOS / "EXERCISE_MEDIA.md"
 
 SCENE_MODULES = ["scenes", "scenes_lower", "scenes_upper", "scenes_arms_core", "scenes_power", "scenes_mobility",
-                 "scenes_var_lower", "scenes_var_push", "scenes_var_pull", "scenes_var_core"]
+                 "scenes_extra", "scenes_var_lower", "scenes_var_push", "scenes_var_pull", "scenes_var_core"]
 FRAMES = 3
 SIZE = (720, 540)
 
