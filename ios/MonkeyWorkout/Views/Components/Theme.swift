@@ -286,9 +286,10 @@ struct ReadableWidth: ViewModifier {
     @State private var width: CGFloat = 0
 
     func body(content: Content) -> some View {
+        // Measured outside the padding: the measured width never depends on the padding it sets.
         content
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
             .safeAreaPadding(.horizontal, max(0, (width - Theme.readableWidth) / 2))
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 }
 
