@@ -209,7 +209,7 @@ describe('community feed', () => {
     expect(nicks(await req('GET', '/v1/community/members?q=ea', b.t))).toEqual(['bea', 'bxeast', 'beast_mode']);
     expect(nicks(await req('GET', '/v1/community/members?q=t_m', b.t))).toEqual(['beast_mode']);
     expect(nicks(await req('GET', '/v1/community/members?q=monkey', b.t))).toEqual([]);
-    expect(nicks(await req('GET', '/v1/community/members?q=%25', b.t))).toHaveLength(4);
+    expect(nicks(await req('GET', '/v1/community/members?q=%25', b.t))).toEqual([]) // not a wildcard;
     expect((await req('GET', '/v1/community/members?q=bea', (await signUp('y@example.com')).t)).statusCode).toBe(403);
 
     // Suggestions: not followed yet, most followed first.
@@ -228,6 +228,35 @@ describe('community feed', () => {
     expect(nicks(await req('GET', '/v1/community/members?q=be', b.t))).toEqual(['bea']);
     for (const r of [b, c, d]) await req('POST', '/v1/community/reports', r.t, { userId: e.id, reason: 'spam' });
     expect(nicks(await req('GET', '/v1/community/members?q=bx', a.t))).toEqual([]);
+  });
+
+  it('finds members at your gym or by gym name, only when both show their gym (#152)', async () => {
+    const gym = (t: string, g: object | null) => req('PUT', '/v1/me/profile', t, { data: { profile: g ? { gym: g } : {} } });
+    const a = await join('a@example.com', 'bea', { showGym: true });
+    const b = await join('b@example.com', 'monkey_jy');
+    const c = await join('c@example.com', 'crimpy', { showGym: true });
+    const d = await join('d@example.com', 'hidden_gym');
+    await gym(a.t, { id: 'map:47.38000,8.53000', name: 'Kraftwerk Zürich', latitude: 47.38, longitude: 8.53 });
+    await gym(b.t, { id: 'map:47.38010,8.53010', name: 'kraftwerk zürich', latitude: 47.3801, longitude: 8.5301 });
+    await gym(c.t, null); // default gym
+    await gym(d.t, { id: 'map:47.38000,8.53000', name: 'Kraftwerk Zürich', latitude: 47.38, longitude: 8.53 });
+    const nicks = (r: { json(): { members: { nickname: string }[] } }) => r.json().members.map((m) => m.nickname);
+
+    // b doesn't show their gym yet: no gym list, gym hidden on their rows.
+    expect(nicks(await req('GET', '/v1/community/members?gym=mine', b.t))).toEqual([]);
+    expect((await req('GET', '/v1/community/members?q=hidden', b.t)).json().members[0].gym).toBeNull();
+    expect((await req('PUT', '/v1/community/me', b.t, { showGym: true })).json().profile).toMatchObject({ showGym: true, gym: 'kraftwerk zürich' });
+    // Same name within a few metres counts; d does not show theirs.
+    expect(nicks(await req('GET', '/v1/community/members?gym=mine', b.t))).toEqual(['bea']);
+    expect((await req('GET', '/v1/community/members?gym=mine', b.t)).json().members[0].gym).toBe('Kraftwerk Zürich');
+    expect(nicks(await req('GET', '/v1/community/members?gym=mine', a.t))).toEqual(['monkey_jy']);
+    // Text search matches shown gym names too (default gym when none saved).
+    expect(nicks(await req('GET', '/v1/community/members?q=Kraftwerk', c.t))).toEqual(['bea', 'monkey_jy']);
+    expect(nicks(await req('GET', '/v1/community/members?q=puls 5', a.t))).toEqual(['crimpy']);
+    expect((await req('GET', `/v1/community/members/${a.id}`, c.t)).json().member.gym).toBe('Kraftwerk Zürich');
+    // Blocks apply.
+    await req('POST', '/v1/community/blocks', a.t, { userId: b.id });
+    expect(nicks(await req('GET', '/v1/community/members?gym=mine', b.t))).toEqual([]);
   });
 
   it('dedupes by refId, filters captions and paginates', async () => {

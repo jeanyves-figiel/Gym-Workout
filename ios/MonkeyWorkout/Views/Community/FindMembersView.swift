@@ -15,7 +15,7 @@ struct FindMembersCard: View {
                     .background(RoundedRectangle(cornerRadius: 17, style: .continuous).fill(.white.opacity(0.22)))
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Find members").font(Theme.display(21)).lineLimit(1).minimumScaleFactor(0.75)
-                    Text("Search nicknames, follow, open their page").font(.footnote.weight(.semibold)).opacity(0.88).lineLimit(2)
+                    Text("Search nicknames or gyms, see who trains at yours").font(.footnote.weight(.semibold)).opacity(0.88).lineLimit(2)
                 }
                 .layoutPriority(1)
                 Spacer(minLength: 4)
@@ -35,14 +35,19 @@ struct FindMembersCard: View {
     }
 }
 
-/// Search members by nickname (#152). Empty search: who you follow, then suggestions.
-/// The server leaves out you, anyone blocked either way and members hidden by reports.
+/// Search members by nickname or gym (#152). Empty search: members at your gym, who you follow, then suggestions.
+/// The server leaves out you, anyone blocked either way and members hidden by reports. Gyms show only when the member opts in.
 struct FindMembersView: View {
     @Environment(AppModel.self) private var model
     @State private var query = ""
     @State private var results: [CommunityMemberSummary]?
     @State private var following: [CommunityMemberSummary] = []
+    @State private var atGym: [CommunityMemberSummary] = []
+    @State private var savingGym = false
     @State private var error: String?
+
+    private var community: Community { .shared }
+    private var showsGym: Bool { community.profile?.showGym == true }
 
     private var searching: Bool { !query.trimmingCharacters(in: .whitespaces).isEmpty }
 
@@ -52,8 +57,9 @@ struct FindMembersView: View {
                 ErrorText(message: error)
                 if let results {
                     if searching {
-                        section("Results", results, empty: "No member called “\(query.trimmingCharacters(in: .whitespaces))”.")
+                        section("Results", results, empty: "No member or gym matching “\(query.trimmingCharacters(in: .whitespaces))”.")
                     } else {
+                        gymSection
                         if !following.isEmpty { section("Following", following, empty: nil) }
                         section("Suggested", results, empty: following.isEmpty ? "No other members yet." : nil)
                     }
@@ -67,10 +73,62 @@ struct FindMembersView: View {
         .navigationTitle("Find members")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search nicknames")
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Nickname or gym")
         .autocorrectionDisabled()
         .textInputAutocapitalization(.never)
         .task(id: query) { await load() }
+    }
+
+    /// Members at your gym, or the opt-in card while you don't show yours.
+    @ViewBuilder
+    private var gymSection: some View {
+        if showsGym {
+            HStack {
+                Text("AT \((community.profile?.gym ?? "YOUR GYM").uppercased())")
+                    .font(Theme.label(12)).tracking(1.2).foregroundStyle(Theme.muted).lineLimit(1)
+                Spacer()
+                Button("Hide my gym") { setShowGym(false) }.font(.caption.bold()).foregroundStyle(Theme.lime).disabled(savingGym)
+            }
+            .padding(.top, 4)
+            if atGym.isEmpty {
+                Text("Nobody else there shows their gym yet.").font(.subheadline).foregroundStyle(Theme.muted)
+            }
+            ForEach(atGym) { m in MemberRow(member: m) { toggleFollow(m) } }
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 14) {
+                    Image(systemName: "building.2.fill")
+                        .font(.system(size: 24, weight: .bold))
+                        .frame(width: 56, height: 56)
+                        .background(RoundedRectangle(cornerRadius: 17, style: .continuous).fill(.white.opacity(0.22)))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Who trains at your gym").font(Theme.display(21)).lineLimit(1).minimumScaleFactor(0.7)
+                        Text("Show \(community.profile?.gym ?? "your gym") on your profile to see members who show the same gym.")
+                            .font(.footnote.weight(.semibold)).opacity(0.88)
+                    }
+                }
+                Button("SHOW MY GYM") { setShowGym(true) }
+                    .buttonStyle(LimeButtonStyle())
+                    .disabled(savingGym || community.profile?.gym == nil)
+            }
+            .foregroundStyle(.white)
+            .padding(18)
+            .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(WorkoutEngine.Category.strength.gradient))
+        }
+    }
+
+    private func setShowGym(_ on: Bool) {
+        savingGym = true
+        Task {
+            defer { savingGym = false }
+            #if DEBUG
+            if model.demo { return }
+            #endif
+            do {
+                community.setProfile(try await model.api.setShowGym(on))
+                atGym = try await gymList()
+            } catch { self.error = error.localizedDescription }
+        }
     }
 
     @ViewBuilder
@@ -91,8 +149,10 @@ struct FindMembersView: View {
         if model.demo {
             let all = FindMembersView.demoMembers
             following = all.filter(\.followedByMe)
+            atGym = all.filter { $0.gym != nil }
             let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-            results = q.isEmpty ? all.filter { !$0.followedByMe } : all.filter { $0.nickname.lowercased().contains(q) }
+            results = q.isEmpty ? all.filter { !$0.followedByMe }
+                : all.filter { $0.nickname.lowercased().contains(q) || ($0.gym?.lowercased().contains(q) ?? false) }
             return
         }
         #endif
@@ -104,13 +164,19 @@ struct FindMembersView: View {
             } else {
                 async let f = model.api.followingMembers()
                 async let s = model.api.searchMembers("")
-                (following, results) = try await (f, s)
+                async let g = gymList()
+                (following, results, atGym) = try await (f, s, g)
             }
             error = nil
         } catch is CancellationError {
         } catch {
             if !Task.isCancelled { self.error = error.localizedDescription }
         }
+    }
+
+    private func gymList() async throws -> [CommunityMemberSummary] {
+        guard showsGym else { return [] }
+        return try await model.api.gymMembers()
     }
 
     private func toggleFollow(_ m: CommunityMemberSummary) {
@@ -147,13 +213,14 @@ struct FindMembersView: View {
         }
         if results != nil { update(&results!) }
         update(&following)
+        update(&atGym)
     }
 
     #if DEBUG
     static let demoMembers: [CommunityMemberSummary] = [
-        CommunityMemberSummary(userId: "u-bea", nickname: "bench_bea", bio: "Powerlifter. Bench day is the best day.", sharedPosts: 14, followers: 38, followedByMe: true),
+        CommunityMemberSummary(userId: "u-bea", nickname: "bench_bea", bio: "Powerlifter. Bench day is the best day.", gym: "Fitnesspark Puls 5", sharedPosts: 14, followers: 38, followedByMe: true),
         CommunityMemberSummary(userId: "u-crimpy", nickname: "crimpy", bio: "Boulderer building pulling strength.", sharedPosts: 9, followers: 21),
-        CommunityMemberSummary(userId: "u-squat", nickname: "squat_sara", bio: nil, sharedPosts: 6, followers: 12),
+        CommunityMemberSummary(userId: "u-squat", nickname: "squat_sara", bio: nil, gym: "Fitnesspark Puls 5", sharedPosts: 6, followers: 12),
         CommunityMemberSummary(userId: "u-kb", nickname: "kettle.ken", bio: "Kettlebells at 6am.", sharedPosts: 3, followers: 4),
     ]
     #endif
@@ -178,6 +245,9 @@ private struct MemberRow: View {
                     AvatarView(url: model.api.resolve(member.avatarUrl), nickname: member.nickname, size: 52)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(member.nickname).font(Theme.display(20)).lineLimit(1).minimumScaleFactor(0.7)
+                        if let gym = member.gym {
+                            Label(gym, systemImage: "building.2.fill").font(Theme.label(11)).lineLimit(1).opacity(0.95)
+                        }
                         Text(member.bio ?? "\(member.sharedPosts) shared · \(member.followers) followers")
                             .font(.footnote.weight(.semibold)).opacity(0.88).lineLimit(2).multilineTextAlignment(.leading)
                     }

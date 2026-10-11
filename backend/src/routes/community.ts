@@ -29,6 +29,7 @@ interface ProfileRow {
   avatar_id: string | null;
   default_visibility: Visibility;
   auto_share: number;
+  show_gym: number;
   guidelines_accepted_at: string;
   created_at: string;
 }
@@ -56,6 +57,23 @@ interface PostRow {
   avatar_id: string | null;
 }
 
+interface Gym {
+  id: string;
+  name: string;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+/** The app's default gym when a training profile has none (`Gym.puls5` in WorkoutEngine). */
+const DEFAULT_GYM: Gym = { id: 'fitnesspark-puls5', name: 'Fitnesspark Puls 5', latitude: null, longitude: null };
+
+/** Same place: same id, or same name within ~300 m (map-search ids are rounded coordinates, so they can differ). */
+export const sameGym = (a: Gym, b: Gym) =>
+  a.id === b.id ||
+  (a.name.trim().toLowerCase() === b.name.trim().toLowerCase() &&
+    a.latitude != null && a.longitude != null && b.latitude != null && b.longitude != null &&
+    Math.abs(a.latitude - b.latitude) < 0.003 && Math.abs(a.longitude - b.longitude) < 0.004);
+
 const avatarUrl = (id: string | null) => (id ? `/v1/community/avatars/${id}` : null);
 
 const nickname = z
@@ -79,7 +97,7 @@ const payload = z.object({
 
 export const communityExport = (db: DB, userId: string) => ({
   accountProfile: db.prepare('SELECT nickname, bio, updated_at FROM user_profiles WHERE user_id = ?').get(userId) ?? null,
-  profile: (db.prepare('SELECT nickname, bio, default_visibility, auto_share, guidelines_accepted_at, created_at FROM community_profiles WHERE user_id = ?').get(userId) ?? null),
+  profile: (db.prepare('SELECT nickname, bio, default_visibility, auto_share, show_gym, guidelines_accepted_at, created_at FROM community_profiles WHERE user_id = ?').get(userId) ?? null),
   posts: (db.prepare('SELECT id, kind, ref_id, visibility, caption, payload, hidden_at, created_at FROM community_posts WHERE user_id = ? ORDER BY created_at').all(userId) as unknown as { payload: string }[]).map(
     (p) => ({ ...p, payload: JSON.parse(p.payload) as unknown }),
   ),
@@ -164,6 +182,22 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     return { sharedPosts: s.shared, cheersReceived: s.cheers, followers: s.followers, following: s.following };
   };
 
+  /**
+   * Gym from the training profile (`profile.gym`, app-owned JSON). No gym saved = the app's default scoped gym.
+   * Null when the member never saved a training profile.
+   */
+  const gymOf = (userId: string): Gym | null => {
+    const row = db.prepare('SELECT data FROM profiles WHERE user_id = ?').get(userId) as { data: string } | undefined;
+    if (!row) return null;
+    try {
+      const g = (JSON.parse(row.data) as { profile?: { gym?: Partial<Gym> | null } }).profile?.gym;
+      return g?.id && g.name ? { id: g.id, name: g.name, latitude: g.latitude ?? null, longitude: g.longitude ?? null } : DEFAULT_GYM;
+    } catch {
+      return null;
+    }
+  };
+  const sharedGym = (p: ProfileRow) => (p.show_gym ? gymOf(p.user_id) : null);
+
   const ownProfile = (p: ProfileRow) => ({
     userId: p.user_id,
     nickname: p.nickname,
@@ -171,6 +205,8 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     avatarUrl: avatarUrl(p.avatar_id),
     defaultVisibility: p.default_visibility,
     autoShare: !!p.auto_share,
+    showGym: !!p.show_gym,
+    gym: gymOf(p.user_id)?.name ?? null,
     guidelinesAcceptedAt: p.guidelines_accepted_at,
     ...stats(p.user_id),
   });
@@ -180,6 +216,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     nickname: p.nickname,
     bio: p.bio,
     avatarUrl: avatarUrl(p.avatar_id),
+    gym: sharedGym(p)?.name ?? null,
     createdAt: p.created_at,
     ...stats(p.user_id),
   });
@@ -192,6 +229,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       nickname: p.nickname,
       bio: p.bio,
       avatarUrl: avatarUrl(p.avatar_id),
+      gym: sharedGym(p)?.name ?? null,
       sharedPosts: s.sharedPosts,
       followers: s.followers,
       followedByMe: !!db.prepare('SELECT 1 FROM community_follows WHERE follower_id = ? AND followed_id = ?').get(viewer, p.user_id),
@@ -289,6 +327,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
         bio: bio.nullish(),
         defaultVisibility: z.enum(VISIBILITIES).optional(),
         autoShare: z.boolean().optional(),
+        showGym: z.boolean().optional(),
         acceptGuidelines: z.boolean().optional(),
       })
       .parse(req.body);
@@ -303,12 +342,13 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     const ts = now().toISOString();
     if (existing) {
       db.prepare(
-        'UPDATE community_profiles SET nickname = ?, bio = ?, default_visibility = ?, auto_share = ?, updated_at = ? WHERE user_id = ?',
+        'UPDATE community_profiles SET nickname = ?, bio = ?, default_visibility = ?, auto_share = ?, show_gym = ?, updated_at = ? WHERE user_id = ?',
       ).run(
         nick,
         b.bio === undefined ? existing.bio : (b.bio || null),
         b.defaultVisibility ?? existing.default_visibility,
         b.autoShare === undefined ? existing.auto_share : Number(b.autoShare),
+        b.showGym === undefined ? existing.show_gym : Number(b.showGym),
         ts,
         req.userId!,
       );
@@ -320,9 +360,9 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       tx(db, () => {
         db.prepare('DELETE FROM user_profiles WHERE user_id = ?').run(req.userId!);
         db.prepare(
-          `INSERT INTO community_profiles (user_id, nickname, bio, avatar_id, default_visibility, auto_share, guidelines_accepted_at, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).run(req.userId!, nick, about, account?.avatar_id ?? null, b.defaultVisibility ?? 'members', Number(b.autoShare ?? false), ts, ts, ts);
+          `INSERT INTO community_profiles (user_id, nickname, bio, avatar_id, default_visibility, auto_share, show_gym, guidelines_accepted_at, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).run(req.userId!, nick, about, account?.avatar_id ?? null, b.defaultVisibility ?? 'members', Number(b.autoShare ?? false), Number(b.showGym ?? false), ts, ts, ts);
       });
     }
     return { profile: ownProfile(profileRow(req.userId!)!) };
@@ -461,37 +501,63 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
   // ───────────── members
 
   /**
-   * Find members (#152): nickname search, or suggestions (most followed, then most shared) when `q` is empty.
+   * Find members (#152): by nickname or shown gym name, members at your gym (`gym=mine`), or suggestions when `q` is empty.
    * Never yourself, anyone blocked either way, or a member hidden by reports.
    */
   r.get('/community/members', async (req) => {
-    const p = z.object({ q: z.string().trim().max(20).default(''), limit: z.coerce.number().int().min(1).max(50).default(25) }).parse(req.query);
+    const p = z
+      .object({
+        q: z.string().trim().max(40).default(''),
+        gym: z.enum(['mine']).optional(),
+        limit: z.coerce.number().int().min(1).max(50).default(25),
+      })
+      .parse(req.query);
     const viewer = req.userId!;
-    requireProfile(viewer);
-    const q = p.q.replace(/[^A-Za-z0-9_.]/g, '');
-    const like = q.replace(/_/g, '\\_');
+    const me = requireProfile(viewer);
     const base = `FROM community_profiles cp
       WHERE cp.user_id != ? AND ${memberNotHiddenSql('cp.user_id')}
         AND NOT EXISTS (SELECT 1 FROM community_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = cp.user_id) OR (b.blocker_id = cp.user_id AND b.blocked_id = ?))`;
-    const rows = (
-      q
+    const list = (rows: unknown) => ({ members: (rows as ProfileRow[]).slice(0, p.limit).map((m) => memberSummary(m, viewer)) });
+
+    // Members at your gym: only those who show theirs, and only if you show yours.
+    if (p.gym === 'mine') {
+      const mine = me.show_gym ? gymOf(viewer) : null;
+      if (!mine) return { members: [] };
+      const rows = db.prepare(`SELECT cp.* ${base} AND cp.show_gym = 1 ORDER BY cp.nickname`).all(viewer, viewer, viewer) as unknown as ProfileRow[];
+      return list(rows.filter((r) => { const g = gymOf(r.user_id); return !!g && sameGym(g, mine); }));
+    }
+
+    const q = p.q.toLowerCase();
+    const nick = q.replace(/[^a-z0-9_.]/g, '');
+    if (q) {
+      // Nickname contains (prefix first, then shortest), then members who show a gym whose name contains the text.
+      const byNick = nick
         ? db
             .prepare(
               `SELECT cp.* ${base} AND cp.nickname LIKE ? ESCAPE '\\'
                ORDER BY (cp.nickname LIKE ? ESCAPE '\\') DESC, length(cp.nickname), cp.nickname LIMIT ?`,
             )
-            .all(viewer, viewer, viewer, `%${like}%`, `${like}%`, p.limit)
-        : db
-            .prepare(
-              `SELECT cp.* ${base}
-                 AND NOT EXISTS (SELECT 1 FROM community_follows f WHERE f.follower_id = ? AND f.followed_id = cp.user_id)
-               ORDER BY (SELECT COUNT(*) FROM community_follows f WHERE f.followed_id = cp.user_id) DESC,
-                 (SELECT COUNT(*) FROM community_posts x WHERE x.user_id = cp.user_id AND x.hidden_at IS NULL AND x.visibility != 'private') DESC,
-                 cp.created_at DESC LIMIT ?`,
-            )
-            .all(viewer, viewer, viewer, viewer, p.limit)
-    ) as unknown as ProfileRow[];
-    return { members: rows.map((m) => memberSummary(m, viewer)) };
+            .all(viewer, viewer, viewer, `%${nick.replace(/_/g, '\\_')}%`, `${nick.replace(/_/g, '\\_')}%`, p.limit)
+        : [];
+      const seen = new Set((byNick as unknown as ProfileRow[]).map((r) => r.user_id));
+      const byGym = (db.prepare(`SELECT cp.* ${base} AND cp.show_gym = 1 ORDER BY cp.nickname`).all(viewer, viewer, viewer) as unknown as ProfileRow[]).filter(
+        (r) => !seen.has(r.user_id) && !!gymOf(r.user_id)?.name.toLowerCase().includes(q),
+      );
+      return list([...(byNick as unknown as ProfileRow[]), ...byGym]);
+    }
+
+    // Suggestions: not followed yet, most followed, then most shared.
+    return list(
+      db
+        .prepare(
+          `SELECT cp.* ${base}
+             AND NOT EXISTS (SELECT 1 FROM community_follows f WHERE f.follower_id = ? AND f.followed_id = cp.user_id)
+           ORDER BY (SELECT COUNT(*) FROM community_follows f WHERE f.followed_id = cp.user_id) DESC,
+             (SELECT COUNT(*) FROM community_posts x WHERE x.user_id = cp.user_id AND x.hidden_at IS NULL AND x.visibility != 'private') DESC,
+             cp.created_at DESC LIMIT ?`,
+        )
+        .all(viewer, viewer, viewer, viewer, p.limit),
+    );
   });
 
   r.get('/community/members/:userId', async (req) => {

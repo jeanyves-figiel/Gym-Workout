@@ -78,4 +78,7 @@ export const ensureCommunitySchema = (db: DB): void => {
     );
     CREATE INDEX IF NOT EXISTS community_reports_target ON community_reports(target_type, target_id);
   `);
+  // Show my gym (#152): members opt in to being found by the gym they train at.
+  const cols = db.prepare('PRAGMA table_info(community_profiles)').all() as { name: string }[];
+  if (!cols.some((c) => c.name === 'show_gym')) db.exec('ALTER TABLE community_profiles ADD COLUMN show_gym INTEGER NOT NULL DEFAULT 0');
 };

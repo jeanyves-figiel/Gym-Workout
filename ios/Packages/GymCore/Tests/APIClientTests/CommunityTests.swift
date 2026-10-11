@@ -48,10 +48,11 @@ private let postJSON = #"""
     }
 
     @Test func searchesMembersAndListsFollowing() async throws {
-        let row = #"{"userId":"u2","nickname":"bench_bea","bio":null,"avatarUrl":null,"sharedPosts":3,"followers":5,"followedByMe":true}"#
+        let row = #"{"userId":"u2","nickname":"bench_bea","bio":null,"avatarUrl":null,"gym":null,"sharedPosts":3,"followers":5,"followedByMe":true}"#
         StubProtocol.register("members.test") { req, _ in
             switch (req.httpMethod!, req.url!.path) {
             case ("GET", "/v1/community/members"):
+                if req.url!.query == "gym=mine" { return (200, #"{"members":[]}"#) }
                 guard req.url!.query?.contains("q=bench_bea") == true else { return (400, "{}") }
                 return (200, #"{"members":[\#(row)]}"#)
             case ("GET", "/v1/community/follows"):
@@ -63,6 +64,7 @@ private let postJSON = #"""
         let found = try await api.searchMembers(" bench_bea ")
         #expect(found == [CommunityMemberSummary(userId: "u2", nickname: "bench_bea", sharedPosts: 3, followers: 5, followedByMe: true)])
         #expect(try await api.followingMembers().first?.author.nickname == "bench_bea")
+        #expect(try await api.gymMembers().isEmpty)
     }
 
     @Test func uploadsAvatarAsJPEG() async throws {
