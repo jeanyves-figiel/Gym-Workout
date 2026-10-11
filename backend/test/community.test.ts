@@ -84,10 +84,12 @@ describe('community profile', () => {
     expect((await req('PUT', '/v1/community/me', a.t, { nickname: 'x', acceptGuidelines: true })).statusCode).toBe(400);
     expect((await req('PUT', '/v1/community/me', a.t, { nickname: 'monkey_jy', bio: 'f.u.c.k this', acceptGuidelines: true })).json().error).toBe('objectionable_content');
     const ok = await req('PUT', '/v1/community/me', a.t, { nickname: 'monkey_jy', bio: 'Climber who lifts', acceptGuidelines: true });
-    expect(ok.json().profile).toMatchObject({ nickname: 'monkey_jy', bio: 'Climber who lifts', defaultVisibility: 'private', autoShare: false, avatarUrl: null });
+    // new members default to sharing with members (#90)
+    expect(ok.json().profile).toMatchObject({ nickname: 'monkey_jy', bio: 'Climber who lifts', defaultVisibility: 'members', autoShare: false, avatarUrl: null });
     // later edits need no re-acceptance and keep omitted fields
-    const ed = await req('PUT', '/v1/community/me', a.t, { nickname: 'monkey_jy', defaultVisibility: 'members' });
-    expect(ed.json().profile).toMatchObject({ bio: 'Climber who lifts', defaultVisibility: 'members' });
+    const ed = await req('PUT', '/v1/community/me', a.t, { nickname: 'monkey_jy', defaultVisibility: 'private' });
+    expect(ed.json().profile).toMatchObject({ bio: 'Climber who lifts', defaultVisibility: 'private' });
+    expect((await req('PUT', '/v1/community/me', a.t, { nickname: 'monkey_jy' })).json().profile.defaultVisibility).toBe('private');
     const b = await signUp('b@example.com');
     expect((await req('PUT', '/v1/community/me', b.t, { nickname: 'MONKEY_JY', acceptGuidelines: true })).statusCode).toBe(409);
   });
@@ -116,7 +118,7 @@ describe('community profile', () => {
 describe('community feed', () => {
   it('honours visibility, cheers, blocks and deletion', async () => {
     const a = await join('a@example.com', 'bea', { defaultVisibility: 'members' });
-    const b = await join('b@example.com', 'monkey_jy');
+    const b = await join('b@example.com', 'monkey_jy', { defaultVisibility: 'private' });
     const outsider = await signUp('c@example.com');
 
     expect((await req('GET', '/v1/community/feed', outsider.t)).json().error).toBe('community_profile_required');

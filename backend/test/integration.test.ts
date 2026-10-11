@@ -131,4 +131,24 @@ describe('release integration journey', () => {
     expect(userRows(a.id)).toBe(0);
     expect((await req('GET', '/v1/me', a.t)).statusCode).toBe(401);
   });
+
+  it('a member who joins without choosing a visibility shares wins with followers (#90)', async () => {
+    const a = await signUp('climber@example.com');
+    const b = await signUp('lifter@example.com');
+    for (const [u, nick] of [[a, 'monkey_a'], [b, 'lifter_b']] as const) {
+      const res = await req('PUT', '/v1/community/me', u.t, { nickname: nick, acceptGuidelines: true });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().profile.defaultVisibility).toBe('members');
+    }
+    expect((await req('PUT', `/v1/community/follows/${a.id}`, b.t)).statusCode).toBeLessThan(300);
+    expect((await req('PUT', '/v1/me/push-device', b.t, { token: 'b'.repeat(64), env: 'production', topic: 'Com.app.MonkeyWorkout', tz: 'Europe/Zurich' })).statusCode).toBe(200);
+    const ann = await req('POST', '/v1/me/achievements', a.t, { achievements: [{ id: 'badge-first', type: 'badge', text: 'First workout' }] });
+    expect(ann.statusCode).toBe(200);
+    expect(pushes.length).toBe(1);
+
+    // Choosing "Only me" afterwards stops the follower pushes.
+    expect((await req('PUT', '/v1/community/me', a.t, { nickname: 'monkey_a', defaultVisibility: 'private' })).statusCode).toBe(200);
+    await req('POST', '/v1/me/achievements', a.t, { achievements: [{ id: 'badge-second', type: 'badge', text: 'Ten workouts' }] });
+    expect(pushes.length).toBe(1);
+  });
 });
