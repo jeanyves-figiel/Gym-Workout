@@ -260,6 +260,53 @@ describe('community feed', () => {
   });
 });
 
+describe('account profile (#108)', () => {
+  it('is set on Account before joining, prefills join, stays in sync and survives leaving', async () => {
+    const u = await signUp('a@example.com');
+    expect((await req('GET', '/v1/me/public-profile', u.t)).json().profile).toEqual({ nickname: null, bio: null, avatarUrl: null, member: false });
+    expect((await req('PUT', '/v1/me/public-profile', u.t, { nickname: 'x' })).statusCode).toBe(400);
+    let p = (await req('PUT', '/v1/me/public-profile', u.t, { nickname: 'monkey_jy', bio: 'Climber who lifts' })).json().profile;
+    expect(p).toMatchObject({ nickname: 'monkey_jy', bio: 'Climber who lifts', member: false });
+    const up = await app.inject({ method: 'PUT', url: '/v1/me/public-profile/avatar', headers: { ...h(u.t), 'content-type': 'image/jpeg' }, payload: jpeg() });
+    expect(up.statusCode).toBe(200);
+    const avatar = up.json().profile.avatarUrl as string;
+    expect(avatar).toMatch(/^\/v1\/community\/avatars\//);
+
+    // Nickname reserved across account-only profiles and members.
+    const other = await signUp('b@example.com');
+    expect((await req('PUT', '/v1/community/me', other.t, { nickname: 'MONKEY_JY', acceptGuidelines: true })).statusCode).toBe(409);
+    expect((await req('PUT', '/v1/me/public-profile', other.t, { nickname: 'monkey_jy' })).statusCode).toBe(409);
+
+    // Join without resending nickname, about or photo.
+    const j = await req('PUT', '/v1/community/me', u.t, { acceptGuidelines: true });
+    expect(j.statusCode).toBe(200);
+    expect(j.json().profile).toMatchObject({ nickname: 'monkey_jy', bio: 'Climber who lifts', avatarUrl: avatar });
+    expect((db.prepare('SELECT COUNT(*) AS n FROM user_profiles').get() as { n: number }).n).toBe(0);
+
+    // Account edits show in Community and vice versa.
+    await req('PUT', '/v1/me/public-profile', u.t, { bio: 'Edited on Account' });
+    expect((await req('GET', '/v1/community/me', u.t)).json().profile.bio).toBe('Edited on Account');
+    await req('PUT', '/v1/community/me', u.t, { nickname: 'jy_lifts', bio: 'Edited in Community' });
+    p = (await req('GET', '/v1/me/public-profile', u.t)).json().profile;
+    expect(p).toMatchObject({ nickname: 'jy_lifts', bio: 'Edited in Community', avatarUrl: avatar, member: true });
+    expect((await req('PUT', '/v1/me/public-profile', u.t, { nickname: '' })).statusCode).toBe(400);
+
+    // Leaving keeps it on Account; the photo is still served.
+    expect((await req('DELETE', '/v1/community/me', u.t)).statusCode).toBe(204);
+    p = (await req('GET', '/v1/me/public-profile', u.t)).json().profile;
+    expect(p).toEqual({ nickname: 'jy_lifts', bio: 'Edited in Community', avatarUrl: avatar, member: false });
+    expect((await app.inject({ method: 'GET', url: avatar })).statusCode).toBe(200);
+    expect((await req('GET', '/v1/me/export', u.t)).json().community.accountProfile.nickname).toBe('jy_lifts');
+
+    // Clearing on Account; join then needs a nickname.
+    await req('DELETE', '/v1/me/public-profile/avatar', u.t);
+    await req('PUT', '/v1/me/public-profile', u.t, { nickname: null });
+    expect((await req('PUT', '/v1/community/me', u.t, { acceptGuidelines: true })).json().error).toBe('nickname_required');
+    await app.inject({ method: 'DELETE', url: '/v1/me', headers: h(u.t), payload: { password: PW, confirm: 'DELETE' } });
+    expect((db.prepare('SELECT COUNT(*) AS n FROM user_profiles').get() as { n: number }).n).toBe(0);
+  });
+});
+
 describe('filter & image helpers', () => {
   it('flags only objectionable words', () => {
     for (const s of ['F U C K', 'sh1t', 'fuuuuck', 'Connard', 'Salopé', 'bitch!']) expect(isObjectionable(s), s).toBe(true);

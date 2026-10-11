@@ -84,10 +84,15 @@ private struct DemoScreen: View {
         let second = model.plan?.sessions.dropFirst().first?.id ?? ""
         switch Demo.screen {
         case "session": NavigationStack { SessionView(sessionId: second) }
+        case "swap":
+            if let item = model.plan?.sessions.dropFirst().first?.blocks.first(where: { $0.kind == .strength })?.items.first {
+                SwapExerciseSheet(exerciseId: item.exerciseId, uid: item.uid)
+            }
         case "player": WorkoutPlayerView(sessionId: second)
         case "player-rest": WorkoutPlayerView(sessionId: second, demoRest: true)
         case "example": NavigationStack { SessionView(sessionId: WorkoutTemplate.all[1].sessionId) }
         case "explore": NavigationStack { LibraryView() }
+        case "explore-workouts": NavigationStack { LibraryView(mode: .workouts) }
         case "monkeygrade": NavigationStack { MonkeyGradeView() }
         case "climb-settings": ClimbSettingsView()
         case "climb": LogClimbView(initial: ClimbLog(start: Date().addingTimeInterval(-90 * 60), effort: 8, topGrade: "6C"))
@@ -101,6 +106,7 @@ private struct DemoScreen: View {
         case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
         case "body": NavigationStack { BodyHealthView() }
         case "account": NavigationStack { AccountView() }
+        case "account-profile": NavigationStack { PublicProfileView() }
         case "account-password": NavigationStack { ChangePasswordView(hasPassword: true) }
         case "account-email": NavigationStack { ChangeEmailView(currentEmail: Demo.user?.email, hasPassword: true) }
         case "community", "community-join": NavigationStack { CommunityView() }

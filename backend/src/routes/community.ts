@@ -32,6 +32,14 @@ interface ProfileRow {
   created_at: string;
 }
 
+/** Account profile of a user who has not joined (#108). */
+interface AccountRow {
+  user_id: string;
+  nickname: string | null;
+  bio: string | null;
+  avatar_id: string | null;
+}
+
 interface PostRow {
   id: string;
   user_id: string;
@@ -69,6 +77,7 @@ const payload = z.object({
 });
 
 export const communityExport = (db: DB, userId: string) => ({
+  accountProfile: db.prepare('SELECT nickname, bio, updated_at FROM user_profiles WHERE user_id = ?').get(userId) ?? null,
   profile: (db.prepare('SELECT nickname, bio, default_visibility, auto_share, guidelines_accepted_at, created_at FROM community_profiles WHERE user_id = ?').get(userId) ?? null),
   posts: (db.prepare('SELECT id, kind, ref_id, visibility, caption, payload, hidden_at, created_at FROM community_posts WHERE user_id = ? ORDER BY created_at').all(userId) as unknown as { payload: string }[]).map(
     (p) => ({ ...p, payload: JSON.parse(p.payload) as unknown }),
@@ -83,6 +92,54 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
 
   const profileRow = (userId: string) =>
     db.prepare('SELECT * FROM community_profiles WHERE user_id = ?').get(userId) as ProfileRow | undefined;
+
+  const accountRow = (userId: string) => db.prepare('SELECT * FROM user_profiles WHERE user_id = ?').get(userId) as AccountRow | undefined;
+
+  /**
+   * Nickname, photo and about shown on Account and in Community (#108). One record per user: the
+   * community profile once joined, else the account-only row. Joining moves it in, leaving moves it back.
+   */
+  const accountProfile = (userId: string) => {
+    const p = profileRow(userId);
+    if (p) return { nickname: p.nickname, bio: p.bio, avatarUrl: avatarUrl(p.avatar_id), member: true };
+    const a = accountRow(userId);
+    return { nickname: a?.nickname ?? null, bio: a?.bio ?? null, avatarUrl: avatarUrl(a?.avatar_id ?? null), member: false };
+  };
+
+  /** Nicknames are unique across members and account-only profiles. */
+  const assertNicknameFree = (nick: string, userId: string) => {
+    const taken = db
+      .prepare('SELECT 1 FROM community_profiles WHERE nickname = ? AND user_id != ? UNION ALL SELECT 1 FROM user_profiles WHERE nickname = ? AND user_id != ?')
+      .get(nick, userId, nick, userId);
+    if (taken) throw new ApiError(409, 'nickname_taken', 'That nickname is taken.');
+  };
+
+  const setAvatarId = (userId: string, id: string | null) => {
+    const ts = now().toISOString();
+    if (profileRow(userId)) db.prepare('UPDATE community_profiles SET avatar_id = ?, updated_at = ? WHERE user_id = ?').run(id, ts, userId);
+    else
+      db.prepare(
+        `INSERT INTO user_profiles (user_id, avatar_id, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(user_id) DO UPDATE SET avatar_id = excluded.avatar_id, updated_at = excluded.updated_at`,
+      ).run(userId, id, ts);
+  };
+
+  const storeAvatar = (userId: string, body: unknown) => {
+    if (!Buffer.isBuffer(body)) throw new ApiError(415, 'unsupported_media_type', 'Send the photo as image/jpeg.');
+    const img = sanitizeJpeg(body);
+    const id = randomUUID();
+    tx(db, () => {
+      db.prepare('DELETE FROM community_avatars WHERE user_id = ?').run(userId);
+      db.prepare('INSERT INTO community_avatars (id, user_id, data, created_at) VALUES (?, ?, ?, ?)').run(id, userId, img.data, now().toISOString());
+      setAvatarId(userId, id);
+    });
+  };
+
+  const clearAvatar = (userId: string) =>
+    tx(db, () => {
+      db.prepare('DELETE FROM community_avatars WHERE user_id = ?').run(userId);
+      setAvatarId(userId, null);
+    });
 
   const requireProfile = (userId: string) => {
     const p = profileRow(userId);
@@ -164,6 +221,44 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     return row;
   };
 
+  // ───────────── account profile (#108): same nickname, photo and about, joined or not
+
+  r.get('/me/public-profile', async (req) => ({ profile: accountProfile(req.userId!) }));
+
+  /** Omitted fields are kept; empty or null clears (a member's nickname cannot be cleared). */
+  r.put('/me/public-profile', async (req) => {
+    const b = z.object({ nickname: z.string().trim().max(40).nullish(), bio: bio.nullish() }).parse(req.body);
+    const uid = req.userId!;
+    const nick = b.nickname === undefined ? undefined : b.nickname ? nickname.parse(b.nickname) : null;
+    checkClean(nick, b.bio);
+    if (nick) assertNicknameFree(nick, uid);
+    const ts = now().toISOString();
+    const member = profileRow(uid);
+    if (member) {
+      if (nick === null) throw new ApiError(400, 'nickname_required', 'Members need a nickname.');
+      db.prepare('UPDATE community_profiles SET nickname = ?, bio = ?, updated_at = ? WHERE user_id = ?').run(
+        nick ?? member.nickname, b.bio === undefined ? member.bio : (b.bio || null), ts, uid,
+      );
+    } else {
+      const a = accountRow(uid);
+      db.prepare(
+        `INSERT INTO user_profiles (user_id, nickname, bio, avatar_id, updated_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(user_id) DO UPDATE SET nickname = excluded.nickname, bio = excluded.bio, updated_at = excluded.updated_at`,
+      ).run(uid, nick === undefined ? (a?.nickname ?? null) : nick, b.bio === undefined ? (a?.bio ?? null) : (b.bio || null), a?.avatar_id ?? null, ts);
+    }
+    return { profile: accountProfile(uid) };
+  });
+
+  r.put('/me/public-profile/avatar', async (req) => {
+    storeAvatar(req.userId!, req.body);
+    return { profile: accountProfile(req.userId!) };
+  });
+
+  r.delete('/me/public-profile/avatar', async (req) => {
+    clearAvatar(req.userId!);
+    return { profile: accountProfile(req.userId!) };
+  });
+
   // ───────────── profile
 
   r.get('/community/me', async (req) => {
@@ -174,7 +269,8 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
   r.put('/community/me', async (req) => {
     const b = z
       .object({
-        nickname,
+        // Optional when the Account profile already has one (#108).
+        nickname: nickname.optional(),
         bio: bio.nullish(),
         defaultVisibility: z.enum(VISIBILITIES).optional(),
         autoShare: z.boolean().optional(),
@@ -185,14 +281,16 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     const existing = profileRow(req.userId!);
     if (!existing && b.acceptGuidelines !== true)
       throw new ApiError(400, 'guidelines_required', 'Accept the community guidelines to join.');
-    const taken = db.prepare('SELECT user_id FROM community_profiles WHERE nickname = ? AND user_id != ?').get(b.nickname, req.userId!);
-    if (taken) throw new ApiError(409, 'nickname_taken', 'That nickname is taken.');
+    const account = existing ? undefined : accountRow(req.userId!);
+    const nick = b.nickname ?? existing?.nickname ?? account?.nickname;
+    if (!nick) throw new ApiError(400, 'nickname_required', 'Choose a nickname.');
+    assertNicknameFree(nick, req.userId!);
     const ts = now().toISOString();
     if (existing) {
       db.prepare(
         'UPDATE community_profiles SET nickname = ?, bio = ?, default_visibility = ?, auto_share = ?, updated_at = ? WHERE user_id = ?',
       ).run(
-        b.nickname,
+        nick,
         b.bio === undefined ? existing.bio : (b.bio || null),
         b.defaultVisibility ?? existing.default_visibility,
         b.autoShare === undefined ? existing.auto_share : Number(b.autoShare),
@@ -202,21 +300,30 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     } else {
       // New members share wins with members unless they pick otherwise, so followers get achievement pushes (#90).
       // The column default stays 'private'; existing profiles are left as they are.
-      db.prepare(
-        `INSERT INTO community_profiles (user_id, nickname, bio, default_visibility, auto_share, guidelines_accepted_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(req.userId!, b.nickname, b.bio || null, b.defaultVisibility ?? 'members', Number(b.autoShare ?? false), ts, ts, ts);
+      // The Account profile (#108) moves into the community profile: photo, and about unless sent.
+      const about = b.bio === undefined ? (account?.bio ?? null) : (b.bio || null);
+      tx(db, () => {
+        db.prepare('DELETE FROM user_profiles WHERE user_id = ?').run(req.userId!);
+        db.prepare(
+          `INSERT INTO community_profiles (user_id, nickname, bio, avatar_id, default_visibility, auto_share, guidelines_accepted_at, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).run(req.userId!, nick, about, account?.avatar_id ?? null, b.defaultVisibility ?? 'members', Number(b.autoShare ?? false), ts, ts, ts);
+      });
     }
     return { profile: ownProfile(profileRow(req.userId!)!) };
   });
 
-  /** Leave the community: profile, photo, posts and cheers given are deleted. Blocks are kept. */
+  /** Leave the community: posts, cheers given and follows are deleted. Blocks are kept. Nickname, photo and about stay on Account (#108). */
   r.delete('/community/me', async (req, reply) => {
     tx(db, () => {
+      db.prepare(
+        `INSERT INTO user_profiles (user_id, nickname, bio, avatar_id, updated_at)
+         SELECT user_id, nickname, bio, avatar_id, ? FROM community_profiles WHERE user_id = ?
+         ON CONFLICT(user_id) DO UPDATE SET nickname = excluded.nickname, bio = excluded.bio, avatar_id = excluded.avatar_id, updated_at = excluded.updated_at`,
+      ).run(now().toISOString(), req.userId!);
       db.prepare('DELETE FROM community_posts WHERE user_id = ?').run(req.userId!);
       db.prepare('DELETE FROM community_reactions WHERE user_id = ?').run(req.userId!);
       db.prepare('DELETE FROM community_follows WHERE follower_id = ? OR followed_id = ?').run(req.userId!, req.userId!);
-      db.prepare('DELETE FROM community_avatars WHERE user_id = ?').run(req.userId!);
       db.prepare('DELETE FROM community_profiles WHERE user_id = ?').run(req.userId!);
     });
     return reply.status(204).send();
@@ -224,23 +331,13 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
 
   r.put('/community/me/avatar', async (req) => {
     requireProfile(req.userId!);
-    if (!Buffer.isBuffer(req.body)) throw new ApiError(415, 'unsupported_media_type', 'Send the photo as image/jpeg.');
-    const img = sanitizeJpeg(req.body);
-    const id = randomUUID();
-    tx(db, () => {
-      db.prepare('DELETE FROM community_avatars WHERE user_id = ?').run(req.userId!);
-      db.prepare('INSERT INTO community_avatars (id, user_id, data, created_at) VALUES (?, ?, ?, ?)').run(id, req.userId!, img.data, now().toISOString());
-      db.prepare('UPDATE community_profiles SET avatar_id = ?, updated_at = ? WHERE user_id = ?').run(id, now().toISOString(), req.userId!);
-    });
+    storeAvatar(req.userId!, req.body);
     return { profile: ownProfile(profileRow(req.userId!)!) };
   });
 
   r.delete('/community/me/avatar', async (req) => {
     requireProfile(req.userId!);
-    tx(db, () => {
-      db.prepare('DELETE FROM community_avatars WHERE user_id = ?').run(req.userId!);
-      db.prepare('UPDATE community_profiles SET avatar_id = NULL, updated_at = ? WHERE user_id = ?').run(now().toISOString(), req.userId!);
-    });
+    clearAvatar(req.userId!);
     return { profile: ownProfile(profileRow(req.userId!)!) };
   });
 

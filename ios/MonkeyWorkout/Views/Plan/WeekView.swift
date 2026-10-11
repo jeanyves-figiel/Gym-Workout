@@ -1,7 +1,7 @@
 import SwiftUI
 import WorkoutEngine
 
-/// "Train" tab: week hero, next-up session, week list.
+/// "Train" tab: compact week header and readiness, today's session first, then the week list.
 struct WeekView: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
@@ -11,9 +11,14 @@ struct WeekView: View {
     var body: some View {
         ScrollView {
             if let plan = model.plan, let profile = model.profile {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 18) {
                     WeekHero(plan: plan, profile: profile, done: model.completedCount)
                     ReadinessCard(snapshot: health.snapshot)
+                    if let next = model.nextSession {
+                        NextUpCard(session: next) { playing = next }
+                    } else {
+                        WeekCompleteCard()
+                    }
                     if health.snapshot.weightKg == nil && model.body.weightKg == nil {
                         BodyPromptCard()
                     }
@@ -28,23 +33,18 @@ struct WeekView: View {
                     if Generator.isClimber(profile) {
                         ClimbSection()
                     }
-                    if let next = model.nextSession {
-                        NextUpCard(session: next) { playing = next }
-                    } else {
-                        WeekCompleteCard()
-                    }
-                    CalendarEntryCard()
                     if let e = model.syncError {
                         Label(e, systemImage: "icloud.slash").font(.footnote).foregroundStyle(Theme.muted)
                     }
                     Text("This week").eyebrow()
+                    let days = calendarDays
                     ForEach(plan.sessions) { s in
                         NavigationLink(value: s.id) {
-                            SessionRowCard(session: s, done: model.state.done[s.id] ?? false, climbing: profile.climbingDays)
+                            SessionRowCard(session: s, done: model.state.done[s.id] ?? false, climbing: profile.climbingDays,
+                                           weekday: s.weekday ?? days[s.id])
                         }
                         .buttonStyle(.plain)
                     }
-                    WorkoutLibrarySection()
                 }
                 .padding(16)
             } else {
@@ -56,6 +56,10 @@ struct WeekView: View {
         .toolbarTitleDisplayMode(.inlineLarge)
         .navigationDestination(for: String.self) { id in SessionView(sessionId: id) }
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink { CalendarView() } label: { Image(systemName: "calendar") }
+                    .accessibilityLabel("Calendar")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button("New variation", systemImage: "shuffle") { model.newVariation() }
@@ -80,6 +84,13 @@ struct WeekView: View {
             model.persist()
         }
     }
+
+    /// Weekday of each session as the training calendar places it: unscheduled plans (no gym or climbing days
+    /// picked) still show the day on each card.
+    private var calendarDays: [String: Int] {
+        let sessions = model.calendarWeeks(count: 1).first?.plan.sessions ?? []
+        return Dictionary(sessions.compactMap { s in s.weekday.map { (s.id, $0) } }, uniquingKeysWith: { a, _ in a })
+    }
 }
 
 private struct WeekHero: View {
@@ -90,53 +101,51 @@ private struct WeekHero: View {
     @State private var explaining = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("Week").eyebrow()
-                    HStack(alignment: .firstTextBaseline, spacing: 2) {
-                        Text("\(plan.week)").font(Theme.display(84))
-                        Text("/\(Generator.mesocycleWeeks)").font(Theme.display(28)).foregroundStyle(Theme.muted)
-                    }
-                    .padding(.top, -10)
-                    Button { explaining = true } label: {
-                        HStack(spacing: 5) {
-                            Text(Generator.weekLabel(plan.week).uppercased()).tracking(1)
-                            Image(systemName: "info.circle.fill")
-                        }
-                        .font(Theme.label(12))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Capsule().fill(plan.deload ? Color.orange.opacity(0.25) : Theme.lime.opacity(0.18)))
-                        .foregroundStyle(plan.deload ? .orange : Theme.lime)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("Explains this week's training phase")
-                }
-                Spacer()
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 14) {
                 ZStack {
-                    ProgressRing(progress: Double(done) / Double(max(1, plan.sessions.count)), lineWidth: 12)
-                    VStack(spacing: 0) {
-                        Text("\(done)/\(plan.sessions.count)").font(Theme.display(26)).monospacedDigit()
-                        Text("done").eyebrow()
-                    }
+                    ProgressRing(progress: Double(done) / Double(max(1, plan.sessions.count)), lineWidth: 6)
+                    Text("\(done)/\(plan.sessions.count)").font(Theme.display(15)).monospacedDigit()
                 }
-                .frame(width: 110, height: 110)
+                .frame(width: 54, height: 54)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(done) of \(plan.sessions.count) sessions done")
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text("Week \(plan.week)").font(Theme.display(24))
+                        Text("/\(Generator.mesocycleWeeks)").font(Theme.display(16)).foregroundStyle(Theme.muted)
+                    }
+                    Text("\(profile.goal.config.label) · \(profile.sessionsPerWeek)×/week · \(plan.sessionMinutes) min")
+                        .font(.caption)
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                Button { explaining = true } label: {
+                    HStack(spacing: 4) {
+                        Text(Generator.weekLabel(plan.week).uppercased()).tracking(1)
+                        Image(systemName: "info.circle.fill")
+                    }
+                    .font(Theme.label(11))
+                    .lineLimit(1)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(plan.deload ? Color.orange.opacity(0.25) : Theme.lime.opacity(0.18)))
+                    .foregroundStyle(plan.deload ? .orange : Theme.lime)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Explains this week's training phase")
             }
             HStack(spacing: 6) {
                 ForEach(1...Generator.mesocycleWeeks, id: \.self) { w in
                     Button { model.setWeek(w) } label: {
                         Capsule()
                             .fill(w == plan.week ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Color.white.opacity(w < plan.week ? 0.35 : 0.12)))
-                            .frame(height: 6)
+                            .frame(height: 5)
                     }
                     .accessibilityLabel("Week \(w)")
                 }
             }
-            Text("\(profile.goal.config.label) · \(profile.sessionsPerWeek)×/week · \(plan.sessionMinutes) min"
-                + (profile.climbingDaysPerWeek > 0 ? " · \(profile.climbingDaysPerWeek) climbing days" : ""))
-                .font(.footnote)
-                .foregroundStyle(Theme.muted)
         }
         .sheet(isPresented: $explaining) { WeekPhaseSheet(week: plan.week).presentationDetents([.large]) }
     }
@@ -210,6 +219,8 @@ struct SessionRowCard: View {
     let done: Bool
     /// Climbing weekdays, for the "climbing tomorrow" hint on weekday-scheduled sessions.
     var climbing: [Int] = []
+    /// Day shown on the card; defaults to the session's scheduled weekday.
+    var weekday: Int?
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -227,7 +238,7 @@ struct SessionRowCard: View {
                         Text("\(session.estMin)′").font(Theme.label(14)).foregroundStyle(Theme.muted)
                     }
                 }
-                if let day = session.weekday {
+                if let day = weekday ?? session.weekday {
                     SessionDayLine(weekday: day, climbing: climbing)
                 }
                 BlockStripe(blocks: session.blocks, height: 6)
