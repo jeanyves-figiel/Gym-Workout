@@ -224,13 +224,17 @@ struct CategoryTile: View {
         .foregroundStyle(.white)
         .padding(12)
         .frame(width: 118, height: 100)
-        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(fill))
+        // Dimmed tiles dim only the fill (#88): the title stays full white so every category reads.
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(fill)
+            .saturation(dimmed ? 0.6 : 1)
+            .opacity(dimmed ? 0.42 : 1))
         .overlay {
             if selected {
                 RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Theme.lime, lineWidth: 3)
+            } else if dimmed {
+                RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Color.white.opacity(0.22), lineWidth: 1)
             }
         }
-        .opacity(dimmed ? 0.45 : 1)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(count.map { "\(title), \($0) exercises" } ?? title)
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)

@@ -93,15 +93,10 @@ struct PRAttemptView: View {
     }
 
     private func kindCard(_ k: PRKind) -> some View {
-        let (title, sub, big, colors): (String, String, String, [Color]) = switch k {
-        case .oneRepMax: ("1 rep max", "Heaviest single", "1RM", WorkoutEngine.Category.strength.colors)
-        case .repMax: ("Rep max", "Heaviest for \(repTarget) reps", "\(repTarget)RM", WorkoutEngine.Category.power.colors)
-        case .maxReps: ("Max reps", PRPlanner.isBodyweight(e) ? "Most reps, bodyweight" : "Most reps at a load", "AMRAP", WorkoutEngine.Category.warmup.colors)
-        }
-        let symbol = switch k {
-        case .oneRepMax: "trophy.fill"
-        case .repMax: "repeat"
-        case .maxReps: "infinity"
+        let (title, sub, big): (String, String, String) = switch k {
+        case .oneRepMax: ("1 rep max", "Heaviest single", "1RM")
+        case .repMax: ("Rep max", "Heaviest for \(repTarget) reps", "\(repTarget)RM")
+        case .maxReps: ("Max reps", PRPlanner.isBodyweight(e) ? "Most reps, bodyweight" : "Most reps at a load", "AMRAP")
         }
         return Button {
             kind = k
@@ -109,10 +104,7 @@ struct PRAttemptView: View {
         } label: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 14) {
-                    Image(systemName: symbol)
-                        .font(.system(size: 22, weight: .bold))
-                        .frame(width: 48, height: 48)
-                        .background(RoundedRectangle(cornerRadius: 14).fill(.white.opacity(0.2)))
+                    IconTile(symbol: k.symbol, size: 48)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title).font(Theme.display(20))
                         Text(sub).font(.footnote.weight(.medium)).opacity(0.85)
@@ -138,8 +130,7 @@ struct PRAttemptView: View {
             }
             .foregroundStyle(.white)
             .padding(16)
-            .background(RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
+            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(k.palette.gradient))
             .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(Theme.lime, lineWidth: kind == k ? 3 : 0))
             .opacity(kind == k ? 1 : 0.6)
         }
@@ -155,17 +146,19 @@ struct PRAttemptView: View {
                 stepper(minus: { kg = max(0, kg - step); replan(keepKg: true) }, plus: { kg += step; replan(keepKg: true) })
             }
             if kind == .maxReps {
-                Text("Goal: \(plan.reps) reps").font(Theme.label(16)).foregroundStyle(Theme.lime)
+                Text("Goal: \(plan.reps) reps").font(Theme.label(16))
             } else if let best = plan.best {
                 let delta = kg - best
                 Text(delta > 0 ? "+\(LoadAdvisor.formatKg(delta)) kg vs best \(LoadAdvisor.formatKg(best))" : "Best \(LoadAdvisor.formatKg(best)) kg × \(targetReps)")
                     .font(Theme.label(14))
-                    .foregroundStyle(delta > 0 ? Theme.lime : Theme.muted)
+                    .padding(.horizontal, delta > 0 ? 10 : 0)
+                    .padding(.vertical, delta > 0 ? 5 : 0)
+                    .background { if delta > 0 { Capsule().fill(.black.opacity(0.25)) } }
             }
-            Text(plan.basis).font(.caption).foregroundStyle(Theme.muted)
+            Text(plan.basis).font(.caption.weight(.medium)).opacity(0.85)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
+        .gradientCard(kind.palette.gradient)
     }
 
     private func stepper(minus: @escaping () -> Void, plus: @escaping () -> Void) -> some View {
@@ -180,7 +173,7 @@ struct PRAttemptView: View {
             Image(systemName: symbol)
                 .font(.system(size: 18, weight: .heavy))
                 .frame(width: 44, height: 44)
-                .background(Circle().fill(Theme.cardStrong))
+                .background(Circle().fill(.white.opacity(0.2)))
         }
         .buttonStyle(.plain)
     }
@@ -568,13 +561,33 @@ struct PRCard: View {
                 if records.count > 1 {
                     HStack(spacing: 10) {
                         ForEach(records) { r in
-                            StatTile(value: r.kind == .maxReps ? "\(r.reps)" : LoadAdvisor.formatKg(r.kg), label: r.label)
+                            GradientStat(symbol: r.kind.symbol, value: r.kind == .maxReps ? "\(r.reps)" : LoadAdvisor.formatKg(r.kg),
+                                         label: r.label, gradient: r.kind.palette.gradient)
                         }
                     }
                 }
                 PRHistoryList(exerciseId: exerciseId, limit: 5)
             }
             .fullScreenCover(isPresented: $attempting) { PRAttemptView(exerciseId: exerciseId) }
+        }
+    }
+}
+
+extension PRKind {
+    /// Card colours per kind: attempt picker, target and record tiles.
+    var palette: WorkoutEngine.Category {
+        switch self {
+        case .oneRepMax: .strength
+        case .repMax: .power
+        case .maxReps: .warmup
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .oneRepMax: "trophy.fill"
+        case .repMax: "repeat"
+        case .maxReps: "infinity"
         }
     }
 }

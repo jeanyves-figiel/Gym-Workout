@@ -53,18 +53,25 @@ struct LibraryEntry: Identifiable, Hashable {
     }
 
     /// Most common exercise category: the card's icon.
+    var mainCategory: WorkoutEngine.Category { session.mainCategory }
+
+    /// Vivid card colours from where the work sits (Explore style).
+    var palette: WorkoutEngine.Category { session.palette }
+}
+
+extension Session {
+    /// Most common exercise category: a card's icon.
     var mainCategory: WorkoutEngine.Category {
-        let exercises = session.blocks.flatMap(\.items).map { Exercise.get($0.exerciseId) }
+        let exercises = blocks.flatMap(\.items).map { Exercise.get($0.exerciseId) }
         let counts = Dictionary(grouping: exercises, by: \.category).mapValues(\.count)
         return counts.max(by: { $0.value < $1.value })?.key ?? .strength
     }
 
     /// Vivid card colours from where the work sits (Explore style).
     var palette: WorkoutEngine.Category {
-        let s = session
         let top = mainCategory
         if top != .strength { return top }
-        switch s.focus {
+        switch focus {
         case .lower, .fullLower, .legs: return .warmup
         case .upper, .fullUpper: return .mobility
         case .push, .fullPower: return .power
@@ -445,27 +452,26 @@ struct AddToPlanSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Week \(model.plan?.week ?? 1): replace a planned day, or add an extra session. A new variation keeps it; changing week clears it.")
+                    Text("Week \(model.plan?.week ?? 1) · \(Generator.phaseName(model.plan?.week ?? 1)): replace a planned day, or add an extra session. A new variation keeps it; changing week clears it.")
                         .font(.footnote)
                         .foregroundStyle(Theme.muted)
                         .padding(.bottom, 6)
                     ForEach(Array(model.replaceableSessions.enumerated()), id: \.offset) { i, pair in
                         let done = model.state.done[pair.current.id] ?? false
-                        Button { replacing = i; pickedExtra = false } label: {
-                            dayRow(number: String(format: "%02d", i + 1), title: pair.current.displayTitle,
-                                   day: pair.current.weekday.map { WeekSchedule.name($0).uppercased() } ?? "DAY \(i + 1)",
-                                   note: done ? "DONE" : pair.current.isPlanInsert ? "FROM LIBRARY" : nil,
-                                   action: "Replace", selected: replacing == i && !pickedExtra)
+                        let card = dayCard(number: i + 1, session: pair.current,
+                                           day: pair.current.weekday.map { WeekSchedule.name($0).uppercased() } ?? "DAY \(i + 1)",
+                                           note: done ? "DONE" : pair.current.isPlanInsert ? "FROM LIBRARY" : nil,
+                                           done: done, selected: replacing == i && !pickedExtra)
+                        if done {
+                            // Not a button: a disabled one would grey the text out on the dark canvas.
+                            card
+                        } else {
+                            Button { replacing = i; pickedExtra = false } label: { card }
+                                .buttonStyle(.plain)
                         }
+                    }
+                    Button { pickedExtra = true; replacing = nil } label: { extraCard }
                         .buttonStyle(.plain)
-                        .disabled(done)
-                        .opacity(done ? 0.5 : 1)
-                    }
-                    Button { pickedExtra = true; replacing = nil } label: {
-                        dayRow(number: "+", title: "Extra session", day: extraDay.map { WeekSchedule.name($0).uppercased() } ?? "ANY DAY",
-                               note: nil, action: "Add", selected: pickedExtra, dashed: true)
-                    }
-                    .buttonStyle(.plain)
                     if pickedExtra {
                         Picker("Day", selection: $extraDay) {
                             Text("Any day").tag(Int?.none)
@@ -474,21 +480,20 @@ struct AddToPlanSheet: View {
                         .pickerStyle(.menu)
                         .tint(Theme.lime)
                     }
+                    // Right under the days: no empty gap between the list and the action.
+                    Button(confirmTitle) {
+                        model.insertIntoPlan(workout, replacing: pickedExtra ? nil : replacing, weekday: extraDay)
+                        onDone(pickedExtra ? "Added to this week." : "Placed into this week's plan.")
+                        dismiss()
+                    }
+                    .buttonStyle(LimeButtonStyle(fill: canConfirm ? Theme.lime : Theme.cardStrong,
+                                                 text: canConfirm ? Theme.ink : Color.white.opacity(0.6)))
+                    .disabled(!canConfirm)
+                    .padding(.top, 10)
                 }
                 .padding(16)
             }
             .background(Theme.bg.ignoresSafeArea())
-            .safeAreaInset(edge: .bottom) {
-                Button(confirmTitle) {
-                    model.insertIntoPlan(workout, replacing: pickedExtra ? nil : replacing, weekday: extraDay)
-                    onDone(pickedExtra ? "Added to this week." : "Placed into this week's plan.")
-                    dismiss()
-                }
-                .buttonStyle(LimeButtonStyle())
-                .disabled(!pickedExtra && replacing == nil)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-            }
             .navigationTitle("Add to plan")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
@@ -496,33 +501,84 @@ struct AddToPlanSheet: View {
         .presentationDetents([.large])
     }
 
+    private var canConfirm: Bool { pickedExtra || replacing != nil }
+
     private var confirmTitle: String {
         if pickedExtra { return "Add extra session" }
         guard let r = replacing, model.replaceableSessions.indices.contains(r) else { return "Pick a day" }
         return "Replace " + (model.replaceableSessions[r].current.weekday.map { WeekSchedule.name($0) } ?? "day \(r + 1)")
     }
 
-    private func dayRow(number: String, title: String, day: String, note: String?, action: String, selected: Bool, dashed: Bool = false) -> some View {
+    /// Explore-style day card: number tile, session name, weekday; done days stay readable, just calmer.
+    private func dayCard(number: Int, session: Session, day: String, note: String?, done: Bool, selected: Bool) -> some View {
         HStack(spacing: 14) {
-            Text(number).font(Theme.display(30)).foregroundStyle(dashed ? Theme.lime : .white).frame(width: 46, alignment: .leading)
+            Text(String(format: "%02d", number))
+                .font(Theme.display(22))
+                .monospacedDigit()
+                .frame(width: 52, height: 52)
+                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.2)))
             VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.system(.headline, design: .rounded).weight(.heavy)).lineLimit(1)
+                Text(session.displayTitle).font(Theme.display(20)).lineLimit(2).minimumScaleFactor(0.8)
                 HStack(spacing: 6) {
-                    Text(day).font(Theme.label(11)).tracking(1).foregroundStyle(Theme.lime)
-                    if let note { Text(note).font(Theme.label(10)).tracking(1).foregroundStyle(Theme.muted) }
+                    Text(day).font(Theme.label(11)).tracking(1)
+                    if let note {
+                        Text(note).font(Theme.label(10)).tracking(1)
+                            .padding(.horizontal, 6).padding(.vertical, 3)
+                            .background(Capsule().fill(.black.opacity(0.3)))
+                    }
                 }
+                .opacity(0.9)
             }
-            Spacer()
-            Text(action).font(Theme.label(12))
-                .padding(.horizontal, 10).padding(.vertical, 6)
-                .background(Capsule().fill(selected ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Color.white.opacity(0.12))))
-                .foregroundStyle(selected ? Theme.ink : .white)
+            Spacer(minLength: 4)
+            if done {
+                Image(systemName: "checkmark.seal.fill").font(.system(size: 26, weight: .bold))
+            } else {
+                Text("Replace").font(Theme.label(12))
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(Capsule().fill(selected ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Color.white.opacity(0.25))))
+                    .foregroundStyle(selected ? Theme.ink : .white)
+            }
         }
+        .foregroundStyle(.white)
+        .padding(16)
+        .background {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(session.palette.gradient)
+                .saturation(done ? 0.15 : 1)
+                .brightness(done ? -0.15 : 0)
+        }
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(Theme.lime, lineWidth: selected ? 3 : 0))
+        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var extraCard: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "plus")
+                .font(.system(size: 22, weight: .heavy))
+                .foregroundStyle(Theme.lime)
+                .frame(width: 52, height: 52)
+                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.lime.opacity(0.15)))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Extra session").font(Theme.display(20))
+                Text(extraDay.map { WeekSchedule.name($0).uppercased() } ?? "ANY DAY")
+                    .font(Theme.label(11)).tracking(1).foregroundStyle(Theme.lime)
+            }
+            Spacer(minLength: 4)
+            Text("Add").font(Theme.label(12))
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(Capsule().fill(pickedExtra ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Color.white.opacity(0.12))))
+                .foregroundStyle(pickedExtra ? Theme.ink : .white)
+        }
+        .foregroundStyle(.white)
         .padding(16)
         .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Theme.card))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(selected ? Theme.lime : Theme.stroke, style: StrokeStyle(lineWidth: selected ? 2 : 1, dash: dashed && !selected ? [6, 4] : []))
+                .strokeBorder(Theme.lime.opacity(pickedExtra ? 1 : 0.6), style: StrokeStyle(lineWidth: pickedExtra ? 3 : 1.5, dash: pickedExtra ? [] : [6, 4]))
         )
+        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .accessibilityAddTraits(pickedExtra ? .isSelected : [])
     }
 }

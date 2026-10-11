@@ -5,27 +5,102 @@ import WorkoutEngine
 
 // MARK: - Join
 
-/// First visit: create a community profile and accept the guidelines (App Store 1.2).
+/// First visit: create a community profile, choose who sees your wins and accept the guidelines (App Store 1.2).
+/// The form owns the scroll view here so the join button stays pinned above the fold.
 struct JoinCommunityView: View {
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Image(systemName: "person.3.fill").font(.system(size: 30, weight: .bold))
-                    Text("Train together").font(Theme.display(30))
-                    Text("Track your wins, share them with the members you choose, and cheer others on.")
-                        .font(.subheadline.weight(.medium)).opacity(0.9)
-                }
-                .foregroundStyle(.white)
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(WorkoutEngine.Category.power.gradient))
+        CommunityProfileForm(profile: nil)
+    }
+}
 
-                CommunityProfileForm(profile: nil)
+private struct JoinHero: View {
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "person.3.fill")
+                .font(.system(size: 24, weight: .bold))
+                .frame(width: 56, height: 56)
+                .background(RoundedRectangle(cornerRadius: 17, style: .continuous).fill(.white.opacity(0.22)))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Train together").font(Theme.display(26))
+                Text("Share your wins and cheer others on.")
+                    .font(.subheadline.weight(.medium)).opacity(0.9)
             }
-            .padding(16)
         }
-        .scrollDismissesKeyboard(.interactively)
+        .foregroundStyle(.white)
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(WorkoutEngine.Category.power.gradient))
+    }
+}
+
+/// Explore-style gradient cards for the join screen: who sees your wins. Members is preselected so
+/// followers hear about new records (#90); Only me keeps everything private.
+private struct JoinVisibilityCards: View {
+    @Binding var selection: CommunityVisibility
+
+    var body: some View {
+        VStack(spacing: 10) {
+            ForEach(CommunityVisibility.allCases) { v in
+                JoinVisibilityCard(visibility: v, selected: v == selection) {
+                    withAnimation(.snappy) { selection = v }
+                }
+            }
+        }
+    }
+}
+
+private struct JoinVisibilityCard: View {
+    let visibility: CommunityVisibility
+    let selected: Bool
+    let action: () -> Void
+
+    private var gradient: LinearGradient {
+        let c: WorkoutEngine.Category = switch visibility {
+        case .onlyMe: .strength
+        case .members: .cardio
+        case .everyone: .warmup
+        }
+        return c.gradient
+    }
+
+    private var detail: String {
+        switch visibility {
+        case .onlyMe: "A private log. Followers aren't told about your records."
+        case .members: "Signed-in members see your wins, followers get notified."
+        case .everyone: "Members, plus anyone with the link."
+        }
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: visibility.symbol)
+                    .font(.system(size: 22, weight: .bold))
+                    .frame(width: 50, height: 50)
+                    .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.white.opacity(0.22)))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(visibility.title).font(Theme.display(20)).lineLimit(1).minimumScaleFactor(0.75)
+                    Text(detail).font(.footnote.weight(.semibold)).opacity(0.88)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 4)
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundStyle(selected ? Theme.ink : .white, selected ? Theme.lime : .white.opacity(0.6))
+            }
+            .foregroundStyle(.white)
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(gradient))
+            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(.white, lineWidth: selected ? 3 : 0))
+            .opacity(selected ? 1 : 0.55)
+            .saturation(selected ? 1 : 0.7)
+            .shadow(color: .black.opacity(selected ? 0.3 : 0), radius: 12, y: 6)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(visibility.title). \(detail)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
@@ -37,7 +112,7 @@ struct CommunityProfileForm: View {
     @Environment(AppModel.self) private var model
     @State private var nickname = ""
     @State private var bio = ""
-    @State private var visibility: CommunityVisibility = .onlyMe
+    @State private var visibility: CommunityVisibility = .members
     @State private var autoShare = false
     @State private var accepted = false
     @State private var showGuidelines = false
@@ -50,85 +125,11 @@ struct CommunityProfileForm: View {
     private var joining: Bool { profile == nil }
     private var nicknameValid: Bool { nickname.range(of: "^[A-Za-z0-9_.]{3,20}$", options: .regularExpression) != nil }
 
+    private var canSave: Bool { nicknameValid && (!joining || accepted) }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 16) {
-                PhotosPicker(selection: $photoItem, matching: .images) {
-                    ZStack(alignment: .bottomTrailing) {
-                        if let photo, let img = UIImage(data: photo) {
-                            Image(uiImage: img).resizable().scaledToFill().frame(width: 84, height: 84).clipShape(Circle())
-                                .overlay(Circle().strokeBorder(Theme.lime, lineWidth: 3))
-                        } else {
-                            AvatarView(url: removePhoto ? nil : model.api.resolve(profile?.avatarUrl),
-                                       nickname: nickname.isEmpty ? "?" : nickname, size: 84, ring: Theme.lime)
-                        }
-                        Image(systemName: "camera.fill").font(.caption.bold()).foregroundStyle(Theme.ink)
-                            .padding(7).background(Circle().fill(Theme.lime))
-                    }
-                }
-                .accessibilityLabel("Choose profile photo")
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Profile photo").font(.system(.body, design: .rounded).weight(.heavy))
-                    Text("Optional. Location and camera details are removed.").font(.footnote).foregroundStyle(Theme.muted)
-                    if photo != nil || (profile?.avatarUrl != nil && !removePhoto) {
-                        Button("Remove photo", role: .destructive) {
-                            photo = nil
-                            photoItem = nil
-                            removePhoto = true
-                        }
-                        .font(.footnote.bold())
-                    }
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Nickname").eyebrow()
-                TextField("e.g. monkey_jy", text: $nickname)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .font(.system(.title3, design: .rounded).weight(.bold))
-                    .card(padding: 14)
-                Text("3–20 letters, digits, _ or . · shown instead of your name")
-                    .font(.footnote).foregroundStyle(nickname.isEmpty || nicknameValid ? Theme.muted : .red)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("About you").eyebrow()
-                TextField("A short description (optional)", text: $bio, axis: .vertical)
-                    .lineLimit(2...4)
-                    .card(padding: 14)
-                    .onChange(of: bio) { _, v in if v.count > 160 { bio = String(v.prefix(160)) } }
-                Text("\(bio.count)/160").font(.caption).foregroundStyle(Theme.muted)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Default visibility of your posts").eyebrow()
-                VisibilityPicker(selection: $visibility)
-            }
-
-            Toggle(isOn: $autoShare) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Auto-share workouts").font(.system(.body, design: .rounded).weight(.heavy))
-                    Text("Post each finished workout with your default visibility.").font(.footnote).foregroundStyle(Theme.muted)
-                }
-            }
-            .card(padding: 14)
-
-            if joining {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Community guidelines").eyebrow()
-                    GuidelinesText()
-                    Button("Read the full guidelines") { showGuidelines = true }.font(.footnote.bold())
-                    Toggle("I agree to the community guidelines", isOn: $accepted).font(.subheadline.weight(.bold))
-                }
-                .card()
-            }
-
-            ErrorText(message: task.error)
-            Button(task.busy ? "SAVING…" : (joining ? "JOIN THE COMMUNITY" : "SAVE")) { save() }
-                .buttonStyle(LimeButtonStyle())
-                .disabled(!nicknameValid || (joining && !accepted) || task.busy)
-                .opacity(!nicknameValid || (joining && !accepted) ? 0.5 : 1)
+        Group {
+            if joining { joinLayout } else { editLayout }
         }
         .sheet(isPresented: $showGuidelines) { NavigationStack { GuidelinesView() } }
         .onChange(of: photoItem) { _, item in
@@ -147,9 +148,134 @@ struct CommunityProfileForm: View {
             loaded = true
             nickname = profile?.nickname ?? ""
             bio = profile?.bio ?? ""
-            visibility = profile?.defaultVisibility ?? .onlyMe
+            visibility = profile?.defaultVisibility ?? .members  // join preselects Members (#90)
             autoShare = profile?.autoShare ?? false
         }
+    }
+
+    /// Join: hero, nickname and the visibility choice first; the guidelines toggle and the join
+    /// button are pinned to the bottom so the call to action is always above the fold.
+    private var joinLayout: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                JoinHero()
+                nicknameField
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Who sees your wins?").eyebrow()
+                    JoinVisibilityCards(selection: $visibility)
+                    Text("You can change this any time, or per post.").font(.footnote).foregroundStyle(Theme.muted)
+                }
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Community guidelines").eyebrow()
+                    GuidelinesText()
+                    Button("Read the full guidelines") { showGuidelines = true }.font(.footnote.bold())
+                }
+                .card()
+                photoRow
+                bioField
+                autoShareToggle
+            }
+            .padding(16)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .safeAreaInset(edge: .bottom) {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle("I agree to the community guidelines", isOn: $accepted).font(.subheadline.weight(.bold))
+                ErrorText(message: task.error)
+                saveButton
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+            .background(Theme.bg.opacity(0.96).ignoresSafeArea(edges: .bottom))
+            .overlay(alignment: .top) { Rectangle().fill(Theme.stroke).frame(height: 1) }
+        }
+    }
+
+    private var editLayout: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            photoRow
+            nicknameField
+            bioField
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Default visibility of your posts").eyebrow()
+                VisibilityPicker(selection: $visibility)
+            }
+            autoShareToggle
+            ErrorText(message: task.error)
+            saveButton
+        }
+    }
+
+    private var saveButton: some View {
+        Button(task.busy ? "SAVING…" : (joining ? "JOIN THE COMMUNITY" : "SAVE")) { save() }
+            .buttonStyle(LimeButtonStyle(fill: canSave ? Theme.lime : Theme.cardStrong, text: canSave ? Theme.ink : Color.white.opacity(0.6)))
+            .disabled(!canSave || task.busy)
+    }
+
+    private var photoRow: some View {
+        HStack(spacing: 16) {
+            PhotosPicker(selection: $photoItem, matching: .images) {
+                ZStack(alignment: .bottomTrailing) {
+                    if let photo, let img = UIImage(data: photo) {
+                        Image(uiImage: img).resizable().scaledToFill().frame(width: 84, height: 84).clipShape(Circle())
+                            .overlay(Circle().strokeBorder(Theme.lime, lineWidth: 3))
+                    } else {
+                        AvatarView(url: removePhoto ? nil : model.api.resolve(profile?.avatarUrl),
+                                   nickname: nickname.isEmpty ? "?" : nickname, size: 84, ring: Theme.lime)
+                    }
+                    Image(systemName: "camera.fill").font(.caption.bold()).foregroundStyle(Theme.ink)
+                        .padding(7).background(Circle().fill(Theme.lime))
+                }
+            }
+            .accessibilityLabel("Choose profile photo")
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Profile photo").font(.system(.body, design: .rounded).weight(.heavy))
+                Text("Optional. Location and camera details are removed.").font(.footnote).foregroundStyle(Theme.muted)
+                if photo != nil || (profile?.avatarUrl != nil && !removePhoto) {
+                    Button("Remove photo", role: .destructive) {
+                        photo = nil
+                        photoItem = nil
+                        removePhoto = true
+                    }
+                    .font(.footnote.bold())
+                }
+            }
+        }
+    }
+
+    private var nicknameField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Nickname").eyebrow()
+            TextField("e.g. monkey_jy", text: $nickname)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .font(.system(.title3, design: .rounded).weight(.bold))
+                .card(padding: 14)
+            Text("3–20 letters, digits, _ or . · shown instead of your name")
+                .font(.footnote).foregroundStyle(nickname.isEmpty || nicknameValid ? Theme.muted : .red)
+        }
+    }
+
+    private var bioField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("About you").eyebrow()
+            TextField("A short description (optional)", text: $bio, axis: .vertical)
+                .lineLimit(2...4)
+                .card(padding: 14)
+                .onChange(of: bio) { _, v in if v.count > 160 { bio = String(v.prefix(160)) } }
+            Text("\(bio.count)/160").font(.caption).foregroundStyle(Theme.muted)
+        }
+    }
+
+    private var autoShareToggle: some View {
+        Toggle(isOn: $autoShare) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Auto-share workouts").font(.system(.body, design: .rounded).weight(.heavy))
+                Text("Post each finished workout with your default visibility.").font(.footnote).foregroundStyle(Theme.muted)
+            }
+        }
+        .card(padding: 14)
     }
 
     private func save() {
@@ -259,34 +385,35 @@ struct CommunityProfileView: View {
             if let p = community.profile {
                 VStack(alignment: .leading, spacing: 16) {
                     ProfileHero(avatar: model.api.resolve(p.avatarUrl), nickname: p.nickname, bio: p.bio)
-                    HStack(spacing: 10) {
-                        StatTile(value: "\(p.sharedPosts)", label: "Shared")
-                        StatTile(value: "\(p.cheersReceived)", label: "Cheers")
-                        StatTile(value: "\(p.followers)", label: "Followers")
-                    }
+                    CommunityStats(shared: p.sharedPosts, cheers: p.cheersReceived, followers: p.followers)
                     Text("Profile").eyebrow()
-                    NavigationLink { editView(p) } label: {
-                        ProfileRow(symbol: "pencil", title: "Nickname, photo, bio", detail: nil, category: .strength)
+                    Group {
+                        NavigationLink { editView(p) } label: {
+                            AccountCard(symbol: "pencil", title: "Nickname, photo, bio", gradient: WorkoutEngine.Category.strength.gradient)
+                        }
+                        NavigationLink { editView(p) } label: {
+                            AccountCard(symbol: p.defaultVisibility.symbol, title: "Default visibility", subtitle: p.defaultVisibility.title,
+                                        gradient: WorkoutEngine.Category.cardio.gradient)
+                        }
+                        NavigationLink { editView(p) } label: {
+                            AccountCard(symbol: "bolt.fill", title: "Auto-share workouts", subtitle: p.autoShare ? "On" : "Off",
+                                        gradient: WorkoutEngine.Category.warmup.gradient)
+                        }
+                        NavigationLink { BlockedMembersView() } label: {
+                            AccountCard(symbol: "hand.raised.fill", title: "Blocked members", gradient: WorkoutEngine.Category.mobility.gradient)
+                        }
+                        NavigationLink { GuidelinesView() } label: {
+                            AccountCard(symbol: "checkmark.seal.fill", title: "Community guidelines", gradient: WorkoutEngine.Category.stretch.gradient)
+                        }
                     }
-                    NavigationLink { editView(p) } label: {
-                        ProfileRow(symbol: p.defaultVisibility.symbol, title: "Default visibility", detail: p.defaultVisibility.title, category: .cardio)
-                    }
-                    NavigationLink { editView(p) } label: {
-                        ProfileRow(symbol: "bolt.fill", title: "Auto-share workouts", detail: p.autoShare ? "On" : "Off", category: .warmup)
-                    }
-                    NavigationLink { BlockedMembersView() } label: {
-                        ProfileRow(symbol: "hand.raised.fill", title: "Blocked members", detail: nil, category: nil)
-                    }
-                    NavigationLink { GuidelinesView() } label: {
-                        ProfileRow(symbol: "checkmark.seal.fill", title: "Community guidelines", detail: nil, category: nil)
-                    }
+                    .buttonStyle(.plain)
                     ErrorText(message: task.error)
-                    Button("Leave the community", role: .destructive) { confirmLeave = true }
-                        .font(.subheadline.bold())
-                        .frame(maxWidth: .infinity)
+                    AccountPillButton(title: "Leave the community", role: .destructive) { confirmLeave = true }
                         .padding(.top, 8)
                 }
                 .padding(16)
+                // Keeps the last button clear of the home indicator.
+                .padding(.bottom, 32)
             }
         }
         .background(Theme.bg.ignoresSafeArea())
@@ -346,34 +473,18 @@ private struct ProfileHero: View {
     }
 }
 
-private struct ProfileRow: View {
-    let symbol: String
-    let title: String
-    let detail: String?
-    let category: WorkoutEngine.Category?
+/// Shared · Cheers · Followers as gradient tiles (own profile and member pages).
+private struct CommunityStats: View {
+    let shared: Int
+    let cheers: Int
+    let followers: Int
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 40, height: 40)
-                .background {
-                    if let category {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous).fill(category.gradient)
-                    } else {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.cardStrong)
-                    }
-                }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(.body, design: .rounded).weight(.heavy))
-                if let detail { Text(detail).font(.footnote.weight(.medium)).foregroundStyle(Theme.muted) }
-            }
-            Spacer()
-            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.muted)
+        HStack(spacing: 10) {
+            GradientStat(symbol: "square.and.arrow.up.fill", value: "\(shared)", label: "Shared", gradient: WorkoutEngine.Category.strength.gradient)
+            GradientStat(symbol: "hands.clap.fill", value: "\(cheers)", label: "Cheers", gradient: WorkoutEngine.Category.power.gradient)
+            GradientStat(symbol: "person.2.fill", value: "\(followers)", label: "Followers", gradient: WorkoutEngine.Category.cardio.gradient)
         }
-        .foregroundStyle(.white)
-        .card(padding: 12)
     }
 }
 
@@ -397,11 +508,7 @@ struct MemberView: View {
                 ProfileHero(avatar: model.api.resolve(page?.member.avatarUrl ?? author.avatarUrl),
                             nickname: page?.member.nickname ?? author.nickname, bio: page?.member.bio)
                 if let m = page?.member {
-                    HStack(spacing: 10) {
-                        StatTile(value: "\(m.sharedPosts)", label: "Shared")
-                        StatTile(value: "\(m.cheersReceived)", label: "Cheers")
-                        StatTile(value: "\(m.followers)", label: "Followers")
-                    }
+                    CommunityStats(shared: m.sharedPosts, cheers: m.cheersReceived, followers: m.followers)
                     if !isMe, page?.blockedByMe == false {
                         let on = page?.followedByMe == true
                         Button(on ? "FOLLOWING ✓" : "FOLLOW") { toggleFollow(on) }

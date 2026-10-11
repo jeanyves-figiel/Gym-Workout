@@ -132,14 +132,15 @@ struct MuscleDetailView: View {
                     BodyMapPair(heat: [muscle: 1], selected: muscle)
                         .frame(height: 220)
                     VStack(spacing: 10) {
-                        StatTile(value: "\(model.weeklySets(for: muscle))", label: "Sets / week")
-                        StatTile(value: "\(Exercise.working(muscle).reduce(0) { $0 + $1.1.count })", label: "Exercises")
+                        GradientStat(symbol: "square.stack.3d.up.fill", value: "\(model.weeklySets(for: muscle))", label: "Sets / week",
+                                     gradient: WorkoutEngine.Category.strength.gradient)
+                        GradientStat(symbol: "list.bullet", value: "\(Exercise.working(muscle).reduce(0) { $0 + $1.1.count })", label: "Exercises",
+                                     gradient: WorkoutEngine.Category.cardio.gradient)
                     }
                     .frame(width: 130)
                 }
                 ForEach(Exercise.working(muscle), id: \.0) { category, hits in
-                    VStack(alignment: .leading, spacing: 10) {
-                        CategoryPill(category: category)
+                    GradientSection(symbol: category.symbol, title: category.label, gradient: category.gradient) {
                         ForEach(hits, id: \.exercise.id) { hit in
                             Button { open = ExerciseRef(exerciseId: hit.exercise.id) } label: {
                                 HStack(spacing: 12) {
@@ -150,23 +151,24 @@ struct MuscleDetailView: View {
                                         .frame(width: 52)
                                         .padding(.vertical, 4)
                                         .background {
-                                            if hit.primary { Capsule().fill(Theme.lime) } else { Capsule().strokeBorder(Color.white.opacity(0.35)) }
+                                            if hit.primary { Capsule().fill(.white) } else { Capsule().strokeBorder(Color.white.opacity(0.6)) }
                                         }
                                     ExerciseThumbnail(exercise: hit.exercise, size: 48)
                                     Text(hit.exercise.name).font(.body.weight(.semibold)).multilineTextAlignment(.leading)
                                     Spacer()
-                                    Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.muted)
+                                    Image(systemName: "chevron.right").font(.caption.bold()).opacity(0.8)
                                 }
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }
                     }
-                    .card()
                 }
             }
             .padding(16)
         }
         .background(Theme.bg.ignoresSafeArea())
+        .navigationTitle("Muscle")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $open) { ref in NavigationStack { ExerciseDetailView(exerciseId: ref.exerciseId) } }
     }

@@ -113,6 +113,21 @@ private func off(_ a: String, _ b: String) -> AwayPeriod { AwayPeriod(kind: .off
         #expect(rest.allSatisfy { $0.weekday! >= 4 && $0.weekday != 6 })
     }
 
+    @Test func doneUnscheduledSessionGetsAPastDay() {
+        // No climbing / gym weekdays: plain "Day 1…N" plan without weekdays.
+        let p = Profile(goal: .balanced, sessionsPerWeek: 3, experience: .intermediate, climbingDaysPerWeek: 0)
+        let regular = Generator.generateWeek(p, week: 2, seed: 7)
+        #expect(regular.sessions.allSatisfy { $0.weekday == nil })
+        let first = regular.sessions[0]
+        // Wednesday, Monday off: the done session lands on Tuesday, the rest from Wednesday on.
+        let w = PlanCalendar.adapt(p, week: 2, seed: 7, weekStart: monday, away: [off("2026-10-12", "2026-10-12")],
+                                   base: regular, done: [first.id], firstDay: 3, calendar: cal)
+        #expect(w.plan.sessions.first { $0.id == first.id }?.weekday == 2)
+        // Every session the week counts has a day (and so a tile on the calendar).
+        #expect(w.plan.sessions.allSatisfy { $0.weekday != nil })
+        #expect(w.plan.sessions.filter { $0.id != first.id }.allSatisfy { $0.weekday! >= 3 })
+    }
+
     @Test func weeksCoverTheHorizonAndAdvanceTheCycle() {
         let now = cal.date(byAdding: .hour, value: 10, to: monday)!
         let current = Generator.generateWeek(climber, week: 3, seed: 8)

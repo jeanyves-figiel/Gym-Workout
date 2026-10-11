@@ -98,7 +98,7 @@ private struct DemoScreen: View {
         case "pr-result": PRAttemptView(exerciseId: "bench-press", showing: Demo.prResult)
         case "technique": FormSheet(exercise: Exercise.get("leg-press"))
         case "progress", "progress-empty": NavigationStack { ProgressTabView() }
-        case "history": NavigationStack { HistoryDetailView(recordId: model.history.first?.id ?? UUID()) }
+        case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
         case "body": NavigationStack { BodyHealthView() }
         case "account": NavigationStack { AccountView() }
         case "account-password": NavigationStack { ChangePasswordView(hasPassword: true) }
@@ -120,7 +120,7 @@ private struct DemoScreen: View {
             }
         case "readiness":
             ReadinessSheet(snapshot: Demo.health, readiness: Readiness.assess(Demo.health)?.0 ?? .normal, flags: Readiness.assess(Demo.health)?.1 ?? [])
-        case "cycle": WeekPhaseSheet(week: 1)
+        case "cycle": WeekPhaseSheet(week: model.plan?.week ?? 1)
         case "library": NavigationStack { WorkoutLibraryView().navigationDestination(for: String.self) { SessionView(sessionId: $0) } }
         case "library-plan": AddToPlanSheet(workout: model.libraryWorkout(for: WorkoutTemplate.all[0].session) ?? Demo.customWorkouts[0])
         case "calendar": NavigationStack { CalendarView() }
@@ -131,6 +131,17 @@ private struct DemoScreen: View {
             MissedSessionSheet(sessionId: second, day: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
         default: MainTabView()
         }
+    }
+}
+
+/// History detail pushed from Progress, as in the app (title and back button).
+private struct DemoPushedHistory: View {
+    @State private var path: [UUID]
+
+    init(recordId: UUID) { _path = State(initialValue: [recordId]) }
+
+    var body: some View {
+        NavigationStack(path: $path) { ProgressTabView() }
     }
 }
 #endif

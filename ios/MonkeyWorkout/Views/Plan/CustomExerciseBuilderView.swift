@@ -149,15 +149,20 @@ struct CustomExerciseBuilderView: View {
                     get: { draft.machine ?? "" }, set: { draft.machine = $0 }))
                     .padding(14)
                     .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.card))
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        FilterChip(title: "Bodyweight", on: draft.equipment.isEmpty) { draft.equipment = [] }
-                        ForEach(Equipment.allCases) { eq in
-                            FilterChip(title: eq.label, on: draft.equipment.contains(eq)) {
-                                if let i = draft.equipment.firstIndex(of: eq) { draft.equipment.remove(at: i) } else { draft.equipment.append(eq) }
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            FilterChip(title: "Bodyweight", on: draft.equipment.isEmpty) { draft.equipment = [] }
+                            ForEach(Equipment.allCases) { eq in
+                                FilterChip(title: eq.label, on: draft.equipment.contains(eq)) {
+                                    if let i = draft.equipment.firstIndex(of: eq) { draft.equipment.remove(at: i) } else { draft.equipment.append(eq) }
+                                }
+                                .id(eq)
                             }
                         }
                     }
+                    // Editing: bring the picked equipment into view instead of leaving it off-screen.
+                    .onAppear { if let eq = draft.equipment.first { proxy.scrollTo(eq, anchor: .center) } }
                 }
             }
         }

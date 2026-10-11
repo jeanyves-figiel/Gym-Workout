@@ -200,10 +200,12 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
         req.userId!,
       );
     } else {
+      // New members share wins with members unless they pick otherwise, so followers get achievement pushes (#90).
+      // The column default stays 'private'; existing profiles are left as they are.
       db.prepare(
         `INSERT INTO community_profiles (user_id, nickname, bio, default_visibility, auto_share, guidelines_accepted_at, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(req.userId!, b.nickname, b.bio || null, b.defaultVisibility ?? 'private', Number(b.autoShare ?? false), ts, ts, ts);
+      ).run(req.userId!, b.nickname, b.bio || null, b.defaultVisibility ?? 'members', Number(b.autoShare ?? false), ts, ts, ts);
     }
     return { profile: ownProfile(profileRow(req.userId!)!) };
   });

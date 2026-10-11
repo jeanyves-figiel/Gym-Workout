@@ -219,18 +219,19 @@ struct WinCard: Identifiable {
     static func workout(_ r: WorkoutRecord) -> WinCard {
         let minutes = max(1, r.durationSec / 60)
         let volume = r.volumeKg
+        let lifted = Format.volumeParts(volume)
         let metric: CommunityCard.Metric = volume >= 1000
-            ? .init(value: String(format: "%.1f", volume / 1000), unit: "t lifted")
+            ? .init(value: lifted.value, unit: "\(lifted.unit) lifted")
             : .init(value: "\(minutes)", unit: "min")
         var stats: [CommunityCard.Stat] = [.init(label: "min", value: "\(minutes)"), .init(label: "sets", value: "\(r.totalSets)")]
         stats.append(.init(label: "exercises", value: "\(r.exercises.filter { $0.setsDone > 0 }.count)"))
         if let kcal = r.kcal { stats.append(.init(label: "kcal", value: "\(Int(kcal.rounded()))")) }
         let sets = Dictionary(grouping: r.exercises, by: \.category).mapValues { $0.reduce(0) { $0 + $1.setsDone } }
-        let style = sets.max { $0.value < $1.value }?.key.rawValue ?? WorkoutEngine.Category.strength.rawValue
+        let top = sets.max { $0.value < $1.value }?.key ?? .strength
         let subtitle = r.startedAt.formatted(.dateTime.weekday(.wide).day().month())
         return WinCard(kind: "workout", refId: r.id.uuidString.lowercased(),
-                       card: CommunityCard(title: r.title, subtitle: subtitle, metric: metric, style: style, stats: stats),
-                       symbol: "dumbbell.fill", date: r.startedAt)
+                       card: CommunityCard(title: r.title, subtitle: subtitle, metric: metric, style: top.rawValue, stats: stats),
+                       symbol: top.symbol, date: r.startedAt)
     }
 
     static func badge(_ b: Badge) -> WinCard {
@@ -258,6 +259,6 @@ struct WinCard: Identifiable {
         return WinCard(kind: "record", refId: "\(pr.exerciseId):\(day)",
                        card: CommunityCard(title: "\(name) best", subtitle: "New personal best", metric: .init(value: kg, unit: "kg"),
                                            style: WorkoutEngine.Category.strength.rawValue),
-                       symbol: "arrow.up.right.circle.fill", date: pr.date)
+                       symbol: "trophy.fill", date: pr.date)
     }
 }

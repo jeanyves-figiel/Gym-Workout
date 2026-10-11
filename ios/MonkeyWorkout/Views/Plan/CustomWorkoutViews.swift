@@ -76,58 +76,73 @@ struct CustomWorkoutEditor: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Name") {
+            // A plain List keeps swipe-to-delete and reorder; each row is drawn as an Explore-style card.
+            List {
+                AccountField(label: "Name") {
                     TextField("e.g. Push day", text: $draft.name)
                         .textInputAutocapitalization(.words)
+                        .font(Theme.display(22))
                         .onChange(of: draft.name) { _, v in
                             if v.count > CustomWorkout.maxNameLength { draft.name = String(v.prefix(CustomWorkout.maxNameLength)) }
                         }
                 }
+                .cardRow()
 
-                Section {
-                    ForEach($draft.items) { $item in
-                        NavigationLink {
-                            CustomItemForm(item: $item)
-                        } label: {
-                            CustomItemRow(item: item)
+                HStack {
+                    Text("Exercises · \(draft.items.count)").eyebrow()
+                    Spacer()
+                    if !draft.items.isEmpty {
+                        Button(editMode.isEditing ? "Done" : "Reorder") {
+                            withAnimation { editMode = editMode.isEditing ? .inactive : .active }
                         }
-                    }
-                    .onDelete { draft.items.remove(atOffsets: $0) }
-                    .onMove { draft.items.move(fromOffsets: $0, toOffset: $1) }
-
-                    if draft.items.count < CustomWorkout.maxItems {
-                        Button { picking = true } label: {
-                            Label("Add exercises", systemImage: "plus.circle.fill")
-                        }
-                    }
-                } header: {
-                    HStack {
-                        Text("Exercises · \(draft.items.count)")
-                        Spacer()
-                        if !draft.items.isEmpty {
-                            Button(editMode.isEditing ? "Done" : "Reorder") {
-                                withAnimation { editMode = editMode.isEditing ? .inactive : .active }
-                            }
-                            .font(.footnote.weight(.semibold))
-                            .textCase(nil)
-                        }
-                    }
-                } footer: {
-                    if draft.items.isEmpty {
-                        Text("Add at least one exercise from the catalog.")
-                    } else {
-                        Text("Tap an exercise to set sets × reps, rest and calories. Swipe to remove.")
+                        .font(Theme.label(13))
+                        .foregroundStyle(Theme.lime)
+                        .buttonStyle(.borderless)
                     }
                 }
+                .padding(.top, 8)
+                .cardRow()
+
+                ForEach($draft.items) { $item in
+                    ZStack {
+                        // Hidden link: the card draws its own chevron instead of the List's disclosure.
+                        NavigationLink { CustomItemForm(item: $item) } label: { EmptyView() }.opacity(0)
+                        CustomItemRow(item: item)
+                    }
+                    .cardRow()
+                }
+                .onDelete { draft.items.remove(atOffsets: $0) }
+                .onMove { draft.items.move(fromOffsets: $0, toOffset: $1) }
+
+                if draft.items.count < CustomWorkout.maxItems {
+                    Button { picking = true } label: {
+                        Label("Add exercises", systemImage: "plus.circle.fill")
+                            .font(Theme.label(15))
+                            .foregroundStyle(Theme.lime)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(16)
+                            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Theme.card))
+                            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .strokeBorder(Theme.lime.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
+                    }
+                    .buttonStyle(.borderless)
+                    .cardRow()
+                }
+
+                AccountNote(text: draft.items.isEmpty
+                            ? "Add at least one exercise from the catalog."
+                            : "Tap an exercise to set sets × reps, rest and calories. Swipe to remove.")
+                    .cardRow()
 
                 if !draft.items.isEmpty {
-                    Section {
-                        LabeledContent("Estimated duration", value: "\(draft.session.estMin) min")
-                        if let kcal = draft.kcal { LabeledContent("Calories", value: "\(kcal) kcal") }
+                    AccountCard(symbol: "stopwatch.fill", title: "Estimated duration",
+                                subtitle: draft.kcal.map { "\($0) kcal" }, gradient: WorkoutEngine.Category.cardio.gradient) {
+                        AccountValue(value: "\(draft.session.estMin)", unit: "min")
                     }
+                    .cardRow()
                 }
             }
+            .listStyle(.plain)
             .environment(\.editMode, $editMode)
             .themedForm()
             .navigationTitle(isNew ? "New workout" : "Edit workout")
@@ -160,27 +175,45 @@ struct CustomWorkoutEditor: View {
     }
 }
 
+private extension View {
+    /// List row without system chrome, so the content's own card shows.
+    func cardRow() -> some View {
+        listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+    }
+}
+
+/// Exercise in the builder: category gradient card, icon tile, name, prescription.
 private struct CustomItemRow: View {
     let item: CustomWorkout.Item
 
     var body: some View {
         if let e = item.exercise {
             let measure = CustomWorkout.Measure(e)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(e.name).font(.body.weight(.semibold))
-                Text(([
-                    item.sets > 1 ? "\(item.sets) × \(measure.text(item.reps))" : measure.text(item.reps),
-                    item.restSec > 0 ? "rest \(Format.rest(item.restSec))" : nil,
-                    item.kcal.map { "\($0) kcal" },
-                ] as [String?]).compactMap { $0 }.joined(separator: " · "))
-                    .font(.caption)
-                    .foregroundStyle(e.category.color)
+            HStack(spacing: 14) {
+                IconTile(symbol: e.category.symbol, size: 44)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(e.name).font(Theme.display(17)).lineLimit(2).minimumScaleFactor(0.8)
+                    Text(([
+                        item.sets > 1 ? "\(item.sets) × \(measure.text(item.reps))" : measure.text(item.reps),
+                        item.restSec > 0 ? "rest \(Format.rest(item.restSec))" : nil,
+                        item.kcal.map { "\($0) kcal" },
+                    ] as [String?]).compactMap { $0 }.joined(separator: " · "))
+                        .font(.footnote.weight(.semibold))
+                        .opacity(0.88)
+                }
+                Spacer(minLength: 4)
+                AccountChevron()
             }
+            .gradientCard(e.category.gradient, padding: 14)
         } else {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Unavailable exercise").font(.body.weight(.semibold)).foregroundStyle(Theme.muted)
-                Text("Update the app to use “\(item.exerciseId)”.").font(.caption).foregroundStyle(Theme.muted)
+                Text("Update the app to use \u{201C}\(item.exerciseId)\u{201D}.").font(.caption).foregroundStyle(Theme.muted)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .card(padding: 14)
         }
     }
 }
@@ -191,45 +224,40 @@ private struct CustomItemForm: View {
     @State private var info = false
 
     var body: some View {
-        Form {
-            if let e = item.exercise {
-                let measure = CustomWorkout.Measure(e)
-                Section {
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            CategoryPill(category: e.category, compact: true)
-                            Text(e.name).font(.headline)
-                            Text(e.muscles.prefix(4).map(\.name).joined(separator: " · ")).font(.caption).foregroundStyle(Theme.muted)
-                        }
-                        Spacer()
-                        Button { info = true } label: { Image(systemName: "info.circle") }
-                            .buttonStyle(.borderless)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                if let e = item.exercise {
+                    let measure = CustomWorkout.Measure(e)
+                    AccountHeader(symbol: e.category.symbol, title: e.name,
+                                  subtitle: e.muscles.prefix(4).map(\.name).joined(separator: " · "), gradient: e.category.gradient) {
+                        Button { info = true } label: { Image(systemName: "info.circle.fill").font(.title2) }
+                            .buttonStyle(.plain)
                             .accessibilityLabel("Exercise details")
                     }
-                }
-                Section("Prescription") {
-                    Stepper(value: $item.sets, in: CustomWorkout.setsRange) {
-                        LabeledContent("Sets", value: "\(item.sets)")
+                    Text("Prescription").eyebrow().padding(.top, 6)
+                    stepperCard(symbol: "square.stack.3d.up.fill", title: "Sets", value: "\(item.sets)",
+                                gradient: WorkoutEngine.Category.strength.gradient) {
+                        Stepper("Sets", value: $item.sets, in: CustomWorkout.setsRange)
                     }
-                    Stepper(value: $item.reps, in: CustomWorkout.repsRange, step: measure.step) {
-                        LabeledContent("\(measure.label) per set", value: "\(item.reps)")
+                    stepperCard(symbol: "repeat", title: "\(measure.label) per set", value: "\(item.reps)",
+                                gradient: WorkoutEngine.Category.power.gradient) {
+                        Stepper("\(measure.label) per set", value: $item.reps, in: CustomWorkout.repsRange, step: measure.step)
                     }
-                    Stepper(value: $item.restSec, in: CustomWorkout.restRange, step: 15) {
-                        LabeledContent("Rest", value: item.restSec > 0 ? Format.rest(item.restSec) : "None")
+                    stepperCard(symbol: "timer", title: "Rest", value: item.restSec > 0 ? Format.rest(item.restSec) : "None",
+                                gradient: WorkoutEngine.Category.cardio.gradient) {
+                        Stepper("Rest", value: $item.restSec, in: CustomWorkout.restRange, step: 15)
                     }
-                }
-                Section {
-                    LabeledContent("Calories") {
+                    AccountField(label: "Calories") {
                         TextField("optional", value: $item.kcal, format: .number)
                             .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
                     }
-                } footer: {
-                    Text("Optional — e.g. what your machine or tracker shows for this exercise.")
+                    .padding(.top, 6)
+                    AccountNote(text: "Optional — e.g. what your machine or tracker shows for this exercise.")
+                } else {
+                    Text("This exercise isn't in this version of the app.").foregroundStyle(Theme.muted)
                 }
-            } else {
-                Text("This exercise isn't in this version of the app.").foregroundStyle(Theme.muted)
             }
+            .padding(16)
         }
         .sheet(isPresented: $info) {
             if let e = item.exercise {
@@ -237,7 +265,19 @@ private struct CustomItemForm: View {
             }
         }
         .themedForm()
-        .navigationTitle(item.exercise?.name ?? "Exercise")
+        .navigationTitle("Sets & reps")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// Explore-style card: icon tile, label, big value and a stepper on the right.
+    private func stepperCard<S: View>(symbol: String, title: String, value: String, gradient: LinearGradient,
+                                      @ViewBuilder stepper: () -> S) -> some View {
+        let control = stepper()
+        return AccountCard(symbol: symbol, title: title, gradient: gradient) {
+            HStack(spacing: 10) {
+                Text(value).font(Theme.display(24)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
+                control.labelsHidden().fixedSize()
+            }
+        }
     }
 }

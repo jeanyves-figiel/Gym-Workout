@@ -85,6 +85,21 @@ enum Format {
     static func kg(_ v: Double) -> String {
         v.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(v)) : String(format: "%.1f", v)
     }
+
+    /// Lifted volume, one style app-wide (History, Progress, shared cards): kilos below a tonne ("850 kg"),
+    /// then tonnes with one decimal ("6.5 t"), whole grouped tonnes from 100 t ("1,240 t").
+    static func volume(_ kg: Double) -> String {
+        let p = volumeParts(kg)
+        return "\(p.value) \(p.unit)"
+    }
+
+    static func volumeParts(_ kg: Double) -> (value: String, unit: String) {
+        let number = FloatingPointFormatStyle<Double>(locale: Locale(identifier: "en_US"))
+        let v = max(0, kg)
+        if v < 1000 { return (v.rounded().formatted(number.precision(.fractionLength(0))), "kg") }
+        let t = v / 1000
+        return (t.formatted(number.precision(.fractionLength(t >= 100 ? 0 : 1))), "t")
+    }
 }
 
 /// Password rules mirrored from the API so users get instant feedback.

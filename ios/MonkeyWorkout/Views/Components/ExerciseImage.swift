@@ -199,7 +199,6 @@ struct ExerciseImageHeader: View {
 
     let exercise: Exercise
     var height: CGFloat = 220
-    var showsAttribution = true
     var style: Style = .sequence
 
     var body: some View {
@@ -227,11 +226,6 @@ struct ExerciseImageHeader: View {
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: height)
-                if showsAttribution, exercise.imageId != nil {
-                    Link(destination: ExerciseImages.sourceURL) {
-                        Text(ExerciseImages.attribution).font(.caption2).foregroundStyle(Theme.muted)
-                    }
-                }
             }
         }
     }

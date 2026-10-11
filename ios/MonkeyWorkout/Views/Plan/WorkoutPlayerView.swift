@@ -620,10 +620,10 @@ private struct SummaryView: View {
                     .padding(.top, 30)
                 Text("Session\ncomplete").font(Theme.display(48)).multilineTextAlignment(.center)
                 HStack(spacing: 10) {
-                    StatTile(value: Format.elapsed(elapsed), label: "Time")
-                    StatTile(value: "\(setsDone)", label: "Sets")
-                    if let kcal { StatTile(value: "\(Int(kcal))", label: "kcal") }
-                    StatTile(value: "\(session.blocks.reduce(0) { $0 + $1.items.count })", label: "Moves")
+                    GradientStat(symbol: "stopwatch.fill", value: Format.elapsed(elapsed), label: "Time", gradient: WorkoutEngine.Category.cardio.gradient)
+                    GradientStat(symbol: "square.stack.3d.up.fill", value: "\(setsDone)", label: "Sets", gradient: WorkoutEngine.Category.strength.gradient)
+                    if let kcal { GradientStat(symbol: "flame.fill", value: "\(Int(kcal))", label: "kcal", gradient: WorkoutEngine.Category.warmup.gradient) }
+                    GradientStat(symbol: "figure.strengthtraining.traditional", value: "\(session.blocks.reduce(0) { $0 + $1.items.count })", label: "Moves", gradient: WorkoutEngine.Category.mobility.gradient)
                 }
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Muscles hit").eyebrow()

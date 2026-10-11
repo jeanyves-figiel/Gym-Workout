@@ -27,10 +27,11 @@ struct SessionView: View {
                     finishButton(session)
                 }
                 .padding(16)
-                .padding(.bottom, 90)
+                .padding(.bottom, 24)
             }
             .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle(model.libraryTitle(session) ?? session.dayLabel)
+            // The big display title below is the page's one title (#88); the bar stays clear.
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
                 Button { playing = true } label: {
@@ -39,7 +40,9 @@ struct SessionView: View {
                     .buttonStyle(LimeButtonStyle())
                     .disabled(session.blocks.allSatisfy { $0.items.isEmpty })
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
+                    .padding(.vertical, 10)
+                    // Opaque bar (as on the profile form): content ends above the button instead of sliding under it.
+                    .background(Theme.bg.ignoresSafeArea())
             }
             .standaloneWorkoutActions(session)
             .fullScreenCover(isPresented: $playing) { WorkoutPlayerView(sessionId: session.id) }
@@ -61,7 +64,10 @@ struct SessionView: View {
             if let day = s.weekday {
                 SessionDayLine(weekday: day, climbing: model.profile?.climbingDays ?? [])
             }
-            Text(s.displayTitle).font(Theme.display(38)).fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 6) {
+                if s.weekday == nil, let context = model.libraryTitle(s) { Text(context).eyebrow() }
+                Text(s.displayTitle).font(Theme.display(38)).fixedSize(horizontal: false, vertical: true)
+            }
             LibraryActionsPanel(session: s)
             if let t = WorkoutTemplate.find(sessionId: s.id) {
                 Text("\(t.kcal) kcal · \(t.activityPoints) activity points").font(Theme.label(14)).foregroundStyle(Theme.lime)
@@ -69,9 +75,12 @@ struct SessionView: View {
                 Text("\(kcal) kcal").font(Theme.label(14)).foregroundStyle(Theme.lime)
             }
             HStack(spacing: 10) {
-                StatTile(value: "\(s.estMin)′", label: "Duration")
-                StatTile(value: "\(s.blocks.reduce(0) { $0 + $1.items.count })", label: "Exercises")
-                StatTile(value: "\(s.blocks.filter { [BlockKind.power, .strength].contains($0.kind) }.flatMap(\.items).reduce(0) { $0 + $1.prescription.sets })", label: "Work sets")
+                GradientStat(symbol: "stopwatch.fill", value: "\(s.estMin)′", label: "Duration",
+                             gradient: WorkoutEngine.Category.cardio.gradient)
+                GradientStat(symbol: "figure.strengthtraining.traditional", value: "\(s.blocks.reduce(0) { $0 + $1.items.count })", label: "Exercises",
+                             gradient: WorkoutEngine.Category.mobility.gradient)
+                GradientStat(symbol: "square.stack.3d.up.fill", value: "\(s.blocks.filter { [BlockKind.power, .strength].contains($0.kind) }.flatMap(\.items).reduce(0) { $0 + $1.prescription.sets })", label: "Work sets",
+                             gradient: WorkoutEngine.Category.strength.gradient)
             }
             VStack(alignment: .leading, spacing: 12) {
                 Text("Muscles worked · tap to explore").eyebrow()

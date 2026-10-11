@@ -49,8 +49,8 @@ final class AppModel {
             demo = true
             user = Demo.user
             state = LocalState()
-            state.synced = SyncedProfile(profile: Demo.profile, seed: 7, week: 2)
-            state.plan = Generator.generateWeek(Demo.profile, week: 2, seed: 7)
+            state.synced = SyncedProfile(profile: Demo.profile, seed: 7, week: Demo.week)
+            state.plan = Generator.generateWeek(Demo.profile, week: Demo.week, seed: 7)
             if let first = state.plan?.sessions.first { state.done[first.id] = true }
             let demo = Demo.history()
             state.history = demo.records
@@ -72,7 +72,7 @@ final class AppModel {
                 state.climbs = []
                 state.prAttempts = []
             }
-            phase = Demo.screen == "welcome" ? .signedOut : .signedIn
+            phase = ["welcome", "signin", "signup", "verify"].contains(Demo.screen) ? .signedOut : .signedIn
             return
         }
         #endif

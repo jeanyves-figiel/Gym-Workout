@@ -296,7 +296,8 @@ struct MissedSessionSheet: View {
 
                     Button { calendar = true } label: {
                         DayCard(symbol: "calendar", title: "Open calendar", detail: "See the coming weeks, mark days off",
-                                big: "📅", gradient: NotifyStyle.reminder)
+                                big: Date().formatted(.dateTime.day()), caption: Date().formatted(.dateTime.month(.abbreviated)),
+                                gradient: NotifyStyle.reminder)
                     }
                     .buttonStyle(.plain)
                 }
@@ -324,6 +325,8 @@ private struct DayCard: View {
     let title: String
     let detail: String
     let big: String
+    /// Small label under `big` (e.g. the month under today's date).
+    var caption: String? = nil
     let gradient: LinearGradient
 
     var body: some View {
@@ -337,7 +340,11 @@ private struct DayCard: View {
                 Text(detail).font(.footnote.weight(.medium)).opacity(0.85)
             }
             Spacer()
-            Text(big).font(Theme.display(30)).opacity(0.85)
+            VStack(spacing: 0) {
+                Text(big).font(Theme.display(30)).monospacedDigit()
+                if let caption { Text(caption.uppercased()).font(Theme.label(10)).tracking(1.2) }
+            }
+            .opacity(0.85)
         }
         .foregroundStyle(.white)
         .padding(18)

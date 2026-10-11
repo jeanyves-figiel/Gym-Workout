@@ -51,11 +51,9 @@ struct EquipmentLine: View {
 /// Equipment cards: what, where in the gym, how to adjust.
 struct EquipmentSection: View {
     let equipment: [Equipment]
-    let accent: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Equipment").eyebrow()
+        GradientSection(symbol: "dumbbell.fill", title: "Equipment", gradient: WorkoutEngine.Category.warmup.gradient) {
             if equipment.isEmpty {
                 row(symbol: "figure.stand", title: "Bodyweight", zone: "Anywhere with space", text: "No equipment needed — a mat if you're on the floor.")
             }
@@ -63,31 +61,23 @@ struct EquipmentSection: View {
                 row(symbol: e.symbol, title: e.label, zone: e.zone.label, text: e.adjustment)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
     }
 
     private func row(symbol: String, title: String, zone: String, text: String) -> some View {
         HStack(alignment: .top, spacing: 14) {
-            Image(systemName: symbol)
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(accent)
-                .frame(width: 48, height: 48)
-                .background(RoundedRectangle(cornerRadius: 14).fill(accent.opacity(0.15)))
+            IconTile(symbol: symbol, size: 44)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).font(.system(.headline, design: .rounded).weight(.heavy))
-                Text(zone.uppercased()).font(Theme.label(10)).tracking(1).foregroundStyle(Theme.lime)
-                Text(text).font(.footnote).foregroundStyle(Theme.muted)
+                Text(zone.uppercased()).font(Theme.label(10)).tracking(1).opacity(0.85)
+                Text(text).font(.footnote.weight(.medium)).opacity(0.9).fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 }
 
-/// Set up → body position → avoid → breathe.
+/// Set up → body position → avoid → breathe, each on its own gradient card.
 struct TechniqueView: View {
     let exercise: Exercise
-
-    private var accent: Color { exercise.category.color }
 
     var body: some View {
         if let t = exercise.technique {
@@ -98,73 +88,57 @@ struct TechniqueView: View {
                 breathe(t)
             }
         } else {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Key cues").eyebrow()
-                ForEach(exercise.cues, id: \.self) { Text("• \($0)") }
+            GradientSection(symbol: "text.bubble.fill", title: "Key cues", gradient: exercise.category.gradient) {
+                ForEach(exercise.cues, id: \.self) { Text("• \($0)").font(.body.weight(.medium)) }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .card()
         }
     }
 
     private func setup(_ t: Technique) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Set up").eyebrow()
+        GradientSection(symbol: "list.number", title: "Set up", gradient: exercise.category.gradient) {
             ForEach(Array(t.setup.enumerated()), id: \.offset) { i, step in
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     Text("\(i + 1)")
                         .font(Theme.display(16))
-                        .foregroundStyle(Theme.ink)
+                        .foregroundStyle(exercise.category.color)
                         .frame(width: 26, height: 26)
-                        .background(Circle().fill(accent))
+                        .background(Circle().fill(.white))
                     Text(step).font(.body.weight(.medium)).fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
     }
 
     private func position(_ t: Technique) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Body position").eyebrow()
+        GradientSection(symbol: "figure.stand", title: "Body position", gradient: WorkoutEngine.Category.mobility.gradient) {
             ForEach(t.position, id: \.self) { c in
-                CheckpointRow(checkpoint: c, accent: accent)
+                CheckpointRow(checkpoint: c, accent: Color.white.opacity(0.8))
             }
             if !exercise.cues.isEmpty {
-                Divider().overlay(Theme.stroke)
+                Divider().overlay(Color.white.opacity(0.35))
                 Text("Key cues: " + exercise.cues.joined(separator: " · "))
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Theme.muted)
+                    .opacity(0.9)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
     }
 
     private func avoid(_ t: Technique) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Avoid").eyebrow()
+        GradientSection(symbol: "xmark.octagon.fill", title: "Avoid", gradient: AccountTint.danger) {
             ForEach(t.mistakes, id: \.self) { m in
                 Label {
                     Text(m).font(.body.weight(.medium))
                 } icon: {
-                    Image(systemName: "xmark.octagon.fill").foregroundStyle(.red)
+                    Image(systemName: "xmark").font(.body.weight(.heavy))
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
     }
 
     private func breathe(_ t: Technique) -> some View {
-        Label {
-            Text(t.breathing).font(.body.weight(.medium))
-        } icon: {
-            Image(systemName: "wind").foregroundStyle(WorkoutEngine.Category.cardio.color)
+        GradientSection(symbol: "wind", title: "Breathe", gradient: WorkoutEngine.Category.cardio.gradient) {
+            Text(t.breathing).font(.body.weight(.medium)).fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
     }
 }
 
@@ -194,7 +168,7 @@ struct FormSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     Text(exercise.name).font(Theme.display(30))
-                    EquipmentSection(equipment: exercise.equipment, accent: exercise.category.color)
+                    EquipmentSection(equipment: exercise.equipment)
                     TechniqueView(exercise: exercise)
                 }
                 .padding(16)
