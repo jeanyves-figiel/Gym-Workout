@@ -134,24 +134,30 @@ struct ExerciseDetailView: View {
         .card()
     }
 
-    /// Related moves. Planned items swap from the Swap exercise button (#101).
+    /// Related moves; each opens its own page, pushed in this sheet (#129). Planned items swap from the Swap
+    /// exercise button (#101).
     @ViewBuilder
     private var alternativesSection: some View {
         let alts = custom != nil || plannedUid.map { model.canSwap(uid: $0) } == true ? [] : (model.profile.map { e.alternatives(for: $0) } ?? [])
         if !alts.isEmpty {
             GradientSection(symbol: "square.grid.2x2.fill", title: "Similar exercises", gradient: e.category.gradient) {
-                ForEach(alts.prefix(8)) { a in alternativeRow(a) }
+                ForEach(alts.prefix(8)) { a in
+                    NavigationLink { ExerciseDetailView(exerciseId: a.id) } label: { alternativeRow(a) }
+                        .buttonStyle(.plain)
+                }
             }
         }
     }
 
     private func alternativeRow(_ a: Exercise) -> some View {
-        HStack {
+        HStack(spacing: 12) {
+            ExerciseThumbnail(exercise: a, size: 44)
             VStack(alignment: .leading, spacing: 4) {
                 Text(a.name).font(.body.weight(.bold)).multilineTextAlignment(.leading)
                 Text(a.primary.map(\.name).joined(separator: " · ")).font(.caption.weight(.medium)).opacity(0.85)
             }
             Spacer()
+            Image(systemName: "chevron.right").font(.body.weight(.bold)).opacity(0.85)
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.16)))

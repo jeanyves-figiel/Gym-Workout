@@ -164,9 +164,10 @@ public enum PlanCalendar {
     ///   - base: the week as already planned (current week); nil = generate it.
     ///   - done: ids of sessions already done; they keep their day.
     ///   - firstDay: first weekday that can still be planned (today's weekday for the current week).
+    ///   - fixed: sessions moved to a day by the user (id → weekday, #113); they keep it unless it is a day off.
     public static func adapt(
         _ profile: Profile, week: Int, seed: UInt32, weekStart: Date, away: [AwayPeriod],
-        base: WeekPlan? = nil, done: Set<String> = [], firstDay: Int = 1, calendar cal: Calendar
+        base: WeekPlan? = nil, done: Set<String> = [], firstDay: Int = 1, fixed: [String: Int] = [:], calendar cal: Calendar
     ) -> Week {
         let days = dayKeys(weekStart: weekStart, cal)
         var off: [Int: AwayPeriod] = [:]
@@ -180,13 +181,20 @@ public enum PlanCalendar {
         }
         // No climbing at home while away.
         let climbing = profile.climbingDays.filter { off[$0] == nil && travel[$0] == nil }
-        var plan = base ?? Generator.generateWeek(profile, week: week, seed: seed)
+        let unmoved = base ?? Generator.generateWeek(profile, week: week, seed: seed)
+        var plan = unmoved.pinning(fixed)
         let untouched = off.isEmpty && travel.isEmpty && firstDay <= 1
-        if untouched && plan.sessions.allSatisfy({ $0.weekday != nil }) {
-            return Week(start: weekStart, days: days, plan: plan, off: off, travel: travel, climbing: climbing, dropped: 0, adapted: false)
+        // Library extras without a day stay unscheduled (no tile) rather than re-planning the week.
+        if untouched && plan.sessions.allSatisfy({ $0.weekday != nil || $0.isPlanInsert }) {
+            return Week(start: weekStart, days: days, plan: plan, off: off, travel: travel, climbing: climbing, dropped: 0,
+                        adapted: plan != unmoved)
         }
 
-        var pinned = plan.sessions.filter { done.contains($0.id) }
+        // Done sessions, moved ones and library workouts placed on a day keep it (unless it became a day off).
+        var pinned = plan.sessions.filter { s in
+            done.contains(s.id) || ((fixed[s.id] != nil || s.isPlanInsert) && s.weekday.map { off[$0] == nil } ?? false)
+        }
+        let pinnedIds = Set(pinned.map(\.id))
         var taken = Set(pinned.compactMap(\.weekday))
         // Done sessions of an unscheduled plan (no weekday) get a day too, so every session the week counts has a
         // tile: past days first (that's when they were done), else the first day still open.
@@ -200,7 +208,7 @@ public enum PlanCalendar {
         let free = WeekSchedule.weekdays.filter { $0 >= firstDay && off[$0] == nil && !taken.contains($0) }
         let regular = Dictionary(plan.sessions.map { ($0.id, $0.weekday) }, uniquingKeysWith: { a, _ in a })
         var used = profile
-        var movable = plan.sessions.filter { !done.contains($0.id) }
+        var movable = plan.sessions.filter { !pinnedIds.contains($0.id) }
         var resplit = false
         // Too few free days: switch to the smaller split so the week stays balanced.
         if pinned.isEmpty && movable.count > free.count && !free.isEmpty && max(2, free.count) < profile.sessionsPerWeek {
@@ -240,7 +248,7 @@ public enum PlanCalendar {
             s.weekday = slot.weekday
             placed.append(s)
         }
-        let moved = placed.contains { s in regular[s.id].flatMap { $0 }.map { $0 != s.weekday } ?? false }
+        let moved = unmoved.pinning(fixed) != unmoved || placed.contains { s in regular[s.id].flatMap { $0 }.map { $0 != s.weekday } ?? false }
         plan.sessions = (pinned + placed).sorted { ($0.weekday ?? 0, $0.index) < ($1.weekday ?? 0, $1.index) }
         return Week(start: weekStart, days: days, plan: plan, off: off, travel: travel, climbing: climbing,
                     dropped: dropped, adapted: resplit || moved || dropped > 0 || !travel.isEmpty)
@@ -269,7 +277,7 @@ public enum PlanCalendar {
     /// The current week (from the app's plan, done state kept) followed by the coming weeks.
     public static func weeks(
         _ profile: Profile, seed: UInt32, currentWeek: Int, current: WeekPlan?, done: Set<String>,
-        away: [AwayPeriod], now: Date = Date(), count: Int = horizonWeeks, calendar cal: Calendar
+        away: [AwayPeriod], now: Date = Date(), count: Int = horizonWeeks, fixed: [String: Int] = [:], calendar cal: Calendar
     ) -> [Week] {
         let thisMonday = Progression.weekStart(now, cal)
         let today = WeekSchedule.fromCalendar(cal.component(.weekday, from: now))
@@ -277,9 +285,10 @@ public enum PlanCalendar {
             let start = cal.date(byAdding: .weekOfYear, value: offset, to: thisMonday)!
             if offset == 0 {
                 // An untouched weekday plan is shown as is (missed sessions stay where they were).
-                let touched = touches(away, weekStart: start, cal) || current?.sessions.contains { $0.weekday == nil } ?? true
+                let touched = touches(away, weekStart: start, cal)
+                    || current?.sessions.contains { $0.weekday == nil && !$0.isPlanInsert && fixed[$0.id] == nil } ?? true
                 return adapt(profile, week: currentWeek, seed: seed, weekStart: start, away: away,
-                             base: current, done: done, firstDay: touched ? today : 1, calendar: cal)
+                             base: current, done: done, firstDay: touched ? today : 1, fixed: fixed, calendar: cal)
             }
             return adapt(profile, week: cycleWeek(current: currentWeek, offset: offset), seed: seed,
                          weekStart: start, away: away, calendar: cal)

@@ -9,6 +9,9 @@ struct WeekView: View {
     @State private var varying = false
     @State private var playing: Session?
     @State private var gate: ProGate?
+    @State private var moving: Session?
+    @State private var adding = false
+    @State private var addingDay: Int?
 
     var body: some View {
         ScrollView {
@@ -42,15 +45,32 @@ struct WeekView: View {
                     if let e = model.syncError {
                         Label(e, systemImage: "icloud.slash").font(.footnote).foregroundStyle(Theme.muted)
                     }
-                    Text("This week").eyebrow()
+                    HStack {
+                        Text("This week").eyebrow()
+                        Spacer()
+                        Button { addingDay = nil; adding = true } label: { Label("Add workout", systemImage: "plus") }
+                            .font(Theme.label(13))
+                            .foregroundStyle(Theme.lime)
+                    }
                     let days = calendarDays
-                    ForEach(plan.sessions) { s in
+                    // By day, so moved and extra sessions sit where they happen (#113).
+                    let ordered = byDay(plan.sessions, days: days)
+                    ForEach(Array(ordered.enumerated()), id: \.element.id) { i, s in
+                        let done = model.state.done[s.id] ?? false
+                        let day = s.weekday ?? days[s.id]
                         NavigationLink(value: s.id) {
-                            SessionRowCard(session: s, done: model.state.done[s.id] ?? false, climbing: profile.climbingDays,
-                                           weekday: s.weekday ?? days[s.id])
+                            SessionRowCard(session: s, done: done, climbing: profile.climbingDays, weekday: day, number: i + 1)
                         }
                         .buttonStyle(.plain)
+                        .contextMenu {
+                            if !done {
+                                Button("Move to…", systemImage: "arrow.left.arrow.right") { moving = s }
+                            }
+                            Button("Add workout this day", systemImage: "plus") { addingDay = day; adding = true }
+                        }
                     }
+                    Text("Touch and hold a session to move it to another day this week.")
+                        .font(.caption).foregroundStyle(Theme.muted)
                 }
                 .padding(16)
             } else {
@@ -74,12 +94,19 @@ struct WeekView: View {
         }
         .fullScreenCover(item: $playing) { s in WorkoutPlayerView(sessionId: s.id) }
         .proPaywall($gate)
+        .sheet(item: $moving) { s in MoveSessionSheet(sessionId: s.id) }
+        .sheet(isPresented: $adding) { AddWorkoutSheet(weekday: addingDay) }
         .refreshable { await model.sync() }
         .task {
             // Away periods (#68): re-plan from today on (new day, period starting this week).
             model.replanCurrentWeek()
             model.persist()
         }
+    }
+
+    private func byDay(_ sessions: [Session], days: [String: Int]) -> [Session] {
+        func key(_ i: Int) -> (Int, Int) { (sessions[i].weekday ?? days[sessions[i].id] ?? 8, i) }
+        return sessions.indices.sorted { key($0) < key($1) }.map { sessions[$0] }
     }
 
     /// Title with Calendar and Plan (variation, training profile) as Explore-style gradient buttons.
@@ -289,10 +316,12 @@ struct SessionRowCard: View {
     var climbing: [Int] = []
     /// Day shown on the card; defaults to the session's scheduled weekday.
     var weekday: Int?
+    /// Position in the list; defaults to the session's plan index.
+    var number: Int?
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            Text(String(format: "%02d", session.index + 1))
+            Text(String(format: "%02d", number ?? session.index + 1))
                 .font(Theme.display(34))
                 .foregroundStyle(done ? Theme.lime : .white.opacity(0.9))
                 .frame(width: 52, alignment: .leading)
