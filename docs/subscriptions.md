@@ -78,7 +78,7 @@ Pro (PRO badge; tap opens the paywall sheet when `enforced`):
 | Around climbing days, climbing add-on | `.climbing` |
 | Connect MonkeyGrade | `.monkeyGrade` (an existing connection keeps working) |
 
-Generate a workout by muscle (#119) joins the list when it lands.
+Generate a workout by muscle (#119, today or a chosen day): `ProStore.shared.run(.generateWorkout, $gate)` + `.proPaywall($gate)` + `ProBadge()`, wired in that PR.
 
 Enrollment: after the first plan is generated, one full-screen offer ("Your week is ready", plans, Start free week,
 "Not now, train on Free"), only when Pro is switched on. A local reminder fires 2 days before a free week ends.

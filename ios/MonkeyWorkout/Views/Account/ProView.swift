@@ -73,7 +73,7 @@ struct ProPlan: Identifiable {
 
 /// A Pro feature someone tapped (#126): heads the paywall sheet ("New variation is Pro").
 enum ProGate: String, Identifiable {
-    case variation, keepSwap, workoutStyle, buildWorkout, shareWorkout, customExercise, prAttempt, progress, watch, climbing, monkeyGrade
+    case variation, keepSwap, workoutStyle, buildWorkout, generateWorkout, shareWorkout, customExercise, prAttempt, progress, watch, climbing, monkeyGrade
 
     var id: String { rawValue }
 
@@ -83,6 +83,7 @@ enum ProGate: String, Identifiable {
         case .keepSwap: "Keeping swaps is Pro"
         case .workoutStyle: "Workout style is Pro"
         case .buildWorkout: "Building workouts is Pro"
+        case .generateWorkout: "Generated workouts are Pro"
         case .shareWorkout: "Sharing workouts is Pro"
         case .customExercise: "Custom exercises are Pro"
         case .prAttempt: "Attempt a PR is Pro"
@@ -99,6 +100,7 @@ enum ProGate: String, Identifiable {
         case .keepSwap: "Keep your swaps for this day every week."
         case .workoutStyle: "Rest and grouping set per workout."
         case .buildWorkout: "Build your own workouts from any exercise."
+        case .generateWorkout: "Pick muscles, get a workout for today or any day."
         case .shareWorkout: "Share your workouts with members."
         case .customExercise: "Add your gym's machines with photo or pose."
         case .prAttempt: "Warm-up ramp, attempts and a share card."
@@ -112,6 +114,7 @@ enum ProGate: String, Identifiable {
     var symbol: String {
         switch self {
         case .variation: "shuffle"
+        case .generateWorkout: "wand.and.stars"
         case .keepSwap: "arrow.triangle.swap"
         case .workoutStyle: "timer"
         case .buildWorkout, .customExercise: "hammer.fill"
