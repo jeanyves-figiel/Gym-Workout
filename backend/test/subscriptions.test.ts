@@ -180,4 +180,27 @@ describe('in-app subscriptions', () => {
     expect(subs.revoke(u.id)).toBe(true);
     expect(await entitlement(u.token)).toMatchObject({ source: 'none' });
   });
+
+  it('Lifetime purchase never expires, refund removes it', async () => {
+    start({ SUBSCRIPTIONS: 'enforced' });
+    const u = await signUp('a@example.com');
+    const life = txn(u.id, { productId: 'monkeyworkout.pro.lifetime', expiresDate: undefined, offerType: undefined, type: 'Non-Consumable' });
+    expect((await postTx(u.token, await sign(life))).json()).toMatchObject({ pro: true, lifetime: true, productId: 'monkeyworkout.pro.lifetime' });
+    clock = new Date(clock.getTime() + 300 * DAY);
+    expect(await entitlement(u.token)).toMatchObject({ pro: true, lifetime: true });
+    await notify({ notificationType: 'REFUND', notificationUUID: 'n9', data: { bundleId: 'Com.app.MonkeyWorkout', signedTransactionInfo: await sign({ ...life, revocationDate: clock.getTime(), signedDate: clock.getTime() }) } });
+    expect(await entitlement(u.token)).toMatchObject({ pro: false, access: false });
+  });
+
+  it('grants free access to every existing account (early testers)', async () => {
+    start({ SUBSCRIPTIONS: 'enforced' });
+    const a = await signUp('a@example.com');
+    const subs = new SubscriptionService({ db, decode: () => Promise.reject(new Error('unused')), now: () => clock, mode: 'enforced', productIds: [], bundleIds: [] });
+    subs.grant(a.id, undefined, 'friend');
+    clock = new Date(clock.getTime() + DAY);
+    const b = await signUp('b@example.com');
+    expect(subs.grantAllExisting(new Date(clock.getTime() + 1000), new Date(clock.getTime() + 30 * DAY))).toBe(1);
+    expect(await entitlement(a.token)).toMatchObject({ source: 'grant', grant: {} }); // kept: no end date
+    expect(await entitlement(b.token)).toMatchObject({ source: 'grant', grant: { until: new Date(clock.getTime() + 30 * DAY).toISOString() } });
+  });
 });

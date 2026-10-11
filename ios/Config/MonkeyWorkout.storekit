@@ -11,7 +11,23 @@
   },
   "identifier": "8E0D1A00",
   "nonRenewingSubscriptions": [],
-  "products": [],
+  "products": [
+    {
+      "displayPrice": "100.00",
+      "familyShareable": false,
+      "internalID": "6E0D1A09",
+      "localizations": [
+        {
+          "description": "Pro forever. All future updates included.",
+          "displayName": "MonkeyWorkout Pro Lifetime",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "monkeyworkout.pro.lifetime",
+      "referenceName": "Pro Lifetime",
+      "type": "NonConsumable"
+    }
+  ],
   "settings": {
     "_applicationInternalID": "6819971090",
     "_developerTeamID": "U7VAR53G86",

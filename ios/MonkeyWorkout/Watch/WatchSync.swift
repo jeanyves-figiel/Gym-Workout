@@ -43,7 +43,7 @@ final class WatchSync: NSObject {
     /// Cheap fingerprint of what the snapshot depends on.
     static func changeKey(_ model: AppModel) -> String {
         let plan = model.plan.map { "\($0.seed)-\($0.week)-\($0.sessions.count)" } ?? "-"
-        return "\(plan)|\(model.state.done.count)|\(model.state.history.count)|\(model.customWorkouts.count)|\(model.state.logs.count)"
+        return "\(plan)|\(model.state.done.count)|\(model.state.history.count)|\(model.customWorkouts.count)|\(model.state.logs.count)|\(ProStore.shared.locked)"
     }
 
     /// Mirrors the iPhone player on the Watch (best effort, only while the Watch app is reachable).
@@ -98,6 +98,7 @@ final class WatchSync: NSObject {
             + model.customWorkouts.map { session($0.session, label: "My workout", model: model) }
         s.nextSessionId = model.nextSession?.id
         s.readiness = readiness
+        s.pro = !ProStore.shared.locked
         let target = model.profile?.sessionsPerWeek ?? 3
         let stats = Progression.stats(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
         s.progress = WProgress(

@@ -13,6 +13,7 @@ struct SwapExerciseSheet: View {
     @State private var keep = false
     @State private var searching = false
     @State private var picked: String?
+    @State private var gate: ProGate?
 
     private var exercise: Exercise { Exercise.get(exerciseId) }
 
@@ -96,15 +97,21 @@ struct SwapExerciseSheet: View {
     }
 
     private var keepToggle: some View {
-        Toggle(isOn: $keep) {
+        Toggle(isOn: Binding(get: { keep }, set: { on in
+            if on { ProStore.shared.run(.keepSwap, $gate) { keep = true } } else { keep = false }
+        })) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Keep for \(dayName) in future weeks").font(.body.weight(.bold))
+                HStack(spacing: 6) {
+                    Text("Keep for \(dayName) in future weeks").font(.body.weight(.bold))
+                    ProBadge()
+                }
                 Text(keep ? "Replaces it every week it comes up on \(dayName)." : "Only this session.")
                     .font(.caption).foregroundStyle(Theme.muted)
             }
         }
         .tint(Theme.lime)
         .card(padding: 14)
+        .proPaywall($gate)
     }
 
     private func apply(_ id: String) {

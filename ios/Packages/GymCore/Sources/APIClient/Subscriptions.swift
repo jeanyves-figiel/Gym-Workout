@@ -16,13 +16,15 @@ public struct Entitlement: Codable, Sendable, Equatable {
     public var productId: String?
     public var expiresAt: Date?
     public var trial: Bool?
+    /// One-time Lifetime purchase: no expiry, all future updates included.
+    public var lifetime: Bool?
     public var willRenew: Bool?
     public var environment: String?
     public var grant: Grant?
     public var products: [String]
 
     public init(mode: Mode, pro: Bool, access: Bool, source: Source, productId: String? = nil, expiresAt: Date? = nil,
-                trial: Bool? = nil, willRenew: Bool? = nil, grant: Grant? = nil, products: [String] = []) {
+                trial: Bool? = nil, lifetime: Bool? = nil, willRenew: Bool? = nil, grant: Grant? = nil, products: [String] = []) {
         self.mode = mode
         self.pro = pro
         self.access = access
@@ -30,6 +32,7 @@ public struct Entitlement: Codable, Sendable, Equatable {
         self.productId = productId
         self.expiresAt = expiresAt
         self.trial = trial
+        self.lifetime = lifetime
         self.willRenew = willRenew
         self.grant = grant
         self.products = products

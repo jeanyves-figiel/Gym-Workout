@@ -16,6 +16,8 @@ export interface Entitlement {
   productId?: string;
   expiresAt?: string;
   trial?: boolean;
+  /** One-time Lifetime purchase (CHF 100): no expiry, all future updates included. */
+  lifetime?: boolean;
   willRenew?: boolean;
   environment?: string;
   /** Free access given by the owner; `until` absent = no end date. */
@@ -67,8 +69,11 @@ export class SubscriptionService {
     const subs = this.d.db
       .prepare('SELECT * FROM app_store_subscriptions WHERE user_id = ? AND revoked_at IS NULL')
       .all(userId) as unknown as SubRow[];
-    const until = (s: SubRow) => [s.expires_at, s.grace_expires_at].filter(Boolean).sort().at(-1) ?? '';
+    // A non-consumable (Lifetime) has no expiry: it sorts after every date.
+    const until = (s: SubRow) => (s.expires_at ? ([s.expires_at, s.grace_expires_at].filter(Boolean).sort().at(-1) ?? '') : '9999');
     const active = subs.filter((s) => until(s) > now).sort((a, b) => until(b).localeCompare(until(a)))[0];
+    if (active?.expires_at === null)
+      return { ...base, pro: true, access: true, source: 'subscription', productId: active.product_id, lifetime: true, environment: active.environment };
     if (active)
       return {
         ...base,
@@ -206,6 +211,16 @@ export class SubscriptionService {
     return this.d.db
       .prepare('SELECT u.email, g.user_id, g.expires_at, g.note, g.created_at FROM access_grants g JOIN users u ON u.id = g.user_id ORDER BY g.created_at')
       .all() as { email: string | null; user_id: string; expires_at: string | null; note: string | null; created_at: string }[];
+  }
+
+  /** Free access for every account created before `before` (early testers at launch). Existing grants are kept. */
+  grantAllExisting(before: Date, until?: Date, note?: string) {
+    return this.d.db
+      .prepare(
+        `INSERT INTO access_grants (user_id, expires_at, note, created_at)
+         SELECT id, ?, ?, ? FROM users WHERE created_at < ? ON CONFLICT(user_id) DO NOTHING`,
+      )
+      .run(until?.toISOString() ?? null, note ?? null, this.d.now().toISOString(), before.toISOString()).changes;
   }
 
   /** For the data export: what is stored about the account's subscriptions. */

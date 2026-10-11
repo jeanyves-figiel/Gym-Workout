@@ -1,12 +1,13 @@
 # MonkeyWorkout Pro (in-app subscriptions, #126)
 
-One auto-renewable subscription group **MonkeyWorkout Pro**:
+One auto-renewable subscription group **MonkeyWorkout Pro** plus a one-time Lifetime purchase:
 
 | Product id | Period | Price (base CHE) | Intro offer |
 |---|---|---|---|
 | `monkeyworkout.pro.weekly` | 1 week | CHF 2.00 | 1 week free |
 | `monkeyworkout.pro.monthly` | 1 month | CHF 6.00 | 1 week free |
 | `monkeyworkout.pro.yearly` | 1 year | CHF 60.00 | 1 week free |
+| `monkeyworkout.pro.lifetime` | one-time (non-consumable) | CHF 100.00 | none; Pro forever, all future updates and features included |
 
 Other territories get Apple's equalized price. The free week is one per Apple ID per group (Apple enforces it).
 
@@ -53,11 +54,33 @@ Needs the owner first (App Store Connect, can't be done by API):
 Optional later: an In-App Purchase key (App Store Server API) for transaction history lookups and refund requests.
 Not needed for the current flow.
 
-## Proposal: free vs Pro (owner to decide; nothing is locked yet)
+## Free vs Pro (approved 2026-10-11)
 
-Free: account, generated weekly plan, workout player and logging, history, Explore library and technique,
-Apple Health, reminders, Community.
+Proposal doc: https://claude.ai/code/artifact/b7e5fd97-3b10-4a70-a91c-4a6fc5201054
 
-Pro: New variation and kept swaps, custom exercises and workout builder, PR attempts and share cards,
-full progress and muscle heat map, Apple Watch workouts, climbing days and MonkeyGrade.
-The paywall lists these (`ProFeature` in `ios/MonkeyWorkout/Views/Account/ProView.swift`).
+Always free: account, generated weekly plan, cycle, readiness, calendar, move/away, workout player and logging,
+one-off swap, starting loads, Live Activity, history list, Explore library and technique, saving members' workouts,
+personal records shown, log climbs, Apple Health, reminders, Community, export and delete.
+
+Pro (PRO badge; tap opens the paywall sheet when `enforced`):
+
+| Entry point | Gate |
+|---|---|
+| Train → Plan → New variation | `.variation` |
+| Swap → Keep for <day> in future weeks | `.keepSwap` |
+| Workout style card (rest + grouping) | `.workoutStyle` |
+| New / Build your own / Duplicate workout | `.buildWorkout` (editing existing ones stays free) |
+| Share a workout (visibility ≠ private) | `.shareWorkout` |
+| New exercise (picker) | `.customExercise` (editing existing ones stays free) |
+| Attempt a PR (exercise page, player) | `.prAttempt` |
+| Progress charts, trends, heat map beyond 28 days | `.progress` (history list stays complete) |
+| Start a workout on Apple Watch | `WatchSnapshot.pro` (mirroring an iPhone workout stays free) |
+| Around climbing days, climbing add-on | `.climbing` |
+| Connect MonkeyGrade | `.monkeyGrade` (an existing connection keeps working) |
+
+Generate a workout by muscle (#119) joins the list when it lands.
+
+Enrollment: after the first plan is generated, one full-screen offer ("Your week is ready", plans, Start free week,
+"Not now, train on Free"), only when Pro is switched on. A local reminder fires 2 days before a free week ends.
+
+Existing accounts (testers) at launch: Actions → Free access → `grant-all` with `until` = launch + 1 month.

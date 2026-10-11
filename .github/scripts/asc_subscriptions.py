@@ -1,4 +1,4 @@
-"""Create the MonkeyWorkout Pro auto-renewable subscriptions in App Store Connect.
+"""Create the MonkeyWorkout Pro subscriptions and lifetime purchase in App Store Connect.
 
 Env: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH (.p8), APP_ID,
      APPLY ("true" to write; anything else = dry run, GET requests only),
@@ -12,6 +12,8 @@ and nothing existing is modified, except the app's subscription status URLs.
     in every other territory.
   - Availability in all priced territories (and new territories).
   - Introductory offer: 1-week free trial in every priced territory.
+  - Non-consumable "Pro Lifetime" (monkeyworkout.pro.lifetime) + en-US localization, CHF 100 price
+    schedule with base territory CHE (Apple equalizes the rest), availability in all territories.
 Requires the Paid Apps agreement (App Store Connect > Business) to be active.
 """
 import base64, json, os, sys, time, urllib.error, urllib.request
@@ -30,6 +32,8 @@ PRODUCTS = [  # productId, name, period, groupLevel, CHF price, en-US descriptio
     ("monkeyworkout.pro.monthly", "Pro Monthly", "ONE_MONTH", 2, "6.00", "All MonkeyWorkout Pro features, billed monthly."),
     ("monkeyworkout.pro.weekly", "Pro Weekly", "ONE_WEEK", 3, "2.00", "All MonkeyWorkout Pro features, billed weekly."),
 ]
+LIFETIME = ("monkeyworkout.pro.lifetime", "Pro Lifetime", "100.00",
+            "MonkeyWorkout Pro Lifetime", "Pro forever. All future updates included.")
 NOTIFY_URLS = {
     "subscriptionStatusUrl": "https://workout.monkeygrade.cloud/v1/app-store/notifications",
     "subscriptionStatusUrlVersion": "V2",
@@ -86,14 +90,17 @@ def get_all(path: str):
     return data, included
 
 
-def create(kind: str, attributes: dict, relationships: dict, label: str):
-    """POST /v1/{kind} when APPLY, else just report it. Returns the new resource (or None in dry run)."""
+def create(kind: str, attributes: dict, relationships: dict, label: str, version="v1", included=None, id_=None):
+    """POST /{version}/{kind} when APPLY, else just report it. Returns the new resource (or None in dry run)."""
     summary.append(("create" if APPLY else "would create") + f": {label}")
     print(f"  {'CREATE' if APPLY else 'WOULD CREATE'} {label}")
     if not APPLY:
         return None
     rels = {k: {"data": v} for k, v in relationships.items()}
-    return call("POST", f"/v1/{kind}", {"data": {"type": kind, "attributes": attributes, "relationships": rels}})["data"]
+    body = {"data": {"type": kind, "attributes": attributes, "relationships": rels}}
+    if included:
+        body["included"] = included
+    return call("POST", f"/{version}/{kind}", body)["data"]
 
 
 def ref(kind: str, id_: str) -> dict:
@@ -195,6 +202,59 @@ elif not APPLY:
 
 for product in PRODUCTS:
     ensure_subscription(gid, *product, existing)
+
+def ensure_lifetime():
+    product_id, name, price, loc_name, description = LIFETIME
+    print(f"\n{product_id} ({name}, NON_CONSUMABLE, CHF {price})")
+    found, _ = get_all(f"/v1/apps/{APP}/inAppPurchasesV2?filter[productId]={product_id}")
+    iap = next((i for i in found if i["attributes"]["productId"] == product_id), None)
+    if iap:
+        print(f"  exists ({iap['id']}, state {iap['attributes'].get('state')})")
+    else:
+        iap = create("inAppPurchases", {"name": name, "productId": product_id, "inAppPurchaseType": "NON_CONSUMABLE",
+                                        "familySharable": False},
+                     {"app": ref("apps", APP)}, f"in-app purchase {product_id}", version="v2")
+        if not iap:
+            print(f"  (dry run: localization, CHF {price} price schedule and availability would follow)")
+            return
+    iid = iap["id"]
+
+    locs, _ = get_all(f"/v2/inAppPurchases/{iid}/inAppPurchaseLocalizations")
+    if not any(l["attributes"]["locale"] == "en-US" for l in locs):
+        create("inAppPurchaseLocalizations", {"locale": "en-US", "name": loc_name, "description": description},
+               {"inAppPurchaseV2": ref("inAppPurchases", iid)}, f"{product_id} en-US localization")
+
+    sched = call("GET", f"/v2/inAppPurchases/{iid}/iapPriceSchedule?include=manualPrices", allow404=True)
+    if sched and sched.get("data") and (sched["data"].get("relationships", {}).get("manualPrices", {}).get("data")
+                                        or sched.get("included")):
+        print("  price schedule exists")
+    else:
+        points, _ = get_all(f"/v2/inAppPurchases/{iid}/pricePoints?filter[territory]={BASE}")
+        pp = next((p["id"] for p in points if p["attributes"]["customerPrice"] == price), None)
+        if not pp:
+            want = float(price)
+            near = sorted({p["attributes"]["customerPrice"] for p in points}, key=lambda v: abs(float(v) - want))[:6]
+            sys.exit(f"No {BASE} IAP price point at exactly CHF {price}. Nearest: {', '.join(sorted(near, key=float))}")
+        create("inAppPurchasePriceSchedules", {},
+               {"inAppPurchase": ref("inAppPurchases", iid), "baseTerritory": ref("territories", BASE),
+                "manualPrices": [ref("inAppPurchasePrices", "${price-0}")]},
+               f"{product_id} CHF {price} price-schedule (base {BASE})",
+               included=[{"type": "inAppPurchasePrices", "id": "${price-0}", "attributes": {"startDate": None},
+                          "relationships": {"inAppPurchaseV2": {"data": ref("inAppPurchases", iid)},
+                                            "inAppPurchasePricePoint": {"data": ref("inAppPurchasePricePoints", pp)}}}])
+
+    avail = call("GET", f"/v2/inAppPurchases/{iid}/inAppPurchaseAvailability", allow404=True)
+    if avail and avail.get("data"):
+        print("  availability exists")
+    else:
+        territories, _ = get_all("/v1/territories")
+        create("inAppPurchaseAvailabilities", {"availableInNewTerritories": True},
+               {"inAppPurchase": ref("inAppPurchases", iid),
+                "availableTerritories": [ref("territories", t["id"]) for t in territories]},
+               f"{product_id} availability in {len(territories)} territories")
+
+
+ensure_lifetime()
 
 if NOTIFY:
     attrs = call("GET", f"/v1/apps/{APP}?fields[apps]=" + ",".join(NOTIFY_URLS))["data"]["attributes"]

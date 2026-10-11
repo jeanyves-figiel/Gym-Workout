@@ -13,6 +13,7 @@ struct AccountView: View {
     @State private var confirmSignOutAll = false
     @State private var signOutAllTask = FormTask()
     @State private var deviceCount: Int?
+    @State private var gate: ProGate?
 
     var body: some View {
         ScrollView {
@@ -20,6 +21,20 @@ struct AccountView: View {
                 if let user = model.user {
                     profileHero(user)
                     ErrorText(message: nameTask.error)
+
+                    if ProStore.shared.visible {
+                        section("Membership")
+                        NavigationLink { ProView() } label: {
+                            let e = ProStore.shared.entitlement
+                            AccountCard(symbol: "crown.fill", title: "MonkeyWorkout Pro",
+                                        subtitle: e.pro ? (e.lifetime == true ? "Lifetime · all updates included" : e.source == .grant ? "Free access" : e.trial == true ? "Free week running" : "Active")
+                                            : "1 week free, then from CHF 2 / week",
+                                        gradient: AccountTint.pro, ink: true) {
+                                Text(e.pro ? "PRO" : "TRY").font(Theme.label(12)).tracking(1)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
 
                     // Other features add their Account rows here as AccountCard (Community profile, Notifications, Training calendar).
                     section("You")
@@ -56,21 +71,15 @@ struct AccountView: View {
                     }
                     .buttonStyle(.plain)
 
-                    if ProStore.shared.visible {
-                        section("Membership")
-                        NavigationLink { ProView() } label: {
-                            let e = ProStore.shared.entitlement
-                            AccountCard(symbol: "crown.fill", title: "MonkeyWorkout Pro",
-                                        subtitle: e.pro ? (e.source == .grant ? "Free access" : e.trial == true ? "Free week running" : "Active")
-                                            : "1 week free, then from CHF 2 / week",
-                                        gradient: AccountTint.pro, ink: true) {
-                                Text(e.pro ? "PRO" : "TRY").font(Theme.label(12)).tracking(1)
-                            }
+                    section("Connected apps")
+                    let mgConnected = MonkeyGradeLink.shared.isConnected(for: user.id)
+                    if ProStore.shared.locked && !mgConnected {
+                        Button { gate = .monkeyGrade } label: {
+                            AccountCard(symbol: "figure.climbing", title: "MonkeyGrade", subtitle: "Connect your climbing app",
+                                        gradient: ClimbKind.lead.gradient) { ProBadge() }
                         }
                         .buttonStyle(.plain)
-                    }
-
-                    section("Connected apps")
+                    } else {
                     NavigationLink { MonkeyGradeView() } label: {
                         let link = MonkeyGradeLink.shared
                         let connected = link.isConnected(for: user.id)
@@ -85,6 +94,7 @@ struct AccountView: View {
                         }
                     }
                     .buttonStyle(.plain)
+                    }
 
                     section("Security")
                     NavigationLink { ChangePasswordView(hasPassword: user.hasPassword) } label: {
@@ -166,6 +176,7 @@ struct AccountView: View {
         .onAppear { name = model.user?.name ?? "" }
         .onChange(of: model.user?.name) { _, new in name = new ?? "" }
         .task { deviceCount = try? await model.api.sessions().count }
+        .proPaywall($gate)
         .confirmationDialog("Sign out everywhere?", isPresented: $confirmSignOutAll, titleVisibility: .visible) {
             Button("Sign out all devices", role: .destructive) {
                 signOutAllTask.run { try await model.signOutEverywhere() }
@@ -211,6 +222,7 @@ struct AccountView: View {
                 HStack(spacing: 6) {
                     if user.appleLinked { chip("Apple", symbol: "apple.logo") }
                     if user.emailVerified && user.email != nil { chip("Verified", symbol: "checkmark.seal.fill") }
+                    if ProStore.shared.entitlement.pro { chip("PRO", symbol: "crown.fill") }
                 }
             }
             Spacer(minLength: 4)
@@ -356,7 +368,7 @@ struct DeleteAccountView: View {
                               subtitle: "Permanently deletes your account, training profile and all logged weights from the server and this device. It cannot be undone.",
                               gradient: AccountTint.danger)
                 AccountNote(text: "Tip: export your data first.")
-                if ProStore.shared.entitlement.source == .subscription {
+                if ProStore.shared.entitlement.source == .subscription && ProStore.shared.entitlement.lifetime != true {
                     // App Store 5.1.1(v): deleting the account doesn't stop Apple billing.
                     AccountNote(text: "Deleting your account doesn't cancel your MonkeyWorkout Pro subscription. Cancel it in Settings → Apple ID → Subscriptions.")
                 }

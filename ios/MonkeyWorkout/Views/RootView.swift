@@ -15,7 +15,11 @@ struct RootView: View {
             case .signedIn:
                 if model.profile == nil {
                     NavigationStack {
-                        ProfileFormView(initial: nil) { model.applyProfile($0) }
+                        ProfileFormView(initial: nil) { p in
+                            model.applyProfile(p)
+                            // Pro (#126): one offer, right after the first plan, skippable. Never shown again at launch.
+                            model.offerPro = ProStore.shared.badged
+                        }
                             .navigationTitle("Your training")
                     }
                 } else {
@@ -56,6 +60,9 @@ struct MainTabView: View {
         // Community profile early so auto-share works for the first workout of the session.
         .task(id: model.user?.id) { await Community.shared.load(api: model.api, userId: model.user?.id) }
         .modifier(NotificationsHost())
+        .fullScreenCover(isPresented: Binding(get: { model.offerPro }, set: { model.offerPro = $0 })) {
+            NavigationStack { ProView(context: .onboarding) { model.offerPro = false } }
+        }
     }
 }
 
@@ -110,6 +117,8 @@ private struct DemoScreen: View {
         case "body": NavigationStack { BodyHealthView() }
         case "account": NavigationStack { AccountView() }
         case "paywall", "pro": NavigationStack { ProView() }
+        case "pro-offer": NavigationStack { ProView(context: .onboarding) {} }
+        case "pro-gate": ProPaywallSheet(gate: .variation)
         case "account-profile": NavigationStack { PublicProfileView() }
         case "account-password": NavigationStack { ChangePasswordView(hasPassword: true) }
         case "account-email": NavigationStack { ChangeEmailView(currentEmail: Demo.user?.email, hasPassword: true) }

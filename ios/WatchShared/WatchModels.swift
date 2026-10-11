@@ -19,6 +19,8 @@ struct WatchSnapshot: Codable, Equatable {
     /// Readiness headline from Apple Health ("Ready to push"), if known.
     var readiness: String?
     var progress = WProgress()
+    /// MonkeyWorkout Pro (#126): false = starting workouts on the Watch is locked. nil (older phone app) = allowed.
+    var pro: Bool?
 
     func session(_ id: String) -> WSession? { (sessions + extras).first { $0.id == id } }
 }

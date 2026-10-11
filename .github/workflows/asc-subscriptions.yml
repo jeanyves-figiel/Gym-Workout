@@ -1,7 +1,8 @@
-name: App Store subscriptions
+name: App Store subscriptions + lifetime
 
 # Creates the MonkeyWorkout Pro auto-renewable subscriptions (group, products, CHF prices +
-# equalized territories, availability, 1-week free trial) and the server notification URLs
+# equalized territories, availability, 1-week free trial), the non-consumable "Pro Lifetime"
+# (CHF 100, base CHE, all territories) and the server notification URLs
 # in App Store Connect. Idempotent; default is a read-only dry run.
 on:
   workflow_dispatch:

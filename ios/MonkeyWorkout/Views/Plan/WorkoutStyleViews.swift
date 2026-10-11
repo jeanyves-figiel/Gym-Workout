@@ -6,13 +6,14 @@ struct WorkoutStyleCard: View {
     let session: Session
     @Environment(AppModel.self) private var model
     @State private var editing = false
+    @State private var gate: ProGate?
 
     var body: some View {
         if let profile = model.profile, model.canStyle(session) {
             let style = model.sessionStyle(session.id)
             let rest = style.rest ?? profile.rest
             let group = style.grouping ?? profile.group
-            Button { editing = true } label: {
+            Button { ProStore.shared.run(.workoutStyle, $gate) { editing = true } } label: {
                 HStack(spacing: 14) {
                     Image(systemName: "slider.horizontal.3")
                         .font(.system(size: 22, weight: .bold))
@@ -25,6 +26,7 @@ struct WorkoutStyleCard: View {
                     }
                     Spacer(minLength: 4)
                     VStack(alignment: .trailing, spacing: 0) {
+                        ProBadge()
                         Text(rest.range.value).font(Theme.display(26)).lineLimit(1).minimumScaleFactor(0.6)
                         Text(rest.range.unit).font(Theme.label(9)).tracking(1.2).opacity(0.8)
                     }
@@ -40,6 +42,7 @@ struct WorkoutStyleCard: View {
             .sheet(isPresented: $editing) {
                 WorkoutStyleSheet(session: session).presentationDetents([.large])
             }
+            .proPaywall($gate)
         }
     }
 }

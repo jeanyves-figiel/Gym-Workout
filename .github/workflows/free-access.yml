@@ -1,6 +1,7 @@
 name: Free access
 
-# Manual (#126): give or remove free MonkeyWorkout Pro access for one account, or list who has it.
+# Manual (#126): give or remove free MonkeyWorkout Pro access for one account, list who has it,
+# or grant-all: free access until `until` for every account that exists now (early testers, at launch).
 # Runs backend/src/admin.ts on the Fly machine (as the app user, same database). No new secrets needed.
 on:
   workflow_dispatch:
@@ -11,9 +12,9 @@ on:
         options: [staging, production]
         default: staging
       action:
-        description: 'grant, revoke or list'
+        description: 'grant, revoke, list or grant-all (every existing account, needs until)'
         type: choice
-        options: [grant, revoke, list]
+        options: [grant, revoke, list, grant-all]
         default: grant
       email:
         description: 'Account email (grant / revoke)'
@@ -44,7 +45,8 @@ jobs:
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Validate inputs
         run: |
-          if [ "$ACTION" != list ] && ! printf '%s' "$EMAIL" | grep -Eq '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'; then echo "::error::Valid email required"; exit 1; fi
+          if [ "$ACTION" = grant-all ] && [ -z "$UNTIL" ]; then echo "::error::grant-all needs until"; exit 1; fi
+          if [ "$ACTION" != list ] && [ "$ACTION" != grant-all ] && ! printf '%s' "$EMAIL" | grep -Eq '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'; then echo "::error::Valid email required"; exit 1; fi
           if [ -n "$UNTIL" ] && ! printf '%s' "$UNTIL" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then echo "::error::until must be YYYY-MM-DD"; exit 1; fi
           if [ -n "$NOTE" ] && ! printf '%s' "$NOTE" | grep -Eq '^[A-Za-z0-9._-]{1,80}$'; then echo "::error::note: letters, digits, - _ . only"; exit 1; fi
       - name: Wake the machine
@@ -52,8 +54,10 @@ jobs:
       - name: Run
         run: |
           ARGS="$ACTION"
-          [ "$ACTION" != list ] && ARGS="$ARGS $EMAIL"
-          [ "$ACTION" = grant ] && [ -n "$UNTIL" ] && ARGS="$ARGS --until $UNTIL"
-          [ "$ACTION" = grant ] && [ -n "$NOTE" ] && ARGS="$ARGS --note $NOTE"
+          if [ "$ACTION" = grant ] || [ "$ACTION" = revoke ]; then ARGS="$ARGS $EMAIL"; fi
+          if [ "$ACTION" = grant ] || [ "$ACTION" = grant-all ]; then
+            if [ -n "$UNTIL" ]; then ARGS="$ARGS --until $UNTIL"; fi
+            if [ -n "$NOTE" ]; then ARGS="$ARGS --note $NOTE"; fi
+          fi
           # The entrypoint drops to the app user so the SQLite files keep their owner.
           flyctl ssh console -a "$FLY_APP" -C "docker-entrypoint.sh node --disable-warning=ExperimentalWarning /app/src/admin.ts $ARGS"

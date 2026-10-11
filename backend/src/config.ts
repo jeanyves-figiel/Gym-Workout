@@ -90,7 +90,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
     },
     subscriptions: {
       mode: subscriptionMode(env.SUBSCRIPTIONS),
-      productIds: (env.SUBSCRIPTION_PRODUCT_IDS ?? 'monkeyworkout.pro.weekly,monkeyworkout.pro.monthly,monkeyworkout.pro.yearly')
+      productIds: (env.SUBSCRIPTION_PRODUCT_IDS ?? 'monkeyworkout.pro.weekly,monkeyworkout.pro.monthly,monkeyworkout.pro.yearly,monkeyworkout.pro.lifetime')
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean),

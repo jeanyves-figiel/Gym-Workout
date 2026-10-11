@@ -30,7 +30,7 @@ enum ProFeature: CaseIterable {
         case .prAttempts: "PR attempts and share cards"
         case .progress: "Full progress and muscle heat map"
         case .watch: "Apple Watch workouts"
-        case .climbing: "Climbing days and MonkeyGrade"
+        case .climbing: "Climbing days and integration with MonkeyGrade"
         }
     }
 }
@@ -48,6 +48,9 @@ struct ProPlan: Identifiable {
         guard !products.isEmpty else { return fallback }
         let monthly = products.first { $0.id.hasSuffix(".monthly") }?.price
         return products.map { p in
+            if p.type == .nonConsumable {
+                return ProPlan(id: p.id, title: "Lifetime", price: p.displayPrice, period: "lifetime", note: "Pay once · all future updates included", product: p)
+            }
             let unit = p.subscription?.subscriptionPeriod.unit
             let yearly = unit == .year
             var note: String?
@@ -62,24 +65,120 @@ struct ProPlan: Identifiable {
 
     static let fallback = [
         ProPlan(id: "monkeyworkout.pro.yearly", title: "Yearly", price: "CHF 60.00", period: "year", note: "CHF 5.00/mo · save 17 %", product: nil),
+        ProPlan(id: ProStore.lifetimeId, title: "Lifetime", price: "CHF 100.00", period: "lifetime", note: "Pay once · all future updates included", product: nil),
         ProPlan(id: "monkeyworkout.pro.monthly", title: "Monthly", price: "CHF 6.00", period: "month", note: nil, product: nil),
         ProPlan(id: "monkeyworkout.pro.weekly", title: "Weekly", price: "CHF 2.00", period: "week", note: nil, product: nil),
     ]
 }
 
-/// Account → MonkeyWorkout Pro: status when Pro, otherwise the paywall (plans, free week, restore, redeem code, legal links).
+/// A Pro feature someone tapped (#126): heads the paywall sheet ("New variation is Pro").
+enum ProGate: String, Identifiable {
+    case variation, keepSwap, workoutStyle, buildWorkout, shareWorkout, customExercise, prAttempt, progress, watch, climbing, monkeyGrade
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .variation: "New variation is Pro"
+        case .keepSwap: "Keeping swaps is Pro"
+        case .workoutStyle: "Workout style is Pro"
+        case .buildWorkout: "Building workouts is Pro"
+        case .shareWorkout: "Sharing workouts is Pro"
+        case .customExercise: "Custom exercises are Pro"
+        case .prAttempt: "Attempt a PR is Pro"
+        case .progress: "Full progress is Pro"
+        case .watch: "Apple Watch is Pro"
+        case .climbing: "Climbing days are Pro"
+        case .monkeyGrade: "MonkeyGrade is Pro"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .variation: "Reshuffle days and parts, keep what you like."
+        case .keepSwap: "Keep your swaps for this day every week."
+        case .workoutStyle: "Rest and grouping set per workout."
+        case .buildWorkout: "Build your own workouts from any exercise."
+        case .shareWorkout: "Share your workouts with members."
+        case .customExercise: "Add your gym's machines with photo or pose."
+        case .prAttempt: "Warm-up ramp, attempts and a share card."
+        case .progress: "All your history, trends and the muscle heat map."
+        case .watch: "Start and log workouts from your wrist."
+        case .climbing: "Plan gym days around climbing, climbing add-on."
+        case .monkeyGrade: "Import your climbing sessions from MonkeyGrade."
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .variation: "shuffle"
+        case .keepSwap: "arrow.triangle.swap"
+        case .workoutStyle: "timer"
+        case .buildWorkout, .customExercise: "hammer.fill"
+        case .shareWorkout: "square.and.arrow.up.fill"
+        case .prAttempt: "trophy.fill"
+        case .progress: "chart.xyaxis.line"
+        case .watch: "applewatch"
+        case .climbing, .monkeyGrade: "figure.climbing"
+        }
+    }
+}
+
+extension View {
+    /// Shows the Pro paywall as a sheet for `gate` (set it to present).
+    func proPaywall(_ gate: Binding<ProGate?>) -> some View {
+        sheet(item: gate) { g in ProPaywallSheet(gate: g) }
+    }
+}
+
+/// Paywall sheet from a PRO-badged feature: the feature on top, Yearly preselected, others one tap away.
+struct ProPaywallSheet: View {
+    let gate: ProGate
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ProView(context: .gate(gate))
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+        }
+        .presentationDetents([.large])
+        .presentationBackground(Theme.bg)
+    }
+}
+
+/// Small lime "PRO" mark on a Pro feature's button (only when Pro is switched on and the person isn't Pro).
+struct ProBadge: View {
+    var body: some View {
+        if ProStore.shared.badged {
+            Text("PRO").font(Theme.label(9.5)).tracking(1)
+                .padding(.horizontal, 7).padding(.vertical, 3)
+                .background(Capsule().fill(Theme.lime))
+                .foregroundStyle(Theme.ink)
+        }
+    }
+}
+
+/// MonkeyWorkout Pro screen in three places: Account (status or paywall), the one-time offer after onboarding,
+/// and the sheet from a PRO-badged feature. Plans, free week, Lifetime, restore, redeem code, legal links.
 struct ProView: View {
+    enum Context: Equatable { case account, onboarding, gate(ProGate) }
+
+    var context: Context = .account
+    /// Onboarding: "Not now" / done.
+    var onFinish: (() -> Void)?
     @State private var pro = ProStore.shared
     @State private var selected = "monkeyworkout.pro.yearly"
     @State private var busy = false
     @State private var manage = false
     @State private var redeem = false
+    @State private var wasSubscriber = false
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 hero
-                if pro.entitlement.pro { status } else { paywall }
+                if pro.entitlement.pro && context == .account { status } else if pro.entitlement.pro { unlocked } else { paywall }
                 if let error = pro.error { ErrorText(message: error) }
                 footer
             }
@@ -87,7 +186,7 @@ struct ProView: View {
             .padding(.bottom, 24)
         }
         .themedForm()
-        .navigationTitle("MonkeyWorkout Pro")
+        .navigationTitle(context == .account ? "MonkeyWorkout Pro" : "")
         .toolbarTitleDisplayMode(.inline)
         .task { await pro.refresh() }
         .manageSubscriptionsSheet(isPresented: $manage)
@@ -96,17 +195,17 @@ struct ProView: View {
 
     private var plans: [ProPlan] { ProPlan.from(pro.products) }
     private var plan: ProPlan? { plans.first { $0.id == selected } ?? plans.first }
+    private var lifetimePlan: ProPlan? { plans.first { $0.period == "lifetime" } }
 
     private var hero: some View {
         HStack(alignment: .top, spacing: 14) {
-            Image(systemName: "crown.fill")
+            Image(systemName: heroSymbol)
                 .font(.system(size: 26, weight: .bold))
                 .frame(width: 56, height: 56)
                 .background(RoundedRectangle(cornerRadius: 17, style: .continuous).fill(.white.opacity(0.25)))
             VStack(alignment: .leading, spacing: 4) {
-                Text(pro.entitlement.pro ? "You're Pro" : "Go Pro").font(Theme.display(30))
-                Text(pro.entitlement.pro ? heroSubtitle : pro.trialEligible ? "1 week free, then pick your plan." : "Train with everything MonkeyWorkout has.")
-                    .font(.subheadline.weight(.semibold)).opacity(0.9)
+                Text(heroTitle).font(Theme.display(28)).fixedSize(horizontal: false, vertical: true)
+                Text(heroLine).font(.subheadline.weight(.semibold)).opacity(0.9).fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
@@ -115,47 +214,143 @@ struct ProView: View {
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(AccountTint.pro))
     }
 
-    private var heroSubtitle: String {
+    private var heroSymbol: String {
+        if case .gate(let g) = context, !pro.entitlement.pro { return g.symbol }
+        return "crown.fill"
+    }
+
+    private var heroTitle: String {
+        if pro.entitlement.pro { return "You're Pro" }
+        switch context {
+        case .onboarding: return "Your week is ready"
+        case .gate(let g): return g.title
+        case .account: return "Go Pro"
+        }
+    }
+
+    private var heroLine: String {
+        if pro.entitlement.pro { return statusLine }
+        if case .gate(let g) = context { return g.subtitle }
+        return pro.trialEligible ? "Try everything free for 1 week." : "Train with everything MonkeyWorkout has."
+    }
+
+    private var statusLine: String {
         let e = pro.entitlement
+        if e.lifetime == true { return "Lifetime · all updates included" }
         if e.source == .grant { return e.grant?.until.map { "Free access until \($0.formatted(date: .abbreviated, time: .omitted))" } ?? "Free access, on the house" }
         let name = ProPlan.fallback.first { $0.id == e.productId }?.title ?? "Pro"
         guard let end = e.expiresAt?.formatted(date: .abbreviated, time: .omitted) else { return name }
-        if e.trial == true { return "Free week until \(end)" }
+        if e.trial == true { return "\(name) · free week until \(end)" }
         return e.willRenew == false ? "\(name) · ends \(end)" : "\(name) · renews \(end)"
     }
 
     // MARK: Pro
 
     @ViewBuilder private var status: some View {
+        let e = pro.entitlement
+        if e.source == .subscription && e.lifetime != true, let end = e.expiresAt {
+            HStack(spacing: 10) {
+                statTile(value: "\(max(0, Calendar.current.dateComponents([.day], from: .now, to: end).day ?? 0))",
+                         unit: e.trial == true ? "days left in trial" : "days to renewal")
+                statTile(value: e.willRenew == false ? "OFF" : "ON", unit: "auto-renew")
+            }
+        }
         Text("Included").eyebrow().padding(.leading, 4).padding(.top, 8)
         features
-        if pro.entitlement.source == .subscription {
+        if e.source == .subscription && e.lifetime != true {
             LimeActionButton(title: "Manage subscription", symbol: "creditcard.fill") { manage = true }.padding(.top, 6)
-        }
-    }
-
-    // MARK: Paywall
-
-    @ViewBuilder private var paywall: some View {
-        features
-        Text("Choose your plan").eyebrow().padding(.leading, 4).padding(.top, 8)
-        ForEach(plans) { p in
-            Button { selected = p.id } label: { planCard(p) }.buttonStyle(.plain)
-        }
-        if let plan {
-            Text(pro.trialEligible ? "Free for 1 week, then \(plan.price) per \(plan.period). Cancel anytime." : "\(plan.price) per \(plan.period). Cancel anytime.")
-                .font(.footnote.weight(.semibold)).foregroundStyle(.white.opacity(0.85))
-                .frame(maxWidth: .infinity).multilineTextAlignment(.center).padding(.top, 4)
-            LimeActionButton(title: pro.trialEligible ? "Start free week" : "Subscribe", busy: busy, disabled: plan.product == nil) {
-                guard let product = plan.product else { return }
-                busy = true
-                Task { await pro.purchase(product); busy = false }
+            if let life = lifetimePlan, let product = life.product {
+                // Subscriber → Lifetime: buy once, then cancel the subscription so it doesn't renew.
+                Button {
+                    busy = true
+                    wasSubscriber = true
+                    Task { await pro.purchase(product); busy = false }
+                } label: {
+                    AccountCard(symbol: "infinity", title: "Own it: \(life.price) once", subtitle: "Lifetime, all future updates included",
+                                gradient: AccountTint.pro, ink: true) { AccountChevron() }
+                }
+                .buttonStyle(.plain)
+                .disabled(busy)
             }
+        }
+        if e.lifetime == true && wasSubscriber {
+            AccountNote(text: "Lifetime unlocked. Cancel your subscription in Manage subscription so it doesn't renew.")
+            LimeActionButton(title: "Manage subscription", symbol: "creditcard.fill") { manage = true }
         }
         HStack(spacing: 10) {
             AccountPillButton(title: "Restore") { Task { busy = true; await pro.restore(); busy = false } }
             AccountPillButton(title: "Redeem code") { redeem = true }
         }
+    }
+
+    /// Purchase done from onboarding or a feature sheet.
+    @ViewBuilder private var unlocked: some View {
+        features
+        LimeActionButton(title: context == .onboarding ? "Start training" : "Continue", symbol: "checkmark") { close() }
+            .padding(.top, 6)
+    }
+
+    private func statTile(value: String, unit: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value).font(Theme.display(24))
+            Text(unit).font(Theme.label(10)).tracking(1).textCase(.uppercase).opacity(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card(padding: 14)
+    }
+
+    // MARK: Paywall
+
+    @ViewBuilder private var paywall: some View {
+        if case .gate = context {} else { features }
+        ForEach(context == .account || context == .onboarding ? plans : Array(plans.prefix(1))) { p in
+            Button { selected = p.id } label: { planCard(p) }.buttonStyle(.plain)
+        }
+        if case .gate = context, plans.count > 1 {
+            DisclosureGroup("Other plans") {
+                ForEach(plans.dropFirst()) { p in
+                    Button { selected = p.id } label: { planCard(p) }.buttonStyle(.plain)
+                }
+            }
+            .font(.footnote.weight(.bold)).tint(.white)
+        }
+        if let plan {
+            Text(planLine(plan))
+                .font(.footnote.weight(.semibold)).foregroundStyle(.white.opacity(0.85))
+                .frame(maxWidth: .infinity).multilineTextAlignment(.center).padding(.top, 4)
+            LimeActionButton(title: buyTitle(plan), busy: busy, disabled: plan.product == nil) {
+                guard let product = plan.product else { return }
+                busy = true
+                Task {
+                    await pro.purchase(product)
+                    busy = false
+                }
+            }
+        }
+        if context == .onboarding {
+            Button("Not now, train on Free") { close() }
+                .font(.subheadline.weight(.bold)).foregroundStyle(.white.opacity(0.7))
+                .frame(maxWidth: .infinity).padding(.vertical, 6)
+        } else {
+            HStack(spacing: 10) {
+                AccountPillButton(title: "Restore") { Task { busy = true; await pro.restore(); busy = false } }
+                AccountPillButton(title: "Redeem code") { redeem = true }
+            }
+        }
+    }
+
+    private func planLine(_ p: ProPlan) -> String {
+        if p.period == "lifetime" { return "One payment of \(p.price), no renewal. All future updates included." }
+        return pro.trialEligible ? "Free for 1 week, then \(p.price) per \(p.period). Cancel anytime." : "\(p.price) per \(p.period). Cancel anytime."
+    }
+
+    private func buyTitle(_ p: ProPlan) -> String {
+        if p.period == "lifetime" { return "Buy for \(p.price)" }
+        return pro.trialEligible ? "Start free week" : "Subscribe"
+    }
+
+    private func close() {
+        if let onFinish { onFinish() } else { dismiss() }
     }
 
     private var features: some View {
@@ -188,11 +383,11 @@ struct ProView: View {
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 0) {
                 Text(p.price).font(Theme.display(20))
-                Text("per \(p.period)").font(Theme.label(10)).opacity(0.8)
+                Text(p.period == "lifetime" ? "one time" : "per \(p.period)").font(Theme.label(10)).textCase(.uppercase).opacity(0.8)
             }
         }
         .foregroundStyle(on ? Theme.ink : .white)
-        .padding(16)
+        .padding(.horizontal, 16).padding(.vertical, 12)
         .selectableGradient(AccountTint.pro, selected: on)
     }
 
@@ -200,7 +395,7 @@ struct ProView: View {
 
     private var footer: some View {
         VStack(spacing: 10) {
-            Text("Payment is charged to your Apple ID when you confirm (after the free week, if you're eligible). The subscription renews automatically at the same price unless you cancel at least 24 hours before the end of the period. Manage or cancel in Settings → Apple ID → Subscriptions.")
+            Text("Subscriptions: payment is charged to your Apple ID when you confirm (after the free week, if you're eligible) and renews automatically at the same price unless you cancel at least 24 hours before the end of the period. Manage or cancel in Settings → Apple ID → Subscriptions. Lifetime is a one-time purchase.")
                 .font(.caption).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
             HStack(spacing: 18) {
                 Link("Terms of Use", destination: AppConfig.apiBaseURL.appendingPathComponent("terms"))
