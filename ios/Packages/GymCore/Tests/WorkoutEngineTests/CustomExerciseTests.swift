@@ -83,6 +83,27 @@ import Testing
         #expect(Exercise.find("back-squat", custom: registry)?.id == "back-squat")
     }
 
+    @Test func exploreListsIncludeCustom() {
+        let registry = CustomExercises()
+        let live = abductor().sanitized
+        var gone = abductor().sanitized
+        gone.id = UUID()
+        gone.archived = true
+        registry.replaceAll([live, gone])
+
+        let ids = { (c: Category) in Exercise.inCategory(c, custom: registry).map(\.id) }
+        #expect(ids(.strength).contains(live.exerciseId))
+        #expect(!ids(.strength).contains(gone.exerciseId))
+        #expect(ids(.strength).count == Exercise.inCategory(.strength, custom: CustomExercises()).count + 1)
+        #expect(!ids(.mobility).contains(live.exerciseId))
+
+        let glutes = Exercise.working(.glutes, custom: registry).first { $0.0 == .strength }?.1 ?? []
+        #expect(glutes.first { $0.exercise.id == live.exerciseId }?.primary == true)
+        let adductors = Exercise.working(.adductors, custom: registry).first { $0.0 == .strength }?.1 ?? []
+        #expect(adductors.first { $0.exercise.id == live.exerciseId }?.primary == false)
+        #expect(Exercise.working(.lats, custom: registry).allSatisfy { $0.1.allSatisfy { $0.exercise.id != live.exerciseId } })
+    }
+
     @Test func templatesFitTheFrame() {
         for t in PoseTemplate.allCases {
             let d = ExerciseDrawing(template: t).normalized

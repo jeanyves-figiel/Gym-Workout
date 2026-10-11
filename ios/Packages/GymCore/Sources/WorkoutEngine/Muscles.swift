@@ -153,10 +153,13 @@ extension Exercise {
 
     public var muscles: [Muscle] { primary + secondary.filter { !primary.contains($0) } }
 
-    /// Catalog exercises working `muscle`, grouped by category, primary movers first.
-    public static func working(_ muscle: Muscle, equipment: Set<Equipment>? = nil) -> [(Category, [MuscleHit])] {
-        Category.allCases.compactMap { cat in
-            let hits = catalog
+    /// Catalog and the user's custom exercises working `muscle`, grouped by category, primary movers first.
+    public static func working(
+        _ muscle: Muscle, equipment: Set<Equipment>? = nil, custom: CustomExercises = .shared
+    ) -> [(Category, [MuscleHit])] {
+        let all = catalog + custom.active
+        return Category.allCases.compactMap { cat in
+            let hits = all
                 .filter { $0.category == cat && $0.muscles.contains(muscle) }
                 .filter { e in equipment.map { eq in e.equipment.allSatisfy { eq.contains($0) } } ?? true }
                 .map { MuscleHit(exercise: $0, primary: $0.primary.contains(muscle)) }
@@ -165,8 +168,9 @@ extension Exercise {
         }
     }
 
-    public static func inCategory(_ c: Category) -> [Exercise] {
-        catalog.filter { $0.category == c }.sorted { $0.name < $1.name }
+    /// Catalog and the user's custom exercises in `c`, by name.
+    public static func inCategory(_ c: Category, custom: CustomExercises = .shared) -> [Exercise] {
+        (catalog + custom.active).filter { $0.category == c }.sorted { $0.name < $1.name }
     }
 }
 
