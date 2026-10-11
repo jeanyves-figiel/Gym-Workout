@@ -13,6 +13,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var away: [AwayPeriod]?
     /// Library workouts placed into the plan (#62): replaced or extra sessions of the current week.
     var planInserts: [PlanInsert]?
+    /// Member-steered exercise swaps for this week (#98). Optional so older profiles still decode.
+    var variation: PlanVariation?
 }
 
 struct LocalState: Codable {

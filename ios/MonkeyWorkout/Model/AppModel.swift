@@ -18,6 +18,8 @@ final class AppModel {
         }
     }
     var syncError: String?
+    /// Variation before the last one applied this launch (#98); set while Train offers Undo.
+    var variationUndo: VariationUndo?
     /// Workouts other members shared (#62), loaded on demand; not persisted.
     var sharedLibrary: [SharedWorkout] = []
 
@@ -142,15 +144,17 @@ final class AppModel {
     // MARK: Plan
 
     var profile: Profile? { state.synced?.profile }
-    /// Generated week with library workouts placed into it (#62).
-    var plan: WeekPlan? { state.plan?.applying(state.synced?.planInserts ?? []) }
+    /// Generated week with the member's variation swaps (#98) and library workouts placed into it (#62).
+    var plan: WeekPlan? { state.plan?.applying(state.synced?.variation).applying(state.synced?.planInserts ?? []) }
 
     func applyProfile(_ profile: Profile, seed: UInt32? = nil, week: Int = 1) {
         let s = seed ?? UInt32.random(in: 0...UInt32.max)
         let changed = state.synced?.week != week || state.synced?.seed != s || state.synced?.profile != profile
         // Plan inserts belong to one week: kept for a new variation or profile edit, dropped on a week change.
+        // A variation's swaps only fit the exact plan they were made for.
+        let variation = changed ? nil : state.synced?.variation
         state.synced = SyncedProfile(profile: profile, seed: s, week: week, body: state.synced?.body, away: state.synced?.away,
-                                     planInserts: state.synced?.planInserts?.filter { $0.week == week })
+                                     planInserts: state.synced?.planInserts?.filter { $0.week == week }, variation: variation)
         state.plan = Generator.generateWeek(profile, week: week, seed: s)
         replanCurrentWeek()
         if changed {
@@ -165,11 +169,6 @@ final class AppModel {
     func setWeek(_ week: Int) {
         guard let sp = state.synced else { return }
         applyProfile(sp.profile, seed: sp.seed, week: week)
-    }
-
-    func newVariation() {
-        guard let sp = state.synced else { return }
-        applyProfile(sp.profile, week: sp.week)
     }
 
     func setTicked(_ uid: String, _ on: Bool = true) {
@@ -226,6 +225,11 @@ final class AppModel {
             }
         }
         state.plan = plan
+        // A variation swap on this item would override the manual one (#98).
+        if state.synced?.variation?.swaps[uid] != nil {
+            state.synced?.variation?.swaps[uid] = exerciseId
+            state.profileDirty = true
+        }
         persist()
     }
 
