@@ -183,6 +183,7 @@ struct ProView: View {
                 hero
                 if pro.entitlement.pro && context == .account { status } else if pro.entitlement.pro { unlocked } else { paywall }
                 if let error = pro.error { ErrorText(message: error) }
+                if pro.testing && context == .account { testPanel }
                 footer
             }
             .padding(16)
@@ -261,13 +262,21 @@ struct ProView: View {
         Text("Included").eyebrow().padding(.leading, 4).padding(.top, 8)
         features
         if e.source == .subscription && e.lifetime != true {
-            LimeActionButton(title: "Manage subscription", symbol: "creditcard.fill") { manage = true }.padding(.top, 6)
-            if let life = lifetimePlan, let product = life.product {
+            if e.environment == "Test" {
+                LimeActionButton(title: "Cancel auto-renew (test)", symbol: "xmark.circle.fill", busy: busy, disabled: e.willRenew == false) {
+                    busy = true
+                    Task { await pro.testCancel(end: false); busy = false }
+                }
+                .padding(.top, 6)
+            } else {
+                LimeActionButton(title: "Manage subscription", symbol: "creditcard.fill") { manage = true }.padding(.top, 6)
+            }
+            if let life = lifetimePlan, life.product != nil || pro.testing {
                 // Subscriber → Lifetime: buy once, then cancel the subscription so it doesn't renew.
                 Button {
                     busy = true
-                    wasSubscriber = true
-                    Task { await pro.purchase(product); busy = false }
+                    wasSubscriber = e.environment != "Test"
+                    Task { await pro.buy(life); busy = false }
                 } label: {
                     AccountCard(symbol: "infinity", title: "Own it: \(life.price) once", subtitle: "Lifetime, all future updates included",
                                 gradient: AccountTint.pro, ink: true) { AccountChevron() }
@@ -280,10 +289,33 @@ struct ProView: View {
             AccountNote(text: "Lifetime unlocked. Cancel your subscription in Manage subscription so it doesn't renew.")
             LimeActionButton(title: "Manage subscription", symbol: "creditcard.fill") { manage = true }
         }
-        HStack(spacing: 10) {
-            AccountPillButton(title: "Restore") { Task { busy = true; await pro.restore(); busy = false } }
-            AccountPillButton(title: "Redeem code") { redeem = true }
+        if e.environment == "Test" {
+            AccountPillButton(title: "End test purchase now") { Task { busy = true; await pro.testCancel(end: true); busy = false } }
+        } else {
+            HStack(spacing: 10) {
+                AccountPillButton(title: "Restore") { Task { busy = true; await pro.restore(); busy = false } }
+                AccountPillButton(title: "Redeem code") { redeem = true }
+            }
         }
+    }
+
+    /// Staging only: how this account sees Pro (Off / Preview / Enforced, or the server's setting).
+    @ViewBuilder private var testPanel: some View {
+        Text("Staging test").eyebrow().padding(.leading, 4).padding(.top, 8)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Pro for this account only").font(.body.weight(.bold))
+            Picker("Pro mode", selection: Binding(get: { pro.entitlement.test?.mode?.rawValue ?? "server" },
+                                                  set: { v in Task { await pro.setTestMode(Entitlement.Mode(rawValue: v)) } })) {
+                Text("Server").tag("server")
+                Text("Off").tag(Entitlement.Mode.off.rawValue)
+                Text("Preview").tag(Entitlement.Mode.preview.rawValue)
+                Text("Enforced").tag(Entitlement.Mode.enforced.rawValue)
+            }
+            .pickerStyle(.segmented)
+            Text("Enforced locks Pro features until you buy. Purchases here are fake: no Apple, no charge.")
+                .font(.caption).foregroundStyle(Theme.muted)
+        }
+        .card(padding: 14)
     }
 
     /// Purchase done from onboarding or a feature sheet.
@@ -321,14 +353,14 @@ struct ProView: View {
             Text(planLine(plan))
                 .font(.footnote.weight(.semibold)).foregroundStyle(.white.opacity(0.85))
                 .frame(maxWidth: .infinity).multilineTextAlignment(.center).padding(.top, 4)
-            LimeActionButton(title: buyTitle(plan), busy: busy, disabled: plan.product == nil) {
-                guard let product = plan.product else { return }
+            LimeActionButton(title: buyTitle(plan), busy: busy, disabled: plan.product == nil && !pro.testing) {
                 busy = true
                 Task {
-                    await pro.purchase(product)
+                    await pro.buy(plan)
                     busy = false
                 }
             }
+            if pro.testing { AccountNote(text: "Staging test: no Apple, no charge.") }
         }
         if context == .onboarding {
             Button("Not now, train on Free") { close() }

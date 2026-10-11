@@ -108,6 +108,7 @@ Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode
 | POST | `/me/achievements` | ✓ | `{achievements: [{id, type, text}]}` ≤30 → pushes each new id once to followers → `{announced}` |
 | POST | `/me/push-test` | ✓ | test push to own devices → `{devices, sent, pushConfigured}` |
 | GET | `/me/entitlement` | ✓ | MonkeyWorkout Pro (#126): `{mode, pro, access, source subscription\|grant\|none, productId, expiresAt, trial, willRenew, grant, products}` |
+| PUT / POST | `/me/subscriptions/test`, `/test/purchase`, `/test/cancel` | ✓ | Staging only (`SUBSCRIPTION_TESTS=on`, else 404): per-account Pro mode `{mode: off\|preview\|enforced\|null}`, fake purchase `{productId}`, cancel `{end?}` → entitlement (`test` field present when enabled) |
 | POST | `/me/subscriptions/transactions` | ✓ | `{signedTransaction, signedRenewalInfo?}` StoreKit 2 JWS, verified against Apple Root CA - G3 → entitlement; 403/409 `subscription_other_account` |
 | POST | `/app-store/notifications` | Apple-signed | App Store Server Notifications V2 `{signedPayload}` |
 | GET | `/healthz` | – | |

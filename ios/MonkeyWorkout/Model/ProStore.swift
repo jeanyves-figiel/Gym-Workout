@@ -21,8 +21,10 @@ final class ProStore {
     private(set) var trialEligible = true
     var error: String?
 
-    /// Pro is shown (Account row, paywall) once the server turns it on; nothing is locked before `enforced`.
-    var visible: Bool { entitlement.mode != .off || demo }
+    /// Pro is shown (Account row, paywall) once the server turns it on (or in staging test mode); nothing is locked before `enforced`.
+    var visible: Bool { entitlement.mode != .off || demo || testing }
+    /// Staging test mode: purchases go to the server as fakes, no Apple, no charge.
+    var testing: Bool { entitlement.test != nil }
     /// A Pro feature must show the paywall instead (server mode `enforced` and no Pro).
     var locked: Bool { !entitlement.access }
     /// PRO badges on Pro features: Pro switched on (preview or enforced) and this account isn't Pro.
@@ -81,6 +83,25 @@ final class ProStore {
             case .userCancelled: break
             @unknown default: break
             }
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    /// Buys a paywall plan: StoreKit, or a fake purchase in staging test mode.
+    func buy(_ plan: ProPlan) async {
+        if testing { await test { try await $0.testPurchase(plan.id) } } else if let p = plan.product { await purchase(p) }
+    }
+
+    func testCancel(end: Bool) async { await test { try await $0.testCancel(end: end) } }
+    func setTestMode(_ mode: Entitlement.Mode?) async { await test { try await $0.setTestMode(mode) } }
+
+    private func test(_ call: (APIClient) async throws -> Entitlement) async {
+        guard let api else { return }
+        error = nil
+        do {
+            entitlement = try await call(api)
+            await scheduleTrialReminder()
         } catch {
             self.error = error.localizedDescription
         }
