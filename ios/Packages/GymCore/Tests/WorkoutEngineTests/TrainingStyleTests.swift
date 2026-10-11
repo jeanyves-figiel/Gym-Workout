@@ -123,6 +123,37 @@ private func nx(_ b: Block, after uid: String, setsDone: [String: Int]) -> Strin
         #expect(nx(b, after: "a2", setsDone: ["a1": 2, "a2": 3]) == "done")
     }
 
+    @Test func sessionOverrideChangesOnlyThatSession() {
+        var p = profile(.balanced, rest: .standard, grouping: .straight, sessions: 4)
+        let base = Generator.generateWeek(p, week: 2, seed: 11)
+        p.sessionStyles = ["w2s2": SessionStyle(rest: .short, grouping: .supersets)]
+        let styled = Generator.generateWeek(p, week: 2, seed: 11)
+        #expect(styled.sessions.count == base.sessions.count)
+        for (a, b) in zip(base.sessions, styled.sessions) where a.id != "w2s2" { #expect(a == b, "\(a.id) unchanged") }
+        let s = styled.sessions[1]
+        let st = s.blocks.first { $0.kind == .strength && $0.title == "Strength" }!
+        #expect(st.items[0].prescription.restSec >= 90)
+        #expect(st.items.dropFirst().allSatisfy { $0.prescription.restSec <= 45 })
+        #expect(st.items.contains { $0.group != nil }, "supersets applied")
+        #expect(st.items[0].exerciseId == base.sessions[1].blocks.first { $0.title == "Strength" }!.items[0].exerciseId, "same main lift")
+        #expect(Double(abs(s.estMin - s.targetMin)) <= max(10, Double(s.targetMin) * 0.2))
+    }
+
+    @Test func emptyOrOtherWeekOverrideIsNoOp() {
+        var p = profile(.build, sessions: 3)
+        let base = Generator.generateWeek(p, week: 1, seed: 3)
+        p.sessionStyles = ["w1s1": SessionStyle(), "w2s1": SessionStyle(rest: .long)]
+        #expect(Generator.generateWeek(p, week: 1, seed: 3) == base)
+    }
+
+    @Test func overrideBackToStraightSets() {
+        var p = profile(.build, sessions: 3)
+        p.sessionStyles = ["w1s1": SessionStyle(grouping: .straight)]
+        let s = Generator.generateWeek(p, week: 1, seed: 3).sessions[0]
+        #expect(s.blocks.flatMap(\.items).allSatisfy { $0.group == nil })
+        #expect(s.stylable)
+    }
+
     @Test(arguments: Goal.allCases)
     func styledPlansFitTargetTime(goal: Goal) {
         for g in Grouping.allCases {
