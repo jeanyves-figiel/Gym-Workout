@@ -21,6 +21,7 @@ import { prAttemptRoutes } from './routes/prAttempts.ts';
 import { dataRoutes } from './routes/data.ts';
 import { pushRoutes } from './routes/push.ts';
 import { libraryRoutes } from './routes/library.ts';
+import { legalRoutes } from './routes/legal.ts';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -96,6 +97,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   app.get('/healthz', async () => ({ ok: true, mail: deps.config.mail.transport }));
 
   communityPublicRoutes(app, deps.db, deps.config.appName);
+  legalRoutes(app, deps.config);
 
   const authenticate = async (req: FastifyRequest) => {
     const h = req.headers.authorization;
