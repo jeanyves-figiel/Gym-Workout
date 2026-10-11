@@ -166,8 +166,8 @@ extension Session {
 extension Profile {
     /// Rest style in effect: the user's choice, else the goal's default.
     public var rest: RestStyle { restStyle ?? goal.defaultRest }
-    /// Grouping in effect: the user's choice, else the goal's default.
-    public var group: Grouping { grouping ?? goal.defaultGrouping }
+    /// Grouping in effect: the user's choice, else the recommended one (goal, or supersets for minimal dose).
+    public var group: Grouping { grouping ?? defaultGrouping }
 }
 
 // MARK: Grouping a strength block

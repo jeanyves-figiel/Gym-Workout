@@ -42,6 +42,10 @@ final class Ctx {
     /// Rest style and grouping in effect: the session's override, else the profile's.
     var rest: RestStyle { style?.rest ?? profile.rest }
     var group: Grouping { style?.grouping ?? profile.group }
+    /// Training method (#156).
+    var method: TrainingMethod { profile.trainingMethod }
+    /// Daily-undulating day type of the session being generated; nil for other methods.
+    var zone: DayZone?
 
     /// Pick state, so one session can be generated twice from the same starting point.
     struct Snapshot {

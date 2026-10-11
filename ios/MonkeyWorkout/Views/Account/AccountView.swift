@@ -29,7 +29,7 @@ struct AccountView: View {
                             let e = ProStore.shared.entitlement
                             AccountCard(symbol: "crown.fill", title: "MonkeyWorkout Pro",
                                         subtitle: e.pro ? (e.lifetime == true ? "Lifetime · all updates included" : e.source == .grant ? "Free access" : e.trial == true ? "Free week running" : "Active")
-                                            : "1 week free, then from CHF 2 / week",
+                                            : ProStore.shared.testing ? "Staging test · \(ProStore.shared.testEffect)" : "1 week free, then from CHF 2 / week",
                                         gradient: AccountTint.pro, ink: true) {
                                 Text(e.pro ? "PRO" : "TRY").font(Theme.label(12)).tracking(1)
                             }
@@ -64,6 +64,17 @@ struct AccountView: View {
                         }
                     }
                     .buttonStyle(.plain)
+
+                    if let method = model.profile?.trainingMethod {
+                        // Training method (#156): same editor as Training profile → Training method.
+                        NavigationLink { ProfileSectionView(section: .method) } label: {
+                            AccountCard(symbol: method.symbol, title: "Training method", subtitle: method.label,
+                                        gradient: method.gradient) {
+                                AccountChevron()
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
 
                     NavigationLink { NotificationSettingsView() } label: {
                         AccountCard(symbol: "bell.badge.fill", title: "Reminders & alerts",

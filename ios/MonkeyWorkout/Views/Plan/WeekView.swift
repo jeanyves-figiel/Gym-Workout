@@ -19,7 +19,7 @@ struct WeekView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     WeekHero(plan: plan, profile: profile, done: model.completedCount)
-                    ReadinessCard(snapshot: health.snapshot)
+                    ReadinessCard(snapshot: health.snapshot, eased: model.readinessEased)
                     if let undo = model.variationUndo {
                         VariationUndoCard(undo: undo)
                     }

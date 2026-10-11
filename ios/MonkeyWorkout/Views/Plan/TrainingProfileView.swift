@@ -3,7 +3,7 @@ import WorkoutEngine
 
 /// One part of the training profile, editable on its own screen (#99).
 enum ProfileSection: String, CaseIterable, Identifiable, Hashable {
-    case goal, week, variety, style, gym
+    case goal, week, variety, style, method, gym
     var id: String { rawValue }
 
     var title: String {
@@ -12,6 +12,7 @@ enum ProfileSection: String, CaseIterable, Identifiable, Hashable {
         case .week: "Your week"
         case .variety: "Week to week"
         case .style: "Training style"
+        case .method: "Training method"
         case .gym: "Your gym"
         }
     }
@@ -96,6 +97,7 @@ struct ProfileSectionCard: View {
         case .week: "calendar"
         case .variety: profile.planVariety.symbol
         case .style: profile.rest.symbol
+        case .method: profile.trainingMethod.symbol
         case .gym: "building.2.fill"
         }
     }
@@ -110,6 +112,7 @@ struct ProfileSectionCard: View {
                 .compactMap { $0 }.joined(separator: " · ")
         case .variety: profile.planVariety.title
         case .style: "\(profile.rest.label) · \(profile.group.label)"
+        case .method: profile.trainingMethod.label
         case .gym: gymName
         }
     }
@@ -120,6 +123,7 @@ struct ProfileSectionCard: View {
         case .week: (String(format: "%.1fh", Double(Generator.sessionMinutes(profile) * profile.sessionsPerWeek) / 60), "PER WEEK")
         case .variety: profile.planVariety.count
         case .style: (profile.rest.range.value, profile.rest.range.unit)
+        case .method: (profile.trainingMethod.big.value, profile.trainingMethod.big.unit)
         case .gym: ("\(profile.equipment.count)", "ITEMS")
         }
     }
@@ -130,6 +134,7 @@ struct ProfileSectionCard: View {
         case .week: WorkoutEngine.Category.cardio.gradient
         case .variety: profile.planVariety.gradient
         case .style: profile.rest.gradient
+        case .method: profile.trainingMethod.gradient
         case .gym: WorkoutEngine.Category.strength.gradient
         }
     }

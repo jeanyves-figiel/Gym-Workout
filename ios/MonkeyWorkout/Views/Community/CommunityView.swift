@@ -67,6 +67,7 @@ struct CommunityView: View {
             LazyVStack(spacing: 12) {
                 header
                 CommunityGymCard()
+                FindMembersCard()
                 Picker("Feed", selection: $scope) {
                     Text("Members").tag(CommunityFeedScope.members)
                     Text("Following").tag(CommunityFeedScope.following)
@@ -128,7 +129,7 @@ private struct EmptyFeedCard: View {
     private var message: String {
         switch scope {
         case .members: "Be the first: share a workout, a personal best or a badge with the members."
-        case .following: "Tap a member's name, then Follow, to see their wins here."
+        case .following: "Find members by nickname, or tap a name on a post, then Follow to see their wins here."
         case .mine: "Share a workout, a personal best or a badge. Keep it to yourself or show the members."
         }
     }

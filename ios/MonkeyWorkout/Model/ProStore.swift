@@ -25,6 +25,15 @@ final class ProStore {
     var visible: Bool { entitlement.mode != .off || demo || testing }
     /// Staging test mode: purchases go to the server as fakes, no Apple, no charge.
     var testing: Bool { entitlement.test != nil }
+    /// Staging test: what the current mode does to this account, in one line.
+    var testEffect: String {
+        if entitlement.pro { return "Pro: everything unlocked" }
+        switch entitlement.mode {
+        case .enforced: return "Free: Pro features locked"
+        case .preview: return "Preview: PRO badges, nothing locked"
+        case .off: return "Pro off: nothing locked, no badges"
+        }
+    }
     /// A Pro feature must show the paywall instead (server mode `enforced` and no Pro).
     var locked: Bool { !entitlement.access }
     /// PRO badges on Pro features: Pro switched on (preview or enforced) and this account isn't Pro.

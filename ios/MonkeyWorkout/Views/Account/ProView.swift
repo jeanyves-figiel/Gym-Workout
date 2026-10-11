@@ -181,9 +181,9 @@ struct ProView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 hero
+                if pro.testing && context == .account { testPanel }
                 if pro.entitlement.pro && context == .account { status } else if pro.entitlement.pro { unlocked } else { paywall }
                 if let error = pro.error { ErrorText(message: error) }
-                if pro.testing && context == .account { testPanel }
                 footer
             }
             .padding(16)
@@ -313,7 +313,8 @@ struct ProView: View {
                 Text("Enforced").tag(Entitlement.Mode.enforced.rawValue)
             }
             .pickerStyle(.segmented)
-            Text("Enforced locks Pro features until you buy. Purchases here are fake: no Apple, no charge.")
+            Text(pro.testEffect).font(.subheadline.weight(.bold)).foregroundStyle(pro.locked ? Theme.lime : .white)
+            Text("Pick Enforced to start as Free: Pro features ask for Pro until you buy. Purchases here are fake: no Apple, no charge.")
                 .font(.caption).foregroundStyle(Theme.muted)
         }
         .card(padding: 14)

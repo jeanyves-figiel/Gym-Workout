@@ -144,7 +144,8 @@ extension CustomWorkout {
             if p.main { d = g.main }
             else if p.light { d = Dose(sets: beginner ? 2 : 3, reps: "12–15", repsMid: 13, restSec: 45, rpe: 7) }
             else { d = g.accessory }
-            let sets = max(1, d.sets - (beginner && !p.light ? 1 : 0))
+            // Minimal dose (#156): 2 hard sets per exercise.
+            let sets = profile.trainingMethod == .minimal ? 2 : max(1, d.sets - (beginner && !p.light ? 1 : 0))
             let reps: Int = switch Measure(e) {
             case .reps: d.repsMid
             case .seconds: 40
