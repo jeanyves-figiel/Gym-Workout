@@ -5,13 +5,13 @@ extension Equipment {
     var symbol: String {
         switch self {
         case .dumbbells: "dumbbell.fill"
-        case .kettlebells: "scalemass.fill"
+        case .kettlebells, .dipBelt: "scalemass.fill"
         case .barbell, .trapBar, .rack, .smith, .landmine, .ezBar: "figure.strengthtraining.traditional"
         case .bench, .preacherBench: "rectangle.split.3x1.fill"
         case .cable, .legPress, .hackSquat, .legCurl, .legExtension, .latPulldown, .seatedRow, .chestPress, .pecDeck,
              .hipThrustMachine, .backExtension, .seatedCalf, .hipAdAbductor, .abCrunch, .torsoRotation, .shoulderPress, .standingCalf,
-             .tBarRow, .ghd: "gearshape.fill"
-        case .pullupBar, .dipStation: "figure.climbing"
+             .tBarRow, .ghd, .reverseHyper, .curlMachine, .tricepsMachine: "gearshape.fill"
+        case .pullupBar, .dipStation, .assistedMachine: "figure.climbing"
         case .rings: "circle.circle"
         case .trx: "figure.strengthtraining.functional"
         case .plyoBox: "shippingbox.fill"

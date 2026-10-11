@@ -54,6 +54,11 @@ extension Equipment {
         case .ghd: "Glute-ham developer (GHD)"
         case .stabilityBall: "Stability ball"
         case .jumpRope: "Jump rope"
+        case .assistedMachine: "Assisted pull-up / dip machine"
+        case .reverseHyper: "Reverse hyper"
+        case .curlMachine: "Biceps curl machine"
+        case .tricepsMachine: "Triceps extension machine"
+        case .dipBelt: "Dip belt / weighted vest"
         }
     }
 }

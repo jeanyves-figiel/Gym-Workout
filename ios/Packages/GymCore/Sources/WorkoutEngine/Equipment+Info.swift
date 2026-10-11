@@ -19,8 +19,9 @@ extension Equipment {
         case .barbell, .trapBar, .rack, .bench, .dumbbells, .smith, .landmine, .ezBar, .preacherBench: .freeWeights
         case .cable, .legPress, .hackSquat, .legCurl, .legExtension, .latPulldown, .seatedRow, .chestPress, .pecDeck,
              .hipThrustMachine, .backExtension, .dipStation, .pullupBar, .seatedCalf, .hipAdAbductor, .abCrunch,
-             .torsoRotation, .shoulderPress, .standingCalf, .tBarRow, .ghd: .machines
-        case .kettlebells, .rings, .trx, .plyoBox, .medBall, .slamBall, .sled, .battleRope, .abWheel, .bands, .stabilityBall, .jumpRope: .functional
+             .torsoRotation, .shoulderPress, .standingCalf, .tBarRow, .ghd,
+             .assistedMachine, .reverseHyper, .curlMachine, .tricepsMachine: .machines
+        case .kettlebells, .rings, .trx, .plyoBox, .medBall, .slamBall, .sled, .battleRope, .abWheel, .bands, .stabilityBall, .jumpRope, .dipBelt: .functional
         case .treadmill, .bike, .airBike, .rower, .skiErg, .stairClimber, .elliptical: .cardio
         case .foamRoller, .mat: .stretch
         }
@@ -80,6 +81,11 @@ extension Equipment {
         case .ghd: "Foot plate so the knees sit just behind the pad; ankles locked under the rollers."
         case .stabilityBall: "Pick a size where thighs are level when you sit on it; pumped firm."
         case .jumpRope: "Handles at the armpits when you stand on the middle of the rope."
+        case .assistedMachine: "More counterweight = more help; knee or foot pad locked before you step on."
+        case .reverseHyper: "Hips at the edge of the pad, grip the handles; strap just above the ankles."
+        case .curlMachine: "Seat so the elbows line up with the pivot and the armpits sit over the pad."
+        case .tricepsMachine: "Seat so the elbows line up with the pivot; upper arms flat on the pad."
+        case .dipBelt: "Hang plates or a kettlebell from the chain; keep it short so it doesn't swing into the knees."
         }
     }
 }

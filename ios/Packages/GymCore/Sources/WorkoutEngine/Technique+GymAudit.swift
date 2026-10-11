@@ -92,5 +92,55 @@ extension Technique {
             mistakes: ["Jumping too high", "Big arm circles", "Landing flat-footed"],
             breathing: "Steady rhythm; breathe through the nose as long as you can"
         ),
+        "assisted-dip": Technique(
+            setup: ["Set the counterweight: more weight means more help", "Kneel or stand on the pad, hands on the dip handles, arms straight"],
+            position: [
+                Checkpoint(.shoulders, "Down and back, away from the ears"),
+                Checkpoint(.elbows, "Bend to about 90°, tracking back, not flaring"),
+                Checkpoint(.core, "Braced, slight forward lean"),
+            ],
+            mistakes: ["Dropping below what the shoulders tolerate", "Shrugging at the bottom", "Too much assistance for too long"],
+            breathing: "Inhale as you lower, exhale as you press up"
+        ),
+        "weighted-dip": Technique(
+            setup: ["Hang plates or a kettlebell from a dip belt (or wear a weighted vest)", "Mount the bars with arms locked and the weight hanging still"],
+            position: [
+                Checkpoint(.shoulders, "Down and back throughout"),
+                Checkpoint(.elbows, "Bend to about 90°, close to the body"),
+                Checkpoint(.hips, "Weight hangs straight down, legs quiet"),
+            ],
+            mistakes: ["Letting the weight swing", "Bouncing out of the bottom", "Adding load before 3 × 10 clean bodyweight dips"],
+            breathing: "Inhale as you lower, exhale as you press up"
+        ),
+        "reverse-hyper": Technique(
+            setup: ["Lie face down with the hips at the edge of the pad", "Grip the handles; strap or roller just above the ankles"],
+            position: [
+                Checkpoint(.hips, "Pressed into the pad, the legs swing from the hips"),
+                Checkpoint(.back, "Neutral at the top, no over-arching"),
+                Checkpoint(.feet, "Legs together, rise to about hip height"),
+            ],
+            mistakes: ["Swinging with momentum", "Hyperextending the lower back at the top", "Loading heavy before the movement is smooth"],
+            breathing: "Exhale as the legs rise, inhale as they lower"
+        ),
+        "machine-curl": Technique(
+            setup: ["Set the seat so the elbows line up with the machine's pivot", "Backs of the arms flat on the pad, palms up"],
+            position: [
+                Checkpoint(.elbows, "On the pivot line, staying on the pad"),
+                Checkpoint(.hands, "Wrists straight"),
+                Checkpoint(.shoulders, "Down, no shrugging or leaning back"),
+            ],
+            mistakes: ["Lifting the elbows off the pad", "Letting the stack slam at the bottom", "Short reps at the top only"],
+            breathing: "Exhale as you curl, inhale as you lower"
+        ),
+        "machine-triceps-extension": Technique(
+            setup: ["Set the seat so the elbows line up with the pivot", "Upper arms flat on the pad, hands on the handles"],
+            position: [
+                Checkpoint(.elbows, "Fixed on the pivot; only the forearms move"),
+                Checkpoint(.back, "Against the pad, no rocking"),
+                Checkpoint(.hands, "Push to a full lockout"),
+            ],
+            mistakes: ["Elbows flaring off the pad", "Using the shoulders to push", "Rushing the return"],
+            breathing: "Exhale as you extend, inhale on the way back"
+        ),
     ]
 }

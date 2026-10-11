@@ -8,7 +8,7 @@ attribution required; the app still credits it). Illustrations are drawn by the 
 No video: no free-to-use (public domain / CC0 / CC-BY) video set covers this catalog consistently,
 so every exercise animates its two frames (start, end) instead.
 
-Photos: 147 · Illustrations: 63 · Total: 210
+Photos: 152 · Illustrations: 63 · Total: 215
 
 | Id | Exercise | Media | Source | License |
 |---|---|---|---|---|
@@ -203,6 +203,11 @@ Photos: 147 · Illustrations: 63 · Total: 210
 | `t-bar-row` | Chest-supported T-bar row | Photo (2 frames) | [free-exercise-db `Lying_T-Bar_Row`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Lying_T-Bar_Row) | Public domain (Unlicense) |
 | `glute-ham-raise` | Glute-ham raise | Photo (2 frames) | [free-exercise-db `Glute_Ham_Raise`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Glute_Ham_Raise) | Public domain (Unlicense) |
 | `ball-crunch` | Stability ball crunch | Photo (2 frames) | [free-exercise-db `Exercise_Ball_Crunch`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Exercise_Ball_Crunch) | Public domain (Unlicense) |
+| `assisted-dip` | Machine-assisted dip | Photo (2 frames) | [free-exercise-db `Dip_Machine`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Dip_Machine) | Public domain (Unlicense) |
+| `weighted-dip` | Weighted dip | Photo (2 frames) | [free-exercise-db `Dips_-_Triceps_Version`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Dips_-_Triceps_Version) | Public domain (Unlicense) |
+| `reverse-hyper` | Reverse hyper | Photo (2 frames) | [free-exercise-db `Reverse_Hyperextension`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Reverse_Hyperextension) | Public domain (Unlicense) |
+| `machine-curl` | Machine biceps curl | Photo (2 frames) | [free-exercise-db `Machine_Bicep_Curl`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Machine_Bicep_Curl) | Public domain (Unlicense) |
+| `machine-triceps-extension` | Machine triceps extension | Photo (2 frames) | [free-exercise-db `Machine_Triceps_Extension`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Machine_Triceps_Extension) | Public domain (Unlicense) |
 | `jump-rope` | Jump rope | Photo (2 frames) | [free-exercise-db `Rope_Jumping`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Rope_Jumping) | Public domain (Unlicense) |
 | `bw-squat` | Bodyweight squat | Photo (2 frames) | [free-exercise-db `Bodyweight_Squat`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Bodyweight_Squat) | Public domain (Unlicense) |
 | `bw-split-squat` | Split squat (bodyweight) | Photo (2 frames) | [free-exercise-db `Split_Squats`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Split_Squats) | Public domain (Unlicense) |

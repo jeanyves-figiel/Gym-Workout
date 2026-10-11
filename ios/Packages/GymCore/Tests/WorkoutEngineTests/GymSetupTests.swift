@@ -59,5 +59,7 @@ import Testing
         #expect(Equipment.cable.matches("Cables"))
         #expect(!Equipment.rower.matches("dumbbell"))
         #expect(GymArea.of(.ghd) == .stations)
+        #expect(Equipment.assistedMachine.matches("gravitron"))
+        #expect(Equipment.dipBelt.matches("vest"))
     }
 }

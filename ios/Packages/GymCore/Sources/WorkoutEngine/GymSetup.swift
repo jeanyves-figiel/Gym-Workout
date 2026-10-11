@@ -41,9 +41,10 @@ public enum GymArea: String, Codable, CaseIterable, Sendable, Identifiable {
         case .dumbbells: [.dumbbells, .bench, .preacherBench]
         case .cables: [.cable, .latPulldown, .seatedRow]
         case .machines: [.smith, .legPress, .hackSquat, .legCurl, .legExtension, .chestPress, .pecDeck, .hipThrustMachine,
-                         .seatedCalf, .hipAdAbductor, .abCrunch, .torsoRotation, .shoulderPress, .standingCalf, .tBarRow]
-        case .stations: [.pullupBar, .dipStation, .backExtension, .rings, .trx, .ghd]
-        case .functional: [.kettlebells, .plyoBox, .medBall, .slamBall, .sled, .battleRope, .abWheel, .bands, .stabilityBall, .jumpRope]
+                         .seatedCalf, .hipAdAbductor, .abCrunch, .torsoRotation, .shoulderPress, .standingCalf, .tBarRow,
+                         .curlMachine, .tricepsMachine]
+        case .stations: [.pullupBar, .dipStation, .assistedMachine, .backExtension, .reverseHyper, .rings, .trx, .ghd]
+        case .functional: [.kettlebells, .plyoBox, .medBall, .slamBall, .sled, .battleRope, .abWheel, .bands, .stabilityBall, .jumpRope, .dipBelt]
         case .cardio: [.treadmill, .bike, .airBike, .rower, .skiErg, .stairClimber, .elliptical]
         }
     }
@@ -266,6 +267,11 @@ extension Equipment {
         case .ghd: "glute-ham-raise"
         case .stabilityBall: "ball-crunch"
         case .jumpRope: "jump-rope"
+        case .assistedMachine: "assisted-dip"
+        case .reverseHyper: "reverse-hyper"
+        case .curlMachine: "machine-curl"
+        case .tricepsMachine: "machine-triceps-extension"
+        case .dipBelt: "weighted-dip"
         }
     }
 
@@ -298,6 +304,11 @@ extension Equipment {
         case .ghd: ["glute ham"]
         case .stabilityBall: ["swiss ball", "exercise ball", "gym ball"]
         case .jumpRope: ["skipping rope"]
+        case .assistedMachine: ["gravitron", "assisted chin-up", "assisted dip"]
+        case .reverseHyper: ["reverse hyperextension"]
+        case .curlMachine: ["arm curl machine"]
+        case .tricepsMachine: ["triceps press machine", "triceps dip machine"]
+        case .dipBelt: ["weight belt", "weighted vest", "chain belt", "weighted pull-up"]
         default: []
         }
     }

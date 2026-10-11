@@ -83,6 +83,11 @@ public enum Equipment: String, Codable, CaseIterable, Sendable, Identifiable {
     case ghd
     case stabilityBall = "stability-ball"
     case jumpRope = "jump-rope"
+    case assistedMachine = "assisted-pullup-dip"
+    case reverseHyper = "reverse-hyper"
+    case curlMachine = "biceps-curl-machine"
+    case tricepsMachine = "triceps-machine"
+    case dipBelt = "dip-belt"
     public var id: String { rawValue }
 }
 
