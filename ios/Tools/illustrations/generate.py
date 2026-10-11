@@ -28,11 +28,13 @@ import art  # noqa: E402
 IOS = HERE.parent.parent
 CATALOG = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercises+Catalog.swift"
 TRAVEL = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercises+Travel.swift"
+VARIATIONS = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercises+Variations.swift"
 ASSETS = IOS / "MonkeyWorkout/Resources/Illustrations.xcassets"
 SWIFT_OUT = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercise+Illustrations.swift"
 LEDGER = IOS / "EXERCISE_MEDIA.md"
 
-SCENE_MODULES = ["scenes", "scenes_lower", "scenes_upper", "scenes_arms_core", "scenes_power", "scenes_mobility"]
+SCENE_MODULES = ["scenes", "scenes_lower", "scenes_upper", "scenes_arms_core", "scenes_power", "scenes_mobility",
+                 "scenes_var_lower", "scenes_var_push", "scenes_var_pull", "scenes_var_core"]
 FRAMES = 3
 SIZE = (720, 540)
 
@@ -43,7 +45,7 @@ GRADIENT = {"warmup": ("#FF8A00", "#FFC93D"), "power": ("#FF2D55", "#FF6FB5"),
 
 
 def catalog():
-    src = CATALOG.read_text() + TRAVEL.read_text()
+    src = CATALOG.read_text() + TRAVEL.read_text() + VARIATIONS.read_text()
     out = {}
     for m in re.finditer(r'Exercise\(id: "([^"]+)", name: "([^"]+)", category: \.(\w+), pattern: \.[\w`]+, '
                          r'primary: \[([^\]]*)\](?:, secondary: \[([^\]]*)\])?', src):

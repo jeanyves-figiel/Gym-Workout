@@ -71,6 +71,7 @@ extension CustomWorkout {
         let pools: [MuscleGroup: [Exercise]] = Dictionary(uniqueKeysWithValues: groups.map { g in
             (g, Exercise.catalog.filter { e in
                 e.category == .strength && e.level <= level && Selector.isAvailable(e, equipment)
+                    && !Exercise.libraryOnlyIds.contains(e.id)
                     && e.primary.contains { $0.group == g }
             })
         })
