@@ -84,7 +84,7 @@ struct WeekView: View {
             }
         }
         .sheet(isPresented: $varying) {
-            VariationSheet(days: Set(model.variableSessions.map(\.id)))
+            VariationSheet(days: Set(model.variableSessions.map(\.id)), keep: model.keptSwapUids)
         }
         .fullScreenCover(item: $playing) { s in WorkoutPlayerView(sessionId: s.id) }
         .refreshable { await model.sync() }

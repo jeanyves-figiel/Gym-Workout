@@ -65,8 +65,10 @@ struct VariationSheet: View {
     @State private var seed = UInt32.random(in: 0...UInt32.max)
     @State private var confirmReset = false
 
-    init(days: Set<String>) {
+    /// `keep`: items locked at start (exercises the member swapped and kept, #101).
+    init(days: Set<String>, keep: Set<String> = []) {
         _days = State(initialValue: days)
+        _keep = State(initialValue: keep)
     }
 
     private var request: VaryRequest { VaryRequest(sessions: days, parts: parts, keep: keep, seed: seed) }
