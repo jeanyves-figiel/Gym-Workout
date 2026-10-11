@@ -115,6 +115,14 @@ private struct DemoScreen: View {
         case "community-profile": NavigationStack { CommunityProfileView() }
         case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", Demo.customExercise.exerciseId]) { _ in }
         case "builder": CustomExerciseBuilderView(existing: Demo.customExercise)
+        case "generate":
+            MuscleWorkoutGeneratorSheet(profile: model.profile ?? Profile(),
+                                        options: MuscleWorkoutOptions(profile: model.profile ?? Profile(), groups: [.chest, .back]),
+                                        replacing: false) { _, _ in }
+        case "generated":
+            CustomWorkoutEditor(initial: CustomWorkout.generate(
+                MuscleWorkoutOptions(groups: [.chest, .back], minutes: 60, rest: .short, grouping: .supersets),
+                profile: model.profile ?? Profile(), seed: 7))
         case "onboarding", "onboarding-climbing":
             NavigationStack {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
