@@ -69,7 +69,7 @@ struct SwapExerciseSheet: View {
             .navigationTitle("Swap exercise")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                CloseToolbarItem { dismiss() }
             }
             .sheet(isPresented: $searching, onDismiss: {
                 if let picked { apply(picked) }

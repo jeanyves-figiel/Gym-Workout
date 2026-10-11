@@ -28,7 +28,12 @@ export interface Config {
   /** APNs token auth (.p8 with Apple Push Notifications service enabled). Unset → remote push skipped (#69). */
   apns: { teamId?: string; keyId?: string; privateKey?: string };
   /** In-app subscriptions (#126). SUBSCRIPTIONS=off|preview|enforced (default off: nothing shown or locked). */
-  subscriptions: { mode: 'off' | 'preview' | 'enforced'; productIds: string[] };
+  subscriptions: {
+    mode: 'off' | 'preview' | 'enforced';
+    productIds: string[];
+    /** SUBSCRIPTION_TESTS=on (staging only): fake purchases without Apple and a per-account mode, for testing Pro. */
+    tests: boolean;
+  };
   /** Who runs the app, shown on /privacy, /terms and /support (#125). Unset → placeholder text the owner must fill. */
   legal: { operator?: string; address?: string; email?: string; law: string; venue?: string };
 }
@@ -96,6 +101,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean),
+      tests: env.SUBSCRIPTION_TESTS === 'on',
     },
     legal: {
       operator: env.LEGAL_OPERATOR || undefined,

@@ -19,6 +19,9 @@ primary_region = 'fra'
   LEGAL_EMAIL = 'contact@monkeygrade.cloud'
   LEGAL_LAW = 'Switzerland'
   LEGAL_VENUE = 'Zurich, Switzerland'
+  # Pro test mode (#126): fake purchases without Apple + per-account Pro mode (Account → MonkeyWorkout Pro → Staging test).
+  # SUBSCRIPTIONS stays off here, so testers see nothing unless they opt in. Never set on production.
+  SUBSCRIPTION_TESTS = 'on'
 
 # SQLite lives on this volume → exactly one machine.
 [mounts]

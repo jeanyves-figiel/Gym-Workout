@@ -31,27 +31,41 @@ struct CommunityView: View {
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle(community.loaded && community.profile == nil ? "Join the community" : "Community")
         .toolbarTitleDisplayMode(.inlineLarge)
-        .toolbar {
-            if let p = community.profile {
-                ToolbarItem(placement: .topBarLeading) {
-                    NavigationLink { CommunityProfileView() } label: {
-                        AvatarView(url: model.api.resolve(p.avatarUrl), nickname: p.nickname, size: 32)
-                    }
-                    .accessibilityLabel("Your community profile")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { composing = true } label: { Image(systemName: "plus.circle.fill").font(.title2) }
-                        .accessibilityLabel("Share a win")
-                }
-            }
-        }
+        // Member feed draws its own header (#151): system toolbar items stretched into a capsule over the title.
+        .toolbar(community.profile == nil ? .automatic : .hidden, for: .navigationBar)
         .sheet(isPresented: $composing) { ShareWinView() }
         .navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) }
+    }
+
+    /// Title, Share a win and your round profile picture (opens your profile directly).
+    private var header: some View {
+        HStack(spacing: 12) {
+            Text("Community").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
+            Spacer(minLength: 4)
+            Button { composing = true } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 18, weight: .heavy))
+                    .foregroundStyle(.black)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(Theme.lime))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Share a win")
+            if let p = community.profile {
+                NavigationLink { CommunityProfileView() } label: {
+                    AvatarView(url: model.api.resolve(p.avatarUrl), nickname: p.nickname, size: 40)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Your community profile")
+            }
+        }
+        .padding(.top, 4)
     }
 
     private var feed: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
+                header
                 CommunityGymCard()
                 FindMembersCard()
                 Picker("Feed", selection: $scope) {

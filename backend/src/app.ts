@@ -90,6 +90,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
     now,
     mode: deps.config.subscriptions.mode,
     productIds: deps.config.subscriptions.productIds,
+    tests: deps.config.subscriptions.tests,
     bundleIds: deps.config.appleBundleIds,
     log: warn,
   });

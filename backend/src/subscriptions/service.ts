@@ -24,6 +24,8 @@ export interface Entitlement {
   grant?: { until?: string };
   /** Product ids the app offers (CHF 2/week, 6/month, 60/year). */
   products: string[];
+  /** Present only with SUBSCRIPTION_TESTS=on (staging): fake purchases allowed; `mode` = this account's override. */
+  test?: { mode?: SubscriptionMode };
 }
 
 interface SubRow {
@@ -49,6 +51,8 @@ export interface SubscriptionDeps {
   mode: SubscriptionMode;
   productIds: string[];
   bundleIds: string[];
+  /** Staging only: fake purchases (environment `Test`) and a per-account mode override. */
+  tests?: boolean;
   log?: (m: string) => void;
 }
 
@@ -64,7 +68,9 @@ export class SubscriptionService {
 
   entitlement(userId: string): Entitlement {
     const now = this.d.now().toISOString();
-    const base = { mode: this.d.mode, products: this.d.productIds };
+    const testMode = this.d.tests ? this.testMode(userId) : undefined;
+    const mode = testMode ?? this.d.mode;
+    const base = { mode, products: this.d.productIds, ...(this.d.tests ? { test: { mode: testMode } } : {}) };
     const grant = this.d.db.prepare('SELECT expires_at FROM access_grants WHERE user_id = ?').get(userId) as { expires_at: string | null } | undefined;
     const subs = this.d.db
       .prepare('SELECT * FROM app_store_subscriptions WHERE user_id = ? AND revoked_at IS NULL')
@@ -89,7 +95,7 @@ export class SubscriptionService {
       };
     if (grant && (!grant.expires_at || grant.expires_at > now))
       return { ...base, pro: true, access: true, source: 'grant', grant: { until: grant.expires_at ?? undefined }, expiresAt: grant.expires_at ?? undefined };
-    return { ...base, pro: false, access: this.d.mode !== 'enforced', source: 'none' };
+    return { ...base, pro: false, access: mode !== 'enforced', source: 'none' };
   }
 
   /** A StoreKit 2 transaction the app sent after a purchase / restore / Transaction.updates. */
@@ -190,6 +196,57 @@ export class SubscriptionService {
           now,
         );
     });
+  }
+
+  // ───────────── staging test mode (SUBSCRIPTION_TESTS=on): Pro without Apple
+
+  private testsOn() {
+    if (!this.d.tests) throw new ApiError(404, 'not_found', 'Test purchases are off on this server.');
+  }
+
+  private testMode(userId: string) {
+    const r = this.d.db.prepare('SELECT mode FROM subscription_tests WHERE user_id = ?').get(userId) as { mode: SubscriptionMode | null } | undefined;
+    return r?.mode ?? undefined;
+  }
+
+  /** This account sees Pro as off / preview / enforced; null follows the server. */
+  setTestMode(userId: string, mode: SubscriptionMode | null) {
+    this.testsOn();
+    this.d.db
+      .prepare('INSERT INTO subscription_tests (user_id, mode, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET mode = excluded.mode, updated_at = excluded.updated_at')
+      .run(userId, mode, this.d.now().toISOString());
+    return this.entitlement(userId);
+  }
+
+  /** Fake purchase: a subscription starts with its free week, Lifetime never expires. One test purchase per account. */
+  testPurchase(userId: string, productId: string) {
+    this.testsOn();
+    if (!this.d.productIds.includes(productId)) throw new ApiError(400, 'unknown_product', 'Unknown product.');
+    const now = this.d.now();
+    const lifetime = productId.endsWith('.lifetime');
+    const id = `test-${userId}`;
+    this.d.db
+      .prepare(
+        `INSERT INTO app_store_subscriptions (original_transaction_id, user_id, product_id, last_transaction_id, environment, purchased_at,
+           expires_at, revoked_at, trial, auto_renew, grace_expires_at, signed_at, updated_at)
+         VALUES (?, ?, ?, ?, 'Test', ?, ?, NULL, ?, ?, NULL, ?, ?)
+         ON CONFLICT(original_transaction_id) DO UPDATE SET product_id = excluded.product_id, last_transaction_id = excluded.last_transaction_id,
+           purchased_at = excluded.purchased_at, expires_at = excluded.expires_at, revoked_at = NULL, trial = excluded.trial,
+           auto_renew = excluded.auto_renew, grace_expires_at = NULL, signed_at = excluded.signed_at, updated_at = excluded.updated_at`,
+      )
+      .run(id, userId, productId, `${id}-${now.getTime()}`, now.toISOString(),
+        lifetime ? null : new Date(now.getTime() + 7 * 86_400_000).toISOString(), lifetime ? 0 : 1, lifetime ? null : 1,
+        now.toISOString(), now.toISOString());
+    return this.entitlement(userId);
+  }
+
+  /** Cancel = auto-renew off (stays Pro until the end date); end = gone now (back to Free). */
+  testCancel(userId: string, end: boolean) {
+    this.testsOn();
+    const id = `test-${userId}`;
+    if (end) this.d.db.prepare('DELETE FROM app_store_subscriptions WHERE original_transaction_id = ?').run(id);
+    else this.d.db.prepare('UPDATE app_store_subscriptions SET auto_renew = 0, updated_at = ? WHERE original_transaction_id = ?').run(this.d.now().toISOString(), id);
+    return this.entitlement(userId);
   }
 
   // ───────────── owner tools (admin CLI): free access for selected accounts
