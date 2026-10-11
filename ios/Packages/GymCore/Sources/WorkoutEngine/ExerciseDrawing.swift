@@ -329,11 +329,12 @@ public enum FigureHighlight: Sendable, Hashable {
             switch m {
             case .quads, .hamstrings, .adductors, .hipFlexors: .thigh
             case .glutes: .hipBlob
-            case .calves: .shin
-            case .chest, .abs, .obliques, .lowerBack, .upperBack, .lats: .torso
-            case .frontDelts, .sideDelts, .rearDelts, .rotatorCuff: .shoulderBlob
-            case .biceps, .triceps: .upperArm
-            case .forearms: .forearm
+            case .gluteMed: .hipBlob
+            case .calves, .soleus, .tibialis: .shin
+            case .chest, .abs, .lowerAbs, .deepCore, .obliques, .lowerBack, .upperBack, .lats, .serratus: .torso
+            case .frontDelts, .sideDelts, .rearDelts, .rotatorCuff, .traps: .shoulderBlob
+            case .biceps, .triceps, .brachialis: .upperArm
+            case .forearms, .forearmExtensors: .forearm
             }
         })
     }

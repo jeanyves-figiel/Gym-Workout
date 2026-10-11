@@ -24,12 +24,12 @@ extension Muscle: Identifiable {
     public var group: MuscleGroup {
         switch self {
         case .frontDelts, .sideDelts, .rearDelts, .rotatorCuff: .shoulders
-        case .chest: .chest
-        case .triceps, .biceps, .forearms: .arms
-        case .lats, .upperBack, .lowerBack: .back
-        case .abs, .obliques: .core
-        case .glutes, .hipFlexors, .adductors: .hips
-        case .quads, .hamstrings, .calves: .legs
+        case .chest, .serratus: .chest
+        case .triceps, .biceps, .brachialis, .forearms, .forearmExtensors: .arms
+        case .traps, .upperBack, .lats, .lowerBack: .back
+        case .abs, .lowerAbs, .obliques, .deepCore: .core
+        case .glutes, .gluteMed, .hipFlexors, .adductors: .hips
+        case .quads, .hamstrings, .calves, .soleus, .tibialis: .legs
         }
     }
 
@@ -40,10 +40,18 @@ extension Muscle: Identifiable {
         case .sideDelts: "Side delts"
         case .rearDelts: "Rear delts"
         case .rotatorCuff: "Rotator cuff"
-        case .upperBack: "Upper back"
+        case .upperBack: "Mid back"
         case .lowerBack: "Lower back"
         case .hipFlexors: "Hip flexors"
         case .abs: "Abs"
+        case .lowerAbs: "Lower abs"
+        case .deepCore: "Deep core"
+        case .gluteMed: "Glute med"
+        case .traps: "Upper traps"
+        case .forearms: "Forearm flexors"
+        case .forearmExtensors: "Forearm extensors"
+        case .calves: "Calves (gastrocnemius)"
+        case .serratus: "Serratus"
         default: rawValue.prefix(1).uppercased() + rawValue.dropFirst()
         }
     }
@@ -58,24 +66,33 @@ extension Muscle: Identifiable {
         case .rotatorCuff: "Stabilises the shoulder joint — key injury prevention for climbers."
         case .triceps: "Elbow extension: pushing, mantling, lock-offs at the top."
         case .biceps: "Elbow flexion: pulling, lock-offs."
-        case .forearms: "Grip and wrist control; extensors balance crimping."
+        case .forearms: "Finger and wrist flexors — grip, crimping, hanging."
+        case .forearmExtensors: "Open the hand and lift the wrist — balance crimping, protect the elbows."
+        case .brachialis: "Elbow flexion under the biceps — strongest in palms-down and neutral pulls."
         case .lats: "Pulling down and in — the main climbing pull muscle."
-        case .upperBack: "Scapular control and posture (traps, rhomboids)."
+        case .traps: "Shrug and lift the shoulder blades — carries, deadlifts, overhead lockout."
+        case .upperBack: "Mid and lower traps, rhomboids — pull the shoulder blades back and down, posture."
+        case .serratus: "Hold the shoulder blade on the ribs and reach — pressing, push-ups, shoulder health."
         case .lowerBack: "Spinal extension; protects the hinge."
-        case .abs: "Trunk stiffness — keeps feet on in steep terrain."
+        case .abs: "Rectus abdominis: trunk flexion and stiffness — keeps feet on in steep terrain."
+        case .lowerAbs: "Lower part of the same muscle as abs, emphasised by curling the pelvis up — leg raises, toe hooks."
+        case .deepCore: "Transverse abdominis: bracing corset under the abs — planks, dead bugs, heavy lifts."
         case .obliques: "Rotation and anti-rotation; flagging and twisting."
         case .glutes: "Hip extension and power — jumps, high-steps, rock-overs."
+        case .gluteMed: "Side of the hip: abduction and pelvis stability — single-leg work, knee tracking, drop-knees."
         case .hipFlexors: "Lifting the knee — high-steps and toe hooks."
         case .adductors: "Inner thigh — drop-knees, stemming, wide positions."
         case .quads: "Knee extension — squats, step-ups, jumps."
         case .hamstrings: "Knee flexion & hip extension — heel hooks, hinges."
-        case .calves: "Ankle push — jumping, standing on small footholds."
+        case .calves: "Gastrocnemius: ankle push with a straight knee — jumping, standing on small footholds."
+        case .soleus: "Deep calf, worked with a bent knee — endurance, ankle stability, Achilles health."
+        case .tibialis: "Front of the shin: lifts the foot — knee and ankle health, toe hooks."
         }
     }
 
     /// Whether the muscle is drawn on the front and/or back body view.
-    public var onFront: Bool { ![.rearDelts, .rotatorCuff, .triceps, .lats, .upperBack, .lowerBack, .glutes, .hamstrings].contains(self) }
-    public var onBack: Bool { ![.chest, .frontDelts, .biceps, .abs, .hipFlexors, .quads].contains(self) }
+    public var onFront: Bool { BodyMapLayout.muscles(.front).contains(self) }
+    public var onBack: Bool { BodyMapLayout.muscles(.back).contains(self) }
 }
 
 extension Category: CaseIterable, Identifiable {
