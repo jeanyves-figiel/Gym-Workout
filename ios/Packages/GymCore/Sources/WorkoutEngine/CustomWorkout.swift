@@ -13,17 +13,22 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         public var restSec: Int
         /// Optional calories for this exercise, as the user entered them.
         public var kcal: Int?
+        /// Superset / circuit letter (#119): items sharing it are done back to back, rest after the round.
+        /// Labels shown to the user come from `groupLabels` (renumbered, groups of one dropped).
+        public var group: String?
 
-        public init(id: UUID = UUID(), exerciseId: String, sets: Int = 3, reps: Int = 10, restSec: Int = 90, kcal: Int? = nil) {
+        public init(id: UUID = UUID(), exerciseId: String, sets: Int = 3, reps: Int = 10, restSec: Int = 90, kcal: Int? = nil,
+                    group: String? = nil) {
             self.id = id
             self.exerciseId = exerciseId
             self.sets = sets
             self.reps = reps
             self.restSec = restSec
             self.kcal = kcal
+            self.group = group
         }
 
-        enum CodingKeys: String, CodingKey { case id, exerciseId, sets, reps, restSec, kcal }
+        enum CodingKeys: String, CodingKey { case id, exerciseId, sets, reps, restSec, kcal, group }
 
         /// Lenient: records written by other app versions may miss fields.
         public init(from decoder: any Decoder) throws {
@@ -34,6 +39,7 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
             reps = try c.decodeIfPresent(Int.self, forKey: .reps) ?? 10
             restSec = try c.decodeIfPresent(Int.self, forKey: .restSec) ?? CustomWorkout.defaultRestSec
             kcal = try c.decodeIfPresent(Int.self, forKey: .kcal)
+            group = try? c.decodeIfPresent(String.self, forKey: .group)
         }
 
         /// Sensible starting prescription for a newly added exercise.
@@ -152,6 +158,7 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
             it.reps = it.reps.clamped(to: Self.repsRange)
             it.restSec = it.restSec.clamped(to: Self.restRange)
             it.kcal = it.kcal.map { $0.clamped(to: Self.kcalRange) }
+            it.group = it.group.map { String($0.prefix(8)) }
             return it
         }
         return w
@@ -178,12 +185,27 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
             guard let e = it.exercise else { return nil }
             return (item: it, exercise: e)
         }
+        let labels = groupLabels
+        // Per group letter: shared rest (the longest), rounds and the last member, which carries the rest.
+        var groupRest: [Character: Int] = [:]
+        var groupRounds: [Character: Int] = [:]
+        var groupSize: [Character: Int] = [:]
+        var lastOfGroup: [Character: UUID] = [:]
+        for pair in pairs {
+            guard let l = labels[pair.item.id]?.first else { continue }
+            groupRest[l] = max(groupRest[l] ?? 0, max(0, pair.item.restSec))
+            groupRounds[l] = max(groupRounds[l] ?? 1, max(1, pair.item.sets))
+            groupSize[l, default: 0] += 1
+            lastOfGroup[l] = pair.item.id
+        }
         let planned = pairs.map { pair -> PlannedExercise in
             let it = pair.item
             let e = pair.exercise
+            let label = labels[it.id]
+            let letter = label?.first
             let sets = max(1, it.sets)
             let reps = max(1, it.reps)
-            let rest = max(0, it.restSec)
+            let rest = letter.flatMap { groupRest[$0] } ?? max(0, it.restSec)
             let measure = Measure(e)
             let perSet: Double
             switch measure {
@@ -192,17 +214,57 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
             case .minutes: perSet = Double(reps) * 60
             }
             let work = perSet * Double(sets)
-            return PlannedExercise(
+            let kcalNote = it.kcal.map { "≈ \($0) kcal" }
+            guard let label, let letter else {
+                return PlannedExercise(
+                    uid: "\(sessionId)-\(it.id.uuidString.lowercased())", exerciseId: e.id, slot: e.pattern,
+                    prescription: Prescription(sets: sets, reps: measure.text(reps), restSec: rest, note: kcalNote),
+                    estSec: Int(work) + (sets - 1) * rest + 60)
+            }
+            // Grouped: work plus a short move per set; the round's rest (and the change-over) sits on the last member.
+            let size = groupSize[letter] ?? 2
+            let last = lastOfGroup[letter] == it.id
+            let rounds = groupRounds[letter] ?? sets
+            let groupNote = label.dropFirst() == "1"
+                ? (size == 2 ? "Superset" : "Circuit") + ": \(size) exercises back to back, rest after the round" : nil
+            var p = PlannedExercise(
                 uid: "\(sessionId)-\(it.id.uuidString.lowercased())", exerciseId: e.id, slot: e.pattern,
-                prescription: Prescription(sets: sets, reps: measure.text(reps), restSec: rest, note: it.kcal.map { "≈ \($0) kcal" }),
-                estSec: Int(work) + (sets - 1) * rest + 60)
+                prescription: Prescription(sets: sets, reps: measure.text(reps), restSec: rest,
+                                           note: [groupNote, kcalNote].compactMap { $0 }.joined(separator: " · ").nilIfEmpty),
+                estSec: Int(work) + 15 * sets + (last ? (rounds - 1) * rest + 60 : 0))
+            p.group = label
+            return p
         }
         let exercises = pairs.map { $0.exercise }
         let categories = Set(exercises.map { $0.category })
         let kind: BlockKind = categories.count == 1 ? Self.blockKind(categories.first!) : .strength
         let est = Int((Double(planned.reduce(0) { $0 + $1.estSec }) / 60).rounded())
+        let note: String? = labels.isEmpty ? nil
+            : "\(Set(groupSize.values).contains { $0 > 2 } ? "Circuits" : "Supersets"): same-letter exercises back to back (A1 → A2), rest after the round."
         return Session(id: sessionId, index: 0, focus: Self.focus(exercises), title: name, targetMin: est, estMin: est,
-                       blocks: [Block(kind: kind, title: kind.category.label, targetMin: est, items: planned)])
+                       blocks: [Block(kind: kind, title: kind.category.label, targetMin: est, items: planned, note: note)])
+    }
+
+    /// Superset / circuit labels by item ("A1", "A2", "B1", …): letters renumbered in order of appearance,
+    /// members numbered in list order; groups left with a single playable item are dropped.
+    public var groupLabels: [UUID: String] {
+        let playable = playableItems
+        var members: [String: [UUID]] = [:]
+        var order: [String] = []
+        for it in playable {
+            guard let g = it.group, !g.isEmpty else { continue }
+            if members[g] == nil { order.append(g) }
+            members[g, default: []].append(it.id)
+        }
+        var out: [UUID: String] = [:]
+        var letter = 0
+        for g in order {
+            guard let ids = members[g], ids.count > 1 else { continue }
+            let l = String(Character(Unicode.Scalar(UInt8(65 + letter % 26))))
+            letter += 1
+            for (n, id) in ids.enumerated() { out[id] = "\(l)\(n + 1)" }
+        }
+        return out
     }
 
     static func blockKind(_ c: Category) -> BlockKind {
@@ -220,7 +282,7 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
     static func focus(_ exercises: [Exercise]) -> Focus {
         guard !exercises.isEmpty else { return .upper }
         if exercises.allSatisfy({ $0.category == .cardio }) { return .conditioning }
-        let lowerMuscles: Set<Muscle> = [.glutes, .hipFlexors, .adductors, .quads, .hamstrings, .calves]
+        let lowerMuscles: Set<Muscle> = [.glutes, .gluteMed, .hipFlexors, .adductors, .quads, .hamstrings, .calves, .soleus, .tibialis]
         let lower = exercises.filter { e in e.primary.contains { lowerMuscles.contains($0) } }.count
         if lower * 3 >= exercises.count * 2 { return .lower }
         if lower * 3 <= exercises.count { return .upper }
@@ -241,7 +303,7 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
     public func duplicated(createdAt: Date = Date()) -> CustomWorkout {
         CustomWorkout(
             name: String("\(name) (copy)".prefix(Self.maxNameLength)),
-            items: items.map { Item(exerciseId: $0.exerciseId, sets: $0.sets, reps: $0.reps, restSec: $0.restSec, kcal: $0.kcal) },
+            items: items.map { Item(exerciseId: $0.exerciseId, sets: $0.sets, reps: $0.reps, restSec: $0.restSec, kcal: $0.kcal, group: $0.group) },
             createdAt: createdAt)
     }
 }
@@ -274,6 +336,10 @@ extension Exercise {
             return words.allSatisfy { haystack.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
         }
     }
+}
+
+extension String {
+    fileprivate var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 
 extension Comparable {

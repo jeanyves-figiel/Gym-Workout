@@ -72,6 +72,7 @@ struct LimeButton: View {
 struct WatchRootView: View {
     @Environment(WatchStore.self) private var store
     @State private var player: WatchPlayer?
+    @State private var locked = false
 
     var body: some View {
         if let live = store.live, player == nil {
@@ -80,7 +81,17 @@ struct WatchRootView: View {
             PlayerView(player: player) { self.player = nil }
         } else {
             NavigationStack {
-                HomeView { player = WatchPlayer(session: $0) }
+                // Pro (#126): starting on the Watch needs Pro; mirroring an iPhone workout stays free.
+                HomeView { s in if store.snapshot.pro == false { locked = true } else { player = WatchPlayer(session: s) } }
+            }
+            .sheet(isPresented: $locked) {
+                VStack(spacing: 8) {
+                    Image(systemName: "crown.fill").font(.title2).foregroundStyle(.yellow)
+                    Text("Apple Watch is Pro").font(.headline)
+                    Text("Unlock MonkeyWorkout Pro on your iPhone. Workouts started on the iPhone still show here.")
+                        .font(.footnote).multilineTextAlignment(.center).foregroundStyle(.secondary)
+                }
+                .padding()
             }
         }
     }

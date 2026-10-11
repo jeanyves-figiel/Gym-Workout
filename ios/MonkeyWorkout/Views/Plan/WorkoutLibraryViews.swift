@@ -102,6 +102,7 @@ extension AppModel {
 struct WorkoutLibrarySection: View {
     @Environment(AppModel.self) private var model
     @State private var editing: CustomWorkout?
+    @State private var gate: ProGate?
 
     private var preview: [LibraryEntry] { model.myLibrary + model.builtInLibrary }
 
@@ -110,7 +111,8 @@ struct WorkoutLibrarySection: View {
             HStack {
                 Text("Workout library").eyebrow()
                 Spacer()
-                Button { editing = CustomWorkout(name: "") } label: { Label("New", systemImage: "plus") }
+                ProBadge()
+                Button { ProStore.shared.run(.buildWorkout, $gate) { editing = CustomWorkout(name: "") } } label: { Label("New", systemImage: "plus") }
                     .font(Theme.label(13))
                     .foregroundStyle(Theme.lime)
             }
@@ -140,6 +142,7 @@ struct WorkoutLibrarySection: View {
             .buttonStyle(.plain)
         }
         .sheet(item: $editing) { w in CustomWorkoutEditor(initial: w) }
+        .proPaywall($gate)
     }
 }
 
@@ -197,6 +200,7 @@ struct WorkoutLibraryView: View {
     @State private var query = ""
     @State private var memberState: AppModel.SharedLibraryLoad?
     @State private var editing: CustomWorkout?
+    @State private var gate: ProGate?
 
     var body: some View {
         ScrollView {
@@ -218,12 +222,16 @@ struct WorkoutLibraryView: View {
                 }
                 if filter == .all || filter == .mine {
                     section("My workouts", entries(model.myLibrary)) {
-                        Button { editing = CustomWorkout(name: "") } label: {
-                            Label("Build your own workout", systemImage: "square.and.pencil")
-                                .font(Theme.label(15))
-                                .foregroundStyle(Theme.lime)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .card()
+                        Button { ProStore.shared.run(.buildWorkout, $gate) { editing = CustomWorkout(name: "") } } label: {
+                            HStack {
+                                Label("Build your own workout", systemImage: "square.and.pencil")
+                                    .font(Theme.label(15))
+                                    .foregroundStyle(Theme.lime)
+                                Spacer()
+                                ProBadge()
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .card()
                         }
                         .buttonStyle(.plain)
                     }
@@ -246,11 +254,12 @@ struct WorkoutLibraryView: View {
         .refreshable { memberState = await model.loadSharedLibrary(query: query) }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { editing = CustomWorkout(name: "") } label: { Image(systemName: "plus") }
+                Button { ProStore.shared.run(.buildWorkout, $gate) { editing = CustomWorkout(name: "") } } label: { Image(systemName: "plus") }
                     .accessibilityLabel("New workout")
             }
         }
         .sheet(item: $editing) { w in CustomWorkoutEditor(initial: w) }
+        .proPaywall($gate)
     }
 
     private func entries(_ list: [LibraryEntry]) -> [LibraryEntry] {
@@ -322,6 +331,7 @@ struct LibraryActionsPanel: View {
     @State private var confirmBlock = false
     @State private var confirmRemove = false
     @State private var notice: String?
+    @State private var gate: ProGate?
 
     var body: some View {
         if session.isPlanInsert {
@@ -387,7 +397,9 @@ struct LibraryActionsPanel: View {
     private func visibilityPicker(_ w: CustomWorkout) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Who can see it").eyebrow()
-            Picker("Visibility", selection: Binding(get: { w.visibility }, set: { model.setVisibility(w.id, $0) })) {
+            Picker("Visibility", selection: Binding(get: { w.visibility }, set: { v in
+                if v == .private { model.setVisibility(w.id, v) } else { ProStore.shared.run(.shareWorkout, $gate) { model.setVisibility(w.id, v) } }
+            })) {
                 ForEach(WorkoutVisibility.allCases) { v in Label(v.label, systemImage: v.symbol).tag(v) }
             }
             .pickerStyle(.segmented)
@@ -397,6 +409,7 @@ struct LibraryActionsPanel: View {
                 .font(.caption)
                 .foregroundStyle(w.hidden ? .orange : Theme.muted)
         }
+        .proPaywall($gate)
     }
 
     private func authorRow(_ s: SharedWorkout) -> some View {

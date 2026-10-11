@@ -15,7 +15,11 @@ struct RootView: View {
             case .signedIn:
                 if model.profile == nil {
                     NavigationStack {
-                        ProfileFormView(initial: nil) { model.applyProfile($0) }
+                        ProfileFormView(initial: nil) { p in
+                            model.applyProfile(p)
+                            // Pro (#126): one offer, right after the first plan, skippable. Never shown again at launch.
+                            model.offerPro = ProStore.shared.badged
+                        }
                             .navigationTitle("Your training")
                     }
                 } else {
@@ -56,6 +60,9 @@ struct MainTabView: View {
         // Community profile early so auto-share works for the first workout of the session.
         .task(id: model.user?.id) { await Community.shared.load(api: model.api, userId: model.user?.id) }
         .modifier(NotificationsHost())
+        .fullScreenCover(isPresented: Binding(get: { model.offerPro }, set: { model.offerPro = $0 })) {
+            NavigationStack { ProView(context: .onboarding) { model.offerPro = false } }
+        }
     }
 }
 
@@ -109,6 +116,9 @@ private struct DemoScreen: View {
         case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
         case "body": NavigationStack { BodyHealthView() }
         case "account": NavigationStack { AccountView() }
+        case "paywall", "pro": NavigationStack { ProView() }
+        case "pro-offer": NavigationStack { ProView(context: .onboarding) {} }
+        case "pro-gate": ProPaywallSheet(gate: .variation)
         case "account-profile": NavigationStack { PublicProfileView() }
         case "account-password": NavigationStack { ChangePasswordView(hasPassword: true) }
         case "account-email": NavigationStack { ChangeEmailView(currentEmail: Demo.user?.email, hasPassword: true) }
@@ -117,6 +127,14 @@ private struct DemoScreen: View {
         case "community-profile": NavigationStack { CommunityProfileView() }
         case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", Demo.customExercise.exerciseId]) { _ in }
         case "builder": CustomExerciseBuilderView(existing: Demo.customExercise)
+        case "generate":
+            MuscleWorkoutGeneratorSheet(profile: model.profile ?? Profile(),
+                                        options: MuscleWorkoutOptions(profile: model.profile ?? Profile(), groups: [.chest, .back]),
+                                        replacing: false) { _, _ in }
+        case "generated":
+            CustomWorkoutEditor(initial: CustomWorkout.generate(
+                MuscleWorkoutOptions(groups: [.chest, .back], minutes: 60, rest: .short, grouping: .supersets),
+                profile: model.profile ?? Profile(), seed: 7))
         case "onboarding", "onboarding-climbing":
             NavigationStack {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }

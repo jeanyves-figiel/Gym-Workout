@@ -27,6 +27,7 @@ struct WorkoutPlayerView: View {
     @State private var discarded = false
     @State private var formFor: Exercise?
     @State private var prFor: Exercise?
+    @State private var gate: ProGate?
     @State private var log = SetLogState()
     @State private var live = LiveWorkout()
 
@@ -71,6 +72,7 @@ struct WorkoutPlayerView: View {
         .preferredColorScheme(.dark)
         .sheet(item: $formFor) { FormSheet(exercise: $0) }
         .fullScreenCover(item: $prFor) { PRAttemptView(exerciseId: $0.id) }
+        .proPaywall($gate)
         .confirmationDialog("Leave workout?", isPresented: $closing, titleVisibility: .visible) {
             Button("Pause · resume later") { pauseAndClose() }
             Button("Finish & save now") { finish() }
@@ -122,7 +124,7 @@ struct WorkoutPlayerView: View {
                     VStack(alignment: .leading, spacing: 14) {
                         ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
                                          position: "\(index + 1)/\(steps.count)",
-                                         onAttemptPR: step.loggable ? { prFor = step.exercise } : nil) { formFor = step.exercise }
+                                         onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil) { formFor = step.exercise }
                             .id(step.item.uid)
                             .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
                         if let run = timed, run.uid == step.item.uid {

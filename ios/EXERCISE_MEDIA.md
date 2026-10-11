@@ -8,7 +8,7 @@ attribution required; the app still credits it). Illustrations are drawn by the 
 No video: no free-to-use (public domain / CC0 / CC-BY) video set covers this catalog consistently,
 so every exercise animates its two frames (start, end) instead.
 
-Photos: 133 · Illustrations: 62 · Total: 195
+Photos: 138 · Illustrations: 63 · Total: 201
 
 | Id | Exercise | Media | Source | License |
 |---|---|---|---|---|
@@ -189,6 +189,12 @@ Photos: 133 · Illustrations: 62 · Total: 195
 | `hip-abduction` | Machine hip abduction | Photo (2 frames) | [free-exercise-db `Thigh_Abductor`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Thigh_Abductor) | Public domain (Unlicense) |
 | `crunch-machine` | Plate-loaded seated crunch | Photo (2 frames) | [free-exercise-db `Ab_Crunch_Machine`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Ab_Crunch_Machine) | Public domain (Unlicense) |
 | `torso-rotation` | Seated torso rotation machine | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `barbell-shrug` | Barbell shrug | Photo (2 frames) | [free-exercise-db `Barbell_Shrug`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Barbell_Shrug) | Public domain (Unlicense) |
+| `db-shrug` | Dumbbell shrug | Photo (2 frames) | [free-exercise-db `Dumbbell_Shrug`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Dumbbell_Shrug) | Public domain (Unlicense) |
+| `reverse-curl` | Dumbbell reverse curl | Photo (2 frames) | [free-exercise-db `Standing_Dumbbell_Reverse_Curl`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Standing_Dumbbell_Reverse_Curl) | Public domain (Unlicense) |
+| `lying-leg-raise` | Lying leg raise | Photo (2 frames) | [free-exercise-db `Flat_Bench_Lying_Leg_Raise`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Flat_Bench_Lying_Leg_Raise) | Public domain (Unlicense) |
+| `monster-walk` | Band monster walk | Photo (2 frames) | [free-exercise-db `Monster_Walk`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Monster_Walk) | Public domain (Unlicense) |
+| `tib-raise` | Wall tibialis raise | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `bw-squat` | Bodyweight squat | Photo (2 frames) | [free-exercise-db `Bodyweight_Squat`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Bodyweight_Squat) | Public domain (Unlicense) |
 | `bw-split-squat` | Split squat (bodyweight) | Photo (2 frames) | [free-exercise-db `Split_Squats`](https://github.com/yuhonas/free-exercise-db/tree/f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5/exercises/Split_Squats) | Public domain (Unlicense) |
 | `bw-reverse-lunge` | Reverse lunge (bodyweight) | Illustration (2 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |

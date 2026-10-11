@@ -29,6 +29,12 @@ public enum Muscle: String, Codable, CaseIterable, Sendable {
     case abs, obliques, glutes
     case hipFlexors = "hip-flexors"
     case adductors, quads, hamstrings, calves
+    // Muscle audit (#112). Additive: raw values are persisted, older data decodes unchanged.
+    case traps, serratus, brachialis, tibialis, soleus
+    case forearmExtensors = "forearm-extensors"
+    case lowerAbs = "lower-abs"
+    case deepCore = "deep-core"
+    case gluteMed = "glute-med"
 
     public var label: String { rawValue.replacingOccurrences(of: "-", with: " ") }
 }
