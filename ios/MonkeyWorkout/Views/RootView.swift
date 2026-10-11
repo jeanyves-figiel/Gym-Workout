@@ -142,6 +142,12 @@ private struct DemoScreen: View {
         case "library-plan": AddToPlanSheet(workout: model.libraryWorkout(for: WorkoutTemplate.all[0].session) ?? Demo.customWorkouts[0])
         case "calendar": NavigationStack { CalendarView() }
         case "gyms": GymFinderView(place: "Zürich")
+        case "move": MoveSessionSheet(sessionId: second)
+        case "add-workout": AddWorkoutSheet()
+        case "day":
+            if let w = model.calendarWeeks(count: 1).first, let wd = w.plan.sessions.first(where: { $0.id == second })?.weekday {
+                DaySheet(selection: DaySelection(week: w, weekday: wd, current: true)) { _, _ in } onEdit: { _ in }
+            }
         case "away": AwayEditorView(initial: AwayPeriod(kind: .travel, start: Demo.away()[1].start, end: Demo.away()[1].end, note: "Berlin", setup: .hotelGym), isNew: true) { _ in }
         case "notifications": NavigationStack { NotificationSettingsView() }
         case "reschedule":

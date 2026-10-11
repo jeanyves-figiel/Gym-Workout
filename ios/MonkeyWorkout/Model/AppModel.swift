@@ -164,7 +164,7 @@ final class AppModel {
         // Per-workout styles (#106) are kept for a new variation or profile edit, dropped on a week change.
         let sp = SyncedProfile(profile: profile, seed: s, week: week, body: state.synced?.body, away: state.synced?.away,
                                planInserts: state.synced?.planInserts?.filter { $0.week == week },
-                               exerciseSwaps: state.synced?.exerciseSwaps, variation: variation,
+                               exerciseSwaps: state.synced?.exerciseSwaps, variation: variation, moves: state.synced?.moves,
                                sessionStyles: state.synced?.sessionStyles?.filter { $0.key.hasPrefix("w\(week)s") })
         state.synced = sp
         state.plan = Generator.generateWeek(sp.planProfile, week: week, seed: s)
@@ -206,8 +206,11 @@ final class AppModel {
             ?? sharedWorkout(sessionId: id)?.workout.session
     }
 
-    /// First session of the week not yet completed.
-    var nextSession: Session? { plan?.sessions.first { !(state.done[$0.id] ?? false) } }
+    /// First session of the week not yet completed, by day (moved and extra sessions included).
+    var nextSession: Session? {
+        plan?.sessions.enumerated().sorted { ($0.element.weekday ?? 8, $0.offset) < ($1.element.weekday ?? 8, $1.offset) }
+            .map(\.element).first { !(state.done[$0.id] ?? false) }
+    }
 
     var completedCount: Int { plan?.sessions.filter { state.done[$0.id] ?? false }.count ?? 0 }
 
