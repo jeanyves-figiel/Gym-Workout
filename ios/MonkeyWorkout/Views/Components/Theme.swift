@@ -55,23 +55,6 @@ extension WorkoutEngine.Category {
     }
 }
 
-extension MuscleGroup {
-    /// Explore muscle cards: one vivid gradient per body region.
-    var colors: [Color] {
-        switch self {
-        case .shoulders: WorkoutEngine.Category.power.colors
-        case .chest: WorkoutEngine.Category.warmup.colors
-        case .arms: WorkoutEngine.Category.strength.colors
-        case .back: WorkoutEngine.Category.cardio.colors
-        case .core: WorkoutEngine.Category.mobility.colors
-        case .hips: WorkoutEngine.Category.stretch.colors
-        case .legs: [hex(0xFF5E3A), hex(0xFFB23D)]
-        }
-    }
-
-    var gradient: LinearGradient { LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing) }
-}
-
 extension BlockKind {
     var gradient: LinearGradient { category.gradient }
     var symbol: String { category.symbol }
