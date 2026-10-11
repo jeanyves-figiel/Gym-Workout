@@ -15,6 +15,7 @@ struct MonkeyWorkoutApp: App {
                 .environment(model)
                 .environment(lock)
                 .environment(health)
+                .environment(\.bodyFigure, model.bodyFigure)
                 .task {
                     await model.bootstrap()
                     WatchSync.shared.start(model: model, health: health)

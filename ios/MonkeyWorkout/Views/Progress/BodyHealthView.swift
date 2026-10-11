@@ -13,6 +13,8 @@ struct BodyHealthView: View {
     @State private var sex: BodyMetrics.Sex?
     @State private var gender: BodyMetrics.Gender?
     @State private var genderText = ""
+    /// Picked body figure (#110); nil = suggested from sex until the user picks.
+    @State private var figure: BodyFigure?
     @State private var writeToHealth = true
     @State private var loaded = false
     @FocusState private var focus: Metric?
@@ -57,6 +59,12 @@ struct BodyHealthView: View {
                 }
                 ErrorText(message: health.error)
                 AccountNote(text: "Reads weight, height, age, sex, resting heart rate, HRV, VO₂max, sleep, heart rate during sessions and climbing workouts. Writes your sessions and, if you choose, weight and height. Health data stays on this iPhone.")
+
+                section("Body figure")
+                BodyFigurePicker(selection: Binding(
+                    get: { figure ?? BodyMetrics.suggestedFigure(sex: snap.sex ?? sex) },
+                    set: { figure = $0 }))
+                AccountNote(text: "The figure drawn on muscle maps. Display only: separate from gender and sex below.")
 
                 section("Body")
                 metricCard(.height, title: "Height", symbol: "ruler.fill", unit: "cm", gradient: WorkoutEngine.Category.strength.gradient,
@@ -182,6 +190,7 @@ struct BodyHealthView: View {
         sex = b.sex
         gender = b.gender
         genderText = b.genderDescription ?? ""
+        figure = b.figure
     }
 
     private func number(_ s: String) -> Double? { Double(s.replacingOccurrences(of: ",", with: ".")) }
@@ -195,6 +204,7 @@ struct BodyHealthView: View {
         b.gender = gender
         let described = genderText.trimmingCharacters(in: .whitespacesAndNewlines)
         b.genderDescription = gender == .selfDescribe && !described.isEmpty ? String(described.prefix(60)) : nil
+        b.figure = figure
         model.saveBody(b)
         if health.connected && writeToHealth {
             var toHealth = BodyMetrics()

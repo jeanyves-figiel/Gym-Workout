@@ -203,6 +203,13 @@ final class AppModel {
         return load.mapValues { $0 / max(mx, 1e-9) }
     }
 
+    /// Weekly working sets (power + strength blocks) in the current plan.
+    var weeklyWorkingSets: Int {
+        guard let plan else { return 0 }
+        return plan.sessions.flatMap { $0.blocks.filter { [BlockKind.power, .strength].contains($0.kind) }.flatMap(\.items) }
+            .reduce(0) { $0 + $1.prescription.sets }
+    }
+
     /// Weekly working sets where `muscle` is a primary mover.
     func weeklySets(for muscle: Muscle) -> Int {
         guard let plan else { return 0 }
@@ -232,6 +239,15 @@ final class AppModel {
     // MARK: Body & history
 
     var body: BodyMetrics { state.synced?.body ?? BodyMetrics() }
+
+    /// Figure on every body map (#110): the user's pick, else suggested from sex.
+    var bodyFigure: BodyMapLayout.Figure { body.figure ?? BodyMetrics.suggestedFigure(sex: body.sex) }
+
+    func setBodyFigure(_ figure: BodyMapLayout.Figure) {
+        var b = body
+        b.figure = figure
+        saveBody(b)
+    }
 
     func saveBody(_ body: BodyMetrics) {
         guard state.synced != nil else { return }
