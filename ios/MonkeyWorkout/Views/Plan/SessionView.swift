@@ -42,7 +42,7 @@ struct SessionView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     // Opaque bar (as on the profile form): content ends above the button instead of sliding under it.
-                    .background(Theme.bg.opacity(0.92).ignoresSafeArea())
+                    .background(Theme.bg.ignoresSafeArea())
             }
             .standaloneWorkoutActions(session)
             .fullScreenCover(isPresented: $playing) { WorkoutPlayerView(sessionId: session.id) }

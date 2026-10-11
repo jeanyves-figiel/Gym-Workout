@@ -486,9 +486,9 @@ struct AddToPlanSheet: View {
                         onDone(pickedExtra ? "Added to this week." : "Placed into this week's plan.")
                         dismiss()
                     }
-                    .buttonStyle(LimeButtonStyle())
-                    .disabled(!pickedExtra && replacing == nil)
-                    .opacity(!pickedExtra && replacing == nil ? 0.5 : 1)
+                    .buttonStyle(LimeButtonStyle(fill: canConfirm ? Theme.lime : Theme.cardStrong,
+                                                 text: canConfirm ? Theme.ink : Color.white.opacity(0.6)))
+                    .disabled(!canConfirm)
                     .padding(.top, 10)
                 }
                 .padding(16)
@@ -500,6 +500,8 @@ struct AddToPlanSheet: View {
         }
         .presentationDetents([.large])
     }
+
+    private var canConfirm: Bool { pickedExtra || replacing != nil }
 
     private var confirmTitle: String {
         if pickedExtra { return "Add extra session" }
