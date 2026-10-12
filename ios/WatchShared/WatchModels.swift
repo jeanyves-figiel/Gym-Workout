@@ -21,6 +21,9 @@ struct WatchSnapshot: Codable, Equatable {
     var progress = WProgress()
     /// MonkeyWorkout Pro (#126): false = starting workouts on the Watch is locked. nil (older phone app) = allowed.
     var pro: Bool?
+    /// Watch home style (#219) picked on the iPhone or the Watch, and when; nil = default (coach).
+    var homeStyle: WatchHomeStyle?
+    var homeStyleChangedAt: Date?
 
     func session(_ id: String) -> WSession? { (sessions + extras).first { $0.id == id } }
 }
@@ -92,11 +95,55 @@ struct WRecent: Codable, Equatable, Hashable {
     var sets: Int
 }
 
+/// Watch home screen styles (#219); the member picks one on the iPhone or the Watch.
+enum WatchHomeStyle: String, Codable, CaseIterable, Identifiable {
+    case coach, deck, rings
+
+    static let `default` = WatchHomeStyle.coach
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .coach: "Monkey coach"
+        case .deck: "Crown deck"
+        case .rings: "Charge & go"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .coach: "Your monkey cheers you on. Tap it for your streak, next PR and week."
+        case .deck: "One card per day. Turn the Digital Crown to flip through your week."
+        case .rings: "Week, streak and readiness rings. Press and hold to start."
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .coach: "face.smiling.inverse"
+        case .deck: "rectangle.stack.fill"
+        case .rings: "circle.circle.fill"
+        }
+    }
+
+    /// Card gradient as 0xRRGGBB pairs.
+    var tint: (UInt32, UInt32) {
+        switch self {
+        case .coach: (0xB23DFF, 0xFF3DA8)
+        case .deck: (0x1E9BFF, 0x3DFFB0)
+        case .rings: (0xFF7A3D, 0xFF3D5A)
+        }
+    }
+}
+
 /// Watch → phone, queued with `transferUserInfo` so nothing is lost while the phone is away.
 enum WatchEvent: Codable, Equatable {
     case setLogged(sessionId: String, exerciseId: String, setIndex: Int, kg: Double, reps: Int, rir: Int?)
     case itemDone(uid: String)
     case finished(WFinished)
+    /// Home style picked on the Watch (#219).
+    case homeStyle(WatchHomeStyle, changedAt: Date)
 }
 
 struct WFinished: Codable, Equatable {

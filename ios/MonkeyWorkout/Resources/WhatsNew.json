@@ -1,11 +1,11 @@
 {
-  "id": "2026-10-12.5",
+  "id": "2026-10-12.6",
   "items": [
     {
-      "symbol": "bolt.heart.fill",
-      "tint": "cardio",
-      "title": "Week and readiness in one card",
-      "body": "Train shows your week and today's readiness together: the readiness pill sits inside the week card, tap it for the details. No Health yet? Connect it right there."
+      "symbol": "applewatch",
+      "tint": "power",
+      "title": "Pick your Apple Watch home",
+      "body": "Three fun home screens for your Watch: Monkey coach cheers you on, Crown deck flips through your week, Charge & go starts with a press and hold. Change it in Account → Apple Watch or on the Watch."
     }
   ]
 }

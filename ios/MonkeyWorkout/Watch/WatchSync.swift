@@ -7,6 +7,31 @@ extension Notification.Name {
     static let watchCommand = Notification.Name("watchCommand")
 }
 
+/// Watch home style (#219), picked on the iPhone (Account → Apple Watch) or on the Watch; the latest change wins.
+@MainActor @Observable
+final class WatchHomePref {
+    static let shared = WatchHomePref()
+    private static let key = "watchHomeStyle"
+    private static let dateKey = "watchHomeStyleChangedAt"
+
+    private(set) var style: WatchHomeStyle
+    private(set) var changedAt: Date?
+
+    private init() {
+        style = UserDefaults.standard.string(forKey: Self.key).flatMap(WatchHomeStyle.init) ?? .default
+        changedAt = UserDefaults.standard.object(forKey: Self.dateKey) as? Date
+    }
+
+    func set(_ new: WatchHomeStyle, at date: Date = Date()) {
+        if let changedAt, date <= changedAt { return }
+        style = new
+        changedAt = date
+        UserDefaults.standard.set(new.rawValue, forKey: Self.key)
+        UserDefaults.standard.set(date, forKey: Self.dateKey)
+        WatchSync.shared.push()
+    }
+}
+
 /// iPhone side of the Watch companion (#56): sends plan/progress snapshots and the live player state,
 /// applies sets and workouts logged on the Watch, and forwards Watch remote-control commands to the player.
 @MainActor
@@ -65,6 +90,8 @@ final class WatchSync: NSObject {
             model.logSet(exerciseId: exerciseId, sessionId: sessionId, setIndex: setIndex, kg: kg, reps: reps, rir: rir)
         case let .itemDone(uid):
             model.setTicked(uid)
+        case let .homeStyle(style, changedAt):
+            WatchHomePref.shared.set(style, at: changedAt)
         case let .finished(f):
             guard !handled.contains(f.id), let session = model.session(f.sessionId) else { return }
             handled.insert(f.id)
@@ -99,6 +126,8 @@ final class WatchSync: NSObject {
         s.nextSessionId = model.nextSession?.id
         s.readiness = readiness
         s.pro = !ProStore.shared.locked
+        s.homeStyle = WatchHomePref.shared.style
+        s.homeStyleChangedAt = WatchHomePref.shared.changedAt
         let target = model.profile?.sessionsPerWeek ?? 3
         let stats = Progression.stats(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
         s.progress = WProgress(

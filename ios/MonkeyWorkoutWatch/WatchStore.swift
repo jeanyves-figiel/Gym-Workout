@@ -11,12 +11,22 @@ final class WatchStore: NSObject {
     /// iPhone player state while a workout runs on the phone.
     var live: WLive?
     var reachable = false
+    /// Home style picked on this Watch (#219) and when; the phone's pick in the snapshot wins when newer.
+    private var localStyle = UserDefaults.standard.string(forKey: "homeStyle").flatMap(WatchHomeStyle.init)
+    private var localStyleAt = UserDefaults.standard.object(forKey: "homeStyleAt") as? Date
 
     private static let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("snapshot.json")
 
     override init() {
         snapshot = (try? Data(contentsOf: Self.url)).flatMap { try? JSONDecoder.watch.decode(WatchSnapshot.self, from: $0) } ?? WatchSnapshot()
         super.init()
+        #if DEBUG
+        if Demo.on {
+            snapshot = Demo.snapshot
+            if let s = Demo.homeStyle { localStyle = s; localStyleAt = .distantFuture }
+            return
+        }
+        #endif
         // Complications (#190) read the App Group copy; seed it from a snapshot synced before they existed.
         if hasPlan, SharedSnapshot.load() == nil { save() }
         guard WCSession.isSupported() else { return }
@@ -26,6 +36,24 @@ final class WatchStore: NSObject {
 
     var hasPlan: Bool { !snapshot.sessions.isEmpty || !snapshot.extras.isEmpty }
     var next: WSession? { snapshot.nextSessionId.flatMap(snapshot.session) ?? snapshot.sessions.first { !$0.done } }
+
+    var homeStyle: WatchHomeStyle {
+        let remoteAt = snapshot.homeStyleChangedAt ?? .distantPast
+        if let localStyle, (localStyleAt ?? .distantPast) >= remoteAt { return localStyle }
+        return snapshot.homeStyle ?? localStyle ?? .default
+    }
+
+    func setHomeStyle(_ style: WatchHomeStyle) {
+        let now = Date()
+        localStyle = style
+        localStyleAt = now
+        UserDefaults.standard.set(style.rawValue, forKey: "homeStyle")
+        UserDefaults.standard.set(now, forKey: "homeStyleAt")
+        #if DEBUG
+        if Demo.on { return }
+        #endif
+        send(.homeStyle(style, changedAt: now))
+    }
 
     func send(_ event: WatchEvent) {
         guard WCSession.isSupported(), let data = try? JSONEncoder.watch.encode(event) else { return }
