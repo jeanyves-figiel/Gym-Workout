@@ -237,6 +237,16 @@ private struct DemoScreen: View {
         case let g where g.hasPrefix("game-session"): NavigationStack { SessionView(sessionId: second) }
         case let g where g.hasPrefix("game-done"): WorkoutPlayerView(sessionId: second, demoMode: "done")
         case let g where g.hasPrefix("game-progress"): NavigationStack { ProgressTabView() }
+        case "game-quest-deck":
+            NavigationStack {
+                ScrollView {
+                    if let plan = model.plan {
+                        QuestMap(sessions: plan.sessions, days: [:]) { _, _ in EmptyView() }.padding(16)
+                    }
+                }
+                .background(Theme.bg.ignoresSafeArea())
+                .navigationTitle("Week quest")
+            }
         case "reschedule":
             MissedSessionSheet(sessionId: second, day: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
         default: MainTabView()
