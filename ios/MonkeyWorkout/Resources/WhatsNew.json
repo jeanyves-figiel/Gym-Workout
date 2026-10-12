@@ -2,6 +2,12 @@
   "id": "2026-10-12.6",
   "items": [
     {
+      "symbol": "ruler.fill",
+      "tint": "power",
+      "title": "Help with every measurement",
+      "body": "Tap ? on any measurement to see where the tape goes, with steps and a tip. Or tap Measure with me to be guided through them one by one."
+    },
+    {
       "symbol": "applewatch",
       "tint": "power",
       "title": "Pick your Apple Watch home",

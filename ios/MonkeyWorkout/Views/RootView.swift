@@ -138,6 +138,18 @@ private struct DemoScreen: View {
         case "measurements": NavigationStack { MeasurementsView() }
         case "measurement-log": MeasurementLogSheet(initial: model.measurements.last ?? BodyMeasurement(date: Date()), isNew: false)
         case "measurement-detail": NavigationStack { MeasurementDetailView(metric: .girth(.upperArm)) }
+        case "measurement-howto": MeasurementHowToSheet(metric: .girth(.waist))
+        case "measurement-guide":
+            let last = model.measurements.last
+            MeasureGuideView(steps: ([.weight, .bodyFat] + GirthSite.allCases.map { BodyMetric.girth($0) }).map { metric in
+                let value: Double? = switch metric {
+                case .weight: last?.weightKg
+                case .bodyFat: last?.bodyFatPct
+                case let .girth(p): last?.girth(p)
+                case .leanMass: nil
+                }
+                return MeasureGuideView.Step(key: metric.id, metric: metric, last: value)
+            }, text: .constant(["waist": "78.5"]), index: 5)
         case "account": NavigationStack { AccountView() }
         case "paywall", "pro": NavigationStack { ProView() }
         case "pro-offer": NavigationStack { ProView(context: .onboarding) {} }
