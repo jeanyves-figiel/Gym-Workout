@@ -21,10 +21,14 @@ struct MonkeyWorkoutApp: App {
                     await model.bootstrap()
                     WatchSync.shared.start(model: model, health: health)
                     await AppleCredentialCheck.verify(model)
+                }
+                .task {
+                    // Health reads in parallel with sign-in and sync (cached values already shown, #202).
                     #if DEBUG
                     if Demo.enabled { health.snapshot = Demo.health; return }
                     #endif
                     await health.refresh()
+                    WatchSync.shared.push()
                 }
                 .task {
                     // Apple ID stopped using Sign in with Apple for this app while it was running.

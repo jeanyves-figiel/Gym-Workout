@@ -1,29 +1,11 @@
 {
-  "id": "2026-10-12.4",
+  "id": "2026-10-12.5",
   "items": [
     {
-      "symbol": "target",
-      "tint": "strength",
-      "title": "Your goal shapes your week",
-      "body": "Switching goal now changes this week's days, the mix of strength, power, mobility and cardio, and the exercises. Workouts you've done stay."
-    },
-    {
-      "symbol": "square.grid.3x1.below.line.grid.1x2.fill",
+      "symbol": "bolt.heart.fill",
       "tint": "cardio",
-      "title": "Bolder switchers",
-      "body": "Explore's Muscles, Categories and Workouts switcher is now colourful tiles with counts. Same look in Community and the workout builder."
-    },
-    {
-      "symbol": "applewatch.watchface",
-      "tint": "cardio",
-      "title": "Watch face complications",
-      "body": "Add MonkeyWorkout to any watch face, analog ones too: next workout, weekly goal, streak, week strip, readiness, top lift, last workout. Long-press the face, Edit, then pick MonkeyWorkout."
-    },
-    {
-      "symbol": "xmark.circle.fill",
-      "tint": "strength",
-      "title": "Close New exercise",
-      "body": "The ••• button on New exercise is gone: tap the X next to Save to close it."
+      "title": "Ready the moment you open it",
+      "body": "Readiness, weight and Health data show straight away at launch, no more Connect Apple Health card flashing while Health syncs."
     }
   ]
 }

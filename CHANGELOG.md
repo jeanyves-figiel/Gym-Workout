@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- **App ready at launch, no Apple Health flash** (#202): Train showed **Connect Apple Health** and no readiness for a few seconds after launch (Account → Body & Health showed no weight) until Health was read. The last Health values are now kept on the device (Application Support, never sent to the server) and shown on the first frame, then refreshed in the background; the Connect card only appears once Health is known to have no weight. Health is read alongside sign-in and sync instead of after them, and its ~20 queries run concurrently.
 - **New exercise: close button** (#196): the New / Edit exercise header showed a round **•••** button that did nothing and no close X (iOS 26 folded the leading X into an overflow menu next to the large title). The round **X** now sits top right next to **Save** and closes the sheet.
 
 ### Added
