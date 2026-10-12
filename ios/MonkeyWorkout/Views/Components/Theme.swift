@@ -338,3 +338,65 @@ struct FlowLayout: Layout {
         }
     }
 }
+
+/// One choice of a `GradientSegments` switcher.
+struct SegmentItem<Value: Hashable> {
+    let value: Value
+    let title: String
+    let symbol: String
+    var detail: String? = nil
+}
+
+/// Explore-style replacement for the grey segmented picker (#192): equal-width tiles with an icon tile,
+/// heavy title and optional count. The picked tile is a vivid gradient, the others dark cards.
+/// Four or more choices stack the icon over the title to stay readable.
+struct GradientSegments<Value: Hashable>: View {
+    @Binding var selection: Value
+    let items: [SegmentItem<Value>]
+    var gradient: LinearGradient = WorkoutEngine.Category.strength.gradient
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(items, id: \.value) { item in
+                let on = item.value == selection
+                Button {
+                    withAnimation(.snappy(duration: 0.25)) { selection = item.value }
+                } label: { tile(item, on: on) }
+                .buttonStyle(.plain)
+                .accessibilityLabel(item.detail.map { "\(item.title), \($0)" } ?? item.title)
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .sensoryFeedback(.selection, trigger: selection)
+    }
+
+    @ViewBuilder private func tile(_ item: SegmentItem<Value>, on: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        let icon = Image(systemName: item.symbol)
+            .font(.system(size: 13, weight: .bold))
+            .frame(width: 28, height: 28)
+            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.white.opacity(on ? 0.25 : 0.12)))
+        let text = VStack(alignment: items.count >= 4 ? .center : .leading, spacing: 0) {
+            Text(item.title).font(Theme.display(14))
+            if let detail = item.detail {
+                Text(detail).font(.system(size: 10, weight: .bold, design: .rounded)).opacity(0.85)
+            }
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+        Group {
+            if items.count >= 4 {
+                VStack(spacing: 5) { icon; text }
+                    .padding(.vertical, 8)
+            } else {
+                HStack(spacing: 7) { icon; text; Spacer(minLength: 0) }
+                    .padding(.leading, 7).padding(.trailing, 4).padding(.vertical, 7)
+            }
+        }
+        .foregroundStyle(on ? .white : .white.opacity(0.7))
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .background(shape.fill(on ? AnyShapeStyle(gradient) : AnyShapeStyle(Theme.card)))
+        .overlay(shape.strokeBorder(on ? Color.clear : Theme.stroke, lineWidth: 1))
+        .contentShape(shape)
+    }
+}

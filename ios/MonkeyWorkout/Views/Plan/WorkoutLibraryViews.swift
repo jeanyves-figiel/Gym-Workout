@@ -415,12 +415,9 @@ struct LibraryActionsPanel: View {
     private func visibilityPicker(_ w: CustomWorkout) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Who can see it").eyebrow()
-            Picker("Visibility", selection: Binding(get: { w.visibility }, set: { v in
+            GradientSegments(selection: Binding(get: { w.visibility }, set: { v in
                 if v == .private { model.setVisibility(w.id, v) } else { ProStore.shared.run(.shareWorkout, $gate) { model.setVisibility(w.id, v) } }
-            })) {
-                ForEach(WorkoutVisibility.allCases) { v in Label(v.label, systemImage: v.symbol).tag(v) }
-            }
-            .pickerStyle(.segmented)
+            }), items: WorkoutVisibility.allCases.map { SegmentItem(value: $0, title: $0.label, symbol: $0.symbol) })
             Text(w.hidden
                  ? "Hidden from members after reports, pending review."
                  : w.visibility == .private ? "Only you see it." : "Members can find it in their library, start it and save a copy.")
