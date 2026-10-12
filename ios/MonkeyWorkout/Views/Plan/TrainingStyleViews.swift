@@ -108,11 +108,13 @@ struct StyleCard: View {
                     Text(subtitle).font(.footnote.weight(.semibold)).opacity(0.85)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .layoutPriority(1)
                 Spacer(minLength: 4)
                 VStack(alignment: .trailing, spacing: 0) {
                     Text(big.value).font(Theme.display(26)).lineLimit(1).minimumScaleFactor(0.6)
-                    Text(big.unit).font(Theme.label(9)).tracking(1.2).opacity(0.8)
+                    Text(big.unit).font(Theme.label(9)).tracking(1.2).opacity(0.8).lineLimit(1).minimumScaleFactor(0.7)
                 }
+                .frame(maxWidth: 96, alignment: .trailing)
             }
             .foregroundStyle(.white)
             .padding(16)
