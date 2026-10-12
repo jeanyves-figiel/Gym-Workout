@@ -161,6 +161,13 @@ struct AccountView: View {
                 ErrorText(message: exportTask.error)
 
                 section("Legal & support")
+                if let notes = WhatsNew.current {
+                    NavigationLink { WhatsNewView(notes: notes) } label: {
+                        AccountCard(symbol: "sparkles", title: "What's new", subtitle: "Latest improvements in this version",
+                                    gradient: AccountTint.whatsNew)
+                    }
+                    .buttonStyle(.plain)
+                }
                 legalCard(symbol: "hand.raised.fill", title: "Privacy policy",
                           subtitle: "What's stored, why, your rights", url: AppConfig.privacyURL, gradient: AccountTint.privacy)
                 legalCard(symbol: "doc.text.fill", title: "Terms of use",
