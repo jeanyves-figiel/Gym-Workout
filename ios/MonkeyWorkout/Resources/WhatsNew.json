@@ -18,6 +18,18 @@
       "tint": "power",
       "title": "Quick sessions your way",
       "body": "Pick 15 to 60 minutes and the muscles to focus on. Long-press a tile to add 30 minutes in one step."
+    },
+    {
+      "symbol": "building.2.fill",
+      "tint": "stretch",
+      "title": "Switch between your gyms",
+      "body": "Your gym keeps every gym you've used with its own equipment. Tap one to switch, also from Account."
+    },
+    {
+      "symbol": "hand.draw.fill",
+      "tint": "mobility",
+      "title": "Gym setup in a few swipes",
+      "body": "Set up a new gym or your equipment list with one swipe card per area, and one item count everywhere."
     }
   ]
 }

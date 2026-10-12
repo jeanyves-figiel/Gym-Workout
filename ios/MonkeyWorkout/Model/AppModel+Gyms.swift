@@ -49,6 +49,15 @@ extension AppModel {
         saveGym(updated)
     }
 
+    /// Saved gyms other than the home gym, to switch to in one tap (#180).
+    var otherGyms: [SavedGym] { savedGyms.filter { $0.id != homeGym.id } }
+
+    /// Switches the home gym (#180): the current one stays saved with its own list, so switching back restores it.
+    func switchGym(to gym: SavedGym) {
+        rememberHomeGym()
+        useGym(gym)
+    }
+
     /// Makes a saved gym the home gym (re-plans the week for its equipment).
     func useGym(_ gym: SavedGym) {
         guard var p = profile else { return }
