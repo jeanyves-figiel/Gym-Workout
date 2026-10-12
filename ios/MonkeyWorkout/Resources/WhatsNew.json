@@ -20,6 +20,12 @@
       "body": "Add MonkeyWorkout to any watch face, analog ones too: next workout, weekly goal, streak, week strip, readiness, top lift, last workout. Long-press the face, Edit, then pick MonkeyWorkout."
     },
     {
+      "symbol": "xmark.circle.fill",
+      "tint": "strength",
+      "title": "Close New exercise",
+      "body": "The ••• button on New exercise is gone: tap the X next to Save to close it."
+    },
+    {
       "symbol": "rectangle.split.3x1.fill",
       "tint": "warmup",
       "title": "Choose your session flow",
