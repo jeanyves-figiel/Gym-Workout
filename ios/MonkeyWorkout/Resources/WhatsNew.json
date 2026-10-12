@@ -1,11 +1,11 @@
 {
-  "id": "2026-10-12.5",
+  "id": "2026-10-12.6",
   "items": [
     {
-      "symbol": "bolt.heart.fill",
-      "tint": "cardio",
-      "title": "Week and readiness in one card",
-      "body": "Train shows your week and today's readiness together: the readiness pill sits inside the week card, tap it for the details. No Health yet? Connect it right there."
+      "symbol": "ruler.fill",
+      "tint": "power",
+      "title": "Help with every measurement",
+      "body": "Tap ? on any measurement to see where the tape goes, with steps and a tip. Or tap Measure with me to be guided through them one by one."
     }
   ]
 }

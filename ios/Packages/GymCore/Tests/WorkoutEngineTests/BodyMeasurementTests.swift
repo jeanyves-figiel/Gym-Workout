@@ -90,4 +90,28 @@ private func day(_ n: Double) -> Date { Date(timeIntervalSince1970: 1_790_000_00
         #expect(f.factor == 1)
         #expect(f.used.isEmpty)
     }
+
+    @Test func everyLoggedMetricHasAGuide() {
+        for metric in [BodyMetric.weight, .bodyFat] + GirthSite.allCases.map({ BodyMetric.girth($0) }) {
+            #expect(metric.guide.steps.count == 3, "\(metric.label)")
+            #expect(!metric.guide.tip.isEmpty)
+        }
+        #expect(BodyMetric.girth(.waist).guide.tip.hasSuffix(BodyMetric.tapeTip))
+    }
+
+    @Test(arguments: BodyMapLayout.Figure.allCases)
+    func everySiteHasATapeBand(figure: BodyMapLayout.Figure) throws {
+        for site in GirthSite.allCases {
+            let band = try #require(BodyMapLayout.tapeBand(site, figure: figure), "\(site)")
+            #expect(band.width > 8 && band.width < 130, "\(site) \(band)")
+        }
+        // Chest sits under the armpits, so the arms aren't in the tape.
+        let chest = try #require(BodyMapLayout.tapeBand(.chest, figure: figure))
+        let shoulders = try #require(BodyMapLayout.tapeBand(.shoulders, figure: figure))
+        #expect(chest.width < shoulders.width)
+        // Member's left arm is on the viewer's right.
+        let left = try #require(BodyMapLayout.tapeBand(.upperArm, side: .left, figure: figure))
+        let right = try #require(BodyMapLayout.tapeBand(.upperArm, side: .right, figure: figure))
+        #expect(left.minX > BodyMapLayout.width / 2 && right.maxX < BodyMapLayout.width / 2)
+    }
 }

@@ -234,7 +234,16 @@ struct MeasurementLogSheet: View {
     @State private var toHealth = true
     @State private var loaded = false
     @State private var confirmDelete = false
+    @State private var help: HelpTopic?
+    @State private var guiding = false
     @FocusState private var focus: String?
+
+    /// The ? on a card (#220).
+    private struct HelpTopic: Identifiable {
+        let metric: BodyMetric
+        var side: LimbSide?
+        var id: String { metric.id + (side?.rawValue ?? "") }
+    }
 
     private static let weightKey = "weight"
     private static let fatKey = "bodyFat"
@@ -246,6 +255,16 @@ struct MeasurementLogSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
+                    Button { focus = nil; guiding = true } label: {
+                        AccountCard(symbol: "ruler.fill", title: "Measure with me", subtitle: "Step by step, a picture for each one",
+                                    gradient: LinearGradient(colors: [Theme.lime, Color(red: 0.31, green: 0.88, blue: 0.63)],
+                                                             startPoint: .topLeading, endPoint: .bottomTrailing),
+                                    ink: true) {
+                            Image(systemName: "chevron.right").font(.system(size: 17, weight: .heavy))
+                        }
+                    }
+                    .buttonStyle(.plain)
+
                     AccountCard(symbol: "calendar", title: "Date", gradient: WorkoutEngine.Category.mobility.gradient) {
                         DatePicker("Date", selection: $date, in: ...Date(), displayedComponents: .date)
                             .labelsHidden()
@@ -265,7 +284,7 @@ struct MeasurementLogSheet: View {
                     ForEach(GirthSite.allCases) { part in
                         if part.bilateral && perSide {
                             ForEach(LimbSide.allCases, id: \.self) { side in
-                                field(BodyMeasurement.key(part, side), metric: .girth(part),
+                                field(BodyMeasurement.key(part, side), metric: .girth(part), side: side,
                                       title: "\(part.label) · \(side == .left ? "left" : "right")",
                                       hint: previous?.girth(part, side: side) ?? previous?.girth(part), howTo: part.howTo)
                             }
@@ -302,6 +321,8 @@ struct MeasurementLogSheet: View {
                     Button("Done") { focus = nil }
                 }
             }
+            .sheet(item: $help) { MeasurementHowToSheet(metric: $0.metric, side: $0.side) }
+            .fullScreenCover(isPresented: $guiding) { MeasureGuideView(steps: guideSteps, text: $text) }
             .confirmationDialog("Delete this entry?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete", role: .destructive) {
                     model.deleteMeasurement(initial.id)
@@ -316,23 +337,51 @@ struct MeasurementLogSheet: View {
         Text(title).eyebrow().padding(.leading, 4).padding(.top, 12)
     }
 
-    private func field(_ key: String, metric: BodyMetric, title: String? = nil, hint: Double?, howTo: String? = nil) -> some View {
+    private func field(_ key: String, metric: BodyMetric, side: LimbSide? = nil, title: String? = nil, hint: Double?,
+                       howTo: String? = nil) -> some View {
         // How-to first; the last value is the field's placeholder, so it only shows as text when there's no tip.
         let subtitle = howTo ?? hint.map { "Last \(MeasureFormat.value($0)) \(metric.unit)" }
         return AccountCard(symbol: metric.symbol, title: title ?? metric.label, subtitle: subtitle,
                            gradient: metric.category.gradient) {
-            VStack(alignment: .trailing, spacing: 0) {
-                TextField(title ?? metric.label, text: Binding(get: { text[key] ?? "" }, set: { text[key] = $0 }),
-                          prompt: Text(hint.map(MeasureFormat.value) ?? "–").foregroundStyle(.white.opacity(0.55)))
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
-                    .font(Theme.display(24).monospacedDigit())
-                    .focused($focus, equals: key)
-                    .frame(width: 90)
-                Text(metric.unit.uppercased()).font(Theme.label(9)).tracking(1).opacity(0.8)
+            HStack(spacing: 10) {
+                VStack(alignment: .trailing, spacing: 0) {
+                    TextField(title ?? metric.label, text: Binding(get: { text[key] ?? "" }, set: { text[key] = $0 }),
+                              prompt: Text(hint.map(MeasureFormat.value) ?? "–").foregroundStyle(.white.opacity(0.55)))
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .font(Theme.display(24).monospacedDigit())
+                        .focused($focus, equals: key)
+                        .frame(width: 90)
+                    Text(metric.unit.uppercased()).font(Theme.label(9)).tracking(1).opacity(0.8)
+                }
+                Button { help = HelpTopic(metric: metric, side: side) } label: {
+                    Image(systemName: "questionmark")
+                        .font(.system(size: 13, weight: .heavy))
+                        .frame(width: 30, height: 30)
+                        .background(Circle().fill(.black.opacity(0.2)))
+                        .overlay(Circle().strokeBorder(.white.opacity(0.75), lineWidth: 1.5))
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("How to measure \(title ?? metric.label)")
             }
         }
         .onTapGesture { focus = key }
+    }
+
+    /// Guided mode order: weight, body fat, then every girth as shown in the list.
+    private var guideSteps: [MeasureGuideView.Step] {
+        [MeasureGuideView.Step(key: Self.weightKey, metric: .weight, last: previous?.weightKg),
+         MeasureGuideView.Step(key: Self.fatKey, metric: .bodyFat, last: previous?.bodyFatPct)]
+            + GirthSite.allCases.flatMap { part -> [MeasureGuideView.Step] in
+                if part.bilateral && perSide {
+                    return LimbSide.allCases.map { side in
+                        MeasureGuideView.Step(key: BodyMeasurement.key(part, side), metric: .girth(part), side: side,
+                                              last: previous?.girth(part, side: side) ?? previous?.girth(part))
+                    }
+                }
+                return [MeasureGuideView.Step(key: BodyMeasurement.key(part), metric: .girth(part), last: previous?.girth(part))]
+            }
     }
 
     private func load() {
