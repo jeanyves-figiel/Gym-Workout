@@ -1,11 +1,11 @@
 {
-  "id": "2026-10-12.5",
+  "id": "2026-10-12.6",
   "items": [
     {
-      "symbol": "bolt.heart.fill",
-      "tint": "cardio",
-      "title": "Week and readiness in one card",
-      "body": "Train shows your week and today's readiness together: the readiness pill sits inside the week card, tap it for the details. No Health yet? Connect it right there."
+      "symbol": "person.crop.circle.badge.checkmark",
+      "tint": "strength",
+      "title": "Tidier Account header",
+      "body": "Your Apple, Verified and PRO badges sit on their own row and your session count is a bright pill next to your name. No more broken words."
     }
   ]
 }
