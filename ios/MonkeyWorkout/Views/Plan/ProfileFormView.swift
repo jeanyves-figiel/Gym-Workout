@@ -245,6 +245,24 @@ struct ProfileFormView: View {
             ForEach(PlanVariety.allCases) { v in
                 VarietyCard(variety: v, selected: p.planVariety == v) { p.variety = v }
             }
+            if p.planVariety != .same {
+                Toggle(isOn: Binding(get: { p.rotateVariations == true }, set: { p.rotateVariations = $0 ? true : nil })) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 34, height: 34)
+                            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(WorkoutEngine.Category.strength.gradient))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Rotate variations").font(.system(size: 15, weight: .heavy, design: .rounded))
+                            Text("Accessories switch to another variation each week (e.g. machine row ↔ cable row). Main lifts stay. A swap you keep always wins.")
+                                .font(.caption).foregroundStyle(Theme.muted)
+                        }
+                    }
+                }
+                .tint(Theme.lime)
+                .padding(.top, 4)
+            }
         }
         .animation(.spring(duration: 0.3), value: p.variety)
     }

@@ -5,7 +5,7 @@ own art (#170): a shaded anatomical figure in three frames (start, middle, end o
 worked muscles in the app's load colours (primary red, secondary amber), the machine or equipment drawn
 in the scene, and a small front/back muscle map. No third-party images or video.
 
-Illustrations: 346 · Total: 346
+Illustrations: 422 · Total: 422
 
 | Id | Exercise | Media | Source | License |
 |---|---|---|---|---|
@@ -355,3 +355,79 @@ Illustrations: 346 · Total: 346
 | `standing-quad-stretch` | Standing quad stretch | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `seated-forward-fold` | Seated forward fold | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `lizard-stretch` | Lizard stretch | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `machine-row` | Seated row machine | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `machine-row-single` | Single-arm machine row | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `back-extension-machine` | Seated back extension machine | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `machine-squat` | Machine squat | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `pendulum-squat` | Pendulum squat | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `belt-squat` | Belt squat | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `glute-kickback-machine` | Glute kickback machine | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `multi-hip-extension` | Multi-hip extension | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `multi-hip-abduction` | Multi-hip abduction | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `machine-pullover` | Pullover machine | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `db-bench-pullover` | Dumbbell bench pullover | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `barbell-thruster` | Barbell thruster | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `db-thruster` | Dumbbell thruster | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `kb-thruster` | Kettlebell thruster | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `overhead-squat` | Overhead squat | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `kb-overhead-squat` | Single-arm kettlebell overhead squat | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `barbell-upright-row` | Barbell upright row | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `db-upright-row` | Dumbbell upright row | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `sumo-high-pull` | Sumo deadlift high pull | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `kb-high-pull` | Kettlebell high pull | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `man-maker` | Man maker | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `kb-windmill` | Kettlebell windmill | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `kb-halo` | Kettlebell halo | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `sit-up` | Sit-up | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `decline-sit-up` | Decline sit-up | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `wall-sit` | Wall sit | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `bear-crawl` | Bear crawl | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `donkey-kick` | Donkey kick | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `frog-pump` | Frog pump | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `deficit-push-up` | Deficit push-up | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `sandbag-squat` | Sandbag bear-hug squat | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `sandbag-shouldering` | Sandbag shouldering | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `sandbag-lunge` | Sandbag front-loaded lunge | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `slider-leg-curl` | Slider leg curl | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `slider-lateral-lunge` | Slider lateral lunge | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `slider-reverse-lunge` | Slider reverse lunge | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `bosu-squat` | BOSU squat | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `bosu-push-up` | BOSU push-up | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `muscle-up` | Muscle-up | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `weighted-muscle-up` | Weighted muscle-up | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `front-lever` | Front lever | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `tuck-front-lever` | Tuck front lever | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `back-lever` | Back lever | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `tuck-back-lever` | Tuck back lever | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `human-flag` | Human flag | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `iron-cross` | Iron cross | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `band-iron-cross` | Band-assisted iron cross | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `one-arm-pull-up` | One-arm pull-up | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `archer-pull-up` | Archer pull-up | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `one-arm-push-up` | One-arm push-up | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `shoulder-tap-push-up` | Shoulder-tap push-up | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `spiderman-push-up` | Spiderman push-up | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `wall-push-up` | Wall push-up | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `freestanding-hspu` | Free-standing handstand push-up | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `kipping-hspu` | Kipping handstand push-up | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `pistol-squat` | Pistol squat | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `weighted-pistol` | Weighted pistol squat | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `bar-static-hold` | Bar static hold | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `dip-bar-leg-raise` | Dip-bar leg raise | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `monkey-bar-traverse` | Monkey bar traverse | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `hanging-shoulder-circles` | Hanging shoulder circles | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `foam-roll-upper-back` | Foam roll upper back | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `foam-roll-glutes` | Foam roll glutes | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `foam-roll-lats` | Foam roll lats | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `foam-roll-hamstrings` | Foam roll hamstrings | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `foam-roll-adductors` | Foam roll adductors | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `massage-ball-chest` | Massage ball chest release | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `massage-ball-glute` | Massage ball glute release | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `massage-ball-foot` | Massage ball foot release | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `windshield-wipers` | Hip windshield wipers | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `straddle-stretch` | Seated straddle stretch | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `downward-dog` | Downward dog | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `warrior-2` | Warrior 2 | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `brettzel` | Brettzel stretch | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `adductor-rock-back` | Adductor rock-back | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `boat-pose` | Boat pose | Illustration (3 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |

@@ -10,8 +10,9 @@ extension Equipment {
         case .bench, .preacherBench: "rectangle.split.3x1.fill"
         case .cable, .legPress, .hackSquat, .legCurl, .legExtension, .latPulldown, .seatedRow, .chestPress, .pecDeck,
              .hipThrustMachine, .backExtension, .seatedCalf, .hipAdAbductor, .abCrunch, .torsoRotation, .shoulderPress, .standingCalf,
-             .tBarRow, .ghd, .reverseHyper, .curlMachine, .tricepsMachine: "gearshape.fill"
-        case .pullupBar, .dipStation, .assistedMachine: "figure.climbing"
+             .tBarRow, .ghd, .reverseHyper, .curlMachine, .tricepsMachine, .rowMachine, .backExtensionMachine, .squatMachine,
+             .beltSquat, .gluteMachine, .multiHip, .pulloverMachine: "gearshape.fill"
+        case .pullupBar, .dipStation, .assistedMachine, .stallBars: "figure.climbing"
         case .rings: "circle.circle"
         case .trx: "figure.strengthtraining.functional"
         case .plyoBox: "shippingbox.fill"
@@ -22,6 +23,10 @@ extension Equipment {
         case .bands: "lasso"
         case .jumpRope: "figure.jumprope"
         case .foamRoller: "cylinder.fill"
+        case .sandbag: "bag.fill"
+        case .sliders: "square.2.layers.3d"
+        case .balanceTrainer: "circle.bottomhalf.filled"
+        case .massageBall: "circle.fill"
         case .mat: "rectangle.fill"
         case .treadmill: "figure.run"
         case .bike, .airBike: "figure.indoor.cycle"
