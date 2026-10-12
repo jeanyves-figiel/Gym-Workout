@@ -35,12 +35,15 @@ struct EquipmentSheet: View {
     @Binding var equipment: [Equipment]
     /// Items kept because the member wasn't sure (marked with a ?).
     var unsure: [Equipment] = []
+    /// Redo this gym's list in a few swipes (#180); the sheet closes first, the caller opens the setup.
+    var onSetup: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
 
-    init(equipment: Binding<[Equipment]>, unsure: [Equipment] = []) {
+    init(equipment: Binding<[Equipment]>, unsure: [Equipment] = [], onSetup: (() -> Void)? = nil) {
         _equipment = equipment
         self.unsure = unsure
+        self.onSetup = onSetup
     }
 
     private var anyArea: Bool { GymArea.allCases.contains { a in a.items.contains { $0.matches(query) } } }
@@ -51,7 +54,10 @@ struct EquipmentSheet: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
-                    if query.isEmpty { hero }
+                    if query.isEmpty {
+                        hero
+                        if let onSetup { setupCard(onSetup) }
+                    }
                     ForEach(GymArea.allCases) { area in
                         let items = area.items.filter { $0.matches(query) }
                         if !items.isEmpty { AreaSection(area: area, items: items, equipment: $equipment, unsure: unsure) }
@@ -77,6 +83,30 @@ struct EquipmentSheet: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private func setupCard(_ action: @escaping () -> Void) -> some View {
+        Button {
+            dismiss()
+            action()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "rectangle.stack.badge.plus")
+                    .font(.system(size: 18, weight: .bold))
+                    .frame(width: 42, height: 42)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.lime.opacity(0.18)))
+                    .foregroundStyle(Theme.lime)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Set up this gym in a few swipes").font(.system(size: 15, weight: .bold, design: .rounded))
+                    Text("One card per area instead of ticking items").font(.caption).foregroundStyle(Theme.muted)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.footnote.bold()).foregroundStyle(Theme.muted)
+            }
+            .foregroundStyle(.white)
+            .card(padding: 12)
+        }
+        .buttonStyle(.plain)
     }
 
     private var hero: some View {
