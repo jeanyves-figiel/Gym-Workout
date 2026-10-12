@@ -139,6 +139,18 @@ private struct DemoScreen: View {
         case "measurements": NavigationStack { MeasurementsView() }
         case "measurement-log": MeasurementLogSheet(initial: model.measurements.last ?? BodyMeasurement(date: Date()), isNew: false)
         case "measurement-detail": NavigationStack { MeasurementDetailView(metric: .girth(.upperArm)) }
+        case "measurement-howto": MeasurementHowToSheet(metric: .girth(.waist))
+        case "measurement-guide":
+            let last = model.measurements.last
+            MeasureGuideView(steps: ([.weight, .bodyFat] + GirthSite.allCases.map { BodyMetric.girth($0) }).map { metric in
+                let value: Double? = switch metric {
+                case .weight: last?.weightKg
+                case .bodyFat: last?.bodyFatPct
+                case let .girth(p): last?.girth(p)
+                case .leanMass: nil
+                }
+                return MeasureGuideView.Step(key: metric.id, metric: metric, last: value)
+            }, text: .constant(["waist": "78.5"]), index: 5)
         case "account": NavigationStack { AccountView() }
         case "paywall", "pro": NavigationStack { ProView() }
         case "pro-offer": NavigationStack { ProView(context: .onboarding) {} }
@@ -221,6 +233,7 @@ private struct DemoScreen: View {
             }
         case "away": AwayEditorView(initial: AwayPeriod(kind: .travel, start: Demo.away()[1].start, end: Demo.away()[1].end, note: "Berlin", setup: .hotelGym), isNew: true) { _ in }
         case "notifications": NavigationStack { NotificationSettingsView() }
+        case "watch-home": NavigationStack { WatchHomeView() }
         case "reschedule":
             MissedSessionSheet(sessionId: second, day: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
         default: MainTabView()

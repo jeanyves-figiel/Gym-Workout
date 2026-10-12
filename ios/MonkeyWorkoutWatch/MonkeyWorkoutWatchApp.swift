@@ -75,6 +75,14 @@ struct WatchRootView: View {
     @State private var locked = false
 
     var body: some View {
+        #if DEBUG
+        if let screen = Demo.screen { Demo.view(screen) } else { main }
+        #else
+        main
+        #endif
+    }
+
+    @ViewBuilder private var main: some View {
         if let live = store.live, player == nil {
             MirrorView(live: live)
         } else if let player {
@@ -84,15 +92,7 @@ struct WatchRootView: View {
                 // Pro (#126): starting on the Watch needs Pro; mirroring an iPhone workout stays free.
                 HomeView { s in if store.snapshot.pro == false { locked = true } else { player = WatchPlayer(session: s) } }
             }
-            .sheet(isPresented: $locked) {
-                VStack(spacing: 8) {
-                    Image(systemName: "crown.fill").font(.title2).foregroundStyle(.yellow)
-                    Text("Apple Watch is Pro").font(.headline)
-                    Text("Unlock MonkeyWorkout Pro on your iPhone. Workouts started on the iPhone still show here.")
-                        .font(.footnote).multilineTextAlignment(.center).foregroundStyle(.secondary)
-                }
-                .padding()
-            }
+            .sheet(isPresented: $locked) { ProLockView() }
         }
     }
 }
