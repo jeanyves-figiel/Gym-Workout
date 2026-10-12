@@ -233,6 +233,8 @@ public struct Profile: Codable, Hashable, Sendable {
     public var method: TrainingMethod?
     /// Accessories cycle through their variations week to week (#182); nil = off.
     public var rotateVariations: Bool?
+    /// Blocks in every workout and their time split (#198); nil = the goal's automatic flow.
+    public var sessionFlow: SessionFlow?
     /// Per-workout overrides (#106) keyed by session id ("w2s1"). Set by the app from the synced overrides when
     /// generating; not part of the profile form.
     public var sessionStyles: [String: SessionStyle]?
@@ -251,7 +253,7 @@ public struct Profile: Codable, Hashable, Sendable {
         climbBefore: ClimbNeighbour? = nil, climbAfter: ClimbNeighbour? = nil,
         climbSameDay: ClimbSameDay? = nil, climbDayAddon: Bool? = nil, variety: PlanVariety? = nil,
         restStyle: RestStyle? = nil, grouping: Grouping? = nil, method: TrainingMethod? = nil,
-        rotateVariations: Bool? = nil
+        rotateVariations: Bool? = nil, sessionFlow: SessionFlow? = nil
     ) {
         self.goal = goal
         self.sessionsPerWeek = sessionsPerWeek
@@ -271,6 +273,7 @@ public struct Profile: Codable, Hashable, Sendable {
         self.grouping = grouping
         self.method = method
         self.rotateVariations = rotateVariations
+        self.sessionFlow = sessionFlow
     }
 }
 

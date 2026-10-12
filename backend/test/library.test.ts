@@ -87,6 +87,18 @@ describe('workout library', () => {
     expect((await req('GET', `/v1/library/shared/${pub.id.toLowerCase()}`, b.t)).statusCode).toBe(200);
   });
 
+  it('returns the session flow blocks of a shared workout (#198)', async () => {
+    const a = await member('a@example.com', 'alice');
+    const b = await member('b@example.com', 'bob');
+    const flow = [{ kind: 'warmup', title: 'Warm-up', targetMin: 6, items: [] }];
+    const withFlow = { ...workout('members', 'With flow'), flow };
+    const plain = workout('members', 'Plain');
+    expect((await req('POST', '/v1/me/custom-workouts', a.t, { workouts: [withFlow, plain] })).statusCode).toBe(200);
+    const seen = (await shared(b.t)).workouts as (Shared & { flow?: unknown })[];
+    expect(seen.find((w) => w.id === withFlow.id)!.flow).toEqual(flow);
+    expect(seen.find((w) => w.id === plain.id)!.flow).toBeUndefined();
+  });
+
   it('requires a community profile to share or browse, and filters names', async () => {
     const u = await signUp('c@example.com');
     expect((await req('POST', '/v1/me/custom-workouts', u.t, { workouts: [workout()] })).statusCode).toBe(200);

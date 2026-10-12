@@ -47,8 +47,9 @@ struct CustomExerciseBuilderView: View {
             .navigationTitle(existing == nil ? "New exercise" : "Edit exercise")
             .toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
-                CloseToolbarItem(placement: .topBarLeading) { dismiss() }
-                ToolbarItem(placement: .confirmationAction) {
+                // Both on the trailing side: a leading item next to the inline large title gets
+                // collapsed by iOS 26 into an overflow "•••" button whose menu can't show the icon-only X.
+                ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         let saved = model.saveCustomExercise(draft)
                         onSave(saved)
@@ -61,6 +62,7 @@ struct CustomExerciseBuilderView: View {
                     .foregroundStyle(Theme.ink)
                     .disabled(!draft.isComplete)
                 }
+                CloseToolbarItem { dismiss() }
             }
             .navigationDestination(isPresented: $designing) {
                 PoseDesignerView(

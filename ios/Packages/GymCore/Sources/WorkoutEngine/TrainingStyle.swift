@@ -147,13 +147,16 @@ extension Goal {
 public struct SessionStyle: Codable, Hashable, Sendable {
     public var rest: RestStyle?
     public var grouping: Grouping?
+    /// Blocks and time split of this workout (#198); nil = the plan's flow.
+    public var flow: SessionFlow?
 
-    public init(rest: RestStyle? = nil, grouping: Grouping? = nil) {
+    public init(rest: RestStyle? = nil, grouping: Grouping? = nil, flow: SessionFlow? = nil) {
         self.rest = rest
         self.grouping = grouping
+        self.flow = flow
     }
 
-    public var isEmpty: Bool { rest == nil && grouping == nil }
+    public var isEmpty: Bool { rest == nil && grouping == nil && flow == nil }
 }
 
 extension Session {

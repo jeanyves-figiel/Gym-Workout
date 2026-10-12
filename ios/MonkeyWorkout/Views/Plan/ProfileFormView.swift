@@ -79,6 +79,8 @@ struct ProfileFormView: View {
                         Text("Week to week").eyebrow().padding(.top, 14).id("variety")
                         content(.variety)
                         content(.style).id("style")
+                        Text("Session flow").eyebrow().padding(.top, 14).id("flow")
+                        content(.flow)
                         Text("Training method").eyebrow().padding(.top, 14).id("method")
                         content(.method)
                         Text("Your gym").eyebrow().padding(.top, 14)
@@ -142,6 +144,8 @@ struct ProfileFormView: View {
             variety
         case .style:
             TrainingStyleSection(profile: $p)
+        case .flow:
+            SessionFlowSection(profile: $p)
         case .method:
             TrainingMethodSection(profile: $p)
         case .gym:
