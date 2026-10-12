@@ -1,13 +1,14 @@
 import SwiftUI
 
-/// Account → Apple Watch (#219): pick the Watch home style. Also changeable on the Watch (gear on its home).
+/// Account → Style (#219, #227): one pick sets the iPhone's game look and the Watch home and screens.
+/// Also changeable on the Watch (gear on its home).
 struct WatchHomeView: View {
     private var pref: WatchHomePref { .shared }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Home screen on your Watch").font(Theme.label(13)).tracking(1).textCase(.uppercase)
+                Text("Your look on iPhone and Watch").font(Theme.label(13)).tracking(1).textCase(.uppercase)
                     .foregroundStyle(Theme.lime)
                 ForEach(WatchHomeStyle.allCases) { style in
                     Button { pref.set(style) } label: {
@@ -16,13 +17,13 @@ struct WatchHomeView: View {
                     .buttonStyle(.plain)
                     .sensoryFeedback(.selection, trigger: pref.style)
                 }
-                Text("You can also change it on the Watch: tap the gear on its home screen.")
+                Text("XP, level and badges are the same in every style. You can also change it on the Watch: tap the gear on its home screen.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             .padding()
         }
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Apple Watch")
+        .navigationTitle("Style")
     }
 }
 
@@ -32,20 +33,21 @@ private struct WatchStyleCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: style.symbol)
+            Image(systemName: style.phoneSymbol)
                 .font(.system(size: 24, weight: .bold))
                 .frame(width: 52, height: 52)
                 .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.22)))
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(style.title).font(Theme.display(21))
+                    Text(style.phoneTitle).font(Theme.display(21))
                     if style == .default {
                         Text("DEFAULT").font(Theme.label(10)).tracking(1)
                             .padding(.horizontal, 6).padding(.vertical, 2)
                             .background(Capsule().fill(.white.opacity(0.25)))
                     }
                 }
-                Text(style.detail).font(.footnote.weight(.medium)).opacity(0.9).multilineTextAlignment(.leading)
+                Text(style.phoneDetail).font(.footnote.weight(.medium)).opacity(0.9).multilineTextAlignment(.leading)
+                Label("Watch: \(style.title)", systemImage: "applewatch").font(Theme.label(12)).opacity(0.95)
             }
             Spacer(minLength: 4)
             Image(systemName: selected ? "checkmark.circle.fill" : "circle")

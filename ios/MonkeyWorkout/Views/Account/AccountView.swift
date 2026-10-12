@@ -86,14 +86,14 @@ struct AccountView: View {
                     }
                     .buttonStyle(.plain)
 
-                    section("Connected apps")
-                    // Watch home style (#219).
+                    // App style (#219, #227): one pick for the iPhone game look and the Watch.
                     NavigationLink { WatchHomeView() } label: {
-                        AccountCard(symbol: "applewatch", title: "Apple Watch",
-                                    subtitle: "Home: \(WatchHomePref.shared.style.title)",
-                                    gradient: AccountTint.watch)
+                        AccountCard(symbol: WatchHomePref.shared.style.phoneSymbol, title: "Style",
+                                    subtitle: "\(WatchHomePref.shared.style.phoneTitle) on iPhone · \(WatchHomePref.shared.style.title) on Watch",
+                                    gradient: WatchHomePref.shared.style.gradient)
                     }
                     .buttonStyle(.plain)
+                    section("Connected apps")
                     let mgConnected = MonkeyGradeLink.shared.isConnected(for: user.id)
                     if ProStore.shared.locked && !mgConnected {
                         Button { gate = .monkeyGrade } label: {

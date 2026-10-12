@@ -20,7 +20,11 @@ struct WeekView: View {
             if let plan = model.plan, let profile = model.profile {
                 VStack(alignment: .leading, spacing: 18) {
                     header
+                    // Game look (#227), same pick as the Watch style.
+                    let style = WatchHomePref.shared.style
+                    if style == .coach { MonkeyCoachCard() }
                     WeekHero(plan: plan, profile: profile, done: model.completedCount)
+                    if style == .rings { LevelBarCard(next: model.nextSession) }
                     if let undo = model.variationUndo {
                         VariationUndoCard(undo: undo)
                     }
@@ -56,39 +60,37 @@ struct WeekView: View {
                     let days = calendarDays
                     // By day, so moved and extra sessions sit where they happen (#113).
                     let ordered = byDay(plan.sessions, days: days)
-                    ForEach(Array(ordered.enumerated()), id: \.element.id) { i, s in
-                        let done = model.state.done[s.id] ?? false
-                        let day = s.weekday ?? days[s.id]
-                        let removable = s.isPlanInsert && !done
-                        NavigationLink(value: s.id) {
-                            SessionRowCard(session: s, done: done, climbing: profile.climbingDays, weekday: day, number: i + 1)
-                        }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            if !done {
-                                Button("Move to…", systemImage: "arrow.left.arrow.right") { moving = s }
+                    if style == .deck {
+                        QuestMap(sessions: ordered, days: days) { s, day in sessionMenu(s, day: day) }
+                    } else {
+                        ForEach(Array(ordered.enumerated()), id: \.element.id) { i, s in
+                            let done = model.state.done[s.id] ?? false
+                            let day = s.weekday ?? days[s.id]
+                            let removable = s.isPlanInsert && !done
+                            NavigationLink(value: s.id) {
+                                SessionRowCard(session: s, done: done, climbing: profile.climbingDays, weekday: day, number: i + 1)
                             }
-                            Button("Add workout this day", systemImage: "plus") { addingDay = day; adding = true }
-                            if removable {
-                                Button(removeTitle(s), systemImage: "trash", role: .destructive) { removing = s }
+                            .buttonStyle(.plain)
+                            .contextMenu { sessionMenu(s, day: day) }
+                            // Swipe left on an added session to remove it (#176); ScrollView has no swipeActions.
+                            .offset(x: swipe?.id == s.id ? swipe!.dx : 0)
+                            .background(alignment: .trailing) {
+                                if removable, swipe?.id == s.id {
+                                    Image(systemName: "trash.fill")
+                                        .font(.system(size: 22, weight: .heavy))
+                                        .foregroundStyle(.white)
+                                        .frame(width: 64)
+                                        .frame(maxHeight: .infinity)
+                                        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.red.gradient))
+                                }
                             }
+                            .simultaneousGesture(removable ? swipeToRemove(s) : nil)
+                            .accessibilityAction(named: removeTitle(s)) { if removable { removing = s } }
                         }
-                        // Swipe left on an added session to remove it (#176); ScrollView has no swipeActions.
-                        .offset(x: swipe?.id == s.id ? swipe!.dx : 0)
-                        .background(alignment: .trailing) {
-                            if removable, swipe?.id == s.id {
-                                Image(systemName: "trash.fill")
-                                    .font(.system(size: 22, weight: .heavy))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 64)
-                                    .frame(maxHeight: .infinity)
-                                    .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.red.gradient))
-                            }
-                        }
-                        .simultaneousGesture(removable ? swipeToRemove(s) : nil)
-                        .accessibilityAction(named: removeTitle(s)) { if removable { removing = s } }
                     }
-                    Text(ordered.contains { $0.isPlanInsert }
+                    Text(style == .deck
+                         ? "Tap a stage to open it. Touch and hold to move it to another day or remove an added one."
+                         : ordered.contains { $0.isPlanInsert }
                          ? "Touch and hold a session to move it to another day this week. Swipe left on an added session to remove it."
                          : "Touch and hold a session to move it to another day this week.")
                         .font(.caption).foregroundStyle(Theme.muted)
@@ -135,6 +137,18 @@ struct WeekView: View {
         }
     }
 
+    /// Touch-and-hold menu of a session (list rows and quest stages).
+    @ViewBuilder private func sessionMenu(_ s: Session, day: Int?) -> some View {
+        let done = model.state.done[s.id] ?? false
+        if !done {
+            Button("Move to…", systemImage: "arrow.left.arrow.right") { moving = s }
+        }
+        Button("Add workout this day", systemImage: "plus") { addingDay = day; adding = true }
+        if s.isPlanInsert && !done {
+            Button(removeTitle(s), systemImage: "trash", role: .destructive) { removing = s }
+        }
+    }
+
     private func removeTitle(_ s: Session) -> String {
         model.planInsert(for: s)?.replacing == nil ? "Remove from this week" : "Back to planned session"
     }
@@ -160,7 +174,11 @@ struct WeekView: View {
     /// Title, then Calendar, Variation and Edit plan as Explore-style gradient buttons in one row (#147).
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Train").font(Theme.display(34)).lineLimit(1)
+            HStack {
+                Text("Train").font(Theme.display(34)).lineLimit(1)
+                Spacer()
+                LevelChip()
+            }
             HStack(spacing: 8) {
                 NavigationLink { CalendarView() } label: {
                     HeaderChip(symbol: "calendar", title: "Calendar", detail: "\(plannedCount) planned",
@@ -335,7 +353,13 @@ private struct NextUpCard: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Next up · \(session.dayLabel)").font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
                     Text(session.displayTitle).font(Theme.display(30)).foregroundStyle(.white).fixedSize(horizontal: false, vertical: true)
-                    Label("\(session.estMin) min", systemImage: "clock.fill").font(Theme.label(14)).foregroundStyle(.white.opacity(0.9))
+                    HStack(spacing: 10) {
+                        Label("\(session.estMin) min", systemImage: "clock.fill").font(Theme.label(14)).foregroundStyle(.white.opacity(0.9))
+                        // XP it earns (#227).
+                        Text("+\(model.xp(for: session)) XP").font(Theme.label(13)).foregroundStyle(Theme.lime)
+                            .padding(.horizontal, 9).padding(.vertical, 4)
+                            .background(Capsule().fill(Theme.ink.opacity(0.85)))
+                    }
                 }
                 Spacer(minLength: 8)
                 BodyMapView(side: .front, heat: session.muscleHeat, showLabel: false)

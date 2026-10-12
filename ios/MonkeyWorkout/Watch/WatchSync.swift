@@ -7,7 +7,9 @@ extension Notification.Name {
     static let watchCommand = Notification.Name("watchCommand")
 }
 
-/// Watch home style (#219), picked on the iPhone (Account → Apple Watch) or on the Watch; the latest change wins.
+/// App style (#219, #227): one pick for the Watch home and screens and the iPhone's game look (Monkey coach,
+/// Crown deck → Quest map, Charge & go → Level bar). Picked on the iPhone (Account → Style) or on the Watch;
+/// the latest change wins.
 @MainActor @Observable
 final class WatchHomePref {
     static let shared = WatchHomePref()
@@ -20,6 +22,9 @@ final class WatchHomePref {
     private init() {
         style = UserDefaults.standard.string(forKey: Self.key).flatMap(WatchHomeStyle.init) ?? .default
         changedAt = UserDefaults.standard.object(forKey: Self.dateKey) as? Date
+        #if DEBUG
+        if Demo.enabled, let demo = Demo.appStyle { style = demo }
+        #endif
     }
 
     func set(_ new: WatchHomeStyle, at date: Date = Date()) {
@@ -134,13 +139,12 @@ final class WatchSync: NSObject {
             streakWeeks: stats.currentStreakWeeks, bestStreakWeeks: stats.bestStreakWeeks, thisWeek: stats.thisWeek, target: target,
             records: stats.personalRecords.prefix(5).map { WRecord(name: Exercise.get($0.exerciseId).name, kg: $0.kg) },
             recent: model.history.prefix(5).map { WRecent(title: $0.title, date: $0.startedAt, minutes: $0.durationSec / 60, sets: $0.totalSets) })
-        // Game mode (#219): XP and badges from the whole history.
-        let history = model.state.history
-        let sets = history.reduce(0) { $0 + $1.totalSets }
-        s.game = WGame(
-            xp: history.reduce(0) { $0 + WGame.xp(sets: $1.totalSets) }, workouts: history.count, totalSets: sets,
-            badges: WBadge.earned(workouts: history.count, totalSets: sets, bestStreak: stats.bestStreakWeeks,
-                                  records: stats.personalRecords.count))
+        // Game layer (#219, #227): same XP, level and badges as the iPhone.
+        let game = model.game
+        let badges = model.badges
+        s.game = WGame(xp: game.xp, workouts: game.workouts, totalSets: game.totalSets,
+                       badges: badges.filter(\.unlocked).map(\.id), weeksCleared: game.weeksCleared,
+                       catalog: badges.map { WBadge(id: $0.id, title: $0.title, symbol: $0.symbol, tier: $0.tier.rawValue) })
         return s
     }
 

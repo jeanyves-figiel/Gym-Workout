@@ -15,6 +15,8 @@ struct WorkoutPlayerView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @State private var record: WorkoutRecord?
+    /// What this workout earned (#227): XP, level-up, week chest, new badges.
+    @State private var reward: GameReward?
 
     @State private var index = 0
     @State private var setsDone: [String: Int] = [:]
@@ -71,7 +73,7 @@ struct WorkoutPlayerView: View {
             if let session {
                 if finished {
                     SummaryView(session: session, elapsed: Date().timeIntervalSince(started), setsDone: setsDone.values.reduce(0, +),
-                                kcal: record?.kcal, healthSaved: health.connected && health.writeWorkouts) {
+                                kcal: record?.kcal, healthSaved: health.connected && health.writeWorkouts, reward: reward) {
                         dismiss()
                     }
                     .transition(.scale.combined(with: .opacity))
@@ -391,10 +393,12 @@ struct WorkoutPlayerView: View {
     private func finish() {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         if let session, record == nil {
+            let before = (game: model.game, badges: model.badges)
             let r = model.recordWorkout(
                 session: session, setsDone: setsDone, startedAt: started, endedAt: Date(),
                 bodyMassKg: health.snapshot.weightKg ?? model.body.weightKg)
             record = r
+            reward = GameReward(before: before.game, after: model.game, badgesBefore: before.badges, badgesAfter: model.badges)
             Task {
                 let hr = await health.save(r)
                 model.attachHeartRate(r.id, avg: hr.avg, max: hr.max)
@@ -487,6 +491,10 @@ struct WorkoutPlayerView: View {
             let spec = steps[s].timedSpec!
             timed = TimedRun(uid: steps[s].item.uid, total: spec.workSec, remaining: Double(spec.workSec),
                              end: Date().addingTimeInterval(Double(spec.workSec) - 83))
+        }
+        if demoMode == "done" {
+            reward = Demo.reward
+            finished = true
         }
         if demoMode == "logged", let s = steps.firstIndex(where: { $0.loggable && $0.sets > 2 }) {
             index = s
@@ -639,19 +647,25 @@ private struct SummaryView: View {
     let setsDone: Int
     let kcal: Double?
     let healthSaved: Bool
+    var reward: GameReward?
     let onDone: () -> Void
     @State private var pop = false
 
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
-                Image(systemName: "trophy.fill")
-                    .font(.system(size: 70))
-                    .foregroundStyle(LinearGradient(colors: [Theme.lime, .yellow], startPoint: .top, endPoint: .bottom))
-                    .scaleEffect(pop ? 1 : 0.3)
-                    .symbolEffect(.bounce, value: pop)
-                    .padding(.top, 30)
-                Text("Session\ncomplete").font(Theme.display(48)).multilineTextAlignment(.center)
+                if let reward {
+                    // Game look (#227): monkey dance, stage cleared / chest, or level bar.
+                    GameRewardView(reward: reward).padding(.top, 20)
+                } else {
+                    Image(systemName: "trophy.fill")
+                        .font(.system(size: 70))
+                        .foregroundStyle(LinearGradient(colors: [Theme.lime, .yellow], startPoint: .top, endPoint: .bottom))
+                        .scaleEffect(pop ? 1 : 0.3)
+                        .symbolEffect(.bounce, value: pop)
+                        .padding(.top, 30)
+                    Text("Session\ncomplete").font(Theme.display(48)).multilineTextAlignment(.center)
+                }
                 HStack(spacing: 10) {
                     GradientStat(symbol: "stopwatch.fill", value: Format.elapsed(elapsed), label: "Time", gradient: WorkoutEngine.Category.cardio.gradient)
                     GradientStat(symbol: "square.stack.3d.up.fill", value: "\(setsDone)", label: "Sets", gradient: WorkoutEngine.Category.strength.gradient)

@@ -21,6 +21,8 @@ struct SessionView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     header(session)
+                    // What finishing it earns, in the member's game look (#227).
+                    if !session.blocks.allSatisfy({ $0.items.isEmpty }) { SessionGameBanner(session: session) }
                     FlowOverview(session: session, onEdit: flowEdit(session))
                     ForEach(session.blocks) { block in
                         BlockSection(block: block, sessionId: session.id, canSwap: { model.canSwap(uid: $0.uid) }) { item in

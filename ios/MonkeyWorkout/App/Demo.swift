@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|watch-home]`
+/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|watch-home|game-{week|session|done|progress}-{coach|deck|rings}]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("-demo") }
@@ -12,6 +12,21 @@ enum Demo {
         let args = ProcessInfo.processInfo.arguments
         guard let i = args.firstIndex(of: "-demoScreen"), args.indices.contains(i + 1) else { return "week" }
         return args[i + 1]
+    }
+
+    /// App style for game-look screens (#227): `-appStyle coach|deck|rings`, or the suffix of a `game-…` screen.
+    static var appStyle: WatchHomeStyle? {
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-appStyle"), args.indices.contains(i + 1) { return WatchHomeStyle(rawValue: args[i + 1]) }
+        guard screen.hasPrefix("game-") else { return nil }
+        return screen.split(separator: "-").last.flatMap { WatchHomeStyle(rawValue: String($0)) }
+    }
+
+    /// What a finished workout earned, for the `game-done-…` screens.
+    static var reward: GameReward {
+        let badges = Achievements.evaluate(records: [], weights: [], targetPerWeek: 3)
+        let streak = badges.first { $0.id == "s4" }
+        return GameReward(xp: 340, levelUp: 8, weekCleared: true, badges: streak.map { [$0] } ?? [])
     }
 
     static let user: User? = {
