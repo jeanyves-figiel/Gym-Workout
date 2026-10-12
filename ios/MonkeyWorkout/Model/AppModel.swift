@@ -533,9 +533,12 @@ final class AppModel {
                 try await api.pushWorkouts(pendingRecords)
                 state.pendingHistoryIds.subtract(pendingRecords.map(\.id))
             }
-            let remoteHistory = try await api.fetchWorkouts(WorkoutRecord.self, since: state.lastHistoryPull?.addingTimeInterval(-300))
-            var historyById = Dictionary(state.history.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
-            for r in remoteHistory where !state.pendingHistoryIds.contains(r.id) { historyById[r.id] = r }
+            // Full pull: the server list is the truth, so workouts removed elsewhere (undo on another device,
+            // admin undo) drop off this device too instead of lingering in Progress totals (#213).
+            // Unsynced local records are kept.
+            let remoteHistory = try await api.fetchWorkouts(WorkoutRecord.self)
+            var historyById = Dictionary(remoteHistory.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
+            for r in state.history where state.pendingHistoryIds.contains(r.id) { historyById[r.id] = r }
             state.history = Array(historyById.values)
             state.lastHistoryPull = Date()
             // 5 min overlap absorbs clock skew; merge is idempotent by id.
