@@ -6,6 +6,12 @@
       "tint": "cardio",
       "title": "Watch face complications",
       "body": "Add MonkeyWorkout to any watch face, analog ones too: next workout, weekly goal, streak, week strip, readiness, top lift, last workout. Long-press the face, Edit, then pick MonkeyWorkout."
+    },
+    {
+      "symbol": "target",
+      "tint": "strength",
+      "title": "Your goal shapes your week",
+      "body": "Switching goal now changes this week's days, the mix of strength, power, mobility and cardio, and the exercises. Workouts you've done stay."
     }
   ]
 }
