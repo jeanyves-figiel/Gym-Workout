@@ -66,6 +66,10 @@ struct BodyHealthView: View {
                     set: { figure = $0 }))
                 AccountNote(text: "The figure drawn on muscle maps. Display only: separate from gender and sex below.")
 
+                section("Body map")
+                BodyMapModeCard()
+                AccountNote(text: "How Explore → Muscles shows the body: flat front and back (2D), or a figure you can turn and zoom (3D). Also switchable on the map.")
+
                 section("Body")
                 metricCard(.height, title: "Height", symbol: "ruler.fill", unit: "cm", gradient: WorkoutEngine.Category.strength.gradient,
                            text: $height, health: snap.heightCm.map { String(format: "%.0f", $0) })
