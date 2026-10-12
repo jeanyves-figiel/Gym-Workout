@@ -63,7 +63,7 @@ public struct BodyMesh: Sendable {
     }
 
     /// Raster resolution (cells per design unit) for the distance fields.
-    static let res = 2.0
+    static let res = 1.5
 
     public static func build(_ figure: BodyMapLayout.Figure) -> BodyMesh {
         let W = BodyMapLayout.width, H = BodyMapLayout.height

@@ -19,6 +19,8 @@ struct BodyMap3DView: UIViewRepresentable {
     /// Turn to show a side: 0 front, 90 right side, 180 back (snap buttons). Changing it animates.
     var yaw: Double = 0
     var onTap: (Muscle) -> Void
+    /// Demo screens: reports when the figure is on screen (vertex count), for CI screenshots.
+    var onReady: ((Int) -> Void)?
     @Environment(\.bodyFigure) private var figure
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -32,6 +34,7 @@ struct BodyMap3DView: UIViewRepresentable {
         let c = context.coordinator
         c.view = view
         c.onTap = onTap
+        c.onReady = onReady
         c.setUp()
         view.addGestureRecognizer(UIPanGestureRecognizer(target: c, action: #selector(Coordinator.pan(_:))))
         view.addGestureRecognizer(UIPinchGestureRecognizer(target: c, action: #selector(Coordinator.pinch(_:))))
@@ -53,6 +56,7 @@ struct BodyMap3DView: UIViewRepresentable {
     @MainActor final class Coordinator: NSObject {
         weak var view: SCNView?
         var onTap: ((Muscle) -> Void)?
+        var onReady: ((Int) -> Void)?
         private let scene = SCNScene()
         /// Turns (yaw); holds the body centred on its middle.
         private let turntable = SCNNode()
@@ -109,6 +113,8 @@ struct BodyMap3DView: UIViewRepresentable {
                     self.backNode.geometry = Self.geometry(mesh.back)
                     self.key = nil
                     self.paint(figure: fig, heat: heat, selected: selected)
+                    self.view?.setNeedsDisplay()
+                    self.onReady?(mesh.front.positions.count + mesh.back.positions.count)
                 }
                 return
             }
@@ -337,6 +343,8 @@ struct BodyMap3DPanel: View {
     @Environment(\.bodyMapDemo) private var demo
     @State private var picked: Muscle?
     @State private var facing: Snap = .front
+    /// Demo screens only: vertex count once the figure is built.
+    @State private var demoVertices: Int?
 
     enum Snap: String, CaseIterable, Identifiable {
         case front = "Front", side = "Side", back = "Back"
@@ -348,9 +356,9 @@ struct BodyMap3DPanel: View {
         ZStack(alignment: .top) {
             RadialGradient(colors: [Color(red: 0.17, green: 0.15, blue: 0.28), Color(red: 0.07, green: 0.07, blue: 0.09)],
                            center: UnitPoint(x: 0.5, y: 0.4), startRadius: 0, endRadius: 360)
-            BodyMap3DView(heat: heat, selected: picked, yaw: facing.yaw) { m in
+            BodyMap3DView(heat: heat, selected: picked, yaw: facing.yaw, onTap: { m in
                 withAnimation(.spring(duration: 0.3)) { picked = m }
-            }
+            }, onReady: demo == nil ? nil : { demoVertices = $0 })
             .padding(.top, 58)
             .padding(.bottom, 84)
             VStack(spacing: 8) {
@@ -379,6 +387,9 @@ struct BodyMap3DPanel: View {
             .padding(12)
             VStack {
                 Spacer()
+                if demo != nil {
+                    Text(demoVertices.map { "\($0) vertices" } ?? "building figure…").font(.caption2).foregroundStyle(Theme.muted)
+                }
                 pickedCard.padding(10)
             }
         }
