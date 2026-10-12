@@ -15,11 +15,10 @@ struct PoseDesignerView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Picker("Frame", selection: $frame) {
-                    Text("Start").tag(0)
-                    Text("End").tag(1)
-                }
-                .pickerStyle(.segmented)
+                GradientSegments(selection: $frame, items: [
+                    SegmentItem(value: 0, title: "Start", symbol: "backward.end.fill"),
+                    SegmentItem(value: 1, title: "End", symbol: "forward.end.fill"),
+                ])
                 .disabled(playing)
 
                 stage

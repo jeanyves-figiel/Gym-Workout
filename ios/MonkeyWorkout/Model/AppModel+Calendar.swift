@@ -109,13 +109,12 @@ extension AppModel {
         guard let sp = state.synced else { return }
         let cal = planCalendar
         let monday = Progression.weekStart(now, cal)
-        var regular = Generator.generateWeek(sp.planProfile, week: sp.week, seed: sp.seed)
+        // Done sessions keep the day and content they were done with (also after a profile edit, #194).
+        // The workout in progress keeps its content too.
+        let done = doneIds
+        let kept = done.union([state.activeWorkout?.sessionId].compactMap { $0 })
+        let regular = Generator.generateWeek(sp.planProfile, week: sp.week, seed: sp.seed).keeping(kept, from: state.plan)
         if PlanCalendar.touches(away, weekStart: monday, cal) {
-            // Done sessions keep the day and content they were done with.
-            let done = doneIds
-            for i in regular.sessions.indices where done.contains(regular.sessions[i].id) {
-                if let s = state.plan?.sessions.first(where: { $0.id == regular.sessions[i].id }) { regular.sessions[i] = s }
-            }
             let today = WeekSchedule.fromCalendar(cal.component(.weekday, from: now))
             let adapted = PlanCalendar.adapt(sp.planProfile, week: sp.week, seed: sp.seed, weekStart: monday, away: away,
                                              base: regular, done: done, firstDay: today, fixed: movesThisWeek(now), calendar: cal).plan

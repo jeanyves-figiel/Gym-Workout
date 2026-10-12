@@ -305,14 +305,13 @@ struct ProView: View {
         Text("Staging test").eyebrow().padding(.leading, 4).padding(.top, 8)
         VStack(alignment: .leading, spacing: 10) {
             Text("Pro for this account only").font(.body.weight(.bold))
-            Picker("Pro mode", selection: Binding(get: { pro.entitlement.test?.mode?.rawValue ?? "server" },
-                                                  set: { v in Task { await pro.setTestMode(Entitlement.Mode(rawValue: v)) } })) {
-                Text("Server").tag("server")
-                Text("Off").tag(Entitlement.Mode.off.rawValue)
-                Text("Preview").tag(Entitlement.Mode.preview.rawValue)
-                Text("Enforced").tag(Entitlement.Mode.enforced.rawValue)
-            }
-            .pickerStyle(.segmented)
+            GradientSegments(selection: Binding(get: { pro.entitlement.test?.mode?.rawValue ?? "server" },
+                                                set: { v in Task { await pro.setTestMode(Entitlement.Mode(rawValue: v)) } }), items: [
+                SegmentItem(value: "server", title: "Server", symbol: "server.rack"),
+                SegmentItem(value: Entitlement.Mode.off.rawValue, title: "Off", symbol: "lock.open.fill"),
+                SegmentItem(value: Entitlement.Mode.preview.rawValue, title: "Preview", symbol: "eye.fill"),
+                SegmentItem(value: Entitlement.Mode.enforced.rawValue, title: "Enforced", symbol: "lock.fill"),
+            ])
             Text(pro.testEffect).font(.subheadline.weight(.bold)).foregroundStyle(pro.locked ? Theme.lime : .white)
             Text("Pick Enforced to start as Free: Pro features ask for Pro until you buy. Purchases here are fake: no Apple, no charge.")
                 .font(.caption).foregroundStyle(Theme.muted)

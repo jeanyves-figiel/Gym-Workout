@@ -44,12 +44,18 @@ public enum Generator {
     // MARK: Week
 
     public static func generateWeek(_ profile: Profile, week: Int = 1, seed: UInt32) -> WeekPlan {
+        generateWeek(profile, week: week, seed: seed, split: nil)
+    }
+
+    /// `split`: session types instead of the goal's own (#194).
+    static func generateWeek(_ profile: Profile, week: Int, seed: UInt32, split: [Focus]?) -> WeekPlan {
         var profile = profile
         profile.syncClimbingDays()
         let week = min(mesocycleWeeks, max(1, week))
         let ctx = Ctx(profile: profile, week: week, seed: seed)
+        ctx.split = split
         if ctx.variety == .same && week != 1 {
-            ctx.replay = record(profile, seed: seed)
+            ctx.replay = record(profile, seed: seed, split: split)
         }
         return generateWeek(ctx)
     }
@@ -58,7 +64,7 @@ public enum Generator {
         let profile = ctx.profile, week = ctx.week
         let base = sessionMinutes(profile)
         let minutes = ctx.minutes ?? (ctx.deload ? max(Rules.minSession - 5, round5(Double(base) * 0.8)) : base)
-        let baseSplit = Rules.splits[profile.sessionsPerWeek] ?? Rules.splits[3]!
+        let baseSplit = ctx.split ?? Rules.split(profile.goal, profile.sessionsPerWeek)
         let rotate = ctx.variety == .rotate
         let split = rotate ? Rules.rotatedSplit(baseSplit, week: week) : baseSplit
         // With climbing / gym weekdays set, sessions are re-ordered and placed on weekdays.
@@ -108,8 +114,9 @@ public enum Generator {
 
     /// Week 1's picks for `.same` replays: only those that made it into the plan, so a later week never swaps
     /// in an exercise week 1 dropped for time.
-    static func record(_ profile: Profile, seed: UInt32) -> [String: String] {
+    static func record(_ profile: Profile, seed: UInt32, split: [Focus]? = nil) -> [String: String] {
         let ctx = Ctx(profile: profile, week: 1, seed: seed)
+        ctx.split = split
         let plan = generateWeek(ctx)
         var kept: [String: Set<String>] = [:]
         for s in plan.sessions {
