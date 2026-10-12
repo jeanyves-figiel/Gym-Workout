@@ -3,3 +3,5 @@
 APP_BUNDLE_ID = Com.app.MonkeyWorkout.dev
 APP_DISPLAY_NAME = Monkey DEV
 API_BASE_URL = http:/$()/localhost:7443
+// App Group shared by the Watch app and its complications (#190).
+APP_GROUP = group.$(APP_BUNDLE_ID)
