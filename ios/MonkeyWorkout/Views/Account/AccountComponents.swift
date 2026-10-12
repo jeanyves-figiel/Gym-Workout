@@ -15,6 +15,8 @@ enum AccountTint {
     static let notifications = LinearGradient(colors: [Color(red: 1, green: 0.62, blue: 0.1), Color(red: 1, green: 0.36, blue: 0.24)],
                                               startPoint: .topLeading, endPoint: .bottomTrailing)
     static let export = WorkoutEngine.Category.stretch.gradient
+    static let watch = LinearGradient(colors: [Color(red: 0.70, green: 0.24, blue: 1), Color(red: 1, green: 0.24, blue: 0.66)],
+                                      startPoint: .topLeading, endPoint: .bottomTrailing)
     /// Legal & support (#125).
     static let privacy = LinearGradient(colors: [Color(red: 0.48, green: 0.24, blue: 1), Color(red: 1, green: 0.30, blue: 0.85)],
                                         startPoint: .topLeading, endPoint: .bottomTrailing)
