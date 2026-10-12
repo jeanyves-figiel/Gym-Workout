@@ -11,7 +11,10 @@ extension Focus {
         case .upper, .fullUpper: .mobility
         case .push, .fullPower: .power
         case .conditioning: .cardio
-        case .pull: .strength
+        case .pull, .backBi: .strength
+        case .chestTri: .power
+        case .shouldersArms, .chestBack: .mobility
+        case .posterior: .warmup
         }
     }
 
@@ -25,6 +28,7 @@ extension Focus {
         case .pull: "Pull"
         case .legs: "Legs"
         case .conditioning: "Conditioning"
+        case .chestTri, .backBi, .shouldersArms, .chestBack, .posterior: label
         }
     }
 }

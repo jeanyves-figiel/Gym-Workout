@@ -267,6 +267,11 @@ struct WeekCalendarCard: View {
         case .pull: "Pull"
         case .legs: "Legs"
         case .conditioning: "Cond."
+        case .chestTri: "Chest"
+        case .backBi: "Back"
+        case .shouldersArms: "Arms"
+        case .chestBack: "C & B"
+        case .posterior: "Glutes"
         }
     }
 

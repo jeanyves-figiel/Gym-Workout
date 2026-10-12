@@ -167,11 +167,22 @@ private struct DemoScreen: View {
             }
         case "profile": NavigationStack { TrainingProfileView().navigationTitle("Training profile") }
         case "profile-gym": NavigationStack { ProfileSectionView(section: .gym) }
+        case "profile-goal", "profile-goal-focus":
+            NavigationStack {
+                ProfileFormView(initial: Demo.splitProfile(model.profile), section: .goal,
+                                scrollTo: Demo.screen == "profile-goal-focus" ? "split" : nil) { _ in }
+                    .navigationTitle("Goal")
+                    .navigationBarTitleDisplayMode(.inline)
+            }
+        case "day-focus": DayFocusSheet(weekday: 4, index: 2, current: .legs) { _ in }
         case "profile-method": NavigationStack { ProfileSectionView(section: .method) }
         case "profile-flow": NavigationStack { ProfileSectionView(section: .flow) }
         case "flow-session": if let s = model.plan?.sessions.first { SessionFlowSheet(session: s) }
         case "flow-builder":
             CustomWorkoutEditor(initial: Demo.customWorkouts[0].withFlow([.warmup: 6, .mobility: 6, .cooldown: 5], profile: model.profile ?? Profile()))
+        case "flow-picks":
+            BlockPicksSheet(kind: .warmup, picks: .constant(BlockPicks(items: [BlockPick(exerciseId: "treadmill-run", minutes: 7),
+                                                                                BlockPick(exerciseId: "cat-cow", minutes: 2)])))
         case "equipment": EquipmentSheet(equipment: .constant(GymKind.budget.equipment))
         case "gym-setup": GymSetupView(ref: Demo.holmes, actionTitle: "USE THIS GYM") { _ in }
         case "gym-swipe": GymSetupView(ref: nil, actionTitle: "USE THIS GYM", startStep: .swipe, startKind: .budget) { _ in }

@@ -28,6 +28,11 @@ extension Rules {
         case .push: [.hPush, .vPush]
         case .pull: [.vPull, .hPull]
         case .conditioning: []
+        case .chestTri: [.hPush, .vPush]
+        case .backBi: [.vPull, .hPull]
+        case .shouldersArms: [.vPush]
+        case .chestBack: [.hPush, .vPull, .hPull]
+        case .posterior: [.hinge]
         }
     }
 

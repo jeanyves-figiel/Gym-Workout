@@ -237,6 +237,7 @@ struct SessionFlowSection: View {
             Text("Conditioning days keep their cardio-led split; blocks you leave out stay out there too. Each workout can still change its own flow.")
                 .font(.footnote)
                 .foregroundStyle(Theme.muted)
+            BlockPicksList(profile: $profile)
         }
     }
 
@@ -399,5 +400,165 @@ extension CustomWorkout {
         var w = self
         w.flow = []
         return w.session.estMin
+    }
+}
+
+// MARK: - My picks per block (#204)
+
+/// Block whose picks are being edited (sheet item).
+struct PickTarget: Identifiable {
+    let kind: BlockKind
+    var id: String { kind.rawValue }
+}
+
+/// Edit plan → Session flow: one vivid card per block with the member's pinned exercises.
+struct BlockPicksList: View {
+    @Binding var profile: Profile
+    @State private var editing: PickTarget?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("My picks · every workout").eyebrow().padding(.top, 6)
+            ForEach(BlockPicks.kinds, id: \.self) { k in
+                Button { editing = PickTarget(kind: k) } label: { card(k, profile.picks(k)) }
+                    .buttonStyle(.plain)
+            }
+            Text("Optional. Pinned exercises go first in their block with their own time; the rest is picked for the day. Strength keeps its picks through Swap.")
+                .font(.footnote)
+                .foregroundStyle(Theme.muted)
+        }
+        .sheet(item: $editing) { t in
+            BlockPicksSheet(kind: t.kind, picks: Binding(
+                get: { profile.blockPicks?[t.kind.rawValue] ?? BlockPicks() },
+                set: { profile.setPicks($0, for: t.kind) }))
+        }
+    }
+
+    private func card(_ k: BlockKind, _ picks: BlockPicks?) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: k.symbol)
+                Text(picks == nil ? k.flowLabel : "\(k.flowLabel) · my picks").font(Theme.display(17))
+                Spacer()
+                if let picks { Text(picks.only ? "\(picks.minutes)′ ONLY" : "\(picks.minutes)′").font(Theme.label(12)) }
+                Image(systemName: "chevron.right").font(.footnote.bold()).opacity(0.7)
+            }
+            if let picks {
+                ForEach(picks.items) { p in
+                    HStack {
+                        Text(Exercise.find(p.exerciseId)?.name ?? p.exerciseId).font(Theme.label(13)).lineLimit(1)
+                        Spacer()
+                        Text("\(p.minutes)′").font(Theme.display(15))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.22)))
+                }
+            } else {
+                Text("Picked for the day · tap to pin").font(.footnote.weight(.semibold)).opacity(0.85)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(k.gradient))
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens your picks for this block")
+    }
+}
+
+/// One block's picks: pinned exercises with their minutes, Only my picks, and whether own workouts use them.
+struct BlockPicksSheet: View {
+    let kind: BlockKind
+    @Binding var picks: BlockPicks
+    @Environment(\.dismiss) private var dismiss
+    @State private var adding = false
+
+    static let maxItems = 6
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(kind.flowLabel).font(Theme.display(30))
+                    Text("My picks · every workout").eyebrow()
+                    ForEach($picks.items) { $item in row($item) }
+                    if picks.items.count < Self.maxItems {
+                        Button { adding = true } label: {
+                            Label("Add exercise", systemImage: "plus.circle.fill")
+                                .font(Theme.label(15))
+                                .foregroundStyle(Theme.lime)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(16)
+                                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .strokeBorder(Theme.lime.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if !picks.items.isEmpty {
+                        Toggle(isOn: $picks.only) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Only my picks").font(Theme.label(15))
+                                Text(picks.only ? "The block lasts \(picks.minutes) min." : "The rest of the block is picked for the day.")
+                                    .font(.footnote).foregroundStyle(Theme.muted)
+                            }
+                        }
+                        .tint(Theme.lime)
+                        .padding(.top, 6)
+                        Toggle(isOn: Binding(get: { picks.inCustom != false }, set: { picks.inCustom = $0 ? nil : false })) {
+                            Text("Also in my own workouts").font(Theme.label(15))
+                        }
+                        .tint(Theme.lime)
+                    }
+                    Text("Exercises your gym doesn't have are skipped on that day.")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.muted)
+                }
+                .padding(16)
+            }
+            .readableWidth()
+            .background(Theme.bg.ignoresSafeArea())
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .sheet(isPresented: $adding) {
+                ExercisePickerView(limit: Self.maxItems - picks.items.count) { exs in
+                    let have = Set(picks.items.map(\.exerciseId))
+                    picks.items += exs.filter { !have.contains($0.id) }
+                        .map { BlockPick(exerciseId: $0.id, minutes: BlockPicks.defaultMinutes($0, in: kind)) }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func row(_ item: Binding<BlockPick>) -> some View {
+        let range = BlockPick.minutesRange
+        return HStack(spacing: 10) {
+            if let e = Exercise.find(item.wrappedValue.exerciseId) { ExerciseThumbnail(exercise: e, size: 44) }
+            Text(Exercise.find(item.wrappedValue.exerciseId)?.name ?? item.wrappedValue.exerciseId)
+                .font(Theme.label(15)).lineLimit(2)
+            Spacer(minLength: 4)
+            stepButton("minus", enabled: item.wrappedValue.minutes > range.lowerBound) { item.wrappedValue.minutes -= 1 }
+            Text("\(item.wrappedValue.minutes)′").font(Theme.display(22)).frame(minWidth: 40)
+            stepButton("plus", enabled: item.wrappedValue.minutes < range.upperBound) { item.wrappedValue.minutes += 1 }
+            Button { picks.items.removeAll { $0.exerciseId == item.wrappedValue.exerciseId } } label: {
+                Image(systemName: "xmark").font(.footnote.bold()).padding(8).background(Circle().fill(.black.opacity(0.25)))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove")
+        }
+        .foregroundStyle(.white)
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(kind.gradient))
+        .accessibilityElement(children: .contain)
+    }
+
+    private func stepButton(_ symbol: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.body.bold()).frame(width: 32, height: 32).background(Circle().fill(.white.opacity(0.22)))
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.4)
+        .accessibilityLabel(symbol == "plus" ? "One minute more" : "One minute less")
     }
 }
