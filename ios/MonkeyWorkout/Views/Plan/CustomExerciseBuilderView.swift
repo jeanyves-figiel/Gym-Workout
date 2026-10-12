@@ -232,11 +232,10 @@ struct CustomExerciseBuilderView: View {
 
     private var measureSection: some View {
         section("Counted in") {
-            Picker("Counted in", selection: $draft.unit) {
-                Text("Reps").tag(WorkoutEngine.Unit.reps)
-                Text("Seconds").tag(WorkoutEngine.Unit.sec)
-            }
-            .pickerStyle(.segmented)
+            GradientSegments(selection: $draft.unit, items: [
+                SegmentItem(value: WorkoutEngine.Unit.reps, title: "Reps", symbol: "repeat"),
+                SegmentItem(value: WorkoutEngine.Unit.sec, title: "Seconds", symbol: "timer"),
+            ])
         }
     }
 
@@ -397,10 +396,9 @@ struct MusclePickerScreen: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 14) {
-                Picker("Side", selection: $side) {
-                    ForEach(BodySide.allCases) { Text($0.rawValue.capitalized).tag($0) }
-                }
-                .pickerStyle(.segmented)
+                GradientSegments(selection: $side, items: BodySide.allCases.map {
+                    SegmentItem(value: $0, title: $0.rawValue.capitalized, symbol: $0 == .front ? "figure.stand" : "figure.walk")
+                })
                 Text("Tap once main, twice assist, three times to remove")
                     .font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted)
                 BodyMapView(side: side, heat: heat, showLabel: false, onTap: onTap, tapTolerance: 18)
