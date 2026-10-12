@@ -1,35 +1,11 @@
 {
-  "id": "2026-10-12.4",
+  "id": "2026-10-12.5",
   "items": [
     {
-      "symbol": "rectangle.3.group.fill",
-      "tint": "power",
-      "title": "Your goal, your split",
-      "body": "Switching goal re-plans your week. Under your goal, pick a split (full body, upper / lower, push pull legs, body part…), tap a day to set its focus, and pick focus muscles for extra sets."
-    },
-    {
-      "symbol": "figure.strengthtraining.traditional",
-      "tint": "cardio",
-      "title": "Simpler workout player, bolder switchers",
-      "body": "The workout player fits one screen: kg and reps in one place, tap a done set to fix it, cardio just shows the timer. Explore's switcher is now colourful tiles with counts."
-    },
-    {
-      "symbol": "applewatch.watchface",
-      "tint": "cardio",
-      "title": "Watch face complications",
-      "body": "Add MonkeyWorkout to any watch face, analog ones too: next workout, weekly goal, streak, week strip, readiness, top lift, last workout. Long-press the face, Edit, then pick MonkeyWorkout."
-    },
-    {
       "symbol": "bolt.heart.fill",
-      "tint": "strength",
-      "title": "Ready the moment you open it",
-      "body": "Readiness, weight and Health data show at launch, no more Connect Apple Health flash. New exercise closes with the X next to Save."
-    },
-    {
-      "symbol": "rectangle.split.3x1.fill",
-      "tint": "warmup",
-      "title": "Choose your session flow",
-      "body": "Pick the blocks of your workouts and drag the time bar to split the minutes. Per workout, for your plan, or in your own workouts. Pin your favourites too, like 7 min treadmill in every warm-up: Session flow → My picks, or long-press an exercise → Always use."
+      "tint": "cardio",
+      "title": "Week and readiness in one card",
+      "body": "Train shows your week and today's readiness together: the readiness pill sits inside the week card, tap it for the details. No Health yet? Connect it right there."
     }
   ]
 }

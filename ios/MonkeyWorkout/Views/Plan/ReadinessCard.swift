@@ -1,48 +1,80 @@
 import SwiftUI
 import WorkoutEngine
 
-/// Recovery card on the Train tab (only when Health has data). Tap → plain-language explanation.
-struct ReadinessCard: View {
-    let snapshot: HealthSnapshot
-    /// Today's session was eased automatically (RIR-autoregulated plans, #156).
-    var eased = false
+/// Readiness pill inside the Train week card (#208). Health data → verdict + markers, tap → explanation;
+/// Health not connected → Connect row; connected without recovery data or still loading → nothing.
+struct ReadinessPill: View {
+    @Environment(AppModel.self) private var model
+    @Environment(HealthManager.self) private var health
     @State private var explaining = false
 
     var body: some View {
+        let snapshot = health.snapshot
         if let assessed = Readiness.assess(snapshot) {
-            Button { explaining = true } label: { content(assessed.0, assessed.1) }
+            Button { explaining = true } label: { verdict(assessed.0, snapshot) }
                 .buttonStyle(.plain)
                 .accessibilityHint("Explains readiness and each marker")
                 .sheet(isPresented: $explaining) {
                     ReadinessSheet(snapshot: snapshot, readiness: assessed.0, flags: assessed.1)
                         .presentationDetents([.large])
                 }
+        } else if health.available, health.settled, !health.connected {
+            Button { Task { await health.connect() } } label: { connect }
+                .buttonStyle(.plain)
+                .accessibilityHint("Asks Apple Health for heart rate variability, resting heart rate and sleep")
         }
     }
 
-    /// One compact row: verdict, key markers, info. Advice and details live in the sheet.
-    private func content(_ r: Readiness, _ reasons: [String]) -> some View {
-        HStack(spacing: 12) {
-            IconTile(symbol: r.symbol, size: 38)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Readiness").font(Theme.label(10)).tracking(1.2).textCase(.uppercase).opacity(0.7)
-                Text(r.title).font(Theme.display(18)).lineLimit(1).minimumScaleFactor(0.8)
-                Text(eased ? "Today's session eased: −1 RPE, 1 set less" : markers).font(.caption.weight(.semibold)).monospacedDigit().opacity(0.8).lineLimit(1).minimumScaleFactor(0.8)
+    /// Verdict, key markers, info. Advice and details live in the sheet.
+    private func verdict(_ r: Readiness, _ s: HealthSnapshot) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: r.symbol)
+                .font(.system(size: 16, weight: .black))
+                .frame(width: 34, height: 34)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.5)))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(r.title).font(Theme.display(17)).lineLimit(1).minimumScaleFactor(0.8)
+                Text(model.readinessEased ? "Today's session eased: −1 RPE, 1 set less" : markers(s))
+                    .font(.caption.weight(.semibold)).monospacedDigit().opacity(0.8).lineLimit(1).minimumScaleFactor(0.8)
             }
             Spacer(minLength: 4)
-            Image(systemName: "info.circle.fill").font(.body).opacity(0.7)
+            Image(systemName: "info.circle.fill").font(.body).opacity(0.8)
         }
         .foregroundStyle(Theme.ink)
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(LinearGradient(colors: r.colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .fill(LinearGradient(colors: r.colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+            .shadow(color: .black.opacity(0.18), radius: 7, y: 4))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Readiness: \(r.title)")
     }
 
-    private var markers: String {
+    private var connect: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "heart.fill")
+                .font(.system(size: 15, weight: .black))
+                .frame(width: 34, height: 34)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.25)))
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Connect Health for readiness").font(.subheadline.weight(.heavy)).lineLimit(1).minimumScaleFactor(0.8)
+                Text("HRV · resting HR · sleep").font(.caption.weight(.semibold)).opacity(0.85)
+            }
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.right").font(.footnote.weight(.bold))
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.black.opacity(0.22)))
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func markers(_ s: HealthSnapshot) -> String {
         [
-            snapshot.hrv.map { "HRV \(Int($0)) ms" },
-            snapshot.restingHR.map { "RHR \(Int($0))" },
-            snapshot.sleepHours.map { String(format: "Sleep %.1f h", $0) },
+            s.hrv.map { "HRV \(Int($0)) ms" },
+            s.restingHR.map { "RHR \(Int($0))" },
+            s.sleepHours.map { String(format: "Sleep %.1f h", $0) },
         ].compactMap { $0 }.joined(separator: " · ")
     }
 }
