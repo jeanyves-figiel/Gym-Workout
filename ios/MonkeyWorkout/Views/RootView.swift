@@ -133,6 +133,9 @@ private struct DemoScreen: View {
         case "progress", "progress-empty": NavigationStack { ProgressTabView() }
         case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
         case "body": NavigationStack { BodyHealthView() }
+        case "measurements": NavigationStack { MeasurementsView() }
+        case "measurement-log": MeasurementLogSheet(initial: model.measurements.last ?? BodyMeasurement(date: Date()), isNew: false)
+        case "measurement-detail": NavigationStack { MeasurementDetailView(metric: .girth(.upperArm)) }
         case "account": NavigationStack { AccountView() }
         case "paywall", "pro": NavigationStack { ProView() }
         case "pro-offer": NavigationStack { ProView(context: .onboarding) {} }

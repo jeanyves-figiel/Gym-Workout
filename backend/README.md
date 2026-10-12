@@ -101,6 +101,8 @@ Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode
 | GET | `/share/:postId` | – | public web card for `public` posts |
 | GET / POST | `/me/pr-attempts` | ✓ | personal-record attempts (JSON with `id`, `exerciseId`, `date`, `kind` 1RM/repMax/maxReps, `kg`, `reps`, `success`, optional `isRecord`); `?since=ISO` delta; upsert ≤200 |
 | DELETE | `/me/pr-attempts/:id` | ✓ | |
+| GET / POST | `/me/body-measurements` | ✓ | body measurements (#185): JSON with `id`, `date`, optional `girthsCm` (part → cm, e.g. `chest`, `upperArmL`), `weightKg`, `bodyFatPct`; `?since=ISO` delta; upsert ≤200 |
+| DELETE | `/me/body-measurements/:id` | ✓ | |
 | GET | `/me/export` | ✓ | full JSON export (nFADP/GDPR) |
 | PUT | `/me/push-device` | ✓ | `{token (hex), env: sandbox\|production, topic (bundle id), tz?}`; a token moves to the last account that registers it |
 | DELETE | `/me/push-device/:token` | ✓ | 204 (sign-out) |

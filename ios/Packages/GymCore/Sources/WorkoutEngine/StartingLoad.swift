@@ -10,12 +10,21 @@ public struct Athlete: Sendable, Hashable {
     public var sex: Sex
     public var age: Int?
     public var experience: Experience
+    /// Fat-free mass from body fat (#185): strength follows muscle, not total weight.
+    public var leanKg: Double?
+    /// Latest upper arm / thigh girth (#185): refine arm and leg estimates a little.
+    public var upperArmCm: Double?
+    public var thighCm: Double?
 
-    public init(bodyKg: Double? = nil, sex: Sex = .unspecified, age: Int? = nil, experience: Experience = .beginner) {
+    public init(bodyKg: Double? = nil, sex: Sex = .unspecified, age: Int? = nil, experience: Experience = .beginner,
+                leanKg: Double? = nil, upperArmCm: Double? = nil, thighCm: Double? = nil) {
         self.bodyKg = bodyKg
         self.sex = sex
         self.age = age
         self.experience = experience
+        self.leanKg = leanKg
+        self.upperArmCm = upperArmCm
+        self.thighCm = thighCm
     }
 }
 
@@ -125,12 +134,63 @@ public enum StartingLoad {
         }
         // Single-limb work on a barbell/stack moves less than the bilateral lift the ratio describes.
         let unilateral = e.unilateral && imp != .dumbbell && e.pattern != .singleLeg ? 0.5 : 1
-        let oneRM = bodyKg * base * sexFactor * levelFactor * ageFactor * implementFactor(imp, pattern: e.pattern, equipment: e.equipment) * unilateral
+        let body = bodyFactors(a, bodyKg: bodyKg, pattern: e.pattern)
+        let oneRM = bodyKg * body.factor * base * sexFactor * levelFactor * ageFactor
+            * implementFactor(imp, pattern: e.pattern, equipment: e.equipment) * unilateral
         // 15 % under the estimate: the first session calibrates, it doesn't test.
         let kg = finish(working(oneRM: oneRM, reps: t.reps, rir: t.rir) * 0.85, exercise: e, implement: imp)
+        let from = body.used.isEmpty ? "body weight (\(LoadAdvisor.formatKg(bodyKg)) kg)" : body.used.joined(separator: ", ")
         return LoadSuggestion(kg: kg, reps: t.reps, action: .hold, basisKg: kg,
-                              reason: "Estimate from body weight (\(LoadAdvisor.formatKg(bodyKg)) kg) and \(a.experience.rawValue) level",
+                              reason: "Estimate from \(from) and \(a.experience.rawValue) level",
                               source: .estimate)
+    }
+
+    /// Typical lean share of body weight per sex: the ratios above assume this build.
+    static func typicalLeanShare(_ s: Athlete.Sex) -> Double {
+        switch s {
+        case .male: 0.84
+        case .female: 0.74
+        case .unspecified: 0.79
+        }
+    }
+
+    /// Typical relaxed-flexed upper arm and thigh girth (cm) at the default body weight per sex.
+    static func typicalGirth(_ s: Athlete.Sex) -> (arm: Double, thigh: Double, kg: Double) {
+        switch s {
+        case .male: (34, 56, 78)
+        case .female: (29, 55, 63)
+        case .unspecified: (31.5, 55.5, 70)
+        }
+    }
+
+    static let maxLeanShift = 0.15
+    static let maxGirthShift = 0.08
+
+    /// Body-composition refinements (#185), each capped so a typo can't swing a load:
+    /// lean mass vs the typical lean share (±15 %), and arm girth for arm work / thigh girth for knee-dominant
+    /// leg work vs the typical girth at this body weight (±8 %; girth grows with √weight).
+    static func bodyFactors(_ a: Athlete, bodyKg: Double, pattern p: Pattern) -> (factor: Double, used: [String]) {
+        var f = 1.0
+        var used: [String] = []
+        if let lean = a.leanKg, lean > 20, lean < bodyKg {
+            let shift = lean / (bodyKg * typicalLeanShare(a.sex))
+            f *= min(1 + maxLeanShift, max(1 - maxLeanShift, shift))
+            used.append("lean mass (\(LoadAdvisor.formatKg((lean * 10).rounded() / 10)) kg)")
+        }
+        let typical = typicalGirth(a.sex)
+        let scale = (bodyKg / typical.kg).squareRoot()
+        var girth: (cm: Double?, typical: Double, name: String)?
+        switch p {
+        case .armsFlex, .armsExt: girth = (a.upperArmCm, typical.arm, "arm")
+        case .squat, .singleLeg, .kneeExt, .kneeFlex: girth = (a.thighCm, typical.thigh, "thigh")
+        default: girth = nil
+        }
+        if let g = girth, let cm = g.cm, cm > 10, cm < 120 {
+            f *= min(1 + maxGirthShift, max(1 - maxGirthShift, cm / (g.typical * scale)))
+            used.append("\(g.name) girth (\(LoadAdvisor.formatKg(cm)) cm)")
+        }
+        if !used.isEmpty { used.insert("body weight (\(LoadAdvisor.formatKg(bodyKg)) kg)", at: 0) }
+        return (f, used)
     }
 
     /// First-time load from the best recent set of a logged exercise with the same movement pattern

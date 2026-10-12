@@ -79,6 +79,13 @@ struct HealthSnapshot: Equatable {
     var recentClimbs: [ClimbEntry] = []
     var weightTrend: [TrendPoint] = []
     var vo2Trend: [TrendPoint] = []
+    /// Body composition and waist (#185), latest values and the last year.
+    var bodyFatPct: Double?
+    var leanKg: Double?
+    var waistCm: Double?
+    var bodyFatTrend: [TrendPoint] = []
+    var leanTrend: [TrendPoint] = []
+    var waistTrend: [TrendPoint] = []
 
     struct TrendPoint: Equatable, Identifiable {
         let date: Date
@@ -134,6 +141,8 @@ final class HealthManager {
     private(set) var writeWorkouts = UserDefaults.standard.object(forKey: HealthManager.writeKey) as? Bool ?? true
     var snapshot = HealthSnapshot()
     var error: String?
+    /// Connected before body measurements (#185) were asked for: Health needs one more permission sheet.
+    private(set) var needsMeasurementAccess = false
 
     var available: Bool { HKHealthStore.isHealthDataAvailable() }
 
@@ -144,6 +153,7 @@ final class HealthManager {
             HKQuantityType(.bodyMass), HKQuantityType(.height), HKQuantityType(.restingHeartRate),
             HKQuantityType(.heartRateVariabilitySDNN), HKQuantityType(.vo2Max), HKQuantityType(.heartRate),
             HKQuantityType(.activeEnergyBurned), HKCategoryType(.sleepAnalysis), HKObjectType.workoutType(),
+            HKQuantityType(.bodyFatPercentage), HKQuantityType(.leanBodyMass), HKQuantityType(.waistCircumference),
         ]
         if let dob = HKObjectType.characteristicType(forIdentifier: .dateOfBirth) { s.insert(dob) }
         if let sex = HKObjectType.characteristicType(forIdentifier: .biologicalSex) { s.insert(sex) }
@@ -151,7 +161,8 @@ final class HealthManager {
     }
 
     private var shareTypes: Set<HKSampleType> {
-        [HKObjectType.workoutType(), HKQuantityType(.activeEnergyBurned), HKQuantityType(.bodyMass), HKQuantityType(.height)]
+        [HKObjectType.workoutType(), HKQuantityType(.activeEnergyBurned), HKQuantityType(.bodyMass), HKQuantityType(.height),
+         HKQuantityType(.bodyFatPercentage), HKQuantityType(.leanBodyMass), HKQuantityType(.waistCircumference)]
     }
 
     func setWriteWorkouts(_ on: Bool) {
@@ -201,7 +212,14 @@ final class HealthManager {
         let vo2Unit = HKUnit.literUnit(with: .milli).unitDivided(by: HKUnit.gramUnit(with: .kilo).unitMultiplied(by: .minute()))
         s.vo2Max = await latest(.vo2Max)?.quantity.doubleValue(for: vo2Unit)
         s.sleepHours = await sleepLastNight()
-        s.weightTrend = await trend(.bodyMass, unit: .gramUnit(with: .kilo), days: 120)
+        s.weightTrend = await trend(.bodyMass, unit: .gramUnit(with: .kilo), days: 365)
+        s.bodyFatPct = await latest(.bodyFatPercentage).map { $0.quantity.doubleValue(for: .percent()) * 100 }
+        s.leanKg = await latest(.leanBodyMass)?.quantity.doubleValue(for: .gramUnit(with: .kilo))
+        s.waistCm = await latest(.waistCircumference)?.quantity.doubleValue(for: .meterUnit(with: .centi))
+        s.bodyFatTrend = await trend(.bodyFatPercentage, unit: .percent(), days: 365).map { .init(date: $0.date, value: $0.value * 100) }
+        s.leanTrend = await trend(.leanBodyMass, unit: .gramUnit(with: .kilo), days: 365)
+        s.waistTrend = await trend(.waistCircumference, unit: .meterUnit(with: .centi), days: 365)
+        needsMeasurementAccess = (try? await store.statusForAuthorizationRequest(toShare: shareTypes, read: readTypes)) == .shouldRequest
         s.vo2Trend = await trend(.vo2Max, unit: vo2Unit, days: 365)
 
         let cal = Progression.calendar()
@@ -359,6 +377,29 @@ final class HealthManager {
         let d = HKStatisticsQueryDescriptor(predicate: pred, options: [.discreteAverage, .discreteMax])
         let stats = try? await d.result(for: store)
         return (stats?.averageQuantity()?.doubleValue(for: bpm), stats?.maximumQuantity()?.doubleValue(for: bpm))
+    }
+
+    /// Writes a logged measurement (#185) to Apple Health: weight, body fat, lean mass (from both) and waist,
+    /// dated like the entry. Other girths have no Health type and stay in the app.
+    func saveMeasurement(_ m: BodyMeasurement) async {
+        guard connected, available else { return }
+        let d = m.date
+        var samples: [HKQuantitySample] = []
+        func add(_ id: HKQuantityTypeIdentifier, _ unit: HKUnit, _ value: Double?) {
+            guard let value else { return }
+            samples.append(HKQuantitySample(type: HKQuantityType(id), quantity: HKQuantity(unit: unit, doubleValue: value), start: d, end: d))
+        }
+        add(.bodyMass, .gramUnit(with: .kilo), m.weightKg)
+        add(.bodyFatPercentage, .percent(), m.bodyFatPct.map { $0 / 100 })
+        add(.leanBodyMass, .gramUnit(with: .kilo), m.leanKg)
+        add(.waistCircumference, .meterUnit(with: .centi), m.girth(.waist))
+        guard !samples.isEmpty else { return }
+        do {
+            try await store.save(samples)
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 
     /// Writes body metrics entered in-app back to Apple Health.

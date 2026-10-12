@@ -58,6 +58,10 @@ struct LocalState: Codable {
     var prAttempts: [PRAttempt]?
     var pendingPRAttemptIds: Set<UUID>?
     var deletedPRAttemptIds: Set<UUID>?
+    // Body measurements (#185). Optional so older state files still decode.
+    var measurements: [BodyMeasurement]?
+    var pendingMeasurementIds: Set<UUID>?
+    var deletedMeasurementIds: Set<UUID>?
     /// Workout paused in the player, resumed at the same point (#57). Local only.
     var activeWorkout: ActiveWorkout?
 }
