@@ -34,3 +34,34 @@ extension AppModel {
         Task { await sync() }
     }
 }
+
+/// Session flow (#198): one workout's blocks and time split, or the plan-wide default from a workout.
+extension AppModel {
+    /// Whether this workout's flow can change: a generated plan session, not done or started.
+    func canEditFlow(_ session: Session) -> Bool {
+        guard !session.isPlanInsert, state.plan?.sessions.contains(where: { $0.id == session.id }) == true else { return false }
+        return !(state.done[session.id] ?? false) && activeWorkout(session.id) == nil
+    }
+
+    /// This workout only; a flow equal to the plan's clears the override.
+    func setSessionFlow(_ sessionId: String, _ flow: SessionFlow) {
+        var style = sessionStyle(sessionId)
+        let f = flow.sanitized
+        style.flow = f == (profile?.sessionFlow ?? SessionFlow()) ? nil : f
+        setSessionStyle(sessionId, style)
+    }
+
+    /// Every workout: becomes the plan's flow (Edit plan), and `sessionId` drops its own.
+    func setPlanFlow(_ flow: SessionFlow, clearing sessionId: String) {
+        guard var sp = state.synced else { return }
+        if var style = sp.sessionStyles?[sessionId] {
+            style.flow = nil
+            sp.sessionStyles?[sessionId] = style.isEmpty ? nil : style
+            if sp.sessionStyles?.isEmpty == true { sp.sessionStyles = nil }
+            state.synced = sp
+        }
+        var p = sp.profile
+        p.sessionFlow = flow.isAuto ? nil : flow.sanitized
+        updateProfile(p)
+    }
+}

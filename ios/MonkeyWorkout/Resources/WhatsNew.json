@@ -1,11 +1,11 @@
 {
-  "id": "2026-10-12.3",
+  "id": "2026-10-12.4",
   "items": [
     {
-      "symbol": "figure.walk.motion",
-      "tint": "strength",
-      "title": "Movements play on their own",
-      "body": "Each exercise shows its movement 3 times when it appears in the workout, then stops. Tap Play movement to see it again."
+      "symbol": "rectangle.split.3x1.fill",
+      "tint": "warmup",
+      "title": "Choose your session flow",
+      "body": "Pick the blocks of your workouts and drag the time bar to split the minutes. Per workout, for your plan, or in your own workouts."
     }
   ]
 }
