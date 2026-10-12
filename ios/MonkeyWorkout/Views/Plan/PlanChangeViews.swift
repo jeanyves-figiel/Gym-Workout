@@ -156,18 +156,29 @@ struct MoveDayPicker: View {
     }
 }
 
-/// Add an unplanned workout to a day of this week: quick generated session, library workout, or a climb.
+/// Add an unplanned workout to a day of this week: quick generated session (with duration and muscle focus),
+/// a custom workout built now, a library workout, or a climb.
 struct AddWorkoutSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var weekday: Int
     @State private var logging: ClimbLog?
-    @State private var showAll = false
     @State private var climbsBefore = 0
+    /// Quick session whose options step is shown (#178).
+    @State private var quick: Focus?
+    @State private var building: CustomWorkout?
+    @State private var built = false
+    @State private var browsing = false
+    @State private var picked: LibraryEntry?
+    @State private var gate: ProGate?
 
-    init(weekday: Int? = nil) {
+    /// Library workouts shown on the sheet; the rest are one tap away in Browse library (#178).
+    static let libraryPreview = 3
+
+    init(weekday: Int? = nil, quick: Focus? = nil) {
         let today = WeekSchedule.fromCalendar(Calendar.current.component(.weekday, from: Date()))
         _weekday = State(initialValue: weekday ?? today)
+        _quick = State(initialValue: quick)
     }
 
     var body: some View {
@@ -178,20 +189,30 @@ struct AddWorkoutSheet: View {
                     Text("Quick session").eyebrow().padding(.top, 4)
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                         ForEach(Generator.quickFoci, id: \.self) { f in
-                            Button { addQuick(f) } label: { focusTile(f) }.buttonStyle(.plain)
+                            Button { quick = f } label: { focusTile(f) }
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button("Add now · \(Generator.quickDefaultMinutes) min", systemImage: "bolt.fill") {
+                                        addQuick(f, minutes: Generator.quickDefaultMinutes)
+                                    }
+                                }
                         }
                     }
-                    Text("Built for your equipment and this week's phase. Counts in your week and history.")
+                    Text("Pick duration and muscle focus next. Built for your equipment and this week's phase; counts in your week and history.")
                         .font(.caption).foregroundStyle(Theme.muted)
+
+                    Text("Your own").eyebrow().padding(.top, 8)
+                    Button { ProStore.shared.run(.buildWorkout, $gate) { building = CustomWorkout(name: "") } } label: { customRow }
+                        .buttonStyle(.plain)
+
                     Text("From your library").eyebrow().padding(.top, 8)
-                    let library = model.myLibrary + model.builtInLibrary
-                    ForEach(showAll ? library : Array(library.prefix(4))) { e in
+                    let library = Self.libraryOrder(mine: model.customWorkouts, builtIn: model.builtInLibrary)
+                    ForEach(library.prefix(Self.libraryPreview)) { e in
                         Button { addLibrary(e) } label: { LibraryCard(entry: e) }.buttonStyle(.plain)
                     }
-                    if library.count > 4 && !showAll {
-                        Button("Show all \(library.count)") { showAll = true }
-                            .font(Theme.label(14)).foregroundStyle(Theme.lime)
-                    }
+                    Button { browsing = true } label: { browseRow(count: library.count) }
+                        .buttonStyle(.plain)
+
                     Text("Climbing").eyebrow().padding(.top, 8)
                     Button {
                         climbsBefore = model.climbLogs.count
@@ -205,12 +226,39 @@ struct AddWorkoutSheet: View {
             .navigationTitle("Add workout")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }
+            .navigationDestination(item: $quick) { f in
+                QuickSessionOptionsView(focus: f, day: dayDate.formatted(.dateTime.weekday(.wide))) { minutes, groups in
+                    addQuick(f, minutes: minutes, groups: groups)
+                }
+            }
             .sheet(item: $logging, onDismiss: { if model.climbLogs.count > climbsBefore { dismiss() } }) {
                 LogClimbView(initial: $0)
             }
+            .sheet(item: $building, onDismiss: { if built { dismiss() } }) { w in
+                CustomWorkoutEditor(initial: w) { saved in
+                    model.addExtra(saved, weekday: weekday)
+                    built = true
+                }
+            }
+            .sheet(isPresented: $browsing, onDismiss: { if let e = picked { addLibrary(e) } }) {
+                NavigationStack {
+                    WorkoutLibraryView { e in
+                        picked = e
+                        browsing = false
+                    }
+                    .toolbar { CloseToolbarItem { browsing = false } }
+                }
+                .preferredColorScheme(.dark)
+            }
+            .proPaywall($gate)
         }
         .presentationDetents([.large])
         .preferredColorScheme(.dark)
+    }
+
+    /// My workouts newest first, then built-in ones.
+    static func libraryOrder(mine: [CustomWorkout], builtIn: [LibraryEntry]) -> [LibraryEntry] {
+        mine.sorted { $0.createdAt > $1.createdAt }.map { LibraryEntry(source: .mine($0)) } + builtIn
     }
 
     private var dayDate: Date {
@@ -259,14 +307,15 @@ struct AddWorkoutSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             Image(systemName: f == .conditioning ? "heart.circle.fill" : "bolt.fill").font(.system(size: 20, weight: .bold))
             Text(f.quickLabel).font(Theme.display(18)).lineLimit(1).minimumScaleFactor(0.7)
-            Text("Add").font(Theme.label(11)).tracking(1).opacity(0.85)
+            Text("Options").font(Theme.label(11)).tracking(1).opacity(0.85)
         }
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(f.palette.gradient))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Add quick \(f.quickLabel) session")
+        .accessibilityLabel("Quick \(f.quickLabel) session")
+        .accessibilityHint("Pick duration and muscle focus")
     }
 
     private var climbRow: some View {
@@ -286,16 +335,199 @@ struct AddWorkoutSheet: View {
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(WorkoutEngine.Category.warmup.gradient))
     }
 
-    private func addQuick(_ f: Focus) {
-        guard let s = model.quickSession(f) else { return }
-        model.addExtra(CustomWorkout(name: "Extra · \(f.quickLabel)"), generated: s, weekday: weekday)
+    private var customRow: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "square.and.pencil")
+                .font(.system(size: 24, weight: .bold))
+                .frame(width: 52, height: 52)
+                .background(RoundedRectangle(cornerRadius: 16).fill(.white.opacity(0.2)))
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text("Custom workout").font(Theme.display(21))
+                    ProBadge()
+                }
+                Text("Pick exercises, or generate from muscles. Saved to your workouts too.").font(.footnote.weight(.semibold)).opacity(0.88)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right").font(.caption.bold()).opacity(0.8)
+        }
+        .foregroundStyle(.white)
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(WorkoutEngine.Category.strength.gradient))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Build a custom workout")
+    }
+
+    private func browseRow(count: Int) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: "books.vertical.fill")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(Theme.lime)
+                .frame(width: 52, height: 52)
+                .background(RoundedRectangle(cornerRadius: 16).fill(Theme.lime.opacity(0.15)))
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Browse library").font(.system(.headline, design: .rounded).weight(.heavy))
+                Text("Search all \(count) workouts, plus members' shared ones").font(.caption).foregroundStyle(Theme.muted)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.muted)
+        }
+        .card()
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Generated for the focus (preset muscles) or for the chosen muscles; false when nothing fits.
+    @discardableResult
+    private func addQuick(_ f: Focus, minutes: Int, groups: Set<MuscleGroup>? = nil) -> Bool {
+        if let groups, groups != f.muscleGroups, !groups.isEmpty {
+            guard var w = model.quickWorkout(groups, minutes: minutes) else { return false }
+            w.name = "Extra · " + CustomWorkout.generatedName(groups)
+            model.addExtra(w, weekday: weekday)
+        } else {
+            guard let s = model.quickSession(f, minutes: minutes) else { return false }
+            model.addExtra(CustomWorkout(name: "Extra · \(f.quickLabel)"), generated: s, weekday: weekday)
+        }
         dismiss()
+        return true
     }
 
     private func addLibrary(_ e: LibraryEntry) {
         guard let w = model.libraryWorkout(for: e.session) else { return }
         model.addExtra(w, weekday: weekday)
         dismiss()
+    }
+}
+
+/// Quick session options (#178): duration and muscle focus before adding. Preset muscles = the focus's session;
+/// other muscles = a workout generated for them.
+struct QuickSessionOptionsView: View {
+    let focus: Focus
+    let day: String
+    /// Returns false when nothing fits the equipment.
+    let onAdd: (Int, Set<MuscleGroup>) -> Bool
+    @State private var minutes = Generator.quickDefaultMinutes
+    @State private var groups: Set<MuscleGroup>
+    @State private var nothingFits = false
+    @State private var gate: ProGate?
+
+    init(focus: Focus, day: String, onAdd: @escaping (Int, Set<MuscleGroup>) -> Bool) {
+        self.focus = focus
+        self.day = day
+        self.onAdd = onAdd
+        _groups = State(initialValue: focus.muscleGroups)
+    }
+
+    private var preset: Bool { groups == focus.muscleGroups }
+    private var title: String { preset ? focus.quickLabel : CustomWorkout.generatedName(groups) }
+    private var canAdd: Bool { !groups.isEmpty || focus == .conditioning }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                header
+
+                Text("Duration").eyebrow().padding(.top, 10)
+                HStack(spacing: 8) {
+                    ForEach(Generator.quickDurations, id: \.self) { m in
+                        Button { minutes = m; nothingFits = false } label: {
+                            VStack(spacing: 0) {
+                                Text("\(m)").font(Theme.display(20)).monospacedDigit()
+                                Text("MIN").font(Theme.label(8)).tracking(1).opacity(0.85)
+                            }
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .selectableGradient(WorkoutEngine.Category.cardio.gradient, selected: minutes == m, cornerRadius: 16)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(m) minutes")
+                        .accessibilityAddTraits(minutes == m ? .isSelected : [])
+                    }
+                }
+
+                HStack {
+                    Text("Muscle focus").eyebrow()
+                    Spacer()
+                    if !preset {
+                        Button("Reset") { groups = focus.muscleGroups; nothingFits = false }
+                            .font(Theme.label(13)).foregroundStyle(Theme.lime)
+                    }
+                }
+                .padding(.top, 10)
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                    ForEach(MuscleGroup.allCases) { g in
+                        MuscleGroupTile(group: g, on: groups.contains(g)) {
+                            if groups.contains(g) { groups.remove(g) } else { groups.insert(g) }
+                            nothingFits = false
+                        }
+                    }
+                }
+                Text(note).font(.footnote).foregroundStyle(Theme.muted)
+
+                if nothingFits {
+                    Text("Nothing fits your equipment for these muscles. Pick other muscles or update your gym in the training profile.")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Theme.lime)
+                }
+
+                Button(action: add) {
+                    Label("Add to \(day)", systemImage: "plus").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(LimeButtonStyle())
+                .disabled(!canAdd)
+                .opacity(canAdd ? 1 : 0.5)
+                .padding(.top, 8)
+            }
+            .padding(16)
+            .animation(.spring(duration: 0.3), value: groups)
+        }
+        .readableWidth()
+        .background(Theme.bg.ignoresSafeArea())
+        .navigationTitle("Quick session")
+        .navigationBarTitleDisplayMode(.inline)
+        .proPaywall($gate)
+    }
+
+    private var note: String {
+        if preset {
+            return focus == .conditioning
+                ? "Intervals with warm-up and cool-down. Pick muscles to get a strength workout for them instead."
+                : "The \(focus.quickLabel.lowercased()) session with warm-up and cool-down. Pick other muscles to target them instead."
+        }
+        if groups.isEmpty { return "Pick at least one muscle group." }
+        return "Strength work for these muscles, sized to \(minutes) min, with your goal's sets and reps. Pro, like Generate from muscles."
+    }
+
+    private var header: some View {
+        let lead = preset ? nil : MuscleGroup.allCases.first { groups.contains($0) }
+        let gradient: LinearGradient = lead?.gradient ?? focus.palette.gradient
+        return HStack(spacing: 14) {
+            Image(systemName: preset ? (focus == .conditioning ? "heart.circle.fill" : "bolt.fill") : "wand.and.stars")
+                .font(.system(size: 24, weight: .bold))
+                .frame(width: 52, height: 52)
+                .background(RoundedRectangle(cornerRadius: 16).fill(.white.opacity(0.2)))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(Theme.display(24)).lineLimit(2).minimumScaleFactor(0.7)
+                Text("EXTRA · \(day.uppercased())").font(Theme.label(11)).tracking(1).opacity(0.9)
+            }
+            Spacer(minLength: 4)
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                Text("\(minutes)").font(Theme.display(34)).monospacedDigit()
+                Text(" min").font(Theme.label(13))
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(gradient))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func add() {
+        if preset {
+            nothingFits = !onAdd(minutes, groups)
+        } else {
+            ProStore.shared.run(.generateWorkout, $gate) { nothingFits = !onAdd(minutes, groups) }
+        }
     }
 }
 

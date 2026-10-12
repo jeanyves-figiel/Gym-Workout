@@ -50,16 +50,52 @@ extension Generator {
     /// Foci offered for a quick extra session.
     public static let quickFoci: [Focus] = [.fullUpper, .fullLower, .fullPower, .push, .pull, .legs, .conditioning]
 
+    /// Durations offered for a quick extra session (#178), and the default (extra sessions are usually short).
+    public static let quickDurations = [15, 20, 30, 45, 60]
+    public static let quickDefaultMinutes = 30
+
     /// One generated session of `focus` for this profile and cycle week (equipment, goal and style kept), unscheduled.
-    public static func quickSession(_ profile: Profile, focus: Focus, week: Int, seed: UInt32) -> Session? {
+    /// `minutes` sets its length (#178); nil = the plan's session length.
+    public static func quickSession(_ profile: Profile, focus: Focus, week: Int, seed: UInt32, minutes: Int? = nil) -> Session? {
         guard let n = Rules.splits.keys.sorted().first(where: { Rules.splits[$0]!.contains(focus) }) else { return nil }
         var p = profile
         p.sessionsPerWeek = n
         p.climbingWeekdays = nil
         p.gymWeekdays = nil
         p.climbingDaysPerWeek = 0
-        guard var s = generateWeek(p, week: week, seed: seed).sessions.first(where: { $0.focus == focus }) else { return nil }
+        let plan: WeekPlan
+        if let minutes {
+            p.syncClimbingDays()
+            let ctx = Ctx(profile: p, week: min(mesocycleWeeks, max(1, week)), seed: seed)
+            ctx.minutes = minutes
+            plan = generateWeek(ctx)
+        } else {
+            plan = generateWeek(p, week: week, seed: seed)
+        }
+        guard var s = plan.sessions.first(where: { $0.focus == focus }) else { return nil }
         s.weekday = nil
         return s
+    }
+
+    /// A quick extra session for chosen muscle groups (#178): the muscle generator's workout sized to `minutes`,
+    /// with the profile's rest and grouping. Empty when no group is chosen or nothing fits the equipment.
+    public static func quickWorkout(_ profile: Profile, groups: Set<MuscleGroup>, minutes: Int, seed: UInt32) -> CustomWorkout {
+        var options = MuscleWorkoutOptions(profile: profile, groups: groups)
+        options.minutes = minutes
+        return CustomWorkout.generate(options, profile: profile, seed: seed)
+    }
+}
+
+extension Focus {
+    /// Muscle groups a quick session of this focus works (#178): the muscle-focus preset; empty for conditioning.
+    public var muscleGroups: Set<MuscleGroup> {
+        switch self {
+        case .upper, .fullUpper: [.shoulders, .chest, .back, .arms]
+        case .lower, .fullLower, .legs: [.hips, .legs]
+        case .fullPower: [.chest, .back, .hips, .legs]
+        case .push: [.shoulders, .chest, .arms]
+        case .pull: [.back, .arms]
+        case .conditioning: []
+        }
     }
 }
