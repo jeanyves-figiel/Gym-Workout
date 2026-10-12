@@ -11,6 +11,8 @@ final class WatchStore: NSObject {
     /// iPhone player state while a workout runs on the phone.
     var live: WLive?
     var reachable = false
+    /// Game mode (#219): what the last workout finished on this Watch earned, for the Done screen.
+    var reward: WReward?
     /// Home style picked on this Watch (#219) and when; the phone's pick in the snapshot wins when newer.
     private var localStyle = UserDefaults.standard.string(forKey: "homeStyle").flatMap(WatchHomeStyle.init)
     private var localStyleAt = UserDefaults.standard.object(forKey: "homeStyleAt") as? Date
@@ -23,6 +25,7 @@ final class WatchStore: NSObject {
         #if DEBUG
         if Demo.on {
             snapshot = Demo.snapshot
+            if Demo.screen == "summary" { reward = Demo.reward }
             if let s = Demo.homeStyle { localStyle = s; localStyleAt = .distantFuture }
             return
         }
@@ -36,6 +39,9 @@ final class WatchStore: NSObject {
 
     var hasPlan: Bool { !snapshot.sessions.isEmpty || !snapshot.extras.isEmpty }
     var next: WSession? { snapshot.nextSessionId.flatMap(snapshot.session) ?? snapshot.sessions.first { !$0.done } }
+
+    /// Screens follow the home style (#219): Crown deck → full colour, Charge & go → tiles, Monkey coach → game.
+    var theme: WTheme { WTheme(homeStyle) }
 
     var homeStyle: WatchHomeStyle {
         let remoteAt = snapshot.homeStyleChangedAt ?? .distantPast
@@ -74,6 +80,21 @@ final class WatchStore: NSObject {
             WRecent(title: snapshot.session(f.sessionId)?.title ?? "Workout", date: f.start,
                     minutes: Int(f.end.timeIntervalSince(f.start)) / 60, sets: f.setsDone.values.reduce(0, +)), at: 0)
         snapshot.progress.thisWeek += 1
+        if var game = snapshot.game {
+            // Game mode (#219): count the workout until the phone's next snapshot.
+            let sets = f.setsDone.values.reduce(0, +)
+            let before = (level: game.level, badges: Set(game.badges))
+            game.xp += WGame.xp(sets: sets)
+            game.workouts += 1
+            game.totalSets += sets
+            let p = snapshot.progress
+            let earned = WBadge.earned(workouts: game.workouts, totalSets: game.totalSets,
+                                       bestStreak: max(p.bestStreakWeeks, p.thisWeek >= p.target ? 1 : 0), records: p.records.count)
+            game.badges = Array(before.badges.union(earned)).sorted()
+            snapshot.game = game
+            reward = WReward(xp: WGame.xp(sets: sets), levelUp: game.level > before.level ? game.level : nil,
+                             badges: WBadge.allCases.filter { earned.contains($0.rawValue) && !before.badges.contains($0.rawValue) })
+        }
         save()
     }
 
@@ -121,5 +142,24 @@ extension WatchStore: WCSessionDelegate {
 
     nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
         Task { @MainActor in self.receive(message: message) }
+    }
+}
+
+struct WReward: Equatable {
+    var xp: Int
+    var levelUp: Int?
+    var badges: [WBadge]
+}
+
+/// Look of every Watch screen, tied to the home style (#219).
+enum WTheme {
+    case colour, tiles, game
+
+    init(_ style: WatchHomeStyle) {
+        switch style {
+        case .deck: self = .colour
+        case .rings: self = .tiles
+        case .coach: self = .game
+        }
     }
 }

@@ -142,6 +142,9 @@ struct CoachHome: View {
         if let r = p.records.first {
             tips.append(Tip(text: "🏅 Best \(r.name): \(WatchPlayer.kg(r.kg)) kg. Beat it!", tint: (0x3D5AFF, 0x1E9BFF)))
         }
+        if let g = store.snapshot.game {
+            tips.append(Tip(text: "⭐ Level \(g.level): \(WGame.perLevel - g.xpInLevel) XP to level \(g.level + 1)", tint: (0x3DFFB0, 0x1E9BFF)))
+        }
         let left = max(0, p.target - p.thisWeek)
         tips.append(Tip(text: left == 0 ? "\(p.thisWeek)/\(p.target) this week. Bonus round?" : "\(p.thisWeek)/\(p.target) this week. \(left) to go!",
                         tint: (0xFF7A3D, 0xFF3D5A)))

@@ -134,6 +134,13 @@ final class WatchSync: NSObject {
             streakWeeks: stats.currentStreakWeeks, bestStreakWeeks: stats.bestStreakWeeks, thisWeek: stats.thisWeek, target: target,
             records: stats.personalRecords.prefix(5).map { WRecord(name: Exercise.get($0.exerciseId).name, kg: $0.kg) },
             recent: model.history.prefix(5).map { WRecent(title: $0.title, date: $0.startedAt, minutes: $0.durationSec / 60, sets: $0.totalSets) })
+        // Game mode (#219): XP and badges from the whole history.
+        let history = model.state.history
+        let sets = history.reduce(0) { $0 + $1.totalSets }
+        s.game = WGame(
+            xp: history.reduce(0) { $0 + WGame.xp(sets: $1.totalSets) }, workouts: history.count, totalSets: sets,
+            badges: WBadge.earned(workouts: history.count, totalSets: sets, bestStreak: stats.bestStreakWeeks,
+                                  records: stats.personalRecords.count))
         return s
     }
 

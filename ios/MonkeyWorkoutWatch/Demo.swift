@@ -1,7 +1,8 @@
 #if DEBUG
-import Foundation
+import SwiftUI
 
-/// DEBUG-only Watch demo data for CI screenshots (#219): `-demo [-homeStyle coach|deck|rings]`.
+/// DEBUG-only Watch demo data for CI screenshots (#219):
+/// `-demo [-homeStyle coach|deck|rings] [-watchScreen list|detail|progress|summary|mirror|pro]`.
 enum Demo {
     static let on = ProcessInfo.processInfo.arguments.contains("-demo")
 
@@ -9,6 +10,36 @@ enum Demo {
         let args = ProcessInfo.processInfo.arguments
         guard let i = args.firstIndex(of: "-homeStyle"), args.indices.contains(i + 1) else { return nil }
         return WatchHomeStyle(rawValue: args[i + 1])
+    }
+
+    static var screen: String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard on, let i = args.firstIndex(of: "-watchScreen"), args.indices.contains(i + 1) else { return nil }
+        return args[i + 1]
+    }
+
+    static let reward = WReward(xp: 140, levelUp: 8, badges: [.onFire])
+
+    @MainActor @ViewBuilder static func view(_ screen: String) -> some View {
+        let s = snapshot
+        switch screen {
+        case "list": NavigationStack { SessionListView(title: "This week", sessions: s.sessions) }
+        case "detail": NavigationStack { SessionDetailView(session: s.sessions[1], onStart: { _ in }) }
+        case "progress": NavigationStack { ProgressScreen() }
+        case "summary": SummaryView(player: player(s.sessions[1]), kcal: 410, avgHR: 128, saved: true, onDone: {})
+        case "mirror":
+            MirrorView(live: WLive(sessionTitle: "Upper Strength", exercise: "Bench Press", setLabel: "Set 2 of 4", detail: "80 kg × 8",
+                                   restEnd: nil, next: "Pull-up · 3×8–10", tint: 0xFF2D55, effortPending: false, action: "SET 2 DONE"))
+        default: ProLockView()
+        }
+    }
+
+    @MainActor private static func player(_ session: WSession) -> WatchPlayer {
+        let p = WatchPlayer(session: session)
+        for it in session.items { p.setsDone[it.uid] = it.sets }
+        p.endedAt = Date().addingTimeInterval(52 * 60)
+        p.phase = .finished
+        return p
     }
 
     static var snapshot: WatchSnapshot {
@@ -35,6 +66,7 @@ enum Demo {
         s.nextSessionId = "tue"
         s.readiness = "Ready to push"
         s.pro = true
+        s.game = WGame(xp: 3180, workouts: 42, totalSets: 760, badges: ["first", "ten", "ironWeek", "onFire", "prHunter"])
         s.progress = WProgress(streakWeeks: 5, bestStreakWeeks: 5, thisWeek: 1, target: 4,
                                records: [WRecord(name: "Bench Press", kg: 92.5), WRecord(name: "Squat", kg: 130)],
                                recent: [WRecent(title: "Lower Power", date: Date().addingTimeInterval(-86400), minutes: 47, sets: 18)])
