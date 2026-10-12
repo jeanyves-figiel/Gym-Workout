@@ -2,7 +2,7 @@ import Charts
 import SwiftUI
 import WorkoutEngine
 
-/// "Progress" tab in the Explore card style (#82): streak hero, gradient stat tiles, consistency, trends,
+/// "Progress" tab in the Explore card style (#82): streak hero, live stat tiles (#218), consistency, trends,
 /// records, climbing, muscle balance, achievements, history. New users get a "day one" layout instead of zeros.
 struct ProgressTabView: View {
     @Environment(AppModel.self) private var model
@@ -10,6 +10,12 @@ struct ProgressTabView: View {
     @State private var badge: Badge?
     @State private var lift: String?
     @State private var gate: ProGate?
+    /// CI screenshots: open with this tile flipped.
+    var demoFlipped: StatMetric?
+
+    init(demoFlipped: StatMetric? = nil) {
+        self.demoFlipped = demoFlipped
+    }
 
     private var target: Int { model.profile?.sessionsPerWeek ?? 3 }
 
@@ -43,9 +49,9 @@ struct ProgressTabView: View {
                 if fresh {
                     FirstMilestonesCard(session: false, pr: !model.personalRecords.isEmpty, climb: !climbList.isEmpty)
                 } else {
-                    totals(s, climbs: climbList)
+                    tiles(climbs: climbList)
                 }
-                ConsistencyCalendar(days: s.days, empty: fresh)
+                ConsistencyCalendar(days: s.days, records: dayRecords, empty: fresh)
                 weeklyChart(s)
                 strengthTrend
                 if !model.measurementSeries(.weight).isEmpty || !health.snapshot.vo2Trend.isEmpty { bodyTrends }
@@ -84,25 +90,21 @@ struct ProgressTabView: View {
 
     // MARK: Sections
 
-    private func totals(_ s: ProgressStats, climbs: [ClimbEntry]) -> some View {
+    private func tiles(climbs: [ClimbEntry]) -> some View {
         let recent = climbs.filter { $0.start > Date().addingTimeInterval(-84 * 86_400) }
         let grade = Climbs.hardest(recent.compactMap(\.topGrade))
-        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible())], spacing: 10) {
-            GradientStat(symbol: "dumbbell.fill", value: "\(s.totalWorkouts)", label: "Sessions",
-                         gradient: WorkoutEngine.Category.strength.gradient)
-            GradientStat(symbol: "stopwatch.fill", value: Self.hours(s.totalMinutes), label: "Trained",
-                         gradient: WorkoutEngine.Category.cardio.gradient)
-            GradientStat(symbol: "scalemass.fill", value: Format.volume(s.totalVolumeKg), label: "Lifted",
-                         gradient: WorkoutEngine.Category.power.gradient)
-            if recent.isEmpty {
-                GradientStat(symbol: "square.stack.3d.up.fill", value: "\(s.totalSets)", label: "Sets",
-                             gradient: WorkoutEngine.Category.mobility.gradient)
-            } else {
-                GradientStat(symbol: "figure.climbing", value: "\(recent.count)",
-                             label: "Climbs · 12 wk" + (grade.map { " · \($0)" } ?? ""),
-                             gradient: ClimbKind.boulder.gradient)
-            }
+        return LiveTiles(records: charted, climbs: recent.isEmpty ? nil : (recent.count, grade), flipped: demoFlipped)
+    }
+
+    /// Latest workout per day, so a lit square in the consistency calendar opens it (#218).
+    private var dayRecords: [Date: UUID] {
+        let cal = Progression.calendar()
+        var out: [Date: WorkoutRecord] = [:]
+        for r in charted {
+            let d = cal.startOfDay(for: r.startedAt)
+            if r.startedAt > (out[d]?.startedAt ?? .distantPast) { out[d] = r }
         }
+        return out.mapValues(\.id)
     }
 
     static func hours(_ minutes: Int) -> String {
@@ -541,6 +543,8 @@ private struct ClimbingCard: View {
 /// GitHub-style grid: 12 weeks × 7 days. Today is outlined; new users get a nudge instead of a dead grid.
 struct ConsistencyCalendar: View {
     let days: [Date: Int]
+    /// Workout to open when a lit day is tapped.
+    var records: [Date: UUID] = [:]
     var empty = false
 
     var body: some View {
@@ -561,7 +565,7 @@ struct ConsistencyCalendar: View {
                         ForEach(0..<7, id: \.self) { d in
                             let day = cal.date(byAdding: .day, value: d, to: start)!
                             let n = days[day] ?? 0
-                            RoundedRectangle(cornerRadius: 4)
+                            let square = RoundedRectangle(cornerRadius: 4)
                                 .fill(n > 0 ? AnyShapeStyle(Theme.lime.opacity(min(1, 0.55 + 0.25 * Double(n)))) : AnyShapeStyle(Color.white.opacity(day > today ? 0.02 : 0.07)))
                                 .overlay {
                                     if day == today && n == 0 {
@@ -569,6 +573,13 @@ struct ConsistencyCalendar: View {
                                     }
                                 }
                                 .aspectRatio(1, contentMode: .fit)
+                            if let id = records[day] {
+                                NavigationLink(value: id) { square }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel(day.formatted(.dateTime.weekday(.wide).day().month()))
+                            } else {
+                                square
+                            }
                         }
                     }
                 }
@@ -580,6 +591,8 @@ struct ConsistencyCalendar: View {
             } else {
                 HStack {
                     Text("12 weeks ago").font(.caption2).foregroundStyle(Theme.muted)
+                    Spacer()
+                    if !records.isEmpty { Text("Tap a day to open it").font(.caption2.weight(.semibold)).foregroundStyle(Theme.lime) }
                     Spacer()
                     Text("This week").font(.caption2).foregroundStyle(Theme.muted)
                 }
