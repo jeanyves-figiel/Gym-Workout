@@ -165,6 +165,14 @@ private struct DemoScreen: View {
             }
         case "profile": NavigationStack { TrainingProfileView().navigationTitle("Training profile") }
         case "profile-gym": NavigationStack { ProfileSectionView(section: .gym) }
+        case "profile-goal", "profile-goal-focus":
+            NavigationStack {
+                ProfileFormView(initial: Demo.splitProfile(model.profile), section: .goal,
+                                scrollTo: Demo.screen == "profile-goal-focus" ? "split" : nil) { _ in }
+                    .navigationTitle("Goal")
+                    .navigationBarTitleDisplayMode(.inline)
+            }
+        case "day-focus": DayFocusSheet(weekday: 4, index: 2, current: .legs) { _ in }
         case "profile-method": NavigationStack { ProfileSectionView(section: .method) }
         case "profile-flow": NavigationStack { ProfileSectionView(section: .flow) }
         case "flow-session": if let s = model.plan?.sessions.first { SessionFlowSheet(session: s) }

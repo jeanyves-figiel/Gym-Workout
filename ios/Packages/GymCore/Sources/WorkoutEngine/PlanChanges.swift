@@ -79,8 +79,11 @@ extension Generator {
         // The goal's own week when it has this focus (#194), else the default split that does.
         let sizes = Rules.splits.keys.sorted()
         let own = sizes.first { Rules.split(profile.goal, $0).contains(focus) }
-        guard let n = own ?? sizes.first(where: { Rules.splits[$0]!.contains(focus) }) else { return nil }
-        let split = own == nil ? Rules.splits[n] : nil
+        // Body-part days (#200) are in no goal's split: a 3-session week of that day type.
+        let n = own ?? sizes.first(where: { Rules.splits[$0]!.contains(focus) }) ?? 3
+        // Always explicit: the profile's own split style or per-day picks must not change which week is used.
+        let split = own.map { Rules.split(profile.goal, $0) } ?? Rules.splits[n].flatMap { $0.contains(focus) ? $0 : nil }
+            ?? Array(repeating: focus, count: n)
         var p = profile
         p.sessionsPerWeek = n
         p.climbingWeekdays = nil
@@ -120,6 +123,11 @@ extension Focus {
         case .push: [.shoulders, .chest, .arms]
         case .pull: [.back, .arms]
         case .conditioning: []
+        case .chestTri: [.chest, .shoulders, .arms]
+        case .backBi: [.back, .arms]
+        case .shouldersArms: [.shoulders, .arms]
+        case .chestBack: [.chest, .back]
+        case .posterior: [.hips, .legs]
         }
     }
 }

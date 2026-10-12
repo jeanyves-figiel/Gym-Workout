@@ -1,5 +1,5 @@
 /// Muscle groups, body-map placement and muscle ↔ exercise lookups for the UI.
-public enum MuscleGroup: String, CaseIterable, Sendable, Identifiable {
+public enum MuscleGroup: String, Codable, CaseIterable, Sendable, Identifiable {
     case shoulders, chest, arms, back, core, hips, legs
     public var id: String { rawValue }
 

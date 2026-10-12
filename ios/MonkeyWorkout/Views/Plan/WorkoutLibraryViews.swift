@@ -77,6 +77,7 @@ extension Session {
         case .push, .fullPower: return .power
         case .conditioning: return .cardio
         case .pull: return .strength
+        case .chestTri, .backBi, .shouldersArms, .chestBack, .posterior: return focus.palette
         }
     }
 }
