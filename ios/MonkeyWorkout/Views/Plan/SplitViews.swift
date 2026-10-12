@@ -220,6 +220,7 @@ struct DayFocusSheet: View {
     }
 }
 
+#if DEBUG
 extension Demo {
     /// Goal screen demo (#200): body-part split with a custom Saturday and two focus muscles.
     static func splitProfile(_ base: Profile?) -> Profile {
@@ -232,3 +233,4 @@ extension Demo {
         return p
     }
 }
+#endif
