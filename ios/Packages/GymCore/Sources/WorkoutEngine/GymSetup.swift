@@ -42,9 +42,11 @@ public enum GymArea: String, Codable, CaseIterable, Sendable, Identifiable {
         case .cables: [.cable, .latPulldown, .seatedRow]
         case .machines: [.smith, .legPress, .hackSquat, .legCurl, .legExtension, .chestPress, .pecDeck, .hipThrustMachine,
                          .seatedCalf, .hipAdAbductor, .abCrunch, .torsoRotation, .shoulderPress, .standingCalf, .tBarRow,
-                         .curlMachine, .tricepsMachine]
-        case .stations: [.pullupBar, .dipStation, .assistedMachine, .backExtension, .reverseHyper, .rings, .trx, .ghd]
-        case .functional: [.kettlebells, .plyoBox, .medBall, .slamBall, .sled, .battleRope, .abWheel, .bands, .stabilityBall, .jumpRope, .dipBelt]
+                         .curlMachine, .tricepsMachine, .rowMachine, .backExtensionMachine, .squatMachine, .beltSquat,
+                         .gluteMachine, .multiHip, .pulloverMachine]
+        case .stations: [.pullupBar, .dipStation, .assistedMachine, .backExtension, .reverseHyper, .rings, .trx, .ghd, .stallBars]
+        case .functional: [.kettlebells, .plyoBox, .medBall, .slamBall, .sled, .battleRope, .abWheel, .bands, .stabilityBall, .jumpRope, .dipBelt,
+                           .sandbag, .sliders, .balanceTrainer, .massageBall]
         case .cardio: [.treadmill, .bike, .airBike, .rower, .skiErg, .stairClimber, .elliptical]
         }
     }
@@ -272,6 +274,18 @@ extension Equipment {
         case .curlMachine: "machine-curl"
         case .tricepsMachine: "machine-triceps-extension"
         case .dipBelt: "weighted-dip"
+        case .rowMachine: "machine-row"
+        case .backExtensionMachine: "back-extension-machine"
+        case .squatMachine: "pendulum-squat"
+        case .beltSquat: "belt-squat"
+        case .gluteMachine: "glute-kickback-machine"
+        case .multiHip: "multi-hip-extension"
+        case .pulloverMachine: "machine-pullover"
+        case .sandbag: "sandbag-shouldering"
+        case .sliders: "slider-leg-curl"
+        case .balanceTrainer: "bosu-squat"
+        case .massageBall: "massage-ball-glute"
+        case .stallBars: "human-flag"
         }
     }
 
@@ -309,6 +323,18 @@ extension Equipment {
         case .curlMachine: ["arm curl machine"]
         case .tricepsMachine: ["triceps press machine", "triceps dip machine"]
         case .dipBelt: ["weight belt", "weighted vest", "chain belt", "weighted pull-up"]
+        case .rowMachine: ["row machine", "chest-supported row machine", "iso-lateral row", "low row machine"]
+        case .backExtensionMachine: ["lower back machine", "lumbar machine", "seated back extension"]
+        case .squatMachine: ["pendulum squat", "v-squat", "squat press"]
+        case .beltSquat: ["hip belt squat"]
+        case .gluteMachine: ["glute machine", "kickback machine", "glute isolator"]
+        case .multiHip: ["hip machine", "pendulum hip", "4-way hip"]
+        case .pulloverMachine: ["pullover", "lat pullover"]
+        case .sandbag: ["core bag", "bulgarian bag", "power bag"]
+        case .sliders: ["gliders", "slide pads", "valslide"]
+        case .balanceTrainer: ["bosu", "balance pad", "airex", "wobble board"]
+        case .massageBall: ["lacrosse ball", "foam ball", "trigger point ball"]
+        case .stallBars: ["swedish ladder", "wall bars", "pole"]
         default: []
         }
     }

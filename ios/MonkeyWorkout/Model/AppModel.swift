@@ -181,7 +181,13 @@ final class AppModel {
     /// Whether today's session is eased for low readiness (#156).
     var readinessEased: Bool { plan.map { !readinessEasedIds($0).isEmpty } ?? false }
     /// Generated week with kept exercise swaps only: what a variation is made from.
-    var swappedPlan: WeekPlan? { state.plan?.applying(swaps: state.synced?.exerciseSwaps ?? []) }
+    /// Variation rotation (#182) comes first so kept swaps still find the exercise they replace.
+    var swappedPlan: WeekPlan? {
+        let swaps = state.synced?.exerciseSwaps ?? []
+        guard let plan = state.plan else { return nil }
+        let rotated = profile.map { plan.rotatingVariations(for: $0, swaps: swaps) } ?? plan
+        return rotated.applying(swaps: swaps)
+    }
 
     func applyProfile(_ profile: Profile, seed: UInt32? = nil, week: Int = 1) {
         let s = seed ?? UInt32.random(in: 0...UInt32.max)

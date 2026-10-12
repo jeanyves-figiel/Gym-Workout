@@ -20,10 +20,12 @@ extension Equipment {
         case .cable, .legPress, .hackSquat, .legCurl, .legExtension, .latPulldown, .seatedRow, .chestPress, .pecDeck,
              .hipThrustMachine, .backExtension, .dipStation, .pullupBar, .seatedCalf, .hipAdAbductor, .abCrunch,
              .torsoRotation, .shoulderPress, .standingCalf, .tBarRow, .ghd,
-             .assistedMachine, .reverseHyper, .curlMachine, .tricepsMachine: .machines
-        case .kettlebells, .rings, .trx, .plyoBox, .medBall, .slamBall, .sled, .battleRope, .abWheel, .bands, .stabilityBall, .jumpRope, .dipBelt: .functional
+             .assistedMachine, .reverseHyper, .curlMachine, .tricepsMachine, .rowMachine, .backExtensionMachine, .squatMachine,
+             .beltSquat, .gluteMachine, .multiHip, .pulloverMachine: .machines
+        case .kettlebells, .rings, .trx, .plyoBox, .medBall, .slamBall, .sled, .battleRope, .abWheel, .bands, .stabilityBall, .jumpRope, .dipBelt,
+             .sandbag, .sliders, .balanceTrainer, .stallBars: .functional
         case .treadmill, .bike, .airBike, .rower, .skiErg, .stairClimber, .elliptical: .cardio
-        case .foamRoller, .mat: .stretch
+        case .foamRoller, .mat, .massageBall: .stretch
         }
     }
 
@@ -86,6 +88,18 @@ extension Equipment {
         case .curlMachine: "Seat so the elbows line up with the pivot and the armpits sit over the pad."
         case .tricepsMachine: "Seat so the elbows line up with the pivot; upper arms flat on the pad."
         case .dipBelt: "Hang plates or a kettlebell from the chain; keep it short so it doesn't swing into the knees."
+        case .rowMachine: "Seat so the handles sit at mid-chest; chest pad set so the arms are fully extended at the start."
+        case .backExtensionMachine: "Seat so the hips line up with the pivot; back pad across the shoulder blades, feet planted."
+        case .squatMachine: "Shoulder pads snug; feet mid-platform, a little wider than the hips; set the safety stop below your depth."
+        case .beltSquat: "Belt low on the hips, chain short enough that you start standing tall; hold the rail lightly."
+        case .gluteMachine: "Chest pad so the hips sit square; foot plate or pad behind the working heel."
+        case .multiHip: "Platform height so the pivot lines up with your hip joint; pad just above the knee."
+        case .pulloverMachine: "Seat so the shoulders line up with the cam; elbows on the pads, belt across the lap."
+        case .sandbag: "Pick a weight you can lap and stand with; check the inner bags are closed tight."
+        case .sliders: "Use them on a smooth floor or a mat; cloth side on hard floors, plastic side on carpet."
+        case .balanceTrainer: "Dome up for balance work, flat side up for push-ups and squats; centre the feet or hands."
+        case .massageBall: "Firm ball against the floor or a wall; let body weight set the pressure."
+        case .stallBars: "Grip a rung or the pole at shoulder width; top hand pulls, bottom hand pushes."
         }
     }
 }

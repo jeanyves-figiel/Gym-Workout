@@ -59,6 +59,18 @@ extension Equipment {
         case .curlMachine: "Biceps curl machine"
         case .tricepsMachine: "Triceps extension machine"
         case .dipBelt: "Dip belt / weighted vest"
+        case .rowMachine: "Seated row machine"
+        case .backExtensionMachine: "Back extension machine (seated)"
+        case .squatMachine: "Squat machine (pendulum / V-squat)"
+        case .beltSquat: "Belt squat"
+        case .gluteMachine: "Glute kickback machine"
+        case .multiHip: "Multi-hip machine"
+        case .pulloverMachine: "Pullover machine"
+        case .sandbag: "Sandbag / core bag"
+        case .sliders: "Sliders"
+        case .balanceTrainer: "BOSU / balance pad"
+        case .massageBall: "Massage ball"
+        case .stallBars: "Stall bars / vertical pole"
         }
     }
 }

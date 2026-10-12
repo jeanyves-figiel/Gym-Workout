@@ -46,6 +46,11 @@ public struct Technique: Hashable, Sendable {
         .merging(variationsPush) { a, _ in a }
         .merging(variationsPull) { a, _ in a }
         .merging(variationsCore) { a, _ in a }
+        .merging(gymMachines) { a, _ in a }
+        .merging(gymFree) { a, _ in a }
+        .merging(gymProps) { a, _ in a }
+        .merging(gymCalis) { a, _ in a }
+        .merging(gymMobility) { a, _ in a }
 }
 
 extension Exercise {

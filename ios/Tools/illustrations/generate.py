@@ -29,12 +29,15 @@ IOS = HERE.parent.parent
 CATALOG = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercises+Catalog.swift"
 TRAVEL = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercises+Travel.swift"
 VARIATIONS = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercises+Variations.swift"
+GYMAPP = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercises+GymApp.swift"
 ASSETS = IOS / "MonkeyWorkout/Resources/Illustrations.xcassets"
 SWIFT_OUT = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercise+Illustrations.swift"
 LEDGER = IOS / "EXERCISE_MEDIA.md"
 
 SCENE_MODULES = ["scenes", "scenes_lower", "scenes_upper", "scenes_arms_core", "scenes_power", "scenes_mobility",
-                 "scenes_extra", "scenes_var_lower", "scenes_var_push", "scenes_var_pull", "scenes_var_core"]
+                 "scenes_extra", "scenes_var_lower", "scenes_var_push", "scenes_var_pull", "scenes_var_core",
+                 "scenes_gym_machines", "scenes_gym_free", "scenes_gym_props", "scenes_gym_calis",
+                 "scenes_gym_mobility"]
 FRAMES = 3
 SIZE = (720, 540)
 
@@ -45,7 +48,7 @@ GRADIENT = {"warmup": ("#FF8A00", "#FFC93D"), "power": ("#FF2D55", "#FF6FB5"),
 
 
 def catalog():
-    src = CATALOG.read_text() + TRAVEL.read_text() + VARIATIONS.read_text()
+    src = CATALOG.read_text() + TRAVEL.read_text() + VARIATIONS.read_text() + GYMAPP.read_text()
     out = {}
     for m in re.finditer(r'Exercise\(id: "([^"]+)", name: "([^"]+)", category: \.(\w+), pattern: \.[\w`]+, '
                          r'primary: \[([^\]]*)\](?:, secondary: \[([^\]]*)\])?', src):

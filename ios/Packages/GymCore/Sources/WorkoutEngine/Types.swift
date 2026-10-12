@@ -88,6 +88,18 @@ public enum Equipment: String, Codable, CaseIterable, Sendable, Identifiable {
     case curlMachine = "biceps-curl-machine"
     case tricepsMachine = "triceps-machine"
     case dipBelt = "dip-belt"
+    // Gym app comparison (#182).
+    case rowMachine = "row-machine"
+    case backExtensionMachine = "back-extension-machine"
+    case squatMachine = "squat-machine"
+    case beltSquat = "belt-squat"
+    case gluteMachine = "glute-machine"
+    case multiHip = "multi-hip"
+    case pulloverMachine = "pullover-machine"
+    case sandbag, sliders
+    case balanceTrainer = "balance-trainer"
+    case massageBall = "massage-ball"
+    case stallBars = "stall-bars"
     public var id: String { rawValue }
 }
 
@@ -219,6 +231,8 @@ public struct Profile: Codable, Hashable, Sendable {
     public var grouping: Grouping?
     /// Training method (#156); nil = `.block`. Optional so older profiles decode.
     public var method: TrainingMethod?
+    /// Accessories cycle through their variations week to week (#182); nil = off.
+    public var rotateVariations: Bool?
     /// Per-workout overrides (#106) keyed by session id ("w2s1"). Set by the app from the synced overrides when
     /// generating; not part of the profile form.
     public var sessionStyles: [String: SessionStyle]?
@@ -229,7 +243,8 @@ public struct Profile: Codable, Hashable, Sendable {
         climbingWeekdays: [Int]? = nil, gymWeekdays: [Int]? = nil, gym: GymRef? = nil,
         climbBefore: ClimbNeighbour? = nil, climbAfter: ClimbNeighbour? = nil,
         climbSameDay: ClimbSameDay? = nil, climbDayAddon: Bool? = nil, variety: PlanVariety? = nil,
-        restStyle: RestStyle? = nil, grouping: Grouping? = nil, method: TrainingMethod? = nil
+        restStyle: RestStyle? = nil, grouping: Grouping? = nil, method: TrainingMethod? = nil,
+        rotateVariations: Bool? = nil
     ) {
         self.goal = goal
         self.sessionsPerWeek = sessionsPerWeek
@@ -248,6 +263,7 @@ public struct Profile: Codable, Hashable, Sendable {
         self.restStyle = restStyle
         self.grouping = grouping
         self.method = method
+        self.rotateVariations = rotateVariations
     }
 }
 

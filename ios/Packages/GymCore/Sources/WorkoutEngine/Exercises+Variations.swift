@@ -157,9 +157,11 @@ extension Exercise {
         Exercise(id: "lizard-stretch", name: "Lizard stretch", category: .stretch, pattern: .general, primary: [.hipFlexors, .adductors], secondary: [.glutes, .hamstrings], equipment: [.mat], level: 1, unilateral: true, unit: .sec, cues: ["Deep lunge, hands inside the front foot", "Back knee down", "Sink the hips"], generator: false),
     ]
 
-    /// Variation → base exercise (#174). Lists show the base with its variations folded under it; the swap
+    /// Variation → base exercise (#174, #182). Lists show the base with its variations folded under it; the swap
     /// sheet offers a planned exercise's family first. Bases are never variations themselves.
-    public static let variationOf: [String: String] = [
+    public static let variationOf: [String: String] = extensionVariationOf.merging(gymAppVariationOf) { a, _ in a }
+
+    private static let extensionVariationOf: [String: String] = [
         // Squats
         "front-squat": "back-squat", "smith-squat": "back-squat", "box-squat": "back-squat", "zercher-squat": "back-squat",
         "heel-elevated-goblet-squat": "goblet-squat", "sumo-db-squat": "goblet-squat", "landmine-squat": "goblet-squat",

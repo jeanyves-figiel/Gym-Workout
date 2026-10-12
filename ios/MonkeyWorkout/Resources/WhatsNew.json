@@ -1,35 +1,29 @@
 {
-  "id": "2026-10-12",
+  "id": "2026-10-12.2",
   "items": [
     {
-      "symbol": "ruler.fill",
-      "tint": "cardio",
-      "title": "Track your measurements",
-      "body": "Account → Body & Health → Measurements: log chest, arms, waist, thighs and more, see each one progress, synced with Apple Health."
-    },
-    {
-      "symbol": "square.and.pencil",
-      "tint": "strength",
-      "title": "Custom workout",
-      "body": "Train → Add workout: build your own workout or generate one from muscles, then drop it on any day."
-    },
-    {
-      "symbol": "timer",
+      "symbol": "figure.strengthtraining.functional",
       "tint": "power",
-      "title": "Quick sessions your way",
-      "body": "Pick 15 to 60 minutes and the muscles to focus on. Long-press a tile to add 30 minutes in one step."
+      "title": "Calisthenics skills",
+      "body": "Muscle-ups, front and back levers, human flag, iron cross, one-arm pull-ups and push-ups, pistols, freestanding handstand push-ups, each with easier steps."
     },
     {
-      "symbol": "building.2.fill",
-      "tint": "stretch",
-      "title": "Switch between your gyms",
-      "body": "Your gym keeps every gym you've used with its own equipment. Tap one to switch, also from Account."
+      "symbol": "dumbbell.fill",
+      "tint": "strength",
+      "title": "76 new exercises, 12 new machines",
+      "body": "Pendulum and belt squat, row and pullover machines, multi-hip, sandbag, sliders and balance trainer. Add them in Your gym → Equipment."
     },
     {
-      "symbol": "hand.draw.fill",
+      "symbol": "arrow.triangle.2.circlepath",
       "tint": "mobility",
-      "title": "Gym setup in a few swipes",
-      "body": "Set up a new gym or your equipment list with one swipe card per area, and one item count everywhere."
+      "title": "Rotate variations",
+      "body": "Training profile → Week to week: turn on Rotate variations to swap accessories for a variation each week. Main lifts stay put."
+    },
+    {
+      "symbol": "figure.cooldown",
+      "tint": "stretch",
+      "title": "Foam rolling and new stretches",
+      "body": "Foam roller and massage ball drills plus downward dog, warrior 2, straddle and more in the library."
     }
   ]
 }
