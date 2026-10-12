@@ -1,29 +1,11 @@
 {
-  "id": "2026-10-12.2",
+  "id": "2026-10-12.3",
   "items": [
     {
-      "symbol": "figure.strengthtraining.functional",
-      "tint": "power",
-      "title": "Calisthenics skills",
-      "body": "Muscle-ups, front and back levers, human flag, iron cross, one-arm pull-ups and push-ups, pistols, freestanding handstand push-ups, each with easier steps."
-    },
-    {
-      "symbol": "dumbbell.fill",
+      "symbol": "figure.walk.motion",
       "tint": "strength",
-      "title": "76 new exercises, 12 new machines",
-      "body": "Pendulum and belt squat, row and pullover machines, multi-hip, sandbag, sliders and balance trainer. Add them in Your gym → Equipment."
-    },
-    {
-      "symbol": "arrow.triangle.2.circlepath",
-      "tint": "mobility",
-      "title": "Rotate variations",
-      "body": "Training profile → Week to week: turn on Rotate variations to swap accessories for a variation each week. Main lifts stay put."
-    },
-    {
-      "symbol": "figure.cooldown",
-      "tint": "stretch",
-      "title": "Foam rolling and new stretches",
-      "body": "Foam roller and massage ball drills plus downward dog, warrior 2, straddle and more in the library."
+      "title": "Movements play on their own",
+      "body": "Each exercise shows its movement 3 times when it appears in the workout, then stops. Tap Play movement to see it again."
     }
   ]
 }
