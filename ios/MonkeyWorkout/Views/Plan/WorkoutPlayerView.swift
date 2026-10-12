@@ -129,36 +129,26 @@ struct WorkoutPlayerView: View {
             RadialGradient(colors: [cat.colors[0].opacity(0.35), .clear], center: .top, startRadius: 10, endRadius: 560)
                 .ignoresSafeArea()
 
-            // Scrolls: what the exercise is. Pinned: the one input for this item (set card or timer) and the controls,
-            // so nothing to tap or read during a set hides under another card (#206).
+            // One screen, no scrolling (#206): the exercise card's picture takes whatever height is left, so the target, the one
+            // input for this item (set card or timer), up next and the controls are always fully on screen.
             VStack(alignment: .leading, spacing: 12) {
                 topBar(session)
 
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 14) {
-                        ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
-                                         position: "\(index + 1)/\(steps.count)",
-                                         onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil) { formFor = step.exercise }
-                            .id(step.item.uid)
-                            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
-                        if !step.exercise.equipment.isEmpty && model.canSwap(uid: step.item.uid) && done == 0 {
-                            Button { notHereFor = step.item } label: {
-                                Label("Not at this gym?", systemImage: "questionmark.circle")
-                                    .font(Theme.label(13)).foregroundStyle(Theme.muted)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        if let next = upNext(after: step, done: done, sets: sets, includeSets: false) {
-                            UpNextCard(title: next.title, eyebrow: next.eyebrow, detail: next.detail, exercise: next.exercise, colors: next.colors)
-                        }
-                    }
-                    .padding(.vertical, 6)
-                }
-                .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.02),
-                                             .init(color: .black, location: 0.96), .init(color: .clear, location: 1)],
-                                     startPoint: .top, endPoint: .bottom))
+                ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
+                                 position: "\(index + 1)/\(steps.count)",
+                                 onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
+                                 onNotHere: !step.exercise.equipment.isEmpty && model.canSwap(uid: step.item.uid) && done == 0
+                                     ? { notHereFor = step.item } : nil) { formFor = step.exercise }
+                    .id(step.item.uid)
+                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
+                    .layoutPriority(1)
 
+                Spacer(minLength: 0)
                 setCard(step, sets: sets, done: done, colors: cat.colors)
+                if let next = upNext(after: step, done: done, sets: sets, includeSets: false) {
+                    UpNextCard(title: next.title, eyebrow: next.eyebrow, detail: next.detail, exercise: next.exercise,
+                               colors: next.colors, compact: true)
+                }
                 controls(step, sets: sets, done: done)
             }
             .padding(.horizontal, 20)
@@ -618,10 +608,11 @@ private struct PauseOverlay: View {
                 }
                 if let drill, pause.end != nil {
                     UpNextCard(title: drill.name, eyebrow: "During rest", detail: "5–6 slow reps", exercise: drill,
-                               colors: WorkoutEngine.Category.mobility.colors)
+                               colors: WorkoutEngine.Category.mobility.colors, compact: true)
                 }
                 if let next {
-                    UpNextCard(title: next.title, eyebrow: next.eyebrow, detail: next.detail, exercise: next.exercise, colors: next.colors)
+                    UpNextCard(title: next.title, eyebrow: next.eyebrow, detail: next.detail, exercise: next.exercise,
+                               colors: next.colors, compact: true)
                 }
                 Spacer(minLength: 0)
             }
