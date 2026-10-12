@@ -1,11 +1,11 @@
 {
-  "id": "2026-10-12.3",
+  "id": "2026-10-12.4",
   "items": [
     {
-      "symbol": "figure.walk.motion",
+      "symbol": "xmark.circle.fill",
       "tint": "strength",
-      "title": "Movements play on their own",
-      "body": "Each exercise shows its movement 3 times when it appears in the workout, then stops. Tap Play movement to see it again."
+      "title": "Close New exercise",
+      "body": "The ••• button on New exercise is gone: tap the X next to Save to close it."
     }
   ]
 }

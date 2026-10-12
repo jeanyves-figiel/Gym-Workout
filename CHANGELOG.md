@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **New exercise: close button** (#196): the New / Edit exercise header showed a round **•••** button that did nothing and no close X (iOS 26 folded the leading X into an overflow menu next to the large title). The round **X** now sits top right next to **Save** and closes the sheet.
+
 ### Added
 - **Exercise movement plays on its own** (#188): in the workout player and on the exercise page, the picture now plays the movement (start → middle → end → start) **3 times automatically** each time a new exercise shows, then stops on the start position (or the frame picked on the exercise page). Not an endless loop. **Play movement** (tap the picture) replays it twice; picking Start / Middle / End stops a running play. With iOS Reduce Motion on, nothing plays on its own. Replaces the tap-only rule from #170.
 - **Body measurements** (#185): Account → Body & Health → **Measurements** (also from Progress). Quick log sheet, every value optional: body weight, body fat, and neck, shoulders, chest, waist, hips, upper arm, forearm, thigh, calf (arms and legs left/right if wanted), with how-to-measure tips and the last value as a hint. Each measurement has its own progression chart and entry list (tap to edit or delete); Progress shows the two biggest changes. **Apple Health**: reads and writes body weight, body fat, lean body mass and waist circumference (Health values merged into the charts without duplicates); other girths stay in the app. **Suggested weights**: for exercises never logged (and no related lift), lean mass from body fat (±15 %) and arm girth for arm work / thigh girth for knee-dominant leg work (±8 %) refine the first-time estimate; logged sets always decide, training methods and plans unchanged. Synced via API `/v1/me/body-measurements` (in export, removed with the account); privacy policy updated.
