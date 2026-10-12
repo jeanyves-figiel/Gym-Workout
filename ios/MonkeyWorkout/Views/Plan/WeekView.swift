@@ -1,7 +1,7 @@
 import SwiftUI
 import WorkoutEngine
 
-/// "Train" tab: compact week header and readiness, today's session first, then the week list.
+/// "Train" tab: week card with readiness inside, today's session first, then the week list.
 struct WeekView: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
@@ -21,7 +21,6 @@ struct WeekView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     WeekHero(plan: plan, profile: profile, done: model.completedCount)
-                    ReadinessCard(snapshot: health.snapshot, eased: model.readinessEased)
                     if let undo = model.variationUndo {
                         VariationUndoCard(undo: undo)
                     }
@@ -280,6 +279,7 @@ private struct WeekHero: View {
             }
             .buttonStyle(.plain)
             .accessibilityHint("Explains this week's training phase")
+            ReadinessPill()
             HStack(spacing: 6) {
                 ForEach(1...Generator.mesocycleWeeks, id: \.self) { w in
                     Button { model.setWeek(w) } label: {
