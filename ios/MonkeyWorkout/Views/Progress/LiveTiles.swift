@@ -223,7 +223,7 @@ private struct MetricTile: View {
             }
             Chart {
                 ForEach(Array(summary.buckets.enumerated()), id: \.offset) { i, b in
-                    BarMark(x: .value("Period", i), y: .value(metric.label, b.totals.value(metric)), width: .ratio(0.7))
+                    BarMark(x: .value("Period", String(i)), y: .value(metric.label, b.totals.value(metric)), width: .ratio(0.7))
                         .cornerRadius(5)
                         .foregroundStyle(metric.ink.opacity(i == last || i == best ? 1 : 0.45))
                         .annotation(position: .top, spacing: 2) {
@@ -234,9 +234,10 @@ private struct MetricTile: View {
                 }
             }
             .chartXAxis {
-                AxisMarks(values: last == 0 ? [0] : [0, last]) { v in
+                // Categorical x (bars need a band); label only the first and the current bucket.
+                AxisMarks(values: last == 0 ? ["0"] : ["0", String(last)]) { v in
                     AxisValueLabel {
-                        Text(axisLabel(v.as(Int.self) ?? 0))
+                        Text(axisLabel(Int(v.as(String.self) ?? "") ?? 0))
                             .font(Theme.label(10))
                             .foregroundStyle(metric.ink.opacity(0.8))
                     }
