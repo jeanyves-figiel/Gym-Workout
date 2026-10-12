@@ -11,13 +11,18 @@ on:
         description: 'Revoke all old CI-made development certificates ("Created via API") before archiving'
         type: boolean
         default: false
+      same_whats_new:
+        description: "Rebuild without new release content: keep the last build's What's new page"
+        type: boolean
+        default: false
 
 concurrency:
   group: testflight
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  # Tags each uploaded build (testflight-<build>) for the What's new check.
+  contents: write
 
 jobs:
   upload:
@@ -41,6 +46,17 @@ jobs:
           fi
       - uses: actions/checkout@v4
         if: steps.secrets.outputs.ok == 'true'
+        with:
+          fetch-depth: 0
+      - name: What's new for this release
+        # Every release shows a What's new page on first open (#183): its notes must change since the last build.
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          if [ "${{ inputs.same_whats_new }}" = "true" ]; then
+            .github/scripts/check_whats_new.sh
+          else
+            .github/scripts/check_whats_new.sh --since-last-testflight
+          fi
       - name: Select newest Xcode
         if: steps.secrets.outputs.ok == 'true'
         run: |
@@ -116,6 +132,11 @@ jobs:
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" | tail -n 80
           echo "Uploaded build ${{ github.run_number }} (Staging → workout-staging.monkeygrade.cloud). Appears in TestFlight after Apple processing." >> "$GITHUB_STEP_SUMMARY"
+      - name: Tag build
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          git tag "testflight-${{ github.run_number }}"
+          git push origin "testflight-${{ github.run_number }}"
       - name: Revoke this run's development certificate
         # Xcode made it for this runner only; its private key is gone with the runner, so keep the account under Apple's cap.
         if: always() && steps.secrets.outputs.ok == 'true'

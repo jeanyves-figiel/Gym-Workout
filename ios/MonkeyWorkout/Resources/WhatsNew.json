@@ -1,0 +1,23 @@
+{
+  "id": "2026-10-12",
+  "items": [
+    {
+      "symbol": "square.and.pencil",
+      "tint": "strength",
+      "title": "Custom workout",
+      "body": "Train → Add workout: build your own workout or generate one from muscles, then drop it on any day."
+    },
+    {
+      "symbol": "books.vertical.fill",
+      "tint": "cardio",
+      "title": "Your library, one tap away",
+      "body": "Add workout shows your 3 latest workouts. Browse library opens the full searchable list."
+    },
+    {
+      "symbol": "timer",
+      "tint": "power",
+      "title": "Quick sessions your way",
+      "body": "Pick 15 to 60 minutes and the muscles to focus on. Long-press a tile to add 30 minutes in one step."
+    }
+  ]
+}
