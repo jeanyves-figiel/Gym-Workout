@@ -57,11 +57,16 @@ struct NextWorkoutView: View {
     let entry: MWEntry
     @Environment(\.widgetFamily) private var family
     @Environment(\.showsWidgetContainerBackground) private var stack
+    @Environment(\.widgetRenderingMode) private var mode
+
+    /// Full-colour faces get filled gradient cards and discs; tinted faces fall back to one-colour outlines.
+    private var color: Bool { mode == .fullColor }
+    private var fill: LinearGradient {
+        entry.info.map { MW.gradient($0.tint, $0.tint2) } ?? MW.gradient(0x2B2E33, 0x15171A)
+    }
 
     var body: some View {
-        content.containerBackground(for: .widget) {
-            if let i = entry.info { MW.gradient(i.tint, i.tint2) } else { MW.gradient(0x2B2E33, 0x15171A) }
-        }
+        content.containerBackground(for: .widget) { fill }
     }
 
     @ViewBuilder private var content: some View {
@@ -93,11 +98,13 @@ struct NextWorkoutView: View {
 
     private var circular: some View {
         ZStack {
-            AccessoryWidgetBackground()
+            if color { Circle().fill(fill) } else { AccessoryWidgetBackground() }
             VStack(spacing: 0) {
-                Image(systemName: symbol).font(.system(size: 18, weight: .bold)).foregroundStyle(MW.lime).widgetAccentable()
-                Text(circularValue).font(MW.label(13)).minimumScaleFactor(0.6)
+                Image(systemName: symbol).font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(color ? Color.white : MW.lime).widgetAccentable()
+                Text(circularValue).font(MW.display(15)).minimumScaleFactor(0.6)
             }
+            .foregroundStyle(.white)
         }
     }
 
@@ -113,46 +120,95 @@ struct NextWorkoutView: View {
     private var corner: some View {
         Image(systemName: symbol)
             .font(.system(size: 20, weight: .bold))
-            .foregroundStyle(MW.lime)
+            .foregroundStyle(fill)
             .widgetAccentable()
             .widgetLabel {
                 if let i = entry.info {
-                    Text(i.day == .weekDone ? "WEEK DONE" : "\(i.title) \(i.minutes)m".uppercased()).foregroundStyle(MW.lime)
+                    Text(i.day == .weekDone ? "WEEK DONE" : "\(i.title) \(i.minutes)m".uppercased())
+                        .foregroundStyle(MW.color(i.tint2))
                 } else {
                     Text("MONKEYWORKOUT")
                 }
             }
     }
 
-    private var rectangular: some View {
-        HStack(spacing: 6) {
-            if !stack, let i = entry.info {
-                Capsule().fill(MW.gradient(i.tint, i.tint2)).frame(width: 4).widgetAccentable()
+    /// Filled Explore-style card on full-colour faces; the Smart Stack draws the same gradient as container background.
+    @ViewBuilder private var rectangular: some View {
+        if color, !stack {
+            rectangularContent(onColor: true)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(fill))
+        } else if stack {
+            rectangularContent(onColor: true)
+        } else {
+            HStack(spacing: 6) {
+                if let i = entry.info { Capsule().fill(MW.gradient(i.tint, i.tint2)).frame(width: 4).widgetAccentable() }
+                rectangularContent(onColor: false)
             }
+        }
+    }
+
+    private func rectangularContent(onColor: Bool) -> some View {
+        HStack(alignment: .top, spacing: 4) {
             VStack(alignment: .leading, spacing: 1) {
                 if let i = entry.info {
                     Text(i.eyebrow).font(MW.label(11)).tracking(0.6)
-                        .foregroundStyle(stack ? Color.white.opacity(0.85) : (i.day == .weekDone ? MW.mint : MW.lime))
+                        .foregroundStyle(onColor ? Color.white.opacity(0.85) : (i.day == .weekDone ? MW.mint : MW.lime))
                         .widgetAccentable()
-                    Text(i.day == .weekDone ? "\(i.done)/\(i.target) done 🏆" : i.title)
+                    Text(i.day == .weekDone ? "\(i.done)/\(i.target) done" : i.title)
                         .font(MW.display(19)).lineLimit(1).minimumScaleFactor(0.6)
                     if i.day == .weekDone {
-                        Text("🔥 \(i.streak) week streak").font(MW.label(13)).foregroundStyle(.secondary)
+                        Text("🔥 \(i.streak) week streak").font(MW.label(13)).opacity(0.85)
                     } else if stack {
                         Text("\(i.minutes) min\(i.readiness.map { " · \($0)" } ?? "")").font(MW.label(13)).lineLimit(1)
-                        ProgressView(value: i.progress).tint(MW.lime)
+                        WeekPills(done: i.done, target: i.target)
                     } else {
-                        Text("\(i.minutes) min · \(i.exercises) exercises · \(i.done)/\(i.target)")
-                            .font(MW.label(13)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.7)
+                        Text("\(i.minutes) min · \(i.exercises) exercises").font(MW.label(13)).opacity(0.85)
+                            .lineLimit(1).minimumScaleFactor(0.7)
                     }
                 } else {
-                    Text("MONKEYWORKOUT").font(MW.label(11)).foregroundStyle(MW.lime).widgetAccentable()
+                    Text("MONKEYWORKOUT").font(MW.label(11)).foregroundStyle(onColor ? Color.white : MW.lime).widgetAccentable()
                     Text("Open on iPhone").font(MW.display(18))
-                    Text("to sync your plan").font(MW.label(13)).foregroundStyle(.secondary)
+                    Text("to sync your plan").font(MW.label(13)).opacity(0.85)
                 }
             }
             Spacer(minLength: 0)
+            if onColor { IconTile(symbol: symbol) }
         }
+        .foregroundStyle(.white)
+    }
+}
+
+/// White 22 % tile with the symbol, as on the Explore cards.
+struct IconTile: View {
+    let symbol: String
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 14, weight: .bold))
+            .frame(width: 26, height: 26)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(0.22)))
+    }
+}
+
+/// One pill per planned session; done ones glow lime.
+struct WeekPills: View {
+    let done: Int
+    let target: Int
+
+    var body: some View {
+        HStack(spacing: 3) {
+            ForEach(0..<min(max(target, 1), 7), id: \.self) { n in
+                Capsule()
+                    .fill(n < done ? MW.lime : Color.white.opacity(0.3))
+                    .frame(height: 5)
+                    .shadow(color: n < done ? MW.lime.opacity(0.8) : .clear, radius: 3)
+            }
+        }
+        .padding(.top, 3)
+        .widgetAccentable()
     }
 }
 
@@ -175,7 +231,7 @@ struct WeekGoalView: View {
     private var done: Int { entry.info?.done ?? 0 }
     private var target: Int { max(1, entry.info?.target ?? 3) }
     private var complete: Bool { done >= target }
-    private var ring: Gradient { complete ? Gradient(colors: [MW.mint, MW.color(0x1E9BFF)]) : Gradient(colors: [MW.lime, MW.color(0x7FD320)]) }
+    private var ring: Gradient { complete ? Gradient(colors: [MW.mint, MW.color(0x1E9BFF)]) : Gradient(colors: [MW.lime, MW.mint, MW.color(0x1E9BFF)]) }
 
     var body: some View {
         content.containerBackground(for: .widget) { MW.gradient(0xFF7A3D, 0xFF3D5A) }
@@ -216,14 +272,11 @@ struct WeekGoalView: View {
                     .widgetAccentable()
                 HStack(alignment: .lastTextBaseline, spacing: 4) {
                     Text("\(done)/\(target)").font(MW.display(24))
-                    Text("sessions").font(MW.label(13)).foregroundStyle(.secondary)
+                    Text("sessions").font(MW.label(13)).opacity(0.8)
                     Spacer(minLength: 0)
                     if let s = entry.info?.streak, s > 0 { Text("🔥\(s)w").font(MW.label(14)) }
                 }
-                Gauge(value: Double(min(done, target)), in: 0...Double(target)) { EmptyView() }
-                    .gaugeStyle(.accessoryLinearCapacity)
-                    .tint(stack ? Gradient(colors: [.white]) : ring)
-                    .widgetAccentable()
+                WeekPills(done: done, target: target)
             }
         }
     }
@@ -243,11 +296,14 @@ struct StreakWidget: Widget {
 struct StreakView: View {
     let entry: MWEntry
     @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetRenderingMode) private var mode
+
+    private let fire = LinearGradient(colors: [MW.flame, MW.flame2, MW.color(0xFF3D5A)], startPoint: .topLeading, endPoint: .bottomTrailing)
 
     private var streak: Int { entry.info?.streak ?? 0 }
 
     var body: some View {
-        content.containerBackground(for: .widget) { MW.gradient(0xFFC23D, 0xFF7A3D) }
+        content.containerBackground(for: .widget) { fire }
     }
 
     @ViewBuilder private var content: some View {
@@ -257,18 +313,28 @@ struct StreakView: View {
         case .accessoryCorner:
             Image(systemName: "flame.fill")
                 .font(.system(size: 20, weight: .bold))
-                .foregroundStyle(LinearGradient(colors: [MW.flame, MW.flame2], startPoint: .top, endPoint: .bottom))
+                .foregroundStyle(fire)
                 .widgetAccentable()
-                .widgetLabel { Text("\(streak) WEEK STREAK").foregroundStyle(MW.flame) }
+                .widgetLabel {
+                    Gauge(value: Double(min(streak, max(entry.info?.bestStreak ?? 0, streak, 1))), in: 0...Double(max(entry.info?.bestStreak ?? 0, streak, 1))) {
+                        Text("Streak")
+                    } currentValueLabel: {
+                        Text("\(streak)")
+                    } minimumValueLabel: {
+                        Text("\(streak)w")
+                    } maximumValueLabel: {
+                        Text("🏆")
+                    }
+                    .tint(Gradient(colors: [MW.flame, MW.flame2, MW.color(0xFF3D5A)]))
+                }
         default:
             ZStack {
-                AccessoryWidgetBackground()
+                if mode == .fullColor { Circle().fill(fire) } else { AccessoryWidgetBackground() }
                 VStack(spacing: -1) {
-                    Image(systemName: "flame.fill").font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(LinearGradient(colors: [MW.flame, MW.flame2], startPoint: .top, endPoint: .bottom))
-                        .widgetAccentable()
+                    Image(systemName: "flame.fill").font(.system(size: 17, weight: .bold)).widgetAccentable()
                     Text("\(streak)w").font(MW.display(17)).minimumScaleFactor(0.6)
                 }
+                .foregroundStyle(.white)
             }
         }
     }
