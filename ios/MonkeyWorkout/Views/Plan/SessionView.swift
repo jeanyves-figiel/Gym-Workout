@@ -11,6 +11,8 @@ struct SessionView: View {
     @State private var muscle: Muscle?
     @State private var swapping: ExerciseRef?
     @State private var undoing: WorkoutRecord?
+    @State private var editingFlow = false
+    @State private var editingCustom: CustomWorkout?
 
     private var session: Session? { model.session(sessionId) }
 
@@ -19,7 +21,7 @@ struct SessionView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     header(session)
-                    FlowOverview(session: session)
+                    FlowOverview(session: session, onEdit: flowEdit(session))
                     ForEach(session.blocks) { block in
                         BlockSection(block: block, sessionId: session.id, canSwap: { model.canSwap(uid: $0.uid) }) { item in
                             // Example and custom workouts are fixed lists: no planned item behind them.
@@ -59,12 +61,23 @@ struct SessionView: View {
             .sheet(item: $muscle) { m in
                 NavigationStack { MuscleDetailView(muscle: m) }
             }
+            .sheet(isPresented: $editingFlow) {
+                SessionFlowSheet(session: session).presentationDetents([.large])
+            }
+            .sheet(item: $editingCustom) { w in CustomWorkoutEditor(initial: w) }
             .sheet(item: $swapping) { ref in
                 if let uid = ref.uid { SwapExerciseSheet(exerciseId: ref.exerciseId, uid: uid) }
             }
         } else {
             ContentUnavailableView("Session not found", systemImage: "questionmark")
         }
+    }
+
+    /// Session flow (#198): plan workouts open the flow sheet, the member's own workouts their builder.
+    private func flowEdit(_ s: Session) -> (() -> Void)? {
+        if model.canEditFlow(s) { return { editingFlow = true } }
+        if s.isCustom, model.activeWorkout(s.id) == nil, let w = model.customWorkout(sessionId: s.id) { return { editingCustom = w } }
+        return nil
     }
 
     @ViewBuilder
@@ -142,10 +155,26 @@ struct ExerciseRef: Identifiable, Hashable {
 /// Horizontal strip: each part of the session, its minutes and the muscles it hits.
 private struct FlowOverview: View {
     let session: Session
+    var onEdit: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Session flow").eyebrow()
+            HStack {
+                Text("Session flow").eyebrow()
+                Spacer()
+                if let onEdit {
+                    Button(action: onEdit) {
+                        Label("Edit", systemImage: "slider.horizontal.3")
+                            .font(Theme.label(13))
+                            .foregroundStyle(Theme.ink)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(Theme.lime))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Edit session flow")
+                }
+            }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     ForEach(session.blocks) { b in
