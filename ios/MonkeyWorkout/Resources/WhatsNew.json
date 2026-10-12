@@ -18,6 +18,12 @@
       "tint": "strength",
       "title": "Watch screens to match",
       "body": "Every Watch screen follows your pick: full colour, gradient tiles, or game mode with XP, levels, badges and a monkey victory dance."
+    },
+    {
+      "symbol": "chart.bar.xaxis",
+      "tint": "strength",
+      "title": "Live progress tiles",
+      "body": "Progress tiles switch between Week, Month and All, show your trend and the change vs last time. Tap a tile for its chart, tap a day in the calendar to open that workout."
     }
   ]
 }
