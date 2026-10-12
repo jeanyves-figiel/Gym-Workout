@@ -27,10 +27,14 @@ struct LibraryView: View {
         ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Picker("Browse", selection: $mode) {
-                    ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
+                GradientSegments(selection: $mode, items: [
+                    SegmentItem(value: .muscles, title: "Muscles", symbol: "figure.strengthtraining.traditional",
+                                detail: "\(Muscle.allCases.count) muscles"),
+                    SegmentItem(value: .categories, title: "Categories", symbol: "square.grid.2x2.fill",
+                                detail: "\(WorkoutEngine.Category.allCases.count) types"),
+                    SegmentItem(value: .workouts, title: "Workouts", symbol: "list.bullet.rectangle.fill",
+                                detail: "\(model.myLibrary.count + model.builtInLibrary.count) workouts"),
+                ])
 
                 switch mode {
                 case .muscles: muscles

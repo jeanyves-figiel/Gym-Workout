@@ -68,12 +68,11 @@ struct CommunityView: View {
                 header
                 CommunityGymCard()
                 FindMembersCard()
-                Picker("Feed", selection: $scope) {
-                    Text("Members").tag(CommunityFeedScope.members)
-                    Text("Following").tag(CommunityFeedScope.following)
-                    Text("Mine").tag(CommunityFeedScope.mine)
-                }
-                .pickerStyle(.segmented)
+                GradientSegments(selection: $scope, items: [
+                    SegmentItem(value: .members, title: "Members", symbol: "person.3.fill"),
+                    SegmentItem(value: .following, title: "Following", symbol: "heart.fill"),
+                    SegmentItem(value: .mine, title: "Mine", symbol: "person.fill"),
+                ])
                 .padding(.bottom, 4)
 
                 ErrorText(message: community.error)
