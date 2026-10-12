@@ -5,10 +5,48 @@ import WorkoutEngine
 /// place and equipment and opens the calendar; otherwise the home gym, opening Training profile → Your gym.
 struct YourGymCard: View {
     @Environment(AppModel.self) private var model
+    /// Saved gym picked in the quick switch (#180), waiting for confirmation.
+    @State private var switching: SavedGym?
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            card
+            if model.currentTrip == nil, !model.otherGyms.isEmpty { quickSwitch }
+        }
+        .confirmationDialog("Switch to \(switching?.ref.name ?? "")?", isPresented: Binding(
+            get: { switching != nil }, set: { if !$0 { switching = nil } }), titleVisibility: .visible, presenting: switching) { g in
+            Button("Switch gym") { model.switchGym(to: g) }
+        } message: { g in
+            Text("This week's plan is rebuilt for its \(g.equipment.count) items. \(model.gymName) stays in your gyms to switch back.")
+        }
+    }
+
+    /// One tap to train at another saved gym (#180); trips and holidays stay in the calendar.
+    private var quickSwitch: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(model.otherGyms) { g in
+                    Button { switching = g } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: g.kind?.symbol ?? (g.isPlace ? "mappin.and.ellipse" : "house.fill"))
+                                .font(.system(size: 13, weight: .bold))
+                            Text(g.ref.name).font(.system(size: 14, weight: .bold, design: .rounded)).lineLimit(1)
+                            Text("\(g.equipment.count)").font(Theme.label(12)).opacity(0.8)
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12).padding(.vertical, 9)
+                        .background(Capsule().fill((g.kind?.category ?? .strength).gradient))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Switch to \(g.ref.name), \(g.equipment.count) items")
+                }
+            }
+        }
+    }
+
+    private var card: some View {
         let trip = model.currentTrip
-        NavigationLink {
+        return NavigationLink {
             if trip != nil { CalendarView() } else { ProfileSectionView(section: .gym) }
         } label: {
             AccountCard(symbol: trip == nil ? "building.2.fill" : "airplane", title: trip?.title ?? model.gymName,

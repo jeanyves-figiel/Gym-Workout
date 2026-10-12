@@ -29,6 +29,13 @@ extension GymKind {
     }
 }
 
+/// A ready-made list offered first in setup (#180), e.g. a scoped gym's full inventory.
+struct GymSetupPreset {
+    let title: String
+    let line: String
+    let equipment: [Equipment]
+}
+
 struct GymSetupView: View {
     enum Step { case kind, swipe, result }
 
@@ -36,6 +43,8 @@ struct GymSetupView: View {
     let ref: GymRef?
     /// Main button on the last step ("USE THIS GYM", "USE FOR THIS TRIP").
     let actionTitle: String
+    /// Offered above the place types: one tap to use it (#180).
+    let preset: GymSetupPreset?
     let onDone: (SavedGym) -> Void
 
     @Environment(AppModel.self) private var model
@@ -53,10 +62,11 @@ struct GymSetupView: View {
     @State private var drag: CGSize = .zero
     @State private var showEquipment = false
 
-    init(ref: GymRef?, name: String = "", actionTitle: String, startStep: Step = .kind, startKind: GymKind? = nil,
-         onDone: @escaping (SavedGym) -> Void) {
+    init(ref: GymRef?, name: String = "", actionTitle: String, preset: GymSetupPreset? = nil, startStep: Step = .kind,
+         startKind: GymKind? = nil, onDone: @escaping (SavedGym) -> Void) {
         self.ref = ref
         self.actionTitle = actionTitle
+        self.preset = preset
         self.onDone = onDone
         _step = State(initialValue: startStep)
         _kind = State(initialValue: startKind)
@@ -115,6 +125,16 @@ struct GymSetupView: View {
     private var kindStep: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
+                if let preset {
+                    choiceCard(symbol: "building.2.fill", title: preset.title, line: "\(preset.line) · \(preset.equipment.count) items",
+                               gradient: WorkoutEngine.Category.strength.gradient) {
+                        equipment = Equipment.allCases.filter { preset.equipment.contains($0) }
+                        unsure = []
+                        kind = nil
+                        source = preset.title
+                        step = .result
+                    }
+                }
                 if let place = known?.place {
                     memoryCard(place, title: "Known gym", line: "Set up by \(members(place.members)) · \(place.equipment.count) items",
                                source: "From \(members(place.members))")
@@ -124,8 +144,9 @@ struct GymSetupView: View {
                                line: "From \(members(chain.members)) at \(chain.gyms ?? 1) other \(chain.gyms == 1 ? "branch" : "branches")",
                                source: "\((chain.name ?? "Chain").capitalized) template")
                 }
-                Text(known?.place == nil && known?.chain == nil ? "What kind of place?" : "Or set it up yourself")
-                    .font(Theme.display(26)).padding(.top, known == nil ? 0 : 8)
+                let offered = preset != nil || known?.place != nil || known?.chain != nil
+                Text(offered ? "Or set it up yourself" : "What kind of place?")
+                    .font(Theme.display(26)).padding(.top, offered ? 8 : 0)
                 Text("Then a few quick cards, one per area of the gym.").font(.subheadline).foregroundStyle(Theme.muted)
                 ForEach(GymKind.allCases) { k in
                     Button { start(k) } label: {
@@ -158,9 +179,17 @@ struct GymSetupView: View {
     private func members(_ n: Int) -> String { n == 1 ? "1 member" : "\(n) members" }
 
     private func memoryCard(_ t: GymTally, title: String, line: String, source: String) -> some View {
-        Button { useMemory(t, source: source) } label: {
+        choiceCard(symbol: "person.3.fill", title: title, line: line, gradient: WorkoutEngine.Category.cardio.gradient) {
+            useMemory(t, source: source)
+        }
+    }
+
+    /// A ready list to use in one tap: gym memory or a preset.
+    private func choiceCard(symbol: String, title: String, line: String, gradient: LinearGradient,
+                            action: @escaping () -> Void) -> some View {
+        Button(action: action) {
             HStack(spacing: 14) {
-                Image(systemName: "person.3.fill")
+                Image(systemName: symbol)
                     .font(.system(size: 20, weight: .bold))
                     .frame(width: 50, height: 50)
                     .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.white.opacity(0.22)))
@@ -175,7 +204,7 @@ struct GymSetupView: View {
             }
             .foregroundStyle(.white)
             .padding(14)
-            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(WorkoutEngine.Category.cardio.gradient))
+            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(gradient))
         }
         .buttonStyle(.plain)
     }
