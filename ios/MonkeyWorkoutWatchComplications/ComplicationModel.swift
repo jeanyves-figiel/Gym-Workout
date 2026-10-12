@@ -4,6 +4,8 @@ import SwiftUI
 /// What every complication shows, flattened from the last phone snapshot for a given moment (#190).
 struct ComplicationInfo {
     enum Day { case today, next, rest, weekDone }
+    /// One weekday on the week strip.
+    enum DayState { case done, today, planned, missed, rest, restToday }
 
     var day: Day
     var title: String
@@ -20,12 +22,19 @@ struct ComplicationInfo {
     var streak: Int
     var bestStreak: Int
     var readiness: String?
+    /// Monday … Sunday; nil when the plan has no weekdays ("Day 1", "Day 2").
+    var days: [DayState]?
+    var records: [WRecord] = []
+    var last: WRecent?
 
     var progress: Double { target == 0 ? 0 : min(1, Double(done) / Double(target)) }
 
     static let sample = ComplicationInfo(
-        day: .today, title: "Upper Push", dayLabel: "Mon", minutes: 50, exercises: 6, tint: 0x2F6BFF, tint2: 0x00C9A7,
-        week: 2, deload: false, done: 2, target: 3, streak: 4, bestStreak: 6, readiness: "Ready to push")
+        day: .today, title: "Upper Push", dayLabel: "Mon", minutes: 50, exercises: 6, tint: 0x2F6BFF, tint2: 0x8A4DFF,
+        week: 2, deload: false, done: 2, target: 3, streak: 4, bestStreak: 6, readiness: "Ready to push",
+        days: [.done, .rest, .today, .rest, .planned, .rest, .rest],
+        records: [WRecord(name: "Bench Press", kg: 100)],
+        last: WRecent(title: "Lower Strength", date: Date().addingTimeInterval(-86_400), minutes: 52, sets: 18))
 
     /// nil = nothing synced from the iPhone yet.
     init?(_ snap: WatchSnapshot?, at date: Date) {
@@ -40,11 +49,10 @@ struct ComplicationInfo {
 
         if let next {
             let planned = WeekdayName.all.firstIndex(of: next.dayLabel)
-            let named = planned != nil
             // Later this week = rest today; earlier (missed) or no weekdays = still next up.
             if let planned { day = planned == today ? .today : planned > today ? .rest : .next } else { day = .next }
             title = next.title
-            dayLabel = named ? String(next.dayLabel.prefix(3)) : next.dayLabel
+            dayLabel = planned != nil ? String(next.dayLabel.prefix(3)) : next.dayLabel
             minutes = next.estMin
             exercises = next.items.count
             tint = next.tint
@@ -65,13 +73,29 @@ struct ComplicationInfo {
         streak = snap.progress.streakWeeks
         bestStreak = snap.progress.bestStreakWeeks
         readiness = snap.readiness
+        records = snap.progress.records
+        last = snap.progress.recent.first
+
+        let byDay = Dictionary(sessions.compactMap { s in WeekdayName.all.firstIndex(of: s.dayLabel).map { ($0, s) } },
+                               uniquingKeysWith: { a, _ in a })
+        if !sessions.isEmpty, sessions.allSatisfy({ WeekdayName.all.contains($0.dayLabel) }) {
+            days = (0..<7).map { d in
+                guard let s = byDay[d] else { return d == today ? .restToday : .rest }
+                if s.done { return .done }
+                return d == today ? .today : d < today ? .missed : .planned
+            }
+        } else {
+            days = nil
+        }
     }
 
     init(day: Day, title: String, dayLabel: String, minutes: Int, exercises: Int, tint: UInt32, tint2: UInt32,
-         week: Int, deload: Bool, done: Int, target: Int, streak: Int, bestStreak: Int, readiness: String?) {
+         week: Int, deload: Bool, done: Int, target: Int, streak: Int, bestStreak: Int, readiness: String?,
+         days: [DayState]?, records: [WRecord], last: WRecent?) {
         self.day = day; self.title = title; self.dayLabel = dayLabel; self.minutes = minutes; self.exercises = exercises
         self.tint = tint; self.tint2 = tint2; self.week = week; self.deload = deload; self.done = done; self.target = target
         self.streak = streak; self.bestStreak = bestStreak; self.readiness = readiness
+        self.days = days; self.records = records; self.last = last
     }
 
     /// "TODAY · WEEK 2", "NEXT · WED", "REST DAY · NEXT WED", "WEEK COMPLETE".
@@ -84,11 +108,20 @@ struct ComplicationInfo {
         case .weekDone: return "WEEK COMPLETE"
         }
     }
+
+    /// Readiness from the phone's headline: 3 ready, 2 as planned, 1 easier, nil unknown.
+    var readinessLevel: Int? {
+        guard let r = readiness else { return nil }
+        if r.hasPrefix("Ready") { return 3 }
+        if r.hasPrefix("Train") { return 2 }
+        return 1
+    }
 }
 
 /// Plan weekday names as the phone sends them (`WeekSchedule.names`, 1 = Monday).
 enum WeekdayName {
     static let all = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    static let letters = ["M", "T", "W", "T", "F", "S", "S"]
 
     /// 0 = Monday … 6 = Sunday (Calendar weekday 1 = Sunday).
     static func index(_ date: Date, _ cal: Calendar) -> Int { (cal.component(.weekday, from: date) + 5) % 7 }
@@ -96,8 +129,6 @@ enum WeekdayName {
 
 enum MW {
     static let lime = Color(red: 0.80, green: 1.0, blue: 0.24)
-    static let flame = color(0xFFC23D)
-    static let flame2 = color(0xFF7A3D)
     static let mint = color(0x3DFFB0)
 
     static func color(_ v: UInt32) -> Color {
@@ -110,4 +141,15 @@ enum MW {
 
     static func display(_ size: CGFloat) -> Font { .system(size: size, weight: .black, design: .rounded) }
     static func label(_ size: CGFloat) -> Font { .system(size: size, weight: .heavy, design: .rounded) }
+
+    static func kg(_ v: Double) -> String { v.formatted(.number.precision(.fractionLength(0...1))) }
+
+    /// "Today", "Yesterday", "Mon", "3 Oct".
+    static func relativeDay(_ d: Date, from now: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDate(d, inSameDayAs: now) { return "Today" }
+        let days = cal.dateComponents([.day], from: cal.startOfDay(for: d), to: cal.startOfDay(for: now)).day ?? 0
+        if days == 1 { return "Yesterday" }
+        return days < 7 ? d.formatted(.dateTime.weekday(.abbreviated)) : d.formatted(.dateTime.day().month(.abbreviated))
+    }
 }
