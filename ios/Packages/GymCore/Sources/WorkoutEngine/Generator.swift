@@ -154,7 +154,9 @@ public enum Generator {
         var regions = Rules.regions(focus)
         if ctx.climber { for r in [Region.hips, .shoulders] where !regions.contains(r) { regions.append(r) } }
 
-        var blocks: [Block] = has(.warmup) ? [warmup(ctx, focus, warm, "\(id)-wu")] : []
+        var blocks: [Block] = []
+        // My picks (#204): pinned exercises first in their block; nothing pinned = picked as before.
+        if has(.warmup), let wu = withPicks(ctx, .warmup, warm, "\(id)-wu", { warmup(ctx, focus, $0, "\(id)-wu") }) { blocks.append(wu) }
         // Climbing tomorrow: no explosive block, its time goes to (grip-sparing) strength work.
         let pw = ctx.preClimb || !has(.power) ? nil : power(ctx, focus, powerMin, "\(id)-pw")
         if let pw { blocks.append(pw) }
@@ -173,9 +175,10 @@ public enum Generator {
             }
             blocks.append(st)
         }
-        if has(.mobility), let mo = mobility(ctx, focus, mobilityMin, "\(id)-mo") { blocks.append(mo) }
-        if has(.cardio), let ca = cardioBlock(ctx, cardio, cardioMin, "\(id)-ca") { blocks.append(ca) }
-        if has(.cooldown) { blocks.append(cooldown(ctx, cool, blocks, "\(id)-cd")) }
+        if has(.mobility), let mo = withPicks(ctx, .mobility, mobilityMin, "\(id)-mo", { mobility(ctx, focus, $0, "\(id)-mo") }) { blocks.append(mo) }
+        if has(.cardio), let ca = withPicks(ctx, .cardio, cardioMin, "\(id)-ca", { cardioBlock(ctx, cardio, $0, "\(id)-ca") }) { blocks.append(ca) }
+        let prior = blocks
+        if has(.cooldown), let cd = withPicks(ctx, .cooldown, cool, "\(id)-cd", { cooldown(ctx, $0, prior, "\(id)-cd") }) { blocks.append(cd) }
 
         let est = Int(blocks.reduce(0) { $0 + $1.estMin }.rounded())
         return Session(id: id, index: index, focus: focus, title: "Day \(index + 1) · \(focus.label)", targetMin: minutes, estMin: est, blocks: blocks)

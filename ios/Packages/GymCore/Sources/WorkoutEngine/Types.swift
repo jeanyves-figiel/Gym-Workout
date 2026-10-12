@@ -235,6 +235,8 @@ public struct Profile: Codable, Hashable, Sendable {
     public var rotateVariations: Bool?
     /// Blocks in every workout and their time split (#198); nil = the goal's automatic flow.
     public var sessionFlow: SessionFlow?
+    /// Exercises always in a block, keyed by block kind (#204); nil = picked for the day as before.
+    public var blockPicks: [String: BlockPicks]?
     /// Per-workout overrides (#106) keyed by session id ("w2s1"). Set by the app from the synced overrides when
     /// generating; not part of the profile form.
     public var sessionStyles: [String: SessionStyle]?

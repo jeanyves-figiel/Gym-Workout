@@ -129,4 +129,66 @@ private func kinds(_ s: Session) -> [BlockKind] { s.blocks.map(\.kind) }
     @Test func flowBlocksNeedExercises() {
         #expect(Generator.flowBlocks(Profile(), around: [], minutes: [.warmup: 6], seed: 1).isEmpty)
     }
+
+    // MARK: My picks (#204)
+
+    private func picked(_ picks: BlockPicks, kind: BlockKind = .warmup, equipment: [Equipment]? = nil) -> Profile {
+        var p = profile(.balanced)
+        if let equipment { p.equipment = equipment }
+        p.setPicks(picks, for: kind)
+        return p
+    }
+
+    @Test func noPicksLeavePlansUnchanged() {
+        var p = profile(.balanced)
+        p.setPicks(BlockPicks(), for: .warmup)
+        #expect(p.blockPicks == nil)
+        #expect(Generator.generateWeek(p, seed: 8) == Generator.generateWeek(profile(.balanced), seed: 8))
+    }
+
+    @Test func pinnedWarmupGoesFirstEveryWorkout() {
+        let p = picked(BlockPicks(items: [BlockPick(exerciseId: "treadmill-run", minutes: 7)]))
+        for s in Generator.generateWeek(p, seed: 8).sessions {
+            let wu = s.blocks.first { $0.kind == .warmup }
+            #expect(wu?.items.first?.exerciseId == "treadmill-run")
+            #expect(wu?.items.first?.prescription.reps == "7 min")
+            #expect(wu?.items.filter { $0.exerciseId == "treadmill-run" }.count == 1)
+        }
+    }
+
+    @Test func onlyMyPicksKeepsJustThem() {
+        let p = picked(BlockPicks(items: [BlockPick(exerciseId: "treadmill-run", minutes: 7)], only: true))
+        let wu = Generator.generateWeek(p, seed: 8).sessions[0].blocks.first { $0.kind == .warmup }
+        #expect(wu?.items.map(\.exerciseId) == ["treadmill-run"])
+        #expect(wu?.targetMin == 7)
+    }
+
+    @Test func picksTheGymLacksAreSkipped() {
+        let p = picked(BlockPicks(items: [BlockPick(exerciseId: "treadmill-run", minutes: 7)], only: true),
+                       equipment: [.dumbbells, .bench, .mat])
+        let wu = Generator.generateWeek(p, seed: 8).sessions[0].blocks.first { $0.kind == .warmup }
+        #expect(wu?.items.contains { $0.exerciseId == "treadmill-run" } == false)
+        #expect(wu?.items.isEmpty == false)
+    }
+
+    @Test func cooldownPicksAndOwnWorkouts() {
+        let picks = BlockPicks(items: [BlockPick(exerciseId: "pigeon", minutes: 2)])
+        let p = picked(picks, kind: .cooldown)
+        let cd = Generator.generateWeek(p, seed: 8).sessions[0].blocks.first { $0.kind == .cooldown }
+        #expect(cd?.items.first?.exerciseId == "pigeon")
+        let around = [Exercise.get("back-squat")]
+        let custom = Generator.flowBlocks(p, around: around, minutes: [.cooldown: 6], seed: 1)
+        #expect(custom.first?.items.first?.exerciseId == "pigeon")
+        var off = picks
+        off.inCustom = false
+        let q = picked(off, kind: .cooldown)
+        let plain = Generator.flowBlocks(q, around: around, minutes: [.cooldown: 6], seed: 1)
+        #expect(plain.first?.items.first?.exerciseId != "pigeon" || plain.first?.items.first?.prescription.note != "Your pick")
+    }
+
+    @Test func picksRoundTrip() throws {
+        let p = picked(BlockPicks(items: [BlockPick(exerciseId: "treadmill-run", minutes: 7)], only: true))
+        let back = try JSONDecoder().decode(Profile.self, from: JSONEncoder().encode(p))
+        #expect(back.picks(.warmup) == p.picks(.warmup))
+    }
 }
