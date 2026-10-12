@@ -80,9 +80,9 @@ extension RestStyle {
     /// Range shown on the setting card.
     public var range: (value: String, unit: String) {
         switch self {
-        case .long: ("2–3", "MIN")
-        case .standard: ("60–120", "SEC")
-        case .short: ("30–60", "SEC")
+        case .long: ("2–3", "MIN REST")
+        case .standard: ("1–2", "MIN REST")
+        case .short: ("½–1", "MIN REST")
         }
     }
 

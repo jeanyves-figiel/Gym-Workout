@@ -80,9 +80,10 @@ struct ProfileSectionCard: View {
             Spacer(minLength: 4)
             VStack(alignment: .trailing, spacing: 0) {
                 Text(big.0).font(Theme.display(26)).lineLimit(1).minimumScaleFactor(0.5)
-                Text(big.1).font(Theme.label(9)).tracking(1.2).opacity(0.8).lineLimit(1)
+                Text(big.1).font(Theme.label(9)).tracking(1.2).opacity(0.8).lineLimit(1).minimumScaleFactor(0.7)
             }
-            .fixedSize()
+            // Capped so a long value shrinks instead of truncating the title (#223).
+            .frame(maxWidth: 96, alignment: .trailing)
             .layoutPriority(2)
             Image(systemName: "chevron.right").font(.footnote.bold()).opacity(0.7)
         }
