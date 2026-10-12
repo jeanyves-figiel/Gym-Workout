@@ -34,6 +34,8 @@ final class Ctx {
     /// `.same` plans after week 1: week 1's `picks`. Each call takes week 1's pick for the same key (if it
     /// still fits), so exercises stay put even when a week's dose changes how many fit the time budget.
     var replay: [String: String]?
+    /// Session types override (quick extra sessions whose focus the goal's own week doesn't have, #194).
+    var split: [Focus]?
     /// Session length override (quick extra sessions, #178): every session gets these minutes, no deload trim.
     var minutes: Int?
     /// Short quick session (#178, under 30 min): brief warm-up and cool-down, accessory dose only (no heavy main lift).
@@ -152,6 +154,7 @@ enum Selector {
             if let i = q.prefer.firstIndex(of: e.id) { s += 4 - Double(min(3, i)) * 0.5 }
             if ctx.spareGrip && !e.gripHeavy { s += 2 }
             if !(q.main ? ctx.usedMain : ctx.usedWeek).contains(e.id) { s += 1 }
+            if q.category == .strength { s += goalBias(ctx.profile.goal, e, main: q.main) }
             if let r = q.regions { s += 0.5 * Double(e.regions.filter { r.contains($0) }.count) }
             return s
         }
@@ -159,6 +162,35 @@ enum Selector {
         let best = scores.max()!
         let top = zip(pool, scores).filter { $0.1 >= best - 1e-9 }.map(\.0)
         return ctx.use(q.main ? ctx.mainRng.pick(top) : ctx.rng.pick(top), main: q.main, key: key)
+    }
+}
+
+extension Selector {
+    static let freeWeights: Set<Equipment> = [.barbell, .trapBar, .dumbbells, .kettlebells, .ezBar]
+    static let lightKit: Set<Equipment> = [.dumbbells, .kettlebells, .bands, .mat, .pullupBar, .trx, .rings, .bench,
+                                           .plyoBox, .medBall, .sliders, .jumpRope, .stabilityBall]
+
+    /// Goal's exercise preference for strength picks (#194): below the "not used yet this week" bonus, so variety
+    /// still comes first, but it decides between equally fresh options. Balanced and climbing plans have none.
+    static func goalBias(_ goal: Goal, _ e: Exercise, main: Bool) -> Double {
+        let kit = Set(e.equipment)
+        switch goal {
+        case .balanced, .climbing:
+            return 0
+        // Heavy free-weight compounds.
+        case .strength:
+            return kit.contains(.barbell) || kit.contains(.trapBar) ? 0.75 : kit.isDisjoint(with: freeWeights) ? 0 : 0.25
+        // Constant-tension machines and cables for accessories; main lifts stay free-weight compounds.
+        case .build:
+            if main { return 0 }
+            return !kit.isEmpty && kit.isDisjoint(with: freeWeights) && !kit.isSubset(of: lightKit) ? 0.75 : 0
+        // Light, fast circuits: bodyweight, dumbbells and kettlebells.
+        case .endurance:
+            return kit.isSubset(of: lightKit) ? 0.75 : 0
+        // Single-leg / single-arm and barbell power positions.
+        case .athletic:
+            return (e.unilateral ? 0.5 : 0) + (main && kit.contains(.barbell) ? 0.25 : 0)
+        }
     }
 }
 

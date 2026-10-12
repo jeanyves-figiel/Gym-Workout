@@ -1,11 +1,11 @@
 {
-  "id": "2026-10-12.3",
+  "id": "2026-10-12.4",
   "items": [
     {
-      "symbol": "figure.walk.motion",
+      "symbol": "target",
       "tint": "strength",
-      "title": "Movements play on their own",
-      "body": "Each exercise shows its movement 3 times when it appears in the workout, then stops. Tap Play movement to see it again."
+      "title": "Your goal shapes your week",
+      "body": "Switching goal now changes this week's days, the mix of strength, power, mobility and cardio, and the exercises. Workouts you've done stay."
     }
   ]
 }

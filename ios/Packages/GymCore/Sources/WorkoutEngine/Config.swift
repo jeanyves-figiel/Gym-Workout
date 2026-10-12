@@ -112,6 +112,29 @@ enum Rules {
         6: [.push, .pull, .legs, .push, .pull, .legs],
     ]
 
+    /// The week's session types for `goal` at `n` sessions (#194): balanced, climbing and anything unlisted keep
+    /// `splits`; the other goals reshape the week so a goal change shows in the plan, not only in the mix.
+    static func split(_ goal: Goal, _ n: Int) -> [Focus] {
+        let own: [Int: [Focus]] = switch goal {
+        // Hypertrophy: push / pull / legs at 3 and 5, more weekly volume per muscle.
+        case .build: [3: [.push, .pull, .legs], 5: [.push, .pull, .legs, .upper, .lower]]
+        // Heavy compounds: a full-body power day replaces conditioning.
+        case .strength: [5: [.upper, .lower, .fullPower, .upper, .lower]]
+        // Aerobic engine first: conditioning days alternate with full-body strength.
+        case .endurance: [3: [.fullLower, .conditioning, .fullUpper],
+                          4: [.fullLower, .conditioning, .fullUpper, .conditioning],
+                          5: [.upper, .conditioning, .lower, .conditioning, .fullPower],
+                          6: [.fullLower, .conditioning, .fullUpper, .conditioning, .fullPower, .conditioning]]
+        // Jumps and throws lead the week: power days bracket upper / lower strength.
+        case .athletic: [3: [.fullPower, .fullUpper, .fullLower],
+                         4: [.fullPower, .upper, .lower, .fullPower],
+                         5: [.fullPower, .upper, .lower, .conditioning, .fullPower],
+                         6: [.fullPower, .push, .pull, .legs, .fullPower, .conditioning]]
+        case .balanced, .climbing: [:]
+        }
+        return own[n] ?? splits[n] ?? splits[3]!
+    }
+
     /// Strength slots by priority; index 0 is the main lift. Variant B used for the 2nd occurrence.
     static func strengthSlots(_ f: Focus, variant: Int) -> [Pattern] {
         switch (f, variant) {
