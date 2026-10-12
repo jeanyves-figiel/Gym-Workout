@@ -211,9 +211,21 @@ extension AppModel {
         return insertIntoPlan(workout, replacing: nil, weekday: weekday)
     }
 
-    /// A quick generated session of `focus` for this week (equipment, goal and style from the profile).
-    func quickSession(_ focus: Focus) -> Session? {
+    /// A quick generated session of `focus` for this week (equipment, goal and style from the profile);
+    /// `minutes` sets its length (#178), nil = the plan's session length.
+    func quickSession(_ focus: Focus, minutes: Int? = nil) -> Session? {
         guard let sp = state.synced else { return nil }
-        return Generator.quickSession(sp.profile, focus: focus, week: sp.week, seed: sp.seed &+ UInt32(truncatingIfNeeded: (state.synced?.planInserts?.count ?? 0) + 1))
+        return Generator.quickSession(sp.profile, focus: focus, week: sp.week, seed: quickSeed(sp), minutes: minutes)
+    }
+
+    /// A quick workout for chosen muscle groups (#178), sized to `minutes`; empty when nothing fits.
+    func quickWorkout(_ groups: Set<MuscleGroup>, minutes: Int) -> CustomWorkout? {
+        guard let sp = state.synced else { return nil }
+        let w = Generator.quickWorkout(sp.profile, groups: groups, minutes: minutes, seed: quickSeed(sp))
+        return w.items.isEmpty ? nil : w
+    }
+
+    private func quickSeed(_ sp: SyncedProfile) -> UInt32 {
+        sp.seed &+ UInt32(truncatingIfNeeded: (sp.planInserts?.count ?? 0) + 1)
     }
 }

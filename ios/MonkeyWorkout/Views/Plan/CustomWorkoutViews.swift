@@ -75,10 +75,13 @@ struct CustomWorkoutEditor: View {
     @State private var planning = false
     @State private var planned = false
     private let initial: CustomWorkout
+    /// Set when building a workout for a day (#178): Save saves it and hands it over (the caller places it).
+    private let onSave: ((CustomWorkout) -> Void)?
 
     /// `generated`: the generator choices behind `initial`, when it was just generated (shows the quick start).
-    init(initial: CustomWorkout, generated: MuscleWorkoutOptions? = nil) {
+    init(initial: CustomWorkout, generated: MuscleWorkoutOptions? = nil, onSave: ((CustomWorkout) -> Void)? = nil) {
         self.initial = initial
+        self.onSave = onSave
         _draft = State(initialValue: initial)
         _generated = State(initialValue: generated)
     }
@@ -165,7 +168,7 @@ struct CustomWorkoutEditor: View {
                     .cardRow()
                 }
 
-                if generated != nil && canSave {
+                if generated != nil && canSave && onSave == nil {
                     HStack(spacing: 10) {
                         QuickActionCard(title: "Start now", symbol: "play.fill", gradient: WorkoutEngine.Category.strength.gradient) {
                             ProStore.shared.run(.generateWorkout, $gate) { saveThen { playing = true } }
@@ -191,8 +194,9 @@ struct CustomWorkoutEditor: View {
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button(onSave == nil ? "Save" : "Add") {
                         model.saveCustomWorkout(draft)
+                        onSave?(draft)
                         dismiss()
                     }
                     .bold()
