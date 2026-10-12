@@ -236,6 +236,13 @@ public struct Profile: Codable, Hashable, Sendable {
     /// Per-workout overrides (#106) keyed by session id ("w2s1"). Set by the app from the synced overrides when
     /// generating; not part of the profile form.
     public var sessionStyles: [String: SessionStyle]?
+    /// How the week alternates muscle groups (#200); nil = `.auto` (the goal's own split).
+    public var split: SplitStyle?
+    /// Per-day session types in week order (#200), set by tapping a day; overrides `split` when it has one entry
+    /// per session. nil = none.
+    public var splitDays: [Focus]?
+    /// Muscle groups to prioritise (#200): +1 set and first among accessories. nil / empty = none.
+    public var focusMuscles: [MuscleGroup]?
 
     public init(
         goal: Goal = .balanced, sessionsPerWeek: Int = 3, experience: Experience = .intermediate,
@@ -267,11 +274,34 @@ public struct Profile: Codable, Hashable, Sendable {
     }
 }
 
-public enum Focus: String, Codable, Sendable {
+public enum Focus: String, Codable, CaseIterable, Sendable {
     case fullLower = "full-lower"
     case fullUpper = "full-upper"
     case fullPower = "full-power"
     case upper, lower, push, pull, legs, conditioning
+    /// Body-part days (#200).
+    case chestTri = "chest-tri"
+    case backBi = "back-bi"
+    case shouldersArms = "shoulders-arms"
+    case chestBack = "chest-back"
+    case posterior
+
+    /// Unknown values (a newer app's session types) decode as full body instead of failing the whole record.
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = Focus(rawValue: raw) ?? .fullUpper
+    }
+
+    /// Closest pre-#200 session type: stored in history so older app versions can still read it.
+    public var legacy: Focus {
+        switch self {
+        case .chestTri: .push
+        case .backBi: .pull
+        case .shouldersArms, .chestBack: .upper
+        case .posterior: .lower
+        default: self
+        }
+    }
 }
 
 public enum BlockKind: String, Codable, Sendable, CaseIterable {

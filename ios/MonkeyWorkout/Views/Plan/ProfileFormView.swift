@@ -131,7 +131,7 @@ struct ProfileFormView: View {
     private func content(_ s: ProfileSection) -> some View {
         switch s {
         case .goal:
-            Text("Pick a goal. Your week is sized around it.")
+            Text("Pick a goal, then how your week splits your muscles.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.muted)
             goals
@@ -155,6 +155,12 @@ struct ProfileFormView: View {
                 GoalCard(goal: g, minutes: p.recommendedMinutes(for: g), selected: p.goal == g) {
                     if p.goal != g { p.applyGoal(g) }
                 }
+                // How the week alternates muscles, right under the picked goal (#200).
+                if p.goal == g {
+                    SplitFocusPanel(profile: $p)
+                        .id("split")
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
         }
     }
@@ -168,7 +174,11 @@ struct ProfileFormView: View {
                         NumberPill(
                             value: n, selected: p.sessionsPerWeek == n, fill: p.goal.gradient,
                             recommended: n == p.goal.recommendedSessions, inRange: p.goal.sessionRange.contains(n)
-                        ) { p.sessionsPerWeek = n }
+                        ) {
+                            // Per-day picks (#200) were for the old week size.
+                            if p.sessionsPerWeek != n { p.splitDays = nil }
+                            p.sessionsPerWeek = n
+                        }
                     }
                 }
             }

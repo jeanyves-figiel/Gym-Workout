@@ -114,6 +114,15 @@ enum Rules {
 
     /// The week's session types for `goal` at `n` sessions (#194): balanced, climbing and anything unlisted keep
     /// `splits`; the other goals reshape the week so a goal change shows in the plan, not only in the mix.
+    /// The profile's week (#200): per-day picks when there is one per session, else the chosen split style,
+    /// else the goal's own split.
+    static func split(_ p: Profile) -> [Focus] {
+        let n = p.sessionsPerWeek
+        if let days = p.splitDays, days.count == n { return days }
+        if let style = p.split, style != .auto { return style.foci(n) }
+        return split(p.goal, n)
+    }
+
     static func split(_ goal: Goal, _ n: Int) -> [Focus] {
         let own: [Int: [Focus]] = switch goal {
         // Hypertrophy: push / pull / legs at 3 and 5, more weekly volume per muscle.
@@ -153,6 +162,17 @@ enum Rules {
         case (.legs, _): [.hinge, .squat, .singleLeg, .kneeExt, .kneeFlex, .calves, .coreAntiExt]
         case (.conditioning, 0): [.singleLeg, .carry, .coreAntiExt, .shoulderHealth, .coreAntiRot]
         case (.conditioning, _): [.singleLeg, .carry, .coreAntiRot, .shoulderHealth, .coreAntiExt]
+        // Body-part days (#200).
+        case (.chestTri, 0): [.hPush, .hPush, .vPush, .armsExt, .lateralRaise, .armsExt, .shoulderHealth, .coreAntiExt]
+        case (.chestTri, _): [.hPush, .vPush, .hPush, .armsExt, .armsExt, .lateralRaise, .shoulderHealth, .coreAntiRot]
+        case (.backBi, 0): [.vPull, .hPull, .hPull, .armsFlex, .shoulderHealth, .armsFlex, .forearmAntagonist, .coreFlex]
+        case (.backBi, _): [.hPull, .vPull, .vPull, .armsFlex, .shoulderHealth, .armsFlex, .forearmAntagonist, .coreAntiExt]
+        case (.shouldersArms, 0): [.vPush, .lateralRaise, .armsFlex, .armsExt, .shoulderHealth, .lateralRaise, .forearmAntagonist, .coreAntiRot]
+        case (.shouldersArms, _): [.vPush, .armsExt, .lateralRaise, .armsFlex, .shoulderHealth, .armsFlex, .forearmAntagonist, .coreFlex]
+        case (.chestBack, 0): [.hPush, .vPull, .hPush, .hPull, .shoulderHealth, .coreAntiExt, .forearmAntagonist]
+        case (.chestBack, _): [.vPull, .hPush, .hPull, .hPush, .shoulderHealth, .coreAntiRot, .forearmAntagonist]
+        case (.posterior, 0): [.hinge, .singleLeg, .kneeFlex, .hinge, .calves, .coreAntiRot, .carry]
+        case (.posterior, _): [.hinge, .kneeFlex, .singleLeg, .hinge, .calves, .coreAntiExt, .carry]
         }
     }
 
@@ -166,6 +186,9 @@ enum Rules {
         case .push: [.throw, .upperPlyo]
         case .pull: [.upperPlyo, .ballistic]
         case .conditioning: [.ballistic, .throw, .jump]
+        case .chestTri, .chestBack, .shouldersArms: [.upperPlyo, .throw]
+        case .backBi: [.upperPlyo, .ballistic]
+        case .posterior: [.jump, .ballistic]
         }
     }
 
@@ -178,6 +201,9 @@ enum Rules {
         case .lower, .legs: [.hips, .ankles, .spine]
         case .pull: [.shoulders, .thoracic, .wrists, .spine]
         case .conditioning: [.hips, .shoulders, .thoracic, .ankles, .wrists]
+        case .chestTri, .chestBack, .shouldersArms: [.shoulders, .thoracic, .wrists]
+        case .backBi: [.shoulders, .thoracic, .wrists, .spine]
+        case .posterior: [.hips, .ankles, .spine]
         }
     }
 
@@ -206,6 +232,11 @@ extension Focus {
         case .pull: "Pull"
         case .legs: "Legs"
         case .conditioning: "Conditioning & mobility"
+        case .chestTri: "Chest & triceps"
+        case .backBi: "Back & biceps"
+        case .shouldersArms: "Shoulders & arms"
+        case .chestBack: "Chest & back"
+        case .posterior: "Glutes & hamstrings"
         }
     }
 }

@@ -1,23 +1,23 @@
 {
-  "id": "2026-10-12.4",
+  "id": "2026-10-12.5",
   "items": [
     {
-      "symbol": "target",
+      "symbol": "rectangle.3.group.fill",
+      "tint": "power",
+      "title": "Choose your split",
+      "body": "Under your goal, pick how the week alternates: full body, upper / lower, push pull legs, body part, Arnold and more. Or let your goal decide."
+    },
+    {
+      "symbol": "hand.tap.fill",
+      "tint": "mobility",
+      "title": "Set each day's focus",
+      "body": "Tap a day in Your week to make it chest & triceps, back & biceps, legs, glutes or any other session. It stays on that day."
+    },
+    {
+      "symbol": "scope",
       "tint": "strength",
-      "title": "Your goal shapes your week",
-      "body": "Switching goal now changes this week's days, the mix of strength, power, mobility and cardio, and the exercises. Workouts you've done stay."
-    },
-    {
-      "symbol": "square.grid.3x1.below.line.grid.1x2.fill",
-      "tint": "cardio",
-      "title": "Bolder switchers",
-      "body": "Explore's Muscles, Categories and Workouts switcher is now colourful tiles with counts. Same look in Community and the workout builder."
-    },
-    {
-      "symbol": "applewatch.watchface",
-      "tint": "cardio",
-      "title": "Watch face complications",
-      "body": "Add MonkeyWorkout to any watch face, analog ones too: next workout, weekly goal, streak, week strip, readiness, top lift, last workout. Long-press the face, Edit, then pick MonkeyWorkout."
+      "title": "Focus muscles",
+      "body": "Pick the muscles you want to grow faster. They get an extra set and come right after the main lift."
     }
   ]
 }

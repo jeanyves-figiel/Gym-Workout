@@ -64,12 +64,14 @@ public enum Generator {
         let profile = ctx.profile, week = ctx.week
         let base = sessionMinutes(profile)
         let minutes = ctx.minutes ?? (ctx.deload ? max(Rules.minSession - 5, round5(Double(base) * 0.8)) : base)
-        let baseSplit = ctx.split ?? Rules.split(profile.goal, profile.sessionsPerWeek)
+        let baseSplit = ctx.split ?? Rules.split(profile)
+        // Per-day picks (#200) stay on the days the member chose: no weekly rotation, no re-ordering.
+        let fixed = ctx.split == nil && profile.customSplit
         let rotate = ctx.variety == .rotate
-        let split = rotate ? Rules.rotatedSplit(baseSplit, week: week) : baseSplit
+        let split = rotate && !fixed ? Rules.rotatedSplit(baseSplit, week: week) : baseSplit
         // With climbing / gym weekdays set, sessions are re-ordered and placed on weekdays.
         let prefs = profile.climbPrefs
-        let slots = WeekSchedule.assign(split, climbing: profile.climbingDays, gym: profile.gymDays, prefs: prefs)
+        let slots = WeekSchedule.assign(split, climbing: profile.climbingDays, gym: profile.gymDays, prefs: prefs, keepOrder: fixed)
         let order = slots?.map(\.focus) ?? split
         var seen: [Focus: Int] = [:]
         let undulating = profile.trainingMethod == .undulating
@@ -211,7 +213,7 @@ public enum Generator {
 
     static func warmup(_ ctx: Ctx, _ focus: Focus, _ minutes: Int, _ uid: String) -> Block {
         ctx.begin(uid)
-        let upper = [Focus.upper, .push, .pull, .fullUpper].contains(focus)
+        let upper = [Focus.upper, .push, .pull, .fullUpper, .chestTri, .backBi, .shouldersArms, .chestBack].contains(focus)
         let raiseMin = ctx.short ? 2 : minutes >= 9 ? 5 : 4
         var items: [PlannedExercise] = []
         if let raise = Selector.select(ctx, Query(category: .cardio, prefer: upper ? raiseUpper : raiseLower)) {
@@ -269,7 +271,7 @@ public enum Generator {
     static func climberSlots(_ slots: [Pattern], _ focus: Focus, _ ctx: Ctx) -> [Pattern] {
         guard ctx.climber else { return slots }
         var out = slots
-        if ![Focus.lower, .legs].contains(focus) {
+        if ![Focus.lower, .legs, .posterior].contains(focus) {
             // Prehab right after the main lift so it survives short sessions.
             out.removeAll { $0 == .shoulderHealth || $0 == .forearmAntagonist }
             out.insert(.shoulderHealth, at: min(1, out.count))
@@ -277,6 +279,16 @@ public enum Generator {
         }
         if ctx.spareGrip { out.removeAll { $0 == .armsFlex } }
         return out
+    }
+
+    /// Focus muscles (#200): their accessories move up right after the main lift, so they survive short sessions.
+    static func focusFirst(_ slots: [Pattern], _ ctx: Ctx) -> [Pattern] {
+        let groups = ctx.profile.focusGroups
+        guard !groups.isEmpty, slots.count > 2 else { return slots }
+        let rest = slots.dropFirst()
+        let hit = rest.filter { !$0.muscleGroups.isDisjoint(with: groups) }
+        let miss = rest.filter { $0.muscleGroups.isDisjoint(with: groups) }
+        return [slots[0]] + hit + miss
     }
 
     static func dose(_ ctx: Ctx, isMain: Bool, circuit: Bool, _ pattern: Pattern, _ e: Exercise) -> (Prescription, Int) {
@@ -298,6 +310,11 @@ public enum Generator {
         // Peak week: +1 set on the main lift (daily undulating: not on the light day).
         if isMain && ctx.week % mesocycleWeeks == 3 && !beginner && ctx.zone != .light { sets += 1 }
         var notes: [String] = []
+        // Focus muscles (#200): one more set.
+        if !circuit && !minimal && !pattern.muscleGroups.isDisjoint(with: ctx.profile.focusGroups) {
+            sets += 1
+            notes.append("Focus muscle: +1 set")
+        }
         if ctx.spareGrip && (pattern == .vPull || pattern == .hPull) {
             sets = max(2, sets - 1)
             notes.append("Reduced: climbing already loads pulling")
@@ -333,7 +350,7 @@ public enum Generator {
         let circuit = focus == .conditioning
         var base = Rules.strengthSlots(focus, variant: variant)
         if ctx.variety == .rotate { base = Rules.rotatingLead(base, focus, step: leadStep) }
-        let slots = climberSlots(base, focus, ctx)
+        let slots = focusFirst(climberSlots(base, focus, ctx), ctx)
         var items: [PlannedExercise] = []
         var pairUsed: Set<String> = []
         var used = 0.0

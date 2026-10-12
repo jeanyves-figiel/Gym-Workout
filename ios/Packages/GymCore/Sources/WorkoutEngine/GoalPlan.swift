@@ -34,6 +34,8 @@ extension Profile {
     public mutating func applyGoal(_ g: Goal) {
         goal = g
         sessionsPerWeek = g.recommendedSessions
+        // Per-day picks were for the old week size (#200); the split style and focus muscles stay.
+        splitDays = nil
         if g == .climbing && !climbs { climbs = true }
     }
 
