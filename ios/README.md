@@ -26,6 +26,8 @@ Capabilities needed on the App ID(s): Sign in with Apple, HealthKit.
 
 Workflow **TestFlight (Staging)** (`.github/workflows/testflight.yml`) archives scheme **MonkeyWorkout Staging** (API `workout-staging.monkeygrade.cloud`) on a macOS runner and uploads it to App Store Connect. Manual only (Actions → TestFlight (Staging) → Run workflow); merges to `main` do not upload builds. Build number = workflow run number. Skips with a warning until the secrets below exist.
 
+**What's new (every release, #183):** before running it, update `MonkeyWorkout/Resources/WhatsNew.json` with this release's top improvements (user-facing wording, 1–5 items) and a new `id` (release date). The app shows it once on first open after the update; the workflow fails if the `id` is unchanged since the last build (`testflight-<build>` tags). Rebuild of the same content: tick `same_whats_new`.
+
 Signing is Xcode cloud/automatic signing via an App Store Connect API key: no certificates or profiles in the repo.
 
 One-time setup (you, not CI):
