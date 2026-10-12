@@ -316,10 +316,6 @@ struct MeasurementLogSheet: View {
             .toolbarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") { focus = nil }
-                }
             }
             .sheet(item: $help) { MeasurementHowToSheet(metric: $0.metric, side: $0.side) }
             .fullScreenCover(isPresented: $guiding) { MeasureGuideView(steps: guideSteps, text: $text) }
