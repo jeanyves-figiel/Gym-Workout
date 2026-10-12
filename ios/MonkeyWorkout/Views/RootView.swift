@@ -114,6 +114,8 @@ private struct DemoScreen: View {
             }
         case "player": WorkoutPlayerView(sessionId: second)
         case "player-rest": WorkoutPlayerView(sessionId: second, demoRest: true)
+        case "player-timed": WorkoutPlayerView(sessionId: second, demoMode: "timed")
+        case "player-logged": WorkoutPlayerView(sessionId: second, demoMode: "logged")
         case "example": NavigationStack { SessionView(sessionId: WorkoutTemplate.all[1].sessionId) }
         case "explore": NavigationStack { LibraryView() }
         case "explore-female": NavigationStack { LibraryView() }.environment(\.bodyFigure, .female)

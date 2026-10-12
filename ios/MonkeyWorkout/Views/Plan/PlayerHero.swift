@@ -43,11 +43,25 @@ struct ExerciseHeroCard: View {
     var onAttemptPR: (() -> Void)?
     let onForm: () -> Void
 
+    /// Colour and label of the item: a cardio, mobility or stretch move inside a strength block (custom and example
+    /// workouts keep everything in one block) shows as what it is, not as strength.
+    static func category(_ exercise: Exercise, in block: Block) -> WorkoutEngine.Category {
+        block.kind == .strength && [.cardio, .mobility, .stretch].contains(exercise.category) ? exercise.category : block.kind.category
+    }
+
+    private var label: String {
+        let cat = Self.category(exercise, in: block)
+        guard cat == block.kind.category, !block.title.isEmpty else {
+            return cat == .warmup ? "Warm-up" : cat.rawValue.capitalized
+        }
+        return block.title
+    }
+
     var body: some View {
-        let cat = block.kind.category
+        let cat = Self.category(exercise, in: block)
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label(block.title.uppercased(), systemImage: cat.symbol).font(Theme.label(11)).tracking(1.2)
+                Label(label.uppercased(), systemImage: cat.symbol).font(Theme.label(11)).tracking(1.2)
                 Spacer()
                 Text(position).font(Theme.label(12)).monospacedDigit()
             }
@@ -68,27 +82,26 @@ struct ExerciseHeroCard: View {
                 }
                 .font(Theme.label(11))
                 .opacity(0.85)
+                Spacer(minLength: 4)
+                // Beside the target, so nothing sits over the picture's muscle map (top-left) or "Play movement" tag.
+                if let onAttemptPR {
+                    Button(action: onAttemptPR) {
+                        Label("Attempt PR", systemImage: "trophy.fill")
+                            .font(Theme.label(12))
+                            .foregroundStyle(Theme.ink)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(Theme.lime))
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             // Plays the movement a few times when the exercise shows, then rests on the start; tap replays. Its "Play movement" tag sits
-            // bottom-left, so Attempt PR goes top-left and Form bottom-right.
+            // bottom-left, Form bottom-right.
             ExerciseMotionView(exercise: exercise)
                 .frame(maxWidth: .infinity)
-                .frame(height: 150)
+                .frame(height: 140)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay(alignment: .topLeading) {
-                    if let onAttemptPR {
-                        Button(action: onAttemptPR) {
-                            Label("Attempt PR", systemImage: "trophy.fill")
-                                .font(Theme.label(12))
-                                .foregroundStyle(Theme.ink)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Capsule().fill(Theme.lime))
-                        }
-                        .buttonStyle(.plain)
-                        .padding(8)
-                    }
-                }
                 .overlay(alignment: .bottomTrailing) {
                     Button(action: onForm) {
                         Label("Form", systemImage: "info.circle.fill")
@@ -137,6 +150,7 @@ private struct HeroMuscleChips: View {
 struct TimedRing: View {
     let run: TimedRun
     let color: [Color]
+    var size: CGFloat = 170
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.2)) { ctx in
@@ -144,14 +158,13 @@ struct TimedRing: View {
             ZStack {
                 ProgressRing(progress: left / Double(max(1, run.total)), lineWidth: 14, colors: color)
                 VStack(spacing: 0) {
-                    Text(run.end == nil && left < Double(run.total) ? "Paused" : "Remaining").eyebrow()
-                    Text(Format.elapsed(left.rounded(.up))).font(Theme.display(44)).monospacedDigit()
+                    Text(run.end != nil ? "Remaining" : left < Double(run.total) ? "Paused" : "Ready").eyebrow()
+                    Text(Format.elapsed(left.rounded(.up))).font(Theme.display(size * 0.26)).monospacedDigit()
                     Text("of \(Format.elapsed(Double(run.total)))").font(.caption).foregroundStyle(Theme.muted)
                 }
             }
         }
-        .frame(width: 170, height: 170)
-        .frame(maxWidth: .infinity)
+        .frame(width: size, height: size)
         .accessibilityElement(children: .combine)
     }
 }
