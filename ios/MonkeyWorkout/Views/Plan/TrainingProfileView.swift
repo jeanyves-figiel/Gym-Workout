@@ -110,7 +110,10 @@ struct ProfileSectionCard: View {
 
     private var value: String {
         switch section {
-        case .goal: profile.goal.config.label
+        case .goal:
+            ([profile.goal.config.label,
+              profile.customSplit ? "Custom split" : profile.split.map(\.title)] as [String?])
+                .compactMap { $0 }.joined(separator: " · ")
         case .week:
             ([profile.experience.rawValue.capitalized,
              profile.maxSessionMinutes.map { "max \($0) min" },

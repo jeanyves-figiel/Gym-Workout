@@ -73,11 +73,12 @@ public enum WeekSchedule {
     ///
     /// Every choice of days × ordering of the split is scored (≤ 35 × 90 candidates); lowest score wins,
     /// ties keep the first candidate so the result is deterministic.
-    public static func assign(_ split: [Focus], climbing: [Int], gym: [Int], prefs: ClimbPrefs = ClimbPrefs()) -> [Slot]? {
+    /// `keepOrder`: only the days are chosen; sessions stay in the split's order (per-day picks, #200).
+    public static func assign(_ split: [Focus], climbing: [Int], gym: [Int], prefs: ClimbPrefs = ClimbPrefs(), keepOrder: Bool = false) -> [Slot]? {
         let climb = Set(normalized(climbing))
         let preferred = Set(normalized(gym))
         guard !climb.isEmpty || !preferred.isEmpty, !split.isEmpty, split.count <= 7 else { return nil }
-        let orders = distinctPermutations(split)
+        let orders = keepOrder ? [split] : distinctPermutations(split)
         var best: [Slot]?
         var bestScore = Double.infinity
         for days in combinations(weekdays, split.count) {
@@ -145,6 +146,11 @@ public enum WeekSchedule {
         case .fullLower: 1
         case .lower, .legs, .conditioning: 0.5
         case .push: 0
+        case .backBi: 3
+        case .chestBack: 2
+        case .shouldersArms: 1
+        case .posterior: 1
+        case .chestTri: 0
         }
     }
 
@@ -156,6 +162,8 @@ public enum WeekSchedule {
         case .conditioning: 1
         case .fullUpper: 0.5
         case .upper, .push, .pull: 0
+        case .posterior: 2
+        case .chestTri, .backBi, .shouldersArms, .chestBack: 0
         }
     }
 
@@ -165,15 +173,19 @@ public enum WeekSchedule {
         case .lower, .legs: 1
         case .fullLower, .upper: 0.5
         case .fullUpper, .fullPower, .pull, .conditioning: 0
+        case .chestTri: 1.5
+        case .posterior: 1
+        case .shouldersArms: 0.5
+        case .backBi, .chestBack: 0
         }
     }
 
     /// 1 = lower-dominant, 2 = pull-dominant, 0 = neither.
     static func group(_ f: Focus) -> Int {
         switch f {
-        case .lower, .legs, .fullLower, .fullPower: 1
-        case .pull, .upper, .fullUpper: 2
-        case .push, .conditioning: 0
+        case .lower, .legs, .fullLower, .fullPower, .posterior: 1
+        case .pull, .upper, .fullUpper, .backBi, .chestBack: 2
+        case .push, .conditioning, .chestTri, .shouldersArms: 0
         }
     }
 

@@ -60,8 +60,9 @@ struct BodyMetrics: Codable, Equatable, Sendable {
     static func suggestedFigure(sex: Sex?) -> BodyMapLayout.Figure { sex == .female ? .female : .male }
 }
 
-/// What we read from Apple Health. Stays on device (never sent to the server).
-struct HealthSnapshot: Equatable {
+/// What we read from Apple Health. Stays on device (never sent to the server); last copy cached on device
+/// so the first frame after launch shows it (#202).
+struct HealthSnapshot: Equatable, Codable {
     var weightKg: Double?
     var weightDate: Date?
     var heightCm: Double?
@@ -87,7 +88,7 @@ struct HealthSnapshot: Equatable {
     var leanTrend: [TrendPoint] = []
     var waistTrend: [TrendPoint] = []
 
-    struct TrendPoint: Equatable, Identifiable {
+    struct TrendPoint: Equatable, Identifiable, Codable {
         let date: Date
         let value: Double
         var id: Date { date }
@@ -140,11 +141,39 @@ final class HealthManager {
     private(set) var connected = UserDefaults.standard.bool(forKey: HealthManager.connectedKey)
     private(set) var writeWorkouts = UserDefaults.standard.object(forKey: HealthManager.writeKey) as? Bool ?? true
     var snapshot = HealthSnapshot()
+    /// Health values known (cached or read). Until then "Connect Apple Health" prompts stay hidden for connected users.
+    private(set) var loaded = false
     var error: String?
     /// Connected before body measurements (#185) were asked for: Health needs one more permission sheet.
     private(set) var needsMeasurementAccess = false
 
     var available: Bool { HKHealthStore.isHealthDataAvailable() }
+
+    /// Last snapshot on device (Application Support, protected until first unlock): launch shows it at once,
+    /// `refresh()` replaces it in the background (#202).
+    private static var cacheURL: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("health-snapshot.json")
+    }
+
+    init() {
+        guard connected else { return }
+        if let data = try? Data(contentsOf: Self.cacheURL), let cached = try? JSONDecoder().decode(HealthSnapshot.self, from: data) {
+            snapshot = cached
+            loaded = true
+        }
+    }
+
+    /// Nothing to wait for: not connected, or Health unavailable on this device.
+    var settled: Bool { loaded || !connected || !available }
+
+    private func cache(_ s: HealthSnapshot) {
+        snapshot = s
+        loaded = true
+        guard let data = try? JSONEncoder().encode(s) else { return }
+        let url = Self.cacheURL
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+    }
 
     private let bpm = HKUnit.count().unitDivided(by: .minute())
 
@@ -187,17 +216,39 @@ final class HealthManager {
 
     // MARK: Read
 
+    /// Reads every value at once (queries run concurrently), then replaces the cached snapshot.
     func refresh() async {
         guard connected, available else { return }
         var s = HealthSnapshot()
         let now = Date()
         let d30 = now.addingTimeInterval(-30 * 86_400)
+        let kg = HKUnit.gramUnit(with: .kilo), cm = HKUnit.meterUnit(with: .centi), ms = HKUnit.secondUnit(with: .milli)
+        let vo2Unit = HKUnit.literUnit(with: .milli).unitDivided(by: HKUnit.gramUnit(with: .kilo).unitMultiplied(by: .minute()))
+        let cal = Progression.calendar()
+        let weekStart = Progression.weekStart(now, cal)
+        let fourWeeks = cal.date(byAdding: .weekOfYear, value: -4, to: weekStart)!
 
-        if let w = await latest(.bodyMass) {
-            s.weightKg = w.quantity.doubleValue(for: .gramUnit(with: .kilo))
-            s.weightDate = w.endDate
-        }
-        if let h = await latest(.height) { s.heightCm = h.quantity.doubleValue(for: .meterUnit(with: .centi)) }
+        async let weight = latestValue(.bodyMass, unit: kg)
+        async let height = latestValue(.height, unit: cm)
+        async let restingHR = latestValue(.restingHeartRate, unit: bpm)
+        async let restingHRBaseline = average(.restingHeartRate, unit: bpm, from: d30, to: now)
+        async let hrv = latestValue(.heartRateVariabilitySDNN, unit: ms)
+        async let hrvBaseline = average(.heartRateVariabilitySDNN, unit: ms, from: d30, to: now)
+        async let vo2Max = latestValue(.vo2Max, unit: vo2Unit)
+        async let sleep = sleepLastNight()
+        async let weightTrend = trend(.bodyMass, unit: kg, days: 365)
+        async let bodyFat = latestValue(.bodyFatPercentage, unit: .percent())
+        async let lean = latestValue(.leanBodyMass, unit: kg)
+        async let waist = latestValue(.waistCircumference, unit: cm)
+        async let bodyFatTrend = trend(.bodyFatPercentage, unit: .percent(), days: 365)
+        async let leanTrend = trend(.leanBodyMass, unit: kg, days: 365)
+        async let waistTrend = trend(.waistCircumference, unit: cm, days: 365)
+        async let vo2Trend = trend(.vo2Max, unit: vo2Unit, days: 365)
+        async let climbingThisWeek = climbingCount(from: weekStart, to: now)
+        async let climbingPast = climbingCount(from: fourWeeks, to: weekStart)
+        async let recentClimbs = climbs(from: fourWeeks, to: now)
+        async let measurementStatus = requestStatus()
+
         s.birthYear = (try? store.dateOfBirthComponents())?.year
         switch (try? store.biologicalSex())?.biologicalSex {
         case .female: s.sex = .female
@@ -205,31 +256,40 @@ final class HealthManager {
         case .other: s.sex = .other
         default: s.sex = nil
         }
-        s.restingHR = await latest(.restingHeartRate)?.quantity.doubleValue(for: bpm)
-        s.restingHRBaseline = await average(.restingHeartRate, unit: bpm, from: d30, to: now)
-        s.hrv = await latest(.heartRateVariabilitySDNN)?.quantity.doubleValue(for: .secondUnit(with: .milli))
-        s.hrvBaseline = await average(.heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), from: d30, to: now)
-        let vo2Unit = HKUnit.literUnit(with: .milli).unitDivided(by: HKUnit.gramUnit(with: .kilo).unitMultiplied(by: .minute()))
-        s.vo2Max = await latest(.vo2Max)?.quantity.doubleValue(for: vo2Unit)
-        s.sleepHours = await sleepLastNight()
-        s.weightTrend = await trend(.bodyMass, unit: .gramUnit(with: .kilo), days: 365)
-        s.bodyFatPct = await latest(.bodyFatPercentage).map { $0.quantity.doubleValue(for: .percent()) * 100 }
-        s.leanKg = await latest(.leanBodyMass)?.quantity.doubleValue(for: .gramUnit(with: .kilo))
-        s.waistCm = await latest(.waistCircumference)?.quantity.doubleValue(for: .meterUnit(with: .centi))
-        s.bodyFatTrend = await trend(.bodyFatPercentage, unit: .percent(), days: 365).map { .init(date: $0.date, value: $0.value * 100) }
-        s.leanTrend = await trend(.leanBodyMass, unit: .gramUnit(with: .kilo), days: 365)
-        s.waistTrend = await trend(.waistCircumference, unit: .meterUnit(with: .centi), days: 365)
-        needsMeasurementAccess = (try? await store.statusForAuthorizationRequest(toShare: shareTypes, read: readTypes)) == .shouldRequest
-        s.vo2Trend = await trend(.vo2Max, unit: vo2Unit, days: 365)
-
-        let cal = Progression.calendar()
-        let weekStart = Progression.weekStart(now, cal)
-        s.climbingThisWeek = await climbingCount(from: weekStart, to: now)
-        let fourWeeks = cal.date(byAdding: .weekOfYear, value: -4, to: weekStart)!
-        let past = await climbingCount(from: fourWeeks, to: weekStart)
+        if let w = await weight {
+            s.weightKg = w.value
+            s.weightDate = w.date
+        }
+        s.heightCm = await height?.value
+        s.restingHR = await restingHR?.value
+        s.restingHRBaseline = await restingHRBaseline
+        s.hrv = await hrv?.value
+        s.hrvBaseline = await hrvBaseline
+        s.vo2Max = await vo2Max?.value
+        s.sleepHours = await sleep
+        s.weightTrend = await weightTrend
+        s.bodyFatPct = await bodyFat.map { $0.value * 100 }
+        s.leanKg = await lean?.value
+        s.waistCm = await waist?.value
+        s.bodyFatTrend = await bodyFatTrend.map { .init(date: $0.date, value: $0.value * 100) }
+        s.leanTrend = await leanTrend
+        s.waistTrend = await waistTrend
+        s.vo2Trend = await vo2Trend
+        s.climbingThisWeek = await climbingThisWeek
+        let past = await climbingPast
         s.climbingPerWeek4w = past > 0 ? Double(past) / 4 : nil
-        s.recentClimbs = await climbs(from: fourWeeks, to: now)
-        snapshot = s
+        s.recentClimbs = await recentClimbs
+        needsMeasurementAccess = await measurementStatus == .shouldRequest
+        cache(s)
+    }
+
+    private func requestStatus() async -> HKAuthorizationRequestStatus? {
+        try? await store.statusForAuthorizationRequest(toShare: shareTypes, read: readTypes)
+    }
+
+    private func latestValue(_ id: HKQuantityTypeIdentifier, unit: HKUnit) async -> (value: Double, date: Date)? {
+        guard let sample = await latest(id) else { return nil }
+        return (sample.quantity.doubleValue(for: unit), sample.endDate)
     }
 
     private func latest(_ id: HKQuantityTypeIdentifier) async -> HKQuantitySample? {

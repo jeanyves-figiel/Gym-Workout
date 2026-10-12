@@ -2,10 +2,10 @@
   "id": "2026-10-12.4",
   "items": [
     {
-      "symbol": "target",
-      "tint": "strength",
-      "title": "Your goal shapes your week",
-      "body": "Switching goal now changes this week's days, the mix of strength, power, mobility and cardio, and the exercises. Workouts you've done stay."
+      "symbol": "rectangle.3.group.fill",
+      "tint": "power",
+      "title": "Your goal, your split",
+      "body": "Switching goal re-plans your week. Under your goal, pick a split (full body, upper / lower, push pull legs, body part…), tap a day to set its focus, and pick focus muscles for extra sets."
     },
     {
       "symbol": "square.grid.3x1.below.line.grid.1x2.fill",
@@ -20,10 +20,10 @@
       "body": "Add MonkeyWorkout to any watch face, analog ones too: next workout, weekly goal, streak, week strip, readiness, top lift, last workout. Long-press the face, Edit, then pick MonkeyWorkout."
     },
     {
-      "symbol": "xmark.circle.fill",
+      "symbol": "bolt.heart.fill",
       "tint": "strength",
-      "title": "Close New exercise",
-      "body": "The ••• button on New exercise is gone: tap the X next to Save to close it."
+      "title": "Ready the moment you open it",
+      "body": "Readiness, weight and Health data show at launch, no more Connect Apple Health flash. New exercise closes with the X next to Save."
     },
     {
       "symbol": "rectangle.split.3x1.fill",
