@@ -46,10 +46,20 @@ jobs:
               -configuration "$cfg" \
               -destination 'generic/platform=iOS Simulator' \
               -skipPackagePluginValidation \
+              -derivedDataPath build \
               CODE_SIGNING_ALLOWED=NO > build.log 2>&1 \
               || { grep -E 'error:' build.log | sort -u; tail -n 50 build.log; exit 1; }
             tail -n 50 build.log
           done
+      # Complications (#190): the widget extension must sit in the Watch app's PlugIns with the WidgetKit extension point.
+      - name: Check Watch complications are embedded
+        run: |
+          W=build/Build/Products/Staging-iphonesimulator/MonkeyWorkout.app/Watch/MonkeyWorkoutWatch.app
+          find "$W" -maxdepth 3 -name '*.appex' -print
+          X="$W/PlugIns/MonkeyWorkoutWatchComplications.appex"
+          [ -d "$X" ] || { echo "::error::MonkeyWorkoutWatchComplications.appex missing from the Watch app"; exit 1; }
+          plutil -p "$X/Info.plist" | grep -E 'CFBundleIdentifier|NSExtensionPointIdentifier|MWAppGroup|MinimumOSVersion'
+          plutil -p "$W/Info.plist" | grep -E 'CFBundleIdentifier|WKApplication|WKCompanionAppBundleIdentifier|MinimumOSVersion'
 
   screenshots:
     name: Screenshots (demo mode)

@@ -105,6 +105,17 @@ jobs:
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} | tail -n 80
+      # Complications (#190): show what the archive ships inside the Watch app, with the extension's signed entitlements.
+      - name: Check Watch complications in archive
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          W="$RUNNER_TEMP/MonkeyWorkout.xcarchive/Products/Applications/MonkeyWorkout.app/Watch/MonkeyWorkoutWatch.app"
+          find "$W" -maxdepth 3 -name '*.appex' -print
+          X="$W/PlugIns/MonkeyWorkoutWatchComplications.appex"
+          [ -d "$X" ] || { echo "::error::MonkeyWorkoutWatchComplications.appex missing from the Watch app"; exit 1; }
+          plutil -p "$X/Info.plist" | grep -E 'CFBundleIdentifier|NSExtensionPointIdentifier|MWAppGroup|MinimumOSVersion'
+          codesign -d --entitlements - "$X" 2>/dev/null | grep -A3 application-groups || echo "::warning::no App Group entitlement on the complications extension"
+          codesign -d --entitlements - "$W" 2>/dev/null | grep -A3 application-groups || echo "::warning::no App Group entitlement on the Watch app"
       - name: Export + upload to App Store Connect
         if: steps.secrets.outputs.ok == 'true'
         run: |

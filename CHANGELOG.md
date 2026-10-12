@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- **CI checks Watch complications are shipped** (#190): the iOS build and the TestFlight archive now fail if `MonkeyWorkoutWatchComplications.appex` is missing from the Watch app, and print its bundle id, extension point and App Group entitlements.
 - **Week and readiness in one card** (#208): Train showed the week card (Week 1 of 4 · Base, Ease in, 0/3 done, week bar) and a separate Readiness card below it. Readiness is now a bright pill inside the week card, above the week bar (design B from `week-readiness/proposals.png`): verdict colour and icon, HRV / RHR / sleep (or "Today's session eased" on eased days), info icon; tap opens the readiness explanation as before. Phase header still opens the training cycle sheet, week bar still switches weeks. Health not connected → a **Connect Health for readiness** row in the same place asks Apple Health; connected without recovery data or still loading → no pill. `ReadinessCard` replaced by `ReadinessPill`. What's new `2026-10-12.5`.
 
 ### Fixed
