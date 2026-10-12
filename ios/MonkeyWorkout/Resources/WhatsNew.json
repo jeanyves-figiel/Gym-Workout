@@ -20,10 +20,10 @@
       "body": "Add MonkeyWorkout to any watch face, analog ones too: next workout, weekly goal, streak, week strip, readiness, top lift, last workout. Long-press the face, Edit, then pick MonkeyWorkout."
     },
     {
-      "symbol": "xmark.circle.fill",
+      "symbol": "bolt.heart.fill",
       "tint": "strength",
-      "title": "Close New exercise",
-      "body": "The ••• button on New exercise is gone: tap the X next to Save to close it."
+      "title": "Ready the moment you open it",
+      "body": "Readiness, weight and Health data show at launch, no more Connect Apple Health flash. New exercise closes with the X next to Save."
     },
     {
       "symbol": "rectangle.split.3x1.fill",

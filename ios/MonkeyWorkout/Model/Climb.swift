@@ -51,7 +51,7 @@ struct ClimbLog: Codable, Identifiable, Equatable, Sendable {
 }
 
 /// One climb shown in the app: logged here, or read from Apple Health (any app, e.g. MonkeyGrade).
-struct ClimbEntry: Identifiable, Equatable, Sendable {
+struct ClimbEntry: Identifiable, Equatable, Codable, Sendable {
     let id: UUID
     let start: Date
     let end: Date

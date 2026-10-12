@@ -30,7 +30,7 @@ struct WeekView: View {
                     } else {
                         WeekCompleteCard()
                     }
-                    if health.snapshot.weightKg == nil && model.body.weightKg == nil {
+                    if health.settled && health.snapshot.weightKg == nil && model.body.weightKg == nil {
                         BodyPromptCard()
                     }
                     // Picked climbing weekdays set the count; the Health hint would be overridden.
