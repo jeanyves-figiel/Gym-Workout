@@ -22,6 +22,9 @@ enum AccountTint {
                                       startPoint: .topLeading, endPoint: .bottomTrailing)
     static let support = LinearGradient(colors: [Color(red: 0.08, green: 0.78, blue: 0.56), Color(red: 0.12, green: 0.5, blue: 1)],
                                         startPoint: .topLeading, endPoint: .bottomTrailing)
+    /// What's new (#183).
+    static let whatsNew = LinearGradient(colors: [Color(red: 0.80, green: 1.0, blue: 0.24), Color(red: 0.08, green: 0.78, blue: 0.56)],
+                                         startPoint: .topLeading, endPoint: .bottomTrailing)
     static let danger = LinearGradient(colors: [Color(red: 1, green: 0.23, blue: 0.19), Color(red: 1, green: 0.45, blue: 0.2)],
                                        startPoint: .topLeading, endPoint: .bottomTrailing)
 }

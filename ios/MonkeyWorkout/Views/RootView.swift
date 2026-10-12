@@ -18,6 +18,8 @@ struct RootView: View {
                     NavigationStack {
                         ProfileFormView(initial: nil) { p in
                             model.applyProfile(p)
+                            // New accounts start on this release: no "What's new" for them (#183).
+                            WhatsNew.markSeen()
                             // Pro (#126): one offer, right after the first plan, skippable. Never shown again at launch.
                             model.offerPro = ProStore.shared.badged
                         }
@@ -43,6 +45,7 @@ struct RootView: View {
 
 struct MainTabView: View {
     @Environment(AppModel.self) private var model
+    @State private var whatsNew = WhatsNew.pending
 
     var body: some View {
         TabView {
@@ -64,6 +67,10 @@ struct MainTabView: View {
         .modifier(NotificationsHost())
         .fullScreenCover(isPresented: Binding(get: { model.offerPro }, set: { model.offerPro = $0 })) {
             NavigationStack { ProView(context: .onboarding) { model.offerPro = false } }
+        }
+        // First open after an update (#183); seen once dismissed, either way.
+        .sheet(item: Binding(get: { model.offerPro ? nil : whatsNew }, set: { whatsNew = $0 }), onDismiss: WhatsNew.markSeen) {
+            WhatsNewView(notes: $0)
         }
     }
 }
@@ -184,6 +191,7 @@ private struct DemoScreen: View {
         case "calendar": NavigationStack { CalendarView() }
         case "gyms": GymFinderView(place: "Zürich")
         case "move": MoveSessionSheet(sessionId: second)
+        case "whats-new": if let n = WhatsNew.current { WhatsNewView(notes: n) }
         case "add-workout": AddWorkoutSheet()
         case "add-workout-quick": AddWorkoutSheet(quick: .fullUpper)
         case "day":
