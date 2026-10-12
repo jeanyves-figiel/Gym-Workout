@@ -49,7 +49,8 @@ extension AppModel {
             ?? StartingLoad.estimate(exercise: exercise, prescription: item.prescription, athlete: athlete)
     }
 
-    /// Body data for first-time load estimates: Apple Health first, then what was entered in the app.
+    /// Body data for first-time load estimates: the newest of Apple Health and logged measurements (#185),
+    /// then what was entered in the app. Body fat gives lean mass; arm and thigh girth refine arm and leg work.
     var athlete: Athlete {
         let snap = health?.snapshot
         let sex: Athlete.Sex = switch body.sex ?? snap?.sex {
@@ -58,10 +59,17 @@ extension AppModel {
         default: .unspecified
         }
         let year = body.birthYear ?? snap?.birthYear
+        let weight = measurementSeries(.weight).last?.value ?? snap?.weightKg ?? body.weightKg
+        let fat = measurementSeries(.bodyFat).last?.value
+        let lean = weight.flatMap { w in fat.map { w * (1 - $0 / 100) } } ?? snap?.leanKg
+        let recent = measurements.filter { $0.date > Date().addingTimeInterval(-365 * 86_400) }
         return Athlete(
-            bodyKg: snap?.weightKg ?? body.weightKg, sex: sex,
+            bodyKg: weight, sex: sex,
             age: year.map { Calendar.current.component(.year, from: Date()) - $0 },
-            experience: profile?.experience ?? .beginner)
+            experience: profile?.experience ?? .beginner,
+            leanKg: lean,
+            upperArmCm: recent.last { $0.girth(.upperArm) != nil }?.girth(.upperArm),
+            thighCm: recent.last { $0.girth(.thigh) != nil }?.girth(.thigh))
     }
 
     /// Sets already logged today for this exercise in this session, by set index.

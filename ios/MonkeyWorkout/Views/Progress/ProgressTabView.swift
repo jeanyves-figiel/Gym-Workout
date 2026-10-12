@@ -48,7 +48,8 @@ struct ProgressTabView: View {
                 ConsistencyCalendar(days: s.days, empty: fresh)
                 weeklyChart(s)
                 strengthTrend
-                if !health.snapshot.weightTrend.isEmpty || !health.snapshot.vo2Trend.isEmpty { bodyTrends }
+                if !model.measurementSeries(.weight).isEmpty || !health.snapshot.vo2Trend.isEmpty { bodyTrends }
+                ProgressMeasurementsSection()
                 records(s)
                 if !climbList.isEmpty { ClimbingCard(climbs: climbList) }
                 if ProStore.shared.locked && !fresh {
@@ -194,9 +195,11 @@ struct ProgressTabView: View {
 
     private var bodyTrends: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Label("From Apple Health", systemImage: "heart.fill").eyebrow()
-            if !health.snapshot.weightTrend.isEmpty {
-                TrendChart(title: "Body weight", unit: "kg", symbol: "scalemass.fill", points: health.snapshot.weightTrend,
+            Label(health.connected ? "Body · Apple Health" : "Body", systemImage: "heart.fill").eyebrow()
+            // Apple Health samples merged with weights logged in Measurements (#185).
+            let weight = model.measurementSeries(.weight).map { HealthSnapshot.TrendPoint(date: $0.date, value: $0.value) }
+            if !weight.isEmpty {
+                TrendChart(title: "Body weight", unit: "kg", symbol: "scalemass.fill", points: weight,
                            gradient: WorkoutEngine.Category.cardio.colors)
             }
             if !health.snapshot.vo2Trend.isEmpty {
@@ -470,7 +473,7 @@ private struct GhostBars: View {
 }
 
 /// Health trend with the latest value and change over the period.
-private struct TrendChart: View {
+struct TrendChart: View {
     let title: String
     let unit: String
     let symbol: String

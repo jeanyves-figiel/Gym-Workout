@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-method|paywall|pro|pro-offer|pro-gate|equipment|gym-setup|gym-swipe|gym-result|not-here]`
+/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-method|paywall|pro|pro-offer|pro-gate|equipment|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("-demo") }
@@ -163,6 +163,27 @@ enum Demo {
             ClimbLog(kind: .boulder, start: Date().addingTimeInterval(-day - 3_600 * 3), minutes: 105, effort: 8, topGrade: "6C+"),
             ClimbLog(kind: .lead, start: Date().addingTimeInterval(-6 * day), minutes: 120, effort: 6, topGrade: "6b"),
         ]
+    }
+
+    /// Body measurements (#185): four check-ins over 12 weeks, arms and thighs growing, waist down.
+    static func measurements() -> [BodyMeasurement] {
+        (0..<4).map { i in
+            let k = Double(i)
+            var m = BodyMeasurement(
+                id: UUID(uuidString: "5A1D7C4E-0B3F-4C2A-9E61-00000000000\(i)")!,
+                date: Date().addingTimeInterval((k - 3) * 28 * 86_400 - 2 * 86_400), weightKg: 74 - k * 0.5, bodyFatPct: 19 - k * 0.8)
+            m.setGirth(.neck, 38)
+            m.setGirth(.shoulders, 116 + k * 0.8)
+            m.setGirth(.chest, 100 + k * 0.7)
+            m.setGirth(.waist, 84 - k * 1.1)
+            m.setGirth(.hips, 98 - k * 0.3)
+            m.setGirth(.upperArm, side: .left, 34 + k * 0.4)
+            m.setGirth(.upperArm, side: .right, 34.5 + k * 0.4)
+            m.setGirth(.forearm, 29 + k * 0.2)
+            m.setGirth(.thigh, 56 + k * 0.5)
+            m.setGirth(.calf, 37.5 + k * 0.1)
+            return m
+        }
     }
 
     /// Bench press PR attempts: a missed single, a 5RM, a 90 kg single and today's 92.5 kg record.

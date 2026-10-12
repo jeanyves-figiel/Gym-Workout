@@ -104,6 +104,15 @@ const MIGRATIONS: string[] = [
    ALTER TABLE custom_workouts ADD COLUMN hidden_at TEXT;
    ALTER TABLE custom_workouts ADD COLUMN saves INTEGER NOT NULL DEFAULT 0;
    CREATE INDEX custom_workouts_shared ON custom_workouts(visibility, shared_at);`,
+  // Body measurements over time (#185): girths, weight, body fat; opaque app records keyed by date.
+  `CREATE TABLE body_measurements (
+     id TEXT PRIMARY KEY,
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     date TEXT NOT NULL,
+     data TEXT NOT NULL,
+     updated_at TEXT NOT NULL
+   );
+   CREATE INDEX body_measurements_user_updated ON body_measurements(user_id, updated_at);`,
 ];
 
 export const openDb = (path: string): DB => {

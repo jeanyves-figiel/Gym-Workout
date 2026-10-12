@@ -6,7 +6,7 @@ import type { Config } from '../config.ts';
  * Same URLs serve App Store Connect (Privacy Policy URL, Support URL, custom EULA) and the app's Account links.
  * Operator, address and contact come from env (`LEGAL_*`); unset values render as a visible placeholder.
  */
-export const LEGAL_UPDATED = '2026-10-11';
+export const LEGAL_UPDATED = '2026-10-12';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -80,13 +80,13 @@ const privacy = (l: Legal) => `
 <h3>Training and body data</h3>
 <ul>
 <li>Training profile: goals, schedule, equipment, experience, training style, plan and calendar changes.</li>
-<li>Body metrics you enter: height, weight, birth year, optional sex and gender, body figure choice.</li>
+<li>Body metrics you enter: height, weight, birth year, optional sex and gender, body figure choice, and dated body measurements (girths such as chest, waist, arms and thighs, body weight, body fat).</li>
 <li>Sets you log (exercise, weight, reps, reps in reserve), completed sessions (exercises, duration, calories, average and maximum heart rate), personal-record attempts, your own workouts and exercises, including photos you take of machines.</li>
 </ul>
 <p>Why: to generate your plan, suggest loads, show progress and sync across devices. Body and heart-rate data are health data; we process them only to provide these features, based on your consent, which you can withdraw by deleting the data or your account.</p>
 
 <h3>Apple Health</h3>
-<p>With your permission the app reads from Apple Health (weight, height, age, sex, resting heart rate, heart rate variability, VO2 max, sleep, heart rate and energy during workouts, climbing workouts) and writes your gym sessions, weight and height to it. Health data is used only to estimate calories, show readiness and track progress. Most of it stays on your iPhone; only the session summary above (duration, calories, average and maximum heart rate) is synced to our server with your training history. Apple Health data is never used for advertising, never sold, never shared with third parties for their own purposes and never stored in iCloud by us. You can change Health permissions at any time in the iOS Settings or the Health app.</p>
+<p>With your permission the app reads from Apple Health (weight, height, body fat, lean body mass, waist circumference, age, sex, resting heart rate, heart rate variability, VO2 max, sleep, heart rate and energy during workouts, climbing workouts) and writes your gym sessions, weight, height and, if you choose, body fat and waist circumference to it. Health data is also used to suggest first-time loads. Health data is used only to estimate calories, show readiness and track progress. Most of it stays on your iPhone; only the session summary above (duration, calories, average and maximum heart rate) is synced to our server with your training history. Apple Health data is never used for advertising, never sold, never shared with third parties for their own purposes and never stored in iCloud by us. You can change Health permissions at any time in the iOS Settings or the Health app.</p>
 
 <h3>Community (optional)</h3>
 <ul>

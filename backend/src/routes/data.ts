@@ -7,6 +7,7 @@ import { communityExport } from './community.ts';
 import { gymExport } from './gyms.ts';
 import { listCustomExercises } from './customExercises.ts';
 import { listCustomWorkouts } from './customWorkouts.ts';
+import { listBodyMeasurements } from './bodyMeasurements.ts';
 import { listPrAttempts } from './prAttempts.ts';
 
 const logEntry = z.object({
@@ -161,6 +162,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
       community: communityExport(db, req.userId!),
       customExercises: listCustomExercises(db, req.userId!),
       prAttempts: listPrAttempts(db, req.userId!),
+      bodyMeasurements: listBodyMeasurements(db, req.userId!),
       gyms: gymExport(db, req.userId!),
       notifications: pushExport(db, req.userId!),
       subscriptions: subscriptions?.(req.userId!),
