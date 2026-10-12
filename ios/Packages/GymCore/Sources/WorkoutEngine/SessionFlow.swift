@@ -228,7 +228,7 @@ extension Generator {
 
     /// Session type the plan-wide flow preview is drawn for: the week's first non-conditioning day.
     public static func referenceFocus(_ p: Profile) -> Focus {
-        let split = Rules.split(p.goal, p.sessionsPerWeek)
+        let split = Rules.split(p)
         return split.first { $0 != .conditioning } ?? .fullLower
     }
 
