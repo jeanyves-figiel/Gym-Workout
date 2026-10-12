@@ -72,14 +72,26 @@ struct ExerciseMotionView: View {
     var playTrigger = 0
     /// Frame shown while not playing (the exercise page lets you pick one).
     var restingFrame = 0
+    /// Start → end → start cycles played on its own each time a new exercise shows, then it rests on
+    /// `restingFrame` (never an endless loop). 0 = only on tap. Reduce Motion turns auto-play off.
+    var autoPlayCycles = Self.autoPlayCycles
+
+    /// Default number of automatic cycles in the player and on the exercise page.
+    static let autoPlayCycles = 3
+    /// Cycles played by a tap on the picture ("Play movement").
+    static let tapCycles = 2
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shown: Int?
-    @State private var playing = false
+    /// Cycles of the running play; 0 = resting.
+    @State private var cycles = 0
+    /// Bumped for every play request so a tap restarts a running play.
+    @State private var run = 0
 
     private var frames: Int { ExerciseImage.frameCount(exercise) }
     private var canPlay: Bool { frames > 1 }
     private var current: Int { shown ?? restingFrame }
+    private var playing: Bool { cycles > 0 }
 
     var body: some View {
         ZStack {
@@ -102,17 +114,35 @@ struct ExerciseMotionView: View {
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture { if canPlay { playing = true } }
-        .task(id: playing) {
-            guard playing else { return }
-            await play()
-            playing = false
+        .onTapGesture { start(Self.tapCycles) }
+        // A new exercise (first appearance, or the player moving on): play the movement a few times.
+        .task(id: exercise.id) {
+            shown = nil
+            cycles = 0
+            guard Self.autoPlays(cycles: autoPlayCycles, frames: frames, reduceMotion: reduceMotion) else { return }
+            start(autoPlayCycles)
         }
-        .onChange(of: playTrigger) { _, _ in if canPlay { playing = true } }
+        .task(id: run) {
+            guard cycles > 0 else { return }
+            await play(cycles)
+            if !Task.isCancelled { cycles = 0 }
+        }
+        .onChange(of: playTrigger) { _, _ in start(Self.tapCycles) }
+        // Picking a frame on the exercise page stops a running play and shows that frame.
+        .onChange(of: restingFrame) { _, _ in
+            cycles = 0
+            run += 1
+            shown = nil
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(exercise.name), movement from start to end position")
         .accessibilityAddTraits(canPlay ? .isButton : [])
-        .accessibilityHint(canPlay ? "Shows the movement once" : "")
+        .accessibilityHint(canPlay ? "Shows the movement again" : "")
+    }
+
+    /// Whether a new exercise starts playing on its own.
+    static func autoPlays(cycles: Int, frames: Int, reduceMotion: Bool) -> Bool {
+        cycles > 0 && frames > 1 && !reduceMotion
     }
 
     /// "Start" / "Middle" / "End" for frame `f` of `count`.
@@ -121,20 +151,27 @@ struct ExerciseMotionView: View {
         return f == count - 1 ? "End" : "Middle"
     }
 
+    private func start(_ n: Int) {
+        guard canPlay, n > 0 else { return }
+        cycles = n
+        run += 1
+    }
+
     @MainActor
-    private func play() async {
+    private func play(_ n: Int) async {
         let dissolve: Animation? = reduceMotion ? nil : .easeInOut(duration: 0.7)
         let last = frames - 1
-        // Start → … → end, hold, then back to start: twice, then rest.
+        // Start → … → end, hold, then back to start: `n` times, then rest.
         let path = Array(0...last) + Array((0..<last).reversed())
-        for _ in 0..<2 {
+        for _ in 0..<n {
             for (i, f) in path.enumerated() where i > 0 || f != current {
                 try? await Task.sleep(for: .seconds(f == last ? 0.9 : (f == 0 ? 0.6 : 0.45)))
-                guard !Task.isCancelled else { break }
+                guard !Task.isCancelled else { return }
                 withAnimation(dissolve) { shown = f }
             }
         }
         try? await Task.sleep(for: .seconds(0.4))
+        guard !Task.isCancelled else { return }
         withAnimation(dissolve) { shown = nil }
     }
 }
@@ -154,7 +191,7 @@ struct ExerciseThumbnail: View {
 
 /// Large picture for the exercise page and the player. Renders nothing without media.
 /// `.sequence`: the picked frame large, with a Start / Middle / End strip below to pick a frame or play
-/// the movement (default). `.motion`: one picture, tap to play the movement once (`ExerciseMotionView`).
+/// the movement (default). `.motion`: one picture. Both play the movement a few times on their own, then on tap (`ExerciseMotionView`).
 struct ExerciseImageHeader: View {
     enum Style { case sequence, motion }
 
