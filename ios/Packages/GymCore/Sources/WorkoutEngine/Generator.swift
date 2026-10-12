@@ -205,7 +205,7 @@ public enum Generator {
     static func warmup(_ ctx: Ctx, _ focus: Focus, _ minutes: Int, _ uid: String) -> Block {
         ctx.begin(uid)
         let upper = [Focus.upper, .push, .pull, .fullUpper].contains(focus)
-        let raiseMin = minutes >= 9 ? 5 : 4
+        let raiseMin = ctx.short ? 2 : minutes >= 9 ? 5 : 4
         var items: [PlannedExercise] = []
         if let raise = Selector.select(ctx, Query(category: .cardio, prefer: upper ? raiseUpper : raiseLower)) {
             items.append(PlannedExercise(
@@ -215,7 +215,7 @@ public enum Generator {
         }
         var regions = Rules.regions(focus)
         if ctx.climber && !regions.contains(.wrists) { regions.append(.wrists) }
-        let drills = clamp(Int((Double(minutes - raiseMin) / 0.9).rounded()), 3, 6)
+        let drills = ctx.short ? 2 : clamp(Int((Double(minutes - raiseMin) / 0.9).rounded()), 3, 6)
         for i in 0..<drills {
             guard let d = Selector.select(ctx, Query(category: .warmup, regions: [regions[i % regions.count]])) else { continue }
             items.append(PlannedExercise(
@@ -334,7 +334,7 @@ public enum Generator {
         for (i, pattern) in slots.enumerated() {
             if items.count >= 2 && used >= budget * 1.05 { break }
             if ctx.method == .minimal && !circuit && items.filter({ $0.supersetWith == nil }).count >= minimalStrengthItems { break }
-            let isMain = items.isEmpty && !circuit
+            let isMain = items.isEmpty && !circuit && !ctx.short
             guard let e = Selector.select(ctx, Query(category: .strength, pattern: pattern, main: isMain)) else { continue }
             var (p, repsMid) = dose(ctx, isMain: isMain, circuit: circuit, pattern, e)
 
@@ -496,8 +496,9 @@ public enum Generator {
         var remaining = load
         var chosen: Set<String> = []
         var stretchCount = 0
-        // Stretching is mandatory: at least `minStretches`, more while the budget allows.
-        while stretchCount < minStretches || used + breathingSec < budget {
+        // Stretching is mandatory: at least `minStretches` (2 in a short quick session), more while the budget allows.
+        let least = ctx.short ? 2 : minStretches
+        while stretchCount < least || used + breathingSec < budget {
             var best: Exercise?
             var bestScore = 0.0
             for s in stretches where !chosen.contains(s.id) {
@@ -506,7 +507,7 @@ public enum Generator {
             }
             guard let b = best else { break }
             let est = (b.unilateral ? 90.0 : 45.0) + 15
-            if stretchCount >= minStretches && used + est + breathingSec > budget * 1.1 { break }
+            if stretchCount >= least && used + est + breathingSec > budget * 1.1 { break }
             stretchCount += 1
             chosen.insert(b.id)
             for m in b.primary { remaining[m] = (remaining[m] ?? 0) * 0.25 }

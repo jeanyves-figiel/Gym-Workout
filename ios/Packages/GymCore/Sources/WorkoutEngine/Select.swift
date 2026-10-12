@@ -36,6 +36,8 @@ final class Ctx {
     var replay: [String: String]?
     /// Session length override (quick extra sessions, #178): every session gets these minutes, no deload trim.
     var minutes: Int?
+    /// Short quick session (#178, under 30 min): brief warm-up and cool-down, accessory dose only (no heavy main lift).
+    var short: Bool { (minutes ?? .max) < 30 }
     private var block = ""
     private var calls = 0
     var usedSession: Set<String> = []

@@ -99,7 +99,7 @@ private let monday = PlanCalendar.date("2026-10-12", cal)!
             let s = try #require(Generator.quickSession(climber, focus: focus, week: 2, seed: 5, minutes: minutes))
             #expect(s.focus == focus && s.targetMin == minutes)
             #expect(!s.blocks.flatMap(\.items).isEmpty)
-            #expect(Double(s.estMin) <= Double(minutes) * 1.5 + 5, "\(focus) \(minutes) min → \(s.estMin)")
+            #expect(Double(s.estMin) <= Double(minutes) * 1.3 + 6, "\(focus) \(minutes) min → \(s.estMin)")
         }
     }
 
