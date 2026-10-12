@@ -133,6 +133,7 @@ private struct DemoScreen: View {
         case "pr-result": PRAttemptView(exerciseId: "bench-press", showing: Demo.prResult)
         case "technique": FormSheet(exercise: Exercise.get("leg-press"))
         case "progress", "progress-empty": NavigationStack { ProgressTabView() }
+        case "progress-flipped": NavigationStack { ProgressTabView(demoFlipped: .volume) }
         case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
         case "body": NavigationStack { BodyHealthView() }
         case "measurements": NavigationStack { MeasurementsView() }

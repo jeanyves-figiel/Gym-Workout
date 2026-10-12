@@ -1,11 +1,11 @@
 {
-  "id": "2026-10-12.5",
+  "id": "2026-10-12.6",
   "items": [
     {
-      "symbol": "bolt.heart.fill",
-      "tint": "cardio",
-      "title": "Week and readiness in one card",
-      "body": "Train shows your week and today's readiness together: the readiness pill sits inside the week card, tap it for the details. No Health yet? Connect it right there."
+      "symbol": "chart.bar.xaxis",
+      "tint": "strength",
+      "title": "Live progress tiles",
+      "body": "Progress tiles switch between Week, Month and All, show your trend and the change vs last time. Tap a tile for its chart, tap a day in the calendar to open that workout."
     }
   ]
 }

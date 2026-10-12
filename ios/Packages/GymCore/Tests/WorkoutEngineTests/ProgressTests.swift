@@ -128,3 +128,50 @@ private func record(_ s: Session, at date: Date, week: Int = 1, deload: Bool = f
         #expect(!b.unlocked)
     }
 }
+
+@Suite struct PeriodSummaryTests {
+    let plan = Generator.generateWeek(Profile(sessionsPerWeek: 3, climbingDaysPerWeek: 2), seed: 5)
+    // Wednesday of the week after `monday`.
+    let now = monday.addingTimeInterval(9 * 86_400)
+
+    @Test func weekComparesWithLastWeek() {
+        let recs = [
+            record(plan.sessions[0], at: monday),                               // last week
+            record(plan.sessions[1], at: monday.addingTimeInterval(7 * 86_400)), // this week Mon
+            record(plan.sessions[2], at: monday.addingTimeInterval(7 * 86_400 + 3600)), // same day
+            record(plan.sessions[0], at: monday.addingTimeInterval(8 * 86_400)), // this week Tue
+        ]
+        let s = Progression.periodSummary(records: recs, period: .week, now: now, calendar: utc)
+        #expect(s.buckets.count == 8)
+        #expect(s.current.workouts == 3)
+        #expect(s.current.activeDays == 2)
+        #expect(s.current.minutes == 180)
+        #expect(s.previous?.workouts == 1)
+        #expect(s.delta(.sessions) == 2)
+        #expect(s.buckets[6].totals.workouts == 1)
+        #expect(s.best(.sessions) == 7)
+        #expect(s.current.sets == recs[1...].reduce(0) { $0 + $1.totalSets })
+    }
+
+    @Test func monthAndAll() {
+        let early = monday.addingTimeInterval(-70 * 86_400) // ~2.5 months earlier
+        let recs = [record(plan.sessions[0], at: early), record(plan.sessions[1], at: monday)]
+        let m = Progression.periodSummary(records: recs, period: .month, now: now, calendar: utc)
+        #expect(m.buckets.count == 6)
+        #expect(m.current.workouts == 1)
+        #expect(m.buckets.reduce(0) { $0 + $1.totals.workouts } == 2)
+        let a = Progression.periodSummary(records: recs, period: .all, now: now, calendar: utc)
+        #expect(a.previous == nil)
+        #expect(a.delta(.sessions) == nil)
+        #expect(a.current.workouts == 2)
+        #expect(a.buckets.count == 4) // Jun … Sep
+        #expect(a.buckets.reduce(0) { $0 + $1.totals.workouts } == 2)
+    }
+
+    @Test func emptyHasNoBest() {
+        let s = Progression.periodSummary(records: [], period: .all, now: now, calendar: utc)
+        #expect(s.buckets.count == 1)
+        #expect(s.best(.volume) == nil)
+        #expect(s.current.workouts == 0)
+    }
+}
