@@ -57,7 +57,7 @@ public enum Generator {
     static func generateWeek(_ ctx: Ctx) -> WeekPlan {
         let profile = ctx.profile, week = ctx.week
         let base = sessionMinutes(profile)
-        let minutes = ctx.deload ? max(Rules.minSession - 5, round5(Double(base) * 0.8)) : base
+        let minutes = ctx.minutes ?? (ctx.deload ? max(Rules.minSession - 5, round5(Double(base) * 0.8)) : base)
         let baseSplit = Rules.splits[profile.sessionsPerWeek] ?? Rules.splits[3]!
         let rotate = ctx.variety == .rotate
         let split = rotate ? Rules.rotatedSplit(baseSplit, week: week) : baseSplit
@@ -125,8 +125,10 @@ public enum Generator {
     static func generateSession(_ ctx: Ctx, focus: Focus, variant: Int, index: Int, minutes: Int, cardio: CardioMode) -> Session {
         let id = "w\(ctx.week)s\(index + 1)"
         ctx.usedSession = []
-        let warm = clamp(Int((Double(minutes) * 0.12).rounded()), 6, 10)
-        let cool = clamp(Int((Double(minutes) * 0.11).rounded()), 6, 10)
+        // Short quick sessions (#178, under 25 min) keep a 3-min warm-up / cool-down so most of the time is work.
+        let lo = minutes < 25 ? 3 : 6
+        let warm = clamp(Int((Double(minutes) * 0.12).rounded()), lo, 10)
+        let cool = clamp(Int((Double(minutes) * 0.11).rounded()), lo, 10)
         let work = Double(minutes - warm - cool)
         let mix = sessionMix(ctx.profile, focus)
 

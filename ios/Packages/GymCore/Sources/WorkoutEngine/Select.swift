@@ -34,6 +34,8 @@ final class Ctx {
     /// `.same` plans after week 1: week 1's `picks`. Each call takes week 1's pick for the same key (if it
     /// still fits), so exercises stay put even when a week's dose changes how many fit the time budget.
     var replay: [String: String]?
+    /// Session length override (quick extra sessions, #178): every session gets these minutes, no deload trim.
+    var minutes: Int?
     private var block = ""
     private var calls = 0
     var usedSession: Set<String> = []

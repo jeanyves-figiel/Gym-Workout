@@ -201,6 +201,12 @@ struct WorkoutLibraryView: View {
     @State private var memberState: AppModel.SharedLibraryLoad?
     @State private var editing: CustomWorkout?
     @State private var gate: ProGate?
+    /// Pick mode (#178, Add workout → Browse library): tapping a workout hands it over instead of opening it.
+    private let onPick: ((LibraryEntry) -> Void)?
+
+    init(onPick: ((LibraryEntry) -> Void)? = nil) {
+        self.onPick = onPick
+    }
 
     var body: some View {
         ScrollView {
@@ -222,18 +228,20 @@ struct WorkoutLibraryView: View {
                 }
                 if filter == .all || filter == .mine {
                     section("My workouts", entries(model.myLibrary)) {
-                        Button { ProStore.shared.run(.buildWorkout, $gate) { editing = CustomWorkout(name: "") } } label: {
-                            HStack {
-                                Label("Build your own workout", systemImage: "square.and.pencil")
-                                    .font(Theme.label(15))
-                                    .foregroundStyle(Theme.lime)
-                                Spacer()
-                                ProBadge()
+                        if onPick == nil {
+                            Button { ProStore.shared.run(.buildWorkout, $gate) { editing = CustomWorkout(name: "") } } label: {
+                                HStack {
+                                    Label("Build your own workout", systemImage: "square.and.pencil")
+                                        .font(Theme.label(15))
+                                        .foregroundStyle(Theme.lime)
+                                    Spacer()
+                                    ProBadge()
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .card()
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .card()
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
                 if filter == .all || filter == .builtIn {
@@ -254,9 +262,11 @@ struct WorkoutLibraryView: View {
         .task { memberState = await model.loadSharedLibrary() }
         .refreshable { memberState = await model.loadSharedLibrary(query: query) }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { ProStore.shared.run(.buildWorkout, $gate) { editing = CustomWorkout(name: "") } } label: { Image(systemName: "plus") }
-                    .accessibilityLabel("New workout")
+            if onPick == nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { ProStore.shared.run(.buildWorkout, $gate) { editing = CustomWorkout(name: "") } } label: { Image(systemName: "plus") }
+                        .accessibilityLabel("New workout")
+                }
             }
         }
         .sheet(item: $editing) { w in CustomWorkoutEditor(initial: w) }
@@ -282,8 +292,13 @@ struct WorkoutLibraryView: View {
     private func section<Footer: View>(_ title: String, _ list: [LibraryEntry], @ViewBuilder footer: () -> Footer) -> some View {
         Text(title).eyebrow().padding(.top, 10)
         ForEach(list) { e in
-            NavigationLink(value: e.session.id) { LibraryCard(entry: e, done: model.state.done[e.session.id] ?? false) }
-                .buttonStyle(.plain)
+            if let onPick {
+                Button { onPick(e) } label: { LibraryCard(entry: e) }
+                    .buttonStyle(.plain)
+            } else {
+                NavigationLink(value: e.session.id) { LibraryCard(entry: e, done: model.state.done[e.session.id] ?? false) }
+                    .buttonStyle(.plain)
+            }
         }
         footer()
     }

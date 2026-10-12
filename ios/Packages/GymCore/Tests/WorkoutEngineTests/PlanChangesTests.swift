@@ -93,6 +93,37 @@ private let monday = PlanCalendar.date("2026-10-12", cal)!
         #expect(!s.blocks.flatMap(\.items).isEmpty)
     }
 
+    @Test(arguments: Generator.quickDurations)
+    func quickSessionFitsTheDuration(_ minutes: Int) throws {
+        for focus in Generator.quickFoci {
+            let s = try #require(Generator.quickSession(climber, focus: focus, week: 2, seed: 5, minutes: minutes))
+            #expect(s.focus == focus && s.targetMin == minutes)
+            #expect(!s.blocks.flatMap(\.items).isEmpty)
+            #expect(Double(s.estMin) <= Double(minutes) * 1.5 + 5, "\(focus) \(minutes) min → \(s.estMin)")
+        }
+    }
+
+    @Test func quickSessionWithoutMinutesIsUnchanged() throws {
+        let a = try #require(Generator.quickSession(climber, focus: .push, week: 2, seed: 5))
+        let b = try #require(Generator.quickSession(climber, focus: .push, week: 2, seed: 5, minutes: nil))
+        #expect(a == b)
+        let short = try #require(Generator.quickSession(climber, focus: .push, week: 2, seed: 5, minutes: 15))
+        #expect(short.estMin < a.estMin)
+    }
+
+    @Test func quickWorkoutTargetsTheMuscles() {
+        let w = Generator.quickWorkout(climber, groups: [.chest, .arms], minutes: 20, seed: 7)
+        #expect(!w.items.isEmpty)
+        #expect(w.items.allSatisfy { i in i.exercise.map { $0.primary.contains { Set<MuscleGroup>([.chest, .arms]).contains($0.group) } } ?? false })
+        #expect(w.session.estMin <= 30)
+        #expect(Generator.quickWorkout(climber, groups: [], minutes: 20, seed: 7).items.isEmpty)
+    }
+
+    @Test func focusPresetsHaveMuscles() {
+        for f in Generator.quickFoci where f != .conditioning { #expect(!f.muscleGroups.isEmpty) }
+        #expect(Focus.conditioning.muscleGroups.isEmpty)
+    }
+
     @Test func quickExtraIsAPlanSessionWithItsOwnIds() throws {
         let g = try #require(Generator.quickSession(climber, focus: .pull, week: 1, seed: 1))
         let ins = PlanInsert(week: 1, weekday: 6, workout: CustomWorkout(name: "Extra pull"), generated: g)

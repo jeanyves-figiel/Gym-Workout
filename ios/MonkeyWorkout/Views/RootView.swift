@@ -185,6 +185,7 @@ private struct DemoScreen: View {
         case "gyms": GymFinderView(place: "Zürich")
         case "move": MoveSessionSheet(sessionId: second)
         case "add-workout": AddWorkoutSheet()
+        case "add-workout-quick": AddWorkoutSheet(quick: .fullUpper)
         case "day":
             if let w = model.calendarWeeks(count: 1).first, let wd = w.plan.sessions.first(where: { $0.id == second })?.weekday {
                 DaySheet(selection: DaySelection(week: w, weekday: wd, current: true)) { _, _ in } onEdit: { _ in }

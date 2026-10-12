@@ -126,13 +126,30 @@ struct MuscleWorkoutGeneratorSheet: View {
     }
 
     private func groupTile(_ g: MuscleGroup) -> some View {
-        let on = options.groups.contains(g)
-        return Button {
-            if on { options.groups.remove(g) } else { options.groups.insert(g) }
+        MuscleGroupTile(group: g, on: options.groups.contains(g)) {
+            if options.groups.contains(g) { options.groups.remove(g) } else { options.groups.insert(g) }
             nothingFits = false
-        } label: {
+        }
+    }
+
+    private func generate() {
+        let w = CustomWorkout.generate(options, profile: profile, seed: UInt32.random(in: .min ... .max))
+        guard !w.items.isEmpty else { nothingFits = true; return }
+        onGenerate(w, options)
+        dismiss()
+    }
+}
+
+/// Selectable muscle-group tile (icon, name, first muscles) on the group's gradient: generator and quick session (#178).
+struct MuscleGroupTile: View {
+    let group: MuscleGroup
+    let on: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
             HStack(spacing: 10) {
-                Image(systemName: g.symbol)
+                Image(systemName: group.symbol)
                     .font(.system(size: 18, weight: .bold))
                     .frame(width: 40, height: 40)
                     .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.22)))
@@ -145,8 +162,8 @@ struct MuscleWorkoutGeneratorSheet: View {
                         }
                     }
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(g.label).font(Theme.display(16)).lineLimit(1).minimumScaleFactor(0.7)
-                    Text(g.muscles.prefix(3).map(\.name).joined(separator: " · "))
+                    Text(group.label).font(Theme.display(16)).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(group.muscles.prefix(3).map(\.name).joined(separator: " · "))
                         .font(.caption2.weight(.semibold)).opacity(0.85).lineLimit(1)
                 }
                 Spacer(minLength: 0)
@@ -154,18 +171,11 @@ struct MuscleWorkoutGeneratorSheet: View {
             .foregroundStyle(.white)
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .selectableGradient(g.gradient, selected: on, cornerRadius: 20)
+            .selectableGradient(group.gradient, selected: on, cornerRadius: 20)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(g.label)
+        .accessibilityLabel(group.label)
         .accessibilityAddTraits(on ? .isSelected : [])
-    }
-
-    private func generate() {
-        let w = CustomWorkout.generate(options, profile: profile, seed: UInt32.random(in: .min ... .max))
-        guard !w.items.isEmpty else { nothingFits = true; return }
-        onGenerate(w, options)
-        dismiss()
     }
 }
 
