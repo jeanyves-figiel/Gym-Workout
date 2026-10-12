@@ -306,6 +306,16 @@ struct ExerciseCard: View {
             if let onSwap {
                 Button(action: onSwap) { Label("Swap exercise", systemImage: "arrow.triangle.2.circlepath") }
             }
+            // My picks (#204): keep this exercise in every workout's block, or stop.
+            if model.canPick(block.kind) {
+                let picked = model.isPicked(item.exerciseId, in: block.kind)
+                Button {
+                    model.togglePick(item.exerciseId, in: block.kind, minutes: max(1, item.estSec / 60))
+                } label: {
+                    Label(picked ? "Remove from my \(block.kind.flowLabel) picks" : "Always use in \(block.kind.flowLabel)",
+                          systemImage: picked ? "pin.slash" : "pin.fill")
+                }
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)

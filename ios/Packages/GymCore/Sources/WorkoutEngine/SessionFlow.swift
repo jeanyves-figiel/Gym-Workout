@@ -245,17 +245,21 @@ extension Generator {
         let focus = CustomWorkout.focus(exercises)
         var before: [Block] = []
         var after: [Block] = []
-        if let w = minutes[.warmup], w > 0 { before.append(warmup(ctx, focus, w, "flow-wu")) }
+        if let w = minutes[.warmup], w > 0,
+           let b = withPicks(ctx, .warmup, w, "flow-wu", custom: true, { warmup(ctx, focus, $0, "flow-wu") }) { before.append(b) }
         if let p = minutes[.power], p > 0, let b = power(ctx, focus, p, "flow-pw") { before.append(b) }
-        if let mo = minutes[.mobility], mo > 0, let b = mobility(ctx, focus, mo, "flow-mo") { after.append(b) }
+        if let mo = minutes[.mobility], mo > 0,
+           let b = withPicks(ctx, .mobility, mo, "flow-mo", custom: true, { mobility(ctx, focus, $0, "flow-mo") }) { after.append(b) }
         let mode: CardioMode = profile.goal.config.cardio.first ?? .zone2
-        if let ca = minutes[.cardio], ca > 0, let b = cardioBlock(ctx, mode, ca, "flow-ca") { after.append(b) }
+        if let ca = minutes[.cardio], ca > 0,
+           let b = withPicks(ctx, .cardio, ca, "flow-ca", custom: true, { cardioBlock(ctx, mode, $0, "flow-ca") }) { after.append(b) }
         if let cd = minutes[.cooldown], cd > 0 {
             let main = Block(kind: .strength, title: "", targetMin: 0, items: exercises.enumerated().map { i, e in
                 PlannedExercise(uid: "m\(i)", exerciseId: e.id, slot: e.pattern,
                                 prescription: Prescription(sets: 3, reps: "10", restSec: 60), estSec: 0)
             })
-            after.append(cooldown(ctx, cd, [main] + after, "flow-cd"))
+            let prior = [main] + after
+            if let b = withPicks(ctx, .cooldown, cd, "flow-cd", custom: true, { cooldown(ctx, $0, prior, "flow-cd") }) { after.append(b) }
         }
         return before + after
     }
@@ -264,4 +268,111 @@ extension Generator {
 extension BlockKind {
     /// Position in a session.
     var order: Int { BlockKind.allCases.firstIndex(of: self) ?? 0 }
+}
+
+// MARK: - My picks per block (#204)
+
+/// An exercise the member always wants in a block, with its own time (e.g. Treadmill 7 min in every warm-up).
+public struct BlockPick: Codable, Hashable, Sendable, Identifiable {
+    public var exerciseId: String
+    public var minutes: Int
+    public var id: String { exerciseId }
+
+    public init(exerciseId: String, minutes: Int) {
+        self.exerciseId = exerciseId
+        self.minutes = minutes
+    }
+
+    public static let minutesRange = 1...30
+}
+
+/// The member's picks for one block. Pinned exercises go in first and keep their time; the app fills the rest
+/// of the block unless `only` is on. Nothing pinned = the block is picked as before.
+public struct BlockPicks: Codable, Hashable, Sendable {
+    public var items: [BlockPick]
+    /// Nothing else in the block: it lasts as long as the picks.
+    public var only: Bool
+    /// Also used for the flow blocks added around the member's own workouts; nil = yes.
+    public var inCustom: Bool?
+
+    public init(items: [BlockPick] = [], only: Bool = false, inCustom: Bool? = nil) {
+        self.items = items
+        self.only = only
+        self.inCustom = inCustom
+    }
+
+    public var isEmpty: Bool { items.isEmpty }
+    public var minutes: Int { items.reduce(0) { $0 + $1.minutes } }
+
+    /// Blocks that take picks: strength keeps its own picks through Swap.
+    public static let kinds: [BlockKind] = [.warmup, .mobility, .cardio, .cooldown]
+
+    /// Starting time for a newly pinned exercise: machines get a real stint, drills and stretches a couple of minutes.
+    public static func defaultMinutes(_ e: Exercise, in kind: BlockKind) -> Int {
+        guard e.category == .cardio else { return 2 }
+        return kind == .cardio ? 15 : 5
+    }
+}
+
+extension Profile {
+    /// Picks per block, decoded from `blockPicks`.
+    public func picks(_ kind: BlockKind) -> BlockPicks? {
+        guard let p = blockPicks?[kind.rawValue], !p.isEmpty else { return nil }
+        return p
+    }
+
+    /// Sets (or with empty picks clears) a block's picks.
+    public mutating func setPicks(_ picks: BlockPicks, for kind: BlockKind) {
+        var all = blockPicks ?? [:]
+        all[kind.rawValue] = picks.isEmpty ? nil : picks
+        blockPicks = all.isEmpty ? nil : all
+    }
+}
+
+extension Generator {
+    /// Pinned exercises of `picks` as planned items (ones the gym lacks are left out).
+    static func pinnedItems(_ picks: BlockPicks, equipment: Set<Equipment>, uid: String) -> [PlannedExercise] {
+        picks.items.enumerated().compactMap { i, p in
+            guard let e = Exercise.find(p.exerciseId), Selector.isAvailable(e, equipment) else { return nil }
+            let m = min(BlockPick.minutesRange.upperBound, max(BlockPick.minutesRange.lowerBound, p.minutes))
+            return PlannedExercise(
+                uid: "\(uid)-pin\(i)", exerciseId: e.id, slot: e.category == .strength ? e.pattern : .general,
+                prescription: Prescription(sets: 1, reps: "\(m) min\(perSide(e))", restSec: 0, note: "Your pick"),
+                estSec: m * 60)
+        }
+    }
+
+    /// `make` builds the block for some minutes. With picks for `kind`, they go first and keep their time and
+    /// `make` fills what is left (nothing with `only`, or when too little is left); without, `make(minutes)`.
+    static func withPicks(_ ctx: Ctx, _ kind: BlockKind, _ minutes: Int, _ uid: String, custom: Bool = false,
+                          _ make: (Int) -> Block?) -> Block? {
+        guard let picks = ctx.profile.picks(kind), !custom || picks.inCustom != false else { return make(minutes) }
+        let pinned = pinnedItems(picks, equipment: ctx.equipment, uid: uid)
+        guard !pinned.isEmpty else { return make(minutes) }
+        let pinMin = pinned.reduce(0) { $0 + $1.estSec } / 60
+        let left = minutes - pinMin
+        let ids = Set(pinned.map(\.exerciseId))
+        ctx.usedSession.formUnion(ids)
+        let filled = picks.only || left < SessionFlow.minimum(kind) ? nil : make(left)
+        var block = filled ?? Block(kind: kind, title: kind.blockTitle(climber: ctx.climber), targetMin: 0, items: [], note: nil)
+        block.items.removeAll { ids.contains($0.exerciseId) }
+        block.items = pinned + block.items
+        block.targetMin = picks.only ? pinMin : max(minutes, pinMin)
+        block.note = picks.only ? "Your picks." : ["Your picks first.", filled?.note].compactMap { $0 }.joined(separator: " ")
+        return block
+    }
+}
+
+extension BlockKind {
+    /// Title of a generated block of this kind.
+    func blockTitle(climber: Bool) -> String {
+        switch self {
+        case .warmup: "Warm-up"
+        case .power: "Explosive"
+        case .strength: "Strength"
+        case .mobility: climber ? "Climber mobility" : "Mobility"
+        case .cardio: "Cardio"
+        case .cooldown: "Stretching & cool-down"
+        }
+    }
 }

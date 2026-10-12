@@ -65,3 +65,27 @@ extension AppModel {
         updateProfile(p)
     }
 }
+
+/// My picks per block (#204): exercises the member always wants in a block, set from a workout's exercise menu.
+extension AppModel {
+    /// Blocks that take picks, once a training profile exists.
+    func canPick(_ kind: BlockKind) -> Bool { profile != nil && BlockPicks.kinds.contains(kind) }
+
+    func isPicked(_ exerciseId: String, in kind: BlockKind) -> Bool {
+        profile?.picks(kind)?.items.contains { $0.exerciseId == exerciseId } ?? false
+    }
+
+    /// Pins the exercise to every workout's `kind` block with `minutes`, or unpins it; the week is re-planned.
+    func togglePick(_ exerciseId: String, in kind: BlockKind, minutes: Int) {
+        guard var p = profile else { return }
+        var picks = p.blockPicks?[kind.rawValue] ?? BlockPicks()
+        if let i = picks.items.firstIndex(where: { $0.exerciseId == exerciseId }) {
+            picks.items.remove(at: i)
+        } else {
+            let range = BlockPick.minutesRange
+            picks.items.append(BlockPick(exerciseId: exerciseId, minutes: min(range.upperBound, max(range.lowerBound, minutes))))
+        }
+        p.setPicks(picks, for: kind)
+        updateProfile(p)
+    }
+}
