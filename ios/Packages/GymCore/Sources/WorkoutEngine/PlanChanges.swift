@@ -27,6 +27,25 @@ extension WeekPlan {
         }
         return p
     }
+
+    /// The plan with `ids` sessions (done, in progress) taken from `old` as they were (#194): a re-plan after a
+    /// profile edit leaves them alone. One the new plan no longer has is added back in day order. `old` must be
+    /// the same cycle week.
+    public func keeping(_ ids: Set<String>, from old: WeekPlan?) -> WeekPlan {
+        guard let old, old.week == week, !ids.isEmpty else { return self }
+        var p = self
+        var added = false
+        for s in old.sessions where ids.contains(s.id) {
+            if let i = p.sessions.firstIndex(where: { $0.id == s.id }) {
+                p.sessions[i] = s
+            } else {
+                p.sessions.append(s)
+                added = true
+            }
+        }
+        if added { p.sessions.sort { $0.index < $1.index } }
+        return p
+    }
 }
 
 extension PlanCalendar {
@@ -57,7 +76,11 @@ extension Generator {
     /// One generated session of `focus` for this profile and cycle week (equipment, goal and style kept), unscheduled.
     /// `minutes` sets its length (#178); nil = the plan's session length.
     public static func quickSession(_ profile: Profile, focus: Focus, week: Int, seed: UInt32, minutes: Int? = nil) -> Session? {
-        guard let n = Rules.splits.keys.sorted().first(where: { Rules.splits[$0]!.contains(focus) }) else { return nil }
+        // The goal's own week when it has this focus (#194), else the default split that does.
+        let sizes = Rules.splits.keys.sorted()
+        let own = sizes.first { Rules.split(profile.goal, $0).contains(focus) }
+        guard let n = own ?? sizes.first(where: { Rules.splits[$0]!.contains(focus) }) else { return nil }
+        let split = own == nil ? Rules.splits[n] : nil
         var p = profile
         p.sessionsPerWeek = n
         p.climbingWeekdays = nil
@@ -68,9 +91,10 @@ extension Generator {
             p.syncClimbingDays()
             let ctx = Ctx(profile: p, week: min(mesocycleWeeks, max(1, week)), seed: seed)
             ctx.minutes = minutes
+            ctx.split = split
             plan = generateWeek(ctx)
         } else {
-            plan = generateWeek(p, week: week, seed: seed)
+            plan = generateWeek(p, week: week, seed: seed, split: split)
         }
         guard var s = plan.sessions.first(where: { $0.focus == focus }) else { return nil }
         s.weekday = nil

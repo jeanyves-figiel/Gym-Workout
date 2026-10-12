@@ -191,7 +191,8 @@ final class AppModel {
 
     func applyProfile(_ profile: Profile, seed: UInt32? = nil, week: Int = 1) {
         let s = seed ?? UInt32.random(in: 0...UInt32.max)
-        let changed = state.synced?.week != week || state.synced?.seed != s || state.synced?.profile != profile
+        let newWeek = state.synced?.week != week || state.synced?.seed != s
+        let changed = newWeek || state.synced?.profile != profile
         // Plan inserts belong to one week: kept for a new variation or profile edit, dropped on a week change.
         // A variation's swaps only fit the exact plan they were made for.
         let variation = changed ? nil : state.synced?.variation
@@ -202,11 +203,16 @@ final class AppModel {
                                sessionStyles: state.synced?.sessionStyles?.filter { $0.key.hasPrefix("w\(week)s") },
                                savedGyms: state.synced?.savedGyms)
         state.synced = sp
-        state.plan = Generator.generateWeek(sp.planProfile, week: week, seed: s)
+        // A profile edit (goal, days, gym…) re-plans the rest of this week (#194): sessions already done and the
+        // one in progress keep their content; everything else follows the new profile.
+        let kept = newWeek ? [] : doneIds.union([state.activeWorkout?.sessionId].compactMap { $0 })
+        state.plan = Generator.generateWeek(sp.planProfile, week: week, seed: s).keeping(kept, from: state.plan)
         replanCurrentWeek()
-        if changed {
+        if newWeek {
             state.done = [:]
             state.ticked = [:]
+        } else if changed {
+            state.ticked = state.ticked.filter { uid, _ in kept.contains { uid.hasPrefix($0 + "-") } }
         }
         state.profileDirty = true
         persist()
