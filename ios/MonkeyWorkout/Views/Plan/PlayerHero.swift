@@ -69,7 +69,7 @@ struct ExerciseHeroCard: View {
                 .font(Theme.label(11))
                 .opacity(0.85)
             }
-            // Start position; tap plays the movement once (no looping frames). Its "Play movement" tag sits
+            // Plays the movement a few times when the exercise shows, then rests on the start; tap replays. Its "Play movement" tag sits
             // bottom-left, so Attempt PR goes top-left and Form bottom-right.
             ExerciseMotionView(exercise: exercise)
                 .frame(maxWidth: .infinity)
