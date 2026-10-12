@@ -166,10 +166,12 @@ struct MeasurementDetailView: View {
         let entries = model.measurements.filter { metric.value($0) != nil }.reversed()
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                if points.isEmpty {
-                    AccountHeader(symbol: metric.symbol, title: metric.label, subtitle: "Not logged yet",
-                                  gradient: metric.category.gradient)
-                } else {
+                // Explore-style hero: gradient, icon tile, latest value big on the right.
+                AccountHeader(symbol: metric.symbol, title: metric.label, subtitle: heroSubtitle(points),
+                              gradient: metric.category.gradient) {
+                    if let v = points.last?.value { AccountValue(value: MeasureFormat.value(v), unit: metric.unit) }
+                }
+                if points.count > 1 {
                     TrendChart(title: metric.label, unit: metric.unit, symbol: metric.symbol,
                                points: points.map { .init(date: $0.date, value: $0.value) }, gradient: metric.category.colors)
                         .card()
@@ -181,16 +183,11 @@ struct MeasurementDetailView: View {
                     Text("Logged").eyebrow().padding(.leading, 4).padding(.top, 8)
                     ForEach(Array(entries)) { m in
                         Button { editing = m } label: {
-                            HStack {
-                                Text(m.date.formatted(date: .abbreviated, time: .omitted)).font(.body.weight(.semibold))
-                                Spacer()
-                                if case let .girth(part) = metric, part.bilateral,
-                                   let l = m.girth(part, side: .left), let r = m.girth(part, side: .right) {
-                                    Text("L \(MeasureFormat.value(l)) · R \(MeasureFormat.value(r))").font(.footnote).foregroundStyle(Theme.muted)
-                                }
-                                Text("\(MeasureFormat.value(metric.value(m) ?? 0)) \(metric.unit)").font(Theme.display(18)).monospacedDigit()
+                            AccountCard(symbol: "calendar", title: m.date.formatted(date: .abbreviated, time: .omitted),
+                                        subtitle: sides(m) ?? "Tap to edit", gradient: nil, textColor: metric.category.color) {
+                                AccountValue(value: MeasureFormat.value(metric.value(m) ?? 0), unit: metric.unit)
+                                    .foregroundStyle(.white)
                             }
-                            .card(padding: 14)
                         }
                         .buttonStyle(.plain)
                     }
@@ -206,6 +203,19 @@ struct MeasurementDetailView: View {
         .navigationTitle(metric.label)
         .toolbarTitleDisplayMode(.inline)
         .sheet(item: $editing) { MeasurementLogSheet(initial: $0, isNew: false) }
+    }
+
+    private func heroSubtitle(_ points: [BodyMeasurements.Point]) -> String {
+        guard let last = points.last else { return "Not logged yet" }
+        return BodyMeasurements.change(points).map { "\(MeasureFormat.change($0, unit: metric.unit)) since \(MeasureFormat.date(points[0].date))" }
+            ?? "Logged \(MeasureFormat.date(last.date))"
+    }
+
+    /// "L 35.2 · R 35.7" when both sides were measured.
+    private func sides(_ m: BodyMeasurement) -> String? {
+        guard case let .girth(part) = metric, part.bilateral,
+              let l = m.girth(part, side: .left), let r = m.girth(part, side: .right) else { return nil }
+        return "L \(MeasureFormat.value(l)) · R \(MeasureFormat.value(r)) \(metric.unit)"
     }
 }
 
@@ -307,9 +317,9 @@ struct MeasurementLogSheet: View {
     }
 
     private func field(_ key: String, metric: BodyMetric, title: String? = nil, hint: Double?, howTo: String? = nil) -> some View {
-        let last = hint.map { "Last \(MeasureFormat.value($0)) \(metric.unit)" }
-        let subtitle = [howTo, last].compactMap { $0 }.joined(separator: " · ")
-        return AccountCard(symbol: metric.symbol, title: title ?? metric.label, subtitle: subtitle.isEmpty ? nil : subtitle,
+        // How-to first; the last value is the field's placeholder, so it only shows as text when there's no tip.
+        let subtitle = howTo ?? hint.map { "Last \(MeasureFormat.value($0)) \(metric.unit)" }
+        return AccountCard(symbol: metric.symbol, title: title ?? metric.label, subtitle: subtitle,
                            gradient: metric.category.gradient) {
             VStack(alignment: .trailing, spacing: 0) {
                 TextField(title ?? metric.label, text: Binding(get: { text[key] ?? "" }, set: { text[key] = $0 }),
