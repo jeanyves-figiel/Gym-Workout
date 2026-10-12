@@ -3,3 +3,5 @@
 APP_BUNDLE_ID = Com.app.MonkeyWorkout
 APP_DISPLAY_NAME = MonkeyWorkout
 API_BASE_URL = https:/$()/workout-staging.monkeygrade.cloud
+// App Group shared by the Watch app and its complications (#190).
+APP_GROUP = group.$(APP_BUNDLE_ID)

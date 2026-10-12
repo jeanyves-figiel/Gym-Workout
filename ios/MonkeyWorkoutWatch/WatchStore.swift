@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import WatchConnectivity
+import WidgetKit
 
 /// Watch side of the phone link (#56): keeps the last snapshot on disk (works with the phone away),
 /// queues logged sets and workouts back to the phone, and mirrors / remote-controls the iPhone player.
@@ -16,6 +17,8 @@ final class WatchStore: NSObject {
     override init() {
         snapshot = (try? Data(contentsOf: Self.url)).flatMap { try? JSONDecoder.watch.decode(WatchSnapshot.self, from: $0) } ?? WatchSnapshot()
         super.init()
+        // Complications (#190) read the App Group copy; seed it from a snapshot synced before they existed.
+        if hasPlan, SharedSnapshot.load() == nil { save() }
         guard WCSession.isSupported() else { return }
         WCSession.default.delegate = self
         WCSession.default.activate()
@@ -61,6 +64,8 @@ final class WatchStore: NSObject {
     private func save() {
         guard let data = try? JSONEncoder.watch.encode(snapshot) else { return }
         try? data.write(to: Self.url, options: .atomic)
+        SharedSnapshot.save(data)
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }
 
