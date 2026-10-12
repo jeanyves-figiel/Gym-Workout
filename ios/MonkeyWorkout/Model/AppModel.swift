@@ -65,6 +65,7 @@ final class AppModel {
             state.customWorkoutList = Demo.customWorkouts
             sharedLibrary = Demo.sharedWorkouts
             state.prAttempts = Demo.prAttempts()
+            state.measurements = Demo.measurements()
             MonkeyGradeLink.shared.loadDemo(ownerId: Demo.user?.id ?? "demo")
             state.synced?.profile.climbDayAddon = true
             if Demo.screen == "explore-volume" { state.synced?.profile.method = .volume }
@@ -541,6 +542,7 @@ final class AppModel {
             try await syncCustomExercises()
             try await syncCustomWorkouts()
             try await syncPRAttempts()
+            try await syncMeasurements()
             syncError = nil
             persist()
         } catch APIError.signedOut {

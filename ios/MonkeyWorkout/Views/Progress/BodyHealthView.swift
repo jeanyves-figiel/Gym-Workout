@@ -58,7 +58,7 @@ struct BodyHealthView: View {
                     }
                 }
                 ErrorText(message: health.error)
-                AccountNote(text: "Reads weight, height, age, sex, resting heart rate, HRV, VO₂max, sleep, heart rate during sessions and climbing workouts. Writes your sessions and, if you choose, weight and height. Health data stays on this iPhone.")
+                AccountNote(text: "Reads weight, height, body fat, lean mass, waist, age, sex, resting heart rate, HRV, VO₂max, sleep, heart rate during sessions and climbing workouts. Writes your sessions and, if you choose, weight, height, body fat, lean mass and waist. Health data stays on this iPhone.")
 
                 section("Body figure")
                 BodyFigurePicker(selection: Binding(
@@ -81,6 +81,10 @@ struct BodyHealthView: View {
                     .card(padding: 16)
                 }
                 AccountNote(text: "Used for calorie estimates and progress. Values from Apple Health are marked with a heart and used first; enter the rest here.")
+
+                section("Measurements")
+                MeasurementsCard()
+                AccountNote(text: "Girths, body weight and body fat over time. Logged values also fine-tune first suggested weights.")
 
                 section("About you (optional)")
                 Menu {

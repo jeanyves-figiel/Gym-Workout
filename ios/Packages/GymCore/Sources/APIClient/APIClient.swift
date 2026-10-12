@@ -247,6 +247,22 @@ public actor APIClient {
         _ = try await authorizedRaw("DELETE", "/v1/me/pr-attempts/\(id.uuidString)", Empty?.none)
     }
 
+    // MARK: Body measurements (#185)
+
+    public func fetchBodyMeasurements<T: Decodable & Sendable>(_: T.Type) async throws -> [T] {
+        try await authorized("GET", "/v1/me/body-measurements", Empty?.none, as: MeasurementsResponse<T>.self).measurements
+    }
+
+    public func pushBodyMeasurements<T: Encodable & Sendable>(_ measurements: [T]) async throws {
+        for chunk in stride(from: 0, to: measurements.count, by: 200).map({ Array(measurements[$0..<min($0 + 200, measurements.count)]) }) {
+            _ = try await authorizedRaw("POST", "/v1/me/body-measurements", MeasurementsBody(measurements: chunk))
+        }
+    }
+
+    public func deleteBodyMeasurement(_ id: UUID) async throws {
+        _ = try await authorizedRaw("DELETE", "/v1/me/body-measurements/\(id.uuidString)", Empty?.none)
+    }
+
     // MARK: Notifications (#69)
 
     /// Registers this install's APNs token (hex). `env`: "sandbox" (debug builds) or "production".
@@ -310,6 +326,8 @@ public actor APIClient {
     struct ExercisesResponse<T: Decodable>: Decodable { var exercises: [T] }
     struct AttemptsBody<T: Encodable>: Encodable { var attempts: [T] }
     struct AttemptsResponse<T: Decodable>: Decodable { var attempts: [T] }
+    struct MeasurementsBody<T: Encodable>: Encodable { var measurements: [T] }
+    struct MeasurementsResponse<T: Decodable>: Decodable { var measurements: [T] }
 
     private func authenticate(_ path: String, _ body: some Encodable) async throws -> User {
         let data = try await send("POST", path, body)
