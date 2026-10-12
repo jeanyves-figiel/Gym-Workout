@@ -26,11 +26,13 @@ const SELECT_SHARED = `SELECT w.id, w.user_id, w.data, w.visibility, w.shared_at
 const VISIBLE = visibleToOthersSql('w.user_id', 'w.visibility', 'w.hidden_at');
 
 const toShared = (r: SharedRow) => {
-  const d = JSON.parse(r.data) as { name?: string; items?: unknown[]; createdAt?: string };
+  const d = JSON.parse(r.data) as { name?: string; items?: unknown[]; createdAt?: string; flow?: unknown[] };
   return {
     id: r.id,
     name: d.name ?? 'Workout',
     items: d.items ?? [],
+    /** Session flow blocks around the exercises (#198), when the author added any. */
+    ...(Array.isArray(d.flow) && d.flow.length ? { flow: d.flow } : {}),
     createdAt: d.createdAt ?? r.shared_at,
     visibility: r.visibility,
     sharedAt: r.shared_at,

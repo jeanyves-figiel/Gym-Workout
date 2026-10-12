@@ -74,6 +74,8 @@ struct CustomWorkoutEditor: View {
     @State private var playing = false
     @State private var planning = false
     @State private var planned = false
+    /// Session flow (#198): minutes of the blocks played around the exercises.
+    @State private var flowMinutes: [BlockKind: Int]
     private let initial: CustomWorkout
     /// Set when building a workout for a day (#178): Save saves it and hands it over (the caller places it).
     private let onSave: ((CustomWorkout) -> Void)?
@@ -84,6 +86,9 @@ struct CustomWorkoutEditor: View {
         self.onSave = onSave
         _draft = State(initialValue: initial)
         _generated = State(initialValue: generated)
+        // New workouts start with a warm-up and a cool-down; saved ones keep theirs.
+        let fresh = initial.flow.isEmpty && (initial.items.isEmpty || generated != nil)
+        _flowMinutes = State(initialValue: fresh ? [.warmup: 6, .cooldown: 5] : initial.flowMinutes)
     }
 
     private var isNew: Bool { model.customWorkout(initial.id) == nil }
@@ -161,6 +166,10 @@ struct CustomWorkoutEditor: View {
                     .cardRow()
 
                 if !draft.items.isEmpty {
+                    Text("Session flow").eyebrow().padding(.top, 8).cardRow()
+                    CustomFlowEditor(minutes: $flowMinutes, yours: draft.ownMinutes).cardRow()
+                    AccountNote(text: "Warm-up, mobility, cardio and cool-down are picked to match your exercises and gym. Drag the bar to resize them.")
+                        .cardRow()
                     AccountCard(symbol: "stopwatch.fill", title: "Estimated duration",
                                 subtitle: draft.kcal.map { "\($0) kcal" }, gradient: WorkoutEngine.Category.cardio.gradient) {
                         AccountValue(value: "\(draft.session.estMin)", unit: "min")
@@ -231,6 +240,16 @@ struct CustomWorkoutEditor: View {
             }
         }
         .interactiveDismissDisabled(draft != initial && !saved)
+        .onAppear { if initial.flow.isEmpty { rebuildFlow() } }
+        .onChange(of: flowMinutes) { rebuildFlow() }
+        .onChange(of: draft.items) { rebuildFlow() }
+    }
+
+    /// Picks the flow blocks again for the current minutes and exercises.
+    private func rebuildFlow() {
+        guard let profile = model.profile else { return }
+        let next = draft.withFlow(flowMinutes, profile: profile)
+        if next.flow != draft.flow { draft.flow = next.flow }
     }
 
     /// Saves the draft (once per change), then runs `next`.

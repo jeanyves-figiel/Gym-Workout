@@ -105,17 +105,22 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
     public var visibility: WorkoutVisibility
     /// Set by the server when reports hid it from other members (read-only, never sent).
     public var hidden: Bool
+    /// Session flow (#198): warm-up, explosive, mobility, cardio and cool-down blocks played around the
+    /// member's own exercises, picked when the flow was set. Empty = just the exercises.
+    public var flow: [Block]
 
-    public init(id: UUID = UUID(), name: String, items: [Item] = [], createdAt: Date = Date(), visibility: WorkoutVisibility = .private) {
+    public init(id: UUID = UUID(), name: String, items: [Item] = [], createdAt: Date = Date(), visibility: WorkoutVisibility = .private,
+                flow: [Block] = []) {
         self.id = id
         self.name = name
         self.items = items
         self.createdAt = createdAt
         self.visibility = visibility
         self.hidden = false
+        self.flow = flow
     }
 
-    enum CodingKeys: String, CodingKey { case id, name, items, createdAt, visibility }
+    enum CodingKeys: String, CodingKey { case id, name, items, createdAt, visibility, flow }
     private enum ServerKeys: String, CodingKey { case hidden }
 
     public init(from decoder: any Decoder) throws {
@@ -125,6 +130,7 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         items = try c.decodeIfPresent([Item].self, forKey: .items) ?? []
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date(timeIntervalSince1970: 0)
         visibility = (try? c.decodeIfPresent(WorkoutVisibility.self, forKey: .visibility)) ?? .private
+        flow = ((try? c.decodeIfPresent([Block].self, forKey: .flow)) ?? nil) ?? []
         hidden = (try? decoder.container(keyedBy: ServerKeys.self).decodeIfPresent(Bool.self, forKey: .hidden)) ?? false
     }
 
@@ -135,6 +141,7 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         try c.encode(items, forKey: .items)
         try c.encode(createdAt, forKey: .createdAt)
         try c.encode(visibility, forKey: .visibility)
+        if !flow.isEmpty { try c.encode(flow, forKey: .flow) }
     }
 
     // MARK: Limits (mirrored by the API: name ≤ 100 chars, ≤ 100 items)
@@ -161,6 +168,11 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
             it.group = it.group.map { String($0.prefix(8)) }
             return it
         }
+        w.flow = flow.filter { $0.kind != .strength }.prefix(5).map { b in
+            var b = b
+            b.items = b.items.filter { Exercise.find($0.exerciseId) != nil }
+            return b
+        }.filter { !$0.items.isEmpty }
         return w
     }
 
@@ -241,8 +253,19 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         let est = Int((Double(planned.reduce(0) { $0 + $1.estSec }) / 60).rounded())
         let note: String? = labels.isEmpty ? nil
             : "\(Set(groupSize.values).contains { $0 > 2 } ? "Circuits" : "Supersets"): same-letter exercises back to back (A1 → A2), rest after the round."
-        return Session(id: sessionId, index: 0, focus: Self.focus(exercises), title: name, targetMin: est, estMin: est,
-                       blocks: [Block(kind: kind, title: kind.category.label, targetMin: est, items: planned, note: note)])
+        let main = Block(kind: kind, title: kind.category.label, targetMin: est, items: planned, note: note)
+        // Flow blocks (#198) around the member's exercises, in session order; ids prefixed so ticks stay per workout.
+        let extras = flow.map { b in
+            var b = b
+            for i in b.items.indices { b.items[i].uid = "\(sessionId)-\(b.items[i].uid)" }
+            return b
+        }
+        let blocks = planned.isEmpty ? [main] : extras.filter { $0.kind.order < BlockKind.strength.order } + [main]
+            + extras.filter { $0.kind.order > BlockKind.strength.order }
+        let total = est + flow.reduce(0) { $0 + $1.targetMin }
+        let estTotal = Int(blocks.reduce(0) { $0 + $1.estMin }.rounded())
+        return Session(id: sessionId, index: 0, focus: Self.focus(exercises), title: name, targetMin: total,
+                       estMin: flow.isEmpty ? est : estTotal, blocks: blocks)
     }
 
     /// Superset / circuit labels by item ("A1", "A2", "B1", …): letters renumbered in order of appearance,
@@ -304,7 +327,7 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         CustomWorkout(
             name: String("\(name) (copy)".prefix(Self.maxNameLength)),
             items: items.map { Item(exerciseId: $0.exerciseId, sets: $0.sets, reps: $0.reps, restSec: $0.restSec, kcal: $0.kcal, group: $0.group) },
-            createdAt: createdAt)
+            createdAt: createdAt, flow: flow)
     }
 }
 

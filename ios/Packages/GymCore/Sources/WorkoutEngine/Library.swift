@@ -50,17 +50,21 @@ public struct SharedWorkout: Codable, Hashable, Sendable, Identifiable {
     public var visibility: WorkoutVisibility
     public var saves: Int
     public var author: Author
+    /// Session flow blocks around the exercises (#198).
+    public var flow: [Block]
 
-    public init(id: UUID = UUID(), name: String, items: [CustomWorkout.Item], visibility: WorkoutVisibility = .members, saves: Int = 0, author: Author) {
+    public init(id: UUID = UUID(), name: String, items: [CustomWorkout.Item], visibility: WorkoutVisibility = .members, saves: Int = 0, author: Author,
+                flow: [Block] = []) {
         self.id = id
         self.name = name
         self.items = items
+        self.flow = flow
         self.visibility = visibility
         self.saves = saves
         self.author = author
     }
 
-    enum CodingKeys: String, CodingKey { case id, name, items, visibility, saves, author }
+    enum CodingKeys: String, CodingKey { case id, name, items, visibility, saves, author, flow }
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -70,17 +74,18 @@ public struct SharedWorkout: Codable, Hashable, Sendable, Identifiable {
         visibility = try c.decodeIfPresent(WorkoutVisibility.self, forKey: .visibility) ?? .members
         saves = try c.decodeIfPresent(Int.self, forKey: .saves) ?? 0
         author = try c.decodeIfPresent(Author.self, forKey: .author) ?? Author(userId: "", nickname: "member")
+        flow = ((try? c.decodeIfPresent([Block].self, forKey: .flow)) ?? nil) ?? []
     }
 
     /// Read-only view as a custom workout (same id, so its session id is stable), for the session view and player.
-    public var workout: CustomWorkout { CustomWorkout(id: id, name: name, items: items, createdAt: Date(timeIntervalSince1970: 0)).sanitized }
+    public var workout: CustomWorkout { CustomWorkout(id: id, name: name, items: items, createdAt: Date(timeIntervalSince1970: 0), flow: flow).sanitized }
 
     /// Editable copy for "My workouts": fresh ids, private, original name.
     public func copy(createdAt: Date = Date()) -> CustomWorkout {
         CustomWorkout(
             name: name,
             items: items.map { CustomWorkout.Item(exerciseId: $0.exerciseId, sets: $0.sets, reps: $0.reps, restSec: $0.restSec, kcal: $0.kcal) },
-            createdAt: createdAt
+            createdAt: createdAt, flow: flow
         ).sanitized
     }
 }

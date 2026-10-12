@@ -132,44 +132,48 @@ public enum Generator {
     static func generateSession(_ ctx: Ctx, focus: Focus, variant: Int, index: Int, minutes: Int, cardio: CardioMode) -> Session {
         let id = "w\(ctx.week)s\(index + 1)"
         ctx.usedSession = []
-        // Short quick sessions (#178, under 25 min) keep a 3-min warm-up / cool-down so most of the time is work.
-        let lo = minutes < 25 ? 3 : 6
-        let warm = clamp(Int((Double(minutes) * 0.12).rounded()), lo, 10)
-        let cool = clamp(Int((Double(minutes) * 0.11).rounded()), lo, 10)
-        let work = Double(minutes - warm - cool)
-        let mix = sessionMix(ctx.profile, focus)
-
-        var powerMin = Int((work * mix.power).rounded())
-        var mobilityMin = Int((work * mix.mobility).rounded())
-        var cardioMin = Int((work * mix.cardio).rounded())
-        if powerMin < 4 { powerMin = 0 }
-        if mobilityMin < 3 { mobilityMin = 0 }
-        if cardioMin < 6 { cardioMin = 0 }
-        let strengthMin = Int(work) - powerMin - mobilityMin - cardioMin
+        let auto = autoSplit(ctx.profile, focus, minutes)
+        // Session flow (#198): blocks switched off, on or resized; nil = the automatic split, unchanged.
+        // A plan-wide dragged split leaves conditioning days their own cardio-led split (switches still apply).
+        let flow: SessionFlow? = ctx.flow.map { f in
+            var f = f
+            if focus == .conditioning && ctx.style?.flow == nil { f.shares = nil }
+            return f
+        }
+        let split = flow.map { Self.split(auto, minutes: minutes, flow: $0) } ?? auto
+        let has: (BlockKind) -> Bool = { flow == nil || (split[$0] ?? 0) > 0 }
+        let warm = split[.warmup] ?? 0
+        let cool = split[.cooldown] ?? 0
+        let powerMin = split[.power] ?? 0
+        let mobilityMin = split[.mobility] ?? 0
+        let cardioMin = split[.cardio] ?? 0
+        let strengthMin = split[.strength] ?? 0
 
         var regions = Rules.regions(focus)
         if ctx.climber { for r in [Region.hips, .shoulders] where !regions.contains(r) { regions.append(r) } }
 
-        var blocks: [Block] = [warmup(ctx, focus, warm, "\(id)-wu")]
+        var blocks: [Block] = has(.warmup) ? [warmup(ctx, focus, warm, "\(id)-wu")] : []
         // Climbing tomorrow: no explosive block, its time goes to (grip-sparing) strength work.
-        let pw = ctx.preClimb ? nil : power(ctx, focus, powerMin, "\(id)-pw")
+        let pw = ctx.preClimb || !has(.power) ? nil : power(ctx, focus, powerMin, "\(id)-pw")
         if let pw { blocks.append(pw) }
         let powerLeft = pw.map { max(0, powerMin - Int($0.estMin.rounded())) } ?? powerMin
-        var st = strength(ctx, focus, variant, strengthMin + powerLeft, "\(id)-st", regions, leadStep: ctx.week - 1 + index)
-        // Supersets / circuits (#78); the rest time they save goes back into extra rounds (not in a deload week).
-        let grouping = focus == .conditioning ? Grouping.straight : ctx.group
-        st = applyGrouping(st, grouping)
-        // Minimal dose (#156) keeps its 2 hard sets: saved time shortens the session instead.
-        if grouping != .straight && !ctx.deload && ctx.method != .minimal { st = fillGroupedTime(st, targetMin: st.targetMin) }
-        if ctx.preClimb {
-            st.note = ["Climbing tomorrow: no jumps or heavy grip work today.", st.note].compactMap { $0 }.joined(separator: " ")
-        } else if ctx.preClimbGrip {
-            st.note = ["Climbing tomorrow: push hard, keep heavy pulling and grip light.", st.note].compactMap { $0 }.joined(separator: " ")
+        if has(.strength) || (ctx.preClimb && powerMin > 0) {
+            var st = strength(ctx, focus, variant, strengthMin + powerLeft, "\(id)-st", regions, leadStep: ctx.week - 1 + index)
+            // Supersets / circuits (#78); the rest time they save goes back into extra rounds (not in a deload week).
+            let grouping = focus == .conditioning ? Grouping.straight : ctx.group
+            st = applyGrouping(st, grouping)
+            // Minimal dose (#156) keeps its 2 hard sets: saved time shortens the session instead.
+            if grouping != .straight && !ctx.deload && ctx.method != .minimal { st = fillGroupedTime(st, targetMin: st.targetMin) }
+            if ctx.preClimb {
+                st.note = ["Climbing tomorrow: no jumps or heavy grip work today.", st.note].compactMap { $0 }.joined(separator: " ")
+            } else if ctx.preClimbGrip {
+                st.note = ["Climbing tomorrow: push hard, keep heavy pulling and grip light.", st.note].compactMap { $0 }.joined(separator: " ")
+            }
+            blocks.append(st)
         }
-        blocks.append(st)
-        if let mo = mobility(ctx, focus, mobilityMin, "\(id)-mo") { blocks.append(mo) }
-        if let ca = cardioBlock(ctx, cardio, cardioMin, "\(id)-ca") { blocks.append(ca) }
-        blocks.append(cooldown(ctx, cool, blocks, "\(id)-cd"))
+        if has(.mobility), let mo = mobility(ctx, focus, mobilityMin, "\(id)-mo") { blocks.append(mo) }
+        if has(.cardio), let ca = cardioBlock(ctx, cardio, cardioMin, "\(id)-ca") { blocks.append(ca) }
+        if has(.cooldown) { blocks.append(cooldown(ctx, cool, blocks, "\(id)-cd")) }
 
         let est = Int(blocks.reduce(0) { $0 + $1.estMin }.rounded())
         return Session(id: id, index: index, focus: focus, title: "Day \(index + 1) · \(focus.label)", targetMin: minutes, estMin: est, blocks: blocks)
@@ -212,7 +216,7 @@ public enum Generator {
     static func warmup(_ ctx: Ctx, _ focus: Focus, _ minutes: Int, _ uid: String) -> Block {
         ctx.begin(uid)
         let upper = [Focus.upper, .push, .pull, .fullUpper].contains(focus)
-        let raiseMin = ctx.short ? 2 : minutes >= 9 ? 5 : 4
+        let raiseMin = ctx.short ? 2 : minutes > 10 ? minutes - 5 : minutes >= 9 ? 5 : 4
         var items: [PlannedExercise] = []
         if let raise = Selector.select(ctx, Query(category: .cardio, prefer: upper ? raiseUpper : raiseLower)) {
             items.append(PlannedExercise(
