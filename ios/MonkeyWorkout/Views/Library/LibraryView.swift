@@ -103,11 +103,9 @@ private struct BodyMapCard: View {
     let sets: Int
     let onTap: (Muscle) -> Void
     @AppStorage(BodyMapMode.storageKey) private var storedMode = BodyMapMode.flat
-    @AppStorage(BodyMap3DStyle.storageKey) private var storedStyle = BodyMap3DStyle.clay
     @Environment(\.bodyMapDemo) private var demo
 
     private var mode: BodyMapMode { demo?.mode ?? storedMode }
-    private var style: BodyMap3DStyle { demo?.style ?? storedStyle }
 
     /// 2D | 3D pill on the map (same setting as Account → Body & Health → Body map).
     private var modeToggle: some View {
@@ -147,7 +145,7 @@ private struct BodyMapCard: View {
             .background(WorkoutEngine.Category.strength.gradient)
 
             if mode == .solid {
-                BodyMap3DPanel(heat: heat, style: style, modeToggle: AnyView(modeToggle), onOpen: onTap)
+                BodyMap3DPanel(heat: heat, modeToggle: AnyView(modeToggle), onOpen: onTap)
             } else {
                 VStack(spacing: 14) {
                     HStack(spacing: 12) {

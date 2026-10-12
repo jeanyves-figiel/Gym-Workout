@@ -3,18 +3,6 @@ import SwiftUI
 import UIKit
 import WorkoutEngine
 
-/// Look of the 3D body map (#225); designs in project files `3d-body-map/`.
-enum BodyMap3DStyle: String, CaseIterable, Identifiable {
-    /// Dark sculpted figure in the 2D map's heat colours.
-    case clay
-    /// Neon body on a dark stage, slow auto-spin.
-    case holo
-    /// Glossy white figure on a bold gradient.
-    case studio
-    var id: String { rawValue }
-    static let storageKey = "bodyMap3DStyle"
-}
-
 /// 2D or 3D body map on Explore → Muscles (#225). Member setting; 2D is the default.
 enum BodyMapMode: String, CaseIterable, Identifiable {
     case flat = "2d", solid = "3d"
@@ -28,7 +16,6 @@ enum BodyMapMode: String, CaseIterable, Identifiable {
 struct BodyMap3DView: UIViewRepresentable {
     var heat: [Muscle: Double]
     var selected: Muscle?
-    var style: BodyMap3DStyle = .clay
     /// Turn to show a side: 0 front, 90 right side, 180 back (snap buttons). Changing it animates.
     var yaw: Double = 0
     var onTap: (Muscle) -> Void
@@ -45,7 +32,7 @@ struct BodyMap3DView: UIViewRepresentable {
         let c = context.coordinator
         c.view = view
         c.onTap = onTap
-        c.setUp(style: style)
+        c.setUp()
         view.addGestureRecognizer(UIPanGestureRecognizer(target: c, action: #selector(Coordinator.pan(_:))))
         view.addGestureRecognizer(UIPinchGestureRecognizer(target: c, action: #selector(Coordinator.pinch(_:))))
         let double = UITapGestureRecognizer(target: c, action: #selector(Coordinator.reset(_:)))
@@ -54,13 +41,13 @@ struct BodyMap3DView: UIViewRepresentable {
         let tap = UITapGestureRecognizer(target: c, action: #selector(Coordinator.tap(_:)))
         tap.require(toFail: double)
         view.addGestureRecognizer(tap)
-        c.update(figure: figure, heat: heat, selected: selected, style: style, yaw: yaw)
+        c.update(figure: figure, heat: heat, selected: selected, yaw: yaw)
         return view
     }
 
     func updateUIView(_ view: SCNView, context: Context) {
         context.coordinator.onTap = onTap
-        context.coordinator.update(figure: figure, heat: heat, selected: selected, style: style, yaw: yaw)
+        context.coordinator.update(figure: figure, heat: heat, selected: selected, yaw: yaw)
     }
 
     @MainActor final class Coordinator: NSObject {
@@ -75,14 +62,13 @@ struct BodyMap3DView: UIViewRepresentable {
         private let cameraNode = SCNNode()
         private var figure: BodyFigure?
         private var key: String?
-        private var style: BodyMap3DStyle?
         private var yaw = 0.0, pitch = 0.0, distance = Coordinator.homeDistance
         private var requestedYaw: Double?
         private var build: Task<Void, Never>?
 
         static let homeDistance = 1060.0
 
-        func setUp(style: BodyMap3DStyle) {
+        func setUp() {
             view?.scene = scene
             let camera = SCNCamera()
             camera.fieldOfView = 28
@@ -97,6 +83,7 @@ struct BodyMap3DView: UIViewRepresentable {
             tilt.addChildNode(backNode)
             turntable.addChildNode(tilt)
             scene.rootNode.addChildNode(turntable)
+            addLights()
         }
 
         private func placeCamera() {
@@ -104,12 +91,7 @@ struct BodyMap3DView: UIViewRepresentable {
             cameraNode.look(at: SCNVector3(0, 6, 0))
         }
 
-        func update(figure: BodyFigure, heat: [Muscle: Double], selected: Muscle?, style: BodyMap3DStyle, yaw: Double) {
-            if self.style != style {
-                self.style = style
-                applyLights(style)
-                key = nil
-            }
+        func update(figure: BodyFigure, heat: [Muscle: Double], selected: Muscle?, yaw: Double) {
             if requestedYaw != yaw {
                 let first = requestedYaw == nil
                 requestedYaw = yaw
@@ -126,53 +108,37 @@ struct BodyMap3DView: UIViewRepresentable {
                     self.frontNode.geometry = Self.geometry(mesh.front)
                     self.backNode.geometry = Self.geometry(mesh.back)
                     self.key = nil
-                    self.paint(figure: fig, heat: heat, selected: selected, style: style)
-                    if style == .holo { self.spin() }
+                    self.paint(figure: fig, heat: heat, selected: selected)
                 }
                 return
             }
-            paint(figure: figure, heat: heat, selected: selected, style: style)
+            paint(figure: figure, heat: heat, selected: selected)
         }
 
-        private func paint(figure: BodyFigure, heat: [Muscle: Double], selected: Muscle?, style: BodyMap3DStyle) {
+        private func paint(figure: BodyFigure, heat: [Muscle: Double], selected: Muscle?) {
             guard frontNode.geometry != nil else { return }
-            let newKey = "\(figure)|\(style)|\(selected?.rawValue ?? "")|" + heat.sorted { $0.key.rawValue < $1.key.rawValue }
+            let newKey = "\(figure)|\(selected?.rawValue ?? "")|" + heat.sorted { $0.key.rawValue < $1.key.rawValue }
                 .map { "\($0.key.rawValue)=\(Int($0.value * 100))" }.joined(separator: ",")
             guard newKey != key else { return }
             key = newKey
             for (node, side) in [(frontNode, BodySide.front), (backNode, .back)] {
-                let image = BodyTexture.image(side: side, figure: figure, heat: heat, selected: selected, style: style)
-                node.geometry?.firstMaterial = Self.material(image, style: style)
+                let image = BodyTexture.image(side: side, figure: figure, heat: heat, selected: selected)
+                node.geometry?.firstMaterial = Self.material(image)
             }
         }
 
-        private static func material(_ image: UIImage, style: BodyMap3DStyle) -> SCNMaterial {
+        /// Matte clay with the heat colours painted on.
+        private static func material(_ image: UIImage) -> SCNMaterial {
             let m = SCNMaterial()
             m.lightingModel = .physicallyBased
             m.diffuse.contents = image
-            m.isDoubleSided = false
-            switch style {
-            case .clay:
-                m.roughness.contents = 0.62
-                m.metalness.contents = 0.0
-            case .holo:
-                m.roughness.contents = 0.3
-                m.metalness.contents = 0.35
-                m.emission.contents = image
-                m.emission.intensity = 0.75
-                m.transparency = 0.95
-            case .studio:
-                m.roughness.contents = 0.32
-                m.metalness.contents = 0.0
-                m.clearCoat.contents = 0.8
-                m.clearCoatRoughness.contents = 0.2
-            }
+            m.roughness.contents = 0.62
+            m.metalness.contents = 0.0
             return m
         }
 
-        private func applyLights(_ style: BodyMap3DStyle) {
-            scene.rootNode.childNodes.filter { $0.light != nil }.forEach { $0.removeFromParentNode() }
-            scene.rootNode.childNodes.filter { $0.name == "stage" }.forEach { $0.removeFromParentNode() }
+        /// Soft fill, a white key from the upper left and a violet rim from behind.
+        private func addLights() {
             func add(_ type: SCNLight.LightType, _ color: UIColor, _ intensity: CGFloat, _ position: SCNVector3? = nil) {
                 let l = SCNLight()
                 l.type = type
@@ -186,48 +152,15 @@ struct BodyMap3DView: UIViewRepresentable {
                 }
                 scene.rootNode.addChildNode(n)
             }
-            switch style {
-            case .clay:
-                add(.ambient, UIColor(white: 1, alpha: 1), 420)
-                add(.directional, .white, 1300, SCNVector3(-300, 400, 500))
-                add(.directional, UIColor(red: 0.6, green: 0.42, blue: 1, alpha: 1), 700, SCNVector3(400, 100, -400))
-            case .holo:
-                add(.ambient, UIColor(red: 0.55, green: 0.55, blue: 1, alpha: 1), 380)
-                add(.directional, UIColor(red: 0.4, green: 1, blue: 1, alpha: 1), 900, SCNVector3(300, 200, 500))
-                // Floor rings under the feet.
-                let stage = SCNNode()
-                stage.name = "stage"
-                for i in 1...4 {
-                    let ring = SCNTube(innerRadius: CGFloat(i) * 28, outerRadius: CGFloat(i) * 28 + 1.5, height: 0.5)
-                    let m = SCNMaterial()
-                    m.lightingModel = .constant
-                    m.diffuse.contents = UIColor(red: 0.23, green: 0.84, blue: 1, alpha: 0.5 - 0.1 * CGFloat(i))
-                    m.blendMode = .add
-                    ring.firstMaterial = m
-                    stage.addChildNode(SCNNode(geometry: ring))
-                }
-                stage.position = SCNVector3(0, -Float(BodyMapLayout.height) / 2 - 1, 0)
-                scene.rootNode.addChildNode(stage)
-            case .studio:
-                add(.ambient, UIColor(red: 1, green: 0.85, blue: 0.9, alpha: 1), 520)
-                add(.directional, .white, 1400, SCNVector3(300, 500, 500))
-                add(.directional, UIColor(red: 1, green: 0.48, blue: 0.66, alpha: 1), 500, SCNVector3(-400, 0, -300))
-                let shadow = SCNNode(geometry: SCNCylinder(radius: 90, height: 0.5))
-                let m = SCNMaterial()
-                m.lightingModel = .constant
-                m.diffuse.contents = UIColor(white: 0, alpha: 0.18)
-                shadow.geometry?.firstMaterial = m
-                shadow.name = "stage"
-                shadow.position = SCNVector3(0, -Float(BodyMapLayout.height) / 2 - 2, 0)
-                scene.rootNode.addChildNode(shadow)
-            }
+            add(.ambient, .white, 420)
+            add(.directional, .white, 1300, SCNVector3(-300, 400, 500))
+            add(.directional, UIColor(red: 0.6, green: 0.42, blue: 1, alpha: 1), 700, SCNVector3(400, 100, -400))
         }
 
         // MARK: Gestures
 
         @objc func pan(_ g: UIPanGestureRecognizer) {
             guard let view = g.view else { return }
-            stopSpin()
             let d = g.translation(in: view)
             g.setTranslation(.zero, in: view)
             yaw += Double(d.x) * 0.012
@@ -241,14 +174,12 @@ struct BodyMap3DView: UIViewRepresentable {
         }
 
         @objc func pinch(_ g: UIPinchGestureRecognizer) {
-            stopSpin()
             distance = max(420, min(1300, distance / Double(g.scale)))
             g.scale = 1
             placeCamera()
         }
 
         @objc func reset(_ g: UITapGestureRecognizer) {
-            stopSpin()
             distance = Self.homeDistance
             pitch = 0
             SCNTransaction.begin()
@@ -278,7 +209,6 @@ struct BodyMap3DView: UIViewRepresentable {
         }
 
         private func turn(to target: Double, animated: Bool, duration: Double = 0.5) {
-            stopSpin()
             // Shortest way round.
             var t = target
             while t - yaw > .pi { t -= 2 * .pi }
@@ -291,19 +221,6 @@ struct BodyMap3DView: UIViewRepresentable {
             SCNTransaction.commit()
         }
 
-        /// Slow turntable (holo style) until the member touches the figure; off with Reduce Motion.
-        private func spin() {
-            guard !UIAccessibility.isReduceMotionEnabled, turntable.action(forKey: "spin") == nil else { return }
-            turntable.runAction(.repeatForever(.rotateBy(x: 0, y: .pi * 2, z: 0, duration: 24)), forKey: "spin")
-        }
-
-        private func stopSpin() {
-            guard turntable.action(forKey: "spin") != nil else { return }
-            yaw = Double(turntable.presentation.eulerAngles.y)
-            turntable.removeAction(forKey: "spin")
-            applyRotation()
-        }
-
         static func geometry(_ s: BodyMesh.Surface) -> SCNGeometry {
             let v = SCNGeometrySource(vertices: s.positions.map { SCNVector3($0.x, $0.y, $0.z) })
             let n = SCNGeometrySource(normals: s.normals.map { SCNVector3($0.x, $0.y, $0.z) })
@@ -314,19 +231,20 @@ struct BodyMap3DView: UIViewRepresentable {
     }
 }
 
-/// Sheet art for the 3D figure: the 2D map drawn into an image (front or back), in the style's colours.
+/// Sheet art for the 3D figure: the 2D map drawn into an image (front or back) on clay-coloured skin.
 enum BodyTexture {
     /// Pixels per design unit.
     static let scale: CGFloat = 3
 
-    static func image(side: BodySide, figure: BodyFigure, heat: [Muscle: Double], selected: Muscle?, style: BodyMap3DStyle) -> UIImage {
+    static func image(side: BodySide, figure: BodyFigure, heat: [Muscle: Double], selected: Muscle?) -> UIImage {
         let size = CGSize(width: CGFloat(BodyMapLayout.width) * scale, height: CGFloat(BodyMapLayout.height) * scale)
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = true
         return UIGraphicsImageRenderer(size: size, format: format).image { r in
             let ctx = r.cgContext
-            let (skin, empty, stroke, detail) = palette(style)
+            let skin = UIColor(red: 0.20, green: 0.20, blue: 0.25, alpha: 1), empty = UIColor(red: 0.27, green: 0.27, blue: 0.34, alpha: 1)
+            let stroke = UIColor(white: 0, alpha: 0.45), detail = UIColor(white: 0, alpha: 0.3)
             ctx.setFillColor(skin.cgColor)
             ctx.fill(CGRect(origin: .zero, size: size))
             ctx.setLineJoin(.round)
@@ -335,7 +253,7 @@ enum BodyTexture {
                 let path = BodyMapView.smooth(shape.points, s: scale).cgPath
                 let h = heat[shape.muscle] ?? 0
                 ctx.addPath(path)
-                ctx.setFillColor((h > 0 ? color(h, style: style) : empty).cgColor)
+                ctx.setFillColor((h > 0 ? UIColor(Theme.heat(h)) : empty).cgColor)
                 ctx.fillPath()
                 ctx.addPath(path)
                 ctx.setStrokeColor(stroke.cgColor)
@@ -360,56 +278,11 @@ enum BodyTexture {
             }
         }
     }
-
-    private static func palette(_ style: BodyMap3DStyle) -> (UIColor, UIColor, UIColor, UIColor) {
-        switch style {
-        case .clay:
-            (UIColor(red: 0.20, green: 0.20, blue: 0.25, alpha: 1), UIColor(red: 0.27, green: 0.27, blue: 0.34, alpha: 1),
-             UIColor(white: 0, alpha: 0.45), UIColor(white: 0, alpha: 0.3))
-        case .holo:
-            (UIColor(red: 0.04, green: 0.06, blue: 0.19, alpha: 1), UIColor(red: 0.08, green: 0.10, blue: 0.27, alpha: 1),
-             UIColor(red: 0.31, green: 0.86, blue: 1, alpha: 0.55), UIColor(red: 0.31, green: 0.86, blue: 1, alpha: 0.35))
-        case .studio:
-            (UIColor(red: 0.96, green: 0.95, blue: 0.97, alpha: 1), UIColor(red: 0.89, green: 0.86, blue: 0.92, alpha: 1),
-             UIColor(red: 0.24, green: 0.08, blue: 0.31, alpha: 0.25), UIColor(red: 0.24, green: 0.08, blue: 0.31, alpha: 0.2))
-        }
-    }
-
-    private static func color(_ h: Double, style: BodyMap3DStyle) -> UIColor {
-        switch style {
-        case .clay, .studio: UIColor(Theme.heat(h))
-        case .holo: UIColor(hue: 0.52 - 0.4 * h, saturation: 1, brightness: 0.85 + 0.15 * h, alpha: 1) // cyan → magenta
-        }
-    }
 }
 
-/// Background stage behind the 3D figure, per style.
-struct BodyMap3DBackdrop: View {
-    let style: BodyMap3DStyle
-
-    var body: some View {
-        switch style {
-        case .clay:
-            RadialGradient(colors: [Color(red: 0.17, green: 0.15, blue: 0.28), Color(red: 0.07, green: 0.07, blue: 0.09)],
-                           center: UnitPoint(x: 0.5, y: 0.4), startRadius: 0, endRadius: 360)
-        case .holo:
-            ZStack {
-                RadialGradient(colors: [Color(red: 0.11, green: 0.08, blue: 0.31), Color(red: 0.02, green: 0.02, blue: 0.05)],
-                               center: UnitPoint(x: 0.5, y: 0.45), startRadius: 0, endRadius: 330)
-                Circle().fill(RadialGradient(colors: [Color.purple.opacity(0.35), .clear], center: .center, startRadius: 0, endRadius: 140))
-                    .frame(width: 280, height: 280)
-            }
-        case .studio:
-            LinearGradient(colors: [Color(red: 1, green: 0.54, blue: 0.24), Color(red: 1, green: 0.24, blue: 0.5), Color(red: 0.48, green: 0.24, blue: 1)],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
-        }
-    }
-}
-
-/// Demo screens (CI screenshots) force the map mode and style without touching the member's setting.
+/// Demo screens (CI screenshots) force the map mode without touching the member's setting.
 struct BodyMapDemo {
     var mode: BodyMapMode
-    var style: BodyMap3DStyle = .clay
     var picked: Muscle?
     var facing: BodyMap3DPanel.Snap = .front
 }
@@ -458,7 +331,6 @@ struct BodyMapModeToggle: View {
 /// muscle (tap it to open the muscle's page).
 struct BodyMap3DPanel: View {
     let heat: [Muscle: Double]
-    let style: BodyMap3DStyle
     let modeToggle: AnyView
     let onOpen: (Muscle) -> Void
     @Environment(AppModel.self) private var model
@@ -474,17 +346,18 @@ struct BodyMap3DPanel: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            BodyMap3DBackdrop(style: style)
-            BodyMap3DView(heat: heat, selected: picked, style: style, yaw: facing.yaw) { m in
+            RadialGradient(colors: [Color(red: 0.17, green: 0.15, blue: 0.28), Color(red: 0.07, green: 0.07, blue: 0.09)],
+                           center: UnitPoint(x: 0.5, y: 0.4), startRadius: 0, endRadius: 360)
+            BodyMap3DView(heat: heat, selected: picked, yaw: facing.yaw) { m in
                 withAnimation(.spring(duration: 0.3)) { picked = m }
             }
             .padding(.top, 58)
             .padding(.bottom, 84)
             VStack(spacing: 8) {
                 HStack {
-                    Text(style == .holo ? "Holo mode" : "Drag to turn · pinch to zoom")
+                    Text("Drag to turn · pinch to zoom")
                         .font(Theme.label(11)).tracking(1.5).textCase(.uppercase)
-                        .foregroundStyle(style == .holo ? Color.cyan : .white.opacity(0.8))
+                        .foregroundStyle(.white.opacity(0.8))
                     Spacer()
                     modeToggle
                 }
@@ -495,7 +368,7 @@ struct BodyMap3DPanel: View {
                         } label: {
                             Text(s.rawValue).font(Theme.label(12))
                                 .padding(.horizontal, 13).padding(.vertical, 7)
-                                .foregroundStyle(facing == s ? (style == .studio ? Color.purple : Theme.ink) : .white)
+                                .foregroundStyle(facing == s ? Theme.ink : .white)
                                 .background(Capsule().fill(facing == s ? Color.white : .white.opacity(0.16)))
                         }
                         .buttonStyle(.plain)

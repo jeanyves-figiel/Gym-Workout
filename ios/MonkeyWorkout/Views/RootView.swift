@@ -124,10 +124,8 @@ private struct DemoScreen: View {
         case "explore-3d-back":
             NavigationStack { LibraryView() }.environment(\.bodyMapDemo, BodyMapDemo(mode: .solid, picked: .glutes, facing: .back))
                 .environment(\.bodyFigure, .female)
-        case "explore-3d-holo":
-            NavigationStack { LibraryView() }.environment(\.bodyMapDemo, BodyMapDemo(mode: .solid, style: .holo, picked: .chest))
-        case "explore-3d-studio":
-            NavigationStack { LibraryView() }.environment(\.bodyMapDemo, BodyMapDemo(mode: .solid, style: .studio, picked: .quads, facing: .side))
+        case "explore-3d-side":
+            NavigationStack { LibraryView() }.environment(\.bodyMapDemo, BodyMapDemo(mode: .solid, picked: .quads, facing: .side))
         case "explore-list": NavigationStack { LibraryView(scrollTo: .back) }
         case "explore-volume": NavigationStack { LibraryView(scrollTo: .shoulders) }
         case "explore-workouts": NavigationStack { LibraryView(mode: .workouts) }
