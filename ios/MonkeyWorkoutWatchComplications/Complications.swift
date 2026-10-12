@@ -14,18 +14,18 @@ struct MonkeyWorkoutComplications: WidgetBundle {
 
 struct PlanComplications: WidgetBundle {
     var body: some Widget {
-        MWWidget(kind: .next)
-        MWWidget(kind: .week)
-        MWWidget(kind: .streak)
-        MWWidget(kind: .weekStrip)
+        NextWorkoutWidget()
+        WeekGoalWidget()
+        StreakWidget()
+        WeekStripWidget()
     }
 }
 
 struct StatComplications: WidgetBundle {
     var body: some Widget {
-        MWWidget(kind: .readiness)
-        MWWidget(kind: .topLift)
-        MWWidget(kind: .lastWorkout)
+        ReadinessWidget()
+        TopLiftWidget()
+        LastWorkoutWidget()
         MyStatWidget()
     }
 }
@@ -92,16 +92,22 @@ struct MWProvider: TimelineProvider {
     }
 }
 
-struct MWWidget: Widget {
-    let kind: ComplicationKind
-
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind.rawValue, provider: MWProvider()) { ComplicationView(face: Face(kind, $0)) }
-            .configurationDisplayName(kind.name)
-            .description(kind.summary)
-            .supportedFamilies(allFamilies)
-    }
+/// Same configuration for every fixed complication; `Widget` needs `init()`, hence one tiny type per kind.
+@MainActor
+func mwConfiguration(_ kind: ComplicationKind) -> some WidgetConfiguration {
+    StaticConfiguration(kind: kind.rawValue, provider: MWProvider()) { ComplicationView(face: Face(kind, $0)) }
+        .configurationDisplayName(kind.name)
+        .description(kind.summary)
+        .supportedFamilies(allFamilies)
 }
+
+struct NextWorkoutWidget: Widget { var body: some WidgetConfiguration { mwConfiguration(.next) } }
+struct WeekGoalWidget: Widget { var body: some WidgetConfiguration { mwConfiguration(.week) } }
+struct StreakWidget: Widget { var body: some WidgetConfiguration { mwConfiguration(.streak) } }
+struct WeekStripWidget: Widget { var body: some WidgetConfiguration { mwConfiguration(.weekStrip) } }
+struct ReadinessWidget: Widget { var body: some WidgetConfiguration { mwConfiguration(.readiness) } }
+struct TopLiftWidget: Widget { var body: some WidgetConfiguration { mwConfiguration(.topLift) } }
+struct LastWorkoutWidget: Widget { var body: some WidgetConfiguration { mwConfiguration(.lastWorkout) } }
 
 // MARK: My stat (pick what it shows)
 
