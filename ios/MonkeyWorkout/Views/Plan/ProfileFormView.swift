@@ -10,7 +10,6 @@ struct ProfileFormView: View {
     /// Only this section (hub / Community entry); nil = full onboarding form.
     private let section: ProfileSection?
     @State private var p: Profile
-    @State private var showEquipment = false
     @Environment(HealthManager.self) private var health
     @Environment(AppModel.self) private var model
     /// Body figure for muscle maps, asked once in onboarding (#110); changed later in Account → Body & Health.
@@ -115,9 +114,6 @@ struct ProfileFormView: View {
             .readableColumn()
             .background(Theme.bg.opacity(0.92).ignoresSafeArea())
         }
-        .sheet(isPresented: $showEquipment) {
-            EquipmentSheet(equipment: $p.equipment)
-        }
         .animation(.spring(duration: 0.3), value: p.goal)
         .animation(.spring(duration: 0.3), value: p.climbs)
         .onAppear {
@@ -149,7 +145,7 @@ struct ProfileFormView: View {
         case .method:
             TrainingMethodSection(profile: $p)
         case .gym:
-            GymPicker(profile: $p, showEquipment: $showEquipment)
+            GymPicker(profile: $p)
         }
     }
 
@@ -599,11 +595,13 @@ private struct DayTiles: View {
 
 private struct GymPicker: View {
     @Binding var profile: Profile
-    @Binding var showEquipment: Bool
     @Environment(AppModel.self) private var model
     @State private var query = ""
     @State private var results: [GymRef] = []
     @State private var searching = false
+    @State private var showEquipment = false
+    /// "Set up this gym in a few swipes" on the equipment page (#180): opens once that page has closed.
+    @State private var setupAfterEquipment = false
     /// Map of gyms around you (#165), same finder as for trips.
     @State private var findingNearby = false
     @State private var nearbyPick: GymRef?
@@ -613,18 +611,67 @@ private struct GymPicker: View {
     struct SetupTarget: Identifiable {
         let ref: GymRef?
         var id: String { ref?.id ?? "custom" }
+
+        /// A scoped gym's full inventory, one tap away (#180).
+        var preset: GymSetupPreset? {
+            ref?.scoped.map { GymSetupPreset(title: "Full inventory", line: $0.name, equipment: $0.equipment) }
+        }
     }
 
-    /// Saved gyms other than the selected one (#162).
-    private var otherSaved: [SavedGym] { model.savedGyms.filter { $0.id != selectedId } }
+    private var selectedId: String { selectedRef.id }
 
-    private var selectedId: String { profile.gym?.id ?? Gym.puls5.id }
+    private var selectedRef: GymRef { profile.gym ?? Gym.puls5.ref }
+
+    /// Gyms to switch to in one tap (#162, #180): your home gym while another one is picked, then your saved gyms.
+    private var others: [SavedGym] {
+        var list = model.savedGyms.filter { $0.id != selectedId }
+        let home = model.homeGym
+        if home.id != selectedId, !list.contains(where: { $0.id == home.id }) { list.insert(home, at: 0) }
+        return list
+    }
+
+    /// Scoped gyms you haven't used yet, suggested under the search field.
+    private var suggested: [Gym] { Gym.scoped.filter { g in g.id != selectedId && !others.contains { $0.id == g.id } } }
+
+    /// Items of a scoped gym's full inventory that aren't in your list (e.g. added to the catalog after you picked it).
+    private var missing: [Equipment] {
+        selectedRef.scoped?.equipment.filter { !profile.equipment.contains($0) } ?? []
+    }
+
+    private var selectedSaved: SavedGym? { model.savedGyms.first { $0.id == selectedId } }
 
     private var note: String { (profile.gym?.scoped ?? (profile.gym == nil ? Gym.puls5 : nil))?.note ?? Gym.searchedNote }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(Gym.scoped) { gym in ScopedGymCard(gym: gym, selected: gym.id == selectedId) { select(gym.ref) } }
+            GymCard(name: selectedRef.name,
+                    location: selectedRef.address.isEmpty ? (selectedSaved?.kind?.label ?? "Your gym") : selectedRef.address,
+                    symbol: selectedSaved?.kind?.symbol ?? "building.2.fill", count: profile.equipment.count, selected: true) {
+                showEquipment = true
+            }
+
+            Button { showEquipment = true } label: {
+                HStack {
+                    Image(systemName: "photo.on.rectangle.angled").foregroundStyle(Theme.lime)
+                    Text("Equipment").bold()
+                    Spacer()
+                    Text("\(profile.equipment.count) items").foregroundStyle(Theme.lime).bold()
+                    Image(systemName: "chevron.right").font(.footnote.bold()).foregroundStyle(Theme.muted)
+                }
+                .foregroundStyle(.white)
+                .card(padding: 14)
+            }
+            .buttonStyle(.plain)
+
+            if !missing.isEmpty { missingCard }
+
+            Text("Your plan is built for this gym. Switching keeps your other gyms below, each with its own list. Trips and holidays go in the calendar.")
+                .font(.footnote).foregroundStyle(Theme.muted)
+
+            if !others.isEmpty {
+                Text("YOUR OTHER GYMS · TAP TO SWITCH").font(Theme.label(12)).tracking(1).foregroundStyle(Theme.muted).padding(.top, 4)
+                ForEach(others) { g in SavedGymRow(gym: g) { use(g) } }
+            }
 
             Button { findingNearby = true } label: {
                 Label("Gyms near me", systemImage: "location.magnifyingglass")
@@ -633,11 +680,7 @@ private struct GymPicker: View {
                     .background(Capsule().fill(Theme.lime))
             }
             .buttonStyle(.plain)
-
-            if !otherSaved.isEmpty {
-                Text("Your other gyms").font(Theme.label(12)).tracking(1).foregroundStyle(Theme.muted).padding(.top, 4)
-                ForEach(otherSaved) { g in SavedGymRow(gym: g) { use(g) } }
-            }
+            .padding(.top, 4)
 
             Button { settingUp = SetupTarget(ref: nil) } label: {
                 HStack(spacing: 12) {
@@ -680,27 +723,22 @@ private struct GymPicker: View {
                     if results.isEmpty && !searching {
                         Text("No gyms found").font(.footnote).foregroundStyle(Theme.muted).padding(.vertical, 12)
                     }
-                    ForEach(results) { g in row(g, scoped: false) }
-                } else if let g = profile.gym, g.scoped == nil {
-                    row(g, scoped: false)
+                    ForEach(results) { g in row(g, scoped: g.scoped != nil) }
+                } else {
+                    ForEach(suggested) { g in row(g.ref, scoped: true) }
                 }
             }
             .card(padding: 12)
 
-            Button { showEquipment = true } label: {
-                HStack {
-                    Image(systemName: "photo.on.rectangle.angled").foregroundStyle(Theme.lime)
-                    Text("Equipment").bold()
-                    Spacer()
-                    Text("\(profile.equipment.count) items").foregroundStyle(Theme.lime).bold()
-                    Image(systemName: "chevron.right").font(.footnote.bold()).foregroundStyle(Theme.muted)
-                }
-                .foregroundStyle(.white)
-                .card(padding: 14)
-            }
-            .buttonStyle(.plain)
-
             Text(note).font(.footnote).foregroundStyle(Theme.muted)
+        }
+        .sheet(isPresented: $showEquipment, onDismiss: {
+            if setupAfterEquipment {
+                setupAfterEquipment = false
+                settingUp = SetupTarget(ref: selectedRef)
+            }
+        }) {
+            EquipmentSheet(equipment: $profile.equipment) { setupAfterEquipment = true }
         }
         .sheet(isPresented: $findingNearby, onDismiss: {
             // After the map closes, so an unknown gym's setup sheet can open.
@@ -709,7 +747,7 @@ private struct GymPicker: View {
             GymFinderView { ref in nearbyPick = ref }
         }
         .sheet(item: $settingUp) { t in
-            GymSetupView(ref: t.ref, actionTitle: "USE THIS GYM") { g in
+            GymSetupView(ref: t.ref, actionTitle: "USE THIS GYM", preset: t.preset) { g in
                 model.saveGym(g)
                 profile.gym = g.ref
                 profile.equipment = g.equipment
@@ -729,6 +767,29 @@ private struct GymPicker: View {
             guard !Task.isCancelled else { return }
             results = found
         }
+    }
+
+    /// Full-inventory items missing from your list, so the two counts (inventory vs your list) are explained.
+    private var missingCard: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(missing.count) item\(missing.count == 1 ? "" : "s") of the full inventory \(missing.count == 1 ? "is" : "are") off")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                Text(missing.prefix(3).map(\.label).joined(separator: ", ") + (missing.count > 3 ? "…" : ""))
+                    .font(.caption).foregroundStyle(Theme.muted).lineLimit(2)
+            }
+            Spacer(minLength: 4)
+            Button {
+                profile.equipment = Equipment.allCases.filter { profile.equipment.contains($0) || missing.contains($0) }
+            } label: {
+                Text("ADD ALL").font(Theme.label(13)).tracking(1).foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(Capsule().fill(Theme.lime))
+            }
+            .buttonStyle(.plain)
+        }
+        .foregroundStyle(.white)
+        .card(padding: 12)
     }
 
     private func row(_ g: GymRef, scoped: Bool) -> some View {
@@ -768,16 +829,13 @@ private struct GymPicker: View {
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
+    /// A gym you have a list for switches in one tap; a new one opens the setup (#162, #180), where a scoped gym's
+    /// full inventory or what other members found there is one tap away.
     private func select(_ g: GymRef) {
         query = ""
-        if let saved = model.savedGyms.first(where: { $0.id == g.id }) { return use(saved) }
-        if let gym = g.scoped {
-            profile.gym = gym.ref
-            profile.equipment = gym.equipment
-        } else if profile.gym?.id != g.id {
-            // Unknown inventory (#162): what members found there, or a few swipes.
-            settingUp = SetupTarget(ref: g)
-        }
+        guard g.id != selectedId else { return }
+        if let saved = others.first(where: { $0.id == g.id }) { return use(saved) }
+        settingUp = SetupTarget(ref: g)
     }
 
     private func use(_ g: SavedGym) {
@@ -786,16 +844,19 @@ private struct GymPicker: View {
     }
 }
 
-/// Scoped gym (known inventory) as a vivid Explore-style card.
-private struct ScopedGymCard: View {
-    let gym: Gym
+/// The gym your plan is built for, as a vivid Explore-style card; the number is your own list. Tap for the equipment.
+private struct GymCard: View {
+    let name: String
+    let location: String
+    let symbol: String
+    let count: Int
     let selected: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 14) {
-                Image(systemName: "building.2.fill")
+                Image(systemName: symbol)
                     .font(.system(size: 24, weight: .bold))
                     .frame(width: 56, height: 56)
                     .background(RoundedRectangle(cornerRadius: 17, style: .continuous).fill(.white.opacity(0.22)))
@@ -808,12 +869,12 @@ private struct ScopedGymCard: View {
                         }
                     }
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(gym.name).font(Theme.display(20)).lineLimit(1).minimumScaleFactor(0.75)
-                    Text(gym.location).font(.footnote.weight(.medium)).opacity(0.85).lineLimit(2)
+                    Text(name).font(Theme.display(20)).lineLimit(1).minimumScaleFactor(0.75)
+                    Text(location).font(.footnote.weight(.medium)).opacity(0.85).lineLimit(2)
                 }
                 Spacer(minLength: 4)
                 VStack(alignment: .trailing, spacing: 0) {
-                    Text("\(gym.equipment.count)").font(Theme.display(26))
+                    Text("\(count)").font(Theme.display(26))
                     Text("ITEMS").font(Theme.label(9)).tracking(1.2).opacity(0.8)
                 }
             }
@@ -821,10 +882,10 @@ private struct ScopedGymCard: View {
             .padding(18)
             .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(WorkoutEngine.Category.strength.gradient))
             .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(.white, lineWidth: selected ? 3 : 0))
-            .opacity(selected ? 1 : 0.6)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(gym.name), \(gym.location)")
+        .accessibilityLabel("\(name), \(location), \(count) items")
+        .accessibilityHint("Shows the equipment")
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
