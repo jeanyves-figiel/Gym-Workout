@@ -8,6 +8,8 @@ struct WorkoutPlayerView: View {
     let sessionId: String
     /// DEBUG screenshots: open on the rest screen after set 1.
     var demoRest = false
+    /// DEBUG screenshots: "timed" = first timed item with its countdown running; "logged" = strength item after 1 set.
+    var demoMode: String?
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @Environment(\.dismiss) private var dismiss
@@ -31,6 +33,8 @@ struct WorkoutPlayerView: View {
     @State private var notHereFor: PlannedExercise?
     @State private var gate: ProGate?
     @State private var log = SetLogState()
+    /// Done set opened for a correction in the set card.
+    @State private var editingSet: Int?
     @State private var live = LiveWorkout()
 
     /// Overlay after a set: optional rest countdown and the one-tap effort picker for that set.
@@ -47,8 +51,13 @@ struct WorkoutPlayerView: View {
         let block: Block
         var exercise: Exercise { Exercise.get(item.exerciseId) }
         var sets: Int { max(1, item.prescription.sets) }
-        /// Per-set kg × reps logging applies (loaded strength work counted in reps).
-        var loggable: Bool { block.kind == .strength && !exercise.equipment.isEmpty && exercise.unit != .sec }
+        /// Per-set kg × reps logging applies: loaded strength work counted in reps. Timed work and cardio machines
+        /// (e.g. a cross-trainer inside a custom workout's strength block) only run the timer.
+        var loggable: Bool {
+            block.kind == .strength && !exercise.equipment.isEmpty && exercise.unit != .sec && timedSpec == nil
+                && category == .strength
+        }
+        var category: WorkoutEngine.Category { ExerciseHeroCard.category(exercise, in: block) }
         /// Work time when the prescription is timed ("4 min", "30 s", intervals).
         var timedSpec: TimedSpec? { TimedSpec(item.prescription, unit: exercise.unit) }
     }
@@ -112,7 +121,7 @@ struct WorkoutPlayerView: View {
 
     @ViewBuilder
     private func player(_ step: Step, session: Session) -> some View {
-        let cat = step.block.kind.category
+        let cat = step.category
         let sets = step.sets
         let done = setsDone[step.item.uid] ?? 0
 
@@ -120,40 +129,26 @@ struct WorkoutPlayerView: View {
             RadialGradient(colors: [cat.colors[0].opacity(0.35), .clear], center: .top, startRadius: 10, endRadius: 560)
                 .ignoresSafeArea()
 
+            // One screen, no scrolling (#206): the exercise card's picture takes whatever height is left, so the target, the one
+            // input for this item (set card or timer), up next and the controls are always fully on screen.
             VStack(alignment: .leading, spacing: 12) {
                 topBar(session)
 
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 14) {
-                        ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
-                                         position: "\(index + 1)/\(steps.count)",
-                                         onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil) { formFor = step.exercise }
-                            .id(step.item.uid)
-                            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
-                        if !step.exercise.equipment.isEmpty && model.canSwap(uid: step.item.uid) && (setsDone[step.item.uid] ?? 0) == 0 {
-                            Button { notHereFor = step.item } label: {
-                                Label("Not at this gym?", systemImage: "questionmark.circle")
-                                    .font(Theme.label(13)).foregroundStyle(Theme.muted)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        if let run = timed, run.uid == step.item.uid {
-                            TimedRing(run: run, color: [cat.colors[1], cat.colors[0]])
-                        }
-                        if step.loggable && log.item?.uid == step.item.uid {
-                            SetLogCard(state: log, done: done)
-                        }
-                    }
-                    .padding(.bottom, 4)
-                }
+                ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
+                                 position: "\(index + 1)/\(steps.count)",
+                                 onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
+                                 onNotHere: !step.exercise.equipment.isEmpty && model.canSwap(uid: step.item.uid) && done == 0
+                                     ? { notHereFor = step.item } : nil) { formFor = step.exercise }
+                    .id(step.item.uid)
+                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
+                    .layoutPriority(1)
 
-                if step.loggable && done < sets && log.item?.uid == step.item.uid {
-                    CurrentSetCard(state: log, set: done)
-                }
+                Spacer(minLength: 0)
+                setCard(step, sets: sets, done: done, colors: cat.colors)
                 if let next = upNext(after: step, done: done, sets: sets, includeSets: false) {
-                    UpNextCard(title: next.title, eyebrow: next.eyebrow, detail: next.detail, exercise: next.exercise, colors: next.colors)
+                    UpNextCard(title: next.title, eyebrow: next.eyebrow, detail: next.detail, exercise: next.exercise,
+                               colors: next.colors, compact: true)
                 }
-                if sets > 1 { setDots(sets: sets, done: done, color: cat.colors[0]) }
                 controls(step, sets: sets, done: done)
             }
             .padding(.horizontal, 20)
@@ -249,16 +244,23 @@ struct WorkoutPlayerView: View {
         .foregroundStyle(.white)
     }
 
-    private func setDots(sets: Int, done: Int, color: Color) -> some View {
-        HStack(spacing: 8) {
-            ForEach(0..<sets, id: \.self) { i in
-                Capsule()
-                    .fill(i < done ? AnyShapeStyle(color) : AnyShapeStyle(Color.white.opacity(0.12)))
-                    .frame(height: 8)
-                    .animation(.spring(duration: 0.3), value: done)
+    /// The input that fits the item: kg × reps steppers for loaded strength, the countdown for timed work,
+    /// set chips for other multi-set work. Exactly one place per item.
+    @ViewBuilder
+    private func setCard(_ step: Step, sets: Int, done: Int, colors: [Color]) -> some View {
+        if step.loggable {
+            if log.item?.uid == step.item.uid {
+                CurrentSetCard(state: log, done: done, color: colors[0], editing: $editingSet) { i in
+                    _ = log.log(i, model: model)
+                }
             }
+        } else if let spec = step.timedSpec {
+            let run = timed.flatMap { $0.uid == step.item.uid ? $0 : nil }
+                ?? TimedRun(uid: step.item.uid, total: spec.workSec, remaining: Double(spec.workSec), end: nil)
+            TimedSetCard(run: run, sets: sets, done: done, easySec: spec.easySec, colors: colors)
+        } else if sets > 1 {
+            PlainSetCard(sets: sets, done: done, target: step.item.prescription.reps, color: colors[0])
         }
-        .accessibilityLabel("\(done) of \(sets) sets done")
     }
 
     private func controls(_ step: Step, sets: Int, done: Int) -> some View {
@@ -321,6 +323,10 @@ struct WorkoutPlayerView: View {
     }
 
     private func completeSet(_ step: Step, sets: Int, done: Int) {
+        if let e = editingSet {
+            editingSet = nil
+            _ = log.log(e, model: model)
+        }
         guard done < sets else { return advance(step) }
         let now = done + 1
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -419,6 +425,7 @@ struct WorkoutPlayerView: View {
         pause = nil
         pendingJump = nil
         timed = nil
+        editingSet = nil
         index = i
     }
 
@@ -474,6 +481,18 @@ struct WorkoutPlayerView: View {
             index = s
             reloadLog()
             completeSet(steps[s], sets: steps[s].sets, done: setsDone[steps[s].item.uid] ?? 0)
+        }
+        if demoMode == "timed", let s = steps.firstIndex(where: { $0.timedSpec != nil && !$0.loggable }) {
+            index = s
+            let spec = steps[s].timedSpec!
+            timed = TimedRun(uid: steps[s].item.uid, total: spec.workSec, remaining: Double(spec.workSec),
+                             end: Date().addingTimeInterval(Double(spec.workSec) - 83))
+        }
+        if demoMode == "logged", let s = steps.firstIndex(where: { $0.loggable && $0.sets > 2 }) {
+            index = s
+            reloadLog()
+            log.log(0, model: model)
+            setsDone[steps[s].item.uid] = 1
         }
         #endif
     }
@@ -589,10 +608,11 @@ private struct PauseOverlay: View {
                 }
                 if let drill, pause.end != nil {
                     UpNextCard(title: drill.name, eyebrow: "During rest", detail: "5–6 slow reps", exercise: drill,
-                               colors: WorkoutEngine.Category.mobility.colors)
+                               colors: WorkoutEngine.Category.mobility.colors, compact: true)
                 }
                 if let next {
-                    UpNextCard(title: next.title, eyebrow: next.eyebrow, detail: next.detail, exercise: next.exercise, colors: next.colors)
+                    UpNextCard(title: next.title, eyebrow: next.eyebrow, detail: next.detail, exercise: next.exercise,
+                               colors: next.colors, compact: true)
                 }
                 Spacer(minLength: 0)
             }

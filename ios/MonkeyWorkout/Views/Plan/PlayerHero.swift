@@ -41,25 +41,40 @@ struct ExerciseHeroCard: View {
     let position: String
     /// Set for weighted strength work: opens the PR attempt flow (#60).
     var onAttemptPR: (() -> Void)?
+    /// Set while the gym's equipment can still be reported missing (before the first set).
+    var onNotHere: (() -> Void)?
     let onForm: () -> Void
 
+    /// Colour and label of the item: a cardio, mobility or stretch move inside a strength block (custom and example
+    /// workouts keep everything in one block) shows as what it is, not as strength.
+    static func category(_ exercise: Exercise, in block: Block) -> WorkoutEngine.Category {
+        block.kind == .strength && [.cardio, .mobility, .stretch].contains(exercise.category) ? exercise.category : block.kind.category
+    }
+
+    private var label: String {
+        let cat = Self.category(exercise, in: block)
+        guard cat == block.kind.category, !block.title.isEmpty else {
+            return cat == .warmup ? "Warm-up" : cat.rawValue.capitalized
+        }
+        return block.title
+    }
+
     var body: some View {
-        let cat = block.kind.category
+        let cat = Self.category(exercise, in: block)
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label(block.title.uppercased(), systemImage: cat.symbol).font(Theme.label(11)).tracking(1.2)
+                Label(label.uppercased(), systemImage: cat.symbol).font(Theme.label(11)).tracking(1.2)
                 Spacer()
                 Text(position).font(Theme.label(12)).monospacedDigit()
             }
             .opacity(0.9)
             Text(exercise.name)
-                .font(Theme.display(32))
-                .lineLimit(2)
-                .minimumScaleFactor(0.6)
-                .fixedSize(horizontal: false, vertical: true)
+                .font(Theme.display(30))
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(item.prescription.sets > 1 ? "\(item.prescription.sets)×\(item.prescription.reps)" : item.prescription.reps)
-                    .font(Theme.display(44))
+                    .font(Theme.display(40))
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                 VStack(alignment: .leading, spacing: 0) {
@@ -68,24 +83,38 @@ struct ExerciseHeroCard: View {
                 }
                 .font(Theme.label(11))
                 .opacity(0.85)
+                Spacer(minLength: 4)
+                // Beside the target, so nothing sits over the picture's muscle map (top-left) or "Play movement" tag.
+                if let onAttemptPR {
+                    Button(action: onAttemptPR) {
+                        Label("Attempt PR", systemImage: "trophy.fill")
+                            .font(Theme.label(12))
+                            .foregroundStyle(Theme.ink)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(Theme.lime))
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             // Plays the movement a few times when the exercise shows, then rests on the start; tap replays. Its "Play movement" tag sits
-            // bottom-left, so Attempt PR goes top-left and Form bottom-right.
+            // bottom-left, Form bottom-right, Not here? top-right. The picture takes the height left on screen (#206: the player
+            // never scrolls), so it shrinks on small phones while the target, set card and buttons stay whole.
             ExerciseMotionView(exercise: exercise)
                 .frame(maxWidth: .infinity)
-                .frame(height: 150)
+                .frame(minHeight: 56, maxHeight: 180)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay(alignment: .topLeading) {
-                    if let onAttemptPR {
-                        Button(action: onAttemptPR) {
-                            Label("Attempt PR", systemImage: "trophy.fill")
+                .overlay(alignment: .topTrailing) {
+                    if let onNotHere {
+                        Button(action: onNotHere) {
+                            Label("Not here?", systemImage: "questionmark.circle")
                                 .font(Theme.label(12))
-                                .foregroundStyle(Theme.ink)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
-                                .background(Capsule().fill(Theme.lime))
+                                .background(Capsule().fill(.black.opacity(0.55)))
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Not at this gym?")
                         .padding(8)
                     }
                 }
@@ -102,7 +131,7 @@ struct ExerciseHeroCard: View {
                     .padding(8)
                 }
             HeroMuscleChips(primary: exercise.primary, secondary: exercise.secondary)
-            if let n = item.prescription.note { Text(n).font(.caption.weight(.semibold)).opacity(0.85) }
+            if let n = item.prescription.note { Text(n).font(.caption.weight(.semibold)).opacity(0.85).lineLimit(1) }
         }
         .foregroundStyle(.white)
         .padding(16)
@@ -117,15 +146,26 @@ private struct HeroMuscleChips: View {
     let secondary: [Muscle]
 
     var body: some View {
-        FlowLayout(spacing: 6) {
-            ForEach(primary) { chip($0.name, primary: true) }
-            ForEach(secondary.filter { !primary.contains($0) }.prefix(3)) { chip($0.name, primary: false) }
+        // One line: what doesn't fit is dropped rather than wrapping and pushing the set card down.
+        ViewThatFits(in: .horizontal) {
+            row(secondaryCount: 3)
+            row(secondaryCount: 1)
+            row(secondaryCount: 0)
+        }
+    }
+
+    private func row(secondaryCount: Int) -> some View {
+        HStack(spacing: 6) {
+            ForEach(primary.prefix(3)) { chip($0.name, primary: true) }
+            ForEach(secondary.filter { !primary.contains($0) }.prefix(secondaryCount)) { chip($0.name, primary: false) }
         }
     }
 
     private func chip(_ name: String, primary: Bool) -> some View {
         Text(name)
             .font(Theme.label(11))
+            .lineLimit(1)
+            .fixedSize()
             .foregroundStyle(primary ? Theme.lime : .white)
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
@@ -137,6 +177,7 @@ private struct HeroMuscleChips: View {
 struct TimedRing: View {
     let run: TimedRun
     let color: [Color]
+    var size: CGFloat = 170
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.2)) { ctx in
@@ -144,14 +185,13 @@ struct TimedRing: View {
             ZStack {
                 ProgressRing(progress: left / Double(max(1, run.total)), lineWidth: 14, colors: color)
                 VStack(spacing: 0) {
-                    Text(run.end == nil && left < Double(run.total) ? "Paused" : "Remaining").eyebrow()
-                    Text(Format.elapsed(left.rounded(.up))).font(Theme.display(44)).monospacedDigit()
+                    Text(run.end != nil ? "Remaining" : left < Double(run.total) ? "Paused" : "Ready").eyebrow()
+                    Text(Format.elapsed(left.rounded(.up))).font(Theme.display(size * 0.26)).monospacedDigit()
                     Text("of \(Format.elapsed(Double(run.total)))").font(.caption).foregroundStyle(Theme.muted)
                 }
             }
         }
-        .frame(width: 170, height: 170)
-        .frame(maxWidth: .infinity)
+        .frame(width: size, height: size)
         .accessibilityElement(children: .combine)
     }
 }
