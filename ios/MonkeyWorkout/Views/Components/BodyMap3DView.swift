@@ -36,7 +36,9 @@ struct BodyMap3DView: UIViewRepresentable {
         c.onTap = onTap
         c.onReady = onReady
         c.setUp()
-        view.addGestureRecognizer(UIPanGestureRecognizer(target: c, action: #selector(Coordinator.pan(_:))))
+        let pan = UIPanGestureRecognizer(target: c, action: #selector(Coordinator.pan(_:)))
+        pan.delegate = c
+        view.addGestureRecognizer(pan)
         view.addGestureRecognizer(UIPinchGestureRecognizer(target: c, action: #selector(Coordinator.pinch(_:))))
         let double = UITapGestureRecognizer(target: c, action: #selector(Coordinator.reset(_:)))
         double.numberOfTapsRequired = 2
@@ -53,20 +55,20 @@ struct BodyMap3DView: UIViewRepresentable {
         context.coordinator.update(figure: figure, heat: heat, selected: selected, yaw: yaw)
     }
 
-    @MainActor final class Coordinator: NSObject {
+    @MainActor final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         weak var view: SCNView?
         var onTap: ((Muscle) -> Void)?
         var onReady: ((Int) -> Void)?
         private let scene = SCNScene()
         /// Turns (yaw); holds the body centred on its middle.
         private let turntable = SCNNode()
-        /// Tilts (pitch) inside the turntable.
-        private let tilt = SCNNode()
+        /// Holds the body centred on its middle inside the turntable.
+        private let holder = SCNNode()
         private let frontNode = SCNNode(), backNode = SCNNode()
         private let cameraNode = SCNNode()
         private var figure: BodyFigure?
         private var key: String?
-        private var yaw = 0.0, pitch = 0.0, distance = Coordinator.homeDistance
+        private var yaw = 0.0, distance = Coordinator.homeDistance
         private var requestedYaw: Double?
         private var build: Task<Void, Never>?
 
@@ -82,10 +84,10 @@ struct BodyMap3DView: UIViewRepresentable {
             scene.rootNode.addChildNode(cameraNode)
             placeCamera()
             view?.pointOfView = cameraNode
-            tilt.position = SCNVector3(0, -Float(BodyMapLayout.height) / 2, 0)
-            tilt.addChildNode(frontNode)
-            tilt.addChildNode(backNode)
-            turntable.addChildNode(tilt)
+            holder.position = SCNVector3(0, -Float(BodyMapLayout.height) / 2, 0)
+            holder.addChildNode(frontNode)
+            holder.addChildNode(backNode)
+            turntable.addChildNode(holder)
             scene.rootNode.addChildNode(turntable)
             addLights()
         }
@@ -165,12 +167,18 @@ struct BodyMap3DView: UIViewRepresentable {
 
         // MARK: Gestures
 
+        /// Only sideways drags turn the figure; vertical drags keep scrolling the page.
+        func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+            guard let pan = g as? UIPanGestureRecognizer, let view = pan.view else { return true }
+            let v = pan.velocity(in: view)
+            return abs(v.x) > abs(v.y)
+        }
+
         @objc func pan(_ g: UIPanGestureRecognizer) {
             guard let view = g.view else { return }
             let d = g.translation(in: view)
             g.setTranslation(.zero, in: view)
             yaw += Double(d.x) * 0.012
-            pitch = max(-0.35, min(0.35, pitch + Double(d.y) * 0.006))
             applyRotation()
             if g.state == .ended {
                 // A flick keeps turning a little.
@@ -187,7 +195,6 @@ struct BodyMap3DView: UIViewRepresentable {
 
         @objc func reset(_ g: UITapGestureRecognizer) {
             distance = Self.homeDistance
-            pitch = 0
             SCNTransaction.begin()
             SCNTransaction.animationDuration = 0.4
             placeCamera()
@@ -200,18 +207,17 @@ struct BodyMap3DView: UIViewRepresentable {
             let hits = view.hitTest(g.location(in: view), options: [.searchMode: SCNHitTestSearchMode.closest.rawValue])
             guard let hit = hits.first(where: { $0.node === frontNode || $0.node === backNode }) else { return }
             let p = hit.localCoordinates
-            // Which surface was hit decides the sheet, even right at the contour.
-            var point = SIMD3<Float>(Float(p.x), Float(p.y), Float(p.z))
-            point.z = hit.node === frontNode ? max(point.z, 0.001) : min(point.z, -0.001)
-            if let m = BodyMesh.muscle(atModel: point, figure: figure) {
+            // Which surface was hit decides the sheet.
+            let point = SIMD3<Float>(Float(p.x), Float(p.y), Float(p.z))
+            if let m = BodyMesh.muscle(atModel: point, side: hit.node === frontNode ? .front : .back, figure: figure) {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 onTap?(m)
             }
         }
 
         private func applyRotation() {
+            // Turns around its own vertical axis only (no tilt).
             turntable.eulerAngles = SCNVector3(0, Float(yaw), 0)
-            tilt.eulerAngles = SCNVector3(Float(pitch), 0, 0)
         }
 
         private func turn(to target: Double, animated: Bool, duration: Double = 0.5) {
