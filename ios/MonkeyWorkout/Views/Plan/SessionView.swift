@@ -94,7 +94,9 @@ struct SessionView: View {
             if !s.blocks.allSatisfy({ $0.items.isEmpty }) { SessionGameBanner(session: s) }
             LibraryActionsPanel(session: s)
             if let t = WorkoutTemplate.find(sessionId: s.id) {
-                Text("\(t.kcal) kcal · \(t.activityPoints) activity points").font(Theme.label(14)).foregroundStyle(Theme.lime)
+                Text(([t.goal.label, t.kit, t.levelLabel] + [t.kcal.map { "\($0) kcal" }, t.activityPoints.map { "\($0) activity points" }].compactMap { $0 })
+                    .joined(separator: " · "))
+                    .font(Theme.label(14)).foregroundStyle(Theme.lime)
             } else if let kcal = model.customWorkout(sessionId: s.id)?.kcal {
                 Text("\(kcal) kcal").font(Theme.label(14)).foregroundStyle(Theme.lime)
             }

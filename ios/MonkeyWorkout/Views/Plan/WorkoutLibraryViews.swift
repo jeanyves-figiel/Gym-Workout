@@ -31,18 +31,39 @@ struct LibraryEntry: Identifiable, Hashable {
         }
     }
 
+    /// First subtitle line: the muscles the workout targets (#252).
+    var muscleLine: String { session.workMuscles(3).map(\.name).joined(separator: " · ") }
+
+    /// Second subtitle line: size and source facts.
     var detail: String {
-        let s = session
-        let count = s.blocks.reduce(0) { $0 + $1.items.count }
-        let muscles = s.topMuscles(2).map(\.name)
+        let count = session.blocks.reduce(0) { $0 + $1.items.count }
         switch source {
         case let .mine(w):
-            return ([w.kcal.map { "\($0) kcal" }, "\(count) exercises"] + muscles).compactMap { $0 }.joined(separator: " · ")
+            return (["\(count) exercises", w.kcal.map { "\($0) kcal" }]).compactMap { $0 }.joined(separator: " · ")
         case let .builtIn(t):
-            return "\(count) exercises · \(t.kcal) kcal · \(t.activityPoints) pts"
+            return "\(count) exercises · \(t.kit) · \(t.levelLabel)"
         case let .member(sw):
             return (["by @\(sw.author.nickname)", "\(count) exercises"] + (sw.saves > 0 ? ["♥ \(sw.saves)"] : [])).joined(separator: " · ")
         }
+    }
+
+    /// What it is for: filter chips in Explore.
+    var goal: WorkoutTemplate.Goal {
+        if case let .builtIn(t) = source { return t.goal }
+        return WorkoutTemplate.Goal(session)
+    }
+
+    /// Free-text search: name, every muscle and muscle group worked, goal, kit and the detail line.
+    func matches(_ query: String) -> Bool {
+        let words = query.lowercased().split(whereSeparator: \.isWhitespace)
+        guard !words.isEmpty else { return true }
+        let muscles = session.blocks.flatMap(\.items).flatMap { item -> [Muscle] in
+            let e = Exercise.get(item.exerciseId)
+            return e.primary + e.secondary
+        }
+        let text = ([name, detail, goal.label, session.focus.label] + muscles.map(\.name) + muscles.map(\.group.label))
+            .joined(separator: " ").lowercased()
+        return words.allSatisfy { text.contains($0) }
     }
 
     /// Small tag on shared or reported workouts of mine.
@@ -104,8 +125,13 @@ struct WorkoutLibrarySection: View {
     @Environment(AppModel.self) private var model
     @State private var editing: CustomWorkout?
     @State private var gate: ProGate?
+    /// Goal chip (#252); nil = all.
+    @State private var goal: WorkoutTemplate.Goal?
+    @State private var query = ""
+    @FocusState private var searching: Bool
 
-    private var preview: [LibraryEntry] { model.myLibrary + model.builtInLibrary }
+    private var all: [LibraryEntry] { model.myLibrary + model.builtInLibrary }
+    private var preview: [LibraryEntry] { all.filter { (goal == nil || $0.goal == goal) && $0.matches(query) } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -117,9 +143,18 @@ struct WorkoutLibrarySection: View {
                     .font(Theme.label(13))
                     .foregroundStyle(Theme.lime)
             }
+            searchField
+            goalChips
             ForEach(preview) { e in
                 NavigationLink(value: e.session.id) { LibraryCard(entry: e, done: model.state.done[e.session.id] ?? false) }
                     .buttonStyle(.plain)
+            }
+            if preview.isEmpty {
+                Text("No workout matches. Try a muscle (\"glutes\"), a goal (\"cardio\") or clear the filter.")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.muted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .card()
             }
             NavigationLink { WorkoutLibraryView() } label: {
                 HStack(spacing: 14) {
@@ -145,6 +180,51 @@ struct WorkoutLibrarySection: View {
         .sheet(item: $editing) { w in CustomWorkoutEditor(initial: w) }
         .proPaywall($gate)
     }
+
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass").font(.body.weight(.bold)).foregroundStyle(Theme.muted)
+            TextField("Name, muscle or goal", text: $query)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused($searching)
+            if !query.isEmpty {
+                Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted) }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
+            }
+        }
+        .font(.body.weight(.semibold))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(Capsule().fill(Color.white.opacity(0.08)))
+    }
+
+    private var goalChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                chip(nil, "All", all.count)
+                ForEach(WorkoutTemplate.Goal.allCases, id: \.self) { g in
+                    let n = all.filter { $0.goal == g }.count
+                    if n > 0 { chip(g, g.label, n) }
+                }
+            }
+        }
+    }
+
+    private func chip(_ g: WorkoutTemplate.Goal?, _ label: String, _ n: Int) -> some View {
+        Button { withAnimation(.snappy) { goal = g } } label: {
+            Text("\(label) \(n)")
+                .font(Theme.label(14))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(Capsule().fill(goal == g ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Color.white.opacity(0.08))))
+                .foregroundStyle(goal == g ? Theme.ink : .white)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(goal == g ? .isSelected : [])
+    }
 }
 
 /// Explore-style card: icon tile left, heavy name, big minutes right, on a vivid gradient.
@@ -168,7 +248,11 @@ struct LibraryCard: View {
                             .background(Capsule().fill(.black.opacity(0.3)))
                     }
                 }
-                Text(entry.detail).font(.footnote.weight(.semibold)).opacity(0.88).lineLimit(1)
+                // Two short lines instead of one cut line (#252).
+                if !entry.muscleLine.isEmpty {
+                    Text(entry.muscleLine).font(.footnote.weight(.semibold)).opacity(0.92).lineLimit(1).minimumScaleFactor(0.8)
+                }
+                Text(entry.detail).font(.caption.weight(.semibold)).opacity(0.8).lineLimit(1).minimumScaleFactor(0.8)
             }
             Spacer(minLength: 4)
             if done {
@@ -258,7 +342,7 @@ struct WorkoutLibraryView: View {
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Workout library")
         .toolbarTitleDisplayMode(.inlineLarge)
-        .searchable(text: $query, prompt: "Search workouts")
+        .searchable(text: $query, prompt: "Name, muscle or goal")
         .onSubmit(of: .search) { Task { memberState = await model.loadSharedLibrary(query: query) } }
         .task { memberState = await model.loadSharedLibrary() }
         .refreshable { memberState = await model.loadSharedLibrary(query: query) }
@@ -275,9 +359,7 @@ struct WorkoutLibraryView: View {
     }
 
     private func entries(_ list: [LibraryEntry]) -> [LibraryEntry] {
-        let words = query.lowercased().split(whereSeparator: \.isWhitespace)
-        guard !words.isEmpty else { return list }
-        return list.filter { e in words.allSatisfy { e.name.lowercased().contains($0) || e.detail.lowercased().contains($0) } }
+        list.filter { $0.matches(query) }
     }
 
     private func count(_ f: Filter) -> Int {
