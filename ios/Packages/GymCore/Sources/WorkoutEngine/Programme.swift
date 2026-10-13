@@ -210,7 +210,7 @@ public struct Programme: Identifiable, Hashable, Sendable {
     }
 
     /// Stable id of a signature insert, so a re-applied week keeps its ticks and logs.
-    static func insertId(programme: String, signature: String, week: Int) -> UUID {
+    public static func insertId(programme: String, signature: String, week: Int) -> UUID {
         var h: UInt64 = 0xcbf2_9ce4_8422_2325
         for b in "\(programme)|\(signature)|\(week)".utf8 {
             h ^= UInt64(b)
