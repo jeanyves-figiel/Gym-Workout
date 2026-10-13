@@ -2,6 +2,12 @@
   "id": "2026-10-12.6",
   "items": [
     {
+      "symbol": "rotate.3d",
+      "tint": "strength",
+      "title": "Your body in 3D",
+      "body": "Explore → Muscles can now show a 3D body: turn it, zoom in and tap a muscle to see its exercises. Switch 2D / 3D on the map or in Account → Body & Health."
+    },
+    {
       "symbol": "ruler.fill",
       "tint": "power",
       "title": "Help with every measurement",

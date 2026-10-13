@@ -1,5 +1,6 @@
 import AuthenticationServices
 import SwiftUI
+import WorkoutEngine
 
 @main
 struct MonkeyWorkoutApp: App {
@@ -29,6 +30,16 @@ struct MonkeyWorkoutApp: App {
                     #endif
                     await health.refresh()
                     WatchSync.shared.push()
+                }
+                .task(id: model.bodyFigure) {
+                    // 3D body map (#225): build the figure early so Explore shows it at once.
+                    var wants3D = UserDefaults.standard.string(forKey: BodyMapMode.storageKey) == BodyMapMode.solid.rawValue
+                    #if DEBUG
+                    if Demo.enabled { wants3D = Demo.screen.hasPrefix("explore-3d") }
+                    #endif
+                    guard wants3D else { return }
+                    let figure = model.bodyFigure
+                    _ = await Task.detached(priority: .utility) { BodyMesh.of(figure) }.value
                 }
                 .task {
                     // Apple ID stopped using Sign in with Apple for this app while it was running.
