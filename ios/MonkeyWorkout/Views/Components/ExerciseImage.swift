@@ -143,11 +143,11 @@ struct ExerciseMotionView: View {
     }
 
     /// The frames at `state`'s position (or the resting frame): the lower frame fully opaque, the next one
-    /// blended over it. Every frame stays in the stack so none is ever loaded mid-play. Reduce Motion: whole frames.
+    /// switched in quickly over it (#241: a short dissolve, no long double-exposed poses). Every frame stays in the stack so none is ever loaded mid-play. Reduce Motion: whole frames.
     private func picture(_ state: MotionPlayback.State?) -> some View {
         let raw = state?.position ?? Double(restingFrame)
         let position = reduceMotion ? raw.rounded() : raw
-        let (lower, upper) = MotionPlayback.blend(position, frames: max(frames, 1))
+        let (lower, upper) = MotionPlayback.blend(position, frames: max(frames, 1), window: MotionPlayback.switchWindow)
         return ZStack {
             ForEach(0..<max(frames, 1), id: \.self) { f in
                 ExerciseImage(exercise: exercise, frame: f, contentMode: contentMode)
