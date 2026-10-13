@@ -614,9 +614,9 @@ BURPEE = [
     PW.B((196, 204), -14, ankN=(214, FOOT_Y), ankF=(210, FOOT_Y), wrN=(270, GROUND - 6), wrF=(268, GROUND - 6),
          handN=0, handF=0, h=-4),
     PW.B((222, 128), -90, ankN=(224, GROUND - 32), ankF=(220, GROUND - 32), footN=66, footF=66,
-         aN=(-84, -86), aF=(-88, -90), h=-90, front_props=[PW.arrow((272, 150), -90)]),
+         aN=(-76, -80), aF=(-80, -84), h=-86, front_props=[PW.arrow((272, 150), -90)]),
 ]
-add("burpee", (PW.basic(210, 110), BURPEE, PW.fit(BURPEE)))
+add("burpee", (PW.basic(210, 110), BURPEE, PW.fit(BURPEE, m=16)))
 
 
 # ---- jumping jacks (front view) -----------------------------------------------------------------------------

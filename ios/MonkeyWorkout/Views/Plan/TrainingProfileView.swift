@@ -67,27 +67,27 @@ struct ProfileSectionCard: View {
     let profile: Profile
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             Image(systemName: symbol)
-                .font(.system(size: 24, weight: .bold))
-                .frame(width: 56, height: 56)
-                .background(RoundedRectangle(cornerRadius: 17, style: .continuous).fill(.white.opacity(0.22)))
+                .font(.system(size: 22, weight: .bold))
+                .frame(width: 52, height: 52)
+                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.22)))
             VStack(alignment: .leading, spacing: 3) {
-                Text(section.title).font(Theme.display(21)).lineLimit(1).minimumScaleFactor(0.75)
+                Text(section.title).font(Theme.display(21)).lineLimit(1).minimumScaleFactor(0.6)
                 Text(value).font(.footnote.weight(.semibold)).opacity(0.88).lineLimit(2)
             }
             .layoutPriority(1)
             Spacer(minLength: 4)
             VStack(alignment: .trailing, spacing: 0) {
                 Text(big.0).font(Theme.display(26)).lineLimit(1).minimumScaleFactor(0.5)
-                Text(big.1).font(Theme.label(9)).tracking(1.2).opacity(0.8).lineLimit(1)
+                Text(big.1).font(Theme.label(9)).tracking(1.2).opacity(0.8).lineLimit(1).minimumScaleFactor(0.7)
             }
+            // Natural width only: a capped flexible frame always took 96 pt and truncated titles (#231).
             .fixedSize()
-            .layoutPriority(2)
             Image(systemName: "chevron.right").font(.footnote.bold()).opacity(0.7)
         }
         .foregroundStyle(.white)
-        .padding(18)
+        .padding(16)
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(gradient))
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)

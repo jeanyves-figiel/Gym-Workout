@@ -1,23 +1,23 @@
 {
-  "id": "2026-10-12.7",
+  "id": "2026-10-13.2",
   "items": [
+    {
+      "symbol": "figure.strengthtraining.traditional",
+      "tint": "strength",
+      "title": "Smoother exercise motion",
+      "body": "The exercise movement now glides from pose to pose without flashing, and the dot on the path moves with it."
+    },
+    {
+      "symbol": "square.grid.2x2.fill",
+      "tint": "strength",
+      "title": "Your highlights on top of Progress",
+      "body": "Measurements, records, achievements and body now sit at the top of Progress. Prefer a swipeable strip or tabs? Pick your layout in Account → Progress layout."
+    },
     {
       "symbol": "gamecontroller.fill",
       "tint": "mobility",
-      "title": "Your style on iPhone too",
-      "body": "Monkey coach, Quest map or Level bar: pick it in Account → Style. Your Apple Watch follows the same pick, so both look alike."
-    },
-    {
-      "symbol": "star.fill",
-      "tint": "warmup",
-      "title": "XP, levels and badges",
-      "body": "Every workout earns XP, and hitting your weekly goal opens a chest worth 200 more. Same level and badges on iPhone and Watch."
-    },
-    {
-      "symbol": "face.smiling.inverse",
-      "tint": "power",
-      "title": "Celebrate every finish",
-      "body": "Your monkey dances, the stage clears or the level bar fills when you finish a workout, with any new badge right there."
+      "title": "Your Watch style on iPhone too",
+      "body": "Monkey coach, Quest map or Level bar: pick it in Account → Style and your Watch matches. Every workout earns XP toward your level, with the same badges on both."
     }
   ]
 }

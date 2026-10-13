@@ -346,7 +346,8 @@ def body_segments(j, front=False):
 def muscle_levels(ex):
     lv = {m: SECONDARY for m in ex.get("secondary", [])}
     lv.update({m: PRIMARY for m in ex["primary"]})
-    return lv
+    k = ex.get("_heat", 1.0)
+    return {m: v * k for m, v in lv.items()}
 
 
 def draw_segment(doc, seg, tones, outline_op=0.75):
@@ -402,21 +403,50 @@ def draw_muscles(doc, seg, name, levels, clip_d, far, view):
             doc.add("</g>")
 
 
-def draw_head_details(doc, head, view="side"):
-    clip = doc.clip(smooth(head.outline()))
-    if view != "side":
-        cap = [(0.66, -1.04), (1.06, -1.04), (1.06, 1.04), (0.66, 1.04)] if view == "front" else \
-              [(0.38, -1.04), (1.06, -1.04), (1.06, 1.04), (0.38, 1.04)]
-        doc.add(f'<path d="{smooth([head.at(u, v) for u, v in cap])}" fill="#2B2F36" fill-opacity="0.9" clip-path="{clip}"/>')
+# Head (#229): a sculpted head in the head segment's frame (x towards the face, y up from the neck, px),
+# with a pink-to-orange sweatband instead of hair.
+HEAD_SIDE = [(-6, 0), (-7, 7), (-11.5, 13), (-14, 21), (-12, 29), (-6, 34), (2, 35), (8.5, 32), (12, 26.5),
+             (12.8, 23), (12, 21), (15.5, 16.5), (13, 15), (13.2, 13.2), (12.3, 11.5), (12.6, 9.5), (11.5, 6.5),
+             (8, 5.5), (3, 6), (5.5, 0)]
+HEAD_FRONT = [(-6.5, 0), (-7, 6), (-10.5, 10), (-12.5, 18), (-12, 27), (-7, 33), (0, 35), (7, 33), (12, 27),
+              (12.5, 18), (10.5, 10), (7, 6), (6.5, 0)]
+BAND = ("#FF2D95", "#FF8A00")
+EAR = "#C9D0D9"
+
+
+def head_frame(head):
+    """(x, y) in the head's frame → canvas point."""
+    a, up, fw = head.a, head.tan(0.5), head.normal(0.5)
+    return lambda x, y: add(add(a, fw, x), up, y)
+
+
+def draw_head(doc, head, view="side", outline_op=0.75):
+    f = head_frame(head)
+    d = smooth([f(*p) for p in (HEAD_SIDE if view == "side" else HEAD_FRONT)], k=0.14)
+    dark, lit = lit_axis(head)
+    fill = doc.lin(dark, lit, [(0, SKIN_NEAR[2]), (0.55, SKIN_NEAR[1]), (1, SKIN_NEAR[0])])
+    doc.add(f'<path d="{d}" fill="{fill}" stroke="{OUTLINE}" stroke-opacity="{outline_op}" stroke-width="1.1" '
+            f'stroke-linejoin="round"/>')
+    clip = doc.clip(d)
+    # Sweatband: straight round the head seen from front/back, tilted down towards the back from the side.
+    band = [(-20, 23), (20, 28), (20, 32.5), (-20, 27.5)] if view == "side" else \
+           [(-20, 25.5), (20, 25.5), (20, 30), (-20, 30)]
+    g = doc.lin(f(-14, 25), f(13, 30), [(0, BAND[0]), (1, BAND[1])])
+    doc.add(f'<path d="M{" L".join(f"{x:.1f},{y:.1f}" for x, y in (f(*p) for p in band))}Z" fill="{g}" '
+            f'stroke="{OUTLINE}" stroke-opacity="0.35" stroke-width="0.7" clip-path="{clip}"/>')
+    hl = [(-15, 25.2), (0, 27.3), (15, 29.4)] if view == "side" else [(-15, 27), (0, 26.6), (15, 27)]
+    doc.add(f'<path d="{smooth([f(*p) for p in hl], closed=False)}" fill="none" stroke="#FFF3B0" '
+            f'stroke-opacity="0.7" stroke-width="0.8" clip-path="{clip}"/>')
+    if view == "side":
+        ear = [(-0.5, 22), (-3.5, 21.5), (-4, 17), (-2, 13.5), (0.5, 15)]
+        doc.add(f'<path d="{smooth([f(*p) for p in ear], k=0.2)}" fill="{EAR}" stroke="{OUTLINE}" '
+                f'stroke-opacity="0.55" stroke-width="0.8"/>')
+    else:
         for s in (-1, 1):
-            ear = head.at(0.5, s * 1.02)
-            doc.add(f'<circle cx="{ear[0]:.1f}" cy="{ear[1]:.1f}" r="2.8" fill="#B9C1CC" stroke="{OUTLINE}" stroke-opacity="0.5" stroke-width="0.8"/>')
-        return
-    hair = [head.at(u, v) for u, v in [(0.62, -0.2), (0.62, -1.03), (0.9, -1.04), (1.06, -0.2), (1.02, 0.6), (0.9, 0.86), (0.78, 0.4)]]
-    doc.add(f'<path d="{smooth(hair)}" fill="#2B2F36" fill-opacity="0.9" clip-path="{clip}"/>')
-    ear = head.at(0.5, -0.12)
-    doc.add(f'<ellipse cx="{ear[0]:.1f}" cy="{ear[1]:.1f}" rx="2.6" ry="3.6" fill="#B9C1CC" stroke="{OUTLINE}" '
-            f'stroke-opacity="0.5" stroke-width="0.8" transform="rotate({math.degrees(math.atan2(*reversed(head.tan(0.5)))) + 90:.0f} {ear[0]:.1f} {ear[1]:.1f})"/>')
+            ear = [(s * 12.3, 22), (s * 14.5, 21), (s * 14.5, 16), (s * 12, 13.5)]
+            doc.add(f'<path d="{smooth([f(*p) for p in ear], k=0.2)}" fill="{EAR}" stroke="{OUTLINE}" '
+                    f'stroke-opacity="0.55" stroke-width="0.8"/>')
+    return d
 
 
 def draw_figure(doc, j, ex, pose):
@@ -444,9 +474,7 @@ def draw_figure(doc, j, ex, pose):
         sg = trunk[name]
         d = draw_segment(doc, sg, SKIN_NEAR)
         draw_muscles(doc, sg, name, levels, d, False, view)
-    head = trunk["head"]
-    draw_segment(doc, head, SKIN_NEAR)
-    draw_head_details(doc, head, view)
+    draw_head(doc, trunk["head"], view)
     if front:
         for limbs, side in ((far_l, "F"), (near_l, "N")):
             for name in ("upper", "fore", "hand"):
@@ -644,31 +672,167 @@ def inset(doc, levels, view, corner="tl"):
 
 # ---- frames ----------------------------------------------------------------------------------
 
+ANGLES = ("t", "h", "lN", "lF", "aN", "aF")  # pose keys holding segment angles (degrees)
+
+
+def _turn(x, y):
+    """Angle y as seen from x the short way round (-170 → 170 turns 20°, not 340°)."""
+    return x + ((y - x + 180) % 360 - 180)
+
+
+# Side view: limbs are interpolated as joint angles (hip / shoulder relative to the torso, knee / elbow
+# relative to the thigh / upper arm, ankle / wrist relative to the shin / forearm). A big swing between two
+# key poses is read in the window of motion the joint actually has, so an in-between bends the knee or elbow
+# the way it bends and swings the arm or leg through the front rather than through the body (#229).
+# Window = (lowest angle, +360).
+JOINT_WINDOWS = {
+    "a": ((-60, 300), (-265, 95), (-180, 180)),  # shoulder (180 = arm down along the torso), elbow, wrist
+    "l": ((-60, 300), (-95, 265), (-180, 180)),   # hip (180 = standing), knee (flexes positive), ankle
+}
+
+
+def _in(v, lo):
+    return lo + (v - lo) % 360
+
+
+def _rel(t, seg, win):
+    out, parent = [], t
+    for v, (lo, _) in zip(seg, win):
+        out.append(_in(v - parent, lo))
+        parent = v
+    return out
+
+
+def _abs(t, rel):
+    out, parent = [], t
+    for r in rel:
+        parent = parent + r
+        out.append(parent)
+    return tuple(out)
+
+
 def lerp_pose(a, b, k):
     out = dict(a)
+    side = not a.get("front") and not b.get("front")
+    ta, tb = a.get("t", -90), b.get("t", -90)
+    t = ta + (_turn(ta, tb) - ta) * k
     for key, va in a.items():
         vb = b.get(key)
-        if isinstance(va, (int, float)) and isinstance(vb, (int, float)) and not isinstance(va, bool):
-            out[key] = va + (vb - va) * k
+        ang = key in ANGLES
+        if side and key in ("aN", "aF", "lN", "lF") and isinstance(va, tuple) and isinstance(vb, tuple) \
+                and len(va) == len(vb):
+            win = JOINT_WINDOWS[key[0]]
+            ra, rb = _rel(ta, va, win), _rel(tb, vb, win)
+            # Small changes go the short way (some art bends past the windows, e.g. arms folded); only a
+            # big swing, where the short way may cut through the body, follows the joint's range.
+            rb = [y if abs(_turn(x, y) - x) > 120 else _turn(x, y) for x, y in zip(ra, rb)]
+            out[key] = _abs(t, [x + (y - x) * k for x, y in zip(ra, rb)])
+        elif isinstance(va, (int, float)) and isinstance(vb, (int, float)) and not isinstance(va, bool):
+            out[key] = va + ((_turn(va, vb) if ang else vb) - va) * k
         elif isinstance(va, tuple) and isinstance(vb, tuple) and len(va) == len(vb) and all(isinstance(x, (int, float)) for x in va):
-            out[key] = tuple(x + (y - x) * k for x, y in zip(va, vb))
-        elif key == "pin" and vb:
-            (n, pa), (_, pb) = va, vb
-            out[key] = (n, (pa[0] + (pb[0] - pa[0]) * k, pa[1] + (pb[1] - pa[1]) * k))
+            out[key] = tuple(x + ((_turn(x, y) if ang else y) - x) * k for x, y in zip(va, vb))
+    if "pin" in a or "pin" in b:
+        # Move one joint in a straight line from where it is in pose a to where it is in pose b, even when the
+        # two poses pin different joints (or one rests on the floor): positions come from placing both poses.
+        n = (a.get("pin") or b["pin"])[0]
+        pa, pb = F.place(a)[n], F.place(b)[n]
+        out["pin"] = (n, (pa[0] + (pb[0] - pa[0]) * k, pa[1] + (pb[1] - pa[1]) * k))
+        out.pop("lift", None)
     for key in ("props", "front_props"):
         if key in b and key not in a:
             out[key] = b[key]
     return out
 
 
-def frames(poses):
-    """Three frames: start, middle, end. A pose list of 2 gets its middle interpolated."""
+FRAMES = 9  # per exercise: start (0), middle (FRAMES // 2), end (FRAMES - 1) and eased in-betweens (#229)
+KEYS = (0, FRAMES // 2, FRAMES - 1)
+
+
+def ease(t):
+    """Smoothstep: slow out of the start and into the end pose; ease(0.5) = 0.5 keeps the middle key."""
+    return t * t * (3 - 2 * t)
+
+
+def keyframes(poses):
+    """Start, middle, end. A pose list of 2 gets its middle interpolated."""
     if len(poses) == 3:
-        return poses
+        return list(poses)
     return [poses[0], lerp_pose(poses[0], poses[1], 0.5), poses[1]]
 
 
-def render(pose, ex, scene=None, prefix="a", view=None):
+def progress(i):
+    """Eased progress 0…1 of frame i along start → middle → end."""
+    return ease(i / (FRAMES - 1))
+
+
+def sample(keys, s, lerp):
+    """Value at progress s on the piecewise path keys[0] → keys[1] → keys[2]."""
+    if s <= 0.5:
+        return lerp(keys[0], keys[1], s * 2)
+    return lerp(keys[1], keys[2], s * 2 - 1)
+
+
+def lerp_num(a, b, k):
+    if isinstance(a, (tuple, list)):
+        return tuple(lerp_num(x, y, k) for x, y in zip(a, b))
+    return a + (b - a) * k
+
+
+def frames(poses, extra=None):
+    """FRAMES poses from the scene's key poses; frames 0, middle and last are the key poses themselves.
+    `extra` = {frame: pose} adds hand-made poses where interpolation alone would not read (tweens.py)."""
+    keys = keyframes(poses)
+    knots = dict(zip(KEYS, keys))
+    knots.update(extra or {})
+    at = sorted(knots)
+    out = []
+    for i in range(FRAMES):
+        if i in knots:
+            out.append(knots[i])
+            continue
+        fa = max(f for f in at if f < i)
+        fb = min(f for f in at if f > i)
+        k = (progress(i) - progress(fa)) / (progress(fb) - progress(fa))
+        out.append(floor_guard(lerp_pose(knots[fa], knots[fb], k), [knots[f] for f in at]))
+    return out
+
+
+def _leg_low(j, side):
+    return max(j[k + side][1] for k in ("knee", "ankle", "toe") if k + side in j)
+
+
+def floor_guard(pose, keys):
+    """A pinned side-view in-between whose leg dips into the floor (e.g. a mountain climber's knee drive)
+    bends that knee, then the hip, until the leg clears the floor as far as the key poses do."""
+    if pose.get("front") or "pin" not in pose:
+        return pose
+    placed = [F.place(k) for k in keys if not k.get("front")]
+    for leg, side in (("lN", "N"), ("lF", "F")):
+        if not isinstance(pose.get(leg), tuple) or not placed:
+            continue
+        limit = max(GROUND, max(_leg_low(j, side) for j in placed)) + 2
+        for _ in range(40):
+            if _leg_low(F.place(pose), side) <= limit:
+                break
+            a = list(pose[leg])
+            if len(a) > 1 and a[1] - a[0] < 150:
+                a[1:] = [v + 4 for v in a[1:]]  # flex the knee (shin and foot turn with it)
+            else:
+                a = [v - 4 for v in a]  # flex the hip: the whole leg comes up and forward
+            pose = dict(pose, **{leg: tuple(a)})
+    return pose
+
+
+def glow(i):
+    """Worked-muscle heat of frame i: builds from amber-red at the start to full red at the end pose."""
+    return 0.7 + 0.3 * progress(i)
+
+
+def render(pose, ex, scene=None, prefix="a", view=None, heat=1.0):
+    """SVG of one frame. `heat` scales the worked muscles' load colour (see `glow`)."""
+    still = ex
+    if heat != 1.0:
+        ex = dict(ex, _heat=heat)
     doc = Doc(prefix)
     doc.view = view
     j = F.place(pose)
@@ -682,5 +846,10 @@ def render(pose, ex, scene=None, prefix="a", view=None):
         scene(doc, j, "front")
     draw_props(doc, j, pose.get("front_props", []))
     if view and pose.get("inset", "tl"):
-        inset(doc, muscle_levels(ex), view, pose.get("inset", "tl"))
+        inset(doc, muscle_levels(still), view, pose.get("inset", "tl"))  # map keeps full colour
+    global LAST
+    LAST = (j, view or (0, 0, W))  # joints as drawn (after the scene moved them) for motion.py
     return doc.svg()
+
+
+LAST = None

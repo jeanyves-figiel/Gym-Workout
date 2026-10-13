@@ -155,3 +155,107 @@ public enum Progression {
         return perWeek.sorted { $0.key < $1.key }.map { ($0.key, $0.value) }
     }
 }
+
+// MARK: - Period stats (Progress live tiles, #218)
+
+public enum StatPeriod: String, CaseIterable, Sendable, Identifiable {
+    case week, month, all
+    public var id: String { rawValue }
+}
+
+public enum StatMetric: String, CaseIterable, Sendable, Identifiable {
+    case sessions, minutes, volume, sets, days
+    public var id: String { rawValue }
+}
+
+public struct PeriodTotals: Sendable, Hashable {
+    public var workouts = 0
+    public var minutes = 0
+    public var volumeKg = 0.0
+    public var sets = 0
+    public var activeDays = 0
+
+    public init() {}
+
+    public func value(_ m: StatMetric) -> Double {
+        switch m {
+        case .sessions: Double(workouts)
+        case .minutes: Double(minutes)
+        case .volume: volumeKg
+        case .sets: Double(sets)
+        case .days: Double(activeDays)
+        }
+    }
+}
+
+public struct PeriodBucket: Sendable, Hashable, Identifiable {
+    public let start: Date
+    public var totals: PeriodTotals
+    public var id: Date { start }
+}
+
+public struct PeriodSummary: Sendable {
+    public let period: StatPeriod
+    /// This week / this month / everything.
+    public var current: PeriodTotals
+    /// Last week / last month; nil for All.
+    public var previous: PeriodTotals?
+    /// Trend buckets, oldest first, the last one is the current week / month:
+    /// 8 weeks for Week, 6 months for Month, up to 12 months (since the first workout) for All.
+    public var buckets: [PeriodBucket]
+
+    /// Change vs the previous period; nil for All.
+    public func delta(_ m: StatMetric) -> Double? {
+        previous.map { current.value(m) - $0.value(m) }
+    }
+
+    /// Index of the best bucket for a metric (nil when every bucket is 0).
+    public func best(_ m: StatMetric) -> Int? {
+        guard let i = buckets.indices.max(by: { buckets[$0].totals.value(m) < buckets[$1].totals.value(m) }),
+              buckets[i].totals.value(m) > 0 else { return nil }
+        return i
+    }
+}
+
+extension Progression {
+    static func totals(_ records: [WorkoutRecord], _ cal: Calendar) -> PeriodTotals {
+        var t = PeriodTotals()
+        t.workouts = records.count
+        t.minutes = records.reduce(0) { $0 + $1.durationSec / 60 }
+        t.volumeKg = records.reduce(0) { $0 + $1.volumeKg }
+        t.sets = records.reduce(0) { $0 + $1.totalSets }
+        t.activeDays = Set(records.map { cal.startOfDay(for: $0.startedAt) }).count
+        return t
+    }
+
+    public static func periodSummary(
+        records: [WorkoutRecord], period: StatPeriod,
+        now: Date = Date(), calendar cal: Calendar = Progression.calendar()
+    ) -> PeriodSummary {
+        let unit: Calendar.Component = period == .week ? .weekOfYear : .month
+        let thisStart = cal.dateInterval(of: unit, for: now)!.start
+        let count: Int
+        switch period {
+        case .week: count = 8
+        case .month: count = 6
+        case .all:
+            let first = records.map(\.startedAt).min() ?? now
+            let firstMonth = cal.dateInterval(of: .month, for: first)!.start
+            let months = cal.dateComponents([.month], from: firstMonth, to: thisStart).month ?? 0
+            count = min(12, max(1, months + 1))
+        }
+        let starts = (0..<count).reversed().map { cal.date(byAdding: unit, value: -$0, to: thisStart)! }
+        let buckets = starts.map { s in
+            let e = cal.date(byAdding: unit, value: 1, to: s)!
+            return PeriodBucket(start: s, totals: totals(records.filter { $0.startedAt >= s && $0.startedAt < e }, cal))
+        }
+        switch period {
+        case .all:
+            return PeriodSummary(period: period, current: totals(records, cal), previous: nil, buckets: buckets)
+        case .week, .month:
+            let prevStart = cal.date(byAdding: unit, value: -1, to: thisStart)!
+            let prev = totals(records.filter { $0.startedAt >= prevStart && $0.startedAt < thisStart }, cal)
+            return PeriodSummary(period: period, current: buckets.last!.totals, previous: prev, buckets: buckets)
+        }
+    }
+}

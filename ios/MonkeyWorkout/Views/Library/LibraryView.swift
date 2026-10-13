@@ -102,6 +102,15 @@ private struct BodyMapCard: View {
     let heat: [Muscle: Double]
     let sets: Int
     let onTap: (Muscle) -> Void
+    @AppStorage(BodyMapMode.storageKey) private var storedMode = BodyMapMode.flat
+    @Environment(\.bodyMapDemo) private var demo
+
+    private var mode: BodyMapMode { demo?.mode ?? storedMode }
+
+    /// 2D | 3D pill on the map (same setting as Account → Body & Health → Body map).
+    private var modeToggle: some View {
+        BodyMapModeToggle(selection: $storedMode, current: mode)
+    }
 
     private var top: [Muscle] {
         heat.filter { $0.value > 0 }.sorted { $0.value > $1.value || ($0.value == $1.value && $0.key.name < $1.key.name) }
@@ -135,22 +144,28 @@ private struct BodyMapCard: View {
             .padding(18)
             .background(WorkoutEngine.Category.strength.gradient)
 
-            VStack(spacing: 14) {
-                HStack(spacing: 12) {
-                    ForEach(BodySide.allCases) { s in
-                        BodyMapView(side: s, heat: heat, onTap: onTap)
+            if mode == .solid {
+                BodyMap3DPanel(heat: heat, modeToggle: AnyView(modeToggle), onOpen: onTap)
+            } else {
+                VStack(spacing: 14) {
+                    HStack(spacing: 12) {
+                        ForEach(BodySide.allCases) { s in
+                            BodyMapView(side: s, heat: heat, onTap: onTap)
+                        }
                     }
+                    .frame(height: 340)
+                    .padding(.bottom, 18)
+                    HeatLegend()
+                    Text("Tap a muscle to see its exercises").font(.footnote).foregroundStyle(Theme.muted)
                 }
-                .frame(height: 340)
-                .padding(.bottom, 18)
-                HeatLegend()
-                Text("Tap a muscle to see its exercises").font(.footnote).foregroundStyle(Theme.muted)
+                .padding(16)
+                .padding(.top, 30)
+                .background(
+                    RadialGradient(colors: [WorkoutEngine.Category.strength.colors[1].opacity(0.22), .clear],
+                                   center: UnitPoint(x: 0.5, y: 0.4), startRadius: 0, endRadius: 220)
+                )
+                .overlay(alignment: .topTrailing) { modeToggle.padding(12) }
             }
-            .padding(16)
-            .background(
-                RadialGradient(colors: [WorkoutEngine.Category.strength.colors[1].opacity(0.22), .clear],
-                               center: UnitPoint(x: 0.5, y: 0.4), startRadius: 0, endRadius: 220)
-            )
         }
         .background(Theme.card)
         .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))

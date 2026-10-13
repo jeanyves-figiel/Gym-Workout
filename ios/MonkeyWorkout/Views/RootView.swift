@@ -119,6 +119,13 @@ private struct DemoScreen: View {
         case "example": NavigationStack { SessionView(sessionId: WorkoutTemplate.all[1].sessionId) }
         case "explore": NavigationStack { LibraryView() }
         case "explore-female": NavigationStack { LibraryView() }.environment(\.bodyFigure, .female)
+        case "explore-3d":
+            NavigationStack { LibraryView() }.environment(\.bodyMapDemo, BodyMapDemo(mode: .solid, picked: .chest))
+        case "explore-3d-back":
+            NavigationStack { LibraryView() }.environment(\.bodyMapDemo, BodyMapDemo(mode: .solid, picked: .glutes, facing: .back))
+                .environment(\.bodyFigure, .female)
+        case "explore-3d-side":
+            NavigationStack { LibraryView() }.environment(\.bodyMapDemo, BodyMapDemo(mode: .solid, picked: .quads, facing: .side))
         case "explore-list": NavigationStack { LibraryView(scrollTo: .back) }
         case "explore-volume": NavigationStack { LibraryView(scrollTo: .shoulders) }
         case "explore-workouts": NavigationStack { LibraryView(mode: .workouts) }
@@ -133,6 +140,10 @@ private struct DemoScreen: View {
         case "pr-result": PRAttemptView(exerciseId: "bench-press", showing: Demo.prResult)
         case "technique": FormSheet(exercise: Exercise.get("leg-press"))
         case "progress", "progress-empty": NavigationStack { ProgressTabView() }
+        case "progress-flipped": NavigationStack { ProgressTabView(demoFlipped: .volume) }
+        case "progress-strip": NavigationStack { ProgressTabView(demoLayout: .strip) }
+        case "progress-tabs": NavigationStack { ProgressTabView(demoLayout: .tabs, demoTab: .body) }
+        case "progress-layout": NavigationStack { ProgressLayoutView() }
         case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
         case "body": NavigationStack { BodyHealthView() }
         case "measurements": NavigationStack { MeasurementsView() }

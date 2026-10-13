@@ -5,6 +5,7 @@ struct AccountView: View {
     @Environment(AppModel.self) private var model
     @Environment(AppLock.self) private var lock
     @Environment(HealthManager.self) private var health
+    @AppStorage(ProgressLayout.storageKey) private var progressLayoutRaw = ProgressLayout.default.rawValue
     @State private var name = ""
     @State private var nameTask = FormTask()
     @FocusState private var nameFocused: Bool
@@ -15,6 +16,8 @@ struct AccountView: View {
     @State private var deviceCount: Int?
     @State private var gate: ProGate?
     @State private var webPage: WebPage?
+
+    private var progressLayout: ProgressLayout { ProgressLayout(rawValue: progressLayoutRaw) ?? .default }
 
     var body: some View {
         ScrollView {
@@ -83,6 +86,14 @@ struct AccountView: View {
                         AccountCard(symbol: "bell.badge.fill", title: "Reminders & alerts",
                                     subtitle: "Session reminders, check-ins, cheers",
                                     gradient: AccountTint.notifications)
+                    }
+                    .buttonStyle(.plain)
+
+                    // Top of the Progress tab (#238).
+                    NavigationLink { ProgressLayoutView() } label: {
+                        AccountCard(symbol: progressLayout.symbol, title: "Progress layout",
+                                    subtitle: progressLayout.title,
+                                    gradient: LinearGradient(colors: progressLayout.colors, startPoint: .topLeading, endPoint: .bottomTrailing))
                     }
                     .buttonStyle(.plain)
 
@@ -240,46 +251,66 @@ struct AccountView: View {
     }
 
     private func profileHero(_ user: User) -> some View {
-        HStack(spacing: 14) {
-            ZStack {
-                Text(initials(user))
-                    .font(Theme.display(24))
-                    .foregroundStyle(Theme.ink)
-                    .frame(width: 64, height: 64)
-                    .background(Circle().fill(Theme.lime))
-                // Profile photo (#108), same as in Community.
-                if let url = model.api.resolve(Community.shared.me.avatarUrl) {
-                    AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+        // Badges get their own full-width row and the sessions count is a lime pill (#211),
+        // so neither squeezes the chips into letter-by-letter wrapping.
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Text(initials(user))
+                        .font(Theme.display(24))
+                        .foregroundStyle(Theme.ink)
                         .frame(width: 64, height: 64)
-                        .clipShape(Circle())
-                }
-            }
-            .overlay(Circle().strokeBorder(Theme.lime, lineWidth: 2.5))
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    TextField("Add your name", text: $name, prompt: Text("Add your name").foregroundStyle(.white.opacity(0.6)))
-                        .font(Theme.display(22))
-                        .textContentType(.name)
-                        .submitLabel(.done)
-                        .focused($nameFocused)
-                        .onChange(of: nameFocused) { _, focused in if !focused { saveName() } }
-                    if nameTask.busy { ProgressView().tint(.white) } else if !nameFocused {
-                        Image(systemName: "pencil").font(.footnote.weight(.bold)).opacity(0.7)
+                        .background(Circle().fill(Theme.lime))
+                    // Profile photo (#108), same as in Community.
+                    if let url = model.api.resolve(Community.shared.me.avatarUrl) {
+                        AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                            .frame(width: 64, height: 64)
+                            .clipShape(Circle())
                     }
                 }
-                Text(user.email ?? "Hidden (Apple)").font(.footnote.weight(.medium)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.8)
+                .overlay(Circle().strokeBorder(Theme.lime, lineWidth: 2.5))
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        TextField("Add your name", text: $name, prompt: Text("Add your name").foregroundStyle(.white.opacity(0.6)))
+                            .font(Theme.display(22))
+                            .textContentType(.name)
+                            .submitLabel(.done)
+                            .focused($nameFocused)
+                            .onChange(of: nameFocused) { _, focused in if !focused { saveName() } }
+                        if nameTask.busy { ProgressView().tint(.white) } else if !nameFocused {
+                            Image(systemName: "pencil").font(.footnote.weight(.bold)).opacity(0.7)
+                        }
+                        sessionsPill
+                    }
+                    Text(user.email ?? "Hidden (Apple)").font(.footnote.weight(.medium)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.8)
+                }
+            }
+            let pro = ProStore.shared.entitlement.pro
+            if user.appleLinked || (user.emailVerified && user.email != nil) || pro {
                 HStack(spacing: 6) {
                     if user.appleLinked { chip("Apple", symbol: "apple.logo") }
                     if user.emailVerified && user.email != nil { chip("Verified", symbol: "checkmark.seal.fill") }
-                    if ProStore.shared.entitlement.pro { chip("PRO", symbol: "crown.fill") }
+                    if pro { chip("PRO", symbol: "crown.fill", highlighted: true) }
                 }
             }
-            Spacer(minLength: 4)
-            AccountValue(value: "\(model.history.count)", unit: "sessions")
         }
         .foregroundStyle(.white)
         .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(AccountTint.profile))
+    }
+
+    private var sessionsPill: some View {
+        let count = model.history.count
+        return Text("\(count) \(count == 1 ? "SESSION" : "SESSIONS")")
+            .font(Theme.label(11))
+            .monospacedDigit()
+            .lineLimit(1)
+            .fixedSize()
+            .foregroundStyle(Theme.ink)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(Theme.lime))
     }
 
     private func profileSubtitle(_ me: PublicProfile) -> String {
@@ -288,12 +319,15 @@ struct AccountView: View {
         return me.member ? "Shown in Community" : "Ready for Community"
     }
 
-    private func chip(_ title: String, symbol: String) -> some View {
+    private func chip(_ title: String, symbol: String, highlighted: Bool = false) -> some View {
         Label(title, systemImage: symbol)
             .font(Theme.label(10))
+            .lineLimit(1)
+            .fixedSize()
+            .foregroundStyle(highlighted ? Theme.ink : .white)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Capsule().fill(.white.opacity(0.22)))
+            .background(Capsule().fill(highlighted ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(.white.opacity(0.22))))
     }
 
     private func initials(_ user: User) -> String {
