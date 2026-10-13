@@ -5,6 +5,7 @@ struct AccountView: View {
     @Environment(AppModel.self) private var model
     @Environment(AppLock.self) private var lock
     @Environment(HealthManager.self) private var health
+    @AppStorage(ProgressLayout.storageKey) private var progressLayoutRaw = ProgressLayout.default.rawValue
     @State private var name = ""
     @State private var nameTask = FormTask()
     @FocusState private var nameFocused: Bool
@@ -15,6 +16,8 @@ struct AccountView: View {
     @State private var deviceCount: Int?
     @State private var gate: ProGate?
     @State private var webPage: WebPage?
+
+    private var progressLayout: ProgressLayout { ProgressLayout(rawValue: progressLayoutRaw) ?? .default }
 
     var body: some View {
         ScrollView {
@@ -83,6 +86,14 @@ struct AccountView: View {
                         AccountCard(symbol: "bell.badge.fill", title: "Reminders & alerts",
                                     subtitle: "Session reminders, check-ins, cheers",
                                     gradient: AccountTint.notifications)
+                    }
+                    .buttonStyle(.plain)
+
+                    // Top of the Progress tab (#238).
+                    NavigationLink { ProgressLayoutView() } label: {
+                        AccountCard(symbol: progressLayout.symbol, title: "Progress layout",
+                                    subtitle: progressLayout.title,
+                                    gradient: LinearGradient(colors: progressLayout.colors, startPoint: .topLeading, endPoint: .bottomTrailing))
                     }
                     .buttonStyle(.plain)
 

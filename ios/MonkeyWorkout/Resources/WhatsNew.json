@@ -6,6 +6,12 @@
       "tint": "strength",
       "title": "Smoother exercise motion",
       "body": "The exercise movement now glides from pose to pose without flashing, and the dot on the path moves with it."
+    },
+    {
+      "symbol": "square.grid.2x2.fill",
+      "tint": "strength",
+      "title": "Your highlights on top of Progress",
+      "body": "Measurements, records, achievements and body now sit at the top of Progress. Prefer a swipeable strip or tabs? Pick your layout in Account → Progress layout."
     }
   ]
 }
