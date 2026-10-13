@@ -1,5 +1,5 @@
 {
-  "id": "2026-10-12.7",
+  "id": "2026-10-12.6",
   "items": [
     {
       "symbol": "rotate.3d",
@@ -12,6 +12,24 @@
       "tint": "power",
       "title": "Help with every measurement",
       "body": "Tap ? on any measurement to see where the tape goes, with steps and a tip. Or tap Measure with me to be guided through them one by one."
+    },
+    {
+      "symbol": "applewatch",
+      "tint": "power",
+      "title": "Pick your Apple Watch home",
+      "body": "Three fun home screens for your Watch: Monkey coach cheers you on, Crown deck flips through your week, Charge & go starts with a press and hold. Change it in Account → Apple Watch or on the Watch."
+    },
+    {
+      "symbol": "gamecontroller.fill",
+      "tint": "strength",
+      "title": "Watch screens to match",
+      "body": "Every Watch screen follows your pick: full colour, gradient tiles, or game mode with XP, levels, badges and a monkey victory dance."
+    },
+    {
+      "symbol": "chart.bar.xaxis",
+      "tint": "strength",
+      "title": "Live progress tiles",
+      "body": "Progress tiles switch between Week, Month and All, show your trend and the change vs last time. Tap a tile for its chart, tap a day in the calendar to open that workout."
     }
   ]
 }

@@ -140,6 +140,7 @@ private struct DemoScreen: View {
         case "pr-result": PRAttemptView(exerciseId: "bench-press", showing: Demo.prResult)
         case "technique": FormSheet(exercise: Exercise.get("leg-press"))
         case "progress", "progress-empty": NavigationStack { ProgressTabView() }
+        case "progress-flipped": NavigationStack { ProgressTabView(demoFlipped: .volume) }
         case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
         case "body": NavigationStack { BodyHealthView() }
         case "measurements": NavigationStack { MeasurementsView() }
@@ -239,6 +240,7 @@ private struct DemoScreen: View {
             }
         case "away": AwayEditorView(initial: AwayPeriod(kind: .travel, start: Demo.away()[1].start, end: Demo.away()[1].end, note: "Berlin", setup: .hotelGym), isNew: true) { _ in }
         case "notifications": NavigationStack { NotificationSettingsView() }
+        case "watch-home": NavigationStack { WatchHomeView() }
         case "reschedule":
             MissedSessionSheet(sessionId: second, day: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
         default: MainTabView()
