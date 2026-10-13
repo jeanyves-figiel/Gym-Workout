@@ -47,7 +47,7 @@ behind-back-clasp                  stretch   handN    PULL/PUSH effort PUSH path
 belt-squat                         strength  head     DOWN/UP   effort UP   path yes
 bench-dip                          strength  hip      DOWN/UP   effort UP   path yes
 bench-press                        strength  handN    DOWN/UP   effort UP   path yes
-biceps-wall                        stretch   handN      UP/DOWN effort UP   path yes
+biceps-wall                        stretch   toeN     PUSH/PULL effort PUSH path yes
 bicycle-crunch                     strength  kneeN    DOWN/UP   effort UP   path yes
 bike                               cardio    toeF     PUSH/PULL effort PUSH path yes
 bird-dog                           strength  handN      UP/DOWN effort UP   path yes
@@ -186,7 +186,7 @@ hanging-shoulder-circles           mobility  head     PULL/PUSH effort PUSH path
 heel-elevated-goblet-squat         strength  handN    DOWN/UP   effort UP   path yes
 high-knees                         cardio    handN      UP/DOWN effort UP   path yes
 high-low-cable-fly                 strength  handN    DOWN/UP   effort UP   path yes
-hip-90-90                          warmup    toeF       IN/OUT  effort OUT  path yes
+hip-90-90                          warmup    toeN      OUT/IN   effort OUT  path yes
 hip-abduction                      strength  toeF      OUT/IN   effort OUT  path yes
 hip-adduction                      strength  toeF       IN/OUT  effort IN   path yes
 hip-car                            mobility  toeN     PULL/PUSH effort PUSH path yes
@@ -279,7 +279,7 @@ overhead-triceps                   strength  handN    PUSH/PULL effort PUSH path
 pallof-press                       strength  handN    PUSH/PULL effort PUSH path yes
 pancake-gm                         mobility  handN    DOWN/UP   effort UP   path yes
 pec-deck-fly                       strength  handN      IN/OUT  effort IN   path yes
-pec-stretch                        stretch   handN      UP/DOWN effort UP   path yes
+pec-stretch                        stretch   toeN     PUSH/PULL effort PUSH path yes
 pendlay-row                        strength  handN      UP/DOWN effort UP   path yes
 pendulum-squat                     strength  handN    DOWN/UP   effort UP   path yes
 pigeon                             stretch   handN    PUSH/PULL effort PUSH path yes
