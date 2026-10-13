@@ -315,11 +315,13 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
     // MARK: Copies
 
     /// A new, editable custom workout with the example's exercises.
+    /// Warm-up and cool-down moves come along as session flow blocks (#252).
     public init(duplicating t: WorkoutTemplate, createdAt: Date = Date()) {
+        let main = t.items.filter { t.blockKind($0) == t.main }
         self.init(
             name: "\(t.name) (copy)",
-            items: t.items.map { Item(exerciseId: $0.exerciseId, sets: $0.sets, reps: $0.reps, restSec: WorkoutTemplate.restSec, kcal: $0.kcal) },
-            createdAt: createdAt)
+            items: main.map { Item(exerciseId: $0.exerciseId, sets: $0.sets, reps: $0.reps, restSec: $0.restSec, kcal: $0.kcal, group: $0.group?.first.map(String.init)) },
+            createdAt: createdAt, flow: t.session.blocks.filter { $0.kind != t.main })
     }
 
     /// A copy with fresh ids (workout and items).
