@@ -60,7 +60,7 @@ jobs:
           [ -d "$X" ] || { echo "::error::MonkeyWorkoutWatchComplications.appex missing from the Watch app"; exit 1; }
           plutil -p "$X/Info.plist" | grep -E 'CFBundleIdentifier|NSExtensionPointIdentifier|MWAppGroup|MinimumOSVersion'
           plutil -p "$W/Info.plist" | grep -E 'CFBundleIdentifier|WKApplication|WKCompanionAppBundleIdentifier|MinimumOSVersion'
-      # Complications (#190): install on a Watch simulator and check the face gallery loads the extension's widgets.
+      # Complications (#190, #235): install on a Watch simulator; fail if the extension crashes when the face gallery loads it.
       - name: Check Watch complications register (simulator)
         run: |
           APP=build/Build/Products/Staging-watchsimulator/MonkeyWorkoutWatch.app
@@ -84,8 +84,12 @@ jobs:
           grep -iE 'error|fail|crash|invalid|unable' chrono.log | grep -i -E 'monkey|complication|descriptor' | cut -c1-400 | head -n 40 || true
           echo "--- crash reports"
           ls -t ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -i monkey | head || true
-          for f in $(ls -t ~/Library/Logs/DiagnosticReports/*MonkeyWorkout* 2>/dev/null | head -n 2); do head -c 6000 "$f"; done
+          for f in $(ls -t ~/Library/Logs/DiagnosticReports/*MonkeyWorkoutWatchComplications* 2>/dev/null | head -n 1); do head -c 6000 "$f"; done
           xcrun simctl shutdown "$WATCH" || true
+          if grep -q 'MonkeyWorkoutWatchComplications.*Fatal error' chrono.log || ls ~/Library/Logs/DiagnosticReports/*MonkeyWorkoutWatchComplications* >/dev/null 2>&1; then
+            echo "::error::Complications extension crashed on the Watch simulator: no complication would show on watch faces"
+            exit 1
+          fi
 
   screenshots:
     name: Screenshots (demo mode)

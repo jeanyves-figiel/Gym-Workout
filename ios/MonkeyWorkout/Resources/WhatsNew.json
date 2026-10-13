@@ -1,35 +1,11 @@
 {
-  "id": "2026-10-12.6",
+  "id": "2026-10-13.1",
   "items": [
     {
-      "symbol": "rotate.3d",
-      "tint": "strength",
-      "title": "Your body in 3D",
-      "body": "Explore → Muscles can now show a 3D body: turn it, zoom in and tap a muscle to see its exercises. Switch 2D / 3D on the map or in Account → Body & Health."
-    },
-    {
-      "symbol": "ruler.fill",
-      "tint": "power",
-      "title": "Help with every measurement",
-      "body": "Tap ? on any measurement to see where the tape goes, with steps and a tip. Or tap Measure with me to be guided through them one by one."
-    },
-    {
-      "symbol": "applewatch",
-      "tint": "power",
-      "title": "Your Apple Watch, your style",
-      "body": "Pick a Watch home: Monkey coach, Crown deck or Charge & go. Every Watch screen follows: full colour, gradient tiles, or game mode with XP, levels and badges. Change it in Account → Apple Watch."
-    },
-    {
-      "symbol": "chart.bar.xaxis",
-      "tint": "strength",
-      "title": "Live progress tiles",
-      "body": "Progress tiles switch between Week, Month and All, show your trend and the change vs last time. Tap a tile for its chart, tap a day in the calendar to open that workout."
-    },
-    {
-      "symbol": "person.crop.circle.badge.checkmark",
+      "symbol": "applewatch.watchface",
       "tint": "cardio",
-      "title": "Tidier Account header",
-      "body": "Your Apple, Verified and PRO badges sit on their own row and your session count is a bright pill next to your name. No more broken words."
+      "title": "Watch complications are here",
+      "body": "MonkeyWorkout complications now show on your watch faces and in the Smart Stack: long-press the face, Edit, Complications, then pick MonkeyWorkout."
     }
   ]
 }
