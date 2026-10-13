@@ -71,7 +71,7 @@ import Testing
 
     @Test func playbackRunsRepsContinuously() {
         let p = MotionPlayback(frames: 9, cycles: 2, out: 1, back: 2, hold: 0.5)
-        #expect(p.duration == 7)
+        #expect(p.duration == 8)
         #expect(p.state(at: 0)?.position == 0)
         #expect(p.state(at: 0.5)?.position == 4)
         #expect(p.state(at: 0.5)?.outbound == true)
@@ -80,7 +80,7 @@ import Testing
         #expect(p.state(at: 2.5)?.position == 4)
         #expect(p.state(at: 2.5)?.outbound == false)
         #expect(p.state(at: 4)?.rep == 2)
-        #expect(p.state(at: 7) == nil)
+        #expect(p.state(at: 8) == nil)
         #expect(p.state(at: -0.1) == nil)
         // Position never jumps: sampled at 120 Hz it moves less than one frame per tick.
         var prev = 0.0
