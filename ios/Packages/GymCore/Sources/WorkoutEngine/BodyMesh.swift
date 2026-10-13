@@ -21,7 +21,7 @@ public struct BodyMesh: Sendable {
     /// Design units per grid step of the mesh.
     public static let step = 1.5
     /// Depth scale: z = depth · √d (d = design units from the edge).
-    static let depth = 3.4
+    static let depth = 3.8
     /// Extra depth over muscles (design units).
     static let relief = 1.4
 

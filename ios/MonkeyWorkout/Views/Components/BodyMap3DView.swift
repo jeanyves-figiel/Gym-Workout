@@ -70,7 +70,7 @@ struct BodyMap3DView: UIViewRepresentable {
         private var requestedYaw: Double?
         private var build: Task<Void, Never>?
 
-        static let homeDistance = 1060.0
+        static let homeDistance = 880.0
 
         func setUp() {
             view?.scene = scene
@@ -180,7 +180,7 @@ struct BodyMap3DView: UIViewRepresentable {
         }
 
         @objc func pinch(_ g: UIPinchGestureRecognizer) {
-            distance = max(420, min(1300, distance / Double(g.scale)))
+            distance = max(380, min(1200, distance / Double(g.scale)))
             g.scale = 1
             placeCamera()
         }
@@ -349,7 +349,7 @@ struct BodyMap3DPanel: View {
     enum Snap: String, CaseIterable, Identifiable {
         case front = "Front", side = "Side", back = "Back"
         var id: String { rawValue }
-        var yaw: Double { switch self { case .front: 0; case .side: -90; case .back: 180 } }
+        var yaw: Double { switch self { case .front: 0; case .side: -65; case .back: 180 } }
     }
 
     var body: some View {
