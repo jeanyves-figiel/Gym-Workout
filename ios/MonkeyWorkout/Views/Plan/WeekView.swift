@@ -1,7 +1,7 @@
 import SwiftUI
 import WorkoutEngine
 
-/// "Train" tab: week card with readiness inside, today's session first, then the week list.
+/// "Train" tab: compact week + readiness card, today's session first, then the week list.
 struct WeekView: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
@@ -249,74 +249,125 @@ private struct HeaderChip: View {
     }
 }
 
+/// Compact week + readiness card (#246, design C): done ring, readiness verdict as headline on a card that fades
+/// from the phase colour into the readiness colour, week bar. No readiness → phase as headline, Connect Health row.
 private struct WeekHero: View {
     let plan: WeekPlan
     let profile: Profile
     let done: Int
     @Environment(AppModel.self) private var model
-    @State private var explaining = false
+    @Environment(HealthManager.self) private var health
+    @State private var explainingPhase = false
+    @State private var explainingReadiness = false
 
-    /// Explore-style card per cycle phase: colour, icon, one-word job and its rule.
-    private var phase: (palette: WorkoutEngine.Category, symbol: String, title: String, rule: String) {
+    /// Explore-style colour per cycle phase, its one-word job and its rule.
+    private var phase: (palette: WorkoutEngine.Category, title: String, rule: String) {
         switch Generator.phaseIndex(plan.week) {
-        case 0: (.cardio, "leaf.fill", "Ease in", "RPE −1")
-        case 1: (.strength, "chart.line.uptrend.xyaxis", "Build", "Target RPE")
-        case 2: (.power, "flame.fill", "Peak week", "+1 set on main lifts")
-        default: (.stretch, "bed.double.fill", "Recover", "−40% volume")
+        case 0: (.cardio, "Ease in", "RPE −1")
+        case 1: (.strength, "Build", "Target RPE")
+        case 2: (.power, "Peak week", "+1 set on main lifts")
+        default: (.stretch, "Recover", "−40% volume")
         }
     }
 
     var body: some View {
         let p = phase
-        VStack(alignment: .leading, spacing: 14) {
-            Button { explaining = true } label: {
-                HStack(spacing: 14) {
-                    IconTile(symbol: p.symbol, size: 52)
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 4) {
-                            Text("Week \(plan.week) of \(Generator.mesocycleWeeks) · \(Generator.phaseName(plan.week))").tracking(1.2)
-                            Image(systemName: "info.circle.fill")
-                        }
-                        .font(Theme.label(11))
-                        .textCase(.uppercase)
-                        .opacity(0.85)
-                        Text(p.title).font(Theme.display(24)).lineLimit(1).minimumScaleFactor(0.7)
-                        Text("\(p.rule) · \(plan.sessions.count) sessions · \(plan.sessionMinutes) min")
-                            .font(.footnote.weight(.semibold))
-                            .opacity(0.9)
-                            .fixedSize(horizontal: false, vertical: true)
+        let readiness = Readiness.assess(health.snapshot)
+        HStack(spacing: 12) {
+            DoneRing(done: done, total: plan.sessions.count)
+            VStack(alignment: .leading, spacing: 2) {
+                Button { explainingPhase = true } label: {
+                    HStack(spacing: 4) {
+                        Text(readiness == nil
+                             ? "Week \(plan.week) of \(Generator.mesocycleWeeks) · \(Generator.phaseName(plan.week)) · \(p.rule)"
+                             : "\(p.title) · W\(plan.week)/\(Generator.mesocycleWeeks) · \(p.rule)")
+                            .tracking(1.1).lineLimit(1).minimumScaleFactor(0.7)
+                        Image(systemName: "info.circle.fill")
                     }
-                    Spacer(minLength: 4)
-                    VStack(alignment: .trailing, spacing: 0) {
-                        Text("\(done)/\(plan.sessions.count)").font(Theme.display(34)).monospacedDigit()
-                        Text("DONE").font(Theme.label(10)).tracking(1.3).opacity(0.85)
-                    }
-                    .fixedSize()
+                    .font(Theme.label(10))
+                    .textCase(.uppercase)
+                    .opacity(0.9)
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("Explains this week's training phase")
-            ReadinessPill()
-            HStack(spacing: 6) {
-                ForEach(1...Generator.mesocycleWeeks, id: \.self) { w in
-                    Button { model.setWeek(w) } label: {
-                        Capsule()
-                            .fill(.white.opacity(w == plan.week ? 1 : w < plan.week ? 0.55 : 0.3))
-                            .frame(height: 6)
-                            .padding(.vertical, 6)
-                            .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .accessibilityHint("Explains this week's training phase")
+                if let assessed = readiness {
+                    let r = assessed.0
+                    Button { explainingReadiness = true } label: {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(r.title).font(Theme.display(21)).lineLimit(1).minimumScaleFactor(0.7)
+                            Text(model.readinessEased ? "Today's session eased: −1 RPE, 1 set less" : r.markers(health.snapshot))
+                                .font(.caption.weight(.semibold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.75)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Week \(w)")
+                    .accessibilityLabel("Readiness: \(r.title)")
+                    .accessibilityHint("Explains readiness and each marker")
+                    .sheet(isPresented: $explainingReadiness) {
+                        ReadinessSheet(snapshot: health.snapshot, readiness: r, flags: assessed.1).presentationDetents([.large])
+                    }
+                } else {
+                    Text(p.title).font(Theme.display(21)).lineLimit(1).minimumScaleFactor(0.7)
+                    if health.available, health.settled, !health.connected {
+                        Button { Task { await health.connect() } } label: {
+                            Label("Connect Health for readiness", systemImage: "heart.fill")
+                                .font(.caption.weight(.bold)).lineLimit(1).minimumScaleFactor(0.75)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Asks Apple Health for heart rate variability, resting heart rate and sleep")
+                    } else {
+                        Text("\(plan.sessions.count) sessions · \(plan.sessionMinutes) min").font(.caption.weight(.semibold))
+                    }
                 }
+                HStack(spacing: 4) {
+                    ForEach(1...Generator.mesocycleWeeks, id: \.self) { w in
+                        Button { model.setWeek(w) } label: {
+                            Capsule()
+                                .fill(.white.opacity(w == plan.week ? 1 : w < plan.week ? 0.55 : 0.3))
+                                .frame(height: 4)
+                                .padding(.vertical, 6)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Week \(w)")
+                    }
+                }
+                .padding(.bottom, -6)
             }
-            .padding(.bottom, -6)
         }
         .foregroundStyle(.white)
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(p.palette.gradient))
-        .sheet(isPresented: $explaining) { WeekPhaseSheet(week: plan.week).presentationDetents([.large]) }
+        .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(
+            LinearGradient(colors: p.palette.colors + (readiness?.0.colors ?? []), startPoint: .leading, endPoint: .trailing)))
+        .sheet(isPresented: $explainingPhase) { WeekPhaseSheet(week: plan.week).presentationDetents([.large]) }
+    }
+}
+
+/// Sessions done this week as a ring with the count inside.
+private struct DoneRing: View {
+    let done: Int
+    let total: Int
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(.white.opacity(0.3), lineWidth: 6)
+            Circle()
+                .trim(from: 0, to: total > 0 ? min(1, CGFloat(done) / CGFloat(total)) : 0)
+                .stroke(.white, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            VStack(spacing: -1) {
+                Text("\(done)/\(total)").font(Theme.display(15)).monospacedDigit()
+                Text("DONE").font(Theme.label(7)).tracking(1)
+            }
+        }
+        .frame(width: 54, height: 54)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(done) of \(total) sessions done")
     }
 }
 
