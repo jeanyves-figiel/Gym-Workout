@@ -143,11 +143,22 @@ public struct MotionPlayback: Sendable, Equatable {
         return nil
     }
 
-    /// Lower frame and how much of the next frame is blended over it at `position` (`frames` frames).
-    public static func blend(_ position: Double, frames: Int) -> (lower: Int, upper: Double) {
+    /// Lower frame and how much of the next frame is blended over it at `position` (`frames` frames). With
+    /// `window` < 1 (#241) each step holds the lower frame and only dissolves to the next one over the last
+    /// `window` of the step (smoothstep), so two poses are rarely seen half-transparent on top of each other.
+    public static func blend(_ position: Double, frames: Int, window: Double = 1) -> (lower: Int, upper: Double) {
         let last = max(frames - 1, 0)
         let p = min(max(position, 0), Double(last))
         let lower = min(Int(p.rounded(.down)), last)
-        return (lower, lower < last ? p - Double(lower) : 0)
+        guard lower < last else { return (lower, 0) }
+        var w = p - Double(lower)
+        if window < 1 {
+            w = max(0, (w - (1 - window)) / max(window, 1e-6))
+            w = w * w * (3 - 2 * w)
+        }
+        return (lower, w)
     }
+
+    /// Part of each frame step spent dissolving to the next frame in the app (#241): a quick switch.
+    public static let switchWindow = 0.2
 }

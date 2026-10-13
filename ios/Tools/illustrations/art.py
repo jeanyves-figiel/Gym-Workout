@@ -711,6 +711,12 @@ def _abs(t, rel):
     return tuple(out)
 
 
+def _full_limb(key, v):
+    if len(v) != 2:
+        return v
+    return (v[0], v[1], v[1] if key[0] == "a" else v[1] - 90)
+
+
 def lerp_pose(a, b, k):
     out = dict(a)
     side = not a.get("front") and not b.get("front")
@@ -719,6 +725,11 @@ def lerp_pose(a, b, k):
     for key, va in a.items():
         vb = b.get(key)
         ang = key in ANGLES
+        if key in ("aN", "aF", "lN", "lF") and isinstance(va, tuple) and isinstance(vb, tuple) and len(va) != len(vb):
+            # A limb given without its hand / foot angle (#241): fill in the default figure.place draws, so the
+            # limb still interpolates instead of holding pose a's angles until the key snaps to pose b.
+            va, vb = _full_limb(key, va), _full_limb(key, vb)
+            out[key] = va
         if side and key in ("aN", "aF", "lN", "lF") and isinstance(va, tuple) and isinstance(vb, tuple) \
                 and len(va) == len(vb):
             win = JOINT_WINDOWS[key[0]]
@@ -734,8 +745,12 @@ def lerp_pose(a, b, k):
     if "pin" in a or "pin" in b:
         # Move one joint in a straight line from where it is in pose a to where it is in pose b, even when the
         # two poses pin different joints (or one rests on the floor): positions come from placing both poses.
-        n = (a.get("pin") or b["pin"])[0]
-        pa, pb = F.place(a)[n], F.place(b)[n]
+        # Of the two poses' pinned joints, the one that moves least (#241: a hand that stays planted while the
+        # other one lifts keeps the body supported instead of sinking).
+        ja, jb = F.place(a), F.place(b)
+        names = [p[0] for p in (a.get("pin"), b.get("pin")) if p and p[0] in ja and p[0] in jb]
+        n = min(names, key=lambda m: math.dist(ja[m], jb[m])) if names else (a.get("pin") or b["pin"])[0]
+        pa, pb = ja[n], jb[n]
         out["pin"] = (n, (pa[0] + (pb[0] - pa[0]) * k, pa[1] + (pb[1] - pa[1]) * k))
         out.pop("lift", None)
     for key in ("props", "front_props"):
@@ -744,8 +759,13 @@ def lerp_pose(a, b, k):
     return out
 
 
-FRAMES = 9  # per exercise: start (0), middle (FRAMES // 2), end (FRAMES - 1) and eased in-betweens (#229)
+FRAMES = 17  # per exercise: start (0), middle (FRAMES // 2), end (FRAMES - 1) and eased in-betweens (#229)
 KEYS = (0, FRAMES // 2, FRAMES - 1)
+
+
+def at(f):
+    """Frame nearest to fraction f (0 = start, 1 = end) of the movement, for hand-made in-betweens."""
+    return round(f * (FRAMES - 1))
 
 
 def ease(t):
