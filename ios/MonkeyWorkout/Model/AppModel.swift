@@ -85,7 +85,7 @@ final class AppModel {
                 state.climbs = []
                 state.prAttempts = []
             }
-            phase = ["welcome", "signin", "signup", "verify"].contains(Demo.screen) ? .signedOut : .signedIn
+            phase = ["welcome", "signin", "signin-2step", "signup", "verify"].contains(Demo.screen) ? .signedOut : .signedIn
             return
         }
         #endif
@@ -135,8 +135,9 @@ final class AppModel {
         resetLocal()
     }
 
-    func deleteAccount(password: String?) async throws {
-        try await api.deleteAccount(password: password)
+    /// Caller confirms it's the member first (`ReauthGate`, #257).
+    func deleteAccount() async throws {
+        try await api.deleteAccount()
         await NotificationManager.shared.signOut(api: api)
         resetLocal()
     }

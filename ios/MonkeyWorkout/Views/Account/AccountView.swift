@@ -125,10 +125,16 @@ struct AccountView: View {
                                     gradient: AccountTint.password)
                     }
                     .buttonStyle(.plain)
-                    NavigationLink { ChangeEmailView(currentEmail: user.email, hasPassword: user.hasPassword) } label: {
+                    NavigationLink { ChangeEmailView(currentEmail: user.email) } label: {
                         AccountCard(symbol: "envelope.fill", title: user.email == nil ? "Add email" : "Email",
                                     subtitle: user.email == nil ? "Sign in without Apple" : "Change sign-in email",
                                     gradient: AccountTint.email)
+                    }
+                    .buttonStyle(.plain)
+                    // 2-step sign-in, recovery codes, passkeys (#257).
+                    NavigationLink { SecurityView() } label: {
+                        AccountCard(symbol: "lock.shield.fill", title: "Security", subtitle: "2-step sign-in and passkeys",
+                                    gradient: SecurityTint.confirm)
                     }
                     .buttonStyle(.plain)
                     NavigationLink { DevicesView() } label: {
@@ -193,7 +199,7 @@ struct AccountView: View {
                 ErrorText(message: signOutAllTask.error)
 
                 NavigationLink {
-                    DeleteAccountView(hasPassword: model.user?.hasPassword ?? false)
+                    DeleteAccountView()
                 } label: {
                     AccountCard(symbol: "trash.fill", title: "Delete account", subtitle: "Permanent. Export your data first.", gradient: nil, textColor: .red) {
                         AccountChevron()
@@ -349,9 +355,9 @@ struct ChangePasswordView: View {
     let hasPassword: Bool
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    @State private var current = ""
     @State private var new = ""
     @State private var task = FormTask()
+    @State private var gate = ReauthGate()
 
     var body: some View {
         ScrollView {
@@ -359,20 +365,18 @@ struct ChangePasswordView: View {
                 AccountHeader(symbol: "key.fill", title: hasPassword ? "Change password" : "Set a password",
                               subtitle: hasPassword ? "Other devices will be signed out." : "Sign in with your email too. Other devices will be signed out.",
                               gradient: AccountTint.password)
-                if hasPassword {
-                    AccountField(label: "Current password") {
-                        SecureField("Current password", text: $current).textContentType(.password)
-                    }
-                }
                 AccountField(label: "New password") {
                     SecureField("At least 10 characters", text: $new).textContentType(.newPassword)
                 }
                 PasswordHint(password: new)
                 ErrorText(message: task.error)
+                AccountNote(text: "We'll ask you to confirm it's you first.")
                 LimeActionButton(title: "Save", busy: task.busy,
-                                 disabled: new.isEmpty || PasswordRules.problem(new) != nil || (hasPassword && current.isEmpty)) {
+                                 disabled: new.isEmpty || PasswordRules.problem(new) != nil) {
+                    let new = new
                     task.run {
-                        try await model.api.changePassword(current: hasPassword ? current : nil, new: new)
+                        // Confirm it's you (#257): passkey, Apple, current password, 2-step or email code.
+                        try await gate.run(model.api) { try await model.api.changePassword(new: new) }
                         await model.refreshUser()
                         dismiss()
                     }
@@ -385,6 +389,7 @@ struct ChangePasswordView: View {
         .themedForm()
         .navigationTitle(hasPassword ? "Change password" : "Set password")
         .toolbarTitleDisplayMode(.inline)
+        .reauthSheet(gate)
     }
 }
 
@@ -432,11 +437,10 @@ struct DevicesView: View {
 }
 
 struct DeleteAccountView: View {
-    let hasPassword: Bool
     @Environment(AppModel.self) private var model
-    @State private var password = ""
     @State private var confirmText = ""
     @State private var task = FormTask()
+    @State private var gate = ReauthGate()
 
     var body: some View {
         ScrollView {
@@ -449,11 +453,6 @@ struct DeleteAccountView: View {
                     // App Store 5.1.1(v): deleting the account doesn't stop Apple billing.
                     AccountNote(text: "Deleting your account doesn't cancel your MonkeyWorkout Pro subscription. Cancel it in Settings → Apple ID → Subscriptions.")
                 }
-                if hasPassword {
-                    AccountField(label: "Password") {
-                        SecureField("Password", text: $password).textContentType(.password)
-                    }
-                }
                 AccountField(label: "Type DELETE to confirm") {
                     TextField("DELETE", text: $confirmText)
                         .textInputAutocapitalization(.characters)
@@ -461,8 +460,9 @@ struct DeleteAccountView: View {
                 }
                 ErrorText(message: task.error)
                 LimeActionButton(title: "Delete my account", busy: task.busy,
-                                 disabled: confirmText != "DELETE" || (hasPassword && password.isEmpty), destructive: true) {
-                    task.run { try await model.deleteAccount(password: hasPassword ? password : nil) }
+                                 disabled: confirmText != "DELETE", destructive: true) {
+                    // Confirm it's you first (#257).
+                    task.run { try await gate.run(model.api) { try await model.deleteAccount() } }
                 }
                 .padding(.top, 6)
             }
@@ -472,5 +472,6 @@ struct DeleteAccountView: View {
         .themedForm()
         .navigationTitle("Delete account")
         .toolbarTitleDisplayMode(.inline)
+        .reauthSheet(gate)
     }
 }

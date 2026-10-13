@@ -80,6 +80,7 @@ struct ProfileResponse<T: Decodable>: Decodable {
 struct ErrorBody: Decodable {
     var error: String
     var message: String
+    var mfaToken: String?
 }
 
 public enum APIError: Error, Equatable, LocalizedError {

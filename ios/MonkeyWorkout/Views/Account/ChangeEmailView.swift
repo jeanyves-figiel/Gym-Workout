@@ -4,11 +4,10 @@ import SwiftUI
 /// Change (or add) the account email: code sent to the new address, old address notified (#12).
 struct ChangeEmailView: View {
     let currentEmail: String?
-    let hasPassword: Bool
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var newEmail = ""
-    @State private var password = ""
+    @State private var gate = ReauthGate()
     @State private var code = ""
     @State private var sentTo: String?
     @State private var task = FormTask()
@@ -40,7 +39,7 @@ struct ChangeEmailView: View {
                     }
                     HStack(spacing: 10) {
                         AccountPillButton(title: resendTask.busy ? "Sending…" : "Resend code") {
-                            resendTask.run { try await model.api.requestEmailChange(newEmail: sentTo, password: hasPassword ? password : nil) }
+                            resendTask.run { try await gate.run(model.api) { try await model.api.requestEmailChange(newEmail: sentTo) } }
                         }
                         .disabled(resendTask.busy)
                         AccountPillButton(title: "Different email") {
@@ -60,18 +59,14 @@ struct ChangeEmailView: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                     }
-                    if hasPassword {
-                        AccountField(label: "Password") {
-                            SecureField("Password", text: $password).textContentType(.password)
-                        }
-                    }
-                    AccountNote(text: "We'll email a 6-digit code to the new address. Your current address will be told about the change.")
+                    AccountNote(text: "We'll ask you to confirm it's you, then email a 6-digit code to the new address. Your current address will be told about the change.")
                     ErrorText(message: task.error)
                     LimeActionButton(title: "Send code", busy: task.busy,
-                                     disabled: !trimmed.contains("@") || (hasPassword && password.isEmpty)) {
+                                     disabled: !trimmed.contains("@")) {
                         let email = trimmed
                         task.run {
-                            try await model.api.requestEmailChange(newEmail: email, password: hasPassword ? password : nil)
+                            // Confirm it's you first (#257).
+                            try await gate.run(model.api) { try await model.api.requestEmailChange(newEmail: email) }
                             sentTo = email
                         }
                     }
@@ -83,5 +78,6 @@ struct ChangeEmailView: View {
         .themedForm()
         .navigationTitle(currentEmail == nil ? "Add email" : "Change email")
         .toolbarTitleDisplayMode(.inline)
+        .reauthSheet(gate)
     }
 }

@@ -34,6 +34,8 @@ struct SignInView: View {
                 AccountPillButton(title: "Forgot password?") { path.append(.forgot) }
                 AccountPillButton(title: "Create an account") { path.append(.signUp) }
             }
+            Text("OR").eyebrow().frame(maxWidth: .infinity).padding(.top, 10)
+            PasskeySignInButton()
         }
     }
 
@@ -45,6 +47,8 @@ struct SignInView: View {
                 await model.didAuthenticate(user)
             } catch let e as APIError where e.code == "email_not_verified" {
                 path.append(.verify(email: email))
+            } catch let e as TwoStepRequired {
+                path.append(.twoStep(token: e.token)) // 2-step on (#257)
             }
         }
     }
