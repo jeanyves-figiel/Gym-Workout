@@ -5,13 +5,14 @@ import WorkoutEngine
 /// that pins under the title and lights up the section on screen. Replaces the three top layouts of #238.
 /// Page sections, in page order: map cards, bar chips and scroll targets.
 enum ProgressSection: String, CaseIterable, Identifiable, Hashable {
-    case training, body, records, badges, muscles, history
+    case training, programmes, body, records, badges, muscles, history
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .training: "Training"
+        case .programmes: "Programmes"
         case .body: "Body"
         case .records: "Records"
         case .badges: "Badges"
@@ -23,6 +24,7 @@ enum ProgressSection: String, CaseIterable, Identifiable, Hashable {
     var symbol: String {
         switch self {
         case .training: "dumbbell.fill"
+        case .programmes: "flag.checkered"
         case .body: "ruler.fill"
         case .records: "trophy.fill"
         case .badges: "medal.fill"
@@ -34,6 +36,7 @@ enum ProgressSection: String, CaseIterable, Identifiable, Hashable {
     var colors: [Color] {
         switch self {
         case .training: [Color(red: 1, green: 0.18, blue: 0.33), Color(red: 1, green: 0.44, blue: 0.71)]
+        case .programmes: WorkoutEngine.Category.power.colors
         case .body: WorkoutEngine.Category.strength.colors
         case .records: [Color(red: 1, green: 0.72, blue: 0), Color(red: 1, green: 0.37, blue: 0.23)]
         case .badges: [Theme.lime, Color(red: 0.12, green: 0.85, blue: 0.54)]
@@ -77,6 +80,9 @@ struct ProgressHighlights {
     /// Most worked muscle in the last 28 days; nil when nothing logged or the heat map is Pro-locked.
     var topMuscle: String?
     var musclesLocked: Bool
+    /// Running programme (#255): name and "Week 3 of 8" / "Paused"; nil when none.
+    var programme: (name: String, state: String)?
+    var programmesFinished: Int
 
     /// The measurement the body card features: biggest change among girths and body fat, else any.
     var featured: Measure? {
@@ -107,6 +113,7 @@ struct ProgressMap: View {
             GridRow { card(.training); card(.body) }
             GridRow { card(.records); card(.badges) }
             GridRow { card(.muscles); card(.history) }
+            GridRow { card(.programmes).gridCellColumns(2) }
         }
     }
 
@@ -157,6 +164,14 @@ struct ProgressMap: View {
             } else {
                 HubValue("Heat map")
                 HubNote("Fills as you train")
+            }
+        case .programmes:
+            if let p = h.programme {
+                HubValue(p.name)
+                HubNote(p.state)
+            } else {
+                HubValue(h.programmesFinished > 0 ? "\(h.programmesFinished) done" : "Start one")
+                HubNote("Multi-week plans toward a goal")
             }
         case .history:
             HubValue("\(h.workouts)")

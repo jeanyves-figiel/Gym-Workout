@@ -500,7 +500,7 @@ struct ClimbSettingsView: View {
         p.climbSameDay = sameDay == .avoid ? nil : sameDay
         p.climbDayAddon = addon ? true : nil
         if p != model.profile {
-            model.applyProfile(p, seed: model.plan?.seed, week: model.plan?.week ?? 1)
+            model.updateProfile(p)
         }
         dismiss()
     }

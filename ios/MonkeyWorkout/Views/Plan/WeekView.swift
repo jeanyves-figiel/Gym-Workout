@@ -23,6 +23,8 @@ struct WeekView: View {
                     // Game look (#227), same pick as the Watch style.
                     let style = WatchHomePref.shared.style
                     if style == .coach { MonkeyCoachCard() }
+                    // Training programme (#255): replaces the plan while it runs.
+                    ProgrammeHeroCard()
                     WeekHero(plan: plan, profile: profile, done: model.completedCount)
                     if style == .rings { LevelBarCard(next: model.nextSession) }
                     if let undo = model.variationUndo {
@@ -41,7 +43,7 @@ struct WeekView: View {
                         ClimbingSyncHint(healthPerWeek: perWeek, profileDays: profile.climbingDaysPerWeek) { n in
                             var p = profile
                             p.climbingDaysPerWeek = n
-                            model.applyProfile(p, seed: plan.seed, week: plan.week)
+                            model.updateProfile(p)
                         }
                     }
                     if Generator.isClimber(profile) {
@@ -105,6 +107,7 @@ struct WeekView: View {
         .navigationTitle("Train")
         .toolbarTitleDisplayMode(.inlineLarge)
         .navigationDestination(for: String.self) { id in SessionView(sessionId: id) }
+        .navigationDestination(for: ProgrammeRoute.self) { r in Programme.find(r.id).map { ProgrammeDetailView(programme: $0) } }
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $editing) {
             NavigationStack {
@@ -130,7 +133,10 @@ struct WeekView: View {
             Text(model.planInsert(for: s)?.replacing == nil ? "\(s.displayTitle) comes off this week's plan." : "This day goes back to its planned session.")
         }
         .refreshable { await model.sync() }
+        .sheet(item: Bindable(model).finishedProgramme) { r in ProgrammeFinishedSheet(record: r).presentationDetents([.large]) }
         .task {
+            // A new programme week (#255) builds its plan first.
+            model.syncProgramme()
             // Away periods (#68): re-plan from today on (new day, period starting this week).
             model.replanCurrentWeek()
             model.persist()
@@ -324,6 +330,7 @@ private struct WeekHero: View {
                 }
                 HStack(spacing: 4) {
                     ForEach(1...Generator.mesocycleWeeks, id: \.self) { w in
+                        // A running programme sets the week (#255): the bar only shows it.
                         Button { model.setWeek(w) } label: {
                             Capsule()
                                 .fill(.white.opacity(w == plan.week ? 1 : w < plan.week ? 0.55 : 0.3))
@@ -332,6 +339,7 @@ private struct WeekHero: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .disabled(model.runningProgramme != nil)
                         .accessibilityLabel("Week \(w)")
                     }
                 }

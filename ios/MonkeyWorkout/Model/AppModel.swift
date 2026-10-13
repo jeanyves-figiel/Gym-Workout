@@ -22,6 +22,8 @@ final class AppModel {
     var variationUndo: VariationUndo?
     /// Pro offer after the first plan (#126); not persisted, so it shows once.
     var offerPro = false
+    /// Programme just finished (#255): Train shows its finish sheet once; not persisted.
+    var finishedProgramme: ProgrammeRecord?
     /// Workouts other members shared (#62), loaded on demand; not persisted.
     var sharedLibrary: [SharedWorkout] = []
     /// Apple Health readings for first-time load estimates (#115); set at launch.
@@ -75,6 +77,7 @@ final class AppModel {
             state.synced?.away = Demo.away()
             state.synced?.savedGyms = Demo.savedGyms
             replanCurrentWeek()
+            Demo.programme(self)
             if Demo.screen == "workout-style", let id = state.plan?.sessions.dropFirst().first?.id {
                 setSessionStyle(id, SessionStyle(rest: .short, grouping: .supersets))
             }
@@ -201,7 +204,8 @@ final class AppModel {
                                planInserts: state.synced?.planInserts?.filter { $0.week == week },
                                exerciseSwaps: state.synced?.exerciseSwaps, variation: variation, moves: state.synced?.moves,
                                sessionStyles: state.synced?.sessionStyles?.filter { $0.key.hasPrefix("w\(week)s") },
-                               savedGyms: state.synced?.savedGyms)
+                               savedGyms: state.synced?.savedGyms, programme: state.synced?.programme,
+                               programmeHistory: state.synced?.programmeHistory)
         state.synced = sp
         // A profile edit (goal, days, gym…) re-plans the rest of this week (#194): sessions already done and the
         // one in progress keep their content; everything else follows the new profile.
@@ -220,13 +224,20 @@ final class AppModel {
     }
 
     func setWeek(_ week: Int) {
-        guard let sp = state.synced else { return }
+        // A running programme sets the week itself (#255).
+        guard let sp = state.synced, runningProgramme == nil else { return }
         applyProfile(sp.profile, seed: sp.seed, week: week)
     }
 
     /// Section edit from the Training profile hub or Community (#99): keeps this week and its variation seed.
     func updateProfile(_ profile: Profile) {
         guard let sp = state.synced else { return applyProfile(profile) }
+        // A running programme keeps its goal, split, method and focus (#255); its signature days follow the edit.
+        if let prog = runningProgramme {
+            applyProfile(prog.profile(from: profile), seed: sp.seed, week: sp.week)
+            placeSignatures()
+            return
+        }
         applyProfile(profile, seed: sp.seed, week: sp.week)
     }
 

@@ -69,6 +69,10 @@ struct ProgressTabView: View {
                             strengthTrend
                             if !climbList.isEmpty { ClimbingCard(climbs: climbList) }
                         }
+                        // Training programmes (#255): the running one, lifts start vs now, finished ones.
+                        group(.programmes, trailing: model.programmeHistory.isEmpty ? nil : "\(model.programmeHistory.filter(\.finished).count) finished") {
+                            ProgrammeProgressSection()
+                        }
                         group(.body, trailing: nil) {
                             if !model.measurementSeries(.weight).isEmpty || !health.snapshot.vo2Trend.isEmpty { bodyTrends }
                             ProgressMeasurementsSection()
@@ -103,6 +107,7 @@ struct ProgressTabView: View {
         .navigationTitle("Progress")
         .toolbarTitleDisplayMode(.inlineLarge)
         .navigationDestination(for: UUID.self) { id in HistoryDetailView(recordId: id) }
+        .navigationDestination(for: ProgrammeRoute.self) { r in Programme.find(r.id).map { ProgrammeDetailView(programme: $0) } }
         .sheet(item: $badge) { b in BadgeSheet(badge: b).presentationDetents([.medium]) }
     }
 
@@ -175,7 +180,11 @@ struct ProgressTabView: View {
             target: target,
             lastWorkout: model.history.map(\.startedAt).max(),
             topMuscle: s.muscleBalance.max { $0.value < $1.value }.map { $0.key.name },
-            musclesLocked: ProStore.shared.locked && s.totalWorkouts > 0)
+            musclesLocked: ProStore.shared.locked && s.totalWorkouts > 0,
+            programme: model.activeProgramme.flatMap { a in
+                a.programme.map { (name: $0.name, state: a.paused ? "Paused" : "Week \(model.programmeWeek ?? 1) of \($0.weeks)") }
+            },
+            programmesFinished: model.programmeHistory.filter(\.finished).count)
     }
 
     @ViewBuilder

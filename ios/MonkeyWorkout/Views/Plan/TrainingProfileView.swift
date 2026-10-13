@@ -6,6 +6,9 @@ enum ProfileSection: String, CaseIterable, Identifiable, Hashable {
     case goal, week, variety, style, flow, method, gym
     var id: String { rawValue }
 
+    /// Set by a running training programme (#255); shown locked.
+    var programmeLocked: Bool { self == .goal || self == .method }
+
     var title: String {
         switch self {
         case .goal: "Goal"
@@ -27,9 +30,15 @@ struct TrainingProfileView: View {
         ScrollView {
             if let p = model.profile {
                 VStack(spacing: 12) {
+                    // Training programme (#255): sets goal, split and method while it runs.
+                    ProgrammeProfileCard()
                     ForEach(ProfileSection.allCases) { s in
-                        NavigationLink(value: s) { ProfileSectionCard(section: s, profile: p) }
-                            .buttonStyle(.plain)
+                        if model.runningProgramme != nil && s.programmeLocked {
+                            ProfileSectionCard(section: s, profile: p, locked: true)
+                        } else {
+                            NavigationLink(value: s) { ProfileSectionCard(section: s, profile: p) }
+                                .buttonStyle(.plain)
+                        }
                     }
                 }
                 .padding(16)
@@ -38,6 +47,7 @@ struct TrainingProfileView: View {
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationDestination(for: ProfileSection.self) { ProfileSectionView(section: $0) }
+        .navigationDestination(for: ProgrammeRoute.self) { r in Programme.find(r.id).map { ProgrammeDetailView(programme: $0) } }
     }
 }
 
@@ -65,6 +75,8 @@ struct ProfileSectionView: View {
 struct ProfileSectionCard: View {
     let section: ProfileSection
     let profile: Profile
+    /// Set by a running programme (#255): dimmed, lock instead of the chevron.
+    var locked = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -84,14 +96,15 @@ struct ProfileSectionCard: View {
             }
             // Natural width only: a capped flexible frame always took 96 pt and truncated titles (#231).
             .fixedSize()
-            Image(systemName: "chevron.right").font(.footnote.bold()).opacity(0.7)
+            Image(systemName: locked ? "lock.fill" : "chevron.right").font(.footnote.bold()).opacity(0.7)
         }
         .foregroundStyle(.white)
         .padding(16)
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(gradient))
+        .opacity(locked ? 0.55 : 1)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(section.title): \(value)")
+        .accessibilityLabel("\(section.title): \(value)\(locked ? ", set by your programme" : "")")
     }
 
     private var gymName: String { profile.gym?.name ?? Gym.puls5.name }

@@ -23,6 +23,10 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var sessionStyles: [String: SessionStyle]?
     /// Gyms the member set up, each with its own equipment (#162). Optional so older profiles still decode.
     var savedGyms: [SavedGym]?
+    /// Training programme in progress (#255): replaces the plan while it runs. Optional so older profiles still decode.
+    var programme: ActiveProgramme?
+    /// Programmes finished or left (#255), newest last.
+    var programmeHistory: [ProgrammeRecord]?
 
     /// Profile the plan is generated from: the training profile plus this week's per-workout overrides.
     var planProfile: Profile {
