@@ -244,6 +244,20 @@ private struct DemoScreen: View {
         case "away": AwayEditorView(initial: AwayPeriod(kind: .travel, start: Demo.away()[1].start, end: Demo.away()[1].end, note: "Berlin", setup: .hotelGym), isNew: true) { _ in }
         case "notifications": NavigationStack { NotificationSettingsView() }
         case "watch-home": NavigationStack { WatchHomeView() }
+        // Game looks (#227): game-{week|session|done|progress}-{coach|deck|rings}; week is the Train tab.
+        case let g where g.hasPrefix("game-session"): NavigationStack { SessionView(sessionId: second) }
+        case let g where g.hasPrefix("game-done"): WorkoutPlayerView(sessionId: second, demoMode: "done")
+        case let g where g.hasPrefix("game-progress"): NavigationStack { ProgressTabView() }
+        case "game-quest-deck":
+            NavigationStack {
+                ScrollView {
+                    if let plan = model.plan {
+                        QuestMap(sessions: plan.sessions, days: [:]) { _, _ in EmptyView() }.padding(16)
+                    }
+                }
+                .background(Theme.bg.ignoresSafeArea())
+                .navigationTitle("Week quest")
+            }
         case "reschedule":
             MissedSessionSheet(sessionId: second, day: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
         default: MainTabView()

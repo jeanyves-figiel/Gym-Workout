@@ -90,6 +90,8 @@ struct SessionView: View {
                 if s.weekday == nil, let context = model.libraryTitle(s) { Text(context).eyebrow() }
                 Text(s.displayTitle).font(Theme.display(38)).fixedSize(horizontal: false, vertical: true)
             }
+            // What finishing it earns, in the member's game look (#227).
+            if !s.blocks.allSatisfy({ $0.items.isEmpty }) { SessionGameBanner(session: s) }
             LibraryActionsPanel(session: s)
             if let t = WorkoutTemplate.find(sessionId: s.id) {
                 Text("\(t.kcal) kcal · \(t.activityPoints) activity points").font(Theme.label(14)).foregroundStyle(Theme.lime)

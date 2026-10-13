@@ -5,6 +5,7 @@ import WatchKit
 // Crown deck → full colour (screen in the workout's colour, white glass cards, huge numbers),
 // Charge & go → tiles (black, Explore gradient tiles: icon tile left, big number right),
 // Monkey coach → game (quest path, XP, level, badges, monkey celebrations).
+// XP, level and badges show in all three, matching the iPhone's look for the same pick (#227).
 
 extension W {
     /// "4×6" from 4 sets of "6–8"; timed or single prescriptions as written ("5 min").
@@ -342,6 +343,19 @@ struct ProgressScreen: View {
                 }
                 .frame(width: 50, height: 50)
             }
+            // Quest map (#227): level, weeks cleared, the week's chest.
+            if let g = store.snapshot.game {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text("Level \(g.level)").font(W.display(16))
+                        Spacer(minLength: 2)
+                        Text("🎁 \(g.weeksCleared ?? 0)").font(W.label(11))
+                    }
+                    XPBar(game: g)
+                }
+                .padding(.horizontal, 8).padding(.vertical, 5).glass()
+                BadgeGrid(game: g)
+            }
             ForEach(p.records, id: \.name) { r in
                 HStack {
                     Text("🏅 \(r.name)").font(W.label(10)).lineLimit(1)
@@ -377,6 +391,14 @@ struct ProgressScreen: View {
                            W.gradient(0x3D5AFF, 0x7B3DFF))
                     square("stopwatch.fill", "Last", p.recent.first.map { "\($0.minutes)′" } ?? "–", W.gradient(0xB23DFF, 0xFF3DA8))
                 }
+            }
+            // Level bar (#227).
+            if let g = store.snapshot.game {
+                TileRow(symbol: "star.fill", title: "Level", detail: "\(g.xpInLevel)/\(WGame.perLevel) XP", value: "\(g.level)",
+                        tint: W.gradient(0xB23DFF, 0xFF3DA8))
+                XPBar(game: g)
+                TileRow(symbol: "medal.fill", title: "Badges", value: "\(g.earned.count)/\(g.catalog?.count ?? 0)",
+                        tint: W.gradient(0xFFC23D, 0xFF7A3D))
             }
             ForEach(p.records.dropFirst(), id: \.name) { r in
                 TileRow(symbol: "medal.fill", title: r.name, value: WatchPlayer.kg(r.kg), tint: W.gradient(0x3D5AFF, 0x7B3DFF))
@@ -416,7 +438,7 @@ struct ProgressScreen: View {
             }
             if let g {
                 XPBar(game: g)
-                BadgeGrid(earned: Set(g.badges))
+                BadgeGrid(game: g)
             }
             ForEach(p.records, id: \.name) { r in
                 HStack {
@@ -451,16 +473,19 @@ struct XPBar: View {
     }
 }
 
-/// All badges: earned in colour, the rest locked.
+/// Badges from the phone (#227): earned first in their tier colour, then a few locked ones.
 private struct BadgeGrid: View {
-    let earned: Set<String>
+    let game: WGame
 
     var body: some View {
+        let all = game.catalog ?? []
+        let earned = game.earned
+        let shown = earned + all.filter { !game.badges.contains($0.id) }.prefix(max(0, 8 - earned.count))
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4), spacing: 4) {
-            ForEach(WBadge.allCases) { b in
-                let on = earned.contains(b.rawValue)
+            ForEach(shown) { b in
+                let on = game.badges.contains(b.id)
                 Image(systemName: on ? b.symbol : "lock.fill").font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white.opacity(on ? 1 : 0.4))
+                    .foregroundStyle(on ? W.ink : .white.opacity(0.4))
                     .frame(maxWidth: .infinity, minHeight: 32)
                     .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(on ? AnyShapeStyle(W.gradient(b.tint.0, b.tint.1)) : AnyShapeStyle(Color.white.opacity(0.1))))
@@ -512,11 +537,12 @@ struct SummaryView: View {
     private var colour: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text("SESSION COMPLETE").font(W.label(9)).tracking(1)
-            Text("Crushed it 🏆").font(W.display(20))
+            Text(store.reward?.weekCleared == true ? "Chest opened 🎁" : "Stage cleared 🏆").font(W.display(20))
             Grid(horizontalSpacing: 5, verticalSpacing: 5) {
-                GridRow { stat("\(minutes)′", "time"); stat("\(player.totalSets)", "sets") }
-                GridRow { stat("\(Int(kcal))", "kcal"); stat(hr, "avg") }
+                GridRow { stat("+\(xp)", "xp"); stat("\(player.totalSets)", "sets") }
+                GridRow { stat("\(minutes)′", "time"); stat(hr, "avg") }
             }
+            rewardLines
         }
         .foregroundStyle(.white)
     }
@@ -531,6 +557,21 @@ struct SummaryView: View {
         .glass()
     }
 
+    private var xp: Int { store.reward?.xp ?? WGame.xp(sets: player.totalSets) }
+
+    /// Level-up and new badges, in every look (#227).
+    @ViewBuilder private var rewardLines: some View {
+        if let level = store.reward?.levelUp {
+            Text("⬆️ Level \(level)!").font(W.label(12)).foregroundStyle(W.ink)
+                .padding(.horizontal, 8).padding(.vertical, 3).background(Capsule().fill(W.lime))
+        }
+        ForEach(store.reward?.badges ?? []) { b in
+            Label("New badge: \(b.title)", systemImage: b.symbol).font(W.label(10)).foregroundStyle(W.ink)
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(Capsule().fill(W.gradient(b.tint.0, b.tint.1)))
+        }
+    }
+
     private var tiles: some View {
         VStack(spacing: 5) {
             Text("Done 🏆").font(W.display(18)).frame(maxWidth: .infinity, alignment: .leading)
@@ -538,6 +579,9 @@ struct SummaryView: View {
             TileRow(symbol: "dumbbell.fill", title: "Sets", value: "\(player.totalSets)", tint: W.gradient(0xFF7A3D, 0xFF3D5A))
             TileRow(symbol: "heart.fill", title: "Avg HR", value: hr, tint: W.gradient(0xB23DFF, 0xFF3DA8))
             TileRow(symbol: "flame.fill", title: "kcal", value: "\(Int(kcal))", tint: W.gradient(0xFFC23D, 0xFF7A3D))
+            TileRow(symbol: "star.fill", title: "XP", value: "+\(xp)", tint: W.gradient(0xB23DFF, 0xFF3DA8))
+            if let g = store.snapshot.game { XPBar(game: g) }
+            rewardLines
         }
     }
 
@@ -554,17 +598,10 @@ struct SummaryView: View {
                     .offset(y: dance ? -3 : 2)
             }
             .frame(height: 64)
-            Text("+\(reward?.xp ?? WGame.xp(sets: player.totalSets)) XP").font(W.display(24)).foregroundStyle(W.lime)
+            Text("+\(xp) XP").font(W.display(24)).foregroundStyle(W.lime)
+            if reward?.weekCleared == true { Text("🎁 Week chest +\(WGame.weekBonus)").font(W.label(10)) }
             Text("\(minutes)′ · \(player.totalSets) sets · \(Int(kcal)) kcal · \(hr)").font(W.label(9)).opacity(0.9)
-            if let level = reward?.levelUp {
-                Text("⬆️ Level \(level)!").font(W.label(12)).foregroundStyle(W.ink)
-                    .padding(.horizontal, 8).padding(.vertical, 3).background(Capsule().fill(W.lime))
-            }
-            ForEach(reward?.badges ?? []) { b in
-                Label("New badge: \(b.title)", systemImage: b.symbol).font(W.label(10)).foregroundStyle(.white)
-                    .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(Capsule().fill(W.gradient(b.tint.0, b.tint.1)))
-            }
+            rewardLines
             if let g = store.snapshot.game { XPBar(game: g).padding(.top, 2) }
         }
         .foregroundStyle(.white)
