@@ -179,10 +179,13 @@ struct AccountView: View {
                 ErrorText(message: exportTask.error)
 
                 section("Legal & support")
-                if let notes = WhatsNew.current {
-                    NavigationLink { WhatsNewView(notes: notes) } label: {
-                        AccountCard(symbol: "sparkles", title: "What's new", subtitle: "Latest improvements in this version",
-                                    gradient: AccountTint.whatsNew)
+                if WhatsNew.current != nil || !WhatsNew.history.isEmpty {
+                    // Every update, newest first (#245).
+                    NavigationLink { WhatsNewHistoryView(latest: WhatsNew.current, history: WhatsNew.history) } label: {
+                        AccountCard(symbol: "sparkles", title: "What's new", subtitle: "Every update, newest first",
+                                    gradient: AccountTint.whatsNew) {
+                            AccountValue(value: "\(WhatsNew.history.count + (WhatsNew.current == nil ? 0 : 1))", unit: "updates")
+                        }
                     }
                     .buttonStyle(.plain)
                 }

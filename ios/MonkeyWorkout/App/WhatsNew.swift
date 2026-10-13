@@ -2,7 +2,8 @@ import Foundation
 import WorkoutEngine
 
 /// "What's new" page (#183): shown once per release on first open after an update, from the bundled
-/// `Resources/WhatsNew.json`. Every release bumps its `id` (the TestFlight workflow enforces it).
+/// `Resources/WhatsNew.json`. Every release bumps its `id` (the TestFlight workflow enforces it) and moves
+/// the previous notes to the top of `Resources/WhatsNewHistory.json`, listed in Account → What's new (#245).
 struct WhatsNew: Decodable, Identifiable {
     struct Item: Decodable, Identifiable {
         let symbol: String
@@ -13,11 +14,34 @@ struct WhatsNew: Decodable, Identifiable {
     }
 
     let id: String
+    /// TestFlight build that shipped these notes (history only).
+    var build: Int?
+    /// Release day, `yyyy-MM-dd` (history only; the latest notes take it from `id`).
+    var date: String?
     let items: [Item]
 
-    static let current: WhatsNew? = Bundle.main.url(forResource: "WhatsNew", withExtension: "json")
-        .flatMap { try? Data(contentsOf: $0) }
-        .flatMap { try? JSONDecoder().decode(WhatsNew.self, from: $0) }
+    private struct History: Decodable { let releases: [WhatsNew] }
+
+    static let current: WhatsNew? = load("WhatsNew", as: WhatsNew.self)
+
+    /// Earlier releases, newest first; never repeats the latest notes (a rebuild keeps the same id).
+    static let history: [WhatsNew] = (load("WhatsNewHistory", as: History.self)?.releases ?? [])
+        .filter { $0.id != current?.id && !$0.items.isEmpty }
+
+    /// "13 Oct" from `date`, else from the `yyyy-MM-dd` start of `id`.
+    var day: String? {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        guard let d = f.date(from: date ?? String(id.prefix(10))) else { return nil }
+        return d.formatted(.dateTime.day().month(.abbreviated))
+    }
+
+    private static func load<T: Decodable>(_ name: String, as: T.Type) -> T? {
+        Bundle.main.url(forResource: name, withExtension: "json")
+            .flatMap { try? Data(contentsOf: $0) }
+            .flatMap { try? JSONDecoder().decode(T.self, from: $0) }
+    }
 
     private static let seenKey = "whatsNew.seen"
 
