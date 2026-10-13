@@ -119,6 +119,13 @@ private struct DemoScreen: View {
         case "example": NavigationStack { SessionView(sessionId: WorkoutTemplate.all[1].sessionId) }
         case "explore": NavigationStack { LibraryView() }
         case "explore-female": NavigationStack { LibraryView() }.environment(\.bodyFigure, .female)
+        case "explore-3d":
+            NavigationStack { LibraryView() }.environment(\.bodyMapDemo, BodyMapDemo(mode: .solid, picked: .chest))
+        case "explore-3d-back":
+            NavigationStack { LibraryView() }.environment(\.bodyMapDemo, BodyMapDemo(mode: .solid, picked: .glutes, facing: .back))
+                .environment(\.bodyFigure, .female)
+        case "explore-3d-side":
+            NavigationStack { LibraryView() }.environment(\.bodyMapDemo, BodyMapDemo(mode: .solid, picked: .quads, facing: .side))
         case "explore-list": NavigationStack { LibraryView(scrollTo: .back) }
         case "explore-volume": NavigationStack { LibraryView(scrollTo: .shoulders) }
         case "explore-workouts": NavigationStack { LibraryView(mode: .workouts) }
@@ -133,11 +140,24 @@ private struct DemoScreen: View {
         case "pr-result": PRAttemptView(exerciseId: "bench-press", showing: Demo.prResult)
         case "technique": FormSheet(exercise: Exercise.get("leg-press"))
         case "progress", "progress-empty": NavigationStack { ProgressTabView() }
+        case "progress-flipped": NavigationStack { ProgressTabView(demoFlipped: .volume) }
         case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
         case "body": NavigationStack { BodyHealthView() }
         case "measurements": NavigationStack { MeasurementsView() }
         case "measurement-log": MeasurementLogSheet(initial: model.measurements.last ?? BodyMeasurement(date: Date()), isNew: false)
         case "measurement-detail": NavigationStack { MeasurementDetailView(metric: .girth(.upperArm)) }
+        case "measurement-howto": MeasurementHowToSheet(metric: .girth(.waist))
+        case "measurement-guide":
+            let last = model.measurements.last
+            MeasureGuideView(steps: ([.weight, .bodyFat] + GirthSite.allCases.map { BodyMetric.girth($0) }).map { metric in
+                let value: Double? = switch metric {
+                case .weight: last?.weightKg
+                case .bodyFat: last?.bodyFatPct
+                case let .girth(p): last?.girth(p)
+                case .leanMass: nil
+                }
+                return MeasureGuideView.Step(key: metric.id, metric: metric, last: value)
+            }, text: .constant(["waist": "78.5"]), index: 5)
         case "account": NavigationStack { AccountView() }
         case "paywall", "pro": NavigationStack { ProView() }
         case "pro-offer": NavigationStack { ProView(context: .onboarding) {} }
@@ -220,6 +240,7 @@ private struct DemoScreen: View {
             }
         case "away": AwayEditorView(initial: AwayPeriod(kind: .travel, start: Demo.away()[1].start, end: Demo.away()[1].end, note: "Berlin", setup: .hotelGym), isNew: true) { _ in }
         case "notifications": NavigationStack { NotificationSettingsView() }
+        case "watch-home": NavigationStack { WatchHomeView() }
         case "reschedule":
             MissedSessionSheet(sessionId: second, day: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
         default: MainTabView()
