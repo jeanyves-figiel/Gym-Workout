@@ -88,18 +88,28 @@ def mr_grip(k):
     return art.ang_pt(MR_PIV, a0 + (a1 - a0) * k, math.dist(MR_A, MR_PIV))
 
 
+MR_BEND_B = (225, 185)  # bend of the dog-leg lever (pulled position): it reaches over the knees, not through
+
+
 def mr_lever(doc, g, plate=True):
-    """Lever from the pivot up to the vertical handle held at g, plate on a horn near the pivot."""
-    d = art.norm(art.sub(g, MR_PIV))
+    """Dog-leg lever from the pivot up in front of the knees, then back to the vertical handle held at g;
+    plate on a horn near the pivot. The bend turns with the lever about the pivot (rigid)."""
+    rot = math.radians(math.degrees(math.atan2(g[1] - MR_PIV[1], g[0] - MR_PIV[0]))
+                       - math.degrees(math.atan2(MR_B[1] - MR_PIV[1], MR_B[0] - MR_PIV[0])))
+    v = art.sub(MR_BEND_B, MR_PIV)
+    bend = (MR_PIV[0] + v[0] * math.cos(rot) - v[1] * math.sin(rot), MR_PIV[1] + v[0] * math.sin(rot) + v[1] * math.cos(rot))
+    d = art.norm(art.sub(bend, MR_PIV))
     n = (d[1], -d[0])
     if n[0] < 0:
         n = (-n[0], -n[1])
     if plate:
-        horn = art.add(MR_PIV, d, 34)
+        horn = art.add(MR_PIV, d, 30)
         art.tube(doc, horn, art.add(horn, n, 16), 5)
         art.plate(doc, art.add(horn, n, 14), 19)
     end = (g[0], g[1] + 12)
-    art.tube(doc, MR_PIV, end, 8)
+    art.tube(doc, MR_PIV, bend, 8)
+    art.tube(doc, bend, end, 8)
+    doc.add(f'<circle cx="{bend[0]:.1f}" cy="{bend[1]:.1f}" r="4" fill="#2A2E34"/>')
     art.tube(doc, (g[0], g[1] - 10), end, 5)
 
 
@@ -549,7 +559,7 @@ def pullover_machine_scene(doc, j, layer):
         lift = (math.degrees(math.atan2(ua[1], ua[0])) - PO_ARMS[0]) * 0.1
         st = column(doc, PO_STACK, top=40, lift=max(0.0, lift))
         art.cable(doc, [(st[0] + 5.5, 47), st])
-        art.cable(doc, [(st[0] - 5.5, 47), (st[0] - 5.5, 42), (sh[0] - 22, 42), (sh[0] - 8, sh[1] - 4)])
+        art.cable(doc, [(st[0] - 5.5, 47), (st[0] - 5.5, 42), (sh[0] - 22, 42), (sh[0] - 12, sh[1] - 4)])
         seat(doc, hip[0] - 34, hip[0] + 30, PO_SEAT, hip[0] - 6)
         art.tube(doc, (hip[0] - 6, PO_SEAT + 30), (PO_STACK + 50, PO_SEAT + 30), 8)
         # Back pad up the spine, frame up to the cam at shoulder height.
@@ -563,9 +573,14 @@ def pullover_machine_scene(doc, j, layer):
         pad_c = art.add(art.add(sh, ua, 34), lead, 9)
         art.tube(doc, sh, pad_c, 7)
         slab(doc, art.add(pad_c, ua, -14), art.add(pad_c, ua, 10), 8, en, stitch=False)
-        hub(doc, sh, 8)
-        art.tube(doc, grip(j), art.add(pad_c, ua, 8), 4)
-        hand_dot(doc, grip(j))
+        # Cam at the shoulder axis (the cable from the stack wraps it), arm on to the hand bar (end-on).
+        doc.add(f'<circle cx="{sh[0]:.1f}" cy="{sh[1]:.1f}" r="12.5" fill="#2A2E34" stroke="#0A0B0D" stroke-width="0.9"/>')
+        hub(doc, sh, 7)
+        g = grip(j)
+        art.tube(doc, art.add(pad_c, ua, 8), g, 6)
+        kit.handle(doc, g)
+        doc.add(f'<circle cx="{g[0]:.1f}" cy="{g[1]:.1f}" r="7" fill="#2A2E34" stroke="#0A0B0D" stroke-width="0.9"/>')
+        hand_dot(doc, g)
 
 
 def pullover_machine_pose(u):

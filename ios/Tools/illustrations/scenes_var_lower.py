@@ -17,7 +17,7 @@ from scenes_lower import (ANK, FT, SH, SW, TH, TOR, angle, arms_for, back_bar, b
                           bar_split_scene, body, dbs, floor, grip, hang_from, hinge_pose, hip_thrust_scene, ins,
                           leg_curl_pose, leg_curl_scene, leg_ext_pose, leg_ext_scene, leg_press_pose, leg_press_scene,
                           norm2, pt, reverse_lunge_frames, shoulder, smith_bar, smith_frame, split_pose, step_block,
-                          tframe, thrust_pose)
+                          tframe, thrust_pose, HT_REST)
 from scenes_power import fit
 
 MAT_Y = GROUND - 4
@@ -296,9 +296,14 @@ def curtsy_scene(doc, j, layer):
         floor(doc, 196, 80)
         fore_knee(j, "F", 4)
         h, a = j["hipN"], j["ankleN"]
-        if a[0] < h[0] - 6:  # the rear knee drops towards the floor as it travels back and across
-            fore_knee(j, "N", 0, 0.62)
-            j["kneeN"] = (j["kneeN"][0] + 6, j["kneeN"][1] + 6)
+        # The rear knee drops towards the floor as it travels back and across: blended in gradually with the
+        # ankle's travel past the hip, so the knee never snaps between two solutions.
+        w = max(0.0, min(1.0, (h[0] - a[0]) / 30))
+        if w > 0:
+            k0 = j["kneeN"]
+            fore_knee(j, "N", 0, 0.68)
+            k1 = (j["kneeN"][0] + 4, j["kneeN"][1] + 6)
+            j["kneeN"] = (k0[0] + (k1[0] - k0[0]) * w, k0[1] + (k1[1] - k0[1]) * w)
     front_dbs(doc, j, layer)
 
 
@@ -310,8 +315,8 @@ def curtsy_pose(hip, ankN, fN, kN=1):
                 front="back", lit_sides="F")
 
 
-CUR = [curtsy_pose((200, 152), (212, ANK), 12), curtsy_pose((198, 178), (172, GROUND - 20), 84),
-       curtsy_pose((196, 202), (152, GROUND - 10), 86)]
+CUR = [curtsy_pose((200, 152), (212, ANK), 12), curtsy_pose((198, 178), (180, GROUND - 22), 92),
+       curtsy_pose((196, 202), (166, GROUND - 13), 94)]
 
 
 # -- dumbbell lateral lunge (front view): big step to the side, sit into the hip, other leg straight
@@ -514,10 +519,16 @@ def deficit_scene(doc, j, layer):
     if layer == "back":
         floor(doc, 196, 100)
         g = doc.box_grad([(0, "#3E444C"), (1, "#1A1D21")])
-        doc.add(f'<rect x="158" y="{GROUND - DD_H:.1f}" width="84" height="{DD_H}" rx="2" fill="{g}" '
-                f'stroke="#0A0B0D" stroke-width="0.8"/>')
+        doc.add(f'<rect x="150" y="{GROUND - DD_H:.1f}" width="100" height="{DD_H}" rx="2" fill="{g}" '
+                f'stroke="#0A0B0D" stroke-width="0.8"/>'
+                f'<rect x="151" y="{GROUND - DD_H + 0.6:.1f}" width="98" height="2.2" rx="1" fill="#6A727C"/>')
     else:
-        bar_end(doc, grip(j))
+        # The platform runs between the plates (behind the near one): the plate stands on the floor in front of
+        # it, with its own contact shadow on the floor.
+        c = grip(j)
+        if c[1] + 25 > GROUND - 6:
+            art.shadow(doc, c[0], 17, cy=GROUND - 0.5, ry=2.6)
+        bar_end(doc, c)
 
 
 DDL = ins([
@@ -577,7 +588,7 @@ def db_thrust_scene(doc, j, layer):
         art.db_end(doc, art.add(j["hip"], n, 17), 12)
 
 
-DHT = ins([thrust_pose(206), thrust_pose(193), thrust_pose(180)], "tl")
+DHT = ins([thrust_pose(206, **HT_REST), thrust_pose(193, **HT_REST), thrust_pose(180, **HT_REST)], "tl")
 
 
 # -- barbell glute bridge: shoulders on the floor, bar padded over the hips
@@ -841,36 +852,55 @@ BALL_R = 34
 BH_S = (112, GROUND - 13)
 
 
-def stability_ball(doc, c, r=BALL_R):
+def stability_ball(doc, c, r=BALL_R, roll=None):
+    """Exercise ball; `roll` (deg) turns a seam band with the ball so that rolling reads (gloss stays put)."""
     g = doc.lin((c[0] - r, c[1] - r), (c[0] + r, c[1] + r), [(0, "#6FA8DC"), (0.55, "#2F6EA8"), (1, "#18436B")])
-    doc.add(f'<circle cx="{c[0]:.1f}" cy="{c[1]:.1f}" r="{r}" fill="{g}" stroke="#0A0B0D" stroke-width="0.9"/>'
-            f'<path d="M{c[0] - r * 0.7:.1f},{c[1] - r * 0.5:.1f} Q{c[0]:.1f},{c[1] - r * 0.95:.1f} {c[0] + r * 0.7:.1f},'
+    doc.add(f'<circle cx="{c[0]:.1f}" cy="{c[1]:.1f}" r="{r}" fill="{g}" stroke="#0A0B0D" stroke-width="0.9"/>')
+    if roll is not None:
+        for k in (0, 180):
+            a = math.radians(roll + k)
+            p0 = (c[0] + math.cos(a) * r, c[1] + math.sin(a) * r)
+            p1 = (c[0] - math.cos(a) * r, c[1] - math.sin(a) * r)
+            q = (c[0] + math.cos(a + math.pi / 2) * r * 0.45, c[1] + math.sin(a + math.pi / 2) * r * 0.45)
+            doc.add(f'<path d="M{p0[0]:.1f},{p0[1]:.1f} Q{q[0]:.1f},{q[1]:.1f} {p1[0]:.1f},{p1[1]:.1f}" fill="none" '
+                    f'stroke="#123A60" stroke-opacity="0.55" stroke-width="1.6"/>')
+    doc.add(f'<path d="M{c[0] - r * 0.7:.1f},{c[1] - r * 0.5:.1f} Q{c[0]:.1f},{c[1] - r * 0.95:.1f} {c[0] + r * 0.7:.1f},'
             f'{c[1] - r * 0.5:.1f}" fill="none" stroke="#fff" stroke-opacity="0.25" stroke-width="2"/>')
 
 
+BH_CX0 = 289  # ball centre x at the start (legs long)
+
+
 def ball_centre(j):
-    a = j["ankleN"]
-    return (a[0] + 8, GROUND - BALL_R)
+    """Ball centre for the drawn frame: the ball stands on the floor, the ankle BALL_R + 5 from its centre (heel on
+    the ball), so the ball follows the heels as they pull it in."""
+    ank = j["ankleN"]
+    cy = GROUND - BALL_R
+    dy = cy - ank[1]
+    return (ank[0] + math.sqrt(max(0.0, (BALL_R + 5) ** 2 - dy * dy)), cy)
 
 
 def ball_curl_scene(doc, j, layer):
     if layer == "back":
         floor(doc, 200, 130)
         kit.mat(doc, 60, 320)
-        stability_ball(doc, ball_centre(j))
+        c = ball_centre(j)
+        stability_ball(doc, c, roll=math.degrees((c[0] - BH_CX0) / BALL_R))
 
 
-def ball_curl_pose(t, ank_x):
+def ball_curl_pose(t, cx, a, foot):
+    """Shoulders on the mat at BH_S, hips up (torso angle t); heels on the ball (centre x = cx) at the contact
+    angle a (deg, -90 = on top): the ball rolls in under the heels as the knees bend."""
     hip = pt(BH_S, t, -TOR)
-    c = (ank_x + 8, GROUND - BALL_R)
-    ang = math.radians(-118)
+    c = (cx, GROUND - BALL_R)
+    ang = math.radians(a)
     ank = (c[0] + math.cos(ang) * (BALL_R + 5), c[1] + math.sin(ang) * (BALL_R + 5))
     g = (BH_S[0] + 76, GROUND - 6)
-    return body(hip, t, h=182, ankN=ank, ankF=art.add(ank, (-2, -1)), kN=-1, kF=-1, fN=-80, fF=-82,
+    return body(hip, t, h=182, ankN=ank, ankF=art.add(ank, (-2, -1)), kN=-1, kF=-1, fN=foot, fF=foot - 2,
                 gN=g, gF=(g[0] - 4, g[1]), eN=1, eF=1, hN=0, hF=0)
 
 
-BHC = [ball_curl_pose(170, 290), ball_curl_pose(160, 262), ball_curl_pose(150, 238)]
+BHC = [ball_curl_pose(161, BH_CX0, -100, -78), ball_curl_pose(149, 270, -118, -68), ball_curl_pose(138, 252, -136, -58)]
 
 
 # -- sissy squat: heels rise, knees travel forward, straight line knees to shoulders; one hand on a post
@@ -895,7 +925,7 @@ def sissy_scene(doc, j, layer):
         kit.post(doc, SS_POST + 4, 60)
 
 
-SSQ = [sissy_pose(0, -90, -90), sissy_pose(32, -58, -108, h=-96), sissy_pose(56, -30, -128, h=-108)]
+SSQ = [sissy_pose(0, -90, -90), sissy_pose(36, -54, -112, h=-98), sissy_pose(62, -20, -134, h=-110)]
 
 
 # -- band Spanish squat: heavy band behind the knees anchored low in front, shins stay vertical

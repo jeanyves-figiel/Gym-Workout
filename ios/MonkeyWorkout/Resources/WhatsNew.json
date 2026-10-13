@@ -1,35 +1,11 @@
 {
-  "id": "2026-10-13.3",
+  "id": "2026-10-14.1",
   "items": [
-    {
-      "symbol": "square.grid.3x2.fill",
-      "tint": "strength",
-      "title": "Find your way around Progress",
-      "body": "Progress opens with a map of everything on the page: training, body, records, badges, muscles and history, each with its key number. Tap one to jump there; the section bar stays on top while you scroll."
-    },
-    {
-      "symbol": "bolt.heart.fill",
-      "tint": "cardio",
-      "title": "Week and readiness, one slim card",
-      "body": "Train's week card is now a third of the size: sessions done in a ring, today's readiness as the headline, HRV, resting HR and sleep below. Tap the verdict for details, the week line for your cycle."
-    },
     {
       "symbol": "figure.strengthtraining.traditional",
       "tint": "strength",
-      "title": "Crisp, fluid exercise motion",
-      "body": "Every exercise now moves through twice as many poses and switches between them crisply, so there is no more blinking or ghost arms while it plays."
-    },
-    {
-      "symbol": "clock.arrow.circlepath",
-      "tint": "cardio",
-      "title": "Every update in one place",
-      "body": "Account → What's new now lists all past updates, newest first, so you can catch up on anything you missed."
-    },
-    {
-      "symbol": "crown.fill",
-      "tint": "power",
-      "title": "Levels that bring something",
-      "body": "Six ranks from Rookie to Legend, each with a new monkey look, rings, level-up effects, app icons and a Community title. Tap your level in Progress to see the whole ladder."
+      "title": "Fluid motion, every exercise",
+      "body": "Fast moves like burpees, swings and twists now play with up to 49 poses, so nothing jumps. Every animation was checked again: hands stay on the bar, bodies sit on the bench and limbs no longer pass through machines."
     }
   ]
 }

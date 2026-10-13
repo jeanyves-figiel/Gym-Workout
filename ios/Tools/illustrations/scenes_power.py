@@ -490,7 +490,16 @@ PLYO = [
 
 def pullup(doc, j, layer):
     if layer == "back":
-        kit.pullup_bar(doc, BAR, top=-20)
+        bar_front(doc, BAR, top=-20)
+
+
+def bar_front(doc, c, top=4, half=34):
+    """Pull-up bar end-on at c, its frame held from the ceiling in front of the athlete (right), so the head
+    rising behind the bar never crosses the frame (local mirror of kit.pullup_bar)."""
+    art.tube(doc, (c[0] + half, top), (c[0] + half, c[1]), 7, "butt")
+    art.tube(doc, (c[0] - 6, c[1]), (c[0] + half, c[1]), 6)
+    doc.add(f'<circle cx="{c[0]:.1f}" cy="{c[1]:.1f}" r="4.6" fill="#2A2E34" stroke="#0A0B0D" stroke-width="0.9"/>'
+            f'<circle cx="{c[0]:.1f}" cy="{c[1]:.1f}" r="1.8" fill="{art.CHROME}"/>')
 
 
 BAR = (232, 24)
@@ -508,7 +517,7 @@ def hang(sh_off, t, legs=((80, 168, 120), (84, 172, 124)), h=None, bend=-1, **kw
 EPU = [
     hang((-2, 80), -90),
     hang((-10, 44), -98, h=-92),
-    hang((-18, 16), -104, h=-90, front_props=[arrow((150, 150), -90, 26)]),
+    hang((-24, 8), -104, h=-90, front_props=[arrow((150, 150), -90, 26)]),
 ]
 
 
@@ -632,11 +641,11 @@ ROW = [
 
 
 # SkiErg: tall tower, flywheel housing on top, two handles on cords from the top pulleys.
-SKI_X = 316
+SKI_X = 324
 
 
 def ski_erg(doc, j, layer):
-    top = (SKI_X - 6, 30)
+    top = SKI_PULLEY
     if layer == "back":
         ground(doc, 260, 110)
         kit.feet(doc, SKI_X - 30, SKI_X + 54)
@@ -645,6 +654,8 @@ def ski_erg(doc, j, layer):
         housing(doc, f"M{SKI_X - 14},{12} h50 q8,0 8,8 v58 q0,8 -8,8 h-50 q-8,0 -8,-8 v-58 q0,-8 8,-8 Z")
         fan(doc, (SKI_X + 16, 50), 20, 10)
         screen(doc, SKI_X - 4, 96, 22, 16)
+        # Pulley arm sticking out of the housing's top front corner: the handles hang in front of the machine.
+        art.tube(doc, (SKI_X - 10, top[1]), (top[0] - 3, top[1]), 6)
         for side, dx in (("F", -3), ("N", 0)):
             if side == "F":
                 art.pulley(doc, (top[0] + dx, top[1]), 5)
@@ -661,10 +672,12 @@ def ski_handle(doc, c):
             f'stroke="#0A0B0D" stroke-width="0.8"/>')
 
 
+SKI_PULLEY = (SKI_X - 30, 14)
+
 SKI = [
-    B((232, 150), -88, ankN=(236, FOOT_Y), ankF=(232, FOOT_Y), wrN=(286, 46), wrF=(282, 48), handN=-60, handF=-60,
-      elbN=1, elbF=1, h=-86),
-    B((226, 160), -66, ankN=(236, FOOT_Y), ankF=(232, FOOT_Y), wrN=(278, 124), wrF=(274, 126), handN=60, handF=60,
+    B((232, 150), -88, ankN=(236, FOOT_Y), ankF=(232, FOOT_Y), wrN=(262, 30), wrF=(258, 32), handN=-60, handF=-60,
+      elbN=-1, elbF=-1, h=-86),
+    B((226, 160), -66, ankN=(236, FOOT_Y), ankF=(232, FOOT_Y), wrN=(272, 124), wrF=(268, 126), handN=60, handF=60,
       h=-70),
     B((206, 178), -34, ankN=(236, FOOT_Y), ankF=(232, FOOT_Y), wrN=(220, 210), wrF=(216, 210), handN=100,
       handF=100, h=-40),
@@ -860,11 +873,20 @@ def stairs(doc, j, layer):
                 f'<rect x="{x:.1f}" y="{y + 6:.1f}" width="{STEP_W}" height="{STEP_H - 6}" fill="#15181B"/>')
     kit.feet(doc, SX - 16, SX + 4 * STEP_W + 70)
     # Handrail from the console back to the rear post, console.
-    art.tube(doc, (SX + 4 * STEP_W + 20, 132), (SX - 8, 146), 7)
-    art.tube(doc, (SX - 8, 146), (SX - 8, SY + 4), 7)
+    art.tube(doc, (SX + 4 * STEP_W + 20, RAIL_Y[0]), (SX - 8, RAIL_Y[1]), 7)
+    art.tube(doc, (SX - 8, RAIL_Y[1]), (SX - 8, SY + 4), 7)
     housing(doc, f"M{SX + 4 * STEP_W - 10},96 L{SX + 4 * STEP_W + 40},84 L{SX + 4 * STEP_W + 46},112 "
                  f"L{SX + 4 * STEP_W - 4},118 Z")
     screen(doc, SX + 4 * STEP_W - 2, 94, 36, 16)
+
+
+RAIL_Y = (98, 112)  # handrail height at the console end / at the rear post (waist high)
+
+
+def on_rail(x, dy=-3):
+    """Wrist on the handrail at x."""
+    x0, x1 = SX + 4 * STEP_W + 20, SX - 8
+    return (x, RAIL_Y[0] + (RAIL_Y[1] - RAIL_Y[0]) * (x0 - x) / (x0 - x1) + dy)
 
 
 def on_step(k, back=8):
@@ -872,9 +894,12 @@ def on_step(k, back=8):
 
 
 STAIR = [
-    B((188, 106), -84, ankN=on_step(2, 10), ankF=on_step(1, 6), footF=24, aN=(106, 56), aF=(76, 16), h=-88),
-    B((190, 102), -84, ankN=on_step(2, 10), lF=(40, 110, 20), aN=(94, 24), aF=(90, 24), h=-88),
-    B((188, 106), -84, ankF=on_step(2, 10), ankN=on_step(1, 6), footN=24, aN=(76, 16), aF=(106, 56), h=-88),
+    B((188, 106), -84, ankN=on_step(2, 10), ankF=on_step(1, 6), footF=24, wrN=on_rail(232), wrF=on_rail(228),
+      handN=10, handF=10, h=-88),
+    B((190, 102), -84, ankN=on_step(2, 10), lF=(40, 110, 20), wrN=on_rail(232), wrF=on_rail(228), handN=10,
+      handF=10, h=-88),
+    B((188, 106), -84, ankF=on_step(2, 10), ankN=on_step(1, 6), footN=24, wrN=on_rail(232), wrF=on_rail(228),
+      handN=10, handF=10, h=-88),
 ]
 
 
@@ -955,19 +980,23 @@ WGS = [
 ]
 
 
-# Leg swings: one hand on a rack upright for balance, the near leg swings back and forth.
+# Leg swings: the far hand on a pole standing beside the athlete (behind the body in this side view) for
+# balance, the near leg swings back and forth in front of it.
+LSW_POLE = 222
+
+
 def leg_swing(doc, j, layer):
     if layer == "back":
         ground(doc, 200, 70)
-        kit.post(doc, 266, 60)
+        kit.post(doc, LSW_POLE, 60)
 
 
 LSW = [
-    B((196, 152), -92, ankF=(196, FOOT_Y), lN=(126, 132, 40), wrF=(262, 118), handF=-80, aN=(60, 40), h=-90,
+    B((196, 152), -92, ankF=(196, FOOT_Y), lN=(126, 132, 40), wrF=(LSW_POLE - 2, 128), handF=-80, aN=(60, 40), h=-90,
       lit_sides="N"),
-    B((196, 152), -90, ankF=(196, FOOT_Y), lN=(84, 92, 10), wrF=(262, 118), handF=-80, aN=(84, 70), h=-90,
+    B((196, 152), -90, ankF=(196, FOOT_Y), lN=(84, 92, 10), wrF=(LSW_POLE - 2, 128), handF=-80, aN=(84, 70), h=-90,
       lit_sides="N"),
-    B((196, 152), -96, ankF=(196, FOOT_Y), lN=(-30, -28, -60), wrF=(262, 118), handF=-80, aN=(116, 100), h=-94,
+    B((196, 152), -96, ankF=(196, FOOT_Y), lN=(-30, -28, -60), wrF=(LSW_POLE - 2, 128), handF=-80, aN=(116, 100), h=-94,
       lit_sides="N"),
 ]
 
@@ -1101,11 +1130,19 @@ CIRC = [
 ]
 
 
+# Walking lunge with twist: the far leg steps forward into the lunge, then the torso turns over the front leg,
+# the arms staying long: the far arm sweeps back behind the body, the near arm stays forward (tweens.py adds the
+# step's in-between, foot off the floor).
 LTW = [
-    B((150, 152), -90, ankN=(152, FOOT_Y), ankF=(148, FOOT_Y), aN=(2, 0), aF=(0, -2), h=-90),
-    B((196, 196), -88, ankN=(254, FOOT_Y), ankF=(140, GROUND - 13), footF=48, aN=(2, 0), aF=(0, -2), h=-90),
-    B((196, 196), -88, ankN=(254, FOOT_Y), ankF=(140, GROUND - 13), footF=48, aN=(178, 180), aF=(8, 4), h=-100),
+    B((150, 152), -90, ankN=(148, FOOT_Y), ankF=(152, FOOT_Y), aN=(2, 0), aF=(0, -2), h=-90),
+    B((196, 196), -88, ankF=(254, FOOT_Y), ankN=(140, GROUND - 13), footN=48, aN=(2, 0), aF=(0, -2), h=-90),
+    B((196, 196), -88, ankF=(254, FOOT_Y), ankN=(140, GROUND - 13), footN=48, aN=(8, 4), aF=(178, 180), h=-100),
 ]
+
+
+def lunge_step():
+    """In-between of the lunge step (tweens.py): front foot swinging forward just off the floor, back heel up."""
+    return B((172, 172), -89, lF=(28, 100, 10), ankN=(144, GROUND - 8), footN=30, aN=(2, 0), aF=(0, -2), h=-90)
 
 
 WRIST = [
@@ -1118,7 +1155,7 @@ SCENES = {
     "broad-jump": (basic(190, 140), BROAD, fit(BROAD)),
     "squat-jump": (basic(200, 50), SQJ, fit(SQJ)),
     "lateral-bound": (basic(200, 100), LAT, fit(LAT)),
-    "depth-jump": (depth_jump, DJ, fit(DJ, (70, GROUND - 62, 142, GROUND))),
+    "depth-jump": (depth_jump, DJ, fit(DJ, (70, GROUND - 62, 142, GROUND), (110, -56, 140, -50))),  # headroom on the box
     "trap-bar-jump": (trap_bar_jump, TBJ, fit(TBJ, ball_box(34))),
     "med-ball-chest-pass": (chest_pass, MBP, fit(MBP, (WALL_X, 60, WALL_X + 16, GROUND), (286, 82, 324, 110))),
     "rotational-throw": (rot_throw, ROT, fit(ROT, (330, 60, 346, GROUND), (286, 68, 324, 96))),
@@ -1129,10 +1166,10 @@ SCENES = {
     "hang-power-clean": (clean, HPC, fit(HPC, ball_box(26))),
     "sled-sprint": (sled, SLED, fit(SLED, (SLED_X - 12, 124, SLED_X + 106, GROUND))),
     "plyo-push-up": (basic(220, 120), PLYO, fit(PLYO)),
-    "explosive-pull-up": (pullup, EPU, fit(EPU, (BAR[0] - 40, 0, BAR[0] + 8, 30), floor=False)),
+    "explosive-pull-up": (pullup, EPU, fit(EPU, (BAR[0] - 8, 0, BAR[0] + 40, 30), floor=False)),
     "battle-rope-slams": (ropes, ROPES, fit(ROPES, (ANCHOR[0] - 22, GROUND - 42, ANCHOR[0] + 22, GROUND))),
     "rower": (rower, ROW, fit(ROW, (64, 100, 362, GROUND))),
-    "ski-erg": (ski_erg, SKI, fit(SKI, (SKI_X - 30, 10, SKI_X + 54, GROUND))),
+    "ski-erg": (ski_erg, SKI, fit(SKI, (SKI_X - 38, 4, SKI_X + 54, GROUND))),
     "air-bike": (air_bike, AB, fit(AB, (140, 168, 362, GROUND))),
     "bike": (bike, BIKE, fit(BIKE, (140, 102, 344, GROUND))),
     "treadmill-run": (TM, RUN, fit(RUN, (50, 84, 346, GROUND))),
@@ -1140,7 +1177,7 @@ SCENES = {
     "stair-climber": (stairs, STAIR, fit(STAIR, (SX - 16, 84, SX + 4 * STEP_W + 70, GROUND))),
     "elliptical": (elliptical, ELL, fit(ELL, (80, 78, 362, GROUND))),
     "worlds-greatest": (basic(180, 110), WGS, fit(WGS)),
-    "leg-swings": (leg_swing, LSW, fit(LSW, (242, 50, 290, GROUND))),
+    "leg-swings": (leg_swing, LSW, fit(LSW, (LSW_POLE - 24, 50, LSW_POLE + 24, GROUND))),
     "hip-90-90": (hip_90_90, H90, fit(H90, (110, GROUND - 4, 290, GROUND))),
     "inchworm": (basic(190, 120), INCH, fit(INCH)),
     "band-dislocates": (basic(204, 50), DISLOC, fit(DISLOC)),

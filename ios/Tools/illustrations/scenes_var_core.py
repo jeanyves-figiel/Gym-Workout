@@ -51,11 +51,29 @@ def add(ex_id, e):
 
 # ---- hanging leg raise: straight legs to hip height (knee raise has bent knees) -----------------------------
 
-add("hanging-leg-raise", (AC.hang_scene, [
-    AC.hang(),
-    AC.hang(t=-94, h=-90, legs=((40, 40, -44), (43, 43, -41)), curl=2, arm=-82),
-    AC.hang(t=-104, h=-92, legs=((-6, -6, -86), (-3, -3, -83)), curl=6, arm=-76),
-], (0, -30, 400)))
+# Bar set higher than scenes_arms_core's (whose hang left the toes on the floor): the feet hang clear of it.
+HLR_BAR = (196, -42)
+
+
+def _hlr_scene(doc, j, layer):
+    if layer == "back":
+        art.floor(doc)
+        art.shadow(doc, HLR_BAR[0], 60)
+        kit.pullup_bar(doc, HLR_BAR, top=-90)
+    else:
+        doc.add(f'<circle cx="{HLR_BAR[0]:.1f}" cy="{HLR_BAR[1]:.1f}" r="4.6" fill="#2A2E34" stroke="#0A0B0D" '
+                f'stroke-width="0.9"/><circle cx="{HLR_BAR[0]:.1f}" cy="{HLR_BAR[1]:.1f}" r="1.8" fill="{art.CHROME}"/>')
+
+
+def _hlr(**kw):
+    return dict(AC.hang(**kw), pin=("wristN", (HLR_BAR[0], HLR_BAR[1] + 5)))
+
+
+add("hanging-leg-raise", (_hlr_scene, [
+    _hlr(),
+    _hlr(t=-94, h=-90, legs=((40, 40, -44), (43, 43, -41)), curl=2, arm=-82),
+    _hlr(t=-104, h=-92, legs=((-6, -6, -86), (-3, -3, -83)), curl=6, arm=-76),
+], (-24, -60, 448)))
 
 
 # ---- bicycle crunch: shoulders curled up, hands behind the head, legs alternate ------------------------------
@@ -135,8 +153,8 @@ add("dragon-flag", E(_dragon_scene, [_dragon(76), _dragon(44), _dragon(14)], [(D
 
 # ---- L-sit on the dip station ------------------------------------------------------------------------------
 
-LS_Y = 150
-LS_GRIP = (206, LS_Y - 5)
+LS_Y = 128  # high enough for the hanging feet to clear the floor
+LS_GRIP = (206, LS_Y + 3)  # hand wrapped round the bar; the near bar crosses the hips (between the bars)
 
 
 def _lsit(legs, t=-86):
@@ -150,9 +168,8 @@ def _lsit_scene(doc, j, layer):
         art.shadow(doc, 210, 90)
         kit.dip_bars(doc, 150, 262, LS_Y)
     else:
-        # Near bar in front of the near hand.
-        g = kit.grip(j)
-        doc.add(f'<circle cx="{g[0]:.1f}" cy="{g[1] + 1:.1f}" r="3.2" fill="#2A2E34" stroke="#0A0B0D" stroke-width="0.8"/>')
+        # Near bar in front of the body: the hips are between the bars, held up on the hands (not sitting on it).
+        art.tube(doc, (150, LS_Y), (262, LS_Y), 7)
 
 
 add("l-sit", E(_lsit_scene, [
@@ -350,15 +367,16 @@ BEND = -1
 
 
 def _side_bend(t):
-    base = AC.front_stand(SBX, 8, t=t, h=t + (t + 90) * 0.3, aN=(90, 90, 90))
+    # Near arm hangs at the side of the leg; bending away from the dumbbell it stays along the side of the body
+    # (dumbbell drawn up the outside of the thigh) instead of swinging across the pelvis.
+    a = min(85, t + 172)
+    base = AC.front_stand(SBX, 8, t=t, h=t + (t + 90) * 0.3, aN=(a, a, a))
     j = AC.fplace(base)
     hd = j["head"]
     sf = j["shoulderF"]
     tgt = (hd[0] - 9, hd[1] - 4)
     u, f = AC.ik(sf, tgt, BEND)
-    out = dict(base, aF=(u, f, f + 40))
-    # Near arm hangs straight down from the shoulder.
-    return out
+    return dict(base, aF=(u, f, f + 40))
 
 
 def _side_bend_scene(doc, j, layer):
@@ -393,7 +411,38 @@ def _tgu(stage):
         p = reach(p, "lN", (j["hip"][0] + 66, FOOT_Y), end=0, pick=lambda m: -m[1])
         p = reach(p, "aF", (j["shoulder"][0] - 22, MAT - MO.WRIST_UP), end=180, pick=lambda m: m[0])
         return p
-    return P(t=-90, h=-90, lF=(92, 88, 0), aN=up, aF=(88, 90), pin=("ankleN", (TGU_HIP[0] + 12, FOOT_Y)))
+    return tgu_at(1)
+
+
+# Second half (tall sit → stand), solved at every frame with the near foot planted (tweens.EXTRA): bridge the hips
+# up on the post hand, sweep the far leg under into a kneel, lift the torso upright, stand. Straight interpolation
+# flipped the far leg through the floor. Hip, torso, far wrist / ankle targets, far foot angle relative to the shin.
+TGU_FOOT = (TGU_HIP[0] + 66, FOOT_Y)
+TGU_PATH = [
+    (0.5, dict(hip=(196, 244.6), t=-132, h=-102, wr=(126, 257), hand=180, ank=(306, 245), foot=-86)),
+    (0.57, dict(hip=(203, 220), t=-146, h=-120, wr=(126, 257), hand=180, ank=(262, 252), foot=-60)),
+    (0.65, dict(hip=(202, 208), t=-144, h=-116, wr=(126, 257), hand=180, ank=(196, 252), foot=-30)),
+    (0.73, dict(hip=(198, 206), t=-134, h=-108, wr=(126, 257), hand=180, ank=(132, 262), foot=-6)),
+    (0.84, dict(hip=(206, 208), t=-90, h=-90, wr=(209, 215), hand=92, ank=(150, 262), foot=0)),
+    (0.92, dict(hip=(234, 168), t=-90, h=-90, wr=(235, 248), hand=91, ank=(214, 246), foot=-70)),  # far foot steps up
+    (1, dict(hip=(TGU_FOOT[0], FOOT_Y - 110), t=-90, h=-90, wr=(TGU_FOOT[0] + 1, FOOT_Y - 30), hand=90,
+             ank=(TGU_FOOT[0] - 2, FOOT_Y), foot=-88)),
+]
+
+
+def tgu_at(s):
+    import scenes_gym_calis as C
+    v = C.along(TGU_PATH, s)
+    p = PW.B(v["hip"], v["t"], ankN=TGU_FOOT, ankF=v["ank"], wrF=v["wr"], handF=v["hand"], kneeN=1, kneeF=1, elbF=1,
+             aN=(-90, -90, -90), h=v["h"])
+    lF = p["lF"]
+    return dict(p, lF=(lF[0], lF[1], lF[1] + v["foot"]))
+
+
+def tgu_tweens(keys):
+    """tweens.EXTRA: every frame of the second half on TGU_PATH (the first half keeps its interpolation)."""
+    mid = art.FRAMES // 2
+    return {i: tgu_at(art.progress(i)) for i in range(mid + 1, art.FRAMES - 1)}
 
 
 def _tgu_scene(doc, j, layer):
@@ -509,7 +558,7 @@ def _push_press(stage):
         sh = art.ang_pt(hip, t, F.TORSO)
         g = (sh[0] + 18, sh[1] - 4)
         return UP.B(hip, t, aN=UP.G(g, 1), aF=UP.G((g[0] - 4, g[1] - 2), 1),
-                    lN=UP.G((hip0[0] + 1, UP.FLOOR_Y), 1, end=0), lF=UP.G((hip0[0] - 3, UP.FLOOR_Y), 1, end=0), h=-96)
+                    lN=UP.G((hip0[0] + 1, UP.FLOOR_Y), -1, end=0), lF=UP.G((hip0[0] - 3, UP.FLOOR_Y), -1, end=0), h=-96)
     if stage == 1:  # drive: legs extended onto the toes, bar leaving the shoulders past the face
         hip = (hip0[0], hip0[1] - 8)
         sh = art.ang_pt(hip, t, F.TORSO)
@@ -562,7 +611,7 @@ def _kb_clean_scene(doc, j, layer):
 KBC = [
     PW.B((150, 180), -20, ankN=(200, FOOT_Y), ankF=(196, FOOT_Y), wrN=(156, 212), aF=(140, 120), h=-26, lit_sides="N"),
     PW.B((198, 150), -92, ankN=(202, FOOT_Y - 4), ankF=(198, FOOT_Y - 4), footN=16, footF=16,
-         aN=(132, 4, 70), aF=(110, 100), h=-90, lit_sides="N"),
+         aN=(128, 2, 32), aF=(110, 100), h=-90, lit_sides="N"),  # bell rolling over the fist at the chest
     PW.B((196, 154), -90, ankN=(200, FOOT_Y), ankF=(196, FOOT_Y), aN=RACK_ARM_N, aF=(100, 92), h=-90, lit_sides="N"),
 ]
 add("kb-clean", (_kb_clean_scene, KBC, PW.fit(KBC, PW.ball_box(18, 0, 6, "N"))))
@@ -610,13 +659,20 @@ add("battle-rope-waves", (PW.ropes, WAVES, PW.fit(WAVES, (PW.ANCHOR[0] - 22, GRO
 # ---- burpee: chest to the floor, feet jumped in, jump with the arms overhead -----------------------------
 
 BURPEE = [
-    AC.hands_plank((200, 58, 0)),
+    AC.hands_plank((90, 90, 0)),  # high plank (a chest-down start read as lying on the floor)
     PW.B((196, 204), -14, ankN=(214, FOOT_Y), ankF=(210, FOOT_Y), wrN=(270, GROUND - 6), wrF=(268, GROUND - 6),
          handN=0, handF=0, h=-4),
     PW.B((222, 128), -90, ankN=(224, GROUND - 32), ankF=(220, GROUND - 32), footN=66, footF=66,
          aN=(-76, -80), aF=(-80, -84), h=-86, front_props=[PW.arrow((272, 150), -90)]),
 ]
 add("burpee", (PW.basic(210, 110), BURPEE, PW.fit(BURPEE, m=16)))
+
+
+def burpee_tweens(keys):
+    """tweens.EXTRA: the feet jump in under raised hips (a straight interpolation dragged them through the floor)."""
+    hop = PW.B((212, 190), -6, ankN=(176, GROUND - 34), ankF=(172, GROUND - 34), wrN=(272, GROUND - 6),
+               wrF=(270, GROUND - 6), handN=0, handF=0, footN=40, footF=40, h=-2)
+    return {art.at(0.3): hop}
 
 
 # ---- jumping jacks (front view) -----------------------------------------------------------------------------

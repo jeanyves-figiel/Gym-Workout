@@ -175,7 +175,7 @@ SCENES = {
     "seated-cable-row": (cable_row, [
         P(t=-70, h=-60, lN=(-14, 36, -74), lF=(-10, 40, -70), aN=(30, 22), aF=(32, 24), pin=("hip", (128, 202))),
         P(t=-96, h=-90, lN=(-14, 36, -74), lF=(-10, 40, -70), aN=(122, -6), aF=(124, -4), pin=("hip", (128, 202))),
-    ], (43, 31, 318)),
+    ], (-14, 14, 376)),  # wide enough that the muscle-map inset (top left) clears the upright head
     "back-squat": (back_squat, [
         P(aN=(135, -60), aF=(130, -62), pin=("ankleN", (196, GROUND - 4))),
         P(t=-70, h=-80, lN=(50, 100, 0), lF=(52, 98, 0), aN=(155, -40), aF=(150, -42), pin=("ankleN", (196, GROUND - 4))),
