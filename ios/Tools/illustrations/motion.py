@@ -34,7 +34,12 @@ def _travel(pts):
 def analyse(ex_id, joints, view, front):
     x0, y0, w = view
     h = w * art.H / art.W
-    tracks = {k: [j[k] for j in joints] for k in CANDIDATES if all(k in j for j in joints)}
+    def inside(p):
+        return -0.05 <= (p[0] - x0) / w <= 1.05 and -0.05 <= (p[1] - y0) / h <= 1.05
+    # Only points that stay in the picture (a scene may park a redrawn limb off-screen, a close-up crops it).
+    tracks = {k: [j[k] for j in joints] for k in CANDIDATES if all(k in j and inside(j[k]) for j in joints)}
+    if not tracks:
+        return dict(track="", path=[], first="UP", second="DOWN", effort_first=True)
     travel = {k: _travel(p) for k, p in tracks.items()}
     far = max(travel, key=travel.get)
     # The near hand unless the far one clearly travels further (one-arm work on the far side).

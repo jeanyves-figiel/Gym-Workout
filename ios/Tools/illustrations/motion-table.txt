@@ -152,7 +152,7 @@ face-pull                          strength  handN    PULL/PUSH effort PULL path
 farmer-carry                       strength  toeF     PUSH/PULL effort PUSH path yes
 ffe-split-squat                    strength  handN    DOWN/UP   effort UP   path yes
 figure-4                           stretch   toeF       UP/DOWN effort UP   path yes
-finger-extensions                  strength  handN    PUSH/PULL effort PUSH path yes
+finger-extensions                  strength             UP/DOWN effort UP   path no 
 foam-roll-adductors                mobility  handN    DOWN/UP   effort UP   path yes
 foam-roll-calves                   mobility  handN    PUSH/PULL effort PUSH path yes
 foam-roll-glutes                   mobility  handN    PUSH/PULL effort PUSH path yes
@@ -271,7 +271,7 @@ ohp                                strength  handN      UP/DOWN effort UP   path
 one-arm-db-row                     strength  handN      UP/DOWN effort UP   path yes
 one-arm-pull-up                    strength  handF      UP/DOWN effort UP   path yes
 one-arm-push-up                    strength  handF    DOWN/UP   effort UP   path yes
-open-book                          mobility  handF      UP/DOWN effort UP   path yes
+open-book                          mobility  head       UP/DOWN effort UP   path no 
 overhead-back-throw                power     handN      UP/DOWN effort UP   path yes
 overhead-carry                     strength  toeF     PUSH/PULL effort PUSH path yes
 overhead-squat                     strength  handN    DOWN/UP   effort UP   path yes
