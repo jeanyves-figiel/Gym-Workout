@@ -180,10 +180,13 @@ def unit3(v):
     return tuple(c / n for c in v)
 
 
-def custom(make_scene, poses, view):
-    """Renderer entry with a scene per frame (the scene closes over that frame's 3D arm state)."""
+def custom(make_scene, poses, view, keys):
+    """Renderer entry with a scene per frame: `make_scene(state)` closes over that frame's 3D arm state,
+    eased between the start / middle / end `keys` like the poses (art.frames)."""
     def render(ex):
-        return [art.render(p, ex, make_scene(i), prefix=f"f{i}", view=view) for i, p in enumerate(poses)]
+        frames = art.frames(poses)
+        return [art.render(p, ex, make_scene(art.sample(keys, art.progress(i), art.lerp_num)), prefix=f"f{i}",
+                           view=view, heat=art.glow(i)) for i, p in enumerate(frames)]
     return render
 
 
@@ -351,7 +354,7 @@ def flat_fly_entry():
         pts += [FF_CAM(v) for v in J.values()]
     pts += [FF_CAM((-70, 0, -50)), FF_CAM((70, 0, -50)), FF_CAM((0, 0, 60)), FF_CAM((0, 0, -160))]
     view = view_around(pts, 16)
-    return custom(lambda i: flat_fly_scene(*FLY_FRAMES[i]), poses, view)
+    return custom(lambda k: flat_fly_scene(*k), poses, view, FLY_FRAMES)
 
 
 # ==== incline dumbbell fly: same camera, backrest at 30 degrees ===================================
@@ -422,7 +425,7 @@ def incline_fly_entry():
         pts += [IF_CAM(v) for v in J.values()]
     pts += [IF_CAM((-60, 0, -70)), IF_CAM((60, 0, 110)), IF_CAM((0, IF_SEAT + 60, 110))]
     view = view_around(pts, 16)
-    return custom(lambda i: incline_fly_scene(*FLY_FRAMES[i]), poses, view)
+    return custom(lambda k: incline_fly_scene(*k), poses, view, FLY_FRAMES)
 
 
 # ==== cable flyes from low / high pulleys ==========================================================
@@ -799,13 +802,13 @@ def rear_delt_entry():
     poses, view = fit([P(t=-90, front="back", aN=(0, 0), aF=(180, 180), pin=("hip", FR_HIP), **FR_LEGS)] * 3,
                       [(XT_L - 48, 10, XT_L + 18, GROUND), (XT_R - 18, 10, XT_R + 48, GROUND)])
 
-    def make(i):
+    def make(k):
         def scene(doc, j, layer):
             if layer == "back":
-                rear_delt_arms(j, *RD_FRAMES[i])
+                rear_delt_arms(j, *k)
             base(doc, j, layer)
         return scene
-    return custom(make, poses, view)
+    return custom(make, poses, view, RD_FRAMES)
 
 
 # ==== cable upright row (front view, low pulley in front of the feet) ==============================
@@ -928,12 +931,12 @@ def rear_fly_entry():
     for th, b in RF_FRAMES:
         pts += [RF_CAM(v) for v in rear_fly_body(th, b).values()]
     pts += [RF_CAM((0, 2, 96)), RF_CAM((0, 0, -40)), RF_CAM(v3add(RF_HIP, v3mul(RF_D, 104), v3mul(RF_N, 22)))]
-    return custom(lambda i: rear_fly_scene(*RF_FRAMES[i]), [dummy("back", "tr")] * 3, view_around(pts, 18))
+    return custom(lambda k: rear_fly_scene(*k), [dummy("back", "tr")] * 3, view_around(pts, 18), RF_FRAMES)
 
 
 # ==== archer push-up: seen from in front of the head, a little above ==============================
 
-AR_CAM = Cam(20, (200, GROUND - 6), 0)
+AR_CAM = Cam(35, (200, GROUND - 6), 55)
 AR_HAND_X = 64
 AR_FEET_Z = -196
 
@@ -985,7 +988,7 @@ def archer_entry():
     for cx in AR_FRAMES:
         pts += [AR_CAM(v) for v in archer_body(cx).values()]
     pts += [AR_CAM((-92, 0, 46)), AR_CAM((92, 0, 46))]
-    return custom(lambda i: archer_scene(AR_FRAMES[i]), [dummy("back", "tl")] * 3, view_around(pts, 10))
+    return custom(archer_scene, [dummy("back", "br")] * 3, view_around(pts, 10), AR_FRAMES)
 
 
 SCENES = {

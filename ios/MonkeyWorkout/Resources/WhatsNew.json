@@ -12,6 +12,12 @@
       "tint": "cardio",
       "title": "Watch complications are here",
       "body": "MonkeyWorkout complications now show on your watch faces and in the Smart Stack: long-press the face, Edit, Complications, then pick MonkeyWorkout."
+    },
+    {
+      "symbol": "figure.strengthtraining.traditional",
+      "tint": "strength",
+      "title": "Exercises that really move",
+      "body": "Every exercise now plays as smooth motion: the working muscles glow red, a dotted line shows the path of the bar or hand, and a chip gives the tempo, like UP 1s and DOWN 2s, with your rep. Tap the picture to replay."
     }
   ]
 }
