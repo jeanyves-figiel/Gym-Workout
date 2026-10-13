@@ -128,6 +128,15 @@ enum StatChoice: String, AppEnum, CaseIterable {
         }
     }
 
+    var recommendation: Text {
+        switch self {
+        case .week: Text("My stat: Weekly goal")
+        case .streak: Text("My stat: Streak")
+        case .minutes: Text("My stat: Next workout minutes")
+        case .readiness: Text("My stat: Readiness")
+        }
+    }
+
     var kind: ComplicationKind {
         switch self {
         case .week: .week
@@ -169,8 +178,9 @@ struct StatProvider: AppIntentTimelineProvider {
     }
 
     /// watchOS has no edit screen for widget options: each choice is offered as its own complication.
+    /// Descriptions must be plain literals: interpolated Text traps in WidgetKit and kills every complication.
     func recommendations() -> [AppIntentRecommendation<StatIntent>] {
-        StatChoice.allCases.map { AppIntentRecommendation(intent: StatIntent($0), description: Text("My stat: \($0.label)")) }
+        StatChoice.allCases.map { AppIntentRecommendation(intent: StatIntent($0), description: $0.recommendation) }
     }
 }
 

@@ -6,6 +6,12 @@
       "tint": "strength",
       "title": "A real 3D body",
       "body": "The 3D body on Explore → Muscles is now sculpted like a real body and turns around itself. Tap any muscle to see its exercises."
+    },
+    {
+      "symbol": "applewatch.watchface",
+      "tint": "cardio",
+      "title": "Watch complications are here",
+      "body": "MonkeyWorkout complications now show on your watch faces and in the Smart Stack: long-press the face, Edit, Complications, then pick MonkeyWorkout."
     }
   ]
 }
