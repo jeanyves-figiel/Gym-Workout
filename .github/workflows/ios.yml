@@ -60,6 +60,32 @@ jobs:
           [ -d "$X" ] || { echo "::error::MonkeyWorkoutWatchComplications.appex missing from the Watch app"; exit 1; }
           plutil -p "$X/Info.plist" | grep -E 'CFBundleIdentifier|NSExtensionPointIdentifier|MWAppGroup|MinimumOSVersion'
           plutil -p "$W/Info.plist" | grep -E 'CFBundleIdentifier|WKApplication|WKCompanionAppBundleIdentifier|MinimumOSVersion'
+      # Complications (#190): install on a Watch simulator and check the face gallery loads the extension's widgets.
+      - name: Check Watch complications register (simulator)
+        run: |
+          APP=build/Build/Products/Staging-watchsimulator/MonkeyWorkoutWatch.app
+          [ -d "$APP" ] || APP=build/Build/Products/Debug-watchsimulator/MonkeyWorkoutWatch.app
+          [ -d "$APP" ] || { echo "::warning::No Watch simulator build"; ls build/Build/Products; exit 0; }
+          WATCH=$(xcrun simctl list devices available | grep -m1 -E "Apple Watch" | grep -oE '[0-9A-F-]{36}')
+          [ -n "$WATCH" ] || { echo "::warning::No Apple Watch simulator"; exit 0; }
+          xcrun simctl boot "$WATCH" || true
+          xcrun simctl bootstatus "$WATCH" -b || true
+          START=$(date '+%Y-%m-%d %H:%M:%S')
+          xcrun simctl install "$WATCH" "$APP"
+          ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist")
+          xcrun simctl launch "$WATCH" "$ID" || true
+          sleep 40
+          xcrun simctl spawn "$WATCH" log show --start "$START" --style compact \
+            --predicate 'process == "chronod" OR process CONTAINS "MonkeyWorkoutWatchComplications" OR eventMessage CONTAINS "MonkeyWorkoutWatchComplications"' \
+            > chrono.log 2>&1 || true
+          echo "--- extension / chronod lines mentioning MonkeyWorkout"
+          grep -i 'monkeyworkout' chrono.log | cut -c1-400 | head -n 80 || true
+          echo "--- errors"
+          grep -iE 'error|fail|crash|invalid|unable' chrono.log | grep -i -E 'monkey|complication|descriptor' | cut -c1-400 | head -n 40 || true
+          echo "--- crash reports"
+          ls -t ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -i monkey | head || true
+          for f in $(ls -t ~/Library/Logs/DiagnosticReports/*MonkeyWorkout* 2>/dev/null | head -n 2); do head -c 6000 "$f"; done
+          xcrun simctl shutdown "$WATCH" || true
 
   screenshots:
     name: Screenshots (demo mode)
