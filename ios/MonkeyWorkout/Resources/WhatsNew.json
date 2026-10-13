@@ -18,6 +18,12 @@
       "tint": "mobility",
       "title": "Your Watch style on iPhone too",
       "body": "Monkey coach, Quest map or Level bar: pick it in Account → Style and your Watch matches. Every workout earns XP toward your level, with the same badges on both."
+    },
+    {
+      "symbol": "heart.fill",
+      "tint": "power",
+      "title": "Turn Apple Health back on",
+      "body": "Said no to Health once? Account → Body & Health → Manage Health access shows how to turn it back on in one tap."
     }
   ]
 }

@@ -17,6 +17,7 @@ struct BodyHealthView: View {
     @State private var figure: BodyFigure?
     @State private var writeToHealth = true
     @State private var loaded = false
+    @State private var showAccess = false
     @FocusState private var focus: Metric?
 
     private enum Metric: Hashable { case height, weight, birthYear }
@@ -52,6 +53,13 @@ struct BodyHealthView: View {
                     }
                     .tint(Theme.lime)
                     .card(padding: 16)
+                    Button { showAccess = true } label: {
+                        AccountCard(symbol: "key.fill", title: "Manage Health access",
+                                    subtitle: "Turn data back on you declined", gradient: HealthAccessSheet.gradient) {
+                            AccountChevron()
+                        }
+                    }
+                    .buttonStyle(.plain)
                 } else {
                     LimeActionButton(title: "Connect Apple Health", symbol: "heart.text.square.fill", disabled: !health.available) {
                         Task { await health.connect() }
@@ -141,6 +149,7 @@ struct BodyHealthView: View {
         }
         .readableWidth()
         .themedForm()
+        .sheet(isPresented: $showAccess) { HealthAccessSheet() }
         .navigationTitle("Body & Health")
         .toolbarTitleDisplayMode(.inline)
         .onAppear(perform: load)
@@ -271,5 +280,56 @@ struct ClimbingSyncHint: View {
             }
             .card(padding: 14)
         }
+    }
+}
+
+/// iOS shows the Health permission sheet only once; declined data is turned back on in Health (#212).
+struct HealthAccessSheet: View {
+    static let gradient = LinearGradient(colors: [Color(red: 1, green: 0.18, blue: 0.46), Color(red: 1, green: 0.48, blue: 0.24)],
+                                         startPoint: .topLeading, endPoint: .bottomTrailing)
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+
+    private let steps = [
+        "Open the Health app and tap your profile picture",
+        "Tap Apps, then MonkeyWorkout",
+        "Tap Turn On All, or switch on what you need under Read and Write",
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    AccountHeader(symbol: "key.fill", title: "Turn Health data back on",
+                                  subtitle: "iOS asks only once. Anything you declined is turned back on in Health.",
+                                  gradient: Self.gradient) { EmptyView() }
+                    ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
+                        HStack(spacing: 12) {
+                            Text("\(i + 1)")
+                                .font(.system(size: 17, weight: .black))
+                                .foregroundStyle(Color(red: 1, green: 0.18, blue: 0.46))
+                                .frame(width: 34, height: 34)
+                                .background(Circle().fill(.white))
+                            Text(step).font(.body.weight(.semibold))
+                            Spacer(minLength: 0)
+                        }
+                        .card(padding: 14)
+                    }
+                    LimeActionButton(title: "Open Health", symbol: "arrow.up.right") {
+                        if let url = URL(string: "x-apple-health://") { openURL(url) }
+                    }
+                    .padding(.top, 6)
+                    AccountNote(text: "Or iPhone Settings → Health → Data Access & Devices → MonkeyWorkout. Come back here and the data shows on its own.")
+                }
+                .padding(16)
+                .padding(.bottom, 24)
+            }
+            .readableWidth()
+            .background(Theme.bg.ignoresSafeArea())
+            .navigationTitle("Health access")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
+        .preferredColorScheme(.dark)
     }
 }

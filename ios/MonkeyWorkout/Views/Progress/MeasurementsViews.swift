@@ -113,7 +113,7 @@ struct MeasurementsView: View {
                 ForEach([BodyMetric.weight, .bodyFat, .leanMass]) { row($0) }
                 section("Girths")
                 ForEach(GirthSite.allCases) { row(.girth($0)) }
-                AccountNote(text: "Weight, body fat, lean mass and waist sync with Apple Health (marked with a heart). Other girths stay in the app and your account. Body fat (lean mass) and arm and thigh girth fine-tune the first suggested weight for exercises you've never logged; once you log an exercise, your own sets decide.")
+                AccountNote(text: "Weight, body fat, lean mass and waist sync with Apple Health (marked with a heart). Other girths stay in the app and your account. Declined Health access once? Turn it back on in Account → Body & Health → Manage Health access. Body fat (lean mass) and arm and thigh girth fine-tune the first suggested weight for exercises you've never logged; once you log an exercise, your own sets decide.")
             }
             .padding(16)
             .padding(.bottom, 24)

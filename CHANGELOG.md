@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- **Way back after declining Apple Health** (#212): iOS shows the Health permission sheet only once, so a member who declined (e.g. body fat, lean mass, waist from Measurements) had no way back in the app. **Account → Body & Health** now has a pink **Manage Health access** row (design A, `health-access/proposals.png`) opening a sheet with 3 steps (Health → profile → Apps → MonkeyWorkout → Turn On All) and an **Open Health** button; the Measurements note points to it. What's new `2026-10-13.2`.
 - **Exercise movement no longer flashes** (#236): on device the picture darkened for one screen frame at every frame step (measured on the build 28 recording: brightness 80 → 69–73 → 80), because each step started a new cross-fade before the last one had finished and hid the frame underneath. Playback is now one continuous frame position on a display-linked timeline (`MotionPlayback` in GymCore): the lower frame stays opaque and the next one blends over it, with no state changes between steps; the path dot glides with it; a tap mid-play glides on from where the picture is. Reduce Motion still shows whole frames. What's new `2026-10-13.2`.
 
 ### Changed
