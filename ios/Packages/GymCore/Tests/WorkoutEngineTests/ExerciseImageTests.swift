@@ -68,4 +68,41 @@ import Testing
         #expect(m.point(at: 9)?.x == 1)
         #expect(ExerciseMotion("UP", "DOWN", effortFirst: true, path: []).point(at: 0) == nil)
     }
+
+    @Test func playbackRunsRepsContinuously() {
+        let p = MotionPlayback(frames: 9, cycles: 2, out: 1, back: 2, hold: 0.5)
+        #expect(p.duration == 7)
+        #expect(p.state(at: 0)?.position == 0)
+        #expect(p.state(at: 0.5)?.position == 4)
+        #expect(p.state(at: 0.5)?.outbound == true)
+        #expect(p.state(at: 1.2)?.position == 8)
+        #expect(p.state(at: 1.2)?.halfProgress == 1)
+        #expect(p.state(at: 2.5)?.position == 4)
+        #expect(p.state(at: 2.5)?.outbound == false)
+        #expect(p.state(at: 4)?.rep == 2)
+        #expect(p.state(at: 7) == nil)
+        #expect(p.state(at: -0.1) == nil)
+        // Position never jumps: sampled at 120 Hz it moves less than one frame per tick.
+        var prev = 0.0
+        for i in 0..<840 {
+            let s = p.state(at: Double(i) / 120)!
+            #expect(abs(s.position - prev) < 0.1)
+            prev = s.position
+        }
+    }
+
+    @Test func playbackLeadsInAndSettles() {
+        let p = MotionPlayback(frames: 9, cycles: 1, out: 1, back: 1, hold: 0, from: 4, rest: 8, lead: 0.25, settle: 0.5)
+        #expect(p.state(at: 0)?.position == 4)
+        #expect(p.state(at: 0.25)?.position == 0)
+        #expect(abs(p.duration - 2.75) < 1e-9)
+        #expect(abs((p.state(at: 2.749)?.position ?? 0) - 8) < 0.05)
+    }
+
+    @Test func playbackBlend() {
+        for (p, frames, lower, upper) in [(0.0, 9, 0, 0.0), (2.25, 9, 2, 0.25), (8, 9, 8, 0), (12, 9, 8, 0), (0.5, 1, 0, 0)] {
+            let b = MotionPlayback.blend(p, frames: frames)
+            #expect(b.lower == lower && b.upper == upper, "\(p)")
+        }
+    }
 }
