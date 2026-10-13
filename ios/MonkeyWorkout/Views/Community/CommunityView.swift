@@ -199,12 +199,13 @@ struct PostCard: View {
             NavigationLink(value: post.author) {
                 HStack(spacing: 8) {
                     AvatarView(url: model.api.resolve(post.author.avatarUrl), nickname: post.author.nickname, size: 28)
-                    Text(post.author.nickname).font(Theme.label(13))
+                    Text(post.author.nickname).font(Theme.label(13)).lineLimit(1).layoutPriority(1)
                     RankTitleChip(level: post.author.level, compact: true)
                 }
             }
             .buttonStyle(.plain)
-            Text(post.createdAt.formatted(.relative(presentation: .named))).font(.caption.weight(.semibold)).opacity(0.8)
+            .layoutPriority(1)
+            Text(post.createdAt.formatted(.relative(presentation: .named))).font(.caption.weight(.semibold)).opacity(0.8).lineLimit(1)
             Spacer()
             if post.mine {
                 Image(systemName: post.visibility.symbol).font(.caption.bold()).opacity(0.85)
