@@ -1,29 +1,11 @@
 {
-  "id": "2026-10-13.2",
+  "id": "2026-10-13.3",
   "items": [
     {
-      "symbol": "figure.strengthtraining.traditional",
+      "symbol": "square.grid.3x2.fill",
       "tint": "strength",
-      "title": "Smoother exercise motion",
-      "body": "The exercise movement now glides from pose to pose without flashing, and the dot on the path moves with it."
-    },
-    {
-      "symbol": "square.grid.2x2.fill",
-      "tint": "strength",
-      "title": "Your highlights on top of Progress",
-      "body": "Measurements, records, achievements and body now sit at the top of Progress. Prefer a swipeable strip or tabs? Pick your layout in Account → Progress layout."
-    },
-    {
-      "symbol": "gamecontroller.fill",
-      "tint": "mobility",
-      "title": "Your Watch style on iPhone too",
-      "body": "Monkey coach, Quest map or Level bar: pick it in Account → Style and your Watch matches. Every workout earns XP toward your level, with the same badges on both."
-    },
-    {
-      "symbol": "heart.fill",
-      "tint": "power",
-      "title": "Turn Apple Health back on",
-      "body": "Said no to Health once? Account → Body & Health → Manage Health access shows how to turn it back on in one tap."
+      "title": "Find your way around Progress",
+      "body": "Progress opens with a map of everything on the page: training, body, records, badges, muscles and history, each with its key number. Tap one to jump there; the section bar stays on top while you scroll."
     }
   ]
 }
