@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Exercise movement no longer flashes** (#236): on device the picture darkened for one screen frame at every frame step (measured on the build 28 recording: brightness 80 → 69–73 → 80), because each step started a new cross-fade before the last one had finished and hid the frame underneath. Playback is now one continuous frame position on a display-linked timeline (`MotionPlayback` in GymCore): the lower frame stays opaque and the next one blends over it, with no state changes between steps; the path dot glides with it; a tap mid-play glides on from where the picture is. Reduce Motion still shows whole frames. What's new `2026-10-13.2`.
+
 ### Changed
 - **3D body map looks like a body and only turns around itself** (#225): the 3D figure was the 2D outline inflated like a balloon (blobby limbs, dark specks at the edges) and dragging up/down tilted it. It is now a sculpted body (head, neck, ribcage, abdomen, pelvis, shoulders, arms, hands, legs and feet as smooth joined volumes fitted to the 2D outline, F figure with its own proportions), generated once by `ios/Tools/bodymap/generate3d.py` and shipped as compressed meshes (`Resources/body-male.bm3d`, `body-female.bm3d`, ~0.85 MB each). Dragging only turns it around its vertical axis; vertical drags scroll the page. Designs in project files `3d-body-map/v2/`.
 
