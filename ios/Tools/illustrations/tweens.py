@@ -10,7 +10,7 @@ def _high_pull(keys):
     p = art.lerp_pose(keys[1], keys[2], 0.35)
     p["aN"] = (-155, 35, 35)
     p["aF"] = (-153, 37, 37)
-    return {6: p}
+    return {art.at(0.75): p}
 
 
 EXTRA["power-clean"] = _high_pull
@@ -27,7 +27,7 @@ def _man_maker(keys):
     g = (s[0] + 12, s[1] + 6)
     p = body(hip, t, h=-80, ankN=(G.MM_HIP[0] + 14, ANK), ankF=(G.MM_HIP[0] + 10, ANK), gN=g, gF=(g[0] - 3, g[1] - 1),
              eN=-1, eF=-1)
-    return {6: p}
+    return {art.at(0.75): p}
 
 
 def _get_up(keys):
@@ -38,8 +38,20 @@ def _get_up(keys):
     up = (-90, -90, -90)
     p = P(t=-90, h=-90, lN=(2, 90, 0), lF=(92, 178, 178), aN=up, aF=(88, 90),
           pin=("ankleN", (V.TGU_HIP[0] + 44, V.FOOT_Y)))
-    return {6: p}
+    return {art.at(0.75): p}
 
 
 EXTRA["man-maker"] = _man_maker
 EXTRA["turkish-get-up"] = _get_up
+
+
+def _prone_pulldown(keys):
+    """Prone pulldown: the arms lift off the floor and sweep back over the shoulders to the ribs, instead of
+    swinging down through the mat (#241)."""
+    p = art.lerp_pose(keys[0], keys[1], 0.5)
+    p["aN"] = (-55, -15, -15)
+    p["aF"] = (-57, -17, -17)
+    return {art.at(0.25): p}
+
+
+EXTRA["prone-pulldown"] = _prone_pulldown

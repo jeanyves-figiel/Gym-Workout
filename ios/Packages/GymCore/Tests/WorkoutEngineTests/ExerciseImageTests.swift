@@ -7,8 +7,9 @@ import Testing
         for e in Exercise.catalog { #expect(e.hasMedia, "\(e.id) has no image") }
         for id in ExerciseIllustrations.ids { #expect(Exercise.find(id) != nil, "\(id)") }
         #expect(Exercise.catalog.filter(\.hasIllustration).count == ExerciseIllustrations.ids.count)
-        #expect(ExerciseIllustrations.frameCount == 9)
-        #expect(ExerciseIllustrations.keyFrames == [0, 4, 8])
+        let n = ExerciseIllustrations.frameCount
+        #expect(n >= 9 && n % 2 == 1)
+        #expect(ExerciseIllustrations.keyFrames == [0, n / 2, n - 1])
     }
 
     @Test func illustrationAssetsExistInAppCatalog() throws {
@@ -25,7 +26,7 @@ import Testing
                 #expect(FileManager.default.fileExists(atPath: png.path), "\(png.path)")
             }
         }
-        #expect(Exercise.get("back-squat").illustrationAssets == (0..<9).map { "illustration-back-squat-\($0)" })
+        #expect(Exercise.get("back-squat").illustrationAssets == (0..<ExerciseIllustrations.frameCount).map { "illustration-back-squat-\($0)" })
     }
 
     @Test func everyIllustrationHasMotion() {
@@ -104,5 +105,9 @@ import Testing
             let b = MotionPlayback.blend(p, frames: frames)
             #expect(b.lower == lower && b.upper == upper, "\(p)")
         }
+        // Quick switch: held most of the step, then a short smooth dissolve.
+        #expect(MotionPlayback.blend(2.5, frames: 9, window: 0.2).upper == 0)
+        #expect(abs(MotionPlayback.blend(2.9, frames: 9, window: 0.2).upper - 0.5) < 1e-9)
+        #expect(MotionPlayback.blend(2.999, frames: 9, window: 0.2).upper > 0.99)
     }
 }
