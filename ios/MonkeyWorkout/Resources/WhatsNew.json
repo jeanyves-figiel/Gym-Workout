@@ -12,6 +12,12 @@
       "tint": "cardio",
       "title": "Find the right workout fast",
       "body": "Explore → Workouts has goal chips (Muscle, Full body, Cardio, Core, Mobility) and a search: type a name, a muscle like \"glutes\" or a goal. Cards now show the muscles worked in full."
+    },
+    {
+      "symbol": "paintpalette.fill",
+      "tint": "warmup",
+      "title": "See each style before you pick",
+      "body": "Account → Style: swipe through the styles, each with its real iPhone and Watch screens, then tap Use to switch."
     }
   ]
 }
