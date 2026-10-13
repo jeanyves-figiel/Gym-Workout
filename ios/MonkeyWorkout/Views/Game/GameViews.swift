@@ -72,7 +72,24 @@ struct LevelChip: View {
             .padding(.horizontal, 11).padding(.vertical, 6)
             .background(Capsule().fill(GameTint.xp))
             .accessibilityLabel("Level \(g.level), \(g.xpToNext) XP to the next level")
+            .opensLevels()
     }
+}
+
+/// Every level display opens the ladder (#242): LV chip, level bar, banners, finish card.
+private struct OpensLevels: ViewModifier {
+    @State private var open = false
+
+    func body(content: Content) -> some View {
+        Button { open = true } label: { content.contentShape(Rectangle()) }
+            .buttonStyle(.plain)
+            .accessibilityHint("Shows what each level brings")
+            .sheet(isPresented: $open) { LevelLadderSheet() }
+    }
+}
+
+extension View {
+    func opensLevels() -> some View { modifier(OpensLevels()) }
 }
 
 /// XP progress capsule.
@@ -126,6 +143,7 @@ struct LevelBarCard: View {
         }
         .card()
         .accessibilityElement(children: .combine)
+        .opensLevels()
     }
 }
 
@@ -421,6 +439,7 @@ struct SessionGameBanner: View {
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(style == .deck ? GameTint.quest : style == .coach ? GameTint.level : GameTint.shelf))
         .accessibilityElement(children: .combine)
+        .opensLevels()
     }
 }
 
@@ -524,6 +543,7 @@ struct GameRewardView: View {
         .foregroundStyle(.white)
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(reward.levelUp == nil ? AnyShapeStyle(Color.white.opacity(0.08)) : AnyShapeStyle(GameTint.level)))
+        .opensLevels()
     }
 }
 

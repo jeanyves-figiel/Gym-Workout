@@ -472,6 +472,58 @@ struct XPBar: View {
                 .foregroundStyle(game.accent?.color ?? W.lime)
         }
         .padding(.horizontal, 4)
+        // Level ladder (#242): tap any level bar for what each level brings, like the iPhone.
+        .contentShape(Rectangle())
+        .onTapGesture { ladder = true }
+        .sheet(isPresented: $ladder) { WatchLadderView(game: game) }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Shows what each level brings")
+    }
+
+    @State private var ladder = false
+}
+
+/// The six ranks on the Watch (#242): current one ringed, unlocks listed, XP to go on locked ones.
+struct WatchLadderView: View {
+    let game: WGame
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 6) {
+                    ForEach(GameRank.allCases) { rank in
+                        let unlocked = rank <= game.rank
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                RankMonkey(rank: rank, scale: 0.42).saturation(unlocked ? 1 : 0.2)
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text(rank.title).font(W.display(16))
+                                    Text(rank.levels).font(W.label(9)).opacity(0.85)
+                                }
+                                Spacer(minLength: 0)
+                                if rank == game.rank {
+                                    Text("YOU").font(W.label(9)).foregroundStyle(W.ink)
+                                        .padding(.horizontal, 5).padding(.vertical, 2).background(Capsule().fill(.white))
+                                } else if !unlocked {
+                                    Text("\(rank.minXP - game.xp) XP").font(W.label(9)).opacity(0.85)
+                                }
+                            }
+                            ForEach(rank.perks) { p in
+                                Label(p.title, systemImage: p.symbol).font(W.label(9)).lineLimit(2)
+                            }
+                        }
+                        .foregroundStyle(.white)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 14).fill(unlocked ? AnyShapeStyle(rank.gradient) : AnyShapeStyle(Color.white.opacity(0.1))))
+                        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.white, lineWidth: rank == game.rank ? 2 : 0))
+                        .id(rank)
+                    }
+                }
+            }
+            .onAppear { proxy.scrollTo(game.rank, anchor: .center) }
+        }
+        .navigationTitle("Levels")
     }
 }
 
