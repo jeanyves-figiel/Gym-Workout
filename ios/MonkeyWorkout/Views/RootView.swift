@@ -141,6 +141,9 @@ private struct DemoScreen: View {
         case "technique": FormSheet(exercise: Exercise.get("leg-press"))
         case "progress", "progress-empty": NavigationStack { ProgressTabView() }
         case "progress-flipped": NavigationStack { ProgressTabView(demoFlipped: .volume) }
+        case "progress-strip": NavigationStack { ProgressTabView(demoLayout: .strip) }
+        case "progress-tabs": NavigationStack { ProgressTabView(demoLayout: .tabs, demoTab: .body) }
+        case "progress-layout": NavigationStack { ProgressLayoutView() }
         case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
         case "body": NavigationStack { BodyHealthView() }
         case "measurements": NavigationStack { MeasurementsView() }

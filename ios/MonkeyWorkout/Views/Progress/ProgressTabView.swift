@@ -2,7 +2,8 @@ import Charts
 import SwiftUI
 import WorkoutEngine
 
-/// "Progress" tab in the Explore card style (#82): streak hero, live stat tiles (#218), consistency, trends,
+/// "Progress" tab in the Explore card style (#82): streak hero, top highlights in the member's layout (#238),
+/// live stat tiles (#218), consistency, trends,
 /// records, climbing, muscle balance, achievements, history. New users get a "day one" layout instead of zeros.
 struct ProgressTabView: View {
     @Environment(AppModel.self) private var model
@@ -10,12 +11,20 @@ struct ProgressTabView: View {
     @State private var badge: Badge?
     @State private var lift: String?
     @State private var gate: ProGate?
+    @AppStorage(ProgressLayout.storageKey) private var layoutRaw = ProgressLayout.default.rawValue
+    @State private var tab: ProgressSection
     /// CI screenshots: open with this tile flipped.
     var demoFlipped: StatMetric?
+    /// CI screenshots: force a top layout (#238).
+    var demoLayout: ProgressLayout?
 
-    init(demoFlipped: StatMetric? = nil) {
+    init(demoFlipped: StatMetric? = nil, demoLayout: ProgressLayout? = nil, demoTab: ProgressSection = .training) {
         self.demoFlipped = demoFlipped
+        self.demoLayout = demoLayout
+        _tab = State(initialValue: demoTab)
     }
+
+    private var layout: ProgressLayout { demoLayout ?? ProgressLayout(rawValue: layoutRaw) ?? .default }
 
     private var target: Int { model.profile?.sessionsPerWeek ?? 3 }
 
@@ -43,41 +52,46 @@ struct ProgressTabView: View {
         let s = stats
         let fresh = s.totalWorkouts == 0
         let climbList = climbs
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                StreakHero(stats: s, target: target)
-                if fresh {
-                    FirstMilestonesCard(session: false, pr: !model.personalRecords.isEmpty, climb: !climbList.isEmpty)
-                } else {
-                    tiles(climbs: climbList)
-                }
-                ConsistencyCalendar(days: s.days, records: dayRecords, empty: fresh)
-                weeklyChart(s)
-                strengthTrend
-                if !model.measurementSeries(.weight).isEmpty || !health.snapshot.vo2Trend.isEmpty { bodyTrends }
-                ProgressMeasurementsSection()
-                records(s)
-                if !climbList.isEmpty { ClimbingCard(climbs: climbList) }
-                if ProStore.shared.locked && !fresh {
-                    Button { gate = .progress } label: {
-                        AccountCard(symbol: "chart.xyaxis.line", title: "Full progress",
-                                    subtitle: "All your history in the charts, trends and the muscle heat map",
-                                    gradient: AccountTint.pro, ink: true) { ProBadge() }
+        let top = highlights(s)
+        let lay = layout
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    StreakHero(stats: s, target: target)
+                    switch lay {
+                    case .hub: ProgressHub(h: top) { jump($0, proxy) }
+                    case .strip: ProgressStrip(h: top) { jump($0, proxy) }
+                    case .tabs: ProgressTabBar(selection: $tab)
                     }
-                    .buttonStyle(.plain)
-                } else if !s.muscleBalance.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Muscle balance · last 28 days").eyebrow()
-                        BodyMapPair(heat: s.muscleBalance).frame(height: 240)
-                        HeatLegend()
+                    if shows(.training, lay) {
+                        VStack(alignment: .leading, spacing: 14) {
+                            if fresh {
+                                FirstMilestonesCard(session: false, pr: !model.personalRecords.isEmpty, climb: !climbList.isEmpty)
+                            } else {
+                                tiles(climbs: climbList)
+                            }
+                            ConsistencyCalendar(days: s.days, records: dayRecords, empty: fresh)
+                            weeklyChart(s)
+                            strengthTrend
+                            if !climbList.isEmpty { ClimbingCard(climbs: climbList) }
+                            muscleBalance(s, fresh: fresh)
+                        }
+                        .id(ProgressSection.training)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .card()
+                    if shows(.body, lay) {
+                        VStack(alignment: .leading, spacing: 14) {
+                            if lay == .tabs { BodyTilesGrid(h: top) }
+                            if !model.measurementSeries(.weight).isEmpty || !health.snapshot.vo2Trend.isEmpty { bodyTrends }
+                            ProgressMeasurementsSection()
+                        }
+                        .id(ProgressSection.body)
+                    }
+                    if shows(.records, lay) { records(s).id(ProgressSection.records) }
+                    if shows(.badges, lay) { achievements.id(ProgressSection.badges) }
+                    if shows(.history, lay) { historyList.id(ProgressSection.history) }
                 }
-                achievements
-                historyList
+                .padding(16)
             }
-            .padding(16)
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
@@ -86,6 +100,72 @@ struct ProgressTabView: View {
         .toolbarTitleDisplayMode(.inlineLarge)
         .navigationDestination(for: UUID.self) { id in HistoryDetailView(recordId: id) }
         .sheet(item: $badge) { b in BadgeSheet(badge: b).presentationDetents([.medium]) }
+    }
+
+    // MARK: Top (#238)
+
+    private func shows(_ section: ProgressSection, _ lay: ProgressLayout) -> Bool {
+        lay != .tabs || tab == section
+    }
+
+    private func jump(_ section: ProgressSection, _ proxy: ScrollViewProxy) {
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { proxy.scrollTo(section, anchor: .top) }
+    }
+
+    private func highlights(_ s: ProgressStats) -> ProgressHighlights {
+        func measure(_ m: BodyMetric, _ pts: [BodyMeasurements.Point]) -> ProgressHighlights.Measure? {
+            pts.last.map { ProgressHighlights.Measure(metric: m, value: $0.value, change: BodyMeasurements.change(pts)) }
+        }
+        func relative(_ m: ProgressHighlights.Measure) -> Double {
+            guard let c = m.change, m.value - c > 0 else { return 0 }
+            return abs(c / (m.value - c))
+        }
+        let measures = BodyMetric.all.compactMap { measure($0, model.measurementSeries($0)) }
+            .sorted { relative($0) > relative($1) }
+        var recs: [ProgressHighlights.Record] = []
+        for pr in model.personalRecords {
+            let name = Exercise.find(pr.exerciseId)?.name ?? pr.exerciseId
+            guard !recs.contains(where: { $0.name == name }) else { continue }
+            recs.append(.init(name: name, value: pr.kind == .maxReps ? "\(pr.reps)" : Format.kg(pr.kg),
+                              unit: pr.kind == .maxReps ? "reps" : "kg", date: pr.date))
+        }
+        for pr in s.personalRecords {
+            let name = Exercise.find(pr.exerciseId)?.name ?? pr.exerciseId
+            guard !recs.contains(where: { $0.name == name }) else { continue }
+            recs.append(.init(name: name, value: Format.kg(pr.kg), unit: "kg", date: pr.date))
+        }
+        let all = badges
+        let vo2 = health.snapshot.vo2Trend.map { BodyMeasurements.Point(date: $0.date, value: $0.value) }
+        return ProgressHighlights(
+            measures: measures,
+            records: recs,
+            unlocked: all.filter(\.unlocked).count,
+            badgeCount: all.count,
+            nextBadge: all.filter { !$0.unlocked }.max { $0.progress < $1.progress },
+            // VO₂max is not a BodyMetric; only its value and change are read.
+            vo2: vo2.last.map { .init(metric: .weight, value: $0.value, change: BodyMeasurements.change(vo2)) },
+            weight: measures.first { $0.metric == .weight },
+            workouts: model.history.count)
+    }
+
+    @ViewBuilder
+    private func muscleBalance(_ s: ProgressStats, fresh: Bool) -> some View {
+        if ProStore.shared.locked && !fresh {
+            Button { gate = .progress } label: {
+                AccountCard(symbol: "chart.xyaxis.line", title: "Full progress",
+                            subtitle: "All your history in the charts, trends and the muscle heat map",
+                            gradient: AccountTint.pro, ink: true) { ProBadge() }
+            }
+            .buttonStyle(.plain)
+        } else if !s.muscleBalance.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Muscle balance · last 28 days").eyebrow()
+                BodyMapPair(heat: s.muscleBalance).frame(height: 240)
+                HeatLegend()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .card()
+        }
     }
 
     // MARK: Sections
