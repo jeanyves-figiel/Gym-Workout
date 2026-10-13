@@ -18,10 +18,14 @@ final class WatchHomePref {
 
     private(set) var style: WatchHomeStyle
     private(set) var changedAt: Date?
+    /// XP bar and level chip colour, picked from Steel on (#242); lime before.
+    private(set) var accent: GameAccent
+    private static let accentKey = "gameAccent"
 
     private init() {
         style = UserDefaults.standard.string(forKey: Self.key).flatMap(WatchHomeStyle.init) ?? .default
         changedAt = UserDefaults.standard.object(forKey: Self.dateKey) as? Date
+        accent = UserDefaults.standard.string(forKey: Self.accentKey).flatMap(GameAccent.init) ?? .lime
         #if DEBUG
         if Demo.enabled, let demo = Demo.appStyle { style = demo }
         #endif
@@ -33,6 +37,12 @@ final class WatchHomePref {
         changedAt = date
         UserDefaults.standard.set(new.rawValue, forKey: Self.key)
         UserDefaults.standard.set(date, forKey: Self.dateKey)
+        WatchSync.shared.push()
+    }
+
+    func setAccent(_ new: GameAccent) {
+        accent = new
+        UserDefaults.standard.set(new.rawValue, forKey: Self.accentKey)
         WatchSync.shared.push()
     }
 }
@@ -144,7 +154,8 @@ final class WatchSync: NSObject {
         let badges = model.badges
         s.game = WGame(xp: game.xp, workouts: game.workouts, totalSets: game.totalSets,
                        badges: badges.filter(\.unlocked).map(\.id), weeksCleared: game.weeksCleared,
-                       catalog: badges.map { WBadge(id: $0.id, title: $0.title, symbol: $0.symbol, tier: $0.tier.rawValue) })
+                       catalog: badges.map { WBadge(id: $0.id, title: $0.title, symbol: $0.symbol, tier: $0.tier.rawValue) },
+                       accent: GameRank.of(level: game.level) >= .steel ? WatchHomePref.shared.accent : nil)
         return s
     }
 

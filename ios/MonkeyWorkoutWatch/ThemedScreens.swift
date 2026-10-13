@@ -347,6 +347,7 @@ struct ProgressScreen: View {
             if let g = store.snapshot.game {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack {
+                        RankMonkey(rank: g.rank, scale: 0.36)
                         Text("Level \(g.level)").font(W.display(16))
                         Spacer(minLength: 2)
                         Text("🎁 \(g.weeksCleared ?? 0)").font(W.label(11))
@@ -462,14 +463,67 @@ struct XPBar: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(.white.opacity(0.18))
-                    Capsule().fill(LinearGradient(colors: [W.lime, W.color(0x3DFFB0)], startPoint: .leading, endPoint: .trailing))
+                    Capsule().fill(game.accent?.gradient ?? LinearGradient(colors: [W.lime, W.color(0x3DFFB0)], startPoint: .leading, endPoint: .trailing))
                         .frame(width: max(8, geo.size.width * game.levelProgress))
                 }
             }
             .frame(height: 8)
-            Text("\(game.xpInLevel) / \(WGame.perLevel) XP → LEVEL \(game.level + 1)").font(W.label(8)).foregroundStyle(W.lime)
+            Text("\(game.rank.title) · \(game.xpInLevel)/\(WGame.perLevel) XP → LV \(game.level + 1)").font(W.label(8))
+                .foregroundStyle(game.accent?.color ?? W.lime)
         }
         .padding(.horizontal, 4)
+        // Level ladder (#242): tap any level bar for what each level brings, like the iPhone.
+        .contentShape(Rectangle())
+        .onTapGesture { ladder = true }
+        .sheet(isPresented: $ladder) { WatchLadderView(game: game) }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Shows what each level brings")
+    }
+
+    @State private var ladder = false
+}
+
+/// The six ranks on the Watch (#242): current one ringed, unlocks listed, XP to go on locked ones.
+struct WatchLadderView: View {
+    let game: WGame
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 6) {
+                    ForEach(GameRank.allCases) { rank in
+                        let unlocked = rank <= game.rank
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                RankMonkey(rank: rank, scale: 0.42).saturation(unlocked ? 1 : 0.2)
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text(rank.title).font(W.display(16))
+                                    Text(rank.levels).font(W.label(9)).opacity(0.85)
+                                }
+                                Spacer(minLength: 0)
+                                if rank == game.rank {
+                                    Text("YOU").font(W.label(9)).foregroundStyle(W.ink)
+                                        .padding(.horizontal, 5).padding(.vertical, 2).background(Capsule().fill(.white))
+                                } else if !unlocked {
+                                    Text("\(rank.minXP - game.xp) XP").font(W.label(9)).opacity(0.85)
+                                }
+                            }
+                            ForEach(rank.perks) { p in
+                                Label(p.title, systemImage: p.symbol).font(W.label(9)).lineLimit(2)
+                            }
+                        }
+                        .foregroundStyle(.white)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 14).fill(unlocked ? AnyShapeStyle(rank.gradient) : AnyShapeStyle(Color.white.opacity(0.1))))
+                        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.white, lineWidth: rank == game.rank ? 2 : 0))
+                        .id(rank)
+                    }
+                }
+            }
+            .onAppear { proxy.scrollTo(game.rank, anchor: .center) }
+        }
+        .navigationTitle("Levels")
     }
 }
 
@@ -507,6 +561,15 @@ struct SummaryView: View {
     let saved: Bool
     let onDone: () -> Void
     @State private var dance = false
+    @State private var celebrated = false
+
+    private var demo: Bool {
+        #if DEBUG
+        Demo.on
+        #else
+        false
+        #endif
+    }
 
     private static let confetti: [(emoji: String, x: CGFloat, y: CGFloat)] = [("🎉", -52, -14), ("✨", 50, -22), ("⭐", -44, 18), ("🎊", 46, 12)]
 
@@ -527,6 +590,12 @@ struct SummaryView: View {
             }
         }
         .modifier(ThemeBackground(theme: theme, colour: W.gradient(0x3DFFB0, 0x1E9BFF), glow: 0xB23DFF))
+        // Level ladder (#242): full-screen level-up with the rank's effect, same as the iPhone.
+        .overlay {
+            if let level = store.reward?.levelUp, !celebrated, !demo {
+                LevelUpCelebration(level: level, compact: true) { celebrated = true }
+            }
+        }
         .onAppear {
             WKInterfaceDevice.current().play(.success)
             guard !reduceMotion else { return }
@@ -562,7 +631,7 @@ struct SummaryView: View {
     /// Level-up and new badges, in every look (#227).
     @ViewBuilder private var rewardLines: some View {
         if let level = store.reward?.levelUp {
-            Text("⬆️ Level \(level)!").font(W.label(12)).foregroundStyle(W.ink)
+            Text("⬆️ Level \(level) · \(GameRank.of(level: level).title)").font(W.label(12)).foregroundStyle(W.ink)
                 .padding(.horizontal, 8).padding(.vertical, 3).background(Capsule().fill(W.lime))
         }
         ForEach(store.reward?.badges ?? []) { b in
@@ -593,7 +662,7 @@ struct SummaryView: View {
                     Text(c.emoji).font(.system(size: 14))
                         .offset(x: c.x, y: c.y + (dance ? -4 : 4))
                 }
-                MonkeyFace(mood: .party)
+                MonkeyFace(mood: .party, gear: store.snapshot.game?.rank.gear)
                     .rotationEffect(.degrees(dance ? 10 : -10))
                     .offset(y: dance ? -3 : 2)
             }

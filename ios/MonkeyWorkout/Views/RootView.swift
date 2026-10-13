@@ -64,6 +64,7 @@ struct MainTabView: View {
         .sidebarAdaptableTabs()
         // Community profile early so auto-share works for the first workout of the session.
         .task(id: model.user?.id) { await Community.shared.load(api: model.api, userId: model.user?.id) }
+        .task(id: "\(Community.shared.profile?.userId ?? "")-\(model.game.level)") { await Community.shared.reportLevel(model.game.level, api: model.api) }
         .modifier(NotificationsHost())
         .fullScreenCover(isPresented: Binding(get: { model.offerPro }, set: { model.offerPro = $0 })) {
             NavigationStack { ProView(context: .onboarding) { model.offerPro = false } }
@@ -247,6 +248,16 @@ private struct DemoScreen: View {
         case let g where g.hasPrefix("game-session"): NavigationStack { SessionView(sessionId: second) }
         case let g where g.hasPrefix("game-done"): WorkoutPlayerView(sessionId: second, demoMode: "done")
         case let g where g.hasPrefix("game-progress"): NavigationStack { ProgressTabView() }
+        // Level ladder (#242): the sheet, and level-up celebrations (confetti / fireworks / crown rain).
+        case "game-ladder": LevelLadderSheet()
+        case "game-levelup": LevelUpCelebration(level: 8)
+        case "game-levelup-legend": LevelUpCelebration(level: 40)
+        case "game-level-row":
+            NavigationStack {
+                ScrollView { GameProgressCard(badges: model.badges).padding(16) }
+                    .background(Theme.bg.ignoresSafeArea())
+                    .navigationTitle("Progress")
+            }
         case "game-quest-deck":
             NavigationStack {
                 ScrollView {

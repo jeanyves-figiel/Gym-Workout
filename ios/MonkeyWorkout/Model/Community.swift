@@ -75,6 +75,15 @@ final class Community {
         }
     }
 
+    /// Tells the server the game level (#242) when it changed, so members see the rank title and Legend badge.
+    func reportLevel(_ level: Int, api: APIClient) async {
+        guard !demo, let p = profile, p.level != level else { return }
+        do {
+            try await api.setCommunityLevel(level)
+            profile?.level = level
+        } catch {}
+    }
+
     func loadMore(_ scope: CommunityFeedScope, api: APIClient) async {
         guard let before = next[scope], !loading else { return }
         loading = true
@@ -215,11 +224,12 @@ final class Community {
         guard joined else { return }
         profile = CommunityProfile(
             userId: "demo", nickname: "monkey_jy", bio: "Climber who lifts. Chasing a strict one-arm hang.", avatarUrl: nil,
-            defaultVisibility: .members, autoShare: false, showGym: true, gym: "Fitnesspark Puls 5", sharedPosts: 34, cheersReceived: 96, followers: 12, following: 8)
+            defaultVisibility: .members, autoShare: false, showGym: true, gym: "Fitnesspark Puls 5", sharedPosts: 34, cheersReceived: 96, followers: 12, following: 8,
+            level: 9)
         let now = Date()
-        let bea = CommunityAuthor(userId: "u-bea", nickname: "bench_bea")
-        let me = CommunityAuthor(userId: "demo", nickname: "monkey_jy")
-        let crimpy = CommunityAuthor(userId: "u-crimpy", nickname: "crimpy")
+        let bea = CommunityAuthor(userId: "u-bea", nickname: "bench_bea", level: 42)
+        let me = CommunityAuthor(userId: "demo", nickname: "monkey_jy", level: 9)
+        let crimpy = CommunityAuthor(userId: "u-crimpy", nickname: "crimpy", level: 4)
         let posts = [
             CommunityPost(
                 id: "p1", author: bea, mine: false, kind: "workout", visibility: .members, caption: "New bench best, 80 kg!",

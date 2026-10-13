@@ -30,6 +30,7 @@ interface ProfileRow {
   default_visibility: Visibility;
   auto_share: number;
   show_gym: number;
+  level: number | null;
   guidelines_accepted_at: string;
   created_at: string;
 }
@@ -55,6 +56,7 @@ interface PostRow {
   updated_at: string;
   nickname: string | null;
   avatar_id: string | null;
+  level: number | null;
 }
 
 interface Gym {
@@ -206,6 +208,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     defaultVisibility: p.default_visibility,
     autoShare: !!p.auto_share,
     showGym: !!p.show_gym,
+    level: p.level ?? null,
     gym: gymOf(p.user_id)?.name ?? null,
     guidelinesAcceptedAt: p.guidelines_accepted_at,
     ...stats(p.user_id),
@@ -216,6 +219,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     nickname: p.nickname,
     bio: p.bio,
     avatarUrl: avatarUrl(p.avatar_id),
+    level: p.level ?? null,
     gym: sharedGym(p)?.name ?? null,
     createdAt: p.created_at,
     ...stats(p.user_id),
@@ -229,6 +233,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       nickname: p.nickname,
       bio: p.bio,
       avatarUrl: avatarUrl(p.avatar_id),
+      level: p.level ?? null,
       gym: sharedGym(p)?.name ?? null,
       sharedPosts: s.sharedPosts,
       followers: s.followers,
@@ -236,7 +241,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     };
   };
 
-  const SELECT_POSTS = `SELECT p.*, cp.nickname, cp.avatar_id FROM community_posts p LEFT JOIN community_profiles cp ON cp.user_id = p.user_id`;
+  const SELECT_POSTS = `SELECT p.*, cp.nickname, cp.avatar_id, cp.level FROM community_posts p LEFT JOIN community_profiles cp ON cp.user_id = p.user_id`;
   /** Posts `viewer` may see that are not their own. */
   const VISIBLE_TO_OTHERS = `cp.user_id IS NOT NULL AND ${visibleToOthersSql('p.user_id', 'p.visibility', 'p.hidden_at')}`;
 
@@ -251,7 +256,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       const rs = counts.filter((c) => c.post_id === p.id);
       return {
         id: p.id,
-        author: { userId: p.user_id, nickname: p.nickname ?? 'member', avatarUrl: avatarUrl(p.avatar_id) },
+        author: { userId: p.user_id, nickname: p.nickname ?? 'member', avatarUrl: avatarUrl(p.avatar_id), level: p.level ?? null },
         mine: p.user_id === viewer,
         kind: p.kind,
         refId: p.ref_id,
@@ -382,6 +387,15 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       db.prepare('DELETE FROM community_profiles WHERE user_id = ?').run(req.userId!);
     });
     return reply.status(204).send();
+  });
+
+  /** Game level (#242), computed on the device from workout history. */
+  r.put('/community/me/level', async (req) => {
+    const b = z.object({ level: z.number().int().min(1).max(999) }).parse(req.body);
+    const p = profileRow(req.userId!);
+    if (!p) throw new ApiError(404, 'not_member', 'Join the community first.');
+    if (p.level !== b.level) db.prepare('UPDATE community_profiles SET level = ? WHERE user_id = ?').run(b.level, req.userId!);
+    return { level: b.level };
   });
 
   r.put('/community/me/avatar', async (req) => {

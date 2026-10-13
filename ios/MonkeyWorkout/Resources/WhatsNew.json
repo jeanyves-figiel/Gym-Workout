@@ -24,6 +24,12 @@
       "tint": "cardio",
       "title": "Every update in one place",
       "body": "Account → What's new now lists all past updates, newest first, so you can catch up on anything you missed."
+    },
+    {
+      "symbol": "crown.fill",
+      "tint": "power",
+      "title": "Levels that bring something",
+      "body": "Six ranks from Rookie to Legend, each with a new monkey look, rings, level-up effects, app icons and a Community title. Tap your level in Progress to see the whole ladder."
     }
   ]
 }

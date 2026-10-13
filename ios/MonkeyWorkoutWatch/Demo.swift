@@ -2,7 +2,7 @@
 import SwiftUI
 
 /// DEBUG-only Watch demo data for CI screenshots (#219):
-/// `-demo [-homeStyle coach|deck|rings] [-watchScreen list|detail|progress|summary|mirror|pro]`.
+/// `-demo [-homeStyle coach|deck|rings] [-watchScreen list|detail|progress|summary|levelup|mirror|pro]`.
 enum Demo {
     static let on = ProcessInfo.processInfo.arguments.contains("-demo")
 
@@ -42,6 +42,7 @@ enum Demo {
         case "list": NavigationStack { SessionListView(title: "This week", sessions: s.sessions) }
         case "detail": NavigationStack { SessionDetailView(session: s.sessions[1], onStart: { _ in }) }
         case "progress": NavigationStack { ProgressScreen() }
+        case "levelup": LevelUpCelebration(level: 8, compact: true)
         case "summary": SummaryView(player: player(s.sessions[1]), kcal: 410, avgHR: 128, saved: true, onDone: {})
         case "mirror":
             MirrorView(live: WLive(sessionTitle: "Upper Strength", exercise: "Bench Press", setLabel: "Set 2 of 4", detail: "80 kg × 8",
@@ -82,7 +83,7 @@ enum Demo {
         s.nextSessionId = "tue"
         s.readiness = "Ready to push"
         s.pro = true
-        s.game = WGame(xp: 3320, workouts: 42, totalSets: 760, badges: ["first", "w10", "w25", "s2", "s4", "v10", "pr1", "early"],
+        s.game = WGame(xp: 3620, workouts: 42, totalSets: 760, badges: ["first", "w10", "w25", "s2", "s4", "v10", "pr1", "early"],
                        weeksCleared: 6, catalog: catalog)
         s.progress = WProgress(streakWeeks: 5, bestStreakWeeks: 5, thisWeek: 1, target: 4,
                                records: [WRecord(name: "Bench Press", kg: 92.5), WRecord(name: "Squat", kg: 130)],

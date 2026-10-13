@@ -455,6 +455,7 @@ struct CommunityProfileView: View {
             if let p = community.profile {
                 VStack(alignment: .leading, spacing: 16) {
                     ProfileHero(avatar: model.api.resolve(p.avatarUrl), nickname: p.nickname, bio: p.bio)
+                    RankTitleChip(level: model.game.level).frame(maxWidth: .infinity)
                     if p.showGym == true, let gym = p.gym {
                         Label(gym, systemImage: "building.2.fill").font(Theme.label(13)).foregroundStyle(Theme.lime).frame(maxWidth: .infinity)
                     }
@@ -585,6 +586,7 @@ struct MemberView: View {
             VStack(alignment: .leading, spacing: 16) {
                 ProfileHero(avatar: model.api.resolve(page?.member.avatarUrl ?? author.avatarUrl),
                             nickname: page?.member.nickname ?? author.nickname, bio: page?.member.bio)
+                RankTitleChip(level: page?.member.level ?? author.level).frame(maxWidth: .infinity)
                 if let m = page?.member {
                     if let gym = m.gym {
                         Label(gym, systemImage: "building.2.fill").font(Theme.label(13)).foregroundStyle(Theme.lime).frame(maxWidth: .infinity)

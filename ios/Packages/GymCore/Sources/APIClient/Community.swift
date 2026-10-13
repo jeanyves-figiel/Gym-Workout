@@ -37,11 +37,15 @@ public struct CommunityProfile: Codable, Sendable, Equatable {
     public var cheersReceived: Int
     public var followers: Int
     public var following: Int
+    /// Game level reported by the app (#242); nil before the first report or from older servers.
+    public var level: Int?
 
     public init(
         userId: String, nickname: String, bio: String? = nil, avatarUrl: String? = nil, defaultVisibility: CommunityVisibility = .onlyMe,
-        autoShare: Bool = false, showGym: Bool? = nil, gym: String? = nil, sharedPosts: Int = 0, cheersReceived: Int = 0, followers: Int = 0, following: Int = 0
+        autoShare: Bool = false, showGym: Bool? = nil, gym: String? = nil, sharedPosts: Int = 0, cheersReceived: Int = 0, followers: Int = 0, following: Int = 0,
+        level: Int? = nil
     ) {
+        self.level = level
         self.showGym = showGym
         self.gym = gym
         self.followers = followers
@@ -87,11 +91,14 @@ public struct CommunityMember: Codable, Sendable, Equatable {
     public var following: Int
     /// Gym name, when the member shows it (#152).
     public var gym: String?
+    /// Game level reported by the app (#242); nil before the first report or from older servers.
+    public var level: Int?
 
     public init(
         userId: String, nickname: String, bio: String?, avatarUrl: String?, sharedPosts: Int, cheersReceived: Int, followers: Int = 0, following: Int = 0,
-        gym: String? = nil
+        gym: String? = nil, level: Int? = nil
     ) {
+        self.level = level
         self.gym = gym
         self.followers = followers
         self.following = following
@@ -108,8 +115,11 @@ public struct CommunityAuthor: Codable, Sendable, Equatable, Hashable {
     public var userId: String
     public var nickname: String
     public var avatarUrl: String?
+    /// Game level reported by the app (#242); nil before the first report or from older servers.
+    public var level: Int?
 
-    public init(userId: String, nickname: String, avatarUrl: String? = nil) {
+    public init(userId: String, nickname: String, avatarUrl: String? = nil, level: Int? = nil) {
+        self.level = level
         self.userId = userId
         self.nickname = nickname
         self.avatarUrl = avatarUrl
@@ -230,13 +240,16 @@ public struct CommunityMemberSummary: Decodable, Sendable, Identifiable, Equatab
     public var sharedPosts: Int
     public var followers: Int
     public var followedByMe: Bool
+    /// Game level reported by the app (#242); nil before the first report or from older servers.
+    public var level: Int?
     public var id: String { userId }
-    public var author: CommunityAuthor { CommunityAuthor(userId: userId, nickname: nickname, avatarUrl: avatarUrl) }
+    public var author: CommunityAuthor { CommunityAuthor(userId: userId, nickname: nickname, avatarUrl: avatarUrl, level: level) }
 
     public init(
         userId: String, nickname: String, bio: String? = nil, avatarUrl: String? = nil, gym: String? = nil, sharedPosts: Int = 0, followers: Int = 0,
-        followedByMe: Bool = false
+        followedByMe: Bool = false, level: Int? = nil
     ) {
+        self.level = level
         self.gym = gym
         self.userId = userId
         self.nickname = nickname
@@ -388,6 +401,12 @@ extension APIClient {
             throw APIError.decoding("missing profile")
         }
         return p
+    }
+
+    /// Reports the game level (#242) so members see your rank title.
+    public func setCommunityLevel(_ level: Int) async throws {
+        struct Body: Encodable { var level: Int }
+        _ = try await authorizedRaw("PUT", "/v1/community/me/level", Body(level: level))
     }
 
     /// Members you follow, by nickname.

@@ -115,6 +115,25 @@ describe('community profile', () => {
   });
 });
 
+describe('game level (#242)', () => {
+  it('is reported by the app and shown on profile, member page, search rows and posts', async () => {
+    const solo = await signUp('solo@example.com');
+    expect((await req('PUT', '/v1/community/me/level', solo.t, { level: 3 })).statusCode).toBe(404);
+    const a = await join('lvl-a@example.com', 'legend_a', { defaultVisibility: 'members' });
+    const b = await join('lvl-b@example.com', 'viewer_b');
+    expect((await req('GET', '/v1/community/me', a.t)).json().profile.level).toBeNull();
+    expect((await req('PUT', '/v1/community/me/level', a.t, { level: 0 })).statusCode).toBe(400);
+    expect((await req('PUT', '/v1/community/me/level', a.t, { level: 41 })).json()).toEqual({ level: 41 });
+    expect((await req('GET', '/v1/community/me', a.t)).json().profile.level).toBe(41);
+    expect((await share(a.t, { visibility: 'members' })).statusCode).toBe(200);
+    const member = (await req('GET', `/v1/community/members/${a.id}`, b.t)).json();
+    expect(member.member.level).toBe(41);
+    expect(member.posts[0].author.level).toBe(41);
+    const found = (await req('GET', '/v1/community/members?q=legend', b.t)).json();
+    expect(JSON.stringify(found)).toContain('"level":41');
+  });
+});
+
 describe('community feed', () => {
   it('honours visibility, cheers, blocks and deletion', async () => {
     const a = await join('a@example.com', 'bea', { defaultVisibility: 'members' });
