@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Generate MonkeyWorkout's exercise pictures (#170): three frames (start, middle, end) per exercise.
+"""Generate MonkeyWorkout's exercise pictures (#170): art.FRAMES frames per exercise (#229: start, middle and end
+key poses + eased in-betweens; tweens.py adds hand-made in-betweens) and the movement data (motion.py).
 
 Each catalog exercise has a scene (scenes*.py: poses + drawn equipment) rendered by art.py: a shaded
 anatomical figure with the worked muscles in the app's load colours, the machine or equipment, and a
@@ -7,8 +8,9 @@ small front/back muscle map. Frames are rasterised to palette PNGs (transparent 
 draws the category gradient behind them).
 
 Writes ios/MonkeyWorkout/Resources/Illustrations.xcassets/illustration-<id>-<frame>.imageset, the
-Swift id list ios/Packages/GymCore/Sources/WorkoutEngine/Exercise+Illustrations.swift and the media
-ledger ios/EXERCISE_MEDIA.md.
+Swift id list ios/Packages/GymCore/Sources/WorkoutEngine/Exercise+Illustrations.swift, the movement table
+ExerciseMotion+Table.swift next to it and the media ledger ios/EXERCISE_MEDIA.md. Check every animation first:
+python3 ios/Tools/illustrations/check.py
 
     python3 ios/Tools/illustrations/generate.py              # write assets (needs cairosvg, Pillow)
     python3 ios/Tools/illustrations/sample.py out.png ids…   # contact sheet for review
@@ -18,12 +20,15 @@ import io
 import json
 import re
 import shutil
+from concurrent.futures import ProcessPoolExecutor
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import art  # noqa: E402
+import motion  # noqa: E402
+import tweens  # noqa: E402
 
 IOS = HERE.parent.parent
 CATALOG = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercises+Catalog.swift"
@@ -32,14 +37,17 @@ VARIATIONS = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercises+Variations.
 GYMAPP = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercises+GymApp.swift"
 ASSETS = IOS / "MonkeyWorkout/Resources/Illustrations.xcassets"
 SWIFT_OUT = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercise+Illustrations.swift"
+MOTION_OUT = IOS / "Packages/GymCore/Sources/WorkoutEngine/ExerciseMotion+Table.swift"
 LEDGER = IOS / "EXERCISE_MEDIA.md"
 
 SCENE_MODULES = ["scenes", "scenes_lower", "scenes_upper", "scenes_arms_core", "scenes_power", "scenes_mobility",
                  "scenes_extra", "scenes_var_lower", "scenes_var_push", "scenes_var_pull", "scenes_var_core",
                  "scenes_gym_machines", "scenes_gym_free", "scenes_gym_props", "scenes_gym_calis",
                  "scenes_gym_mobility"]
-FRAMES = 3
+FRAMES = art.FRAMES
 SIZE = (720, 540)
+# In-betweens show for a fraction of a second while the movement plays: drawn smaller to keep the app light.
+TWEEN_SIZE = (540, 405)
 
 # Category gradients (Theme.swift), for contact sheets.
 GRADIENT = {"warmup": ("#FF8A00", "#FFC93D"), "power": ("#FF2D55", "#FF6FB5"),
@@ -68,20 +76,45 @@ def scenes():
     return out
 
 
-def render(ex_id, cat, all_scenes):
-    """SVG strings for the exercise's frames (start, middle, end)."""
+def render(ex_id, cat, all_scenes, joints=None):
+    """SVG strings for the exercise's FRAMES frames (start, eased in-betweens, end; middle key at FRAMES // 2).
+    `joints` (a list) receives each frame's (joints, view) as drawn, for motion.py."""
     entry = all_scenes[ex_id]
-    if callable(entry):  # custom renderer (e.g. a hand close-up): returns the frames itself
-        return entry(cat[ex_id])
+    if callable(entry):  # custom renderer (3D arm states): returns the frames itself
+        out = []
+        art_render = art.render
+
+        def rec(*a, **k):
+            svg = art_render(*a, **k)
+            if joints is not None:
+                joints.append(art.LAST)
+            return svg
+        art.render = rec
+        try:
+            out = entry(cat[ex_id])
+        finally:
+            art.render = art_render
+        return out
     scene, poses, view = entry
-    return [art.render(p, cat[ex_id], scene, prefix=f"f{i}", view=view) for i, p in enumerate(art.frames(poses))]
+    out = []
+    extra = tweens.EXTRA[ex_id](art.keyframes(poses)) if ex_id in tweens.EXTRA else None
+    for i, p in enumerate(art.frames(poses, extra)):
+        out.append(art.render(p, cat[ex_id], scene, prefix=f"f{i}", view=view, heat=art.glow(i)))
+        if joints is not None:
+            joints.append(art.LAST)
+    return out
 
 
-def to_png(svg):
+def motion_of(ex_id, joints):
+    frames = [j for j, _ in joints]
+    return motion.analyse(ex_id, frames, joints[0][1], front="hipN" in frames[0])  # frontal() adds hipN
+
+
+def to_png(svg, size=SIZE):
     import cairosvg
     from PIL import Image
 
-    png = cairosvg.svg2png(bytestring=svg.encode(), output_width=SIZE[0], output_height=SIZE[1])
+    png = cairosvg.svg2png(bytestring=svg.encode(), output_width=size[0], output_height=size[1])
     im = Image.open(io.BytesIO(png)).convert("RGBA")
     out = io.BytesIO()
     im.quantize(256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.FLOYDSTEINBERG).save(out, "PNG", optimize=True)
@@ -97,26 +130,30 @@ def build():
     stale = sorted(set(all_scenes) - set(cat))
     if stale:
         raise SystemExit(f"scenes for exercises not in the catalog: {stale}")
-    frames = {}
+    frames, motions = {}, {}
     for ex_id in cat:
-        f = render(ex_id, cat, all_scenes)
+        joints = []
+        f = render(ex_id, cat, all_scenes, joints)
         if len(f) != FRAMES:
             raise SystemExit(f"{ex_id}: {len(f)} frames, want {FRAMES}")
         frames[ex_id] = f
-    return cat, frames
+        motions[ex_id] = motion_of(ex_id, joints)
+    return cat, frames, motions
 
 
-def write(cat, frames):
+def write(cat, frames, motions):
     if ASSETS.exists():
         shutil.rmtree(ASSETS)
     ASSETS.mkdir(parents=True)
     (ASSETS / "Contents.json").write_text(json.dumps({"info": {"author": "xcode", "version": 1}}, indent=2) + "\n")
-    for ex_id, svgs in sorted(frames.items()):
-        for f, svg in enumerate(svgs):
-            name = f"illustration-{ex_id}-{f}"
+    jobs = [(f"illustration-{ex_id}-{f}", svg, SIZE if f in art.KEYS else TWEEN_SIZE)
+            for ex_id, svgs in sorted(frames.items()) for f, svg in enumerate(svgs)]
+    with ProcessPoolExecutor() as pool:
+        pngs = pool.map(to_png, [svg for _, svg, _ in jobs], [size for _, _, size in jobs], chunksize=16)
+        for (name, _, _), png in zip(jobs, pngs):
             d = ASSETS / f"{name}.imageset"
             d.mkdir()
-            (d / f"{name}.png").write_bytes(to_png(svg))
+            (d / f"{name}.png").write_bytes(png)
             (d / "Contents.json").write_text(json.dumps({
                 "images": [{"filename": f"{name}.png", "idiom": "universal"}],
                 "info": {"author": "xcode", "version": 1},
@@ -125,12 +162,17 @@ def write(cat, frames):
     ids = ",\n".join(f'        "{i}"' for i in sorted(frames))
     SWIFT_OUT.write_text(f"""// Generated by ios/Tools/illustrations/generate.py — do not edit by hand.
 
-/// Every catalog exercise is illustrated with MonkeyWorkout's own art (#170): start, middle and end of the
-/// movement, worked muscles highlighted, equipment drawn. Asset names: `illustration-<id>-<frame>` in the
-/// app's Illustrations.xcassets. Source + license of each exercise's media: ios/EXERCISE_MEDIA.md.
+/// Every catalog exercise is illustrated with MonkeyWorkout's own art (#170): the movement in {FRAMES} frames
+/// (#229: start, eased in-betweens, middle key at `middleFrame`, end), worked muscles highlighted, equipment drawn.
+/// Asset names: `illustration-<id>-<frame>` in the app's Illustrations.xcassets. Source + license of each
+/// exercise's media: ios/EXERCISE_MEDIA.md.
 public enum ExerciseIllustrations {{
-    /// Frames per illustration: start, middle, end position.
+    /// Frames per illustration: start (0), eased in-betweens, end (frameCount - 1).
     public static let frameCount = {FRAMES}
+    /// The middle key pose.
+    public static let middleFrame = {FRAMES // 2}
+    /// Start, middle and end frames (the hand-drawn key poses).
+    public static let keyFrames = [0, middleFrame, frameCount - 1]
     public static let credit = "Illustration: MonkeyWorkout"
 
     public static let ids: Set<String> = [
@@ -146,7 +188,7 @@ extension Exercise {{
     /// True when the exercise has one of the app's illustrations (every catalog exercise does).
     public var hasIllustration: Bool {{ ExerciseIllustrations.ids.contains(id) }}
 
-    /// Asset names of the illustration frames (start, middle, end). Empty without an illustration.
+    /// Asset names of the illustration frames (start … end). Empty without an illustration.
     public var illustrationAssets: [String] {{
         guard hasIllustration else {{ return [] }}
         return (0..<ExerciseIllustrations.frameCount).map {{ ExerciseIllustrations.assetName(id, frame: $0) }}
@@ -157,12 +199,26 @@ extension Exercise {{
 }}
 """)
 
+    def num(v):
+        return f"{v:.3f}".rstrip("0").rstrip(".") if v else "0"
+    entries = []
+    for ex_id in sorted(motions):
+        mo = motions[ex_id]
+        path = ", ".join(num(v) for p in mo["path"] for v in p)
+        entries.append(f'        "{ex_id}": ExerciseMotion("{mo["first"]}", "{mo["second"]}", '
+                       f'effortFirst: {str(mo["effort_first"]).lower()}, path: [{path}]),')
+    MOTION_OUT.write_text("// Generated by ios/Tools/illustrations/generate.py (motion.py) — do not edit by hand.\n\n"
+                          "extension ExerciseMotion {\n"
+                          "    /// Movement of every illustrated exercise (#229), by exercise id.\n"
+                          "    public static let table: [String: ExerciseMotion] = [\n"
+                          + "\n".join(entries) + "\n    ]\n}\n")
+
     rows = [f"| `{ex_id}` | {ex['name']} | Illustration ({FRAMES} frames) | Own work, `ios/Tools/illustrations` | "
             f"MonkeyWorkout (own) |" for ex_id, ex in cat.items()]
     LEDGER.write_text(f"""# Exercise media ledger
 
 Generated by `ios/Tools/illustrations/generate.py`. Every catalog exercise is illustrated with the app's
-own art (#170): a shaded anatomical figure in three frames (start, middle, end of the movement), the
+own art (#170): a shaded anatomical figure in {FRAMES} frames (start to end of the movement, #229), the
 worked muscles in the app's load colours (primary red, secondary amber), the machine or equipment drawn
 in the scene, and a small front/back muscle map. No third-party images or video.
 
@@ -174,6 +230,6 @@ Illustrations: {len(frames)} · Total: {len(cat)}
 
 
 if __name__ == "__main__":
-    cat, frames = build()
-    write(cat, frames)
+    cat, frames, motions = build()
+    write(cat, frames, motions)
     print(f"{len(frames)} illustrated, {len(cat)} total")
