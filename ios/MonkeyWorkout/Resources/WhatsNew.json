@@ -2,6 +2,12 @@
   "id": "2026-10-13.3",
   "items": [
     {
+      "symbol": "square.grid.3x2.fill",
+      "tint": "strength",
+      "title": "Find your way around Progress",
+      "body": "Progress opens with a map of everything on the page: training, body, records, badges, muscles and history, each with its key number. Tap one to jump there; the section bar stays on top while you scroll."
+    },
+    {
       "symbol": "figure.strengthtraining.traditional",
       "tint": "strength",
       "title": "Crisp, fluid exercise motion",
