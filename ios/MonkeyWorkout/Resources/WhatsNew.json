@@ -8,6 +8,12 @@
       "body": "Progress opens with a map of everything on the page: training, body, records, badges, muscles and history, each with its key number. Tap one to jump there; the section bar stays on top while you scroll."
     },
     {
+      "symbol": "bolt.heart.fill",
+      "tint": "cardio",
+      "title": "Week and readiness, one slim card",
+      "body": "Train's week card is now a third of the size: sessions done in a ring, today's readiness as the headline, HRV, resting HR and sleep below. Tap the verdict for details, the week line for your cycle."
+    },
+    {
       "symbol": "figure.strengthtraining.traditional",
       "tint": "strength",
       "title": "Crisp, fluid exercise motion",
