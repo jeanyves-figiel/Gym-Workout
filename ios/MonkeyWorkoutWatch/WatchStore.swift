@@ -81,19 +81,20 @@ final class WatchStore: NSObject {
                     minutes: Int(f.end.timeIntervalSince(f.start)) / 60, sets: f.setsDone.values.reduce(0, +)), at: 0)
         snapshot.progress.thisWeek += 1
         if var game = snapshot.game {
-            // Game mode (#219): count the workout until the phone's next snapshot.
+            // Game layer (#219, #227): count the workout until the phone's next snapshot; badges come with it.
             let sets = f.setsDone.values.reduce(0, +)
-            let before = (level: game.level, badges: Set(game.badges))
-            game.xp += WGame.xp(sets: sets)
+            let level = game.level
+            var xp = WGame.xp(sets: sets)
+            let cleared = snapshot.progress.thisWeek == snapshot.progress.target
+            if cleared {
+                xp += WGame.weekBonus
+                game.weeksCleared = (game.weeksCleared ?? 0) + 1
+            }
+            game.xp += xp
             game.workouts += 1
             game.totalSets += sets
-            let p = snapshot.progress
-            let earned = WBadge.earned(workouts: game.workouts, totalSets: game.totalSets,
-                                       bestStreak: max(p.bestStreakWeeks, p.thisWeek >= p.target ? 1 : 0), records: p.records.count)
-            game.badges = Array(before.badges.union(earned)).sorted()
             snapshot.game = game
-            reward = WReward(xp: WGame.xp(sets: sets), levelUp: game.level > before.level ? game.level : nil,
-                             badges: WBadge.allCases.filter { earned.contains($0.rawValue) && !before.badges.contains($0.rawValue) })
+            reward = WReward(xp: xp, levelUp: game.level > level ? game.level : nil, weekCleared: cleared, badges: [])
         }
         save()
     }
@@ -101,6 +102,11 @@ final class WatchStore: NSObject {
     fileprivate func receive(context: [String: Any]) {
         guard let data = context[WatchKeys.snapshot] as? Data,
               let s = try? JSONDecoder.watch.decode(WatchSnapshot.self, from: data) else { return }
+        // Badges the finished workout unlocked arrive with the phone's snapshot (#227).
+        if reward != nil, let before = snapshot.game, let after = s.game {
+            let new = after.earned.filter { !before.badges.contains($0.id) && !(reward?.badges.contains($0) ?? false) }
+            reward?.badges += new
+        }
         snapshot = s
         save()
     }
@@ -148,6 +154,8 @@ extension WatchStore: WCSessionDelegate {
 struct WReward: Equatable {
     var xp: Int
     var levelUp: Int?
+    /// This workout met the week's goal: quest chest bonus included in `xp`.
+    var weekCleared = false
     var badges: [WBadge]
 }
 

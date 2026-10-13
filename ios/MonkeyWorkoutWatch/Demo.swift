@@ -18,7 +18,23 @@ enum Demo {
         return args[i + 1]
     }
 
-    static let reward = WReward(xp: 140, levelUp: 8, badges: [.onFire])
+    static let reward = WReward(xp: 340, levelUp: 8, weekCleared: true, badges: [catalog[6]])
+
+    /// Some of the iPhone's badges (#227), as the phone sends them.
+    static let catalog: [WBadge] = [
+        WBadge(id: "first", title: "First rep", symbol: "figure.walk", tier: 1),
+        WBadge(id: "w10", title: "Committed", symbol: "10.circle.fill", tier: 1),
+        WBadge(id: "w25", title: "Regular", symbol: "25.circle.fill", tier: 2),
+        WBadge(id: "w50", title: "Dedicated", symbol: "50.circle.fill", tier: 2),
+        WBadge(id: "w100", title: "Centurion", symbol: "crown.fill", tier: 3),
+        WBadge(id: "s2", title: "On a roll", symbol: "flame", tier: 1),
+        WBadge(id: "s4", title: "Consistent", symbol: "flame.fill", tier: 2),
+        WBadge(id: "s8", title: "Unbreakable", symbol: "bolt.shield.fill", tier: 3),
+        WBadge(id: "v10", title: "Ten tonnes", symbol: "scalemass", tier: 1),
+        WBadge(id: "pr1", title: "New best", symbol: "arrow.up.right.circle.fill", tier: 1),
+        WBadge(id: "pr10", title: "PR hunter", symbol: "chart.line.uptrend.xyaxis", tier: 2),
+        WBadge(id: "early", title: "Early bird", symbol: "sunrise.fill", tier: 1),
+    ]
 
     @MainActor @ViewBuilder static func view(_ screen: String) -> some View {
         let s = snapshot
@@ -66,7 +82,8 @@ enum Demo {
         s.nextSessionId = "tue"
         s.readiness = "Ready to push"
         s.pro = true
-        s.game = WGame(xp: 3180, workouts: 42, totalSets: 760, badges: ["first", "ten", "ironWeek", "onFire", "prHunter"])
+        s.game = WGame(xp: 3320, workouts: 42, totalSets: 760, badges: ["first", "w10", "w25", "s2", "s4", "v10", "pr1", "early"],
+                       weeksCleared: 6, catalog: catalog)
         s.progress = WProgress(streakWeeks: 5, bestStreakWeeks: 5, thisWeek: 1, target: 4,
                                records: [WRecord(name: "Bench Press", kg: 92.5), WRecord(name: "Squat", kg: 130)],
                                recent: [WRecent(title: "Lower Power", date: Date().addingTimeInterval(-86400), minutes: 47, sets: 18)])

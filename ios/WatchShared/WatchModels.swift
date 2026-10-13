@@ -139,78 +139,46 @@ enum WatchHomeStyle: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// Game mode (#219, Monkey coach theme): XP, level and badges, computed on the phone from workout history.
-/// The Watch adds a finished workout's XP until the next snapshot arrives.
+/// Game layer (#219, #227): XP, level, weeks cleared and badges, computed on the phone (`GameProgress`,
+/// `Achievements`) and shown in every look on the iPhone and the Watch. The Watch adds a finished
+/// workout's XP until the next snapshot arrives.
 struct WGame: Codable, Equatable {
     var xp = 0
     var workouts = 0
     var totalSets = 0
-    /// Earned `WBadge` raw values.
+    /// Earned badge ids (`Achievements`).
     var badges: [String] = []
+    /// Weeks with the session goal met (quest chests); nil from older phone apps.
+    var weeksCleared: Int?
+    /// Every badge, earned or not, so the Watch can draw them; nil from older phone apps.
+    var catalog: [WBadge]?
 
+    /// Same numbers as `GameProgress` in the workout engine (the Watch can't link it).
     static let perLevel = 500
+    static let weekBonus = 200
     /// XP for one workout: 50 + 5 per set.
     static func xp(sets: Int) -> Int { 50 + 5 * max(0, sets) }
 
     var level: Int { xp / Self.perLevel + 1 }
     var levelProgress: Double { Double(xp % Self.perLevel) / Double(Self.perLevel) }
     var xpInLevel: Int { xp % Self.perLevel }
+    var earned: [WBadge] { (catalog ?? []).filter { badges.contains($0.id) } }
 }
 
-enum WBadge: String, CaseIterable, Identifiable {
-    case first, ten, fifty, ironWeek, onFire, century, thousand, prHunter
+/// One badge as the Watch draws it. Tier 1 bronze, 2 silver, 3 gold.
+struct WBadge: Codable, Equatable, Hashable, Identifiable {
+    var id: String
+    var title: String
+    var symbol: String
+    var tier: Int
 
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .first: "First workout"
-        case .ten: "10 workouts"
-        case .fifty: "50 workouts"
-        case .ironWeek: "Iron week"
-        case .onFire: "On fire"
-        case .century: "100 sets"
-        case .thousand: "1,000 sets"
-        case .prHunter: "PR hunter"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .first: "star.fill"
-        case .ten: "10.circle.fill"
-        case .fifty: "50.circle.fill"
-        case .ironWeek: "calendar.badge.checkmark"
-        case .onFire: "flame.fill"
-        case .century: "dumbbell.fill"
-        case .thousand: "crown.fill"
-        case .prHunter: "medal.fill"
-        }
-    }
-
+    /// Gradient as 0xRRGGBB, same tier colours as the iPhone's badges.
     var tint: (UInt32, UInt32) {
-        switch self {
-        case .first, .ten, .fifty: (0xFFC23D, 0xFF7A3D)
-        case .ironWeek, .onFire: (0xFF7A3D, 0xFF3D5A)
-        case .century, .thousand: (0x3D5AFF, 0x7B3DFF)
-        case .prHunter: (0xB23DFF, 0xFF3DA8)
+        switch tier {
+        case 3: (0xFFC71A, 0xFFED80)
+        case 2: (0xB3BFD1, 0xF2F7FF)
+        default: (0xD98547, 0xFFB873)
         }
-    }
-
-    /// Badges earned: workouts done, sets done, best streak (weeks with the goal met), personal records.
-    static func earned(workouts: Int, totalSets: Int, bestStreak: Int, records: Int) -> [String] {
-        allCases.filter { b in
-            switch b {
-            case .first: workouts >= 1
-            case .ten: workouts >= 10
-            case .fifty: workouts >= 50
-            case .ironWeek: bestStreak >= 1
-            case .onFire: bestStreak >= 4
-            case .century: totalSets >= 100
-            case .thousand: totalSets >= 1000
-            case .prHunter: records >= 3
-            }
-        }.map(\.rawValue)
     }
 }
 

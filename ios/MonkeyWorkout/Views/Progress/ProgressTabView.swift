@@ -39,9 +39,7 @@ struct ProgressTabView: View {
         Progression.stats(records: charted, weights: model.weightEntries, targetPerWeek: target)
     }
 
-    private var badges: [Badge] {
-        Achievements.evaluate(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
-    }
+    private var badges: [Badge] { model.badges }
 
     private var climbs: [ClimbEntry] {
         Climbs.merged(local: model.climbLogs, health: health.snapshot.recentClimbs,
@@ -57,6 +55,8 @@ struct ProgressTabView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    // Level card, trophy shelf or quest log: the member's game look (#227).
+                    if !fresh { GameProgressCard(badges: badges) }
                     StreakHero(stats: s, target: target)
                     switch lay {
                     case .hub: ProgressHub(h: top) { jump($0, proxy) }

@@ -120,11 +120,7 @@ struct CoachHome: View {
 
     @MainActor static func mood(_ store: WatchStore) -> MonkeyFace.Mood {
         let p = store.snapshot.progress
-        if store.next == nil || p.thisWeek >= p.target { return .party }
-        let ready = WReady(store.snapshot.readiness)
-        if ready == .easy { return .sleepy }
-        if ready == .ready || p.streakWeeks >= 2 { return .fired }
-        return .happy
+        return .from(weekDone: store.next == nil || p.thisWeek >= p.target, readiness: store.snapshot.readiness, streakWeeks: p.streakWeeks)
     }
 
     private func tips(mood: MonkeyFace.Mood, next: WSession?, progress p: WProgress) -> [Tip] {
@@ -152,80 +148,6 @@ struct CoachHome: View {
     }
 }
 
-/// Cartoon monkey drawn with shapes; the eyes and mouth follow its mood.
-struct MonkeyFace: View {
-    enum Mood { case happy, fired, sleepy, party }
-    let mood: Mood
-
-    private let fur = Color(red: 0.54, green: 0.35, blue: 0.17)
-    private let skin = Color(red: 0.91, green: 0.70, blue: 0.48)
-
-    var body: some View {
-        ZStack {
-            HStack(spacing: 40) { ear; ear }
-            Circle().fill(fur).frame(width: 50, height: 50)
-            Ellipse().fill(skin).frame(width: 36, height: 27).offset(y: 9)
-            HStack(spacing: 1) {
-                Ellipse().fill(skin).frame(width: 15, height: 17)
-                Ellipse().fill(skin).frame(width: 15, height: 17)
-            }
-            .offset(y: -4)
-            eyes.offset(y: -4)
-            mouth.offset(y: 12)
-            if mood == .fired || mood == .party {
-                Capsule().fill(W.lime).frame(width: 42, height: 7).offset(y: -21)
-            }
-            if mood == .sleepy {
-                Text("z").font(W.label(11)).foregroundStyle(.white).offset(x: 27, y: -24)
-            }
-        }
-        .frame(width: 70, height: 60)
-    }
-
-    private var ear: some View {
-        ZStack {
-            Circle().fill(fur).frame(width: 20, height: 20)
-            Circle().fill(skin).frame(width: 10, height: 10)
-        }
-    }
-
-    @ViewBuilder private var eyes: some View {
-        HStack(spacing: 7) {
-            ForEach(0..<2, id: \.self) { _ in
-                switch mood {
-                case .sleepy: Capsule().fill(.black).frame(width: 8, height: 2.5)
-                case .party: Arc(up: true).stroke(.black, style: StrokeStyle(lineWidth: 2.5, lineCap: .round)).frame(width: 8, height: 4)
-                case .happy, .fired: Circle().fill(.black).frame(width: 6, height: 6)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder private var mouth: some View {
-        switch mood {
-        case .happy: Arc(up: false).stroke(.black, style: StrokeStyle(lineWidth: 2.5, lineCap: .round)).frame(width: 14, height: 4)
-        case .fired: Arc(up: false, closed: true).fill(.black).frame(width: 16, height: 5)
-        case .sleepy: Circle().stroke(.black, lineWidth: 2).frame(width: 5, height: 5)
-        case .party: Ellipse().fill(.black).frame(width: 12, height: 10)
-        }
-    }
-}
-
-/// Smile (down) or happy-eye (up) curve.
-private struct Arc: Shape {
-    var up: Bool
-    var closed = false
-
-    func path(in r: CGRect) -> Path {
-        var p = Path()
-        let y = up ? r.maxY : r.minY
-        p.move(to: CGPoint(x: r.minX, y: y))
-        p.addQuadCurve(to: CGPoint(x: r.maxX, y: y), control: CGPoint(x: r.midX, y: up ? r.minY - r.height : r.maxY + r.height))
-        if closed { p.closeSubpath() }
-        return p
-    }
-}
-
 // MARK: - A · Crown deck
 
 /// One full-screen card per plan day; the Digital Crown flips through them (vertical pages), the last page holds the stats.
@@ -245,6 +167,7 @@ struct DeckHome: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
                     Eyebrow(text: "Your week", color: W.lime)
+                    QuestChest()
                     HomeStatRows()
                 }
             }
@@ -273,6 +196,8 @@ private struct DayCard: View {
                     Eyebrow(text: "\(isNext ? "Next up · \(session.dayLabel)" : session.dayLabel) · W\(week)", color: .white.opacity(0.9))
                     Text(session.title).font(W.display(26)).lineLimit(2).minimumScaleFactor(0.55)
                     Text("\(session.estMin)′ · \(session.items.count) exercises").font(W.label(11)).opacity(0.9)
+                    // Quest map on the iPhone (#227): every day is a stage worth XP.
+                    Text(session.done ? "Stage cleared" : "+\(W.xp(session)) XP").font(W.label(11)).foregroundStyle(W.lime)
                     Spacer(minLength: 0)
                 }
                 .foregroundStyle(.white)
@@ -281,7 +206,7 @@ private struct DayCard: View {
             }
             .buttonStyle(.plain)
             if session.done {
-                Text("DONE ✓")
+                Text("CLEARED ✓")
                     .font(W.display(17)).foregroundStyle(.white)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.white, lineWidth: 3))
@@ -353,6 +278,8 @@ struct RingsHome: View {
                 }
                 .font(W.label(12))
                 .padding(.horizontal, 6)
+                // Level bar on the iPhone (#227).
+                if let g = snap.game { XPBar(game: g).padding(.top, 2) }
                 if next != nil {
                     Text(charge > 0 ? "Keep holding…" : "Hold to start · tap for stats")
                         .font(W.label(9)).foregroundStyle(.secondary)
@@ -397,6 +324,7 @@ struct RingsHome: View {
                         }
                     case 1: statText("\(p.thisWeek)/\(p.target)", "this week")
                     case 2: statText("\(p.streakWeeks)w", "streak")
+                    case 3: statText("LV \(store.snapshot.game?.level ?? 1)", "level")
                     default: statText(ready?.word ?? "–", "readiness")
                     }
                 }
@@ -449,7 +377,7 @@ struct RingsHome: View {
         if charge < 1 { withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) { charge = 0 } }
         if tap {
             WKInterfaceDevice.current().play(.click)
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { stat = (stat + 1) % 4 }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { stat = (stat + 1) % 5 }
         }
     }
 
@@ -475,5 +403,29 @@ private struct RingTrack: View {
                 .rotationEffect(.degrees(-90))
                 .opacity(value > 0 ? 1 : 0)
         }
+    }
+}
+
+/// Crown deck stats page (#227): the week's quest chest, as on the iPhone's Quest map.
+private struct QuestChest: View {
+    @Environment(WatchStore.self) private var store
+
+    var body: some View {
+        let p = store.snapshot.progress
+        let open = p.thisWeek >= p.target
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text(open ? "🎁 Chest opened" : "🎁 Week chest").font(W.label(12))
+                Spacer(minLength: 2)
+                Text(open ? "+\(WGame.weekBonus)" : "\(p.thisWeek)/\(p.target)").font(W.display(15)).foregroundStyle(W.lime)
+            }
+            if let g = store.snapshot.game {
+                Text("Level \(g.level) · \(g.weeksCleared ?? 0) weeks cleared").font(W.label(9)).opacity(0.85)
+                XPBar(game: g)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.12)))
     }
 }
