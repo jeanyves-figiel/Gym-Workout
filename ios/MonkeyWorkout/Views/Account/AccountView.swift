@@ -373,10 +373,10 @@ struct ChangePasswordView: View {
                 AccountNote(text: "We'll ask you to confirm it's you first.")
                 LimeActionButton(title: "Save", busy: task.busy,
                                  disabled: new.isEmpty || PasswordRules.problem(new) != nil) {
-                    let new = new
+                    let password = new
                     task.run {
                         // Confirm it's you (#257): passkey, Apple, current password, 2-step or email code.
-                        try await gate.run(model.api) { try await model.api.changePassword(new: new) }
+                        try await gate.run(model.api) { try await model.api.changePassword(new: password) }
                         await model.refreshUser()
                         dismiss()
                     }
