@@ -2,6 +2,12 @@
   "id": "2026-10-13.1",
   "items": [
     {
+      "symbol": "figure.stand",
+      "tint": "strength",
+      "title": "A real 3D body",
+      "body": "The 3D body on Explore → Muscles is now sculpted like a real body and turns around itself. Tap any muscle to see its exercises."
+    },
+    {
       "symbol": "applewatch.watchface",
       "tint": "cardio",
       "title": "Watch complications are here",
