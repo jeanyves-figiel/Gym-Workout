@@ -78,3 +78,76 @@ extension Exercise {
     /// The movement data of the exercise's illustration; nil without one (custom exercises).
     public var motion: ExerciseMotion? { ExerciseMotion.table[id] }
 }
+
+/// Timeline of one play of the movement (#236): a continuous frame position over time, so the app can draw
+/// it on a display-linked timeline (the lower frame opaque, the next one blended over it by the fraction) with
+/// no per-step state changes that could flash. Each rep runs start → end at `out`, holds, end → start at
+/// `back`, holds. A play starting away from frame 0 first glides there (`lead`), and one ending away from
+/// `rest` glides back (`settle`).
+public struct MotionPlayback: Sendable, Equatable {
+    public struct State: Sendable, Equatable {
+        /// Fractional frame (0 … frames - 1).
+        public let position: Double
+        /// Rep being played (1-based).
+        public let rep: Int
+        /// True while in (or holding after) the start → end half.
+        public let outbound: Bool
+        /// Progress through the current half (0 … 1).
+        public let halfProgress: Double
+    }
+
+    struct Segment: Sendable, Equatable {
+        let from: Double, to: Double, duration: Double
+        let rep: Int, outbound: Bool
+        /// Moving half of a rep (progress follows time); holds show 1, lead / settle 0.
+        let half: Bool
+        let held: Bool
+    }
+
+    public let cycles: Int
+    let segments: [Segment]
+    /// Seconds the whole play takes.
+    public let duration: Double
+
+    public init(frames: Int, cycles: Int, out: Double, back: Double, hold: Double, from start: Double = 0,
+                rest: Double = 0, lead: Double = 0.25, settle: Double = 0.3) {
+        let last = Double(max(frames - 1, 0))
+        var s: [Segment] = []
+        if start != 0 { s.append(Segment(from: start, to: 0, duration: lead, rep: 1, outbound: true, half: false, held: false)) }
+        for r in 1...max(cycles, 1) {
+            s.append(Segment(from: 0, to: last, duration: out, rep: r, outbound: true, half: true, held: false))
+            s.append(Segment(from: last, to: last, duration: hold, rep: r, outbound: true, half: false, held: true))
+            s.append(Segment(from: last, to: 0, duration: back, rep: r, outbound: false, half: true, held: false))
+            s.append(Segment(from: 0, to: 0, duration: hold, rep: r, outbound: false, half: false, held: true))
+        }
+        if rest != 0 {
+            s.append(Segment(from: 0, to: rest, duration: settle, rep: max(cycles, 1), outbound: false, half: false, held: false))
+        }
+        self.cycles = max(cycles, 1)
+        segments = s
+        duration = s.reduce(0) { $0 + $1.duration }
+    }
+
+    /// State `t` seconds after the play started; nil once it has finished (or before it starts).
+    public func state(at t: Double) -> State? {
+        guard t >= 0, t < duration else { return nil }
+        var t0 = 0.0
+        for seg in segments {
+            if t < t0 + seg.duration {
+                let k = seg.duration > 0 ? (t - t0) / seg.duration : 1
+                return State(position: seg.from + (seg.to - seg.from) * k, rep: seg.rep, outbound: seg.outbound,
+                             halfProgress: seg.half ? k : (seg.held ? 1 : 0))
+            }
+            t0 += seg.duration
+        }
+        return nil
+    }
+
+    /// Lower frame and how much of the next frame is blended over it at `position` (`frames` frames).
+    public static func blend(_ position: Double, frames: Int) -> (lower: Int, upper: Double) {
+        let last = max(frames - 1, 0)
+        let p = min(max(position, 0), Double(last))
+        let lower = min(Int(p.rounded(.down)), last)
+        return (lower, lower < last ? p - Double(lower) : 0)
+    }
+}
