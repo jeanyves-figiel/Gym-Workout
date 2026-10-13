@@ -200,6 +200,7 @@ struct PostCard: View {
                 HStack(spacing: 8) {
                     AvatarView(url: model.api.resolve(post.author.avatarUrl), nickname: post.author.nickname, size: 28)
                     Text(post.author.nickname).font(Theme.label(13))
+                    RankTitleChip(level: post.author.level, compact: true)
                 }
             }
             .buttonStyle(.plain)

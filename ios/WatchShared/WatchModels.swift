@@ -152,6 +152,8 @@ struct WGame: Codable, Equatable {
     var weeksCleared: Int?
     /// Every badge, earned or not, so the Watch can draw them; nil from older phone apps.
     var catalog: [WBadge]?
+    /// XP bar colour picked on the iPhone from Steel on (#242); nil = lime.
+    var accent: GameAccent?
 
     /// Same numbers as `GameProgress` in the workout engine (the Watch can't link it).
     static let perLevel = 500
@@ -163,6 +165,7 @@ struct WGame: Codable, Equatable {
     var levelProgress: Double { Double(xp % Self.perLevel) / Double(Self.perLevel) }
     var xpInLevel: Int { xp % Self.perLevel }
     var earned: [WBadge] { (catalog ?? []).filter { badges.contains($0.id) } }
+    var rank: GameRank { .of(level: level) }
 }
 
 /// One badge as the Watch draws it. Tier 1 bronze, 2 silver, 3 gold.

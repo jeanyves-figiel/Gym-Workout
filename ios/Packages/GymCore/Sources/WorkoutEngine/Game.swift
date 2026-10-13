@@ -30,14 +30,14 @@ public struct GameProgress: Sendable, Equatable {
     public var xpToNext: Int { Self.perLevel - xpInLevel }
     public var levelProgress: Double { Double(xpInLevel) / Double(Self.perLevel) }
 
-    /// Level names shown next to the number.
+    /// Rank names of the level ladder (#242); same thresholds as `GameRank` in WatchShared.
     public var rank: String {
         switch level {
         case ..<3: "Rookie"
-        case ..<6: "Regular"
-        case ..<10: "Iron"
-        case ..<15: "Steel"
-        case ..<25: "Titan"
+        case ..<8: "Regular"
+        case ..<15: "Iron"
+        case ..<25: "Steel"
+        case ..<40: "Titan"
         default: "Legend"
         }
     }

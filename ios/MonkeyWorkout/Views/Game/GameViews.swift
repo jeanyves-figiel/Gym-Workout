@@ -5,6 +5,7 @@ import WorkoutEngine
 // Monkey coach → the monkey on Train, dances when you finish, trophy shelf;
 // Crown deck → Quest map: days are stages, a chest opens when the week's goal is met;
 // Charge & go → Level bar: level chip, XP bar, level card.
+// Level ladder (#242, WatchShared/GameLadder.swift): six ranks with their unlocks; level row on Progress opens it.
 // XP, level and badges are the same numbers in every look and on the Watch (`GameProgress`, `Achievements`).
 
 extension WatchHomeStyle {
@@ -19,7 +20,7 @@ extension WatchHomeStyle {
 
     var phoneDetail: String {
         switch self {
-        case .coach: "Your monkey on Train with tips and moods, a dance when you finish, a trophy shelf in Progress."
+        case .coach: "Your monkey on Train with tips and moods, a dance when you finish. Your rank gear on the monkey."
         case .deck: "Your week as a quest: each day is a stage, exercises are bosses, a chest opens when you hit your goal."
         case .rings: "Level chip, XP bar and a level card. Clean numbers, no fuss."
         }
@@ -38,17 +39,12 @@ extension WatchHomeStyle {
     }
 }
 
-extension Color {
-    init(hex v: UInt32) {
-        self.init(red: Double((v >> 16) & 0xFF) / 255, green: Double((v >> 8) & 0xFF) / 255, blue: Double(v & 0xFF) / 255)
-    }
-}
-
 enum GameTint {
     static let level = LinearGradient(colors: [Color(hex: 0xB23DFF), Color(hex: 0xFF3DA8)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let quest = LinearGradient(colors: [Color(hex: 0xFFC23D), Color(hex: 0xFF3D5A)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let shelf = LinearGradient(colors: [Color(hex: 0x3D5AFF), Color(hex: 0x7B3DFF)], startPoint: .topLeading, endPoint: .bottomTrailing)
-    static let xp = LinearGradient(colors: [Theme.lime, Color(hex: 0x3DDC84)], startPoint: .leading, endPoint: .trailing)
+    /// Lime, or the colour picked from Steel on (#242).
+    @MainActor static var xp: LinearGradient { WatchHomePref.shared.accent.gradient }
 }
 
 extension MonkeyFace.Mood {
@@ -115,7 +111,7 @@ struct LevelBarCard: View {
         let g = model.game
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Level \(g.level) · \(g.rank)").font(Theme.label(12)).tracking(1.3).textCase(.uppercase).foregroundStyle(Theme.lime)
+                Text("Level \(g.level) · \(model.rank.title)").font(Theme.label(12)).tracking(1.3).textCase(.uppercase).foregroundStyle(Theme.lime)
                 Spacer()
                 Text("\(g.xpInLevel) / \(GameProgress.perLevel) XP").font(Theme.label(12)).foregroundStyle(Theme.muted).monospacedDigit()
             }
@@ -160,7 +156,7 @@ struct MonkeyCoachCard: View {
         Button { poke(count: all.count) } label: {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .center, spacing: 10) {
-                    MonkeyFace(mood: mood, scale: 1.45)
+                    MonkeyFace(mood: mood, scale: 1.45, gear: model.rank.gear)
                         .scaleEffect(hop ? 1.12 : 1)
                         .rotationEffect(.degrees(hop ? -12 : 0))
                         .offset(y: hop ? -8 : (bob ? -2 : 0))
@@ -402,7 +398,7 @@ struct SessionGameBanner: View {
         let bosses = session.blocks.reduce(0) { $0 + $1.items.count }
         HStack(spacing: 12) {
             switch style {
-            case .coach: MonkeyFace(mood: .fired, scale: 0.8)
+            case .coach: MonkeyFace(mood: .fired, scale: 0.8, gear: model.rank.gear)
             case .deck: IconTile(symbol: "bolt.fill", size: 44)
             case .rings: IconTile(symbol: "star.fill", size: 44)
             }
@@ -437,6 +433,7 @@ struct GameRewardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dance = false
     @State private var shown = false
+    @State private var celebrating = false
 
     private static let confetti: [(emoji: String, x: CGFloat, y: CGFloat)] =
         [("🎉", -120, -40), ("✨", 118, -52), ("⭐", -104, 40), ("🍌", 112, 34), ("🎊", 0, -78)]
@@ -450,7 +447,7 @@ struct GameRewardView: View {
                     ForEach(Array(Self.confetti.enumerated()), id: \.offset) { _, c in
                         Text(c.emoji).font(.system(size: 26)).offset(x: c.x, y: c.y + (dance ? -8 : 8))
                     }
-                    MonkeyFace(mood: .party, scale: 2.2)
+                    MonkeyFace(mood: .party, scale: 2.2, gear: model.rank.gear)
                         .rotationEffect(.degrees(dance ? 10 : -10))
                         .offset(y: dance ? -6 : 4)
                 }
@@ -496,7 +493,18 @@ struct GameRewardView: View {
             }
         }
         .frame(maxWidth: .infinity)
+        .fullScreenCover(isPresented: $celebrating) {
+            if let level = reward.levelUp {
+                LevelUpCelebration(level: level) { celebrating = false }
+                    .presentationBackground(.clear)
+            }
+        }
         .onAppear {
+            var demo = false
+            #if DEBUG
+            demo = Demo.enabled
+            #endif
+            if reward.levelUp != nil, !shown, !demo { celebrating = true }
             withAnimation(.spring(duration: 1.2).delay(0.2)) { shown = true }
             guard !reduceMotion, style != .rings else { return }
             withAnimation(.easeInOut(duration: 0.45).repeatForever(autoreverses: true)) { dance = true }
@@ -507,7 +515,7 @@ struct GameRewardView: View {
         let g = model.game
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(reward.levelUp.map { "⬆️ Level \($0)!" } ?? "Level \(g.level) · \(g.rank)").font(Theme.display(18))
+                Text(reward.levelUp.map { "⬆️ Level \($0)!" } ?? "Level \(g.level) · \(model.rank.title)").font(Theme.display(18))
                 Spacer()
                 Text("\(g.xpInLevel) / \(GameProgress.perLevel) XP").font(Theme.label(12)).opacity(0.85).monospacedDigit()
             }
@@ -519,95 +527,258 @@ struct GameRewardView: View {
     }
 }
 
+
 // MARK: - Progress
 
-/// Top of Progress, in the member's look: level card, trophy shelf or quest log.
+/// Level row (#242): rank monkey, level, XP bar and the next unlock; tap opens the ladder.
+/// The Progress page places it (its structure is owned there); this is the whole level section.
 struct GameProgressCard: View {
     let badges: [Badge]
     @Environment(AppModel.self) private var model
+    @State private var ladder = false
 
     var body: some View {
-        let style = WatchHomePref.shared.style
         let g = model.game
-        let earned = badges.filter(\.unlocked)
-        switch style {
-        case .rings:
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("Level · \(g.rank)").font(Theme.label(12)).tracking(1.3).textCase(.uppercase).opacity(0.8)
-                        Text("\(g.level)").font(Theme.display(64)).monospacedDigit()
+        let rank = model.rank
+        Button { ladder = true } label: {
+            HStack(spacing: 12) {
+                RankMonkey(rank: rank, mood: .happy, scale: 0.72)
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 6) {
+                        Text("Level \(g.level)").font(Theme.display(22))
+                        Text(rank.title).font(Theme.label(11)).textCase(.uppercase).tracking(1)
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Capsule().fill(.black.opacity(0.28)))
+                        Spacer(minLength: 0)
+                        Text("\(badges.filter(\.unlocked).count)/\(badges.count) 🏅").font(Theme.label(12)).opacity(0.9)
                     }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 0) {
-                        Text("Total XP").font(Theme.label(12)).tracking(1.3).textCase(.uppercase).opacity(0.8)
-                        Text(g.xp.formatted()).font(Theme.display(28)).monospacedDigit()
-                        Text("\(earned.count)/\(badges.count) badges").font(Theme.label(12)).opacity(0.85)
-                    }
-                }
-                XPBarView(progress: g.levelProgress, track: .black.opacity(0.25))
-                Text("\(g.xpToNext) XP to Level \(g.level + 1)").font(.footnote.weight(.semibold)).opacity(0.85)
-            }
-            .gradientCard(GameTint.level, padding: 20)
-            .accessibilityElement(children: .combine)
-        case .coach:
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Monkey's trophy shelf").font(Theme.label(12)).tracking(1.3).textCase(.uppercase).opacity(0.8)
-                        Text("Level \(g.level)").font(Theme.display(34))
-                        Text("\(earned.count) of \(badges.count) badges").font(.footnote.weight(.semibold)).opacity(0.85)
-                    }
-                    Spacer()
-                    MonkeyFace(mood: .party, scale: 1.3)
-                }
-                XPBarView(progress: g.levelProgress, track: .black.opacity(0.25))
-                let shelf = Array(earned.suffix(8))
-                VStack(spacing: 0) {
-                    ForEach(0..<2, id: \.self) { row in
-                        HStack {
-                            ForEach(0..<4, id: \.self) { col in
-                                let i = row * 4 + col
-                                Group {
-                                    if shelf.indices.contains(i) {
-                                        Image(systemName: shelf[i].symbol).foregroundStyle(
-                                            LinearGradient(colors: shelf[i].tier.colors, startPoint: .top, endPoint: .bottom))
-                                    } else {
-                                        Image(systemName: "lock.fill").opacity(0.3)
-                                    }
-                                }
-                                .font(.system(size: 24, weight: .bold))
-                                .frame(maxWidth: .infinity, minHeight: 44)
-                            }
-                        }
-                        Rectangle().fill(Color(hex: 0x8A5A2B)).frame(height: 5).clipShape(Capsule())
-                    }
-                }
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.black.opacity(0.25)))
-            }
-            .gradientCard(GameTint.shelf, padding: 18)
-        case .deck:
-            let stats = Progression.stats(records: model.state.history, weights: [], targetPerWeek: model.gameTarget)
-            HStack(spacing: 14) {
-                Image(systemName: "map.fill").font(.system(size: 26, weight: .bold))
-                    .frame(width: 58, height: 58)
-                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.white.opacity(0.25)))
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Quest log · Level \(g.level)").font(Theme.display(20))
-                    Text("\(stats.thisWeek)/\(model.gameTarget) stages this week · \(earned.count) badges").font(.footnote.weight(.semibold)).opacity(0.9)
                     XPBarView(progress: g.levelProgress, height: 8, track: .black.opacity(0.25))
+                    Text(nextLine(g, rank)).font(.footnote.weight(.semibold)).opacity(0.92).lineLimit(1).minimumScaleFactor(0.8)
+                }
+                Image(systemName: "chevron.right").font(.system(size: 14, weight: .heavy)).opacity(0.7)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(rank.gradient))
+            .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Level \(g.level), \(rank.title). \(nextLine(g, rank))")
+        .accessibilityHint("Shows what each level brings")
+        .sheet(isPresented: $ladder) { LevelLadderSheet() }
+    }
+
+    private func nextLine(_ g: GameProgress, _ rank: GameRank) -> String {
+        guard let next = rank.next else { return "Legend. Every look unlocked 👑" }
+        return "\((next.minXP - g.xp).formatted()) XP to \(next.title) · \(next.perks[0].title.lowercased())"
+    }
+}
+
+/// Rank title next to a member's nickname in Community (#242): Regular and up; Legend gets the seal.
+struct RankTitleChip: View {
+    let level: Int?
+    var compact = false
+
+    var body: some View {
+        if let level, GameRank.of(level: level) >= .regular {
+            let rank = GameRank.of(level: level)
+            HStack(spacing: 3) {
+                if rank == .legend { Image(systemName: "checkmark.seal.fill") }
+                Text(compact ? rank.title : "\(rank.title) · Level \(level)")
+            }
+            .font(Theme.label(compact ? 10 : 12)).textCase(.uppercase).tracking(0.8)
+            .foregroundStyle(.white)
+            .padding(.horizontal, compact ? 7 : 10).padding(.vertical, compact ? 2 : 4)
+            .background(Capsule().fill(rank.gradient))
+            .fixedSize()
+            .accessibilityLabel("\(rank.title), level \(level)")
+        }
+    }
+}
+
+/// The whole ladder (#242): every rank, its levels and what it unlocks; current rank highlighted.
+struct LevelLadderSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        let g = model.game
+        let current = model.rank
+        NavigationStack {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        header(g, current)
+                        ForEach(GameRank.allCases.reversed()) { rank in
+                            rankCard(rank, current: current, g: g).id(rank)
+                        }
+                        Label("Levels unlock looks, never training features. Every workout earns 50 XP + 5 per set, and meeting your week goal adds \(GameProgress.weekBonus).",
+                              systemImage: "info.circle.fill")
+                            .font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted)
+                            .padding(.top, 4)
+                    }
+                    .padding(16)
+                }
+                .onAppear { proxy.scrollTo(current, anchor: .center) }
+            }
+            .background(Theme.bg.ignoresSafeArea())
+            .navigationTitle("Levels")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { dismiss() } label: { Image(systemName: "xmark") }.accessibilityLabel("Close")
+                }
+            }
+        }
+    }
+
+    private func header(_ g: GameProgress, _ rank: GameRank) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                RankMonkey(rank: rank, mood: .party, scale: 1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(rank.title).font(Theme.label(12)).textCase(.uppercase).tracking(1.3).opacity(0.85)
+                    Text("Level \(g.level)").font(Theme.display(36))
+                    Text("\(g.xp.formatted()) XP total").font(.footnote.weight(.semibold)).opacity(0.9)
                 }
                 Spacer(minLength: 0)
-                VStack(spacing: 0) {
-                    Text("\(g.weeksCleared)").font(Theme.display(36)).monospacedDigit()
-                    Text("🎁 chests").font(Theme.label(11))
+            }
+            XPBarView(progress: g.levelProgress, track: .black.opacity(0.25))
+            Text("\(g.xpToNext) XP to level \(g.level + 1)").font(.footnote.weight(.semibold)).opacity(0.9)
+            ShareLink(item: LevelShareCard.image(level: g.level, xp: g.xp),
+                      preview: SharePreview("Level \(g.level) · \(rank.title)", image: LevelShareCard.image(level: g.level, xp: g.xp))) {
+                Label("Share my level", systemImage: "square.and.arrow.up").font(Theme.label(14))
+                    .frame(maxWidth: .infinity).padding(.vertical, 10)
+                    .background(Capsule().fill(.black.opacity(0.3)))
+            }
+        }
+        .foregroundStyle(.white)
+        .gradientCard(rank.gradient, padding: 18)
+    }
+
+    @ViewBuilder private func rankCard(_ rank: GameRank, current: GameRank, g: GameProgress) -> some View {
+        let unlocked = rank <= current
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                RankMonkey(rank: rank, mood: rank == current ? .fired : .happy, scale: 0.7)
+                    .saturation(unlocked ? 1 : 0.2)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(rank.title).font(Theme.display(24))
+                    Text("\(rank.levels) · \(rank.minXP.formatted()) XP").font(Theme.label(12)).opacity(0.85)
+                }
+                Spacer(minLength: 0)
+                Group {
+                    if rank == current {
+                        Text("YOU").font(Theme.label(12)).foregroundStyle(Theme.ink)
+                            .padding(.horizontal, 10).padding(.vertical, 5).background(Capsule().fill(.white))
+                    } else if unlocked {
+                        Image(systemName: "checkmark.circle.fill").font(.system(size: 24, weight: .bold))
+                    } else {
+                        VStack(alignment: .trailing, spacing: 0) {
+                            Image(systemName: "lock.fill").font(.system(size: 18, weight: .bold))
+                            Text("\((rank.minXP - g.xp).formatted()) XP").font(Theme.label(11))
+                        }
+                        .opacity(0.85)
+                    }
                 }
             }
-            .foregroundStyle(Theme.ink)
-            .padding(16)
-            .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(GameTint.quest))
-            .accessibilityElement(children: .combine)
+            VStack(alignment: .leading, spacing: 7) {
+                ForEach(rank.perks) { p in
+                    Label(p.title, systemImage: p.symbol).font(.subheadline.weight(.semibold))
+                }
+            }
+            if unlocked, rank.appIcon != nil || rank == .steel {
+                perkControls(rank, current: current)
+            }
         }
+        .foregroundStyle(.white)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(unlocked ? AnyShapeStyle(rank.gradient) : AnyShapeStyle(Color.white.opacity(0.07))))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(.white, lineWidth: rank == current ? 3 : 0))
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder private func perkControls(_ rank: GameRank, current: GameRank) -> some View {
+        if rank == .steel {
+            AccentPicker()
+        } else if rank.appIcon != nil {
+            AppIconPicker(rank: rank)
+        }
+    }
+}
+
+/// Steel perk: XP bar and level chip colour on Train and the Watch.
+private struct AccentPicker: View {
+    var body: some View {
+        let pref = WatchHomePref.shared
+        HStack(spacing: 10) {
+            ForEach(GameAccent.allCases) { a in
+                Button { pref.setAccent(a) } label: {
+                    Circle().fill(a.gradient).frame(width: 34, height: 34)
+                        .overlay(Circle().strokeBorder(.white, lineWidth: pref.accent == a ? 3 : 0))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(a.title) colour")
+                .accessibilityAddTraits(pref.accent == a ? .isSelected : [])
+            }
+        }
+        .padding(10)
+        .background(Capsule().fill(.black.opacity(0.25)))
+    }
+}
+
+/// Iron, Titan and Legend perk: switch the home screen icon.
+private struct AppIconPicker: View {
+    let rank: GameRank
+    @State private var current: String?
+
+    var body: some View {
+        let name = rank.appIcon
+        let on = current == name
+        Button {
+            let target = on ? nil : name
+            UIApplication.shared.setAlternateIconName(target) { error in
+                if error == nil { Task { @MainActor in current = target } }
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image("IconPreview-\(rank.title)").resizable().frame(width: 40, height: 40)
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                Text(on ? "Using \(rank.title) icon" : "Use \(rank.title) icon").font(Theme.label(14))
+                Spacer(minLength: 0)
+                Image(systemName: on ? "checkmark.circle.fill" : "circle").font(.system(size: 20, weight: .bold))
+            }
+            .padding(8).padding(.trailing, 4)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.black.opacity(0.25)))
+        }
+        .buttonStyle(.plain)
+        .disabled(!UIApplication.shared.supportsAlternateIcons)
+        .onAppear { current = UIApplication.shared.alternateIconName }
+    }
+}
+
+/// Square card shared from the ladder (#242).
+struct LevelShareCard: View {
+    let level: Int
+    let xp: Int
+
+    var body: some View {
+        let rank = GameRank.of(level: level)
+        VStack(spacing: 10) {
+            RankMonkey(rank: rank, mood: .party, scale: 2.2)
+            Text(rank.title.uppercased()).font(Theme.label(26)).tracking(3)
+            Text("Level \(level)").font(Theme.display(72))
+            Text("\(xp.formatted()) XP · MonkeyWorkout").font(Theme.label(20)).opacity(0.9)
+        }
+        .foregroundStyle(.white)
+        .frame(width: 600, height: 600)
+        .background(rank.gradient)
+    }
+
+    @MainActor static func image(level: Int, xp: Int) -> Image {
+        let r = ImageRenderer(content: LevelShareCard(level: level, xp: xp))
+        r.scale = 2
+        return r.uiImage.map { Image(uiImage: $0) } ?? Image(systemName: "star.fill")
     }
 }

@@ -19,6 +19,8 @@ struct MonkeyFace: View {
     let mood: Mood
     /// 1 = Watch size (70 × 60 pt); the iPhone draws it bigger.
     var scale: CGFloat = 1
+    /// Rank gear (#242); nil keeps the mood headband.
+    var gear: MonkeyGear? = nil
 
     private let lime = Color(red: 0.80, green: 1.0, blue: 0.24)
     private let fur = Color(red: 0.54, green: 0.35, blue: 0.17)
@@ -36,7 +38,9 @@ struct MonkeyFace: View {
             .offset(y: -4)
             eyes.offset(y: -4)
             mouth.offset(y: 12)
-            if mood == .fired || mood == .party {
+            if let gear {
+                GearView(gear: gear)
+            } else if mood == .fired || mood == .party {
                 Capsule().fill(lime).frame(width: 42, height: 7).offset(y: -21)
             }
             if mood == .sleepy {
@@ -73,6 +77,49 @@ struct MonkeyFace: View {
         case .fired: Arc(up: false, closed: true).fill(.black).frame(width: 16, height: 5)
         case .sleepy: Circle().stroke(.black, lineWidth: 2).frame(width: 5, height: 5)
         case .party: Ellipse().fill(.black).frame(width: 12, height: 10)
+        }
+    }
+}
+
+/// Rank gear on the monkey's 70 × 60 canvas (#242).
+private struct GearView: View {
+    let gear: MonkeyGear
+    private let lime = Color(red: 0.80, green: 1.0, blue: 0.24)
+
+    var body: some View {
+        switch gear {
+        case .headband:
+            Capsule().fill(lime).frame(width: 42, height: 7).offset(y: -21)
+        case .cap:
+            ZStack {
+                UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20).fill(Color(hex: 0xFF3D5A)).frame(width: 44, height: 16)
+                Capsule().fill(Color(hex: 0xC92440)).frame(width: 30, height: 5).offset(x: 18, y: 7)
+            }
+            .offset(y: -22)
+        case .dumbbell:
+            HStack(spacing: 0) {
+                RoundedRectangle(cornerRadius: 2).fill(Color(hex: 0x2B3550)).frame(width: 7, height: 14)
+                Rectangle().fill(Color(hex: 0xB3BFD1)).frame(width: 30, height: 4)
+                RoundedRectangle(cornerRadius: 2).fill(Color(hex: 0x2B3550)).frame(width: 7, height: 14)
+            }
+            .rotationEffect(.degrees(-12))
+            .offset(y: -28)
+        case .shades:
+            HStack(spacing: 2) {
+                RoundedRectangle(cornerRadius: 4).fill(.black).frame(width: 15, height: 9)
+                RoundedRectangle(cornerRadius: 4).fill(.black).frame(width: 15, height: 9)
+            }
+            .overlay(Rectangle().fill(.black).frame(width: 40, height: 2).offset(y: -3))
+            .offset(y: -4)
+        case .lightning:
+            Image(systemName: "bolt.fill").font(.system(size: 18, weight: .black))
+                .foregroundStyle(Color(hex: 0xFFE03D)).shadow(color: Color(hex: 0xFF7A3D), radius: 2)
+                .rotationEffect(.degrees(14))
+                .offset(x: 20, y: -24)
+        case .crown:
+            Image(systemName: "crown.fill").font(.system(size: 22, weight: .black))
+                .foregroundStyle(LinearGradient(colors: [Color(hex: 0xFFED80), Color(hex: 0xFFC71A)], startPoint: .top, endPoint: .bottom))
+                .offset(y: -29)
         }
     }
 }

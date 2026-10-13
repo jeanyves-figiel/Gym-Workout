@@ -59,7 +59,7 @@ struct CoachHome: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .center, spacing: 2) {
-                    MonkeyFace(mood: mood)
+                    MonkeyFace(mood: mood, gear: snap.game?.rank.gear)
                         .scaleEffect(hop ? 1.15 : 1)
                         .rotationEffect(.degrees(hop ? -14 : 0))
                         .offset(y: hop ? -7 : (bob ? -2 : 0))

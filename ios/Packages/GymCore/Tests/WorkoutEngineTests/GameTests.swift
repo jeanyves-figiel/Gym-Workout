@@ -52,4 +52,17 @@ private func record(_ s: Session, at date: Date) -> WorkoutRecord {
         #expect(reward.badges.contains { $0.id == "first" })
         #expect(GameReward(before: after, after: after, badgesBefore: first, badgesAfter: first).badges.isEmpty)
     }
+
+    @Test func ladderRanksStartAtTheirLevels() {
+        let at = { (level: Int) in GameProgress(xp: (level - 1) * GameProgress.perLevel).rank }
+        #expect(at(1) == "Rookie")
+        #expect(at(2) == "Rookie")
+        #expect(at(3) == "Regular")
+        #expect(at(7) == "Regular")
+        #expect(at(8) == "Iron")
+        #expect(at(15) == "Steel")
+        #expect(at(24) == "Steel")
+        #expect(at(25) == "Titan")
+        #expect(at(40) == "Legend")
+    }
 }

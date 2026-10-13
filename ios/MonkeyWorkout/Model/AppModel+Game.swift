@@ -7,6 +7,9 @@ extension AppModel {
 
     var game: GameProgress { GameProgress.evaluate(records: state.history, targetPerWeek: gameTarget) }
 
+    /// Rank on the level ladder (#242).
+    var rank: GameRank { .of(level: game.level) }
+
     var badges: [Badge] { Achievements.evaluate(records: state.history, weights: weightEntries, targetPerWeek: gameTarget) }
 
     /// XP a planned session earns with every set done.
