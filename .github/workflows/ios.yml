@@ -108,6 +108,13 @@ jobs:
           xcodebuild -version
       - run: brew install xcodegen
       - run: xcodegen generate --spec ios/project.yml
+      - name: Boot simulators during the build
+        run: |
+          # Cold boots took ~10 min of the job (iPad + Watch); start them now so they overlap the build.
+          for pat in "iPhone 1[5-7] Pro \(" "iPad Pro 13-inch" "Apple Watch"; do
+            ID=$(xcrun simctl list devices available | grep -m1 -E "$pat" | grep -oE '[0-9A-F-]{36}' || true)
+            [ -n "$ID" ] && { xcrun simctl boot "$ID" || true; }
+          done
       - name: Build for simulator
         run: |
           set -o pipefail
@@ -118,7 +125,7 @@ jobs:
         run: |
           DEVICE=$(xcrun simctl list devices available | grep -m1 -E "iPhone 1[5-7] Pro \(" | grep -oE '[0-9A-F-]{36}')
           echo "device=$DEVICE"
-          xcrun simctl boot "$DEVICE"
+          xcrun simctl boot "$DEVICE" || true
           xcrun simctl bootstatus "$DEVICE" -b
           xcrun simctl status_bar "$DEVICE" override --time 9:41 --batteryLevel 100 --cellularBars 4 || true
           xcrun simctl install "$DEVICE" build/Build/Products/Debug-iphonesimulator/MonkeyWorkout.app
@@ -139,7 +146,7 @@ jobs:
           IPAD=$(xcrun simctl list devices available | grep -m1 -E "iPad Pro 13-inch" | grep -oE '[0-9A-F-]{36}')
           echo "ipad=$IPAD"
           [ -n "$IPAD" ] || { echo "::warning::No iPad Pro 13-inch simulator"; exit 0; }
-          xcrun simctl boot "$IPAD"
+          xcrun simctl boot "$IPAD" || true
           xcrun simctl bootstatus "$IPAD" -b
           xcrun simctl status_bar "$IPAD" override --time 9:41 --batteryLevel 100 || true
           xcrun simctl install "$IPAD" build/Build/Products/Debug-iphonesimulator/MonkeyWorkout.app
