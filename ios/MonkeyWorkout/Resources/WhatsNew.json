@@ -14,22 +14,22 @@
       "body": "Explore → Workouts has goal chips (Muscle, Full body, Cardio, Core, Mobility) and a search: type a name, a muscle like \"glutes\" or a goal. Cards now show the muscles worked in full."
     },
     {
+      "symbol": "paintpalette.fill",
+      "tint": "warmup",
+      "title": "See each style before you pick",
+      "body": "Account → Style: swipe through the styles, each with its real iPhone and Watch screens, then tap Use to switch."
+    },
+    {
       "symbol": "checkmark.shield.fill",
       "tint": "power",
       "title": "Confirm it's you",
       "body": "Changing your password or email, or deleting your account, now first asks you to confirm it's you: with a passkey, Apple, your password or a code we email you. One check is good for 5 minutes."
     },
     {
-      "symbol": "number.square.fill",
-      "tint": "warmup",
-      "title": "2-step sign-in",
-      "body": "Account → Security: turn on a 6-digit code from your authenticator app after your password, with recovery codes in case you lose your phone. Sign in with Apple and passkeys skip it."
-    },
-    {
       "symbol": "person.badge.key.fill",
       "tint": "cardio",
-      "title": "Passkeys",
-      "body": "Add a passkey in Account → Security, then sign in with Face ID, no email or password to type."
+      "title": "Passkeys and 2-step sign-in",
+      "body": "Account → Security: add a passkey to sign in with Face ID, no password to type. Or turn on 2-step: a code from your authenticator app after your password, with recovery codes. Apple and passkeys skip it."
     }
   ]
 }
