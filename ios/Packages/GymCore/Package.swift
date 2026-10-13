@@ -9,7 +9,7 @@ let package = Package(
         .library(name: "APIClient", targets: ["APIClient"]),
     ],
     targets: [
-        .target(name: "WorkoutEngine"),
+        .target(name: "WorkoutEngine", resources: [.process("Resources")]),
         .target(name: "APIClient"),
         .testTarget(name: "WorkoutEngineTests", dependencies: ["WorkoutEngine"]),
         .testTarget(name: "APIClientTests", dependencies: ["APIClient"]),
