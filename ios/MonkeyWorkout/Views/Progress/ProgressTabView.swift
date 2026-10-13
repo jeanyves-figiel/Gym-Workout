@@ -99,6 +99,13 @@ struct ProgressTabView: View {
                 try? await Task.sleep(for: .milliseconds(600))
                 proxy.scrollTo(demoSection, anchor: .top)
             }
+            // Opened from a Train widget (#260): scroll to its section.
+            .task(id: model.progressJump) {
+                guard let section = model.progressJump else { return }
+                try? await Task.sleep(for: .milliseconds(350))
+                jump(section, proxy)
+                model.progressJump = nil
+            }
         }
         .sensoryFeedback(.selection, trigger: active)
         .readableWidth()
