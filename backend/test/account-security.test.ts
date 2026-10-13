@@ -56,8 +56,11 @@ const advance = (ms: number) => (clock = new Date(clock.getTime() + ms));
 const post = (url: string, payload: object, token?: string) =>
   app.inject({ method: 'POST', url, payload, headers: token ? { authorization: `Bearer ${token}` } : {} });
 const get = (url: string, token: string) => app.inject({ method: 'GET', url, headers: { authorization: `Bearer ${token}` } });
-const del = (payload: object, token: string) =>
-  app.inject({ method: 'DELETE', url: '/v1/me', payload, headers: { authorization: `Bearer ${token}` } });
+const del = (payload: object, token: string, reauth?: string) =>
+  app.inject({ method: 'DELETE', url: '/v1/me', payload, headers: { authorization: `Bearer ${token}`, ...(reauth ? { 'x-reauth-token': reauth } : {}) } });
+/** 5-minute "confirm it's you" grant via a fresh Apple identity token (#257). */
+const appleGrant = async (token: string, identityToken: string) =>
+  (await post('/v1/me/reauth', { method: 'apple', identityToken }, token)).json().reauthToken as string;
 const lastCode = () => {
   const m = [...mailer.outbox].reverse().find((x) => /\d{6} is your code/.test(x.subject));
   return m!.subject.match(/(\d{6})/)![1]!;
@@ -156,7 +159,8 @@ describe('Sign in with Apple token exchange & revocation', () => {
     const stored = db.prepare('SELECT refresh_token_enc FROM apple_tokens').get() as { refresh_token_enc: string };
     expect(stored.refresh_token_enc).not.toContain('apple-refresh-secret');
 
-    expect((await del({ confirm: 'DELETE' }, res.json().tokens.accessToken)).statusCode).toBe(204);
+    const at = res.json().tokens.accessToken;
+    expect((await del({ confirm: 'DELETE' }, at, await appleGrant(at, 'tok-apple-exchange'))).statusCode).toBe(204);
     const revoke = calls.at(-1)!;
     expect(revoke.url).toBe('https://appleid.apple.com/auth/revoke');
     const rf = new URLSearchParams(String(revoke.init!.body));
@@ -179,7 +183,9 @@ describe('Sign in with Apple token exchange & revocation', () => {
     const again = await post('/v1/auth/apple', { identityToken: 'tok-apple-fail', authorizationCode: 'c2' });
     expect(again.statusCode).toBe(200);
     expect(new URLSearchParams(String(calls[1]!.init!.body)).get('client_id')).toBe('Com.app.MonkeyWorkout'); // fallback client id
-    expect((await del({ confirm: 'DELETE' }, again.json().tokens.accessToken)).statusCode).toBe(204);
+    const at = again.json().tokens.accessToken;
+    const grant = await appleGrant(at, 'tok-apple-fail');
+    expect((await del({ confirm: 'DELETE' }, at, grant)).statusCode).toBe(204);
     expect(calls.at(-1)!.url).toBe('https://appleid.apple.com/auth/revoke');
   });
 
@@ -188,7 +194,8 @@ describe('Sign in with Apple token exchange & revocation', () => {
     appleIds.set('tok-apple-noconf', { sub: 'apple-x3', emailVerified: false });
     const r = await post('/v1/auth/apple', { identityToken: 'tok-apple-noconf', authorizationCode: 'c3' });
     expect(r.statusCode).toBe(200);
-    expect((await del({ confirm: 'DELETE' }, r.json().tokens.accessToken)).statusCode).toBe(204);
+    const at = r.json().tokens.accessToken;
+    expect((await del({ confirm: 'DELETE' }, at, await appleGrant(at, 'tok-apple-noconf'))).statusCode).toBe(204);
     expect(calls).toHaveLength(0);
   });
 });
@@ -198,7 +205,8 @@ describe('change email', () => {
     setup();
     const { tokens } = await signUp();
     const t = tokens.accessToken;
-    expect((await post('/v1/me/email', { newEmail: 'new@example.com' }, t)).json().error).toBe('invalid_credentials');
+    expect((await post('/v1/me/email', { newEmail: 'new@example.com' }, t)).json().error).toBe('reauth_required');
+    expect((await post('/v1/me/email', { newEmail: 'new@example.com', password: 'wrong-password!' }, t)).json().error).toBe('invalid_credentials');
     expect((await post('/v1/me/email', { newEmail: EMAIL, password: PW }, t)).json().error).toBe('same_email');
 
     const r = await post('/v1/me/email', { newEmail: ' New@Example.com ', password: PW }, t);
@@ -231,25 +239,33 @@ describe('change email', () => {
     expect((await post('/v1/me/email/confirm', { code: '123456' }, tokens.accessToken)).statusCode).toBe(400);
   });
 
-  it('expires codes, burns after 5 wrong attempts and lets Apple-only users change without password', async () => {
+  it('expires codes, burns after 5 wrong attempts and lets Apple-only users change after confirming with Apple', async () => {
     setup();
     appleIds.set('tok-apple-email', { sub: 'apple-e1', email: 'e1@privaterelay.appleid.com', emailVerified: true });
     const signIn = async () => (await post('/v1/auth/apple', { identityToken: 'tok-apple-email' })).json().tokens.accessToken as string;
     let t = await signIn();
-    expect((await post('/v1/me/email', { newEmail: 'real@example.com' }, t)).statusCode).toBe(202);
+    expect((await post('/v1/me/email', { newEmail: 'real@example.com' }, t)).json().error).toBe('reauth_required');
+    const emailReq = async (tok: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/v1/me/email',
+        payload: { newEmail: 'real@example.com' },
+        headers: { authorization: `Bearer ${tok}`, 'x-reauth-token': await appleGrant(tok, 'tok-apple-email') },
+      });
+    expect((await emailReq(t)).statusCode).toBe(202);
     const good = lastCode();
     const bad = good === '123456' ? '654321' : '123456';
     for (let i = 0; i < 4; i++) expect((await post('/v1/me/email/confirm', { code: bad }, t)).json().error).toBe('invalid_code');
     expect((await post('/v1/me/email/confirm', { code: bad }, t)).json().error).toBe('too_many_attempts');
     expect((await post('/v1/me/email/confirm', { code: good }, t)).statusCode).toBe(400);
 
-    await post('/v1/me/email', { newEmail: 'real@example.com' }, t);
+    await emailReq(t);
     const fresh = lastCode();
     advance(16 * 60_000);
     t = await signIn(); // access token expired too
     expect((await post('/v1/me/email/confirm', { code: fresh }, t)).json().error).toBe('invalid_code');
 
-    await post('/v1/me/email', { newEmail: 'real@example.com' }, t);
+    await emailReq(t);
     const ok = await post('/v1/me/email/confirm', { code: lastCode() }, t);
     expect(ok.json().user).toMatchObject({ email: 'real@example.com', appleLinked: true });
     expect((await get('/v1/me', t)).json().user.email).toBe('real@example.com');

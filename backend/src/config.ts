@@ -36,6 +36,10 @@ export interface Config {
   };
   /** Who runs the app, shown on /privacy, /terms and /support (#125). Unset → placeholder text the owner must fill. */
   legal: { operator?: string; address?: string; email?: string; law: string; venue?: string };
+  /** Passkeys (#257): relying party = the API host the app has in its Associated Domains (webcredentials:). */
+  webauthn: { rpId: string; origins: string[] };
+  /** Apple team id, for /.well-known/apple-app-site-association (passkeys). */
+  appleTeamId?: string;
 }
 
 const required = (name: string, env: NodeJS.ProcessEnv, prod: boolean, dev: string): string => {
@@ -110,5 +114,13 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
       law: env.LEGAL_LAW || 'Switzerland',
       venue: env.LEGAL_VENUE || undefined,
     },
+    webauthn: {
+      rpId: env.WEBAUTHN_RP_ID || 'localhost',
+      origins: (env.WEBAUTHN_ORIGINS || `https://${env.WEBAUTHN_RP_ID || 'localhost'}${env.WEBAUTHN_RP_ID ? '' : ',http://localhost:7443'}`)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    },
+    appleTeamId: env.APPLE_TEAM_ID || undefined,
   };
 };
