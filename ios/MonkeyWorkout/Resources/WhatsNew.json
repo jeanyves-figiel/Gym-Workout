@@ -18,6 +18,12 @@
       "tint": "strength",
       "title": "Crisp, fluid exercise motion",
       "body": "Every exercise now moves through twice as many poses and switches between them crisply, so there is no more blinking or ghost arms while it plays."
+    },
+    {
+      "symbol": "clock.arrow.circlepath",
+      "tint": "cardio",
+      "title": "Every update in one place",
+      "body": "Account → What's new now lists all past updates, newest first, so you can catch up on anything you missed."
     }
   ]
 }
