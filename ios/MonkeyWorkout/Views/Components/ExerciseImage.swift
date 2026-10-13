@@ -4,7 +4,7 @@ import WorkoutEngine
 
 /// Exercise picture: the app's own illustration (#170, bundled PNG drawn on the category gradient), or a
 /// custom exercise's photo / pose drawing. The gradient + icon is the placeholder without media.
-/// Shows one still frame: 0 = start, `ExerciseIllustrations.middleFrame` = middle, last = end position (in-betweens
+/// Shows one still frame: 0 = start, frame count / 2 = middle, last = end position (in-betweens
 /// between them, #229). Never animates by itself.
 struct ExerciseImage: View {
     let exercise: Exercise
@@ -16,7 +16,7 @@ struct ExerciseImage: View {
         CustomExercise.isCustom(exercise.id) ? CustomExercises.shared.record(exercise.id) : nil
     }
 
-    /// Frames this exercise has (`ExerciseIllustrations.frameCount` for catalog art, 1–2 for a custom exercise, 0 without media).
+    /// Frames this exercise has (17–49 for catalog art, #256; 1–2 for a custom exercise; 0 without media).
     static func frameCount(_ e: Exercise) -> Int {
         if CustomExercise.isCustom(e.id) { return CustomExercises.shared.record(e.id)?.frameCount ?? 0 }
         return e.illustrationAssets.count
@@ -104,7 +104,7 @@ struct ExerciseMotionView: View {
     private var canPlay: Bool { frames > 1 }
     /// Path and phase labels; only for catalog art drawn with in-betweens.
     private var motion: ExerciseMotion? {
-        frames == ExerciseIllustrations.frameCount ? exercise.motion : nil
+        frames == ExerciseIllustrations.frameCount(of: exercise.id) ? exercise.motion : nil
     }
     private var phases: (ExerciseMotion.Phase, ExerciseMotion.Phase)? { motion?.phases(exercise.category) }
 
@@ -318,7 +318,7 @@ struct ExerciseImageHeader: View {
                     .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(Theme.stroke))
                 if style == .sequence && frames > 1 {
                     HStack(spacing: 6) {
-                        ForEach(Self.keyFrames(frames), id: \.self) { f in strip(f, of: frames) }
+                        ForEach(Self.keyFrames(exercise, frames), id: \.self) { f in strip(f, of: frames) }
                     }
                 }
             }
@@ -326,8 +326,8 @@ struct ExerciseImageHeader: View {
     }
 
     /// Start / Middle / End of catalog art (its in-betweens only play), every frame of a custom exercise.
-    static func keyFrames(_ count: Int) -> [Int] {
-        count == ExerciseIllustrations.frameCount ? ExerciseIllustrations.keyFrames : Array(0..<count)
+    static func keyFrames(_ e: Exercise, _ count: Int) -> [Int] {
+        count == ExerciseIllustrations.frameCount(of: e.id) ? ExerciseIllustrations.keyFrames(count) : Array(0..<count)
     }
 
     private func strip(_ f: Int, of count: Int) -> some View {

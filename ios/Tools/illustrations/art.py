@@ -750,6 +750,12 @@ def lerp_pose(a, b, k):
         ja, jb = F.place(a), F.place(b)
         names = [p[0] for p in (a.get("pin"), b.get("pin")) if p and p[0] in ja and p[0] in jb]
         n = min(names, key=lambda m: math.dist(ja[m], jb[m])) if names else (a.get("pin") or b["pin"])[0]
+        # #256: a foot or hand planted in both poses (squat feet, push-up hands) stays planted; pinning the moving
+        # hip instead slid the feet and snapped them back when the floor guard bent the knee.
+        planted = [m for m in ("ankleN", "ankleF", "wristN", "wristF")
+                   if m in ja and m in jb and math.dist(ja[m], jb[m]) < 1.5]
+        if planted and math.dist(ja[n], jb[n]) > 3:
+            n = planted[0]
         pa, pb = ja[n], jb[n]
         out["pin"] = (n, (pa[0] + (pb[0] - pa[0]) * k, pa[1] + (pb[1] - pa[1]) * k))
         out.pop("lift", None)
@@ -761,6 +767,12 @@ def lerp_pose(a, b, k):
 
 FRAMES = 17  # per exercise: start (0), middle (FRAMES // 2), end (FRAMES - 1) and eased in-betweens (#229)
 KEYS = (0, FRAMES // 2, FRAMES - 1)
+
+
+def use_frames(n):
+    """Frame count of the exercise being drawn (#256: fast, large movements get more in-betweens)."""
+    global FRAMES, KEYS
+    FRAMES, KEYS = n, (0, n // 2, n - 1)
 
 
 def at(f):
