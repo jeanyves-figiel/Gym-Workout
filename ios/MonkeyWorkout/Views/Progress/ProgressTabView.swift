@@ -2,29 +2,26 @@ import Charts
 import SwiftUI
 import WorkoutEngine
 
-/// "Progress" tab in the Explore card style (#82): streak hero, top highlights in the member's layout (#238),
-/// live stat tiles (#218), consistency, trends,
-/// records, climbing, muscle balance, achievements, history. New users get a "day one" layout instead of zeros.
+/// "Progress" tab in the Explore card style (#82): level card, streak row, page map + pinned section bar (#243),
+/// then sections: training (live tiles #218, consistency, trends, climbing), body, records, badges, muscles, history. New users get a "day one" layout instead of zeros.
 struct ProgressTabView: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @State private var badge: Badge?
     @State private var lift: String?
     @State private var gate: ProGate?
-    @AppStorage(ProgressLayout.storageKey) private var layoutRaw = ProgressLayout.default.rawValue
-    @State private var tab: ProgressSection
+    @State private var active: ProgressSection?
+    @State private var tops: [ProgressSection: CGFloat] = [:]
+    @State private var barBottom: CGFloat = 0
     /// CI screenshots: open with this tile flipped.
     var demoFlipped: StatMetric?
-    /// CI screenshots: force a top layout (#238).
-    var demoLayout: ProgressLayout?
+    /// CI screenshots: open scrolled to this section, bar pinned (#243).
+    var demoSection: ProgressSection?
 
-    init(demoFlipped: StatMetric? = nil, demoLayout: ProgressLayout? = nil, demoTab: ProgressSection = .training) {
+    init(demoFlipped: StatMetric? = nil, demoSection: ProgressSection? = nil) {
         self.demoFlipped = demoFlipped
-        self.demoLayout = demoLayout
-        _tab = State(initialValue: demoTab)
+        self.demoSection = demoSection
     }
-
-    private var layout: ProgressLayout { demoLayout ?? ProgressLayout(rawValue: layoutRaw) ?? .default }
 
     private var target: Int { model.profile?.sessionsPerWeek ?? 3 }
 
@@ -51,20 +48,17 @@ struct ProgressTabView: View {
         let fresh = s.totalWorkouts == 0
         let climbList = climbs
         let top = highlights(s)
-        let lay = layout
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+                LazyVStack(alignment: .leading, spacing: 14, pinnedViews: [.sectionHeaders]) {
                     // Level card, trophy shelf or quest log: the member's game look (#227).
                     if !fresh { GameProgressCard(badges: badges) }
-                    StreakHero(stats: s, target: target)
-                    switch lay {
-                    case .hub: ProgressHub(h: top) { jump($0, proxy) }
-                    case .strip: ProgressStrip(h: top) { jump($0, proxy) }
-                    case .tabs: ProgressTabBar(selection: $tab)
-                    }
-                    if shows(.training, lay) {
-                        VStack(alignment: .leading, spacing: 14) {
+                    StreakRow(current: s.currentStreakWeeks, best: s.bestStreakWeeks, thisWeek: s.thisWeek,
+                              target: target, fresh: fresh)
+                    // Page map (#243 B): what's on the page, one tap to each part.
+                    ProgressMap(h: top) { jump($0, proxy) }
+                    Section {
+                        group(.training, trailing: nil) {
                             if fresh {
                                 FirstMilestonesCard(session: false, pr: !model.personalRecords.isEmpty, climb: !climbList.isEmpty)
                             } else {
@@ -74,25 +68,35 @@ struct ProgressTabView: View {
                             weeklyChart(s)
                             strengthTrend
                             if !climbList.isEmpty { ClimbingCard(climbs: climbList) }
-                            muscleBalance(s, fresh: fresh)
                         }
-                        .id(ProgressSection.training)
-                    }
-                    if shows(.body, lay) {
-                        VStack(alignment: .leading, spacing: 14) {
-                            if lay == .tabs { BodyTilesGrid(h: top) }
+                        group(.body, trailing: nil) {
                             if !model.measurementSeries(.weight).isEmpty || !health.snapshot.vo2Trend.isEmpty { bodyTrends }
                             ProgressMeasurementsSection()
                         }
-                        .id(ProgressSection.body)
+                        group(.records, trailing: top.records.isEmpty ? nil : "\(top.records.count) PRs") { records(s) }
+                        group(.badges, trailing: "\(top.unlocked)/\(top.badgeCount)") { achievements }
+                        group(.muscles, trailing: "Last 28 days") { muscleBalance(s, fresh: fresh) }
+                        group(.history, trailing: model.history.isEmpty ? nil : "\(model.history.count)") { historyList }
+                    } header: {
+                        // Section bar (#243 A): pins under the title, lights the section on screen.
+                        ProgressSectionBar(active: active) { jump($0, proxy) }
+                            .background(GeometryReader { g in
+                                Color.clear.preference(key: SectionBarBottomKey.self, value: g.frame(in: .named("progress")).maxY)
+                            })
                     }
-                    if shows(.records, lay) { records(s).id(ProgressSection.records) }
-                    if shows(.badges, lay) { achievements.id(ProgressSection.badges) }
-                    if shows(.history, lay) { historyList.id(ProgressSection.history) }
                 }
                 .padding(16)
             }
+            .coordinateSpace(name: "progress")
+            .onPreferenceChange(SectionTopsKey.self) { tops = $0; updateActive() }
+            .onPreferenceChange(SectionBarBottomKey.self) { barBottom = $0; updateActive() }
+            .task {
+                guard let demoSection else { return }
+                try? await Task.sleep(for: .milliseconds(600))
+                proxy.scrollTo(demoSection, anchor: .top)
+            }
         }
+        .sensoryFeedback(.selection, trigger: active)
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .proPaywall($gate)
@@ -102,10 +106,31 @@ struct ProgressTabView: View {
         .sheet(item: $badge) { b in BadgeSheet(badge: b).presentationDetents([.medium]) }
     }
 
-    // MARK: Top (#238)
+    // MARK: Structure (#243)
 
-    private func shows(_ section: ProgressSection, _ lay: ProgressLayout) -> Bool {
-        lay != .tabs || tab == section
+    /// Bar height, kept above a section's header when jumping so the pinned bar doesn't cover it.
+    private static let barClearance: CGFloat = 60
+
+    /// One page section: bold header + content; reports its top for the bar and is the jump target.
+    private func group<Content: View>(_ section: ProgressSection, trailing: String?,
+                                      @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ProgressSectionHeader(section: section, trailing: trailing)
+            content()
+        }
+        .background(GeometryReader { g in
+            Color.clear.preference(key: SectionTopsKey.self, value: [section: g.frame(in: .named("progress")).minY])
+        })
+        .padding(.top, Self.barClearance)
+        .id(section)
+        .padding(.top, -Self.barClearance)
+    }
+
+    /// Lit chip: the last section whose top has passed under the bar; none while the page map is on screen.
+    private func updateActive() {
+        let passed = ProgressSection.allCases.filter { (tops[$0] ?? .infinity) <= barBottom + 24 }
+        let now = passed.last
+        if now != active { active = now }
     }
 
     private func jump(_ section: ProgressSection, _ proxy: ScrollViewProxy) {
@@ -145,7 +170,12 @@ struct ProgressTabView: View {
             // VO₂max is not a BodyMetric; only its value and change are read.
             vo2: vo2.last.map { .init(metric: .weight, value: $0.value, change: BodyMeasurements.change(vo2)) },
             weight: measures.first { $0.metric == .weight },
-            workouts: model.history.count)
+            workouts: model.history.count,
+            thisWeek: s.thisWeek,
+            target: target,
+            lastWorkout: model.history.map(\.startedAt).max(),
+            topMuscle: s.muscleBalance.max { $0.value < $1.value }.map { $0.key.name },
+            musclesLocked: ProStore.shared.locked && s.totalWorkouts > 0)
     }
 
     @ViewBuilder
@@ -159,12 +189,17 @@ struct ProgressTabView: View {
             .buttonStyle(.plain)
         } else if !s.muscleBalance.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Muscle balance · last 28 days").eyebrow()
                 BodyMapPair(heat: s.muscleBalance).frame(height: 240)
                 HeatLegend()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .card()
+        } else {
+            Text("Your muscle heat map fills in as you train.")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(Theme.muted)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .card()
         }
     }
 
@@ -296,7 +331,6 @@ struct ProgressTabView: View {
     private func records(_ s: ProgressStats) -> some View {
         let attempts = model.personalRecords
         VStack(alignment: .leading, spacing: 10) {
-            Text("Personal records").eyebrow()
             if attempts.isEmpty && s.personalRecords.isEmpty {
                 GradientRow(symbol: "trophy.fill", title: "No PRs yet",
                             subtitle: "Open any strength exercise in Explore and tap Attempt a PR.",
@@ -358,7 +392,6 @@ struct ProgressTabView: View {
 
     private var historyList: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("History").eyebrow()
             if model.history.isEmpty {
                 HStack(spacing: 14) {
                     Image(systemName: "clock.arrow.circlepath")
@@ -387,49 +420,6 @@ enum ProgressStyle {
     static let hero = LinearGradient(colors: [Theme.lime, Color(red: 0.12, green: 0.85, blue: 0.54)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let gold = LinearGradient(colors: [Color(red: 1, green: 0.72, blue: 0), Color(red: 1, green: 0.37, blue: 0.23)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let badge = LinearGradient(colors: [Color(red: 1, green: 0.55, blue: 0.1), Color(red: 1, green: 0.18, blue: 0.47)], startPoint: .topLeading, endPoint: .bottomTrailing)
-}
-
-/// Lime hero: week streak and this week's sessions vs goal; "day one" copy for new users.
-private struct StreakHero: View {
-    let stats: ProgressStats
-    let target: Int
-
-    var body: some View {
-        let fresh = stats.totalWorkouts == 0
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Label(fresh ? "Day one" : "Week streak", systemImage: fresh ? "sparkles" : "flame.fill")
-                    .font(Theme.label(12)).tracking(1.2).textCase(.uppercase)
-                if fresh {
-                    Text("Your streak starts with session one").font(Theme.display(26)).fixedSize(horizontal: false, vertical: true)
-                    Text("Goal: \(target) sessions a week").font(.footnote.weight(.semibold)).opacity(0.75)
-                } else {
-                    Text("\(stats.currentStreakWeeks)").font(Theme.display(64)).monospacedDigit().contentTransition(.numericText())
-                    Text(caption).font(.footnote.weight(.semibold)).opacity(0.75)
-                }
-            }
-            Spacer(minLength: 0)
-            ZStack {
-                ProgressRing(progress: Double(stats.thisWeek) / Double(max(1, target)), lineWidth: 9,
-                             colors: [Theme.ink, Theme.ink.opacity(0.8)])
-                VStack(spacing: 0) {
-                    Text("\(stats.thisWeek)/\(target)").font(Theme.display(20)).monospacedDigit()
-                    Text("this wk").font(Theme.label(9)).opacity(0.7)
-                }
-            }
-            .frame(width: 84, height: 84)
-        }
-        .foregroundStyle(Theme.ink)
-        .padding(20)
-        .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(ProgressStyle.hero))
-        .accessibilityElement(children: .combine)
-    }
-
-    private var caption: String {
-        let left = max(0, target - stats.thisWeek)
-        let goal = left == 0 ? "Week goal hit" : "\(left) more to keep it going"
-        return "Best \(stats.bestStreakWeeks) wk · \(goal)"
-    }
 }
 
 /// Square gradient tile: icon tile top-left, big number, label.
