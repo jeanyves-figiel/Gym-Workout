@@ -234,6 +234,7 @@ private struct DemoScreen: View {
         case "gyms": GymFinderView(place: "Zürich")
         case "move": MoveSessionSheet(sessionId: second)
         case "whats-new": if let n = WhatsNew.current { WhatsNewView(notes: n) }
+        case "whats-new-history": NavigationStack { WhatsNewHistoryView(latest: WhatsNew.current, history: WhatsNew.history) }
         case "add-workout": AddWorkoutSheet()
         case "add-workout-quick": AddWorkoutSheet(quick: .fullUpper)
         case "day":

@@ -1,0 +1,228 @@
+{
+  "releases": [
+    {
+      "id": "2026-10-13.2",
+      "build": 30,
+      "date": "2026-10-13",
+      "items": [
+        {
+          "symbol": "figure.strengthtraining.traditional",
+          "tint": "strength",
+          "title": "Smoother exercise motion",
+          "body": "The exercise movement now glides from pose to pose without flashing, and the dot on the path moves with it."
+        },
+        {
+          "symbol": "square.grid.2x2.fill",
+          "tint": "strength",
+          "title": "Your highlights on top of Progress",
+          "body": "Measurements, records, achievements and body now sit at the top of Progress. Prefer a swipeable strip or tabs? Pick your layout in Account → Progress layout."
+        },
+        {
+          "symbol": "gamecontroller.fill",
+          "tint": "mobility",
+          "title": "Your Watch style on iPhone too",
+          "body": "Monkey coach, Quest map or Level bar: pick it in Account → Style and your Watch matches. Every workout earns XP toward your level, with the same badges on both."
+        },
+        {
+          "symbol": "heart.fill",
+          "tint": "power",
+          "title": "Turn Apple Health back on",
+          "body": "Said no to Health once? Account → Body & Health → Manage Health access shows how to turn it back on in one tap."
+        }
+      ]
+    },
+    {
+      "id": "2026-10-13.1",
+      "build": 28,
+      "date": "2026-10-13",
+      "items": [
+        {
+          "symbol": "figure.stand",
+          "tint": "strength",
+          "title": "A real 3D body",
+          "body": "The 3D body on Explore → Muscles is now sculpted like a real body and turns around itself. Tap any muscle to see its exercises."
+        },
+        {
+          "symbol": "applewatch.watchface",
+          "tint": "cardio",
+          "title": "Watch complications are here",
+          "body": "MonkeyWorkout complications now show on your watch faces and in the Smart Stack: long-press the face, Edit, Complications, then pick MonkeyWorkout."
+        },
+        {
+          "symbol": "figure.strengthtraining.traditional",
+          "tint": "strength",
+          "title": "Exercises that really move",
+          "body": "Every exercise now plays as smooth motion: the working muscles glow red, a dotted line shows the path of the bar or hand, and a chip gives the tempo, like UP 1s and DOWN 2s, with your rep. Tap the picture to replay."
+        }
+      ]
+    },
+    {
+      "id": "2026-10-12.6",
+      "build": 26,
+      "date": "2026-10-13",
+      "items": [
+        {
+          "symbol": "rotate.3d",
+          "tint": "strength",
+          "title": "Your body in 3D",
+          "body": "Explore → Muscles can now show a 3D body: turn it, zoom in and tap a muscle to see its exercises. Switch 2D / 3D on the map or in Account → Body & Health."
+        },
+        {
+          "symbol": "ruler.fill",
+          "tint": "power",
+          "title": "Help with every measurement",
+          "body": "Tap ? on any measurement to see where the tape goes, with steps and a tip. Or tap Measure with me to be guided through them one by one."
+        },
+        {
+          "symbol": "applewatch",
+          "tint": "power",
+          "title": "Your Apple Watch, your style",
+          "body": "Pick a Watch home: Monkey coach, Crown deck or Charge & go. Every Watch screen follows: full colour, gradient tiles, or game mode with XP, levels and badges. Change it in Account → Apple Watch."
+        },
+        {
+          "symbol": "chart.bar.xaxis",
+          "tint": "strength",
+          "title": "Live progress tiles",
+          "body": "Progress tiles switch between Week, Month and All, show your trend and the change vs last time. Tap a tile for its chart, tap a day in the calendar to open that workout."
+        },
+        {
+          "symbol": "person.crop.circle.badge.checkmark",
+          "tint": "cardio",
+          "title": "Tidier Account header",
+          "body": "Your Apple, Verified and PRO badges sit on their own row and your session count is a bright pill next to your name. No more broken words."
+        }
+      ]
+    },
+    {
+      "id": "2026-10-12.5",
+      "build": 25,
+      "date": "2026-10-12",
+      "items": [
+        {
+          "symbol": "bolt.heart.fill",
+          "tint": "cardio",
+          "title": "Week and readiness in one card",
+          "body": "Train shows your week and today's readiness together: the readiness pill sits inside the week card, tap it for the details. No Health yet? Connect it right there."
+        }
+      ]
+    },
+    {
+      "id": "2026-10-12.4",
+      "build": 24,
+      "date": "2026-10-12",
+      "items": [
+        {
+          "symbol": "rectangle.3.group.fill",
+          "tint": "power",
+          "title": "Your goal, your split",
+          "body": "Switching goal re-plans your week. Under your goal, pick a split (full body, upper / lower, push pull legs, body part…), tap a day to set its focus, and pick focus muscles for extra sets."
+        },
+        {
+          "symbol": "figure.strengthtraining.traditional",
+          "tint": "cardio",
+          "title": "Simpler workout player, bolder switchers",
+          "body": "The workout player fits one screen: kg and reps in one place, tap a done set to fix it, cardio just shows the timer. Explore's switcher is now colourful tiles with counts."
+        },
+        {
+          "symbol": "applewatch.watchface",
+          "tint": "cardio",
+          "title": "Watch face complications",
+          "body": "Add MonkeyWorkout to any watch face, analog ones too: next workout, weekly goal, streak, week strip, readiness, top lift, last workout. Long-press the face, Edit, then pick MonkeyWorkout."
+        },
+        {
+          "symbol": "bolt.heart.fill",
+          "tint": "strength",
+          "title": "Ready the moment you open it",
+          "body": "Readiness, weight and Health data show at launch, no more Connect Apple Health flash. New exercise closes with the X next to Save."
+        },
+        {
+          "symbol": "rectangle.split.3x1.fill",
+          "tint": "warmup",
+          "title": "Choose your session flow",
+          "body": "Pick the blocks of your workouts and drag the time bar to split the minutes. Per workout, for your plan, or in your own workouts. Pin your favourites too, like 7 min treadmill in every warm-up: Session flow → My picks, or long-press an exercise → Always use."
+        }
+      ]
+    },
+    {
+      "id": "2026-10-12.3",
+      "build": 21,
+      "date": "2026-10-12",
+      "items": [
+        {
+          "symbol": "figure.walk.motion",
+          "tint": "strength",
+          "title": "Movements play on their own",
+          "body": "Each exercise shows its movement 3 times when it appears in the workout, then stops. Tap Play movement to see it again."
+        }
+      ]
+    },
+    {
+      "id": "2026-10-12.2",
+      "build": 20,
+      "date": "2026-10-12",
+      "items": [
+        {
+          "symbol": "figure.strengthtraining.functional",
+          "tint": "power",
+          "title": "Calisthenics skills",
+          "body": "Muscle-ups, front and back levers, human flag, iron cross, one-arm pull-ups and push-ups, pistols, freestanding handstand push-ups, each with easier steps."
+        },
+        {
+          "symbol": "dumbbell.fill",
+          "tint": "strength",
+          "title": "76 new exercises, 12 new machines",
+          "body": "Pendulum and belt squat, row and pullover machines, multi-hip, sandbag, sliders and balance trainer. Add them in Your gym → Equipment."
+        },
+        {
+          "symbol": "arrow.triangle.2.circlepath",
+          "tint": "mobility",
+          "title": "Rotate variations",
+          "body": "Training profile → Week to week: turn on Rotate variations to swap accessories for a variation each week. Main lifts stay put."
+        },
+        {
+          "symbol": "figure.cooldown",
+          "tint": "stretch",
+          "title": "Foam rolling and new stretches",
+          "body": "Foam roller and massage ball drills plus downward dog, warrior 2, straddle and more in the library."
+        }
+      ]
+    },
+    {
+      "id": "2026-10-12",
+      "build": 19,
+      "date": "2026-10-12",
+      "items": [
+        {
+          "symbol": "ruler.fill",
+          "tint": "cardio",
+          "title": "Track your measurements",
+          "body": "Account → Body & Health → Measurements: log chest, arms, waist, thighs and more, see each one progress, synced with Apple Health."
+        },
+        {
+          "symbol": "square.and.pencil",
+          "tint": "strength",
+          "title": "Custom workout",
+          "body": "Train → Add workout: build your own workout or generate one from muscles, then drop it on any day."
+        },
+        {
+          "symbol": "timer",
+          "tint": "power",
+          "title": "Quick sessions your way",
+          "body": "Pick 15 to 60 minutes and the muscles to focus on. Long-press a tile to add 30 minutes in one step."
+        },
+        {
+          "symbol": "building.2.fill",
+          "tint": "stretch",
+          "title": "Switch between your gyms",
+          "body": "Your gym keeps every gym you've used with its own equipment. Tap one to switch, also from Account."
+        },
+        {
+          "symbol": "hand.draw.fill",
+          "tint": "mobility",
+          "title": "Gym setup in a few swipes",
+          "body": "Set up a new gym or your equipment list with one swipe card per area, and one item count everywhere."
+        }
+      ]
+    }
+  ]
+}
