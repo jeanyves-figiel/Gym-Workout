@@ -12,6 +12,12 @@
       "tint": "strength",
       "title": "Your highlights on top of Progress",
       "body": "Measurements, records, achievements and body now sit at the top of Progress. Prefer a swipeable strip or tabs? Pick your layout in Account → Progress layout."
+    },
+    {
+      "symbol": "heart.fill",
+      "tint": "power",
+      "title": "Turn Apple Health back on",
+      "body": "Said no to Health once? Account → Body & Health → Manage Health access shows how to turn it back on in one tap."
     }
   ]
 }
