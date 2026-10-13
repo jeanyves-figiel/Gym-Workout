@@ -114,7 +114,7 @@ struct StyleCard: View {
                     Text(big.value).font(Theme.display(26)).lineLimit(1).minimumScaleFactor(0.6)
                     Text(big.unit).font(Theme.label(9)).tracking(1.2).opacity(0.8).lineLimit(1).minimumScaleFactor(0.7)
                 }
-                .frame(maxWidth: 96, alignment: .trailing)
+                .fixedSize()
             }
             .foregroundStyle(.white)
             .padding(16)
