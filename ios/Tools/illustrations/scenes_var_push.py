@@ -936,7 +936,7 @@ def rear_fly_entry():
 
 # ==== archer push-up: seen from in front of the head, a little above ==============================
 
-AR_CAM = Cam(20, (200, GROUND - 6), 0)
+AR_CAM = Cam(35, (200, GROUND - 6), 55)
 AR_HAND_X = 64
 AR_FEET_Z = -196
 
@@ -988,7 +988,7 @@ def archer_entry():
     for cx in AR_FRAMES:
         pts += [AR_CAM(v) for v in archer_body(cx).values()]
     pts += [AR_CAM((-92, 0, 46)), AR_CAM((92, 0, 46))]
-    return custom(archer_scene, [dummy("back", "tl")] * 3, view_around(pts, 10), AR_FRAMES)
+    return custom(archer_scene, [dummy("back", "br")] * 3, view_around(pts, 10), AR_FRAMES)
 
 
 SCENES = {
