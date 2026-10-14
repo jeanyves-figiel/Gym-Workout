@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|whats-new-history|watch-home|game-{week|session|done|progress}-{coach|deck|rings}|game-quest-deck|game-ladder|game-levelup|game-levelup-legend|game-level-row]`
+/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|account-security|account-reauth|account-2step|account-recovery|account-passkeys|signin-2step|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|whats-new-history|watch-home|game-{week|session|done|progress}-{coach|deck|rings}|game-quest-deck|game-ladder|game-levelup|game-levelup-legend|game-level-row]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("-demo") }
@@ -33,6 +33,15 @@ enum Demo {
         let json = #"{"id":"demo","email":"climber@example.com","name":"JY","emailVerified":true,"hasPassword":true,"appleLinked":false,"createdAt":"2026-10-07T10:00:00Z"}"#
         return try? JSONDecoder().decode(User.self, from: Data(json.utf8))
     }()
+
+    /// Security page (#257): 2-step on, 2 passkeys.
+    static let security = SecurityOverview(
+        hasPassword: true, appleLinked: true, mfaEnabled: true, recoveryCodesLeft: 8,
+        passkeys: [Passkey(id: "p1", name: "iPhone", createdAt: "2026-10-13T20:00:00Z", lastUsedAt: "2026-10-13T21:00:00Z"),
+                   Passkey(id: "p2", name: "iPad", createdAt: "2026-10-13T20:05:00Z")],
+        reauthMethods: [.passkey, .apple, .password, .totp, .emailCode])
+    static let recoveryCodes = ["3f9a2-7c1d4", "b81e0-55a9c", "0d4c7-e2f18", "9a6b3-1c0e7", "c4e21-8f9a0",
+                                "71d0b-a3e64", "e5f92-0b7c1", "28a6d-f41e3", "f0c38-9d2b5", "6b1e4-c7a09"]
 
     /// Workout library (#62): one of mine shared with members, two from other members.
     static let customWorkouts: [CustomWorkout] = [

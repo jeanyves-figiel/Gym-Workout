@@ -208,10 +208,15 @@ describe('Sign in with Apple', () => {
     expect((await post('/v1/auth/apple', { identityToken: 'forged-token' })).json().error).toBe('invalid_apple_token');
   });
 
-  it('lets apple-only users delete without password', async () => {
+  it('lets apple-only users delete after confirming with Apple (#257)', async () => {
     appleIds.set('tok-del-identity-token', { sub: 'apple-3', email: 'x@privaterelay.appleid.com', emailVerified: true });
     const { tokens } = (await post('/v1/auth/apple', { identityToken: 'tok-del-identity-token' })).json();
-    const del = await app.inject({ method: 'DELETE', url: '/v1/me', payload: { confirm: 'DELETE' }, headers: { authorization: `Bearer ${tokens.accessToken}` } });
+    const auth = { authorization: `Bearer ${tokens.accessToken}` };
+    const bare = await app.inject({ method: 'DELETE', url: '/v1/me', payload: { confirm: 'DELETE' }, headers: auth });
+    expect(bare.statusCode).toBe(403);
+    expect(bare.json()).toMatchObject({ error: 'reauth_required', methods: ['apple', 'email_code'] });
+    const { reauthToken } = (await post('/v1/me/reauth', { method: 'apple', identityToken: 'tok-del-identity-token' }, tokens.accessToken)).json();
+    const del = await app.inject({ method: 'DELETE', url: '/v1/me', payload: { confirm: 'DELETE' }, headers: { ...auth, 'x-reauth-token': reauthToken } });
     expect(del.statusCode).toBe(204);
   });
 });

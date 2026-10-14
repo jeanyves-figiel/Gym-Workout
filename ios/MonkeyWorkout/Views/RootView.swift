@@ -166,7 +166,18 @@ private struct DemoScreen: View {
         case "pro-gate": ProPaywallSheet(gate: .variation)
         case "account-profile": NavigationStack { PublicProfileView() }
         case "account-password": NavigationStack { ChangePasswordView(hasPassword: true) }
-        case "account-email": NavigationStack { ChangeEmailView(currentEmail: Demo.user?.email, hasPassword: true) }
+        case "account-email": NavigationStack { ChangeEmailView(currentEmail: Demo.user?.email) }
+        // Account security (#257).
+        case "account-security": NavigationStack { SecurityView(preview: Demo.security) }
+        case "account-reauth": ChangePasswordView(hasPassword: true).sheet(isPresented: .constant(true)) {
+            ReauthSheet(methods: [.passkey, .password, .totp, .emailCode]) { _ in }
+        }
+        case "account-2step": NavigationStack {
+            TwoStepView(enabled: false, codesLeft: 0, setup: TotpSetup(secret: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP",
+                                                                       otpauthUrl: "otpauth://totp/MonkeyWorkout:climber%40example.com?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP&issuer=MonkeyWorkout"))
+        }
+        case "account-recovery": NavigationStack { RecoveryCodesView(codes: Demo.recoveryCodes) }
+        case "account-passkeys": NavigationStack { PasskeysView(passkeys: Demo.security.passkeys) }
         case "community", "community-join": NavigationStack { CommunityView() }
         case "community-share": ShareWinView()
         case "community-profile": NavigationStack { CommunityProfileView() }

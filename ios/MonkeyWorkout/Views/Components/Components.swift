@@ -13,7 +13,9 @@ final class FormTask {
         error = nil
         Task {
             defer { busy = false }
-            do { try await action() } catch { self.error = error.localizedDescription }
+            do { try await action() } catch is CancellationError {
+                // Closed the "Confirm it's you" sheet or a system prompt: nothing to report (#257).
+            } catch { self.error = error.localizedDescription }
         }
     }
 }

@@ -9,9 +9,11 @@ public actor APIClient {
     private let session: URLSession
     private let tokens: TokenStore
     private let deviceName: String?
-    private let now: @Sendable () -> Date
+    let now: @Sendable () -> Date
     private var refreshTask: Task<StoredTokens, Error>?
     private var onSignedOut: (@Sendable () -> Void)?
+    /// "Confirm it's you" grant (#257), sent as `X-Reauth-Token` on account calls until it expires.
+    var reauthGrant: (token: String, expiresAt: Date)?
 
     private let encoder: JSONEncoder = {
         let e = JSONEncoder()
@@ -91,6 +93,7 @@ public actor APIClient {
         struct Body: Encodable { var refreshToken: String }
         if let t = tokens.load() { _ = try? await send("POST", "/v1/auth/logout", Body(refreshToken: t.refreshToken)) }
         tokens.clear()
+        reauthGrant = nil
     }
 
     // MARK: Account
@@ -111,14 +114,15 @@ public actor APIClient {
         return try await authorized("PATCH", "/v1/me", Body(name: name), as: UserResponse.self).user
     }
 
-    public func changePassword(current: String?, new: String) async throws {
+    /// Needs a fresh "confirm it's you" (#257); the server answers `reauth_required` otherwise.
+    public func changePassword(current: String? = nil, new: String) async throws {
         struct Body: Encodable { var currentPassword: String?; var newPassword: String }
         let r = try await authorized("POST", "/v1/me/password", Body(currentPassword: current, newPassword: new), as: TokensResponse.self)
         store(r.tokens)
     }
 
-    /// Emails a 6-digit code to `newEmail`; `password` is required when the account has one.
-    public func requestEmailChange(newEmail: String, password: String?) async throws {
+    /// Emails a 6-digit code to `newEmail`. Needs a fresh "confirm it's you" (#257).
+    public func requestEmailChange(newEmail: String, password: String? = nil) async throws {
         struct Body: Encodable { var newEmail: String; var password: String? }
         _ = try await authorizedRaw("POST", "/v1/me/email", Body(newEmail: newEmail, password: password))
     }
@@ -138,11 +142,12 @@ public actor APIClient {
         tokens.clear()
     }
 
-    /// Permanently deletes the account and all server data.
-    public func deleteAccount(password: String?) async throws {
+    /// Permanently deletes the account and all server data. Needs a fresh "confirm it's you" (#257).
+    public func deleteAccount(password: String? = nil) async throws {
         struct Body: Encodable { var confirm = "DELETE"; var password: String? }
         _ = try await authorizedRaw("DELETE", "/v1/me", Body(password: password))
         tokens.clear()
+        reauthGrant = nil
     }
 
     /// Full JSON export of everything stored for the account.
@@ -329,7 +334,7 @@ public actor APIClient {
     struct MeasurementsBody<T: Encodable>: Encodable { var measurements: [T] }
     struct MeasurementsResponse<T: Decodable>: Decodable { var measurements: [T] }
 
-    private func authenticate(_ path: String, _ body: some Encodable) async throws -> User {
+    func authenticate(_ path: String, _ body: some Encodable) async throws -> User {
         let data = try await send("POST", path, body)
         let r = try decode(AuthResponse.self, data)
         store(r.tokens)
@@ -343,7 +348,7 @@ public actor APIClient {
             refreshToken: t.refreshToken))
     }
 
-    private func decode<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
+    func decode<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
         do { return try decoder.decode(type, from: data) } catch { throw APIError.decoding(String(describing: error)) }
     }
 
@@ -385,7 +390,7 @@ public actor APIClient {
         return try await task.value
     }
 
-    private func send(
+    func send(
         _ method: String, _ path: String, _ body: (some Encodable)?, bearer: String? = nil, raw: (data: Data, contentType: String)? = nil
     ) async throws -> Data {
         guard let url = URL(string: path, relativeTo: baseURL) else { throw APIError.network("Bad URL \(path)") }
@@ -393,7 +398,10 @@ public actor APIClient {
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         if let deviceName { req.setValue(deviceName, forHTTPHeaderField: "X-Device-Name") }
-        if let bearer { req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization") }
+        if let bearer {
+            req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
+            if let g = reauthGrant, g.expiresAt > now() { req.setValue(g.token, forHTTPHeaderField: "X-Reauth-Token") }
+        }
         if let raw {
             req.setValue(raw.contentType, forHTTPHeaderField: "Content-Type")
             req.httpBody = raw.data
@@ -411,6 +419,8 @@ public actor APIClient {
         guard let http = response as? HTTPURLResponse else { throw APIError.network("No HTTP response") }
         guard (200..<300).contains(http.statusCode) else {
             if let e = try? JSONDecoder().decode(ErrorBody.self, from: data) {
+                // Password was right, 2-step is on (#257): finish with `completeTwoStep`.
+                if e.error == "mfa_required", let token = e.mfaToken { throw TwoStepRequired(token: token) }
                 throw APIError.server(status: http.statusCode, code: e.error, message: e.message)
             }
             throw APIError.server(status: http.statusCode, code: "http_\(http.statusCode)", message: HTTPURLResponse.localizedString(forStatusCode: http.statusCode))

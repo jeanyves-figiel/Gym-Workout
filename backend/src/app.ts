@@ -27,6 +27,8 @@ import { appStoreNotificationRoutes, subscriptionRoutes } from './routes/subscri
 import { type AppStoreDecoder, createAppStoreDecoder } from './subscriptions/appStore.ts';
 import { SubscriptionService } from './subscriptions/service.ts';
 import { legalRoutes } from './routes/legal.ts';
+import { reauthToken, securityPublicRoutes, securityRoutes } from './routes/security.ts';
+import { SecurityService, type WebAuthnVerifier } from './security.ts';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -51,6 +53,8 @@ export interface AppDeps {
   apns?: ApnsSender;
   /** Verifies App Store signed payloads (#126); defaults to the Apple Root CA - G3 chain check. Injectable for tests. */
   appStore?: AppStoreDecoder;
+  /** WebAuthn verification (#257); injectable for tests. */
+  webauthn?: WebAuthnVerifier;
 }
 
 const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
@@ -71,6 +75,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
     breached: deps.config.hibpCheck ? createBreachChecker({ fetch: outbound, log: warn }) : undefined,
     appleTokens: new AppleTokenService({ config: deps.config, db: deps.db, fetch: outbound, now, log: warn }),
   });
+  const security = new SecurityService({ db: deps.db, config: deps.config, mailer: deps.mailer, apple: deps.apple, auth, now, webauthn: deps.webauthn });
   const emailChange = new EmailChangeService({ db: deps.db, config: deps.config, mailer: deps.mailer, now });
   const k = deps.config.apns;
   const push = new PushService({
@@ -116,6 +121,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   communityPublicRoutes(app, deps.db, deps.config.appName);
   appStoreNotificationRoutes(app, subscriptions);
   legalRoutes(app, deps.config);
+  securityPublicRoutes(app, security, deps.config.authRateLimitPerMin);
 
   const authenticate = async (req: FastifyRequest) => {
     const h = req.headers.authorization;
@@ -197,9 +203,11 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
         return { user: auth.updateName(req.userId!, b.name) };
       });
 
+      // Re-auth (#257): grant header, or the current password from older app builds.
       r.post('/me/password', async (req) => {
         const b = z.object({ currentPassword: password.optional(), newPassword: password }).parse(req.body);
-        return { tokens: await auth.changePassword(req.userId!, b.currentPassword, b.newPassword, device(req)) };
+        await security.requireReauth(req.userId!, reauthToken(req), b.currentPassword);
+        return { tokens: await auth.changePassword(req.userId!, b.newPassword, device(req)) };
       });
 
       r.get('/me/sessions', async (req) => ({ sessions: auth.sessions(req.userId!) }));
@@ -211,12 +219,14 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
 
       r.delete('/me', async (req, reply) => {
         const b = z.object({ password: password.optional(), confirm: z.literal('DELETE') }).parse(req.body ?? {});
-        await auth.deleteAccount(req.userId!, b.password);
+        await security.requireReauth(req.userId!, reauthToken(req), b.password);
+        await auth.deleteAccount(req.userId!);
         return reply.status(204).send();
       });
 
       dataRoutes(r, deps.db, deps.now ?? (() => new Date()), auth, (id) => subscriptions.export(id));
-      accountRoutes(r, emailChange, deps.config.authRateLimitPerMin);
+      accountRoutes(r, emailChange, security, deps.config.authRateLimitPerMin);
+      securityRoutes(r, security, deps.config.authRateLimitPerMin);
       customWorkoutRoutes(r, deps.db, deps.now ?? (() => new Date()));
       communityRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
       customExerciseRoutes(r, deps.db, deps.now ?? (() => new Date()));
