@@ -43,7 +43,8 @@ import Testing
     @Test func addedExerciseLandsInItsBlockWithAStartingPrescription() throws {
         var blocks = plan.sessions[0].blocks
         let before = blocks.itemCount
-        let uid = try #require(blocks.add(Exercise.get("cable-fly"), to: .strength, sessionId: "w1s0"))
+        let added0 = blocks.add(Exercise.get("cable-fly"), to: .strength, sessionId: "w1s0")
+        let uid = try #require(added0)
         #expect(blocks.itemCount == before + 1)
         let added = try #require(strength(blocks).last)
         #expect(added.uid == uid && added.exerciseId == "cable-fly" && added.prescription.sets == 3 && added.estSec > 0)
