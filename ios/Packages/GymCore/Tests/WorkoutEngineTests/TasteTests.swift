@@ -89,16 +89,21 @@ import Testing
         #expect(!items(after).contains { $0.exerciseId == accessory.exerciseId })
     }
 
-    @Test func variationAvoidsDislikes() throws {
+    @Test func variationAvoidsDislikes() {
         let plan = Generator.generateWeek(profile, seed: 42)
         let request = VaryRequest(sessions: Set(plan.sessions.map(\.id)), parts: Set(VaryPart.allCases), keep: [], seed: 5)
         let plain = plan.varied(request, profile: profile)
-        let picked = try #require(plain.values.first)
-        var p = profile
-        p.learnedTaste = [picked: -3]
-        // Only items with no other option keep it.
-        let count = { (swaps: [String: String]) in swaps.values.filter { $0 == picked }.count }
-        #expect(count(plan.varied(request, profile: p)) < count(plain))
+        #expect(!plain.isEmpty)
+        func count(_ id: String, _ swaps: [String: String]) -> Int { swaps.values.filter { $0 == id }.count }
+        // A disliked pick only stays where it was the item's only option: most leave.
+        var left = 0
+        for picked in Set(plain.values) {
+            var p = profile
+            p.learnedTaste = [picked: -3]
+            let after = plan.varied(request, profile: p)
+            if count(picked, after) < count(picked, plain) { left += 1 }
+        }
+        #expect(left * 2 >= Set(plain.values).count)
     }
 
     @Test func marksOverrideWhatWasLearned() {
