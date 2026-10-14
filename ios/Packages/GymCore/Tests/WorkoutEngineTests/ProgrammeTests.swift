@@ -208,7 +208,7 @@ import Testing
         // Every programme pins at least one signature in week 1.
         for p in Programme.all {
             let plan = p.previewWeek(1, member: member(climbing: p.climbing ? 2 : 0), seed: 1, starting: true)
-            #expect(plan.sessions.contains(where: \.isPlanInsert), "\(p.id)")
+            #expect(plan.sessions.contains { $0.isPlanInsert }, "\(p.id)")
         }
         // Same seed, same preview.
         #expect(prog.previewWeek(3, member: member(), seed: 5, starting: true) == prog.previewWeek(3, member: member(), seed: 5, starting: true))
@@ -259,6 +259,6 @@ import Testing
         shorter.length = mine.lengths.first!.weeks
         #expect(shorter.programme!.weeks < 10)
         let plan = mine.previewWeek(1, member: member(), seed: 1, starting: true)
-        #expect(plan.sessions.contains(where: \.isPlanInsert))
+        #expect(plan.sessions.contains { $0.isPlanInsert })
     }
 }
