@@ -8,6 +8,8 @@ struct SwapExerciseSheet: View {
     let uid: String
     /// Called after a swap or a kept swap removed, before the sheet closes.
     var onDone: (() -> Void)? = nil
+    /// Picks for a workout's own exercise list (#295) instead of swapping in the plan: no keep, no gym change.
+    var onPick: ((String) -> Void)? = nil
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var keep = false
@@ -62,7 +64,7 @@ struct SwapExerciseSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     current
-                    if !exercise.equipment.isEmpty {
+                    if onPick == nil, !exercise.equipment.isEmpty {
                         // The gym doesn't have it (#162): fix the gym's list, not just this session.
                         Button { notHere = true } label: {
                             HStack {
@@ -79,8 +81,8 @@ struct SwapExerciseSheet: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    keepToggle
-                    if let rule = model.keptSwap(uid: uid), let original = Exercise.find(rule.from) {
+                    if onPick == nil { keepToggle }
+                    if onPick == nil, let rule = model.keptSwap(uid: uid), let original = Exercise.find(rule.from) {
                         Button {
                             model.removeKeptSwap(rule)
                             onDone?()
@@ -174,7 +176,7 @@ struct SwapExerciseSheet: View {
     }
 
     private func apply(_ id: String) {
-        model.swap(uid: uid, to: id, keep: keep)
+        if let onPick { onPick(id) } else { model.swap(uid: uid, to: id, keep: keep) }
         onDone?()
         dismiss()
     }
