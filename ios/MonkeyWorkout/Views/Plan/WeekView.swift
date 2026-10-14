@@ -237,7 +237,7 @@ struct WeekView: View {
         case .actions:
             actionChips
         case .coach:
-            if small { CoachSmallWidget() } else { MonkeyCoachCard() }
+            if small { CoachSmallWidget() } else { MonkeyCoachCard { playing = $0 } }
         case .week:
             if small {
                 WeekSmallWidget(plan: plan, done: model.completedCount)
