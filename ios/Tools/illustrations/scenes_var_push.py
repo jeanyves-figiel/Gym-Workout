@@ -118,18 +118,19 @@ def smith_incline_poses():
     return seq(f, PRESS_KS)
 
 
-def smith_bench_frame(back_ang, back_len, x):
+def smith_bench_frame(back_ang, back_len, x, r=22):
     def scene(doc, j, layer):
         if layer == "back":
             floor(doc, 190, 120)
             smith_frame(doc, x, top=20)
             kit.incline_bench(doc, 150, 206, 208, back_len, back_ang)
         else:
-            smith_bar(doc, kit.grip(j), 22)
+            smith_bar(doc, kit.grip(j), r)
     return scene
 
 
-SS_X = UP_SH[0] + 18  # bar in front of the face
+SS_X = UP_SH[0] + 32  # rail far enough forward that the bar (small plate) passes in front of the face
+SS_PLATE = 13
 
 
 def smith_shoulder_poses():
@@ -144,8 +145,11 @@ def smith_shoulder_poses():
 
 # ==== barbell floor press ==========================================================================
 
+FL_RACK = FL_SH[0] - 86
+
+
 def bar_floor_poses():
-    a = reach_above(FL_SH[0] + 8, FL_SH, 80)
+    a = reach_above(FL_SH[0] + 16, FL_SH, 80)  # locked out over the shoulders / upper chest, clear of the face
     b = (FL_SH[0] + 26, FL_SH[1] - 30)
 
     def f(k):
@@ -158,7 +162,7 @@ def bar_floor_scene(doc, j, layer):
     if layer == "back":
         floor(doc, 210, 120)
         kit.mat(doc, 96, 320)
-        kit.rack(doc, FL_SH[0] - 30, hook_y=FL_SH[1] - 74, safety_y=GROUND - 40, top=80)
+        kit.rack(doc, FL_RACK, hook_y=FL_SH[1] - 74, top=80)  # behind the head, its feet clear of it
     else:
         bar_end(doc, kit.grip(j), 22)
 
@@ -295,7 +299,7 @@ HIP3 = 9.0
 
 # ==== flat dumbbell fly: three-quarter view from the foot end, a little above ======================
 
-FF_CAM = Cam(32, (200, GROUND - 30), 140)
+FF_CAM = Cam(30, (200, GROUND - 30), 162)  # nearly from the foot end: the two arms open symmetrically
 FF_PAD = 54  # bench pad top
 
 
@@ -347,7 +351,7 @@ FLY_FRAMES = ((4, 6), (50, 16), (94, 22))
 
 
 def flat_fly_entry():
-    poses = [dummy(True, "tr")] * 3
+    poses = [dummy(True, "bl")] * 3
     pts = []
     for th, b in FLY_FRAMES:
         J = flat_fly_body(th, b)
@@ -433,7 +437,7 @@ def incline_fly_entry():
 CFV_L, CFV_R = 76, 324
 
 
-def cable_fly_var_poses(py, end_dy, ks=(0, 0.55, 1)):
+def cable_fly_var_poses(py, end_dy, ks=(0, 0.55, 1), gap=5, bends=(1, -1)):
     shn, shf = fr_sh()
     pn, pf = (CFV_R - 12, py), (CFV_L + 12, py)
     a_n = art.add(shn, art.norm(art.sub(pn, shn)), 78)
@@ -441,12 +445,13 @@ def cable_fly_var_poses(py, end_dy, ks=(0, 0.55, 1)):
     mid = (FR_HIP[0], shn[1] + end_dy)
     out = []
     for k in ks:
-        gn = lerp(a_n, (mid[0] + 5, mid[1]), k)
-        gf = lerp(a_f, (mid[0] - 5, mid[1]), k)
+        gn = lerp(a_n, (mid[0] + gap, mid[1]), k)
+        gf = lerp(a_f, (mid[0] - gap, mid[1]), k)
         if 0 < k < 1:
             gn = art.add(shn, art.norm(art.sub(gn, shn)), 74)
             gf = art.add(shf, art.norm(art.sub(gf, shf)), 74)
-        out.append(B(FR_HIP, -90, front=True, aN=G(gn, 1), aF=G(gf, -1), lN=(80, 92, 12), lF=(100, 88, 168)))
+        out.append(B(FR_HIP, -90, front=True, aN=G(gn, bends[0]), aF=G(gf, bends[1]), lN=(80, 92, 12),
+                       lF=(100, 88, 168)))
     return out
 
 
@@ -606,12 +611,11 @@ ZP_LEGS = dict(lN=(-1, 1, -80), lF=(1, 1, -78))
 
 
 def z_press_poses():
-    a, b = (ZP_SH[0] + 18, ZP_SH[1] - 4), (ZP_SH[0] - 2, ZP_SH[1] - 81)
-
-    def f(k):
-        g = lerp(a, b, k)
-        return B(ZP_HIP, -90, aN=G(g, 1), aF=G((g[0] - 4, g[1] - 2), 1), h=-96 if k < 0.9 else -88, **ZP_LEGS)
-    return seq(f, (0, 0.45, 1))
+    """Front rack -> straight up in front of the face (head tipped back out of the way) -> locked out over
+    the head, the head coming through."""
+    sh = ZP_SH
+    keys = (((sh[0] + 18, sh[1] - 4), -96), ((sh[0] + 25, sh[1] - 48), -106), ((sh[0] - 2, sh[1] - 81), -88))
+    return [B(ZP_HIP, -90, aN=G(g, 1), aF=G((g[0] - 4, g[1] - 2), 1), h=h, **ZP_LEGS) for g, h in keys]
 
 
 def z_press_scene(doc, j, layer):
@@ -936,7 +940,7 @@ def rear_fly_entry():
 
 # ==== archer push-up: seen from in front of the head, a little above ==============================
 
-AR_CAM = Cam(35, (200, GROUND - 6), 55)
+AR_CAM = Cam(16, (200, GROUND - 6), 24)  # low and more frontal: the two arms read
 AR_HAND_X = 64
 AR_FEET_Z = -196
 
@@ -950,7 +954,7 @@ def archer_body(cx):
     feet = (0, 8, AR_FEET_Z)
     d = unit3(v3sub(feet, S))  # shoulder → feet
     H = v3add(S, v3mul(d, TORSO))
-    hd = unit3((0, -0.25, 1))
+    hd = unit3((0, 0.05, 1))  # head in line, looking ahead: never down on the mat
     J = {"shoulder": S, "hip": H, "neck": v3add(S, v3mul(hd, 10)), "head": v3add(S, v3mul(hd, 25))}
     for side, s in (("N", 1), ("F", -1)):
         sh, hp = v3add(S, (s * SH3, 0, 0)), v3add(H, (s * HIP3, 0, 0))
@@ -965,7 +969,7 @@ def archer_body(cx):
     return J
 
 
-AR_FRAMES = (0, 18, 34)
+AR_FRAMES = (0, 15, 26)  # the bottom keeps the chest off the mat
 
 
 def archer_scene(cx):
@@ -980,6 +984,9 @@ def archer_scene(cx):
                     f'stroke="#0A0B0D" stroke-opacity="0.5" stroke-width="0.7"/>')
             shadow3(doc, cam, (cx * 0.5, 0, -90), 56, 120)
             apply3d(j, cam, J)
+        else:
+            # The head is nearer the camera than the shoulders and arms: draw it again over them.
+            art.draw_head(doc, art.body_segments(j)[1]["head"], "back")
     return scene
 
 
@@ -988,7 +995,7 @@ def archer_entry():
     for cx in AR_FRAMES:
         pts += [AR_CAM(v) for v in archer_body(cx).values()]
     pts += [AR_CAM((-92, 0, 46)), AR_CAM((92, 0, 46))]
-    return custom(archer_scene, [dummy("back", "br")] * 3, view_around(pts, 10), AR_FRAMES)
+    return custom(archer_scene, [dummy("back", "tl")] * 3, view_around(pts, 10), AR_FRAMES)
 
 
 SCENES = {
@@ -998,11 +1005,12 @@ SCENES = {
                            held_at("N", 24)),
     "smith-incline-press": S(smith_bench_frame(INC, 100, SI_X), smith_incline_poses(),
                              [(60, 160, 210, GROUND), (SI_X - 96, 10, SI_X + 96, GROUND)], held_at("N", 23)),
-    "smith-shoulder-press": S(smith_bench_frame(UP, 110, SS_X), smith_shoulder_poses(),
+    "smith-shoulder-press": S(smith_bench_frame(UP, 110, SS_X, SS_PLATE), smith_shoulder_poses(),
                               [(100, 100, 210, GROUND), (SS_X - 96, 10, SS_X + 96, GROUND)], held_at("N", 23)),
     "db-fly": flat_fly_entry(),
     "incline-db-fly": incline_fly_entry(),
-    "low-high-cable-fly": S(cable_fly_var_scene(LOW_PY), cable_fly_var_poses(LOW_PY, 14), CFV_BOXES),
+    "low-high-cable-fly": S(cable_fly_var_scene(LOW_PY), cable_fly_var_poses(LOW_PY, 32, gap=11, bends=(-1, 1)),
+                                CFV_BOXES),
     "high-low-cable-fly": S(cable_fly_var_scene(HIGH_PY), cable_fly_var_poses(HIGH_PY, 74), CFV_BOXES),
     "incline-push-up": S(incline_push_scene, incline_push_poses(), [(IP_W[0] - 10, IP_TOP, IP_W[0] + 140, GROUND)]),
     "knee-push-up": S(mat_scene(70, 300), knee_push_poses(), [(70, GROUND - 6, 300, GROUND)]),
@@ -1027,6 +1035,6 @@ SCENES = {
     "cable-upright-row": S(upright_row_scene, upright_row_poses(), [(170, GROUND - 8, 230, GROUND)]),
     "incline-reverse-fly": rear_fly_entry(),
     "barbell-floor-press": S(bar_floor_scene, bar_floor_poses(), [(96, GROUND - 6, 320, GROUND),
-                                                                  (FL_SH[0] - 66, 80, FL_SH[0] + 6, GROUND)],
+                                                                  (FL_RACK - 40, 80, FL_SH[0] + 6, GROUND)],
                              held_at("N", 23)),
 }

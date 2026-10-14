@@ -155,6 +155,7 @@ def ohs_pose(hip, t, h, single=False):
     # Bar / bell stacked over the mid-foot, arms locked a little behind the ears.
     g = (TH_X - 8, s[1] - 80)
     if single:
+        g = (g[0], s[1] - 87)  # bell arm locked out (at - 80 the elbow stayed bent ~40°)
         return body(hip, t, h=h, ankN=(TH_X, ANK), ankF=(TH_X - 4, ANK), gN=g, eN=1, hN=-90,
                     aF=(t + 128, t + 118))
     return body(hip, t, h=h, ankN=(TH_X, ANK), ankF=(TH_X - 4, ANK), gN=g, gF=(g[0] - 4, g[1] + 2), eN=1, eF=1,
@@ -374,13 +375,35 @@ SCENES["kb-windmill"] = (windmill_scene, WMD, fit(WMD, bar_box(26)))
 HALO_HIP = (200, 153)
 
 
-def halo(c, h=-90):
+def halo(c, h=-90, eN=-1, eF=1):
     p = body(HALO_HIP, -90, ankN=(HALO_HIP[0] + 8, ANK), ankF=(HALO_HIP[0] - 8, ANK), kN=-1, kF=1, fN=12, fF=168,
-             gN=(c[0] + 5, c[1]), gF=(c[0] - 5, c[1]), eN=-1, eF=1, front=True, h=h)
+             gN=(c[0] + 5, c[1]), gF=(c[0] - 5, c[1]), eN=eN, eF=eF, front=True, h=h)
     return p
 
 
+def halo_at(s):
+    """One full circle round the head (s = 0 … 1): chest, near side of the head, behind the head (hidden, elbows
+    up either side of the face), far side, back to the chest. Every frame solved on the circle (tweens.EXTRA)."""
+    a = 2 * math.pi * s
+    c = (_HS[0] + 30 * math.sin(a), _HS[1] - 6 + 28 * math.cos(a))
+    up = (1 - math.cos(a)) / 2  # 0 at the chest, 1 behind the head
+    # Elbows out and down below the shoulders, out and up above them (they crossed over the face before); the
+    # switch is hidden by halo_scene, which draws the elbows pointing at the camera around shoulder height.
+    e = 1 if c[1] < _HS[1] else -1
+    return halo(c, h=-90 - 4 * math.sin(a) * up, eN=e, eF=-e)
+
+
+HALO_BAND = 26  # px above / below the shoulders over which the elbows turn towards the camera
+
+
 def halo_scene(doc, j, layer):
+    if layer == "back":
+        # Elbows pointing at the camera (foreshortened onto the shoulder–wrist line) while the hands pass shoulder
+        # height, so the elbows go from down-and-out to up-and-out without flipping.
+        for s in "NF":
+            sh, w = j["shoulder" + s], j["wrist" + s]
+            k = max(0.0, 1 - abs(grip(j, s)[1] - _HS[1]) / HALO_BAND)
+            j["elbow" + s] = art.add(j["elbow" + s], art.sub(mid(sh, w), j["elbow" + s]), k)
     c = mid(grip(j, "N"), grip(j, "F"))
     behind = c[1] < j["neck"][1] - 10 and abs(c[0] - j["neck"][0]) < 24
     if layer == "back":
@@ -393,7 +416,7 @@ def halo_scene(doc, j, layer):
 
 
 _HS = shoulder(HALO_HIP, -90)
-HALO = [halo((_HS[0], _HS[1] + 22)), halo((_HS[0] + 30, _HS[1] - 22)), halo((_HS[0] - 6, _HS[1] - 34))]
+HALO = [halo_at(0), halo_at(0.5), halo_at(1)]
 SCENES["kb-halo"] = (halo_scene, HALO, fit(HALO, bar_box(26)))
 
 

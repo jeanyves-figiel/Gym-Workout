@@ -38,6 +38,30 @@ def from_shoulder(sh, t):
     return art.ang_pt(sh, t + 180, TORSO)
 
 
+def _mix(a, b, k):
+    if isinstance(a, tuple):
+        return tuple(_mix(x, y, k) for x, y in zip(a, b))
+    return a + (b - a) * k
+
+
+def along(ctrl, s):
+    """Values at progress s on a path of control dicts ctrl = [(s0, {...}), (s1, {...}), ...] (numbers / tuples)."""
+    for (s0, a), (s1, b) in zip(ctrl, ctrl[1:]):
+        if s <= s1 or s1 == ctrl[-1][0]:
+            k = min(1, max(0, (s - s0) / ((s1 - s0) or 1)))
+            return {key: _mix(a[key], b[key], k) for key in a}
+    return dict(ctrl[-1][1])
+
+
+def path_tweens(make):
+    """tweens.EXTRA entry: every in-between solved again by make(progress) (hands kept on the bar by IK), where a
+    straight interpolation of the key poses lets the grip drift off the bar."""
+    def extra(keys):
+        mid = art.FRAMES // 2
+        return {i: make(art.progress(i)) for i in range(1, art.FRAMES - 1) if i != mid}
+    return extra
+
+
 def bar_dot(doc, c):
     """Bar end-on, drawn over the near hand."""
     doc.add(f'<circle cx="{c[0]:.1f}" cy="{c[1]:.1f}" r="4.6" fill="#2A2E34" stroke="#0A0B0D" stroke-width="0.9"/>'
@@ -96,18 +120,32 @@ MU = (200, 120)
 MU_LEGS = dict(lN=(80, 146, 124), lF=(84, 152, 130))
 
 
+# Shoulder path relative to the grip (progress s: 0 hang, 0.5 transition, 1 support), solved by IK at every frame
+# (path_tweens) so the hands stay on the bar: pull to the chest, turn over the bar, press out to support.
+MU_PATH = [
+    (0, dict(sh=(-3, REACH - 1), t=-93, h=-80, curl=0, lN=(80, 146, 124), lF=(84, 152, 130))),
+    (0.25, dict(sh=(-14, 24), t=-100, h=-84, curl=0, lN=(76, 136, 112), lF=(80, 142, 118))),
+    # Turnover: the shoulders rise behind the bar to above it (hand passes shoulder height in front of them, the
+    # elbows drop under and behind), then come forward over it; they stay ~20 px clear of the grip throughout
+    # (closer, the elbow IK flipped).
+    (0.31, dict(sh=(-22, 6), t=-98, h=-82, curl=0, lN=(79, 131, 107), lF=(83, 137, 112))),
+    (0.38, dict(sh=(-14, -14), t=-80, h=-64, curl=2, lN=(82, 126, 102), lF=(86, 132, 106))),
+    (0.5, dict(sh=(14, -30), t=-62, h=-44, curl=3, lN=(86, 120, 96), lF=(90, 126, 100))),
+    (0.75, dict(sh=(4, -58), t=-76, h=-70, curl=1, lN=(92, 106, 80), lF=(96, 110, 84))),
+    (1, dict(sh=(-6, -REACH + 4), t=-86, h=-86, curl=0, lN=(96, 94, 66), lF=(100, 98, 70))),
+]
+
+
+def mu_at(s):
+    v = along(MU_PATH, s)
+    sh = (MU[0] + v["sh"][0], MU[1] + v["sh"][1])
+    p = B(from_shoulder(sh, v["t"]), v["t"], aN=G(MU, 1), aF=G((MU[0] - 2, MU[1] + 1), 1), h=v["h"], curl=v["curl"],
+          lN=v["lN"], lF=v["lF"])
+    return recentre([p])[0]
+
+
 def mu_poses():
-    hang_sh = (MU[0] - 3, MU[1] + REACH - 1)
-    p1 = B(from_shoulder(hang_sh, -93), -93, aN=G(MU, 1), aF=G((MU[0] - 2, MU[1] + 1), 1), h=-80, **MU_LEGS)
-    # Transition: chest over the bar, elbows high behind, torso leaning forward.
-    sh2, t2 = (MU[0] + 16, MU[1] - 30), -58
-    p2 = B(from_shoulder(sh2, t2), t2, aN=G((MU[0] + 2, MU[1]), 1), aF=G((MU[0], MU[1] + 1), 1), h=-40,
-           lN=(86, 120, 96), lF=(90, 126, 100), curl=3)
-    # Support: arms locked, bar at the hips.
-    sh3, t3 = (MU[0] - 6, MU[1] - REACH + 4), -86
-    p3 = B(from_shoulder(sh3, t3), t3, aN=G((MU[0] + 1, MU[1]), -1), aF=G((MU[0] - 1, MU[1] + 1), -1), h=-86,
-           lN=(96, 94, 66), lF=(100, 98, 70))
-    return recentre([p1, p2, p3])
+    return [mu_at(0), mu_at(0.5), mu_at(1)]
 
 
 def recentre(poses, y=150):
@@ -169,7 +207,8 @@ TUCK_FL = dict(lN=(-156, 16, 50), lF=(-152, 20, 54))  # knees to the chest, heel
 
 def front_lever_poses():
     tuck = lever_pose(180, -82, TUCK_FL, h=196)
-    one = lever_pose(180, -78, dict(lN=(2, 2, 12), lF=TUCK_FL["lF"]), h=192)
+    # Advanced tuck (hips open, knees still bent): both legs extend together, no one-leg flicker between keys.
+    one = lever_pose(180, -78, dict(lN=(-26, 64, 74), lF=(-22, 68, 78)), h=192)
     full = lever_pose(180, -74, dict(lN=(1, 1, 12), lF=(-1, -1, 10)), h=190)
     return [tuck, one, full]
 
@@ -208,9 +247,10 @@ TUCK_BL = tuck_legs(2)
 
 def back_lever_poses():
     inv = ring_pose(92, -86, INV_LEGS, h=96)
-    tuck = ring_pose(2, -150, TUCK_BL, h=8)
+    # Lowered from the inverted hang with the body kept straight (a tuck in between folded the legs away and back).
+    half = ring_pose(46, -119, dict(lN=(-135, -135, -145), lF=(-133, -133, -143)), h=50)
     full = ring_pose(0, -152, dict(lN=(181, 181, 170), lF=(182, 182, 172)), h=6)
-    return [inv, tuck, full]
+    return [inv, half, full]
 
 
 def tuck_back_lever_poses():
@@ -355,15 +395,23 @@ def back_hang(sh, gN, gF=None, t=-90, h=-90, aF=None, legs=BACK_LEGS):
     return B(from_shoulder(sh, t), t, h=h, front="back", **kw, **legs)
 
 
-ARCH = 62  # half grip width
+ARCH = 70  # half grip width
+
+
+# Archer: the body travels up and over to the pulling (near) hand, whose elbow bends down by the ribs; the far
+# arm straightens out along the bar. Shoulder centre path, solved by IK at every frame (path_tweens).
+ARCHER = [(0, dict(sh=(PB[0], PB[1] + 62), t=-90, h=-90)),
+          (0.5, dict(sh=(PB[0] + 14, PB[1] + 42), t=-88, h=-88)),
+          (1, dict(sh=(PB[0] + 27, PB[1] + 13), t=-86, h=-82))]
+
+
+def archer_at(s):
+    v = along(ARCHER, s)
+    return back_hang(v["sh"], (PB[0] + ARCH, PB[1]), (PB[0] - ARCH, PB[1]), t=v["t"], h=v["h"])
 
 
 def archer_poses():
-    gN, gF = (PB[0] + ARCH, PB[1]), (PB[0] - ARCH, PB[1])
-    s0 = (PB[0], PB[1] + 60)
-    s2 = (PB[0] + 36, PB[1] + 16)
-    s1 = (PB[0] + 18, PB[1] + 40)
-    return [back_hang(s0, gN, gF), back_hang(s1, gN, gF, t=-88), back_hang(s2, gN, gF, t=-86, h=-84)]
+    return [archer_at(0), archer_at(0.5), archer_at(1)]
 
 
 def one_arm_poses():
@@ -423,6 +471,16 @@ def spider_poses():
     mid = plank((122, 68), (122, 68), toe="toeF", lN=lambda t: (t + 40, t + 172, t + 232))
     low = plank((152, 62), (152, 62), toe="toeF", lN=legs_bent(1))
     return [top, mid, low]
+
+
+def spider_tweens(keys):
+    """tweens.EXTRA: on the way down the hips lift a little and the near knee swings forward under the body, foot up,
+    instead of dragging the knee along the floor (kneel) between the plank and the knee-to-elbow pose."""
+    def pose(hip, t, legN):
+        return B(hip, t, aN=G(PU_W, -1, end=80, wrist=True), aF=G((PU_W[0] - 3, PU_W[1]), -1, end=80, wrist=True),
+                 lN=legN, lF=G((108, GROUND - 13), 1, end=80), h=t)
+    return {art.at(0.14): pose((203, 189), -4, (126, 206, 236)),
+            art.at(0.28): pose((205, 191), -7, (58, 190, 220))}
 
 
 # Wall push-up: straight body leaning on the wall, hands at chest height.
@@ -548,8 +606,8 @@ def static_hold_poses():
 
 # ==== dip-bar leg raise ===========================================================================
 
-DB_Y = 140
-DB_GRIP = (206, DB_Y - 5)
+DB_Y = 124  # high enough for the hanging feet to clear the floor
+DB_GRIP = (206, DB_Y + 3)  # hand wrapped round the bar; the near bar crosses the hips (between the bars)
 
 
 def dip_leg_pose(leg, t=-88):
@@ -562,14 +620,14 @@ def dip_bar_scene(doc, j, layer):
         floor(doc, 210, 90)
         kit.dip_bars(doc, 150, 262, DB_Y)
     else:
-        g = kit.grip(j)
-        doc.add(f'<circle cx="{g[0]:.1f}" cy="{g[1] + 1:.1f}" r="3.2" fill="#2A2E34" stroke="#0A0B0D" stroke-width="0.8"/>')
+        # Near bar in front of the body: hips and raised legs are between the bars, not lying on them.
+        art.tube(doc, (150, DB_Y), (262, DB_Y), 7)
 
 
 # ==== monkey bars =================================================================================
 
-MB_Y = 16
-MB_RUNGS = [104 + 40 * i for i in range(6)]  # x of each rung (end-on)
+MB_Y = -14  # high enough that the hanging feet stay well clear of the floor
+MB_RUNGS = [76 + 52 * i for i in range(6)]  # x of each rung (end-on); one rung of travel per cycle
 
 
 def monkey_scene(doc, j, layer):
@@ -591,32 +649,39 @@ def monkey_scene(doc, j, layer):
 
 def monkey_poses():
     r = MB_RUNGS
-    p1 = B(from_shoulder((r[2] - 22, MB_Y + 78), -88), -88, aN=G((r[2], MB_Y), 1), aF=G((r[1], MB_Y), 1),
-           lN=(74, 136, 116), lF=(70, 130, 110), h=-80, curl=-2)
-    # Far hand lets go and reaches for the next rung, hips swing forward.
-    p2 = B(from_shoulder((r[2] - 4, MB_Y + 82), -94), -94, aN=G((r[2], MB_Y), 1), aF=(-58, -60, -60),
-           lN=(64, 120, 100), lF=(100, 150, 130), h=-82)
-    p3 = B(from_shoulder((r[3] - 20, MB_Y + 78), -90), -90, aN=G((r[2], MB_Y), 1), aF=G((r[3], MB_Y), 1),
-           lN=(92, 146, 126), lF=(86, 140, 120), h=-80)
+    p1 = B(from_shoulder((r[2] - 26, MB_Y + 74), -88), -88, aN=G((r[2], MB_Y), 1), aF=G((r[1], MB_Y), 1),
+           lN=(80, 128, 108), lF=(76, 122, 102), h=-80, curl=-2)
+    # Far hand lets go and reaches for the next rung, hips swing forward under the near hand.
+    p2 = B(from_shoulder((r[2], MB_Y + 82), -94), -94, aN=G((r[2], MB_Y), 1), aF=G((r[2] + 24, MB_Y + 16), 1),
+           lN=(66, 112, 92), lF=(98, 140, 120), h=-82)
+    p3 = B(from_shoulder((r[3] - 26, MB_Y + 74), -90), -90, aN=G((r[2], MB_Y), 1), aF=G((r[3], MB_Y), 1),
+           lN=(90, 136, 116), lF=(84, 130, 110), h=-80)
     return [p1, p2, p3]
 
 
 # ==== hanging shoulder circles ====================================================================
 
-HC_BAR = (204, 40)
+HC_BAR = (204, -26)  # high enough that the hanging feet stay well clear of the floor
+HC_LEGS = dict(lN=(84, 104, 84), lF=(88, 108, 88))  # long hang, knees soft (bent knees read as kneeling)
+HC_R = 8  # radius of the shoulder circle
+
+
+def circles_at(s):
+    """Shoulders trace a full circle (up, forward, down, back, up) with the arms long: s = 0 … 1 = one turn."""
+    a = math.radians(-90 + 360 * s)
+    c = (HC_BAR[0] - 3, HC_BAR[1] + REACH - HC_R - 1)
+    sh = (c[0] + HC_R * math.cos(a), c[1] + HC_R * math.sin(a))
+    t = -90 + 4 * math.cos(a)  # chest leans in as the shoulders roll forward
+    return U.hang(sh, t, HC_LEGS, grip=HC_BAR, h=t + 12 - 10 * (1 + math.sin(a)) / 2)
 
 
 def circles_poses():
-    bar = HC_BAR
-    r = REACH
-    up = U.hang((bar[0] - 2, bar[1] + r - 6), -90, U.HANG_LEGS, grip=bar, h=-70, curl=0)
-    fwd = U.hang((bar[0] + 6, bar[1] + r - 3), -86, U.HANG_LEGS, grip=bar, h=-78, curl=4)
-    down = U.hang(circle_x(bar, r, (bar[0] - 12, bar[1] + r - 8), 8, 1), -97, U.HANG_LEGS, grip=bar, h=-92, curl=-6)
-    return [up, fwd, down]
+    return [circles_at(0), circles_at(0.5), circles_at(1)]
 
 
 def circles_scene(doc, j, layer):
     if layer == "back":
+        floor(doc, HC_BAR[0], 60)
         kit.pullup_bar(doc, HC_BAR, top=-160, half=40)
     else:
         bar_dot(doc, HC_BAR)
@@ -649,9 +714,10 @@ SCENES = {
     "pistol-squat": S(pistol_scene, pistol_poses()),
     "weighted-pistol": S(kb_pistol_scene, pistol_poses(True), (), kb_held),
     "bar-static-hold": S(hang_bar(SH_BAR), static_hold_poses(), [bar_box(SH_BAR)], floor=False),
-    "dip-bar-leg-raise": S(dip_bar_scene, [dip_leg_pose(92, -90), dip_leg_pose(44, -88), dip_leg_pose(-2, -84)],
+    "dip-bar-leg-raise": S(dip_bar_scene, [dip_leg_pose(92, -90), dip_leg_pose(40, -88), dip_leg_pose(-10, -83)],
                            [(140, DB_Y - 6, 272, GROUND)]),
     "monkey-bar-traverse": S(monkey_scene, monkey_poses(), [(MB_RUNGS[0] - 34, MB_Y - 30, MB_RUNGS[-1] + 34, MB_Y + 8)],
                              floor=False),
-    "hanging-shoulder-circles": S(circles_scene, circles_poses(), [bar_box(HC_BAR)], floor=False),
+    "hanging-shoulder-circles": S(circles_scene, circles_poses(), [bar_box(HC_BAR), (HC_BAR[0] - 40, GROUND - 4,
+                                                                                    HC_BAR[0] + 40, GROUND)]),
 }

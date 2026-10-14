@@ -20,16 +20,16 @@
       "body": "Account → Style: swipe through the styles, each with its real iPhone and Watch screens, then tap Use to switch."
     },
     {
-      "symbol": "checkmark.shield.fill",
-      "tint": "power",
-      "title": "Confirm it's you",
-      "body": "Changing your password or email, or deleting your account, now first asks you to confirm it's you: with a passkey, Apple, your password or a code we email you. One check is good for 5 minutes."
+      "symbol": "figure.strengthtraining.traditional",
+      "tint": "strength",
+      "title": "Fluid motion, every exercise",
+      "body": "Fast moves like burpees, swings and twists now play with up to 49 poses, so nothing jumps. Every animation was checked again: hands stay on the bar, bodies sit on the bench and limbs no longer pass through machines."
     },
     {
-      "symbol": "person.badge.key.fill",
-      "tint": "cardio",
-      "title": "Passkeys and 2-step sign-in",
-      "body": "Account → Security: add a passkey to sign in with Face ID, no password to type. Or turn on 2-step: a code from your authenticator app after your password, with recovery codes. Apple and passkeys skip it."
+      "symbol": "checkmark.shield.fill",
+      "tint": "power",
+      "title": "Safer account: passkeys and 2-step",
+      "body": "Password, email and account changes now ask you to confirm it's you first. Account → Security: add a passkey to sign in with Face ID, or turn on 2-step codes from an authenticator app. Apple and passkeys skip 2-step."
     }
   ]
 }

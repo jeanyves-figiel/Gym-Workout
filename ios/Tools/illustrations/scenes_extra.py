@@ -310,8 +310,10 @@ def preacher_poses():
     return [arm_pose(PR_UP, f) for f in (74, -6, -88)]
 
 
-# -- selectorized arm machines (curl / triceps extension): elbows on the cam axis, stack behind the seat
-AM_STACK_X = 62
+# -- selectorized arm machines (curl / triceps extension): elbows on the cam axis, stack in front of the pad;
+# the cable runs from the cam to a pulley on the stack's front upright, up and over into the stack, and an arm
+# from that upright carries the pad.
+AM_STACK_X = 304
 AM_TOP = 96
 
 
@@ -324,15 +326,25 @@ def arm_machine(ex_id, upper, fore0, sign):
         turn = sign * (fore0 - fa)
         lift = max(0.0, turn * 0.16)
         if layer == "back":
-            floor(doc, 170, 130)
+            floor(doc, 220, 150)
+            kit.feet(doc, PR_HIP[0] - 34, AM_STACK_X + 60)
+            ux = AM_STACK_X - 14  # front upright
             p = column(doc, AM_STACK_X, AM_TOP, lift, 11)
-            under = preacher_bench(doc, upper)
-            # Cable: stack → top pulley → down the column → floor pulleys → up the pad stem to the cam.
-            px = AM_STACK_X + 34 + 12
-            art.pulley(doc, (px, GROUND - 16), 5.5)
-            art.cable(doc, [(p[0] + 5.5, p[1]), (px + 5.5, p[1]), (px + 5.5, GROUND - 16)])
-            art.cable(doc, [(px, GROUND - 10.5), (under[0] + 24, GROUND - 10.5)])
-            # Cam and lever arm (far side) from the elbow axis.
+            art.tube(doc, (ux, GROUND - 2), (ux, AM_TOP - 4), 8)
+            seat(doc, PR_HIP, -32, 26)
+            # Pad support: arm from the front upright under the pad.
+            a, b = arm_pad(upper)
+            d = art.norm(art.sub(b, a))
+            under = art.add(lerp(a, b, 0.7), (-d[1], d[0]), 15)
+            art.tube(doc, under, (ux, under[1] + 10), 8)
+            # Cable: cam → pulley on the front upright → up → over the top → down into the stack.
+            pa = (ux - 7, elbow[1] + 5.5)
+            pb = (ux - 7, AM_TOP + 4)
+            art.cable(doc, [(elbow[0], elbow[1] + 11), (pa[0], pa[1] + 5.5)])
+            art.cable(doc, [(pa[0] - 5.5, pa[1]), (pb[0] - 5.5, pb[1]), (pb[0], pb[1] - 5.5), (p[0], AM_TOP - 2.5)])
+            art.pulley(doc, pa, 5.5)
+            art.pulley(doc, pb, 5.5)
+            # Far lever arm from the elbow axis.
             art.tube(doc, elbow, kit.grip(j, "F"), 6)
         else:
             preacher_pad(doc, j, upper, ex_id)
@@ -843,8 +855,10 @@ def jr_pose(f, lift, knee, apex):
     return p
 
 
-def jr_rope(j):
-    """Near-hand handle tip, rope apex and a control point (the strand lags behind the turn)."""
+def jr_rope(j, side="N"):
+    """Handle tip, rope apex and a control point (the strand lags behind the turn) of one half of the loop.
+    Seen from the side the rope's U turns about the line through both hands: each hand's strand runs out to
+    the shared apex, the far one bowing a little less so the two read as one loop."""
     g = kit.grip(j)
     phi = j["_curl"] * 1e6
     tip = art.add(g, (6, 6))
@@ -852,14 +866,18 @@ def jr_rope(j):
         apex = (tip[0] - 10, GROUND - 2)
     else:
         apex = art.ang_pt(tip, phi, 130)
+    if side == "F":
+        tip = art.add(kit.grip(j, "F"), (4, 7))
     m = lerp(tip, apex, 0.5)
     d = art.norm(art.sub(apex, tip))
-    ctrl = art.add(m, (d[1], -d[0]), 0.36 * kit.dist(tip, apex))
+    over = max(0.0, -math.sin(math.radians(phi)))  # overhead: bow out behind the head
+    bow = (0.36 + 0.2 * over) * (1 if side == "N" else 0.55)
+    ctrl = art.add(m, (d[1], -d[0]), bow * kit.dist(tip, apex))
     return tip, ctrl, apex
 
 
-def rope_line(doc, j, op=1.0):
-    tip, ctrl, apex = jr_rope(j)
+def rope_line(doc, j, side="N", op=1.0):
+    tip, ctrl, apex = jr_rope(j, side)
     doc.add(f'<path d="M{tip[0]:.1f},{tip[1]:.1f} Q{ctrl[0]:.1f},{ctrl[1]:.1f} {apex[0]:.1f},{apex[1]:.1f}" fill="none" '
             f'stroke="#16181B" stroke-opacity="{op}" stroke-width="2.4" stroke-linecap="round"/>')
 
@@ -867,7 +885,8 @@ def rope_line(doc, j, op=1.0):
 def jr_scene(doc, j, layer):
     if layer == "back":
         floor(doc, 214, 50)
-        rope_line(doc, j, 0.7)
+        rope_line(doc, j, "F", 0.75)
+        grip_handle(doc, art.add(kit.grip(j, "F"), (1, 3)), 45, 6.5)
     else:
         rope_line(doc, j)
         g = kit.grip(j)
@@ -880,9 +899,9 @@ SCENES = {
                          [(SK_BENCH["x0"], SK_BENCH["top"], SK_BENCH["x1"], GROUND)], held_at("N", 21)),
     "db-preacher-curl": S(db_preacher_scene, preacher_poses(), [(PR_HIP[0] - 34, 150, 260, GROUND)], held_at("N", 11)),
     "machine-curl": S(arm_machine("machine-curl", PR_UP, 68, 1), machine_curl_poses(),
-                      [(AM_STACK_X - 10, AM_TOP - 10, 260, GROUND)], held_at("N", 10)),
+                      [(PR_HIP[0] - 40, AM_TOP - 10, AM_STACK_X + 52, GROUND)], held_at("N", 10)),
     "machine-triceps-extension": S(arm_machine("machine-triceps-extension", TX_UP, -118, -1), triceps_poses(),
-                                   [(AM_STACK_X - 10, AM_TOP - 10, 260, GROUND)], held_at("N", 10)),
+                                   [(PR_HIP[0] - 40, AM_TOP - 10, AM_STACK_X + 52, GROUND)], held_at("N", 10)),
     "machine-shoulder-press": S(ms_scene, ms_poses(), [(MS_STACK_X - 10, 30, MS_HIP[0] + 50, GROUND)], held_at("N", 10)),
     "weighted-dip": S(weighted_dip_scene, dip_poses(WD_GRIP, WD_LEGS), [(140, WD_Y - 6, 272, GROUND)],
                       lambda j: [(wd_plate(j)[1], 18)]),
@@ -897,6 +916,6 @@ SCENES = {
                        lambda j: [(rh_heel(deg(art.sub(j["ankleN"], j["hip"]))), 10)]),
     "ball-crunch": S(ball_scene, [bc_pose(188, -3, 190), bc_pose(208, 3, 222), bc_pose(226, 8, 244)],
                      [(BC_C[0] - BC_R, BC_C[1] - BC_R, BC_ANK[0] + 20, GROUND)]),
-    "jump-rope": S(jr_scene, [jr_pose(40, 0, 2, -100), jr_pose(32, 4, 1, 36), jr_pose(36, 12, 0, 90)], [],
+    "jump-rope": S(jr_scene, [jr_pose(40, 0, 2, -122), jr_pose(32, 4, 1, 36), jr_pose(36, 12, 0, 90)], [],
                    lambda j: [(jr_rope(j)[2], 4), (jr_rope(j)[1], 4)]),
 }

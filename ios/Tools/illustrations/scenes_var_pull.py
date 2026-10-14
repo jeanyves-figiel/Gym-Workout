@@ -196,14 +196,26 @@ def wide_row_scene(doc, j, layer):
                 f'<circle cx="{g[0]:.1f}" cy="{g[1]:.1f}" r="2.2" fill="{art.CHROME}"/>')
 
 
-WR_LEGS = dict(lN=(-14, 36, -74), lF=(-10, 40, -70))
-WR_HIP = (128, 202)
+WR_HIP = (138, 202)  # far enough forward on the bench for the soles to reach the angled foot plate
+WR_PLATE = ((236, 182), (252, 246))  # cable_row's foot plate (scenes.py): its left face takes the soles
+WR_SOLE = -104  # foot along the plate, toes up
+
+
+def wr_leg(y, gap=5):
+    """Leg angles with the ankle `gap` px off the plate face at height y, the sole flat on the plate."""
+    (ax, ay), (bx, by) = WR_PLATE
+    ankle = (ax + (bx - ax) * (y - ay) / (by - ay) - gap, y)
+    u, f = U.ik(WR_HIP, ankle, THIGH, SHIN, -1)
+    return (u, f, WR_SOLE)
+
+
+WR_LEGS = dict(lN=wr_leg(222), lF=wr_leg(229))
 
 
 def wide_row_poses():
     return [P(t=-72, h=-62, aN=(28, 18), aF=(30, 20), pin=("hip", WR_HIP), **WR_LEGS),
             P(t=-86, h=-80, aN=(84, -8), aF=(86, -6), pin=("hip", WR_HIP), **WR_LEGS),
-            P(t=-96, h=-90, aN=(158, 0), aF=(160, 2), pin=("hip", WR_HIP), **WR_LEGS)]
+            P(t=-92, h=-86, aN=(158, 0), aF=(160, 2), pin=("hip", WR_HIP), **WR_LEGS)]
 
 
 # ---- renegade row --------------------------------------------------------------------------------
@@ -253,7 +265,7 @@ def renegade_scene(doc, j, layer):
 # ---- Smith machine inverted row ------------------------------------------------------------------
 
 SM_GRIP = (190, 128)
-SM_ANKLE = (330, FLOOR_Y)
+SM_ANKLE = (300, FLOOR_Y)  # close enough that the chest (not the face) reaches the bar at the top
 
 
 def smith_scene(doc, j, layer):
@@ -274,7 +286,13 @@ def smith_scene(doc, j, layer):
 
 
 def smith_poses():
-    return U.hang_row_poses(SM_ANKLE, SM_GRIP)
+    """Hang with straight arms, row until the lower chest touches the bar (the body pivots on the heels)."""
+    def chest_gap(t):
+        hip = art.ang_pt(SM_ANKLE, t, THIGH + SHIN)
+        return kit.dist(chest_pt(hip, t, 0.7, 13), SM_GRIP)
+    t1 = U.solve_t(SM_ANKLE, SM_GRIP, 81)
+    t3 = min((t1 + 0.25 * i for i in range(240)), key=chest_gap)
+    return [U.body_line(SM_ANKLE, t, SM_GRIP, 0) for t in (t1, (t1 + t3) / 2 + 2, t3)]
 
 
 ROW_SCENES = {
@@ -286,7 +304,7 @@ ROW_SCENES = {
                             lambda j: [(art.add(kit.grip(j), (24, -12)), 18)]),
     "single-arm-cable-row": S(single_cable_row_scene, single_cable_row_poses(), [tower_box(SC_TOWER)],
                               along(grip_n, SC_PULLEY)),
-    "wide-grip-cable-row": (wide_row_scene, wide_row_poses(), (43, 31, 318)),
+    "wide-grip-cable-row": (wide_row_scene, wide_row_poses(), (20, 31, 340)),
     "renegade-row": S(renegade_scene, renegade_poses(), [(RG_DB[0] - 20, GROUND - 20, RG_DB[0] + 20, GROUND)],
                       held_at("N", 12)),
     "smith-inverted-row": S(smith_scene, smith_poses(), [(SM_GRIP[0] - 60, 10, SM_GRIP[0] + 52, GROUND)]),
@@ -468,7 +486,7 @@ def concentration_poses():
     j0 = U.place(B(CC_HIP, CC_T, **CC_LEGS))
     kf = j0["kneeF"]
     out = []
-    for fore in (94, 6, -112):
+    for fore in (94, 26, -40):
         out.append(B(CC_HIP, CC_T, aN=(84, fore), aF=G((kf[0] + 4, kf[1] - 6), 1, end=CC_T + 40, wrist=True),
                      h=CC_T + 30, **CC_LEGS))
     del sh
@@ -489,7 +507,7 @@ SP_T, SP_HIP = U.CS_T, U.CS_HIP
 
 def spider_poses():
     out = []
-    for fore in (88, 0, -96):
+    for fore in (88, 16, -30):
         out.append(B(SP_HIP, SP_T, aN=(84, fore), aF=(86, fore + 2), h=-20,
                      lN=G((SP_HIP[0] - 44, FLOOR_Y), -1, end=-10), lF=G((SP_HIP[0] - 50, FLOOR_Y), -1, end=-10)))
     return out
@@ -648,10 +666,10 @@ def cross_body_poses():
     base = A.front_stand(XB_X, 4, t=-90, h=-90)
     j = A.fplace(base)
     shn, shf = j["shoulderN"], j["shoulderF"]
-    hang_n, hang_f = (shn[0] + 4, shn[1] + 80), (shf[0] - 4, shf[1] + 80)
-    top = (shf[0] + 10, shf[1] + 14)
-    mid = (XB_X + 10, shn[1] + 46)
-    return [A.front_arms(base, t, hang_f, 1, -1) for t in (hang_n, mid, top)]
+    hang_n, hang_f = (shn[0] + 4, shn[1] + 80), (shf[0] - 15, shf[1] + 78)
+    start = A.front_arms(base, hang_n, hang_f, 1, -1)
+    # The upper arm stays down at the side; the forearm sweeps across the waist and up to the opposite chest.
+    return [start] + [dict(start, aN=(upper, fore)) for upper, fore in ((100, -164), (100, -122))]
 
 
 def cross_body_scene(doc, j, layer):
@@ -735,6 +753,9 @@ def db_kickback_scene(doc, j, layer):
         kit.flat_bench(doc, 62, 250, U.BENCH_TOP)
     else:
         A.db_hold(doc, j, "N", 10, True)
+        # The fist closes over the handle (drawn on top, so the dumbbell reads as held, not stuck to the hip).
+        hand = art.body_segments(j)[2]["hand"]
+        art.draw_segment(doc, hand, art.SKIN_NEAR)
 
 
 CK_HIP = (176, 162)
@@ -851,12 +872,13 @@ def wrist_curl_scene(doc, j, layer):
 
 
 def dead_hang_poses():
-    legs = dict(lN=(86, 94, 24), lF=(90, 98, 28))
+    # Knees softly bent, feet crossed behind: they hang well clear of the floor.
+    legs = dict(lN=(82, 138, 116), lF=(88, 144, 122))
     s0 = (NB[0] - 2, NB[1] + 80.5)
     s1 = circle_x(NB, 80.5, (NB[0] - 10, NB[1] + 72), 5, 1)
     return [U.hang(s0, -90, legs=legs, grip=NB, h=-74),
             U.hang(s1, -93, legs=legs, grip=NB, h=-86, curl=-3),
-            U.hang(s1, -93, legs=dict(lN=(84, 92, 22), lF=(92, 100, 30)), grip=NB, h=-88, curl=-3)]
+            U.hang(s1, -93, legs=dict(lN=(80, 136, 114), lF=(90, 146, 124)), grip=NB, h=-88, curl=-3)]
 
 
 def dead_hang_scene(doc, j, layer):
@@ -935,7 +957,8 @@ def cable_shrug_scene(doc, j, layer):
 
 GRIP_SCENES = {
     "wrist-curl": S(wrist_curl_scene, wrist_curl_poses(), [(WC_BENCH_X1 - 84, 226, WC_BENCH_X1, GROUND)], held_at("N", 11)),
-    "dead-hang": S(dead_hang_scene, dead_hang_poses(), [(NB[0] - 46, NB[1] - 14, NB[0] + 10, NB[1] + 8)]),
+    "dead-hang": S(dead_hang_scene, dead_hang_poses(), [(NB[0] - 46, NB[1] - 14, NB[0] + 10, NB[1] + 8),
+                                                         (NB[0] - 30, GROUND - 4, NB[0] + 30, GROUND + 4)]),
     "trap-bar-shrug": (trap_shrug_scene, [A.shrug_pose(v, aN=(82, 88), aF=(98, 92)) for v in (0, 0.5, 1)], ARM_FRONT),
     "cable-shrug": (cable_shrug_scene, cable_shrug_poses(), ARM_FRONT),
 }
