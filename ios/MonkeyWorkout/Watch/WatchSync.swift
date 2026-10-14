@@ -168,7 +168,8 @@ final class WatchSync: NSObject {
             blocks: session.blocks.map { b in
                 WBlock(title: b.title, tint: b.kind.category.tintHex, tint2: b.kind.category.tintHex2,
                        items: b.items.map { item($0, block: b, sessionId: session.id, model: model) })
-            })
+            },
+            missed: model.missedSessions.contains { $0.id == session.id })
     }
 
     private static func item(_ it: PlannedExercise, block: Block, sessionId: String, model: AppModel) -> WItem {
