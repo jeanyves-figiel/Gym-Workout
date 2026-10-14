@@ -40,8 +40,11 @@ struct WSession: Codable, Equatable, Identifiable, Hashable {
     /// Category colour as 0xRRGGBB.
     var tint: UInt32
     var blocks: [WBlock]
+    /// Planned on an earlier day this week and not done (#266); nil from older phone apps.
+    var missed: Bool? = nil
 
     var items: [WItem] { blocks.flatMap(\.items) }
+    var isMissed: Bool { missed == true && !done }
 }
 
 struct WBlock: Codable, Equatable, Hashable {

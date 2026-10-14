@@ -167,7 +167,7 @@ struct MonkeyCoachCard: View {
         let target = model.gameTarget
         let stats = Progression.stats(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
         let next = model.nextSession
-        let mood = MonkeyFace.Mood.from(weekDone: next == nil || stats.thisWeek >= target,
+        let mood = MonkeyFace.Mood.from(weekDone: model.weekDone(thisWeek: stats.thisWeek, target: target),
                                         readiness: Readiness.assess(health.snapshot)?.0.title, streakWeeks: stats.currentStreakWeeks)
         let all = tips(mood: mood, next: next, stats: stats, target: target)
         let current = all[tip % all.count]
@@ -191,6 +191,9 @@ struct MonkeyCoachCard: View {
                 HStack(spacing: 6) {
                     gameChip("🔥 \(stats.currentStreakWeeks) wk")
                     gameChip("\(stats.thisWeek)/\(target) this week")
+                    if !model.missedSessions.isEmpty {
+                        gameChip("\(model.missedSessions.count) missed", fill: Color(hex: 0xFFD23F), ink: Theme.ink)
+                    }
                     Spacer(minLength: 0)
                     gameChip("tap me", fill: .white.opacity(0.25))
                 }
@@ -227,11 +230,17 @@ struct MonkeyCoachCard: View {
     /// Same tips as the Watch's Monkey coach home.
     private func tips(mood: MonkeyFace.Mood, next: Session?, stats: ProgressStats, target: Int) -> [Tip] {
         let title = next?.displayTitle ?? "it"
-        var out: [Tip] = switch mood {
-        case .party: [Tip(text: "Week done! You legend 🏆", tint: (0x3DFFB0, 0x1E9BFF))]
-        case .sleepy: [Tip(text: "Easy does it today. Quality reps 😴", tint: (0x3D5AFF, 0x7B3DFF))]
-        case .fired: [Tip(text: "Let's crush \(title)! 💥", tint: (0xB23DFF, 0xFF3DA8))]
-        case .happy: [Tip(text: "Ready for \(title)? 💪", tint: (0xFFC23D, 0xFF7A3D))]
+        let missed = model.missedSessions
+        var out: [Tip] = if next == nil, let m = missed.first, mood != .party {
+            // Nothing left this week but a missed session (#266).
+            [Tip(text: "Missed \(m.displayTitle)? Log it or do it today 💪", tint: (0xFF3D6E, 0xFF8A3D))]
+        } else {
+            switch mood {
+            case .party: [Tip(text: "Week done! You legend 🏆", tint: (0x3DFFB0, 0x1E9BFF))]
+            case .sleepy: [Tip(text: "Easy does it today. Quality reps 😴", tint: (0x3D5AFF, 0x7B3DFF))]
+            case .fired: [Tip(text: "Let's crush \(title)! 💥", tint: (0xB23DFF, 0xFF3DA8))]
+            case .happy: [Tip(text: "Ready for \(title)? 💪", tint: (0xFFC23D, 0xFF7A3D))]
+            }
         }
         if stats.currentStreakWeeks > 0 {
             let best = stats.currentStreakWeeks >= stats.bestStreakWeeks && stats.currentStreakWeeks > 1
@@ -243,8 +252,15 @@ struct MonkeyCoachCard: View {
         let g = model.game
         out.append(Tip(text: "⭐ Level \(g.level): \(g.xpToNext) XP to level \(g.level + 1)", tint: (0x3DFFB0, 0x1E9BFF)))
         let left = max(0, target - stats.thisWeek)
-        out.append(Tip(text: left == 0 ? "\(stats.thisWeek)/\(target) this week. Bonus round?" : "\(stats.thisWeek)/\(target) this week. \(left) to go!",
-                       tint: (0xFF7A3D, 0xFF3D5A)))
+        let text: String = if left == 0 {
+            "\(stats.thisWeek)/\(target) this week. Bonus round?"
+        } else if !missed.isEmpty {
+            // Missed sessions can't be done on their day any more: "to go" counts what's still planned (#266).
+            "\(stats.thisWeek)/\(target) done, \(missed.count) missed. \(min(left, model.remainingCount)) to go!"
+        } else {
+            "\(stats.thisWeek)/\(target) this week. \(left) to go!"
+        }
+        out.append(Tip(text: text, tint: (0xFF7A3D, 0xFF3D5A)))
         return out
     }
 }

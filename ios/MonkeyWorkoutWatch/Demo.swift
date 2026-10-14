@@ -2,7 +2,7 @@
 import SwiftUI
 
 /// DEBUG-only Watch demo data for CI screenshots (#219):
-/// `-demo [-homeStyle coach|deck|rings] [-watchScreen list|detail|progress|summary|levelup|mirror|pro]`.
+/// `-demo [-homeStyle coach|deck|rings] [-watchScreen list|missed|detail|progress|summary|levelup|mirror|pro]`.
 enum Demo {
     static let on = ProcessInfo.processInfo.arguments.contains("-demo")
 
@@ -39,7 +39,7 @@ enum Demo {
     @MainActor @ViewBuilder static func view(_ screen: String) -> some View {
         let s = snapshot
         switch screen {
-        case "list": NavigationStack { SessionListView(title: "This week", sessions: s.sessions) }
+        case "list", "missed": NavigationStack { SessionListView(title: "This week", sessions: s.sessions) }
         case "detail": NavigationStack { SessionDetailView(session: s.sessions[1], onStart: { _ in }) }
         case "progress": NavigationStack { ProgressScreen() }
         case "levelup": LevelUpCelebration(level: 8, compact: true)
@@ -79,6 +79,11 @@ enum Demo {
             session("thu", "Full Body", "Thu", 45, done: false, 0x1E9BFF, 0x3DFFB0),
             session("sat", "Conditioning", "Sat", 30, done: false, 0xFFC23D, 0xFF7A3D),
         ]
+        if screen == "missed" {
+            // Missed sessions (#266): Monday not done, next up Tuesday.
+            s.sessions[0].done = false
+            s.sessions[0].missed = true
+        }
         s.extras = [session("ex", "Quick Pump", "Example", 25, done: false, 0x3D5AFF, 0x7B3DFF)]
         s.nextSessionId = "tue"
         s.readiness = "Ready to push"

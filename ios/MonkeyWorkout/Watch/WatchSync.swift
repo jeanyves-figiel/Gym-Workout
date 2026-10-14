@@ -83,7 +83,8 @@ final class WatchSync: NSObject {
     /// Cheap fingerprint of what the snapshot depends on.
     static func changeKey(_ model: AppModel) -> String {
         let plan = model.plan.map { "\($0.seed)-\($0.week)-\($0.sessions.count)" } ?? "-"
-        return "\(plan)|\(model.state.done.count)|\(model.state.history.count)|\(model.customWorkouts.count)|\(model.state.logs.count)|\(ProStore.shared.locked)"
+        // Next up follows the day too (#266): a missed session stops being next.
+        return "\(plan)|\(model.nextSession?.id ?? "-")|\(model.state.done.count)|\(model.state.history.count)|\(model.customWorkouts.count)|\(model.state.logs.count)|\(ProStore.shared.locked)"
     }
 
     /// Mirrors the iPhone player on the Watch (best effort, only while the Watch app is reachable).
@@ -167,7 +168,8 @@ final class WatchSync: NSObject {
             blocks: session.blocks.map { b in
                 WBlock(title: b.title, tint: b.kind.category.tintHex, tint2: b.kind.category.tintHex2,
                        items: b.items.map { item($0, block: b, sessionId: session.id, model: model) })
-            })
+            },
+            missed: model.missedSessions.contains { $0.id == session.id })
     }
 
     private static func item(_ it: PlannedExercise, block: Block, sessionId: String, model: AppModel) -> WItem {

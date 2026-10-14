@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|account-security|account-reauth|account-2step|account-recovery|account-passkeys|signin-2step|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-gym-add|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|equipment-zones|floor-plan|session-zones|swap-zones|player-zones|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|whats-new-history|watch-home|game-{week|session|done|progress}-{coach|deck|rings}|game-quest-deck|game-ladder|game-levelup|game-levelup-legend|game-level-row|explore-programmes|programme|programme-running|train-programme|programme-test|progress-programmes|profile-programme|calendar-programme|programme-finished|programme-length|programme-grid|programme-grid-running|programme-mine|programme-builder|programme-builder-week]`
+/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|account-security|account-reauth|account-2step|account-recovery|account-passkeys|signin-2step|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-gym-add|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|equipment-zones|floor-plan|session-zones|swap-zones|player-zones|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|whats-new-history|watch-home|game-{week|session|done|progress}-{coach|deck|rings}|game-quest-deck|game-ladder|game-levelup|game-levelup-legend|game-level-row|explore-programmes|programme|programme-running|train-programme|programme-test|progress-programmes|profile-programme|calendar-programme|programme-finished|programme-length|programme-grid|programme-grid-running|programme-mine|programme-builder|programme-builder-week|train-missed|missed-catchup|missed-log|calendar-missed]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("-demo") }
@@ -105,6 +105,20 @@ enum Demo {
             programmeId: prog.id, start: Progression.weekStart(start, cal), seed: 11,
             saved: .init(profile: profile, seed: 7, week: week))
         model.syncProgramme(now: now, starting: true)
+    }
+
+    /// Missed session screens (#266): the first session of the week not done and today on the second one's day.
+    @MainActor static func missed(_ model: AppModel) {
+        if ["train-missed", "missed-catchup", "missed-log", "calendar-missed"].contains(screen) {
+            // No away periods: they re-plan undone sessions from the real today, so nothing would be missed.
+            model.state.synced?.away = nil
+            model.state.done = [:]
+            model.replanCurrentWeek()
+        }
+        // "Today" = the first session not done (nothing missed), or the second one's day on the screens above.
+        let ordered = model.plan.map(WeekProgress.ordered) ?? []
+        let next = model.state.done.isEmpty ? ordered.dropFirst().first : ordered.first { !model.doneIds.contains($0.id) }
+        model.demoToday = next?.weekday ?? 3
     }
 
     /// Current cycle week (2 = Build). Every demo screen (Train chip, cycle sheet, calendar, library) reads it via the plan.

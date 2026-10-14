@@ -227,15 +227,19 @@ struct WeekCalendarCard: View {
         let travel = week.travel[wd] != nil
         let climb = week.climbing.contains(wd)
         let past = key < today
+        // An earlier day of this week with its session not done (#266).
+        let missed = current && !done && session.map { s in model.missedSessions.contains { $0.id == s.id } } == true
         let day = week.date(wd, cal).map { cal.component(.day, from: $0) } ?? 0
         let count = week.plan.sessions.filter { $0.weekday == wd }.count
         let tag: String? = session.map { short($0.focus) + (count > 1 ? " +\(count - 1)" : "") } ?? (off ? "Off" : climb ? "Climb" : nil)
-        let fill = tileFill(session: session != nil, off: off, travel: travel, climb: climb)
+        let fill = missed ? AnyShapeStyle(MissedStyle.gradient) : tileFill(session: session != nil, off: off, travel: travel, climb: climb)
         VStack(spacing: 1) {
             Text(WeekSchedule.shortName(wd).uppercased()).font(Theme.label(9))
             Text("\(day)").font(Theme.display(17)).monospacedDigit()
             if done {
                 Image(systemName: "checkmark").font(.system(size: 9, weight: .black))
+            } else if missed {
+                Text("Missed").font(.system(size: 9, weight: .heavy, design: .rounded)).lineLimit(1).minimumScaleFactor(0.7)
             } else if let tag {
                 Text(tag).font(.system(size: 9, weight: .bold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.7)
             } else {
@@ -247,9 +251,9 @@ struct WeekCalendarCard: View {
         .padding(.vertical, 6)
         .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(fill))
         .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(Theme.lime, lineWidth: key == today ? 2 : 0))
-        .opacity(past && !done ? 0.45 : 1)
+        .opacity(past && !done && !missed ? 0.45 : 1)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibility(wd, session: session, done: done, off: off, travel: travel, climb: climb))
+        .accessibilityLabel(accessibility(wd, session: session, done: done, off: off, travel: travel, climb: climb) + (missed ? ", missed" : ""))
     }
 
     private func tileFill(session: Bool, off: Bool, travel: Bool, climb: Bool) -> AnyShapeStyle {
@@ -330,6 +334,7 @@ struct DaySheet: View {
     @State private var moving: Session?
     @State private var adding = false
     @State private var insertsBefore = 0
+    @State private var logging: Session?
     /// Opens sized to its content (#264): the medium detent cut off Can't train / Travelling.
     @State private var contentHeight: CGFloat = 0
     @State private var chromeHeight: CGFloat = 0
@@ -357,7 +362,17 @@ struct DaySheet: View {
                     }
                     ForEach(sessions) { session in
                         let done = selection.current && model.doneIds.contains(session.id)
-                        SessionPreview(session: session, current: selection.current, done: done, canMove: selection.current && !done) {
+                        let missed = selection.current && model.missedSessions.contains { $0.id == session.id }
+                        if missed {
+                            // Missed (#266): log it, mark it done, do it today or skip.
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Missed").font(Theme.label(12)).tracking(1.4).textCase(.uppercase).foregroundStyle(.white.opacity(0.9))
+                                MissedActionsRow(session: session) { logging = session }
+                            }
+                            .padding(14)
+                            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(MissedStyle.gradient))
+                        }
+                        SessionPreview(session: session, current: selection.current, done: done, canMove: selection.current && !done && !missed) {
                             moving = session
                         }
                     }
@@ -401,6 +416,7 @@ struct DaySheet: View {
         .preferredColorScheme(.dark)
         .presentationDetents(fitDetent.map { [$0, .large] } ?? [.large], selection: $detent)
         .sheet(item: $moving) { s in MoveSessionSheet(sessionId: s.id) { _ in dismiss() } }
+        .sheet(item: $logging) { s in MissedLogSheet(session: s) }
         .sheet(isPresented: $adding, onDismiss: { if (model.state.synced?.planInserts?.count ?? 0) > insertsBefore { dismiss() } }) { AddWorkoutSheet(weekday: wd) }
     }
 

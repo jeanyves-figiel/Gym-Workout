@@ -44,7 +44,10 @@ struct ComplicationInfo {
         let rolled = !cal.isDate(snap.generatedAt, equalTo: date, toGranularity: .weekOfYear)
         var sessions = snap.sessions
         if rolled { for i in sessions.indices { sessions[i].done = false } }
-        let next = rolled ? sessions.first : (snap.nextSessionId.flatMap { id in sessions.first { $0.id == id } } ?? sessions.first { !$0.done })
+        // A phone that sends `missed` (#266) decides next up: nil = nothing left this week, never a missed session.
+        let phoneDecides = sessions.contains { $0.missed != nil }
+        let next = rolled ? sessions.first : (snap.nextSessionId.flatMap { id in sessions.first { $0.id == id } }
+            ?? (phoneDecides ? nil : sessions.first { !$0.done }))
         let today = WeekdayName.index(date, cal)
 
         if let next {
@@ -59,7 +62,7 @@ struct ComplicationInfo {
             tint2 = next.blocks.first { $0.tint == next.tint }?.tint2 ?? next.tint
         } else {
             day = .weekDone
-            title = "Week complete"
+            title = sessions.contains(where: \.isMissed) ? "No more this week" : "Week complete"
             dayLabel = ""
             minutes = 0
             exercises = 0

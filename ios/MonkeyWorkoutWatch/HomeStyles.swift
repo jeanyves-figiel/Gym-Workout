@@ -120,7 +120,9 @@ struct CoachHome: View {
 
     @MainActor static func mood(_ store: WatchStore) -> MonkeyFace.Mood {
         let p = store.snapshot.progress
-        return .from(weekDone: store.next == nil || p.thisWeek >= p.target, readiness: store.snapshot.readiness, streakWeeks: p.streakWeeks)
+        // Not "week done" while a session is missed (#266).
+        let weekDone = p.thisWeek >= p.target || (store.next == nil && !store.snapshot.sessions.contains(where: \.isMissed))
+        return .from(weekDone: weekDone, readiness: store.snapshot.readiness, streakWeeks: p.streakWeeks)
     }
 
     private func tips(mood: MonkeyFace.Mood, next: WSession?, progress p: WProgress) -> [Tip] {
@@ -193,11 +195,13 @@ private struct DayCard: View {
         ZStack(alignment: .bottomTrailing) {
             NavigationLink(value: session) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Eyebrow(text: "\(isNext ? "Next up · \(session.dayLabel)" : session.dayLabel) · W\(week)", color: .white.opacity(0.9))
+                    Eyebrow(text: "\(isNext ? "Next up · \(session.dayLabel)" : session.isMissed ? "Missed · \(session.dayLabel)" : session.dayLabel) · W\(week)",
+                            color: .white.opacity(0.9))
                     Text(session.title).font(W.display(26)).lineLimit(2).minimumScaleFactor(0.55)
                     Text("\(session.estMin)′ · \(session.items.count) exercises").font(W.label(11)).opacity(0.9)
                     // Quest map on the iPhone (#227): every day is a stage worth XP.
-                    Text(session.done ? "Stage cleared" : "+\(W.xp(session)) XP").font(W.label(11)).foregroundStyle(W.lime)
+                    Text(session.done ? "Stage cleared" : session.isMissed ? "Log it on iPhone" : "+\(W.xp(session)) XP")
+                        .font(W.label(11)).foregroundStyle(session.isMissed ? W.color(0xFF8A3D) : W.lime)
                     Spacer(minLength: 0)
                 }
                 .foregroundStyle(.white)
@@ -216,6 +220,15 @@ private struct DayCard: View {
                     .padding(.bottom, 8)
                     .allowsHitTesting(false)
             } else {
+                if session.isMissed {
+                    // Missed (#266): same red tag as on the iPhone.
+                    Text("MISSED")
+                        .font(W.label(11)).tracking(1).foregroundStyle(.white)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(Capsule().fill(W.gradient(0xFF3D6E, 0xFF8A3D)))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                        .allowsHitTesting(false)
+                }
                 Button { onStart(session) } label: {
                     Image(systemName: "play.fill").font(.system(size: 22, weight: .black)).foregroundStyle(W.ink)
                         .frame(width: 54, height: 54)

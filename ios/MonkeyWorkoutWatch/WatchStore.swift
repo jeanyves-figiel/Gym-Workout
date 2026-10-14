@@ -38,7 +38,8 @@ final class WatchStore: NSObject {
     }
 
     var hasPlan: Bool { !snapshot.sessions.isEmpty || !snapshot.extras.isEmpty }
-    var next: WSession? { snapshot.nextSessionId.flatMap(snapshot.session) ?? snapshot.sessions.first { !$0.done } }
+    // The phone decides (#266): nil = nothing left this week, never an earlier missed session.
+    var next: WSession? { snapshot.nextSessionId.flatMap(snapshot.session) }
 
     /// Screens follow the home style (#219): Crown deck → full colour, Charge & go → tiles, Monkey coach → game.
     var theme: WTheme { WTheme(homeStyle) }
@@ -74,8 +75,12 @@ final class WatchStore: NSObject {
     }
 
     private func markDone(_ f: WFinished) {
-        if let i = snapshot.sessions.firstIndex(where: { $0.id == f.sessionId }) { snapshot.sessions[i].done = true }
-        if snapshot.nextSessionId == f.sessionId { snapshot.nextSessionId = snapshot.sessions.first { !$0.done }?.id }
+        let i = snapshot.sessions.firstIndex { $0.id == f.sessionId }
+        if let i { snapshot.sessions[i].done = true }
+        // Next one later this week, never an earlier missed one (#266); the phone's next snapshot settles it.
+        if snapshot.nextSessionId == f.sessionId {
+            snapshot.nextSessionId = i.flatMap { i in snapshot.sessions[(i + 1)...].first { !$0.done }?.id }
+        }
         snapshot.progress.recent.insert(
             WRecent(title: snapshot.session(f.sessionId)?.title ?? "Workout", date: f.start,
                     minutes: Int(f.end.timeIntervalSince(f.start)) / 60, sets: f.setsDone.values.reduce(0, +)), at: 0)

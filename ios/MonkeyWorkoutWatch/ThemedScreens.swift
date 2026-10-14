@@ -122,7 +122,8 @@ struct SessionListView: View {
                         switch theme {
                         case .colour: colourRow(s)
                         case .tiles:
-                            TileRow(symbol: s.done ? "checkmark" : "calendar", title: s.title, detail: s.dayLabel,
+                            TileRow(symbol: s.done ? "checkmark" : s.isMissed ? "exclamationmark" : "calendar", title: s.title,
+                                    detail: s.isMissed ? "\(s.dayLabel) · missed" : s.dayLabel,
                                     value: "\(s.estMin)′", tint: W.gradient(s)).opacity(s.done ? 0.6 : 1)
                         case .game: questRow(s, number: i + 1, last: i == sessions.count - 1)
                         }
@@ -144,6 +145,10 @@ struct SessionListView: View {
             Spacer(minLength: 2)
             if s.done {
                 Image(systemName: "checkmark.seal.fill").font(.system(size: 20, weight: .bold))
+            } else if s.isMissed {
+                Text("MISSED").font(W.label(10)).tracking(1)
+                    .padding(.horizontal, 6).padding(.vertical, 3)
+                    .background(Capsule().fill(W.gradient(0xFF3D6E, 0xFF8A3D)))
             } else {
                 Text("\(s.estMin)′").font(W.display(22))
             }
@@ -161,8 +166,8 @@ struct SessionListView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text(s.dayLabel.uppercased()).font(W.label(8)).tracking(1).foregroundStyle(.secondary)
                 Text(s.title).font(W.label(13)).lineLimit(1)
-                Text(s.done ? "Cleared" : "\(s.estMin)′ · +\(W.xp(s)) XP")
-                    .font(W.label(9)).foregroundStyle(s.done ? W.color(0x3DFFB0) : W.lime)
+                Text(s.done ? "Cleared" : s.isMissed ? "Missed" : "\(s.estMin)′ · +\(W.xp(s)) XP")
+                    .font(W.label(9)).foregroundStyle(s.done ? W.color(0x3DFFB0) : s.isMissed ? W.color(0xFF8A3D) : W.lime)
             }
             .padding(.bottom, 8)
             Spacer(minLength: 0)

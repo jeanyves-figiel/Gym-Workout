@@ -112,6 +112,7 @@ struct WeekView: View {
         .task {
             // A new programme week (#255) builds its plan first.
             model.syncProgramme()
+            model.rollWeekIfNeeded()
             if demoEditing { arranging = true }
             // Away periods (#68): re-plan from today on (new day, period starting this week).
             model.replanCurrentWeek()
@@ -252,7 +253,7 @@ struct WeekView: View {
                     if let next = model.nextSession {
                         NextUpCard(session: next) { playing = next }
                     } else {
-                        WeekCompleteCard()
+                        WeekCompleteCard(missed: model.missedSessions.count)
                     }
                     if !arranging { notices(plan: plan, profile: profile, undo: false) }
                 }
@@ -338,6 +339,7 @@ struct WeekView: View {
             let days = calendarDays
             // By day, so moved and extra sessions sit where they happen (#113).
             let ordered = byDay(plan.sessions, days: days)
+            let missed = Set(model.missedSessions.map(\.id))
             if quest {
                 QuestMap(sessions: ordered, days: days) { s, day in sessionMenu(s, day: day) }
             } else {
@@ -346,7 +348,8 @@ struct WeekView: View {
                     let day = s.weekday ?? days[s.id]
                     let removable = s.isPlanInsert && !done
                     NavigationLink(value: s.id) {
-                        SessionRowCard(session: s, done: done, climbing: profile.climbingDays, weekday: day, number: i + 1)
+                        SessionRowCard(session: s, done: done, climbing: profile.climbingDays, weekday: day, number: i + 1,
+                                       missed: missed.contains(s.id))
                     }
                     .buttonStyle(.plain)
                     .contextMenu { sessionMenu(s, day: day) }
@@ -554,6 +557,8 @@ private struct NextUpCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            // The week at a glance (#266): missed days red (tap to catch up), today ringed.
+            WeekDayStrip()
             // Tapping the card opens the session page, same as the list button (#150).
             NavigationLink(value: session.id) {
                 summary
@@ -574,7 +579,7 @@ private struct NextUpCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Next up · \(session.dayLabel)").font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
+                    Text("Next up · \(model.upcomingDayLabel(session))").font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
                     Text(session.displayTitle).font(Theme.display(30)).foregroundStyle(.white).fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 10) {
                         Label("\(session.estMin) min", systemImage: "clock.fill").font(Theme.label(14)).foregroundStyle(.white.opacity(0.9))
@@ -615,12 +620,18 @@ private struct NextUpCard: View {
 }
 
 private struct WeekCompleteCard: View {
+    /// Missed sessions this week (#266): the week is over for training, not complete.
+    var missed = 0
+
     var body: some View {
         VStack(spacing: 10) {
-            Image(systemName: "trophy.fill").font(.system(size: 44)).foregroundStyle(Theme.lime)
+            WeekDayStrip().padding(.bottom, 6)
+            Image(systemName: missed > 0 ? "moon.zzz.fill" : "trophy.fill").font(.system(size: 44)).foregroundStyle(Theme.lime)
                 .symbolEffect(.bounce, options: .repeat(2))
-            Text("Week complete").font(Theme.display(28))
-            Text("Move to the next week from the bar above, or rest and climb.").font(.footnote).foregroundStyle(Theme.muted)
+            Text(missed > 0 ? "No more sessions this week" : "Week complete").font(Theme.display(28))
+                .multilineTextAlignment(.center)
+            Text(missed > 0 ? "\(missed) missed: tap the red day to log it, mark it done or do it today. A fresh week starts Monday."
+                            : "A fresh week starts Monday. Rest and climb meanwhile.").font(.footnote).foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -637,6 +648,8 @@ struct SessionRowCard: View {
     var weekday: Int?
     /// Position in the list; defaults to the session's plan index.
     var number: Int?
+    /// Planned on an earlier day this week and not done (#266).
+    var missed = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -650,6 +663,10 @@ struct SessionRowCard: View {
                     Spacer()
                     if done {
                         Image(systemName: "checkmark.seal.fill").foregroundStyle(Theme.lime)
+                    } else if missed {
+                        Text("MISSED").font(Theme.label(11)).tracking(1).foregroundStyle(.white)
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(Capsule().fill(MissedStyle.gradient))
                     } else {
                         Text("\(session.estMin)′").font(Theme.label(14)).foregroundStyle(Theme.muted)
                     }
