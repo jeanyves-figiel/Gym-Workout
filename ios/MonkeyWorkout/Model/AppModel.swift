@@ -65,6 +65,8 @@ final class AppModel {
             state = LocalState()
             state.synced = SyncedProfile(profile: Demo.profile, seed: 7, week: Demo.week)
             state.plan = Generator.generateWeek(Demo.profile, week: Demo.week, seed: 7)
+            // What Monkey learned (#299): learned likes / dislikes and the coach's new-week card.
+            if ["taste", "train-taste", "profile"].contains(Demo.screen) { applyDemoTaste() }
             if let first = state.plan?.sessions.first { state.done[first.id] = true }
             let demo = Demo.history()
             state.history = demo.records
@@ -224,9 +226,10 @@ final class AppModel {
         return rotated.applying(swaps: swaps)
     }
 
-    func applyProfile(_ profile: Profile, seed: UInt32? = nil, week: Int = 1) {
+    /// `rolled`: a new calendar week even when the cycle week and seed come out the same.
+    func applyProfile(_ profile: Profile, seed: UInt32? = nil, week: Int = 1, rolled: Bool = false) {
         let s = seed ?? UInt32.random(in: 0...UInt32.max)
-        let newWeek = state.synced?.week != week || state.synced?.seed != s
+        let newWeek = rolled || state.synced?.week != week || state.synced?.seed != s
         let changed = newWeek || state.synced?.profile != profile
         // Plan inserts belong to one week: kept for a new variation or profile edit, dropped on a week change.
         // A variation's swaps only fit the exact plan they were made for.
@@ -241,13 +244,20 @@ final class AppModel {
                                customProgrammes: state.synced?.customProgrammes,
                                weekOf: state.synced?.weekOf,
                                // Exercise edits (#295): library workouts keep theirs; this week's plan days only within the week.
-                               sessionEdits: state.synced?.sessionEdits.map { list in list.filter { $0.week == nil || !newWeek } }.flatMap { $0.isEmpty ? nil : $0 })
+                               sessionEdits: state.synced?.sessionEdits.map { list in list.filter { $0.week == nil || !newWeek } }.flatMap { $0.isEmpty ? nil : $0 },
+                               // Learned tastes (#299) shape the plan from the next new week on.
+                               taste: state.synced?.taste,
+                               weekTaste: newWeek ? freshWeekTaste : state.synced?.weekTaste)
+        let learning = (tasteOff: state.synced?.tasteOff, recap: newWeek ? nil : state.synced?.tasteRecap)
         state.synced = sp
+        state.synced?.tasteOff = learning.tasteOff
+        state.synced?.tasteRecap = learning.recap
         // A profile edit (goal, days, gym…) re-plans the rest of this week (#194): sessions already done and the
         // one in progress keep their content; everything else follows the new profile.
         let kept = newWeek ? [] : doneIds.union([state.activeWorkout?.sessionId].compactMap { $0 })
         state.plan = Generator.generateWeek(sp.planProfile, week: week, seed: s).keeping(kept, from: state.plan)
         replanCurrentWeek()
+        if newWeek { makeTasteRecap() }
         if newWeek {
             state.done = [:]
             state.ticked = [:]
@@ -364,6 +374,9 @@ final class AppModel {
               let s = plan.sessions.firstIndex(where: { $0.blocks.contains { $0.items.contains { $0.uid == uid } } }) else { return }
         let session = plan.sessions[s]
         guard let generated = session.blocks.flatMap(\.items).first(where: { $0.uid == uid })?.exerciseId else { return }
+        // What the member saw before swapping (kept swap and variation applied) tells the app what they left (#299).
+        let shown = uneditedPlan?.sessions.flatMap { $0.blocks.flatMap(\.items) }.first { $0.uid == uid }?.exerciseId ?? generated
+        learnTaste { $0.learn(swap: shown, to: exerciseId, kept: keep, at: Date()) }
         if keep, var sp = state.synced {
             let rule = ExerciseSwap(weekday: session.weekday, sessionIndex: session.index, from: generated, to: exerciseId)
             var rules = sp.exerciseSwaps ?? []
@@ -460,6 +473,7 @@ final class AppModel {
         state.history.append(r)
         state.pendingHistoryIds.insert(r.id)
         state.done[session.id] = true
+        learnTaste { $0.learn(from: r) }
         // A library workout's edit was for this run only (#295); the next time starts from the workout itself.
         if plan?.sessions.contains(where: { $0.id == session.id }) != true { dropSessionEdit(session.id) }
         persist()

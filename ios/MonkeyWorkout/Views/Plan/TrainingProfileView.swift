@@ -40,6 +40,8 @@ struct TrainingProfileView: View {
                                 .buttonStyle(.plain)
                         }
                     }
+                    // What the app learned from the member's choices (#299).
+                    TasteProfileCard()
                 }
                 .padding(16)
             }

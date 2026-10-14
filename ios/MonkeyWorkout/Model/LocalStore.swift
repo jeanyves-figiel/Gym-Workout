@@ -35,10 +35,26 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var weekOf: String?
     /// Exercise lists the member edited before starting (#295): plan sessions of this week and library workouts.
     var sessionEdits: [SessionEdit]?
+    /// What the app learned about the member's exercise likes and dislikes (#299).
+    var taste: MemberTaste?
+    /// Affinities this week's plan is generated with (#299): frozen when a new week's plan is made, so learning
+    /// never reshuffles the week in progress.
+    var weekTaste: [String: Double]?
+    /// "Learn from my choices" off (#299): nothing recorded, plans made without learned tastes.
+    var tasteOff: Bool?
+    /// What this week's plan changed because of learned tastes, for the coach's new-week card (#299).
+    var tasteRecap: TasteRecap?
+
+    /// Training profile with this week's learned tastes (#299): quick sessions and plan variations.
+    var tasteProfile: Profile {
+        var p = profile
+        p.learnedTaste = weekTaste
+        return p
+    }
 
     /// Profile the plan is generated from: the training profile plus this week's per-workout overrides.
     var planProfile: Profile {
-        var p = profile
+        var p = tasteProfile
         p.sessionStyles = sessionStyles?.filter { $0.key.hasPrefix("w\(week)s") }
         return p
     }
