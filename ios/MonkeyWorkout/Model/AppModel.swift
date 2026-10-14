@@ -80,6 +80,8 @@ final class AppModel {
             state.customExerciseList = [Demo.customExercise]
             state.synced?.away = Demo.away()
             state.synced?.savedGyms = Demo.savedGyms
+            // Your gym UI test (#271): 48 of the full inventory, 20 off.
+            if Demo.screen == "gym-missing" { state.synced?.profile.equipment = Array(Gym.puls5.equipment.prefix(48)) }
             // Customised Train screens (#260).
             switch Demo.screen {
             case "train-data", "train-customise": state.synced?.trainLayout = presetLayout(.data)
@@ -549,7 +551,8 @@ final class AppModel {
         do {
             if state.profileDirty, let sp = state.synced {
                 try await api.saveProfile(sp)
-                state.profileDirty = false
+                // An edit made while the save was in flight stays dirty, so the next sync sends it.
+                if state.synced == sp { state.profileDirty = false }
             }
             let pending = state.logs.filter { state.pendingLogIds.contains($0.id) }
             if !pending.isEmpty {

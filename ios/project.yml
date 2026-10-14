@@ -179,11 +179,25 @@ targets:
         PRODUCT_NAME: MonkeyWorkoutWatchComplications
         TARGETED_DEVICE_FAMILY: "4"
         SKIP_INSTALL: YES
+  # UI regression tests in demo mode (#271).
+  MonkeyWorkoutUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [MonkeyWorkoutUITests]
+    dependencies:
+      - target: MonkeyWorkout
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: MonkeyWorkout
 schemes:
   MonkeyWorkout:
     build:
       targets:
         MonkeyWorkout: all
+    test:
+      config: Debug
+      targets: [MonkeyWorkoutUITests]
     run:
       config: Debug
       # Local StoreKit testing in Xcode (#126): Pro products, CHF prices, free week. Device/TestFlight use App Store sandbox.

@@ -91,6 +91,32 @@ jobs:
             exit 1
           fi
 
+  ui-tests:
+    name: UI tests (demo mode)
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select newest Xcode
+        run: |
+          XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+      - run: brew install xcodegen
+      - run: xcodegen generate --spec ios/project.yml
+      # Your gym edits stay after SAVE (#271).
+      - name: Run UI tests
+        run: |
+          set -o pipefail
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -E "iPhone 1[5-7] Pro \(" | grep -oE '[0-9A-F-]{36}')
+          echo "device=$DEVICE"
+          xcrun simctl boot "$DEVICE" || true
+          xcodebuild test -project ios/MonkeyWorkout.xcodeproj -scheme MonkeyWorkout -configuration Debug \
+            -destination "id=$DEVICE" -derivedDataPath build -skipPackagePluginValidation \
+            -only-testing:MonkeyWorkoutUITests CODE_SIGNING_ALLOWED=NO > test.log 2>&1 \
+            || { grep -E 'error:|failed|XCTAssert' test.log | sort -u | head -n 60; tail -n 80 test.log; exit 1; }
+          grep -E 'Test Case|Executed' test.log | tail -n 20
+
   screenshots:
     name: Screenshots (demo mode)
     needs: app
