@@ -102,6 +102,19 @@ private var oneZone: GymLayout { GymLayout(zones: [.init(id: "all", name: "All",
         #expect(l.zone(id: "corner") == nil)
     }
 
+    /// No zone (#289): an unassigned item belongs to no zone, so its exercises fit next to any other.
+    @Test func unassignedItemFitsAnyZone() {
+        var l = GymLayout.starter
+        l.unassign(.barbell)
+        #expect(l.zone(of: .barbell) == nil)
+        #expect(l.zones.allSatisfy { !$0.items.contains(.barbell) })
+        let bar = Exercise.catalog.first { $0.equipment == [.barbell] }
+        let cardio = Exercise.catalog.first { !$0.equipment.isEmpty && $0.equipment.allSatisfy { $0.zone == .cardio } }!
+        if let bar { #expect(l.near(bar, cardio)) }
+        l.move(.barbell, to: GymZone.machines.rawValue)
+        #expect(l.zone(of: .barbell)?.id == GymZone.machines.rawValue)
+    }
+
     @Test func olderProfilesAndSavedGymsDecode() throws {
         let p = try JSONDecoder().decode(Profile.self, from: JSONEncoder().encode(Profile()))
         #expect(p.gymLayout == nil)

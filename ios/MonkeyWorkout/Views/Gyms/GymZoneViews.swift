@@ -55,27 +55,28 @@ struct ZoneBar: View {
                         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.22)))
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Where is it in your gym?").font(.system(size: 16, weight: .heavy, design: .rounded))
-                        Text(painting == nil ? "Pick a zone, then tap the pictures that sit there." : "Tap pictures to move them here. Tap the zone again when done.")
+                        Text(painting == nil ? "Pick a zone, then tap the pictures that sit there."
+                             : painting == GymLayout.noZone ? "Tap pictures to clear their zone. Tap No zone again when done."
+                             : "Tap pictures to move them here. Tap the zone again when done.")
                             .font(.caption.weight(.semibold)).opacity(0.88)
                     }
                     Spacer(minLength: 0)
                 }
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(current.zones) { z in chip(z, count: z.items.filter { equipment.contains($0) }.count) }
-                        Button {
-                            let z = GymLayout.Zone(name: "Zone \(current.zones.count + 1)", color: current.nextColor, items: [])
-                            layout?.zones.append(z)
-                            editing = z
-                        } label: {
-                            Label("Zone", systemImage: "plus").font(Theme.label(12))
-                                .padding(.horizontal, 10).padding(.vertical, 7)
-                                .background(Capsule().fill(.black.opacity(0.35)))
-                                .foregroundStyle(Theme.lime)
-                        }
-                        .buttonStyle(.plain)
+                // All zones on as many lines as they need (#289), then "No zone" to clear a picture's zone.
+                FlowLayout(spacing: 6) {
+                    ForEach(current.zones) { z in chip(z, count: z.items.filter { equipment.contains($0) }.count) }
+                    noZoneChip(count: equipment.filter { current.zone(of: $0) == nil }.count)
+                    Button {
+                        let z = GymLayout.Zone(name: "Zone \(current.zones.count + 1)", color: current.nextColor, items: [])
+                        layout?.zones.append(z)
+                        editing = z
+                    } label: {
+                        Label("Zone", systemImage: "plus").font(Theme.label(12))
+                            .padding(.horizontal, 10).padding(.vertical, 7)
+                            .background(Capsule().fill(.black.opacity(0.35)))
+                            .foregroundStyle(Theme.lime)
                     }
-                    .padding(2)
+                    .buttonStyle(.plain)
                 }
                 HStack(spacing: 8) {
                     Button { plan = true } label: {
@@ -133,7 +134,33 @@ struct ZoneBar: View {
     }
 
     private func paintGradient(_ l: GymLayout) -> LinearGradient {
-        painting.flatMap { l.zone(id: $0)?.gradient } ?? GymLayout.Zone.starterGradient
+        if painting == GymLayout.noZone {
+            return LinearGradient(colors: [Color(hex: 0x3A3A44), Color(hex: 0x1E1E24)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+        return painting.flatMap { l.zone(id: $0)?.gradient } ?? GymLayout.Zone.starterGradient
+    }
+
+    /// Eraser (#289): pictures tapped while it's on lose their zone (they then fit any zone in a workout).
+    private func noZoneChip(count: Int) -> some View {
+        let on = painting == GymLayout.noZone
+        return Button {
+            painting = on ? nil : GymLayout.noZone
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "eraser.fill")
+                Text("No zone")
+                Text("\(count)").monospacedDigit().opacity(0.8)
+            }
+            .font(Theme.label(12))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .background(Capsule().fill(.black.opacity(0.45)))
+            .overlay(Capsule().strokeBorder(.white.opacity(on ? 1 : 0.6), style: StrokeStyle(lineWidth: on ? 2.5 : 1.2, dash: on ? [] : [4, 3])))
+            .scaleEffect(on ? 1.06 : 1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+        .accessibilityHint("Double-tap, then tap pictures to clear their zone.")
     }
 
     private func chip(_ z: GymLayout.Zone, count: Int) -> some View {

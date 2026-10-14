@@ -101,6 +101,14 @@ public struct GymLayout: Codable, Hashable, Sendable {
         if let i = zones.firstIndex(where: { $0.id == id }) { zones[i].items.append(item) }
     }
 
+    /// Painting id that clears a picture's zone (#289).
+    public static let noZone = "-"
+
+    /// Takes `item` out of every zone: it then fits any zone in a workout (#289).
+    public mutating func unassign(_ item: Equipment) {
+        for i in zones.indices { zones[i].items.removeAll { $0 == item } }
+    }
+
     /// Removes a zone; its items go back to the zone they'd be in on the usual layout, else the first zone.
     public mutating func remove(_ id: String) {
         guard zones.count > 1, let i = zones.firstIndex(where: { $0.id == id }) else { return }
