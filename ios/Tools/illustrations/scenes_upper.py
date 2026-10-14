@@ -417,6 +417,15 @@ def press_poses(rack=(18, -4), top=(-2, -81), hip=ST_HIP, t=-90, far=(-4, -2), k
     return seq(f, ks)
 
 
+def db_press_poses(hip=ST_HIP, t=-90, far=(-4, -2)):
+    """Standing dumbbell press: the bells start in front of the shoulders (not on the face) and travel up in
+    front of the face before finishing overhead."""
+    sh = art.ang_pt(hip, t, TORSO)
+    gs = [(sh[0] + 25, sh[1] - 2), (sh[0] + 16, sh[1] - 55), (sh[0] - 1, sh[1] - 81)]
+    return [standing(hip, t, g, (g[0] + far[0], g[1] + far[1]), 1, stance=(1, -3), h=-96 if i < 2 else -88)
+            for i, g in enumerate(gs)]
+
+
 def ohp_scene(doc, j, layer):
     if layer == "back":
         floor(doc, 200, 70)
@@ -497,8 +506,10 @@ CP_SEAT = 204
 CP_HIP = (176, CP_SEAT - 16)
 CP_T = -96
 CP_SH = art.ang_pt(CP_HIP, CP_T, TORSO)
-CP_PIVOT = (CP_SH[0] - 30, 26)
-CP_START = (CP_SH[0] + 26, CP_SH[1] + 20)
+CP_START = (CP_SH[0] + 26, CP_SH[1] + 18)
+# Lever pivot above the middle of the press path (#QA): the long lever swings the handles almost level at
+# chest height, a horizontal press rather than an incline.
+CP_PIVOT = (CP_SH[0] + 50, 46)
 CP_R = kit.dist(CP_PIVOT, CP_START)
 
 
@@ -529,7 +540,8 @@ def chest_press_scene(doc, j, layer):
         art.tube(doc, (40, 36), (CP_PIVOT[0] + 8, 36), 9)
         art.pulley(doc, (top[0], 44), 5.5)
         art.cable(doc, [(top[0] + 5.5, 44), top])
-        art.cable(doc, [(top[0], 38.5), (CP_PIVOT[0] - 14, 38.5)])
+        # Cable along the boom onto the lever's cam at the pivot.
+        art.cable(doc, [(top[0], 38.5), (CP_PIVOT[0], 38.5)])
         # Backrest frame + seat.
         a, b = back_pad(doc, CP_HIP, CP_T, 0.14, 1.0)
         art.tube(doc, art.add(b, (-4, 4)), (126, GROUND - 2), 7)
@@ -537,11 +549,11 @@ def chest_press_scene(doc, j, layer):
         art.tube(doc, (CP_HIP[0] + 2, CP_SEAT + 12), (CP_HIP[0] + 2, GROUND - 2), 8, "butt")
         kit.feet(doc, 34, 236)
         art.pad(doc, (CP_HIP[0] - 34, CP_SEAT + 12), (CP_HIP[0] + 36, CP_SEAT + 12), 12)
-        # Lever arms (pivot above the backrest) run beside the body to the handles.
+        # Lever arms (pivot overhead, in front of the face) run beside the body to the handles.
         art.tube(doc, CP_PIVOT, kit.grip(j, "F"), 6)
         art.tube(doc, CP_PIVOT, g, 7)
-        art.tube(doc, (CP_PIVOT[0], 36), CP_PIVOT, 8)
-        art.pulley(doc, CP_PIVOT, 7)
+        art.tube(doc, (CP_PIVOT[0], 34), CP_PIVOT, 8)
+        art.pulley(doc, CP_PIVOT, 7.5)
     else:
         art.tube(doc, (g[0], g[1] - 9), (g[0], g[1] + 9), 6)
         doc.add(f'<rect x="{g[0] - 3.6:.1f}" y="{g[1] - 7:.1f}" width="7.2" height="14" rx="3.2" fill="#1B1D20"/>')
@@ -597,7 +609,7 @@ def cs_pad_line(u0, u1, out=15, th=12):
 def chest_supported_scene(doc, j, layer):
     if layer == "back":
         floor(doc, 190, 110)
-        a, b = cs_pad_line(-0.1, 0.74)
+        a, b = cs_pad_line(0.04, 0.9)
         mid = lerp(a, b, 0.45)
         art.tube(doc, mid, (mid[0] + 6, GROUND - 2), 8, "butt")
         art.tube(doc, lerp(a, b, 0.1), (a[0] - 18, GROUND - 2), 6)
@@ -610,12 +622,13 @@ def chest_supported_scene(doc, j, layer):
 
 def chest_supported_poses():
     a = (CS_SH[0] + 14, CS_SH[1] + 79)
-    b = chest_pt(CS_HIP, CS_T, 0.55, 20)
+    # Row finish beside the ribs (not out in front of the chest, where the pad is).
+    b = chest_pt(CS_HIP, CS_T, 0.55, 5)
 
     def f(k):
         g = lerp(a, b, k)
         return B(CS_HIP, CS_T, aN=G(g, 1), aF=G((g[0] - 4, g[1] - 2), 1),
-                 lN=G((CS_HIP[0] - 44, FLOOR_Y), -1, end=-10), lF=G((CS_HIP[0] - 50, FLOOR_Y), -1, end=-10), h=-20)
+                 lN=G((CS_HIP[0] - 40, FLOOR_Y), -1, end=0), lF=G((CS_HIP[0] - 46, FLOOR_Y), -1, end=0), h=-20)
     return seq(f)
 
 
@@ -725,13 +738,25 @@ def table_row_scene(doc, j, layer):
         x1 = TR_GRIP[0] + 8
         x0 = x1 - 190
         wood = doc.box_grad([(0, "#8A6744"), (1, "#5E4329")])
-        for x in (x0 + 8, x1 - 16):
-            doc.add(f'<rect x="{x:.1f}" y="{TR_TOP + 8}" width="8" height="{GROUND - TR_TOP - 8}" fill="{wood}" '
+        # Far legs (darker, a little higher up the picture) behind the lifter, who lies between the legs.
+        for x in (x0 + 12, x1 - 12):
+            doc.add(f'<rect x="{x:.1f}" y="{TR_TOP + 8}" width="7" height="{GROUND - TR_TOP - 11}" fill="#4A3522" '
                     f'stroke="#0A0B0D" stroke-width="0.7"/>')
+        _table_leg(doc, x0 + 8, wood)
         doc.add(f'<rect x="{x0 + 4:.1f}" y="{TR_TOP + 8}" width="{x1 - x0 - 8:.1f}" height="9" fill="#4A3522" '
                 f'stroke="#0A0B0D" stroke-width="0.6"/>')
         doc.add(f'<rect x="{x0:.1f}" y="{TR_TOP}" width="{x1 - x0:.1f}" height="9" rx="2" fill="{wood}" '
                 f'stroke="#0A0B0D" stroke-width="0.8"/>')
+    else:
+        # Near leg at the gripped end stands in front of the body (the lifter lies between the table legs),
+        # instead of looking like it runs through the torso.
+        x1 = TR_GRIP[0] + 8
+        _table_leg(doc, x1 - 16, doc.box_grad([(0, "#8A6744"), (1, "#5E4329")]), top=TR_TOP + 9)
+
+
+def _table_leg(doc, x, fill, top=TR_TOP + 8):
+    doc.add(f'<rect x="{x:.1f}" y="{top}" width="8" height="{GROUND - top}" fill="{fill}" stroke="#0A0B0D" '
+            f'stroke-width="0.7"/>')
 
 
 # ---- hanging: pull-ups ---------------------------------------------------------------------------
@@ -784,11 +809,17 @@ def scap_scene(doc, j, layer):
         kit.motion(doc, art.add(j["shoulder"], (-26, 14)), -90, 18)
 
 
+SCAP_LEGS = dict(lN=(80, 96, 62), lF=(86, 100, 66))  # legs hang long (bent-back knees read as kneeling)
+
+
 def scap_poses():
-    s0 = (BAR[0] - 2, BAR[1] + 80.5)
-    s2 = circle_x(BAR, 80.5, (BAR[0] - 12, BAR[1] + 70), 6, 1)
+    """Straight-arm hang: passive at the start, then the shoulder blades depress and draw back, so the body
+    rises only a few px with the arms (nearly) straight."""
+    s0 = (BAR[0] - 2, BAR[1] + 83)
+    s2 = circle_x(BAR, 78, (BAR[0] - 10, BAR[1] + 76), 6, 1)
     s1 = lerp(s0, s2, 0.5)
-    return [hang(s0, -90, h=-72), hang(s1, -94, h=-82, curl=-3), hang(s2, -99, h=-92, curl=-6)]
+    return [hang(s0, -90, SCAP_LEGS, h=-72), hang(s1, -94, SCAP_LEGS, h=-82, curl=-3),
+            hang(s2, -98, SCAP_LEGS, h=-92, curl=-6)]
 
 
 # ---- dips ----------------------------------------------------------------------------------------
@@ -811,7 +842,8 @@ def dip_poses():
 def dips_scene(doc, j, layer):
     if layer == "back":
         floor(doc, 200, 90)
-        kit.dip_bars(doc, 150, 262, DIP_Y)
+        # Long bars: the rear post stands behind the feet instead of crossing the shins.
+        kit.dip_bars(doc, 92, 262, DIP_Y)
 
 
 # ---- plank family on the floor -------------------------------------------------------------------
@@ -843,18 +875,24 @@ def ring_push_scene(doc, j, layer):
     if layer == "back":
         floor(doc, 190, 120)
         kit.ring(doc, (RING[0] - 3, RING[1] + 1), (RING[0] - 1, -120))
+        # Near strap behind the figure too: it hangs beside the body, so the torso hides it instead of the strap
+        # cutting through the chest; only its ring is drawn in front, in the hand.
+        doc.add(f'<line x1="{RING[0] + 2}" y1="-120" x2="{RING[0]}" y2="{RING[1] - 8}" stroke="#16181B" stroke-width="3"/>')
     else:
-        kit.ring(doc, RING, (RING[0] + 2, -120))
+        doc.add(f'<circle cx="{RING[0]}" cy="{RING[1]}" r="8" fill="none" stroke="#C8A06A" stroke-width="3.6"/>')
 
 
 PK_W = (264, GROUND - 5)
-PK_ANKLE = (PK_W[0] - 86, GROUND - 10)
+PK_ANKLE = (PK_W[0] - 92, GROUND - 10)
 
 
 def pike_poses():
-    keys = [((162, 148), 48), ((196, 152), 54), ((228, 160), 60)]
+    """Hips stay high over the feet; the shoulders come forward over the hands as the elbows bend, so the
+    head lowers towards the floor between the hands (forearms stay steep, not a forearm-plank fold)."""
     out = []
-    for hip, t in keys:
+    for hip, reach in (((176, 148), 79), ((194, 150), 66), ((210, 153), 54)):
+        s = circle_x(hip, TORSO, PK_W, reach, -1)
+        t = deg(art.sub(s, hip))
         out.append(B(hip, t, aN=G(PK_W, 1, end=0, wrist=True), aF=G((PK_W[0] - 3, PK_W[1]), 1, end=0, wrist=True),
                      lN=G(PK_ANKLE, -1, end=30), lF=G((PK_ANKLE[0] - 3, PK_ANKLE[1]), -1, end=30), h=t + 24))
     return out
@@ -1013,8 +1051,10 @@ def band_chest_scene(doc, j, layer):
         floor(doc, 170, 120)
         kit.post(doc, BC_ANCHOR[0] - 6, BC_ANCHOR[1] - 16)
         kit.band(doc, BC_ANCHOR, kit.grip(j, "F"))
-    else:
+        # Near band too: it runs beside the body (under the arm), so the torso hides it instead of the
+        # band cutting across the chest.
         kit.band(doc, (BC_ANCHOR[0], BC_ANCHOR[1] + 2), kit.grip(j))
+    else:
         kit.handle(doc, kit.grip(j))
 
 
@@ -1029,11 +1069,13 @@ FP_PULLEY = (FP_TOWER - 12, FP_SH[1] - 22)
 def face_pull_poses():
     d = art.norm(art.sub(FP_PULLEY, FP_SH))
     a = art.add(FP_SH, d, 79)
-    b = (FP_SH[0] + 2, FP_SH[1] - 32)
+    # Rope pulled level to the face (hands by the forehead, not behind the head); the elbows stay high (bend -1)
+    # in every key so the in-betweens do not swing the arm over the head.
+    b = (FP_SH[0] + 14, FP_SH[1] - 27)
     out = []
     for k in (0, 0.5, 1):
         g = lerp(a, b, k)
-        out.append(B(FP_HIP, -90 - 3 * k, aN=G(g, -1 if k > 0.2 else 1), aF=G((g[0] - 4, g[1] - 1), -1 if k > 0.2 else 1),
+        out.append(B(FP_HIP, -90 - 3 * k, aN=G(g, -1), aF=G((g[0] - 4, g[1] - 1), -1),
                      lN=G((FP_HIP[0] + 14, FLOOR_Y), -1, end=0), lF=G((FP_HIP[0] - 14, FLOOR_Y), -1, end=0), h=-90))
     return out
 
@@ -1192,7 +1234,7 @@ def pull_apart_scene(doc, j, layer):
 # the lifter's feet on the floor below. Height above the floor shifts things up the picture (YT_K px per px).
 
 YT_HIP = (165, 150)
-YT_T = -12            # body axis (hip → shoulder), head end raised
+YT_T = -4             # body axis (hip → shoulder), head end raised
 YT_FLOOR = 190        # floor level under the bench's centre line
 YT_K = 0.4            # picture shift per unit of height
 YT_LEGS = dict(lN=(150, 160, 160), lF=(164, 166, 166))
@@ -1360,7 +1402,7 @@ SCENES = {
     "seated-db-press": S(make_bench_scene(UP, back_len=110), seated_press_poses(), [UP_BENCH], held_at("N", 11)),
     "arnold-press": S(make_bench_scene(UP, back_len=110), arnold_poses(), [UP_BENCH], held_at("N", 11)),
     "ohp": S(ohp_scene, press_poses(), [(96, 40, 150, GROUND)], held_at("N", 20)),
-    "db-standing-press": S(db_press_scene, press_poses(rack=(14, -20), top=(-1, -81)), [], held_at("N", 11)),
+    "db-standing-press": S(db_press_scene, db_press_poses(), [], held_at("N", 11)),
     "band-overhead-press": S(band_press_scene, band_ohp_poses()),
     "landmine-press": S(landmine_scene, landmine_poses(), [(LM_ANCHOR[0] - 12, GROUND - 10, LM_ANCHOR[0] + 12, GROUND)],
                         both(held_at("N", 18), along(grip_n, LM_ANCHOR, 4))),
@@ -1376,13 +1418,13 @@ SCENES = {
                       [(IR_GRIP[0] - 20, IR_GRIP[1] - 40, IR_GRIP[0] + 4, IR_GRIP[1])]),
     "table-row": S(table_row_scene, hang_row_poses(TR_ANKLE, TR_GRIP), [(TR_GRIP[0] - 190, TR_TOP, TR_GRIP[0] + 10, GROUND)]),
     "pull-up": S(pullup_scene, pull_poses(), [PULL_BAR], floor=False),
-    "chin-up": S(pullup_scene, pull_poses(end=(-14, 24), mid=(-6, 54), t=(-90, -94, -97)), [PULL_BAR], floor=False),
+    "chin-up": S(pullup_scene, pull_poses(end=(-24, 12), mid=(-18, 50), t=(-90, -95, -100)), [PULL_BAR], floor=False),
     "weighted-pull-up": S(weighted_scene, pull_poses(), [PULL_BAR],
                           lambda j: [((j["hip"][0] + 10, j["hip"][1] + 56), 14)], floor=False),
     "band-assisted-pull-up": S(band_assist_scene, pull_poses(legs=dict(lN=(38, 128, 110), lF=(70, 150, 124))),
                                [PULL_BAR], floor=False),
     "scap-pull-up": S(scap_scene, scap_poses(), [PULL_BAR], floor=False),
-    "dips": S(dips_scene, dip_poses(), [(140, DIP_Y - 6, 272, GROUND)]),
+    "dips": S(dips_scene, dip_poses(), [(82, DIP_Y - 6, 272, GROUND)]),
     "ring-push-up": S(ring_push_scene, ring_push_poses(), [(RING[0] - 12, RING[1] - 40, RING[0] + 12, RING[1] + 10)]),
     "pike-push-up": S(floor_scene, pike_poses()),
     "prone-pulldown": S(mat_scene(84, 290), prone_pulldown_poses(), [(84, GROUND - 6, 290, GROUND)]),

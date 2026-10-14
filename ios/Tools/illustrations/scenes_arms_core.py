@@ -159,9 +159,9 @@ def dead_bug_scene(doc, j, layer):
 WHEEL_R = 12
 
 
-def ab_wheel_pose(thigh, t, knee=(130, MAT_Y - 7), **kw):
+def ab_wheel_pose(thigh, t, knee=(130, MAT_Y - 7), h=None, **kw):
     def make(a):
-        return P(t=t, h=t + 8, lN=(thigh, 180, 180), lF=(thigh, 182, 182), aN=(a, a, a), aF=(a + 2, a + 2, a + 2),
+        return P(t=t, h=t + 8 if h is None else h, lN=(thigh, 180, 180), lF=(thigh, 182, 182), aN=(a, a, a), aF=(a + 2, a + 2, a + 2),
                  pin=("kneeN", knee), **kw)
     # Arms straight; solve their angle so the hands sit on the wheel axle.
     return lie_floor(lambda a: make(a), "wristN", GROUND - WHEEL_R - 4, -20, 90)
@@ -306,7 +306,7 @@ def landmine_rot_scene(doc, j, layer):
 
 # ---- hanging core work -------------------------------------------------------------------------
 
-BAR = (196, -14)
+BAR = (196, -30)  # high enough that the feet hang clear of the floor
 
 
 def hang(t=-90, h=None, legs=((94, 104, 70), (92, 108, 72)), arm=-86, **kw):
@@ -630,8 +630,11 @@ def slr_scene(doc, j, layer):
         e = j["elbowF"]
         th = math.radians(ang(e, j["wristF"]))
         k = math.sin(th)
-        j["wristF"] = (e[0] + 2, e[1] + max(5, abs(k) * art.F.FOREARM) * (1 if k >= 0 else -1))
-        j["handF"] = (j["wristF"][0], j["wristF"][1] + max(4, abs(k) * art.F.HAND) * (1 if k >= 0 else -1))
+        # Continuous through k = 0 (forearm pointing at the camera): a small sideways offset keeps the
+        # foreshortened forearm and hand visible instead of a minimum length that flips sign (a snap).
+        side = 1 - abs(k)
+        j["wristF"] = (e[0] + 2 + 5 * side, e[1] + k * art.F.FOREARM)
+        j["handF"] = (j["wristF"][0] + 4 * side, j["wristF"][1] + k * art.F.HAND)
     else:
         e = j["elbowF"]
         # Rolled towel between elbow and ribs.
@@ -658,7 +661,7 @@ def incline_pose(fore):
              aF=(94, fore + 3), pin=("hip", (INC["seat_x0"] + 10, INC["seat_top"] - 13)), inset="tr")
 
 
-FB = dict(x0=96, x1=226, top=222)
+FB = dict(x0=96, x1=244, top=222)
 FB_HIP = (210, FB["top"] - 15)
 
 
@@ -712,10 +715,127 @@ def reverse_fly_pose(lift):
     return base
 
 
+# Standing bent-over reverse fly: a small 3D body (local variant of the scenes_var_push.py model, as used by
+# incline-reverse-fly) seen from behind and to the side, so the hip hinge and the arms opening out to the sides
+# both read. World axes: X right (the figure's near side +X), Y up (floor 0), Z the way the figure faces.
+
+def _v3(*vs):
+    return tuple(sum(c) for c in zip(*vs))
+
+
+def _v3k(v, k):
+    return tuple(c * k for c in v)
+
+
+def _unit3(v):
+    n = math.sqrt(sum(c * c for c in v)) or 1.0
+    return tuple(c / n for c in v)
+
+
+def _ik3(a, t, l1, l2, pole):
+    """Knee of a two-link chain a→t, bent towards `pole`."""
+    d = tuple(x - y for x, y in zip(t, a))
+    ln = math.sqrt(sum(c * c for c in d))
+    dist = max(abs(l1 - l2) + 0.01, min(ln, l1 + l2 - 0.01))
+    u = _unit3(d)
+    x = (l1 * l1 - l2 * l2 + dist * dist) / (2 * dist)
+    h = math.sqrt(max(0.0, l1 * l1 - x * x))
+    pd = sum(p * c for p, c in zip(pole, u))
+    return _v3(a, _v3k(u, x), _v3k(_unit3(_v3(pole, _v3k(u, -pd))), h))
+
+
+class _Cam:
+    """Orthographic camera: turned `yaw` degrees about the vertical, raised `elev` degrees."""
+
+    def __init__(self, elev, origin, yaw):
+        self.c, self.s, self.o = math.cos(math.radians(elev)), math.sin(math.radians(elev)), origin
+        self.yc, self.ys = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
+
+    def __call__(self, p):
+        x, y, z = p
+        x, z = x * self.yc - z * self.ys, x * self.ys + z * self.yc
+        return (self.o[0] + x, self.o[1] - (y * self.c - z * self.s))
+
+
+BRF_CAM = _Cam(20, (200, GROUND - 4), 118)
+BRF_A = math.radians(28)  # torso above horizontal: hinged at the hips
+BRF_D = (0, math.sin(BRF_A), math.cos(BRF_A))   # hip → shoulder
+BRF_N = (0, -math.cos(BRF_A), math.sin(BRF_A))  # out of the chest (towards the floor)
+BRF_HIP = (0, 92, -14)  # hips pushed back over slightly bent knees
+BRF_SW, BRF_HW = art.PROFILES["torso"][-1][1] * 1.45 * 0.9, 9.0
+BRF_FRAMES = ((4, 8), (46, 14), (86, 18))  # (arm angle out from hanging, elbow bend)
+
+
+def bent_fly_body(theta, bend):
+    F = art.F
+    S = _v3(BRF_HIP, _v3k(BRF_D, F.TORSO))
+    hd = _unit3(_v3(BRF_D, _v3k(BRF_N, -0.2)))
+    J = {"shoulder": S, "hip": BRF_HIP, "neck": _v3(S, _v3k(hd, 10)), "head": _v3(S, _v3k(hd, 25))}
+    for side, s in (("N", 1), ("F", -1)):
+        sh, hp = _v3(S, (s * BRF_SW, 0, 0)), _v3(BRF_HIP, (s * BRF_HW, 0, 0))
+        ank = (s * 12, 4, 8)
+        knee = _ik3(hp, ank, F.THIGH, F.SHIN, (0, 0, 1))
+        r, rb = math.radians(theta), math.radians(theta + bend)
+        up = _unit3((s * math.sin(r), -math.cos(r), 0.08))
+        fo = _unit3((s * math.sin(rb) * 0.94, -math.cos(rb), 0.2))
+        e = _v3(sh, _v3k(up, F.UPPER_ARM))
+        w = _v3(e, _v3k(fo, F.FOREARM))
+        J.update({"shoulder" + side: sh, "hip" + side: hp, "knee" + side: knee, "ankle" + side: ank,
+                  "toe" + side: _v3(ank, (0, -3, 14)), "elbow" + side: e, "wrist" + side: w,
+                  "hand" + side: _v3(w, _v3k(fo, F.HAND))})
+    return J
+
+
+def _brf_grip(J, side):
+    return BRF_CAM(_v3k(_v3(J["wrist" + side], J["hand" + side]), 0.5))
+
+
+def bent_fly_scene(theta, bend):
+    J = bent_fly_body(theta, bend)
+
+    def scene(doc, j, layer):
+        if layer == "back":
+            art.floor(doc)
+            pts = [BRF_CAM((14 * math.cos(a / 12 * math.pi), 0, 2 + 26 * math.sin(a / 12 * math.pi))) for a in range(24)]
+            doc.add(f'<polygon points="{" ".join(f"{x:.1f},{y:.1f}" for x, y in pts)}" fill="#000" fill-opacity="0.16"/>')
+            for k, v in J.items():
+                j[k] = BRF_CAM(v)
+            art.db_end(doc, _brf_grip(J, "F"), 8.5)
+        else:
+            art.db_end(doc, _brf_grip(J, "N"), 9.5)
+    return scene
+
+
+def bent_fly_entry():
+    pts = []
+    for th, b in BRF_FRAMES:
+        pts += [BRF_CAM(v) for v in bent_fly_body(th, b).values()]
+    pts.append(BRF_CAM((0, 0, 0)))
+    xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+    m = 20
+    x0, x1, y0, y1 = min(xs) - m, max(xs) + m, min(ys) - m, max(ys) + m
+    w, h = x1 - x0, y1 - y0
+    if w < h * 4 / 3:
+        x0 -= (h * 4 / 3 - w) / 2
+        w = h * 4 / 3
+    else:
+        y0 -= (w * 0.75 - h) / 2
+    view = (round(x0, 1), round(y0, 1), round(w, 1))
+    still = P(t=-90, front="back", pin=("hip", (200, 150)), inset="tr")
+
+    def render(ex):
+        frames = art.frames([still] * 3)
+        return [art.render(p, ex, bent_fly_scene(*art.sample(BRF_FRAMES, art.progress(i), art.lerp_num)),
+                           prefix=f"f{i}", view=view, heat=art.glow(i)) for i, p in enumerate(frames)]
+    return render
+
+
 # ---- plate-loaded crunch -----------------------------------------------------------------------
 
 CR_HIP = (150, 202)
-CR_PIVOT = (132, 150)
+CR_PIVOT = (146, 204)  # lever pivot beside the seat, on the hip axis: the lever turns with the torso
+CR_GRIP0 = (131, 109)  # handles at the start pose (hands behind the head)
+CR_ELBOW0 = (110, 122)  # bend of the dog-leg lever behind the backrest at the start pose
 
 
 def crunch_machine_pose(t, h, curl=0):
@@ -727,26 +847,37 @@ def crunch_machine_pose(t, h, curl=0):
     return arms_to(base, tgt, (tgt[0] - 1, tgt[1] + 1), bend=1, hand=ang(j["neck"], j["head"]))
 
 
+def _cr_turn(p, rot):
+    """Point p of the lever (start position) turned by rot degrees about the pivot."""
+    d = art.sub(p, CR_PIVOT)
+    c, s = math.cos(math.radians(rot)), math.sin(math.radians(rot))
+    return (CR_PIVOT[0] + d[0] * c - d[1] * s, CR_PIVOT[1] + d[0] * s + d[1] * c)
+
+
 def crunch_machine_scene(doc, j, layer):
     g = kit.grip(j)
-    lever = art.norm(art.sub(g, CR_PIVOT))
-    la = math.degrees(math.atan2(lever[1], lever[0]))
-    horn = art.ang_pt(CR_PIVOT, la + 160, 46)
+    # Rigid dog-leg lever: from the pivot up behind the back, then forward to the handles by the head; the
+    # plate horn points back from the pivot, so the plate rises behind the seat as the torso curls.
+    rot = ang(CR_PIVOT, g) - ang(CR_PIVOT, CR_GRIP0)
+    bend = _cr_turn(CR_ELBOW0, rot)
+    horn = art.ang_pt(CR_PIVOT, 172 + rot, 58)
     if layer == "back":
         floor_back(doc, 170, 110)
-        kit.feet(doc, 70, 270)
+        kit.feet(doc, 60, 270)
         # Seat post, seat, backrest column + pad, foot-roller post.
         art.tube(doc, (150, 220), (150, GROUND - 2), 9, "butt")
-        art.pad(doc, (118, 216), (194, 216), 12)
-        art.tube(doc, (108, GROUND - 2), (112, 112), 10)
+        art.tube(doc, (108, GROUND - 2), (112, 132), 10)
+        art.tube(doc, (112, 214), (150, 214), 7)
         art.pad(doc, (124, 214), (116, 140), 12)
         art.tube(doc, (150, 236), (238, 236), 7)
         art.tube(doc, (236, 236), (236, GROUND - 2), 7, "butt")
-        art.tube(doc, (112, CR_PIVOT[1]), CR_PIVOT, 8)
-        # Lever: plate horn behind the pivot, arm up to the handles.
+        # Lever, plate horn + plate, pivot hub.
         art.tube(doc, CR_PIVOT, horn, 7)
-        art.plate(doc, horn, 20)
-        art.tube(doc, CR_PIVOT, art.add(g, lever, -4), 6)
+        art.plate(doc, horn, 19)
+        art.tube(doc, CR_PIVOT, bend, 7)
+        art.tube(doc, bend, art.add(g, art.norm(art.sub(g, bend)), -3), 6)
+        doc.add(f'<circle cx="{bend[0]:.1f}" cy="{bend[1]:.1f}" r="3.6" fill="#2A2E34"/>')
+        art.pad(doc, (118, 216), (194, 216), 12)
         doc.add(f'<circle cx="{CR_PIVOT[0]}" cy="{CR_PIVOT[1]}" r="6" fill="#2A2E34" stroke="#0A0B0D" stroke-width="0.9"/>'
                 f'<circle cx="{CR_PIVOT[0]}" cy="{CR_PIVOT[1]}" r="2.2" fill="{art.CHROME}"/>')
     else:
@@ -842,8 +973,19 @@ def rot_scene(doc, j, layer):
         top = art.stack(doc, ROT_X + 98, 86, GROUND - 4, 34, 12, abs(math.sin(phi)) * 14)
         art.pulley(doc, (top[0], 52), 6)
         art.cable(doc, [(top[0] + 6, 52), top])
-        art.cable(doc, [(ROT_X + 4, 46), (top[0], 46)])
+        art.cable(doc, [(ROT_X, 44), (top[0], 46)])
         art.tube(doc, (ROT_X, ROT_HIP_Y + 24), (ROT_X, GROUND - 2), 10, "butt")
+        # Rotating yoke: cam hub under the top beam (cable to the stack), an arm forward to a crossbar over the
+        # head and drop rods down behind the shoulders to the handle bar, so the handles turn with the cam.
+        yt = 62
+        fx = ROT_X + dfw * math.sin(phi)
+        xs = [c[0] + sx * R * math.cos(phi) + dfw * math.sin(phi) for sx in (1, -1)]
+        art.tube(doc, (ROT_X, 52), (fx, yt), 7)
+        art.tube(doc, (min(xs) - 3, yt), (max(xs) + 3, yt), 6)
+        for x in xs:
+            art.tube(doc, (x, yt), (x, hy), 5)
+        doc.add(f'<circle cx="{ROT_X}" cy="52" r="8" fill="#2A2E34" stroke="#0A0B0D" stroke-width="0.9"/>'
+                f'<circle cx="{ROT_X}" cy="52" r="3" fill="{art.CHROME}"/>')
     else:
         phi = j["_phi"]
         c = j["shoulder"]
@@ -946,38 +1088,49 @@ def finger_scene(doc, j, layer):
     fore = art.Seg((wx + 8, 262), (wx, wy + 6), [(0, 36, 36), (0.6, 32, 32), (1, 27, 27)], "up")
     d = art.draw_segment(doc, fore, art.SKIN_NEAR)
     art.draw_muscles(doc, fore, "fore", {"forearmExtensors": art.PRIMARY}, d, False, "back")
-    # Thumb (left: right hand seen from the back), then the back of the hand.
+    # Thumb (left: right hand seen from the back), palm and fingers: index .. little, together (s=0) or
+    # fanned (s=1). Geometry first, so the band can be drawn partly behind and partly in front of them.
     tb = (wx - 22, wy - 22)
-    ta = -128 - 22 * s
+    ta = -116 - 36 * s
     thumb = art.Seg(tb, art.ang_pt(tb, ta, 66), [(0, 15, 15), (0.5, 11, 11), (1, 9, 9)])
-    art.draw_segment(doc, thumb, art.SKIN_NEAR)
     palm = art.Seg((wx, wy + 4), (wx + 2, wy - 72), [(0, 27, 27), (0.45, 34, 34), (1, 36, 36)], "up")
+    lens, ws = (84, 92, 86, 70), (9.6, 10, 9.4, 8.4)
+    xs = (-26, -9, 9, 25)
+    fingers = []
+    for i in range(4):
+        base = (wx + 2 + xs[i], wy - 70 + abs(xs[i]) * 0.12)
+        fingers.append((base, -90 + (i - 1.5) * (2.5 + 19 * s) + 2, lens[i], ws[i]))
+    # Band looped round the fingertips and the thumb tip: the near strand crosses the backs of the fingers,
+    # the far strand shows in the gaps and wraps round the outer edges; it thins as the hand opens.
+    tips = [art.Seg(bs, art.ang_pt(bs, a, ln), [(0, w, w), (1, w * 0.78, w * 0.78)]) for bs, a, ln, w in fingers]
+    u = 0.8
+    near = [thumb.pos(0.82)] + [f.pos(u - (0.05 if i == 3 else 0)) for i, f in enumerate(tips)]
+    lo = min(thumb.at(0.82, 1), thumb.at(0.82, -1), key=lambda p: p[0])
+    hi = max(tips[3].at(u - 0.05, 1), tips[3].at(u - 0.05, -1), key=lambda p: p[0])
+    lo, hi = (lo[0] - 2, lo[1]), (hi[0] + 2, hi[1])
+    far = [(x, y - 2.5) for x, y in reversed(near)]
+    bw = 6.4 - 2.4 * s
+    col = "#2EAD5B"
+
+    def band(d, shade=False):
+        doc.add(f'<path d="{d}" fill="none" stroke="#0A0B0D" stroke-width="{bw + 2:.1f}" stroke-linecap="round" '
+                f'stroke-linejoin="round"/>'
+                f'<path d="{d}" fill="none" stroke="{"#1F7A40" if shade else col}" stroke-width="{bw:.1f}" '
+                f'stroke-linecap="round" stroke-linejoin="round"/>')
+    band("M" + " L".join(f"{x:.1f},{y:.1f}" for x, y in [lo] + near + [hi] + far) + " Z", shade=True)
+    art.draw_segment(doc, thumb, art.SKIN_NEAR)
     art.draw_segment(doc, palm, art.SKIN_NEAR)
     # Tendons on the back of the hand.
     for k in (-0.55, -0.18, 0.18, 0.55):
         a, b = palm.at(0.18, k * 0.5), palm.at(0.95, k)
         doc.add(f'<line x1="{a[0]:.1f}" y1="{a[1]:.1f}" x2="{b[0]:.1f}" y2="{b[1]:.1f}" stroke="#000" stroke-opacity="0.08" '
                 f'stroke-width="2"/>')
-    # Fingers: index .. little, together (s=0) or fanned (s=1).
-    lens, ws = (84, 92, 86, 70), (9.6, 10, 9.4, 8.4)
-    xs = (-26, -9, 9, 25)
-    band_pts = [thumb.pos(0.78)]
-    for i in range(4):
-        base = (wx + 2 + xs[i], wy - 70 + abs(xs[i]) * 0.12)
-        a = -90 + (i - 1.5) * (2.5 + 15 * s) + 2
-        seg = _finger(doc, base, a, lens[i], ws[i])
-        band_pts.append(seg.pos(0.78 - (0.06 if i == 3 else 0)))
-    # Band looped round fingers + thumb: stretched (thinner, lighter) as the hand opens.
-    bw = 7 - 2.6 * s
-    col = "#2EAD5B"
-    left, right = band_pts[0], band_pts[-1]
-    mid_y = sum(p[1] for p in band_pts[1:]) / 4
-    d = (f"M{left[0] - 5:.1f},{left[1]:.1f} Q{(left[0] + right[0]) / 2:.1f},{mid_y + 22:.1f} {right[0] + 6:.1f},{right[1]:.1f}")
-    doc.add(f'<path d="{d}" fill="none" stroke="#0A0B0D" stroke-width="{bw + 2:.1f}" stroke-linecap="round"/>'
-            f'<path d="{d}" fill="none" stroke="{col}" stroke-width="{bw:.1f}" stroke-linecap="round"/>')
+    for bs, a, ln, w in fingers:
+        _finger(doc, bs, a, ln, w)
+    band("M" + " L".join(f"{x:.1f},{y:.1f}" for x, y in [lo] + near + [hi]))
     if s > 0.9:
-        kit.motion(doc, (left[0] - 14, left[1] - 4), 200, 20)
-        kit.motion(doc, (right[0] + 16, right[1] - 4), -20, 20)
+        kit.motion(doc, (lo[0] - 12, lo[1] - 4), 200, 20)
+        kit.motion(doc, (hi[0] + 12, hi[1] - 4), -20, 20)
 
 
 # ---- scenes ------------------------------------------------------------------------------------
@@ -995,8 +1148,8 @@ SCENES = {
     ], (36, 46, 330)),
     "ab-wheel": (ab_wheel_scene, [
         ab_wheel_pose(96, -36),
-        ab_wheel_pose(150, -6),
-        ab_wheel_pose(164, 3),
+        ab_wheel_pose(146, -18, h=-14),
+        ab_wheel_pose(158, -9, h=-7),
     ], (52, 84, 320)),
     "trx-body-saw": (body_saw_scene, [
         body_saw_pose(90),
@@ -1018,12 +1171,12 @@ SCENES = {
     "hanging-knee-raise": (hang_scene, [
         hang(),
         hang(t=-100, h=-88, legs=((-12, 88, 10), (-8, 92, 14)), curl=4, arm=-78),
-    ], (0, -30, 400)),
+    ], (-10, -46, 420)),
     "toes-to-bar": (hang_scene, [
         hang(),
         hang(t=-110, h=-96, legs=((-40, 40, -20), (-36, 44, -16)), curl=5, arm=-70),
         hang(t=-136, h=-112, legs=((-96, -96, -110), (-93, -93, -106)), curl=6, arm=-60),
-    ], (0, -30, 400)),
+    ], (-10, -46, 420)),
     "cable-crunch": (cable_crunch_scene, [
         cable_crunch_pose(-72, -66),
         cable_crunch_pose(-40, -20, 5),
@@ -1081,8 +1234,8 @@ SCENES = {
         seated_forearm_pose(0, curl=70 / CURL_CH),
     ], (66, 104, 222)),
     "db-overhead-triceps": (oh_db_scene, [
-        P(t=-88, h=-84, aN=(-78, 128, 100), aF=(-80, 126, 98), lF=(92, 88, 0), pin=("ankleN", (196, GROUND - 4))),
-        P(t=-88, h=-84, aN=(-84, 272, 260), aF=(-86, 270, 258), lF=(92, 88, 0), pin=("ankleN", (196, GROUND - 4))),
+        P(t=-88, h=-70, aN=(-96, 122, 100), aF=(-98, 120, 98), lF=(92, 88, 0), pin=("ankleN", (196, GROUND - 4))),
+        P(t=-88, h=-72, aN=(-95, 268, 260), aF=(-97, 266, 258), lF=(92, 88, 0), pin=("ankleN", (196, GROUND - 4))),
     ], (8, -24, 392)),
     "reverse-crunch": (mat_scene(40, 330), [
         P(t=180, h=180, lN=(-90, 0, -60), lF=(-88, 2, -58), aN=(4, 2, 2), aF=(6, 4, 4),
@@ -1095,8 +1248,8 @@ SCENES = {
         copenhagen_pose(True),
     ], (50, 60, 320)),
     "side-lying-external-rotation": (slr_scene, [
-        slr_pose(40),
-        slr_pose(-30),
+        slr_pose(14),
+        slr_pose(-40),
         slr_pose(-86),
     ], (34, 74, 300)),
     "barbell-curl": (curl_scene("bar", plate=22), curl_poses(), (40, 22, 330)),
@@ -1110,12 +1263,9 @@ SCENES = {
     ], (56, 66, 290)),
     "db-french-press": (lying_tri_scene("db"), [
         lying_pose(-100),
-        lying_pose(-234),
+        lying_pose(-208, upper=-116),
     ], (56, 66, 290)),
-    "db-reverse-fly": (reverse_fly_scene, [
-        dict(reverse_fly_pose(0), inset="bl"),
-        dict(reverse_fly_pose(86), inset="bl"),
-    ], (46, 36, 310)),
+    "db-reverse-fly": bent_fly_entry(),
     "diamond-push-up": (floor_scene(), [
         hands_plank((102, 102, 0)),
         hands_plank((136, 76, 0)),

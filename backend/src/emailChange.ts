@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { publicUser, type PublicUser, type UserRow } from './auth.ts';
 import type { Config } from './config.ts';
-import { hmac, safeEqualHex, sixDigitCode, verifyPassword } from './crypto.ts';
+import { hmac, safeEqualHex, sixDigitCode } from './crypto.ts';
 import { type DB, tx } from './db.ts';
 import { ApiError } from './errors.ts';
 import type { Mailer } from './mailer.ts';
@@ -46,10 +46,9 @@ export class EmailChangeService {
     return hmac(this.d.config.codePepper, `${userId}:change_email:${newEmail.toLowerCase()}:${code}`);
   }
 
-  async request(userId: string, newEmail: string, password: string | undefined): Promise<void> {
+  /** Caller has already confirmed it's the member (SecurityService.requireReauth, #257). */
+  async request(userId: string, newEmail: string): Promise<void> {
     const u = this.user(userId)!;
-    if (u.password_hash && (!password || !(await verifyPassword(password, u.password_hash))))
-      throw new ApiError(401, 'invalid_credentials', 'Password is incorrect.');
     if (u.email && u.email.toLowerCase() === newEmail) throw new ApiError(400, 'same_email', 'That is already your email.');
 
     const owner = this.d.db.prepare('SELECT id FROM users WHERE email = ?').get(newEmail) as { id: string } | undefined;

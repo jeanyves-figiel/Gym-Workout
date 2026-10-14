@@ -28,6 +28,9 @@ export const purgeExpired = (db: DB, now: Date = new Date()): PurgeResult => {
       )
       .run(iso, cutoff, iso).changes,
   );
+  // Re-auth grants/codes, 2-step challenges, passkey challenges (#257): all short-lived.
+  for (const t of ['reauth_grants', 'reauth_codes', 'mfa_challenges', 'webauthn_challenges'])
+    db.prepare(`DELETE FROM ${t} WHERE expires_at <= ?`).run(iso);
   return { codes, emailChanges, refreshTokens };
 };
 

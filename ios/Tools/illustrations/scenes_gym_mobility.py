@@ -217,9 +217,28 @@ DD_HAND = (276, MAT - WRIST_UP)
 DD_FOOT = 128
 
 
+def _dog_apex():
+    """Hips at the top of the inverted V: legs straight to the heels, trunk and arms in line to the hands."""
+    heel, leg = (DD_FOOT, MAT - 5), F.THIGH + F.SHIN - 2
+    reach_ = F.TORSO + F.UPPER_ARM + F.FOREARM - 6
+
+    def at(a):
+        return (heel[0] + leg * math.cos(math.radians(a)), heel[1] + leg * math.sin(math.radians(a)))
+    a = solve(lambda a: dist(at(a), DD_HAND) - reach_, -89, -20)
+    return at(a)
+
+
+DD_APEX = _dog_apex()
+
+
 def _dog(k):
     arm = F.UPPER_ARM + F.FOREARM
-    hip = lerp2((DD_FOOT + 100, MAT - 70), (DD_FOOT + 74, MAT - 150), k)
+    hip = lerp2((DD_FOOT + 100, MAT - 70), DD_APEX, k)
+    # The feet stay on the mat: never lift the hip beyond the legs' reach.
+    heel = (DD_FOOT, lerp(MAT - 12, MAT - 5, k))
+    d = dist(hip, heel)
+    if d > F.THIGH + F.SHIN - 2:
+        hip = lerp2(heel, hip, (F.THIGH + F.SHIN - 2) / d)
 
     def mk(t):
         return P(t=t, h=t + 10, aN=(90, 90, 0), aF=(92, 92, 0), pin=("hip", hip))
@@ -351,11 +370,11 @@ MBC_WALL = MBC_C[0] + MBC_R - 1
 
 
 def _ball_chest(k):
+    """k 0 = hand on the wall by the ribs, 0.5 = at shoulder height, 1 = overhead: the hand slides up the wall
+    (it no longer swings up from a hanging arm through the wall)."""
     p = dict(MBC_P)
     s = joints(p)["shoulder"]
-    if k == 0:
-        return dict(p, aN=(96, 84, 84), aF=(98, 86, 86))
-    tgt = (MBC_WALL - 4, lerp(s[1] + 4, s[1] - 66, (k - 0.5) * 2))
+    tgt = (MBC_WALL - 8, s[1] + 34 if k == 0 else lerp(s[1] + 4, s[1] - 75, (k - 0.5) * 2))
     p = reach(p, "aN", tgt, end=-90, pick=lambda m: m[1] if k < 1 else -m[0])
     return dict(p, aF=(98, 86, 86))
 
@@ -453,21 +472,32 @@ BZ_HIP = (190, 170)
 
 
 def _brettzel(k):
-    shin = lerp(-180, -80, min(1, k * 2)) if k < 1 else -70
-    p = P(t=0, h=0, lN=(90, 180, 180), lF=(180, shin, shin + 90), aN=(80, 20, 20), aF=(70, 10, 10),
-          pin=("hip", BZ_HIP))
-    if k == 1:  # chest turns open: head and shoulders look back over the top side
-        p = dict(p, h=-34, curl=-3)
+    """Set up from the first frame (the stretch is the rotation, not getting into it): top knee forward, held
+    down by the bottom hand; bottom heel pulled behind the hip by the top hand. k = how far the chest opens:
+    head and shoulders turn back over the top side, the heel drawn in a touch further."""
+    shin = lerp(-18, -30, k)
+    p = P(t=0, h=lerp(0, -42, k), curl=lerp(0, -4, k), lN=(70, 160, 160), lF=(195, shin, shin - 90),
+          aN=(-150, -170, -170), aF=(80, 20, 20), pin=("hip", BZ_HIP))
     j = joints(p)
-    if k > 0:
-        a = j["ankleF"]
-        p = reach(p, "aN", (a[0] + 2, a[1] + 2), end=None, pick=lambda m: -m[1])
+    a = j["ankleF"]
+    p = reach(p, "aN", (a[0] + 3, a[1] - 1), end=None, pick=lambda m: -m[1])
     kn = j["kneeN"]
-    return reach(p, "aF", (kn[0] + 4, kn[1] - 2), end=None, pick=lambda m: m[1])
+    return reach(p, "aF", (kn[0] + 4, kn[1] - 3), end=None, pick=lambda m: m[1])
 
 
-add("brettzel", top_entry(top_scene((40, 100, 330, 250)), [_brettzel(0), _brettzel(0.5), _brettzel(1)],
-                          [(40, 100, 330, 250)]))
+BZ_MAT = (70, 100, 320, 252)
+
+
+def bz_scene(doc, j, layer):
+    """Seen from above on a light, close-fitting mat (a dark full-frame slab hid the pose)."""
+    if layer == "back":
+        x0, y0, x1, y1 = BZ_MAT
+        g = doc.box_grad([(0, "#6FB4D2"), (1, "#5598B8")])
+        doc.add(f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{x1 - x0:.1f}" height="{y1 - y0:.1f}" rx="8" fill="{g}" '
+                f'stroke="#0A0B0D" stroke-opacity="0.35" stroke-width="0.8"/>')
+
+
+add("brettzel", top_entry(bz_scene, [_brettzel(0), _brettzel(0.5), _brettzel(1)], [BZ_MAT]))
 
 
 # ---- adductor rock-back: quadruped, near leg straight out to the side (towards the camera), hips rock back -----------

@@ -4,14 +4,14 @@
     {
       "symbol": "books.vertical.fill",
       "tint": "strength",
-      "title": "10 new ready-made workouts",
-      "body": "The library now has Push power, Pull strength, Posterior chain, Dumbbell full body, Bodyweight anywhere, Machine starter, Core crusher, HIIT circuit, Climber's strength and Mobility reset, each with its warm-up and cool-down."
+      "title": "10 new workouts, easy to find",
+      "body": "Push power, Pull strength, Posterior chain, Dumbbell full body, Bodyweight anywhere, Machine starter, Core crusher, HIIT circuit, Climber's strength and Mobility reset. Explore → Workouts has goal chips and a search by name, muscle or goal."
     },
     {
-      "symbol": "magnifyingglass",
-      "tint": "cardio",
-      "title": "Find the right workout fast",
-      "body": "Explore → Workouts has goal chips (Muscle, Full body, Cardio, Core, Mobility) and a search: type a name, a muscle like \"glutes\" or a goal. Cards now show the muscles worked in full."
+      "symbol": "flag.checkered",
+      "tint": "power",
+      "title": "Training programmes",
+      "body": "Explore → Programmes: Strength foundation (8 weeks), Muscle builder (6) and Climber's power (6). A programme runs your plan in phases with signature workouts and ends with a PR test. Pause it any time; your own plan comes back."
     },
     {
       "symbol": "paintpalette.fill",
@@ -20,10 +20,16 @@
       "body": "Account → Style: swipe through the styles, each with its real iPhone and Watch screens, then tap Use to switch."
     },
     {
-      "symbol": "flag.checkered",
+      "symbol": "figure.strengthtraining.traditional",
+      "tint": "strength",
+      "title": "Fluid motion, every exercise",
+      "body": "Fast moves like burpees, swings and twists now play with up to 49 poses, so nothing jumps. Every animation was checked again: hands stay on the bar, bodies sit on the bench and limbs no longer pass through machines."
+    },
+    {
+      "symbol": "checkmark.shield.fill",
       "tint": "power",
-      "title": "Training programmes",
-      "body": "Explore → Programmes: Strength foundation (8 weeks), Muscle builder (6) and Climber's power (6). A programme runs your plan in phases with signature workouts and ends with a PR test. Pause it any time; your own plan comes back."
+      "title": "Safer account: passkeys and 2-step",
+      "body": "Password, email and account changes now ask you to confirm it's you first. Account → Security: add a passkey to sign in with Face ID, or turn on 2-step codes from an authenticator app. Apple and passkeys skip 2-step."
     }
   ]
 }

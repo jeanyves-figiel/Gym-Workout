@@ -522,7 +522,22 @@ def pad(doc, a, b, t=11, stitch=True):
                f'stroke-opacity="0.55" stroke-width="0.6" stroke-dasharray="2 1.6"/>' if stitch else "") + "</g>")
 
 
+FACE = None  # head of the figure while the scene draws in front of it (render), for `plate`
+
+
 def plate(doc, c, r=30, hub=True):
+    # #256: a plate drawn in front of the face (bar on the back or pressed past the head, side view) is see-through,
+    # so the lifter's head still reads instead of a black disc where the face should be.
+    # Fades in steps of the distance (no on / off switch between two frames, which would flicker).
+    k = min(max((math.dist(c, FACE) - r) / 24, 0), 1) if FACE is not None else 1
+    if k < 1:
+        doc.add(f'<g opacity="{0.5 + 0.5 * k:.2f}">')
+    _plate(doc, c, r, hub)
+    if k < 1:
+        doc.add("</g>")
+
+
+def _plate(doc, c, r, hub):
     g = doc.lin((c[0] - r, c[1] - r), (c[0] + r, c[1] + r), [(0, "#3A3F46"), (0.5, "#1B1E22"), (1, "#0E1012")])
     doc.add(f'<circle cx="{c[0]:.1f}" cy="{c[1]:.1f}" r="{r}" fill="{g}" stroke="#08090A" stroke-width="1"/>')
     doc.add(f'<circle cx="{c[0]:.1f}" cy="{c[1]:.1f}" r="{r * 0.82:.1f}" fill="none" stroke="#4A5058" stroke-opacity="0.7" stroke-width="1.2"/>')
@@ -750,17 +765,53 @@ def lerp_pose(a, b, k):
         ja, jb = F.place(a), F.place(b)
         names = [p[0] for p in (a.get("pin"), b.get("pin")) if p and p[0] in ja and p[0] in jb]
         n = min(names, key=lambda m: math.dist(ja[m], jb[m])) if names else (a.get("pin") or b["pin"])[0]
+        # #256: a foot or hand planted in both poses (squat feet, push-up hands) stays planted; pinning the moving
+        # hip instead slid the feet and snapped them back when the floor guard bent the knee.
+        planted = [m for m in ("ankleN", "ankleF", "wristN", "wristF")
+                   if m in ja and m in jb and math.dist(ja[m], jb[m]) < 1.5]
+        if planted and math.dist(ja[n], jb[n]) > 3:
+            n = planted[0]
         pa, pb = ja[n], jb[n]
         out["pin"] = (n, (pa[0] + (pb[0] - pa[0]) * k, pa[1] + (pb[1] - pa[1]) * k))
         out.pop("lift", None)
     for key in ("props", "front_props"):
         if key in b and key not in a:
             out[key] = b[key]
+        elif key in a and key in b and len(a[key]) == len(b[key]):
+            out[key] = [_lerp_prop(x, y, k) for x, y in zip(a[key], b[key])]
     return out
+
+
+def _num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) or \
+        isinstance(v, tuple) and all(_num(x) for x in v)
+
+
+def _lerp_prop(a, b, k):
+    """#256: a prop drawn by a function whose numbers differ between the key poses (an elliptical's pedal phase, a
+    ball's centre) gets those numbers interpolated, instead of the equipment holding pose a's position and jumping
+    to pose b's at the next key."""
+    import types
+    if not (callable(a) and callable(b) and getattr(a, "__code__", None) is getattr(b, "__code__", 0)) or a is b:
+        return a
+
+    def mix(x, y):
+        if _num(x) and _num(y) and (not isinstance(x, tuple) or len(x) == len(y)):
+            return lerp_num(x, y, k)
+        return x
+    defaults = tuple(mix(x, y) for x, y in zip(a.__defaults__ or (), b.__defaults__ or ())) or a.__defaults__
+    cells = tuple(types.CellType(mix(x.cell_contents, y.cell_contents)) for x, y in zip(a.__closure__ or (), b.__closure__ or ()))
+    return types.FunctionType(a.__code__, a.__globals__, a.__name__, defaults, cells or a.__closure__)
 
 
 FRAMES = 17  # per exercise: start (0), middle (FRAMES // 2), end (FRAMES - 1) and eased in-betweens (#229)
 KEYS = (0, FRAMES // 2, FRAMES - 1)
+
+
+def use_frames(n):
+    """Frame count of the exercise being drawn (#256: fast, large movements get more in-betweens)."""
+    global FRAMES, KEYS
+    FRAMES, KEYS = n, (0, n // 2, n - 1)
 
 
 def at(f):
@@ -862,9 +913,12 @@ def render(pose, ex, scene=None, prefix="a", view=None, heat=1.0):
         scene(doc, j, "back")
     draw_props(doc, j, pose.get("props", []))
     draw_figure(doc, j, ex, pose)
+    global FACE
+    FACE = j.get("head") if view_of(pose) == "side" else None
     if scene:
         scene(doc, j, "front")
     draw_props(doc, j, pose.get("front_props", []))
+    FACE = None
     if view and pose.get("inset", "tl"):
         inset(doc, muscle_levels(still), view, pose.get("inset", "tl"))  # map keeps full colour
     global LAST

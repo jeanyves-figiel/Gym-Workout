@@ -47,6 +47,10 @@ targets:
       path: MonkeyWorkout/MonkeyWorkout.entitlements
       properties:
         com.apple.developer.applesignin: [Default]
+        # Passkeys (#257): the API hosts serve /.well-known/apple-app-site-association.
+        com.apple.developer.associated-domains:
+          - webcredentials:workout.monkeygrade.cloud
+          - webcredentials:workout-staging.monkeygrade.cloud
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.access: []
         # Remote push (#69). Archive/export for TestFlight/App Store switches it to production.

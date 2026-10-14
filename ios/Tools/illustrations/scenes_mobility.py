@@ -543,7 +543,7 @@ def _knee_wall(k):
     AN = (250, GROUND - 4)
     shin = lerp(90, 124, k)
     thigh = lerp(4, 18, k)
-    t = lerp(-86, -78, k)
+    t = lerp(-75, -78, k)  # leaning in from the start so the hands reach the wall
     p = P(t=t, h=t, lN=(thigh, shin, 0), lF=(120, 180, 180), pin=("ankleN", AN), lit_sides="N")
     j = joints(p)
     dy = (GROUND - 9) - j["hip"][1]
@@ -613,19 +613,26 @@ add("pec-stretch", floor_entry(tween(_pec), back=_jamb, avoid=[(_PEC_X - 9, 20, 
 # ---- kneeling lat stretch on a bench ------------------------------------------------------------------------
 
 BENCH_TOP = 220
-LAT_E = (262, BENCH_TOP - 5)
+LAT_X0 = 268              # bench front edge: the head sinks between the arms in front of it, never into it
+LAT_E = (LAT_X0 + 12, BENCH_TOP - 5)
 
 
 def _bench_lat(doc, j):
-    kit.flat_bench(doc, 246, 336, BENCH_TOP - 12)
+    """Flat bench (kit.flat_bench) with its legs set further in, clear of the head sinking at the front edge."""
+    x0, x1, top, t = LAT_X0, LAT_X0 + 90, BENCH_TOP - 12, 12
+    for x in (x0 + 30, x1 - 16):
+        art.tube(doc, (x, top + t), (x, GROUND - 2), 7, "butt")
+        kit.feet(doc, x - 12, x + 12)
+    art.tube(doc, (x0 + 30, top + t + 3), (x1 - 16, top + t + 3), 6)
+    art.pad(doc, (x0, top + t), (x1, top + t), t)
 
 
 def _lat(k):
-    t = lerp(-6, 20, k)
+    t = lerp(-6, 16, k)
     KX = 150
 
     def mk(th):
-        p = P(t=t, h=t + lerp(0, 30, k), lN=(th, 180, 180), lF=(th + 3, 180, 180))
+        p = P(t=t, h=t + lerp(0, 26, k), lN=(th, 180, 180), lF=(th + 3, 180, 180))
         return rest(p, "kneeN", KX, GROUND, ("thigh", "shin", "foot"))
     th = solve(lambda th: dist(joints(mk(th))["shoulder"], LAT_E) - 42, 30, 120)
     p = mk(th)
@@ -635,7 +642,7 @@ def _lat(k):
     return dict(p, aN=(up, fore, fore - 10), aF=(up + 2, fore + 2, fore - 8))
 
 
-add("lat-stretch", floor_entry(tween(_lat), back=_bench_lat, boxes=[(246, BENCH_TOP - 12, 336, GROUND)]))
+add("lat-stretch", floor_entry(tween(_lat), back=_bench_lat, boxes=[(LAT_X0, BENCH_TOP - 12, LAT_X0 + 90, GROUND)]))
 
 
 # ---- child's pose reach ------------------------------------------------------------------------------------
@@ -736,7 +743,7 @@ def _sl_front(doc, j):
     up = math.sqrt(1 - SL_TILT * SL_TILT)
     r = F.FOREARM + F.HAND + 8
     pts = [(e[0] - r * math.sin(math.radians(a)) * SL_SKEW[1], e[1] - r * math.cos(math.radians(a)) * up)
-           for a in range(-4, 93, 6)]
+           for a in range(-4, SL_PHI[-1] - 3, 6)]  # stops short of the end pose: no dots dropping below the body
     doc.add(f'<path d="{art.smooth(pts, closed=False)}" fill="none" stroke="#fff" stroke-opacity="0.7" '
             f'stroke-width="2.4" stroke-dasharray="2 6" stroke-linecap="round"/>')
 
@@ -754,7 +761,9 @@ def _triceps(aN):
     return reach(p, "aF", (j["elbowN"][0] + 4, j["elbowN"][1] + 2), end=-80, pick=lambda m: m[0])
 
 
-add("triceps-stretch", floor_entry([_triceps((-94, -94, -94)), _triceps((-104, -4, -4)), _triceps((-114, 98, 98))]))
+# The elbow folds the hand back over the top of the head and down behind it (never forward through the face).
+add("triceps-stretch", floor_entry([_triceps((-94, -94, -94)), _triceps((-106, -176, -176)),
+                                    _triceps((-114, 98, 98))]))
 
 
 # ---- biceps wall stretch -----------------------------------------------------------------------------------------
@@ -795,18 +804,38 @@ add("biceps-wall", floor_entry(tween(_biceps), back=_wall_left, avoid=[(_BIC_X -
 
 # ---- forearm stretches ---------------------------------------------------------------------------------------
 
-def _forearm(hand, bend):
-    p = P(t=-90, aN=(-2, -2, hand), lF=(92, 88, 0), pin=("ankleN", (196, GROUND - 4)), lit_sides="N")
+def _forearm(hand, flexor):
+    """Near arm straight out in front, its hand bent back (flexor: fingers up) or down (extensor); the far
+    hand comes up from below and presses on the palm (flexor) / back of the hand (extensor)."""
+    p = P(t=-90, aN=(-6, 2, hand), lF=(92, 88, 0), pin=("ankleN", (196, GROUND - 4)), lit_sides="N")
     j = joints(p)
-    w = j["wristN"]
-    a = math.radians(hand)
-    # Far palm flat on the front of the near hand, pressing it back.
-    tgt = (w[0] + 7 * math.sin(a) * (-1 if hand < 0 else 1) + 2, w[1] + 1)
-    return reach(p, "aF", tgt, end=hand + bend)
+    w, tip = j["wristN"], j["handN"]
+    d = art.norm(art.sub(tip, w))
+    fwd = (-d[1], d[0]) if d[1] < 0 else (d[1], -d[0])  # normal of the near hand pointing forward
+    # Far hand laid on the front face of the near hand, coming up from below: on the palm, wrist under the
+    # near wrist, fingers over the near fingers (flexor); on the back of the hand, fingers up over the knuckles
+    # (extensor: the far arm comes in from above, the hand reaching down over the knuckles).
+    if flexor:
+        fw = (w[0] + fwd[0] * 7 + 2, w[1] + fwd[1] * 7 + 9)
+        ft = (tip[0] + fwd[0] * 7, tip[1] + fwd[1] * 7)
+    else:
+        fw = (w[0] + fwd[0] * 7 - 1, w[1] + fwd[1] * 7 - 7)
+        ft = (tip[0] + fwd[0] * 7, tip[1] + fwd[1] * 7)
+    return reach(p, "aF", fw, end=_ang(art.sub(ft, fw)), pick=lambda m: m[1] if flexor else -m[1])
 
 
-add("forearm-flexor", floor_entry([_forearm(-20, 10), _forearm(-50, 0), _forearm(-78, -10)]))
-add("forearm-extensor", floor_entry([_forearm(20, -10), _forearm(52, 0), _forearm(82, 10)]))
+def _assist_hand(doc, j):
+    """Front layer: the assisting (far) hand drawn over the near hand it holds, so the grip reads."""
+    seg = art.Seg(j["wristF"], j["handF"], art.PROFILES["hand"])
+    art.draw_segment(doc, seg, art.SKIN_FAR, 0.75)
+
+
+def _forearm_entry(hands, flexor):
+    return floor_entry([_forearm(h, flexor) for h in hands], front=_assist_hand)
+
+
+add("forearm-flexor", _forearm_entry((-10, -50, -88), True))
+add("forearm-extensor", _forearm_entry((14, 52, 88), False))
 
 
 # ---- half-kneeling hip flexor stretch ---------------------------------------------------------------------------
@@ -961,22 +990,35 @@ add("calf-wall", floor_entry(tween(_calf), back=_calf_wall_draw, boxes=[(CALF_WA
 
 # ---- supine twist ---------------------------------------------------------------------------------------------------
 
+TW_HIP = (222, 150)
+TW_MAT = (78, 40, 372, 262)
+
+
 def _twist(k):
-    """Supine spinal twist: far leg long, near knee drawn up and pulled across by the far hand, shoulders flat."""
-    p = P(t=180, h=lerp(182, 172, k), lF=(-1, -1, -91), lN=(-1, -1, -91), aN=(4, 2, 2), aF=(6, 4, 4), lit_sides="N")
-    p = rest(p, "hip", 196, MAT, ("torso", "head", "thighF", "shinF"))
-    if k == 0:
-        return p
-    j = joints(p)
-    hip = j["hip"]
-    foot = (hip[0] + lerp(110, 60, k), MAT - 5)
-    p = reach(p, "lN", foot, end=lerp(-90, 10, k), pick=lambda m: -m[1])
-    j = joints(p)
-    kn = j["kneeN"]
-    return reach(p, "aF", (kn[0] - 6, kn[1] - 2), end=lerp(-20, -60, k), pick=lambda m: -m[1])
+    """Supine spinal twist seen from above (head left, near side up on screen): arms out in a T, the near knee
+    bends and comes up over the far leg (foot still on the near side), then sweeps across the far leg and drops to the floor on the far side while
+    the shoulders stay flat and the head turns the other way."""
+    legs = [(0, 0, -60), (22, -36, -70), (70, 8, -20)]
+    i = int(k * 2)
+    return P(front=True, t=180, h=lerp(180, 190, k), lF=(0, 0, 60), lN=legs[i], aN=(-92, -92, -92),
+             aF=(92, 92, 92), lit_sides="N", pin=("hip", TW_HIP))
 
 
-add("supine-twist", floor_entry(tween(_twist), mat=(60, 330)))
+def _twist_scene(doc, j, layer):
+    if layer == "back":
+        x0, y0, x1, y1 = TW_MAT
+        g = doc.box_grad([(0, "#3A7FA2"), (1, "#28627F")])
+        doc.add(f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{x1 - x0:.1f}" height="{y1 - y0:.1f}" rx="6" fill="{g}" '
+                f'stroke="#0A0B0D" stroke-opacity="0.5" stroke-width="0.8"/>')
+
+
+def _twist_entry():
+    poses = tween(_twist)
+    v, c = fit(poses, [TW_MAT], (), 6, None, floor=False)
+    return (_twist_scene, [dict(p, inset=c) for p in poses], v)
+
+
+add("supine-twist", _twist_entry())
 
 
 # ---- sphinx -----------------------------------------------------------------------------------------------------------

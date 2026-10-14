@@ -61,3 +61,89 @@ private func json(_ data: Data?) -> [String: String] {
         #expect(try await api.confirmEmailChange(code: "123456").email == "new@b.c")
     }
 }
+
+/// Confirm it's you, 2-step sign-in, passkeys (#257).
+@Suite struct ReauthTwoStepPasskeyTests {
+    private func signedIn() -> InMemoryTokenStore {
+        InMemoryTokenStore(StoredTokens(accessToken: "access-1", accessExpiresAt: Date().addingTimeInterval(900), refreshToken: "refresh-1"))
+    }
+
+    @Test func loginWithTwoStepThrowsTokenThenCompletes() async throws {
+        StubProtocol.register("mfa.test") { req, body in
+            switch req.url!.path {
+            case "/v1/auth/login":
+                return (403, #"{"error":"mfa_required","message":"Enter the code.","mfaToken":"mfa-tok","methods":["totp","recovery"]}"#)
+            case "/v1/auth/mfa":
+                let b = json(body)
+                return b["mfaToken"] == "mfa-tok" && b["code"] == "123456"
+                    ? (200, #"{"user":\#(user("a@b.c")),"tokens":\#(pairJSON)}"#)
+                    : (401, #"{"error":"invalid_code","message":"Wrong code."}"#)
+            default: return (404, "{}")
+            }
+        }
+        let store = InMemoryTokenStore()
+        let api = client("mfa.test", tokens: store)
+        await #expect(throws: TwoStepRequired(token: "mfa-tok")) { _ = try await api.login(email: "a@b.c", password: "pw") }
+        #expect(store.load() == nil)
+        _ = try await api.completeTwoStep(token: "mfa-tok", code: "123456")
+        #expect(store.load()?.accessToken == "access-1")
+    }
+
+    @Test func reauthGrantIsSentOnLaterCalls() async throws {
+        StubProtocol.register("reauth.test") { req, body in
+            switch req.url!.path {
+            case "/v1/me/reauth":
+                let b = json(body)
+                return b["method"] == "email_code" && b["code"] == "654321"
+                    ? (200, #"{"reauthToken":"grant-1","expiresIn":300}"#)
+                    : (401, #"{"error":"reauth_failed","message":"x"}"#)
+            case "/v1/me":
+                return req.value(forHTTPHeaderField: "X-Reauth-Token") == "grant-1"
+                    ? (204, "")
+                    : (403, #"{"error":"reauth_required","message":"Confirm it's you first.","methods":["email_code"]}"#)
+            default: return (404, "{}")
+            }
+        }
+        let api = client("reauth.test", tokens: signedIn())
+        await #expect(throws: APIError.server(status: 403, code: "reauth_required", message: "Confirm it's you first.")) {
+            try await api.deleteAccount()
+        }
+        #expect(await !api.hasReauthGrant)
+        try await api.reauth(code: "654321", method: .emailCode)
+        #expect(await api.hasReauthGrant)
+        try await api.deleteAccount()
+    }
+
+    @Test func securityOverviewDropsUnknownMethods() async throws {
+        StubProtocol.register("sec.test") { _, _ in
+            (200, #"{"hasPassword":false,"appleLinked":true,"mfaEnabled":false,"recoveryCodesLeft":0,"passkeys":[{"id":"c1","name":"iPhone","createdAt":"2026-10-13T20:00:00.000Z","lastUsedAt":null}],"reauthMethods":["passkey","apple","smoke_signal","email_code"]}"#)
+        }
+        let o = try await client("sec.test", tokens: signedIn()).security()
+        #expect(o.reauthMethods == [.passkey, .apple, .emailCode])
+        #expect(o.passkeys.map(\.name) == ["iPhone"])
+    }
+
+    @Test func passkeySignInSendsWebAuthnJSON() async throws {
+        let cred = Data([0xfb, 0xff, 0x01])
+        StubProtocol.register("pk.test") { req, body in
+            switch req.url!.path {
+            case "/v1/auth/passkey/options":
+                return (200, #"{"challengeId":"ch-1","options":{"challenge":"Y2hhbGxlbmdl","rpId":"workout.monkeygrade.cloud","allowCredentials":[]}}"#)
+            case "/v1/auth/passkey":
+                guard let obj = try? JSONSerialization.jsonObject(with: body ?? Data()) as? [String: Any],
+                      let r = obj["response"] as? [String: Any], let inner = r["response"] as? [String: Any] else { return (400, "{}") }
+                let ok = obj["challengeId"] as? String == "ch-1" && r["id"] as? String == "-_8B" && r["rawId"] as? String == "-_8B"
+                    && r["type"] as? String == "public-key" && inner["signature"] as? String == "c2ln" && inner["userHandle"] as? String == "dTE"
+                return ok ? (200, #"{"user":\#(user("a@b.c")),"tokens":\#(pairJSON)}"#) : (400, #"{"error":"passkey_invalid","message":"x"}"#)
+            default: return (404, "{}")
+            }
+        }
+        let api = client("pk.test", tokens: InMemoryTokenStore())
+        let o = try await api.passkeySignInOptions()
+        #expect(o.options.rpId == "workout.monkeygrade.cloud")
+        #expect(Base64URL.decode(o.options.challenge) == Data("challenge".utf8))
+        let a = PasskeyAssertion(credentialId: cred, clientDataJSON: Data("{}".utf8), authenticatorData: Data([1]),
+                                 signature: Data("sig".utf8), userHandle: Data("u1".utf8))
+        #expect(try await api.signInWithPasskey(a, challengeId: o.challengeId).email == "a@b.c")
+    }
+}

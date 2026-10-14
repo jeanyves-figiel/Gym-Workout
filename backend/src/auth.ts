@@ -86,9 +86,15 @@ export interface AuthDeps {
 export class AuthService {
   private readonly key: Uint8Array;
   private readonly d: AuthDeps;
+  /** 2-step check after a correct password (#257); throws `mfa_required` when the member turned it on. */
+  private secondFactor: (userId: string, device?: string) => void = () => {};
   constructor(d: AuthDeps) {
     this.d = d;
     this.key = new TextEncoder().encode(d.config.jwtSecret);
+  }
+
+  setSecondFactorGate(gate: (userId: string, device?: string) => void) {
+    this.secondFactor = gate;
   }
 
   private iso(offsetMs = 0) {
@@ -195,6 +201,7 @@ export class AuthService {
       await this.sendCode(u.id, u.email!, 'verify_email', false);
       throw new ApiError(403, 'email_not_verified', 'Verify your email first. We sent you a new code.');
     }
+    this.secondFactor(u.id, device);
     return { user: publicUser(u), tokens: await this.issueTokens(u.id, device) };
   }
 
@@ -263,12 +270,9 @@ export class AuthService {
     await this.notifyPasswordChanged(email);
   }
 
-  async changePassword(userId: string, current: string | undefined, next: string, device?: string): Promise<TokenPair> {
+  /** Caller has already confirmed it's the member (SecurityService.requireReauth, #257). */
+  async changePassword(userId: string, next: string, device?: string): Promise<TokenPair> {
     const u = this.userById(userId)!;
-    if (u.password_hash) {
-      if (!current || !(await verifyPassword(current, u.password_hash)))
-        throw new ApiError(401, 'invalid_credentials', 'Current password is incorrect.');
-    }
     this.assertPassword(next, u.email);
     await this.assertNotBreached(next);
     const now = this.iso();
@@ -293,10 +297,9 @@ export class AuthService {
     return publicUser(this.userById(userId)!);
   }
 
-  async deleteAccount(userId: string, password: string | undefined): Promise<void> {
+  /** Caller has already confirmed it's the member (SecurityService.requireReauth, #257). */
+  async deleteAccount(userId: string): Promise<void> {
     const u = this.userById(userId)!;
-    if (u.password_hash && (!password || !(await verifyPassword(password, u.password_hash))))
-      throw new ApiError(401, 'invalid_credentials', 'Password is incorrect.');
     const appleToken = u.apple_sub ? this.d.appleTokens?.tokenFor(userId) : undefined;
     this.d.db.prepare('DELETE FROM users WHERE id = ?').run(userId);
     // Best effort: revocation failures are logged by the service and never block deletion.
