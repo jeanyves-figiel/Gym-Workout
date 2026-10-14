@@ -1,7 +1,8 @@
 import SwiftUI
 import WorkoutEngine
 
-/// "Train" tab: compact week + readiness card, today's session first, then the week list.
+/// "Train" tab: the member's widgets (#260); by default the compact week + readiness card, today's session first,
+/// then the week list.
 struct WeekView: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
@@ -14,90 +15,61 @@ struct WeekView: View {
     @State private var addingDay: Int?
     @State private var removing: Session?
     @State private var swipe: (id: String, dx: CGFloat)?
+    /// Editing the Train widgets (#260).
+    @State private var arranging = false
+    @State private var addingWidget = false
+    @State private var customising = false
+    @State private var showingCalendar = false
+    /// CI screenshots: open in edit mode.
+    var demoEditing = false
 
     var body: some View {
         ScrollView {
             if let plan = model.plan, let profile = model.profile {
                 VStack(alignment: .leading, spacing: 18) {
                     header
-                    // Game look (#227), same pick as the Watch style.
-                    let style = WatchHomePref.shared.style
-                    if style == .coach { MonkeyCoachCard() }
-                    // Training programme (#255): replaces the plan while it runs.
-                    ProgrammeHeroCard()
-                    WeekHero(plan: plan, profile: profile, done: model.completedCount)
-                    if style == .rings { LevelBarCard(next: model.nextSession) }
-                    if let undo = model.variationUndo {
-                        VariationUndoCard(undo: undo)
+                    if arranging {
+                        TrainEditBar(onAdd: { addingWidget = true }, onList: { customising = true })
                     }
-                    if let next = model.nextSession {
-                        NextUpCard(session: next) { playing = next }
-                    } else {
-                        WeekCompleteCard()
-                    }
-                    if health.settled && health.snapshot.weightKg == nil && model.body.weightKg == nil {
-                        BodyPromptCard()
-                    }
-                    // Picked climbing weekdays set the count; the Health hint would be overridden.
-                    if profile.climbingDays.isEmpty, let perWeek = health.snapshot.climbingPerWeek4w {
-                        ClimbingSyncHint(healthPerWeek: perWeek, profileDays: profile.climbingDaysPerWeek) { n in
-                            var p = profile
-                            p.climbingDaysPerWeek = n
-                            model.updateProfile(p)
+                    // The member's widgets (#260); the default layout is the Train screen as it always was.
+                    let layout = model.trainLayout
+                    if !layout.contains(.nextUp), !arranging { notices(plan: plan, profile: profile) }
+                    ForEach(layout.rows) { row in
+                        switch row {
+                        case .full(let w):
+                            widget(w, plan: plan, profile: profile)
+                        case .pair(let a, let b):
+                            HStack(alignment: .top, spacing: 12) {
+                                widget(a, plan: plan, profile: profile)
+                                    .frame(maxWidth: .infinity, minHeight: TrainWidgetMetrics.smallHeight, maxHeight: .infinity, alignment: .top)
+                                Group {
+                                    if let b {
+                                        widget(b, plan: plan, profile: profile)
+                                    } else {
+                                        Color.clear
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, minHeight: TrainWidgetMetrics.smallHeight, maxHeight: .infinity, alignment: .top)
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
                         }
                     }
-                    if Generator.isClimber(profile) {
-                        ClimbSection()
+                    if layout.widgets.isEmpty {
+                        Button { arranging = true; addingWidget = true } label: {
+                            Label("Add widgets to Train", systemImage: "plus.square.dashed")
+                                .font(Theme.label(15)).foregroundStyle(Theme.lime)
+                                .frame(maxWidth: .infinity).padding(.vertical, 28)
+                                .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                    .strokeBorder(Theme.lime.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])))
+                        }
+                        .buttonStyle(.plain)
                     }
                     if let e = model.syncError {
                         Label(e, systemImage: "icloud.slash").font(.footnote).foregroundStyle(Theme.muted)
                     }
-                    HStack {
-                        Text("This week").eyebrow()
-                        Spacer()
-                        Button { addingDay = nil; adding = true } label: { Label("Add workout", systemImage: "plus") }
-                            .font(Theme.label(13))
-                            .foregroundStyle(Theme.lime)
-                    }
-                    let days = calendarDays
-                    // By day, so moved and extra sessions sit where they happen (#113).
-                    let ordered = byDay(plan.sessions, days: days)
-                    if style == .deck {
-                        QuestMap(sessions: ordered, days: days) { s, day in sessionMenu(s, day: day) }
-                    } else {
-                        ForEach(Array(ordered.enumerated()), id: \.element.id) { i, s in
-                            let done = model.state.done[s.id] ?? false
-                            let day = s.weekday ?? days[s.id]
-                            let removable = s.isPlanInsert && !done
-                            NavigationLink(value: s.id) {
-                                SessionRowCard(session: s, done: done, climbing: profile.climbingDays, weekday: day, number: i + 1)
-                            }
-                            .buttonStyle(.plain)
-                            .contextMenu { sessionMenu(s, day: day) }
-                            // Swipe left on an added session to remove it (#176); ScrollView has no swipeActions.
-                            .offset(x: swipe?.id == s.id ? swipe!.dx : 0)
-                            .background(alignment: .trailing) {
-                                if removable, swipe?.id == s.id {
-                                    Image(systemName: "trash.fill")
-                                        .font(.system(size: 22, weight: .heavy))
-                                        .foregroundStyle(.white)
-                                        .frame(width: 64)
-                                        .frame(maxHeight: .infinity)
-                                        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.red.gradient))
-                                }
-                            }
-                            .simultaneousGesture(removable ? swipeToRemove(s) : nil)
-                            .accessibilityAction(named: removeTitle(s)) { if removable { removing = s } }
-                        }
-                    }
-                    Text(style == .deck
-                         ? "Tap a stage to open it. Touch and hold to move it to another day or remove an added one."
-                         : ordered.contains { $0.isPlanInsert }
-                         ? "Touch and hold a session to move it to another day this week. Swipe left on an added session to remove it."
-                         : "Touch and hold a session to move it to another day this week.")
-                        .font(.caption).foregroundStyle(Theme.muted)
                 }
                 .padding(16)
+                .animation(.snappy, value: model.trainLayout.widgets)
             } else {
                 ContentUnavailableView("No plan yet", systemImage: "calendar.badge.plus")
             }
@@ -123,6 +95,9 @@ struct WeekView: View {
         .proPaywall($gate)
         .sheet(item: $moving) { s in MoveSessionSheet(sessionId: s.id) }
         .sheet(isPresented: $adding) { AddWorkoutSheet(weekday: addingDay) }
+        .navigationDestination(isPresented: $showingCalendar) { CalendarView() }
+        .sheet(isPresented: $addingWidget) { TrainWidgetGallery() }
+        .sheet(isPresented: $customising) { TrainCustomiseSheet() }
         .confirmationDialog(removing.map(removeTitle).map { "\($0)?" } ?? "", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
                             titleVisibility: .visible, presenting: removing) { s in
             Button(removeTitle(s), role: .destructive) {
@@ -137,6 +112,7 @@ struct WeekView: View {
         .task {
             // A new programme week (#255) builds its plan first.
             model.syncProgramme()
+            if demoEditing { arranging = true }
             // Away periods (#68): re-plan from today on (new day, period starting this week).
             model.replanCurrentWeek()
             model.persist()
@@ -177,38 +153,226 @@ struct WeekView: View {
         return sessions.indices.sorted { key($0) < key($1) }.map { sessions[$0] }
     }
 
-    /// Title, then Calendar, Variation and Edit plan as Explore-style gradient buttons in one row (#147).
+    /// Title, edit button and LV chip; while editing, "Edit Train" and Done (#260).
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Train").font(Theme.display(34)).lineLimit(1)
-                Spacer()
+        HStack(spacing: 10) {
+            Text(arranging ? "Edit Train" : "Train").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
+            Spacer()
+            if arranging {
+                Button { withAnimation(.snappy) { arranging = false } } label: {
+                    Text("Done").font(Theme.label(15)).foregroundStyle(Theme.ink)
+                        .padding(.horizontal, 16).padding(.vertical, 8)
+                        .background(Capsule().fill(Theme.lime))
+                }
+                .buttonStyle(.plain)
+            } else {
+                // Calendar, Variation and Edit plan stay reachable when Quick actions is removed.
+                if !model.trainLayout.contains(.actions) {
+                    Menu {
+                        Button("Calendar", systemImage: "calendar") { showingCalendar = true }
+                        Button("Variation", systemImage: "shuffle") { ProStore.shared.run(.variation, $gate) { varying = true } }
+                        Button("Edit plan", systemImage: "slider.horizontal.3") { editing = true }
+                    } label: {
+                        headerIcon("ellipsis")
+                    }
+                    .accessibilityLabel("Plan actions")
+                }
+                Button { withAnimation(.snappy) { arranging = true } } label: { headerIcon("square.grid.2x2.fill") }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Edit Train")
+                    .accessibilityHint("Add, remove, resize and reorder the widgets on this screen")
                 LevelChip()
-            }
-            HStack(spacing: 8) {
-                NavigationLink { CalendarView() } label: {
-                    HeaderChip(symbol: "calendar", title: "Calendar", detail: "\(plannedCount) planned",
-                               gradient: WorkoutEngine.Category.strength.gradient)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Calendar, \(plannedCount) sessions planned in the next 4 weeks")
-                Button {
-                    ProStore.shared.run(.variation, $gate) { varying = true }
-                } label: {
-                    HeaderChip(symbol: "shuffle", title: "Variation", detail: ProStore.shared.badged ? "New · PRO" : "New mix",
-                               gradient: WorkoutEngine.Category.warmup.gradient)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("New variation of this week's plan")
-                Button { editing = true } label: {
-                    HeaderChip(symbol: "slider.horizontal.3", title: "Edit plan", detail: "Days · goals",
-                               gradient: WorkoutEngine.Category.power.gradient)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Edit current plan: training profile")
             }
         }
         .padding(.top, 4)
+    }
+
+    private func headerIcon(_ symbol: String) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 15, weight: .heavy))
+            .foregroundStyle(.white)
+            .frame(width: 36, height: 36)
+            .background(Circle().fill(Color.white.opacity(0.14)))
+    }
+
+    /// Calendar, Variation and Edit plan as Explore-style gradient buttons in one row (#147): the Quick actions widget.
+    private var actionChips: some View {
+        HStack(spacing: 8) {
+            NavigationLink { CalendarView() } label: {
+                HeaderChip(symbol: "calendar", title: "Calendar", detail: "\(plannedCount) planned",
+                           gradient: WorkoutEngine.Category.strength.gradient)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Calendar, \(plannedCount) sessions planned in the next 4 weeks")
+            Button {
+                ProStore.shared.run(.variation, $gate) { varying = true }
+            } label: {
+                HeaderChip(symbol: "shuffle", title: "Variation", detail: ProStore.shared.badged ? "New · PRO" : "New mix",
+                           gradient: WorkoutEngine.Category.warmup.gradient)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("New variation of this week's plan")
+            Button { editing = true } label: {
+                HeaderChip(symbol: "slider.horizontal.3", title: "Edit plan", detail: "Days · goals",
+                           gradient: WorkoutEngine.Category.power.gradient)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Edit current plan: training profile")
+        }
+    }
+
+    /// One widget, in edit chrome while editing.
+    @ViewBuilder private func widget(_ w: TrainWidget, plan: WeekPlan, profile: Profile) -> some View {
+        if arranging {
+            TrainWidgetEditChrome(widget: w) { widgetContent(w, plan: plan, profile: profile) }
+        } else {
+            widgetContent(w, plan: plan, profile: profile)
+        }
+    }
+
+    @ViewBuilder private func widgetContent(_ w: TrainWidget, plan: WeekPlan, profile: Profile) -> some View {
+        let small = w.size == .small
+        switch w.kind {
+        case .actions:
+            actionChips
+        case .coach:
+            if small { CoachSmallWidget() } else { MonkeyCoachCard() }
+        case .week:
+            if small {
+                WeekSmallWidget(plan: plan, done: model.completedCount)
+            } else {
+                WeekHero(plan: plan, profile: profile, done: model.completedCount)
+            }
+        case .level:
+            if small { LevelSmallWidget() } else { LevelBarCard(next: model.nextSession) }
+        case .nextUp:
+            if w.size == .large {
+                VStack(alignment: .leading, spacing: 18) {
+                    if !arranging, let undo = model.variationUndo { VariationUndoCard(undo: undo) }
+                    if let next = model.nextSession {
+                        NextUpCard(session: next) { playing = next }
+                    } else {
+                        WeekCompleteCard()
+                    }
+                    if !arranging { notices(plan: plan, profile: profile, undo: false) }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 18) {
+                    if !arranging, let undo = model.variationUndo { VariationUndoCard(undo: undo) }
+                    NextUpCompactWidget(session: model.nextSession, wide: !small) { playing = $0 }
+                        .frame(maxHeight: small ? .infinity : nil, alignment: .top)
+                    if !arranging, !small { notices(plan: plan, profile: profile, undo: false) }
+                }
+            }
+        case .climbing:
+            if small {
+                ClimbSmallWidget()
+            } else if Generator.isClimber(profile) {
+                ClimbSection()
+            } else {
+                Button { editing = true } label: {
+                    WidgetTile(kind: .climbing, title: "Climbing") {
+                        Text("Add climbing days").font(Theme.display(20))
+                        Text("Pick climbing days in Edit plan and Train plans around them.")
+                            .font(.caption.weight(.semibold)).opacity(0.9)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        case .calendar:
+            CalendarWidget(look: w.resolvedLook ?? .week, size: w.size)
+        case .streak:
+            StreakWidget(size: w.size)
+        case .volume:
+            VolumeWidget(look: w.resolvedLook ?? .kg, size: w.size)
+        case .records:
+            RecordsWidget(size: w.size)
+        case .body:
+            BodyWeightWidget(size: w.size)
+        case .muscles:
+            MusclesWidget(size: w.size)
+        case .lastWorkout:
+            LastWorkoutWidget(size: w.size)
+        case .programme:
+            // Training programme (#255): replaces the plan while it runs; nothing to show otherwise.
+            if model.activeProgramme != nil {
+                ProgrammeHeroCard()
+            } else if arranging {
+                WidgetTile(kind: .programme) {
+                    Text("No programme running").font(Theme.display(18))
+                    Text("Shows here when you start a programme.").font(.caption.weight(.semibold)).opacity(0.9)
+                }
+            }
+        case .thisWeek:
+            thisWeek(plan: plan, profile: profile, quest: (w.look ?? (WatchHomePref.shared.style == .deck ? .quest : .list)) == .quest)
+        }
+    }
+
+    /// Cards that only show when they apply: Undo variation, body prompt, climbing hint. Next to Next up,
+    /// or on top when the member removed Next up.
+    @ViewBuilder private func notices(plan: WeekPlan, profile: Profile, undo: Bool = true) -> some View {
+        if undo, let u = model.variationUndo { VariationUndoCard(undo: u) }
+        if health.settled && health.snapshot.weightKg == nil && model.body.weightKg == nil {
+            BodyPromptCard()
+        }
+        // Picked climbing weekdays set the count; the Health hint would be overridden.
+        if profile.climbingDays.isEmpty, let perWeek = health.snapshot.climbingPerWeek4w {
+            ClimbingSyncHint(healthPerWeek: perWeek, profileDays: profile.climbingDaysPerWeek) { n in
+                var p = profile
+                p.climbingDaysPerWeek = n
+                model.updateProfile(p)
+            }
+        }
+    }
+
+    /// This week's sessions as a list or the Quest map (#227), with Add workout.
+    @ViewBuilder private func thisWeek(plan: WeekPlan, profile: Profile, quest: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Text("This week").eyebrow()
+                Spacer()
+                Button { addingDay = nil; adding = true } label: { Label("Add workout", systemImage: "plus") }
+                    .font(Theme.label(13))
+                    .foregroundStyle(Theme.lime)
+            }
+            let days = calendarDays
+            // By day, so moved and extra sessions sit where they happen (#113).
+            let ordered = byDay(plan.sessions, days: days)
+            if quest {
+                QuestMap(sessions: ordered, days: days) { s, day in sessionMenu(s, day: day) }
+            } else {
+                ForEach(Array(ordered.enumerated()), id: \.element.id) { i, s in
+                    let done = model.state.done[s.id] ?? false
+                    let day = s.weekday ?? days[s.id]
+                    let removable = s.isPlanInsert && !done
+                    NavigationLink(value: s.id) {
+                        SessionRowCard(session: s, done: done, climbing: profile.climbingDays, weekday: day, number: i + 1)
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu { sessionMenu(s, day: day) }
+                    // Swipe left on an added session to remove it (#176); ScrollView has no swipeActions.
+                    .offset(x: swipe?.id == s.id ? swipe!.dx : 0)
+                    .background(alignment: .trailing) {
+                        if removable, swipe?.id == s.id {
+                            Image(systemName: "trash.fill")
+                                .font(.system(size: 22, weight: .heavy))
+                                .foregroundStyle(.white)
+                                .frame(width: 64)
+                                .frame(maxHeight: .infinity)
+                                .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.red.gradient))
+                        }
+                    }
+                    .simultaneousGesture(removable ? swipeToRemove(s) : nil)
+                    .accessibilityAction(named: removeTitle(s)) { if removable { removing = s } }
+                }
+            }
+            Text(quest
+                 ? "Tap a stage to open it. Touch and hold to move it to another day or remove an added one."
+                 : ordered.contains { $0.isPlanInsert }
+                 ? "Touch and hold a session to move it to another day this week. Swipe left on an added session to remove it."
+                 : "Touch and hold a session to move it to another day this week.")
+                .font(.caption).foregroundStyle(Theme.muted)
+        }
     }
 
     /// Sessions still to do in the next 4 weeks (Calendar button).
@@ -357,7 +521,7 @@ private struct WeekHero: View {
 }
 
 /// Sessions done this week as a ring with the count inside.
-private struct DoneRing: View {
+struct DoneRing: View {
     let done: Int
     let total: Int
 

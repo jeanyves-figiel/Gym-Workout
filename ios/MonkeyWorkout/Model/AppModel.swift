@@ -24,6 +24,10 @@ final class AppModel {
     var offerPro = false
     /// Programme just finished (#255): Train shows its finish sheet once; not persisted.
     var finishedProgramme: ProgrammeRecord?
+    /// Selected tab, so Train widgets (#260) can open Progress.
+    var tab: MainTab = .train
+    /// Progress section to scroll to when Progress opens from a Train widget (#260).
+    var progressJump: ProgressSection?
     /// Workouts other members shared (#62), loaded on demand; not persisted.
     var sharedLibrary: [SharedWorkout] = []
     /// Apple Health readings for first-time load estimates (#115); set at launch.
@@ -76,6 +80,18 @@ final class AppModel {
             state.customExerciseList = [Demo.customExercise]
             state.synced?.away = Demo.away()
             state.synced?.savedGyms = Demo.savedGyms
+            // Customised Train screens (#260).
+            switch Demo.screen {
+            case "train-data", "train-customise": state.synced?.trainLayout = presetLayout(.data)
+            case "train-climber": state.synced?.trainLayout = presetLayout(.climber)
+            case "train-minimal": state.synced?.trainLayout = presetLayout(.minimal)
+            case "train-looks":
+                state.synced?.trainLayout = TrainLayout([
+                    TrainWidget(.calendar, size: .large, look: .month), TrainWidget(.volume, size: .wide, look: .minutes),
+                    TrainWidget(.records, size: .wide), TrainWidget(.muscles, size: .large), TrainWidget(.lastWorkout, size: .wide),
+                ])
+            default: break
+            }
             replanCurrentWeek()
             Demo.programme(self)
             if Demo.screen == "workout-style", let id = state.plan?.sessions.dropFirst().first?.id {
@@ -206,7 +222,7 @@ final class AppModel {
                                exerciseSwaps: state.synced?.exerciseSwaps, variation: variation, moves: state.synced?.moves,
                                sessionStyles: state.synced?.sessionStyles?.filter { $0.key.hasPrefix("w\(week)s") },
                                savedGyms: state.synced?.savedGyms, programme: state.synced?.programme,
-                               programmeHistory: state.synced?.programmeHistory)
+                               programmeHistory: state.synced?.programmeHistory, trainLayout: state.synced?.trainLayout)
         state.synced = sp
         // A profile edit (goal, days, gym…) re-plans the rest of this week (#194): sessions already done and the
         // one in progress keep their content; everything else follows the new profile.

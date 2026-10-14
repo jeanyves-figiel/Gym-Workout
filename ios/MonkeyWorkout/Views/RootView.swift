@@ -43,22 +43,29 @@ struct RootView: View {
     }
 }
 
+enum MainTab: Hashable { case train, explore, progress, community, account }
+
 struct MainTabView: View {
     @Environment(AppModel.self) private var model
     @State private var whatsNew = WhatsNew.pending
 
     var body: some View {
-        TabView {
+        TabView(selection: Bindable(model).tab) {
             NavigationStack { WeekView() }
                 .tabItem { Label("Train", systemImage: "bolt.heart.fill") }
+                .tag(MainTab.train)
             NavigationStack { LibraryView() }
                 .tabItem { Label("Explore", systemImage: "figure.arms.open") }
+                .tag(MainTab.explore)
             NavigationStack { ProgressTabView() }
                 .tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
+                .tag(MainTab.progress)
             NavigationStack { CommunityView() }
                 .tabItem { Label("Community", systemImage: "person.3.fill") }
+                .tag(MainTab.community)
             NavigationStack { AccountView() }
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
+                .tag(MainTab.account)
         }
         .toolbarBackground(Theme.bg, for: .tabBar)
         .sidebarAdaptableTabs()
@@ -250,6 +257,9 @@ private struct DemoScreen: View {
         case "library": NavigationStack { WorkoutLibraryView().navigationDestination(for: String.self) { SessionView(sessionId: $0) } }
         case "library-plan": AddToPlanSheet(workout: model.libraryWorkout(for: WorkoutTemplate.all[0].session) ?? Demo.customWorkouts[0])
         case "calendar": NavigationStack { CalendarView() }
+        case "train-edit": NavigationStack { WeekView(demoEditing: true) }
+        case "train-gallery": TrainWidgetGallery()
+        case "train-customise": TrainCustomiseSheet()
         case "gyms": GymFinderView(place: "Zürich")
         case "move": MoveSessionSheet(sessionId: second)
         case "whats-new": if let n = WhatsNew.current { WhatsNewView(notes: n) }
