@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- **Progress section bar lights the section on screen** (#286): scrolled to the bottom of Progress, the pinned bar still lit **Badges** while Muscles and History filled the screen, because a chip lit only once its section's top reached the bar and the short end sections never get there. The reading line now slides from under the bar down to the screen bottom over the last screenful of scrolling, so Muscles and then History light as they come into view; a tapped chip stays lit until the member scrolls (so tapping **Muscles** at the page end no longer lights History); the bar still scrolls to keep the lit chip visible.
 - **Coach Monkey card: every chip and tip leads somewhere** (#278): tapping the card only showed the next tip; its chips (streak, this week, missed, tap me) did nothing. Designs A + B from `coach-monkey-actions/proposals.png`: **🔥 wk ›** opens Progress → Training, **n/3 this week ›** opens the calendar, **n missed ›** opens the catch-up sheet, **next tip ↻** replaces "tap me". Each tip gets its own lime button: **Start <workout>** (opens the player), **Catch up**, **See streak** / **See progress**, **Open <exercise>** on the best-lift tip, **See levels**, **Open calendar**. Tap the monkey or swipe left/right for the next tip; dots show which tip is on.
 
 ### Changed
