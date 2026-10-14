@@ -1,35 +1,35 @@
 {
-  "id": "2026-10-14.1",
+  "id": "2026-10-14.2",
   "items": [
     {
-      "symbol": "square.grid.3x3.fill",
+      "symbol": "square.grid.2x2.fill",
       "tint": "strength",
-      "title": "Every workout, your length",
-      "body": "A programme's page now shows all its workouts week by week, built for your gym and days. Pick Quick, Standard, Extended or Long haul when you start, and change it later."
+      "title": "Widgets for your Home Screen",
+      "body": "Add MonkeyWorkout to your Home or Lock Screen in Small, Medium or Large. Pick Gradient cards, Monkey coach or Data tiles, and choose what each size shows in Account → Home Screen widgets."
     },
     {
-      "symbol": "square.and.pencil",
+      "symbol": "brain.head.profile",
       "tint": "power",
-      "title": "2 new programmes, or build your own",
-      "body": "Athletic engine (6 weeks) and Fresh start (4 weeks) join Explore → Programmes. Tap New programme to build one in 4 steps, or Make it mine to copy and change any programme."
+      "title": "Monkey learns what you like",
+      "body": "Swap, remove or skip an exercise and next week leaves it out; picks you love come back more. Training profile → What Monkey learned lets you forget or block anything. Edit any workout before you start, warm-up and cool-down included."
     },
     {
-      "symbol": "calendar.badge.exclamationmark",
+      "symbol": "timer",
       "tint": "cardio",
-      "title": "Missed a workout? Catch up",
-      "body": "Train shows today or your next training day. A missed day turns red in the Next up week strip: tap it to log it, mark it done, do it today or skip. Coach, Calendar and Apple Watch show it too."
+      "title": "Need to leave early?",
+      "body": "Tell the player how many minutes you have left. The rest of the workout is refitted to that time, keeping your main lift and a cool-down."
+    },
+    {
+      "symbol": "hand.tap.fill",
+      "tint": "warmup",
+      "title": "Train does more, and Undo",
+      "body": "Coach Monkey chips and tips now lead somewhere, and in Next up you can tap any day or log a climb. Closed a screen by mistake? Tap Undo and it comes back with every value."
     },
     {
       "symbol": "mappin.and.ellipse",
-      "tint": "warmup",
-      "title": "Supersets that stay in one spot",
-      "body": "On the Equipment page, group your gym's kit into zones (or sketch a floor plan). Supersets and circuits then pair moves from one area, and the player tells you Same spot or Walk to the next zone."
-    },
-    {
-      "symbol": "dumbbell.fill",
       "tint": "mobility",
-      "title": "Your gym saves as you go",
-      "body": "Equipment you add is kept right away, no SAVE needed. One Add a gym button finds gyms near you, by name, or sets up home or a hotel. Calendar day sheets now open showing every option."
+      "title": "Clearer gym zones, programmes and Progress",
+      "body": "Equipment pictures show their zone, with a By zone view. Programme days take their phase colour and Pick a workout can build a new one. On Progress, the section bar follows you to the bottom."
     }
   ]
 }
