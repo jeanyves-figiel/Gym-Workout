@@ -252,6 +252,9 @@ public struct Profile: Codable, Hashable, Sendable {
     /// Default warm-up / cool-down style (#293); nil = `.auto` (picked to match the exercises as before).
     public var warmupStyle: WarmupStyle?
     public var cooldownStyle: CooldownStyle?
+    /// Learned exercise affinities (#299), frozen when the week's plan was made. Set by the app when generating;
+    /// not part of the profile form. nil = nothing learned (plans exactly as before).
+    public var learnedTaste: [String: Double]?
 
     public init(
         goal: Goal = .balanced, sessionsPerWeek: Int = 3, experience: Experience = .intermediate,

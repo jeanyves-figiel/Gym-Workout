@@ -36,6 +36,8 @@ struct WeekView: View {
                     if arranging {
                         TrainEditBar(onAdd: { addingWidget = true }, onList: { customising = true })
                     }
+                    // New week made with what the app learned (#299): the coach says what changed.
+                    if !arranging, let recap = model.tasteRecap { TasteRecapCard(recap: recap) }
                     // The member's widgets (#260); the default layout is the Train screen as it always was.
                     let layout = model.trainLayout
                     if !layout.contains(.nextUp), !arranging { notices(plan: plan, profile: profile) }

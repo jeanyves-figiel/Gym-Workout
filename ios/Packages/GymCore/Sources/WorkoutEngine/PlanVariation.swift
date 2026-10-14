@@ -118,6 +118,9 @@ extension WeekPlan {
                     if original.main, pool.contains(where: \.main) { pool = pool.filter(\.main) }
                     let fresh = pool.filter { !weekIds.contains($0.id) }
                     if !fresh.isEmpty { pool = fresh }
+                    // Exercises the member dislikes (#299) only when nothing else fits.
+                    let welcome = pool.filter { !profile.dislikes($0.id) }
+                    if !welcome.isEmpty { pool = welcome }
                     guard !pool.isEmpty else { continue }
                     var rng = Rng(seed: request.seed ^ Self.stableHash(item.uid))
                     let pick = rng.pick(pool.sorted { $0.id < $1.id })

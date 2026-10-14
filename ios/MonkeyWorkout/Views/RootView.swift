@@ -246,6 +246,7 @@ private struct DemoScreen: View {
                     .navigationTitle("Your training")
             }
         case "profile": NavigationStack { TrainingProfileView().navigationTitle("Training profile") }
+        case "taste": NavigationStack { TasteView() }
         case "profile-gym", "profile-gym-add": NavigationStack { ProfileSectionView(section: .gym) }
         case "profile-goal", "profile-goal-focus":
             NavigationStack {
