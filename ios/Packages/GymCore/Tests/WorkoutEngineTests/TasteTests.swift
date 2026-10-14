@@ -100,4 +100,43 @@ import Testing
         let count = { (swaps: [String: String]) in swaps.values.filter { $0 == picked }.count }
         #expect(count(plan.varied(request, profile: p)) < count(plain))
     }
+
+    @Test func marksOverrideWhatWasLearned() {
+        var t = MemberTaste()
+        t.learn(swap: "a", to: "b", kept: false, at: t0)
+        t.mark("a", .liked, at: t0)
+        #expect(t.affinity("a", at: t0) == 0.9)
+        t.mark("b", .never, at: t0)
+        #expect(t.affinity("b", at: t0) == MemberTaste.never)
+        #expect(t.reason("b", at: t0).hasPrefix("You said never"))
+        // A mark never fades away.
+        #expect(t.affinity("b", at: t0.addingTimeInterval(400 * 86_400)) == MemberTaste.never)
+        t.forget("b")
+        #expect(t.affinity("b", at: t0) == 0)
+    }
+
+    @Test func reasonCountsSignals() {
+        var t = MemberTaste()
+        t.learn(swap: "a", to: "b", kept: false, at: t0)
+        t.learn(swap: "a", to: "c", kept: false, at: t0)
+        #expect(t.reason("a", at: t0) == "Swapped out or removed 2×")
+        #expect(t.reason("b", at: t0) == "Picked 1×")
+    }
+
+    @Test func recapNamesLeftOutExercises() throws {
+        let plan = Generator.generateWeek(profile, seed: 42)
+        let accessory = try #require(items(plan).first { it in
+            let e = Exercise.get(it.exerciseId)
+            return e.category == .strength && !e.main && e.alternatives(for: profile).count >= 3
+        })
+        var p = profile
+        p.learnedTaste = [accessory.exerciseId: -3]
+        let after = Generator.generateWeek(p, seed: 42)
+        let changes = after.tasteChanges(from: plan, taste: p.learnedTaste!)
+        let out = try #require(changes.first)
+        #expect(out.kind == .out && out.from == accessory.exerciseId && out.subject == accessory.exerciseId)
+        #expect(changes.filter { $0.kind == .out }.count == 1)
+        #expect(plan.tasteChanges(from: plan, taste: p.learnedTaste!).isEmpty)
+    }
 }
+

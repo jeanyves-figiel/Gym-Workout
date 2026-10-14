@@ -40,6 +40,10 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     /// Affinities this week's plan is generated with (#299): frozen when a new week's plan is made, so learning
     /// never reshuffles the week in progress.
     var weekTaste: [String: Double]?
+    /// "Learn from my choices" off (#299): nothing recorded, plans made without learned tastes.
+    var tasteOff: Bool?
+    /// What this week's plan changed because of learned tastes, for the coach's new-week card (#299).
+    var tasteRecap: TasteRecap?
 
     /// Training profile with this week's learned tastes (#299): quick sessions and plan variations.
     var tasteProfile: Profile {

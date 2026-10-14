@@ -26,6 +26,8 @@ public struct ExerciseTaste: Codable, Hashable, Sendable {
     public var dropped: Double = 0
     public var skipped: Double = 0
     public var finished: Double = 0
+    /// What the member said on What Monkey learned; overrides the learned score.
+    public var mark: TasteMark?
     public var at: Date
 
     public init(at: Date) { self.at = at }
@@ -45,7 +47,15 @@ public struct ExerciseTaste: Codable, Hashable, Sendable {
         chosen - dropped - 0.5 * skipped + min(0.6, 0.15 * finished)
     }
 
-    var weight: Double { chosen + dropped + skipped + finished }
+    var weight: Double { chosen + dropped + skipped + finished + (mark == nil ? 0 : 1) }
+}
+
+/// The member's own word on an exercise (#299).
+public enum TasteMark: String, Codable, Sendable {
+    /// Never suggest: out of every generated plan when anything else fits.
+    case never
+    /// "Actually, I like it": counts as liked.
+    case liked
 }
 
 /// What the app learned about the member's exercise likes and dislikes (#299): deterministic, explainable,
@@ -82,6 +92,11 @@ public struct MemberTaste: Codable, Hashable, Sendable {
     /// bonus, so variety still wins), down to -3 for disliked (two swaps away already beat freshness).
     public func affinity(_ id: String, at now: Date) -> Double {
         guard let t = exercises[id] else { return 0 }
+        switch t.mark {
+        case .never: return Self.never
+        case .liked: return 0.9
+        case nil: break
+        }
         let r = t.decayed(to: now).raw
         let a = r > 0 ? min(0.9, 0.3 * r) : max(-3, 0.75 * r)
         return (a * 100).rounded() / 100
@@ -110,8 +125,40 @@ public struct MemberTaste: Codable, Hashable, Sendable {
     /// Forgets one exercise (the member says the app got it wrong).
     public mutating func forget(_ id: String) { exercises[id] = nil }
 
+    /// Affinity of a "Never suggest" exercise: far below anything learned, so it is only picked when nothing else fits.
+    public static let never = -10.0
+
+    public mutating func mark(_ id: String, _ mark: TasteMark, at now: Date) {
+        var t = exercises[id]?.decayed(to: now) ?? ExerciseTaste(at: now)
+        t.mark = mark
+        exercises[id] = t
+    }
+
+    public func mark(_ id: String) -> TasteMark? { exercises[id]?.mark }
+
+    /// Why the app thinks so, for What Monkey learned: "Swapped out or removed 2× · finished 8×".
+    public func reason(_ id: String, at now: Date) -> String {
+        guard let t = exercises[id]?.decayed(to: now) else { return "" }
+        var parts: [String] = []
+        switch t.mark {
+        case .never: parts.append("You said never")
+        case .liked: parts.append("You said you like it")
+        case nil: break
+        }
+        func add(_ v: Double, _ label: String) {
+            let n = Int(v.rounded())
+            if n >= 1 { parts.append("\(label) \(n)×") }
+        }
+        add(t.chosen, "Picked")
+        add(t.dropped, "Swapped out or removed")
+        add(t.skipped, "Skipped")
+        add(t.finished, "Finished")
+        guard !parts.isEmpty else { return "A while ago" }
+        return parts.enumerated().map { $0.offset == 0 ? $0.element : $0.element.lowercased() }.joined(separator: " · ")
+    }
+
     private mutating func prune(at now: Date) {
-        exercises = exercises.filter { $0.value.decayed(to: now).weight >= 0.05 }
+        exercises = exercises.filter { $0.value.mark != nil || $0.value.decayed(to: now).weight >= 0.05 }
         guard exercises.count > Self.maxEntries else { return }
         let keep = exercises.sorted { ($0.value.decayed(to: now).weight, $0.key) > ($1.value.decayed(to: now).weight, $1.key) }
             .prefix(Self.maxEntries)
@@ -167,4 +214,72 @@ extension Profile {
     func taste(_ id: String) -> Double { learnedTaste?[id] ?? 0 }
 
     func dislikes(_ id: String) -> Bool { taste(id) <= MemberTaste.dislikeThreshold }
+}
+
+// MARK: - New-week recap (#299)
+
+/// One way a new week's plan differs because of what the app learned.
+public struct TasteChange: Codable, Hashable, Sendable, Identifiable {
+    public enum Kind: String, Codable, Sendable {
+        /// `from` left out (disliked), `to` in its place.
+        case out
+        /// `to` picked because the member likes it.
+        case more
+    }
+
+    public var kind: Kind
+    public var from: String
+    public var to: String
+    /// Workouts of the week it changed in.
+    public var workouts: Int
+    /// The exercise the change is about: undoing it forgets this one.
+    public var subject: String { kind == .out ? from : to }
+    public var id: String { "\(kind.rawValue)-\(subject)" }
+
+    public init(kind: Kind, from: String, to: String, workouts: Int = 1) {
+        self.kind = kind
+        self.from = from
+        self.to = to
+        self.workouts = workouts
+    }
+}
+
+/// What the coach tells the member when a new week is made with learned tastes.
+public struct TasteRecap: Codable, Hashable, Sendable {
+    public var week: Int
+    public var changes: [TasteChange]
+
+    public init(week: Int, changes: [TasteChange]) {
+        self.week = week
+        self.changes = changes
+    }
+}
+
+extension WeekPlan {
+    /// How this plan (made with `taste`) differs from `plain` (made without), item by item: a disliked exercise
+    /// left out, or a liked one brought in. Knock-on changes (a pick freed up elsewhere) are left out.
+    /// One change per exercise, left-out ones first; at most `limit`.
+    public func tasteChanges(from plain: WeekPlan, taste: [String: Double], limit: Int = 5) -> [TasteChange] {
+        var before: [String: String] = [:]
+        for s in plain.sessions { for b in s.blocks { for it in b.items { before[it.uid] = it.exerciseId } } }
+        var out: [TasteChange] = []
+        var more: [TasteChange] = []
+        for s in sessions {
+            for b in s.blocks {
+                for it in b.items {
+                    guard let was = before[it.uid], was != it.exerciseId else { continue }
+                    if (taste[was] ?? 0) < 0 {
+                        if let i = out.firstIndex(where: { $0.from == was }) { out[i].workouts += 1 } else {
+                            out.append(TasteChange(kind: .out, from: was, to: it.exerciseId))
+                        }
+                    } else if (taste[it.exerciseId] ?? 0) > 0 {
+                        if let i = more.firstIndex(where: { $0.to == it.exerciseId }) { more[i].workouts += 1 } else {
+                            more.append(TasteChange(kind: .more, from: was, to: it.exerciseId))
+                        }
+                    }
+                }
+            }
+        }
+        return Array((out + more).prefix(limit))
+    }
 }
