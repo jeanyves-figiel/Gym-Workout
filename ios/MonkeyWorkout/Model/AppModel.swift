@@ -54,6 +54,8 @@ final class AppModel {
     // MARK: Lifecycle & auth
 
     private(set) var demo = false
+    /// Demo screens' "today" (1 = Monday …), so screenshots don't depend on the day CI runs (#266).
+    var demoToday: Int?
 
     func bootstrap() async {
         #if DEBUG
@@ -64,6 +66,8 @@ final class AppModel {
             state.synced = SyncedProfile(profile: Demo.profile, seed: 7, week: Demo.week)
             state.plan = Generator.generateWeek(Demo.profile, week: Demo.week, seed: 7)
             if let first = state.plan?.sessions.first { state.done[first.id] = true }
+            // Today = the day after the done session's, so nothing shows as missed by default.
+            demoToday = state.plan.map { WeekProgress.ordered($0).dropFirst().first?.weekday ?? 1 } ?? 1
             let demo = Demo.history()
             state.history = demo.records
             state.logs = demo.logs
@@ -222,7 +226,8 @@ final class AppModel {
                                exerciseSwaps: state.synced?.exerciseSwaps, variation: variation, moves: state.synced?.moves,
                                sessionStyles: state.synced?.sessionStyles?.filter { $0.key.hasPrefix("w\(week)s") },
                                savedGyms: state.synced?.savedGyms, programme: state.synced?.programme,
-                               programmeHistory: state.synced?.programmeHistory, trainLayout: state.synced?.trainLayout)
+                               programmeHistory: state.synced?.programmeHistory, trainLayout: state.synced?.trainLayout,
+                               weekOf: state.synced?.weekOf)
         state.synced = sp
         // A profile edit (goal, days, gym…) re-plans the rest of this week (#194): sessions already done and the
         // one in progress keep their content; everything else follows the new profile.
@@ -232,6 +237,7 @@ final class AppModel {
         if newWeek {
             state.done = [:]
             state.ticked = [:]
+            state.skipped = nil
         } else if changed {
             state.ticked = state.ticked.filter { uid, _ in kept.contains { uid.hasPrefix($0 + "-") } }
         }
@@ -275,10 +281,10 @@ final class AppModel {
             ?? sharedWorkout(sessionId: id)?.workout.session
     }
 
-    /// First session of the week not yet completed, by day (moved and extra sessions included).
+    /// First session not yet completed from today on, by day (moved and extra sessions included). Sessions of
+    /// earlier days that weren't done are missed (#266), not next.
     var nextSession: Session? {
-        plan?.sessions.enumerated().sorted { ($0.element.weekday ?? 8, $0.offset) < ($1.element.weekday ?? 8, $1.offset) }
-            .map(\.element).first { !(state.done[$0.id] ?? false) }
+        plan.flatMap { WeekProgress.next($0, today: todayWeekday, done: doneIds) }
     }
 
     var completedCount: Int { plan?.sessions.filter { state.done[$0.id] ?? false }.count ?? 0 }

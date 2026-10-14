@@ -154,10 +154,12 @@ extension AppModel {
         return WeekSchedule.weekdays.filter { $0 != s.weekday && week.off[$0] == nil }
     }
 
-    /// Moves a session of this week to `weekday`, this week only; a session already there (not done) takes its day.
-    func moveSession(_ sessionId: String, to weekday: Int, now: Date = Date()) {
+    /// Moves a session of this week to `weekday`, this week only; a session already there (not done) takes its day
+    /// unless `swap` is false (a missed session done today, #266, goes next to today's).
+    func moveSession(_ sessionId: String, to weekday: Int, swap: Bool = true, now: Date = Date()) {
         guard var sp = state.synced, let week = calendarWeeks(count: 1, now: now).first else { return }
-        let changes = PlanCalendar.moving(sessionId, to: weekday, in: week.plan, done: doneIds)
+        var changes = PlanCalendar.moving(sessionId, to: weekday, in: week.plan, done: doneIds)
+        if !swap { changes = changes.filter { $0.key == sessionId } }
         guard !changes.isEmpty else { return }
         let monday = mondayKey(now)
         var moves = (sp.moves ?? []).filter { $0.weekOf == monday }

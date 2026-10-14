@@ -106,7 +106,7 @@ struct CoachSmallWidget: View {
     var body: some View {
         let target = model.gameTarget
         let stats = Progression.stats(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
-        let mood = MonkeyFace.Mood.from(weekDone: model.nextSession == nil || stats.thisWeek >= target,
+        let mood = MonkeyFace.Mood.from(weekDone: model.weekDone(thisWeek: stats.thisWeek, target: target),
                                         readiness: Readiness.assess(health.snapshot)?.0.title, streakWeeks: stats.currentStreakWeeks)
         WidgetTile(kind: .coach, title: "Coach · \(mood.word)") {
             HStack {
@@ -114,7 +114,8 @@ struct CoachSmallWidget: View {
                 MonkeyFace(mood: mood, scale: 1.1, gear: model.rank.gear)
                 Spacer(minLength: 0)
             }
-            caption("🔥 \(stats.currentStreakWeeks) wk · \(stats.thisWeek)/\(target) this week")
+            let missed = model.missedSessions.count
+            caption("🔥 \(stats.currentStreakWeeks) wk · \(stats.thisWeek)/\(target) this week\(missed > 0 ? " · \(missed) missed" : "")")
         }
         .opensLevels()
     }
@@ -170,7 +171,7 @@ struct NextUpCompactWidget: View {
 
     var body: some View {
         if let session {
-            WidgetTile(kind: .nextUp, title: "Next up · \(session.dayLabel)") {
+            WidgetTile(kind: .nextUp, title: "Next up · \(model.upcomingDayLabel(session))") {
                 if wide {
                     HStack(spacing: 10) {
                         NavigationLink(value: session.id) {
@@ -199,9 +200,11 @@ struct NextUpCompactWidget: View {
                 }
             }
         } else {
+            let missed = model.missedSessions.count
             WidgetTile(kind: .nextUp, title: "This week") {
-                Label("Week complete", systemImage: "trophy.fill").font(Theme.display(18))
-                caption("Rest, climb or move to the next week.")
+                Label(missed > 0 ? "No more sessions" : "Week complete", systemImage: missed > 0 ? "moon.zzz.fill" : "trophy.fill")
+                    .font(Theme.display(18))
+                caption(missed > 0 ? "\(missed) missed this week." : "Rest or climb. New week Monday.")
             }
         }
     }

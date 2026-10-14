@@ -29,6 +29,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var programmeHistory: [ProgrammeRecord]?
     /// Customised Train screen (#260); nil = the default layout.
     var trainLayout: TrainLayout?
+    /// Monday ("yyyy-MM-dd") of the calendar week the plan belongs to (#266); a new calendar week moves the plan on.
+    var weekOf: String?
 
     /// Profile the plan is generated from: the training profile plus this week's per-workout overrides.
     var planProfile: Profile {
@@ -44,6 +46,8 @@ struct LocalState: Codable {
     var plan: WeekPlan?
     var done: [String: Bool] = [:]
     var ticked: [String: Bool] = [:]
+    /// Missed sessions the member chose to skip this week (#266). Optional so older state files still decode.
+    var skipped: [String: Bool]?
     var logs: [LogEntry] = []
     var pendingLogIds: Set<UUID> = []
     var lastLogPull: Date?

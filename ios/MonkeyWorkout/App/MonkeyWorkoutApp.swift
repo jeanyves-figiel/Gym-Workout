@@ -54,8 +54,9 @@ struct MonkeyWorkoutApp: App {
                     case .background: lock.didEnterBackground()
                     case .active:
                         lock.didBecomeActive()
-                        // A new programme week (#255).
+                        // A new programme week (#255), or a new calendar week for the plan (#266).
                         model.syncProgramme()
+                        model.rollWeekIfNeeded()
                         Task {
                             await AppleCredentialCheck.verify(model)
                             await model.sync()
