@@ -285,6 +285,8 @@ private struct DemoScreen: View {
         case "library-plan": AddToPlanSheet(workout: model.libraryWorkout(for: WorkoutTemplate.all[0].session) ?? Demo.customWorkouts[0])
         case "calendar": NavigationStack { CalendarView() }
         case "train-edit": NavigationStack { WeekView(demoEditing: true) }
+        case "train-day-picked": NavigationStack { WeekView(demoPick: .planned) }
+        case "train-rest-day": NavigationStack { WeekView(demoPick: .rest) }
         case "train-gallery": TrainWidgetGallery()
         case "train-customise": TrainCustomiseSheet()
         case "gyms": GymFinderView(place: "Zürich")
