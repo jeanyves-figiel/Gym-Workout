@@ -217,7 +217,7 @@ extension AppModel {
     /// `minutes` sets its length (#178), nil = the plan's session length.
     func quickSession(_ focus: Focus, minutes: Int? = nil) -> Session? {
         guard let sp = state.synced else { return nil }
-        return Generator.quickSession(sp.profile, focus: focus, week: sp.week, seed: quickSeed(sp), minutes: minutes)
+        return Generator.quickSession(sp.tasteProfile, focus: focus, week: sp.week, seed: quickSeed(sp), minutes: minutes)
     }
 
     /// A quick workout for chosen muscle groups (#178), sized to `minutes`; empty when nothing fits.

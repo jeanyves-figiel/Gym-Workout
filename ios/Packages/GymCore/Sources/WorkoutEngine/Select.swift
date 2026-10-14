@@ -155,11 +155,14 @@ enum Selector {
             if q.main && e.main { s += 8 }
             // Intermediate+ main lifts: favour free-weight compounds over machines.
             if q.main && ctx.level >= 2 && e.level >= 2 { s += 1.5 }
-            if let i = q.prefer.firstIndex(of: e.id) { s += 4 - Double(min(3, i)) * 0.5 }
+            // A template's favourite the member dislikes (#299) loses its bonus.
+            if let i = q.prefer.firstIndex(of: e.id), !ctx.profile.dislikes(e.id) { s += 4 - Double(min(3, i)) * 0.5 }
             if ctx.spareGrip && !e.gripHeavy { s += 2 }
             if !(q.main ? ctx.usedMain : ctx.usedWeek).contains(e.id) { s += 1 }
             if q.category == .strength { s += goalBias(ctx.profile.goal, e, main: q.main) }
             if let r = q.regions { s += 0.5 * Double(e.regions.filter { r.contains($0) }.count) }
+            // What the member likes and dislikes (#299); nothing learned = no change.
+            if let t = ctx.profile.learnedTaste?[e.id] { s += t }
             return s
         }
         let scores = pool.map(score)

@@ -30,7 +30,7 @@ extension AppModel {
 
     /// Swaps `request` would produce, for the preview.
     func previewVariation(_ request: VaryRequest) -> [String: String] {
-        guard let base = swappedPlan, let profile else { return currentSwaps }
+        guard let base = swappedPlan, let profile = state.synced?.tasteProfile else { return currentSwaps }
         return base.varied(request, profile: profile, current: currentSwaps)
     }
 
