@@ -100,6 +100,6 @@ extension AppModel {
         state.done = [:]
         state.ticked = [:]
         state.skipped = nil
-        applyProfile(sp.profile, seed: sp.seed, week: PlanCalendar.cycleWeek(current: sp.week, offset: weeks))
+        applyProfile(sp.profile, seed: sp.seed, week: PlanCalendar.cycleWeek(current: sp.week, offset: weeks), rolled: true)
     }
 }

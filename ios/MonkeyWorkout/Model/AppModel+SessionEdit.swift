@@ -30,7 +30,9 @@ extension AppModel {
 
     /// Saves the edited exercise list; the unedited list back clears the edit.
     func saveSessionEdit(_ id: String, blocks: [Block]) {
-        guard var sp = state.synced, let base = uneditedSession(id) else { return }
+        guard let base = uneditedSession(id) else { return }
+        if let before = editableBlocks(id) { learnTaste { $0.learn(edit: before, blocks, at: Date()) } }
+        guard var sp = state.synced else { return }
         var list = (sp.sessionEdits ?? []).filter { $0.sessionId != id }
         if blocks != base.blocks {
             let week = uneditedPlan?.sessions.contains { $0.id == id } == true ? uneditedPlan?.week : nil
