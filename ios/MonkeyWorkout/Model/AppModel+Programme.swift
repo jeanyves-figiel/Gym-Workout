@@ -20,8 +20,40 @@ extension AppModel {
 
     var programmeHistory: [ProgrammeRecord] { state.synced?.programmeHistory ?? [] }
 
-    /// Starts `programme` this week. Another one in progress is left first; the member's own plan stays saved.
-    func startProgramme(_ programme: Programme, now: Date = .now) {
+    /// Programmes the member made or copied (#269), newest last.
+    var myProgrammes: [Programme] { state.synced?.customProgrammes ?? [] }
+
+    /// A programme by id at its standard length: the member's own, the catalog's, or the one running (kept even when
+    /// the member deleted their copy).
+    func findProgramme(_ id: String) -> Programme? {
+        myProgrammes.first { $0.id == id } ?? Programme.find(id)
+            ?? [activeProgramme?.custom].compactMap { $0 }.first { $0.id == id }
+    }
+
+    /// Saves a programme the member made or edited. Running: the new version runs from now (this week stays as built).
+    func saveProgramme(_ programme: Programme) {
+        guard programme.mine else { return }
+        var list = myProgrammes
+        if let i = list.firstIndex(where: { $0.id == programme.id }) { list[i] = programme } else { list.append(programme) }
+        state.synced?.customProgrammes = list
+        if activeProgramme?.programmeId == programme.id {
+            state.synced?.programme?.custom = programme
+            if let l = activeProgramme?.length, !programme.lengths.contains(where: { $0.weeks == l }) {
+                state.synced?.programme?.length = nil
+            }
+        }
+        persistProgrammeChange()
+    }
+
+    func deleteProgramme(_ id: String) {
+        state.synced?.customProgrammes = myProgrammes.filter { $0.id != id }
+        if state.synced?.customProgrammes?.isEmpty == true { state.synced?.customProgrammes = nil }
+        persistProgrammeChange()
+    }
+
+    /// Starts `programme` this week at `length` weeks (nil = standard). Another one in progress is left first; the
+    /// member's own plan stays saved.
+    func startProgramme(_ programme: Programme, length: Int? = nil, now: Date = .now) {
         guard let sp = state.synced else { return }
         var saved = ActiveProgramme.SavedPlan(profile: sp.profile, seed: sp.seed, week: sp.week)
         if let old = sp.programme {
@@ -30,8 +62,18 @@ extension AppModel {
         }
         state.synced?.programme = ActiveProgramme(
             programmeId: programme.id, start: Progression.weekStart(now, Progression.calendar()),
-            seed: UInt32.random(in: 0...UInt32.max), saved: saved)
+            seed: UInt32.random(in: 0...UInt32.max), saved: saved,
+            length: length == programme.weeks ? nil : length, custom: programme.mine ? programme : nil)
         syncProgramme(now: now, starting: true)
+    }
+
+    /// New length for the programme in progress (#268). This week stays as built; the phases from next week follow
+    /// the new length, so nothing done this week is lost.
+    func setProgrammeLength(_ weeks: Int) {
+        guard var a = activeProgramme, let standard = a.custom ?? Programme.find(a.programmeId) else { return }
+        a.length = weeks == standard.weeks ? nil : weeks
+        state.synced?.programme = a
+        persistProgrammeChange()
     }
 
     /// Builds the plan for this programme week when the week changed, finishes the programme once it is over.
@@ -99,7 +141,8 @@ extension AppModel {
     @discardableResult
     private func record(_ a: ActiveProgramme, finished: Bool, now: Date) -> ProgrammeRecord {
         let weeks = finished ? (a.programme?.weeks ?? 0) : max(0, min(a.programme?.weeks ?? 0, a.week(on: now)) - 1)
-        let r = ProgrammeRecord(programmeId: a.programmeId, start: a.start, end: now, finished: finished, weeks: weeks)
+        let r = ProgrammeRecord(programmeId: a.programmeId, start: a.start, end: now, finished: finished, weeks: weeks,
+                                length: a.length, custom: a.custom)
         state.synced?.programmeHistory = (state.synced?.programmeHistory ?? []) + [r]
         return r
     }

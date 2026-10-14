@@ -29,6 +29,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var programmeHistory: [ProgrammeRecord]?
     /// Customised Train screen (#260); nil = the default layout.
     var trainLayout: TrainLayout?
+    /// Programmes the member made or copied (#269).
+    var customProgrammes: [Programme]?
 
     /// Profile the plan is generated from: the training profile plus this week's per-workout overrides.
     var planProfile: Profile {

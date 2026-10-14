@@ -47,7 +47,7 @@ struct TrainingProfileView: View {
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationDestination(for: ProfileSection.self) { ProfileSectionView(section: $0) }
-        .navigationDestination(for: ProgrammeRoute.self) { r in Programme.find(r.id).map { ProgrammeDetailView(programme: $0) } }
+        .navigationDestination(for: ProgrammeRoute.self) { r in model.findProgramme(r.id).map { ProgrammeDetailView(programme: $0) } }
     }
 }
 
