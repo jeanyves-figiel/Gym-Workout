@@ -12,6 +12,9 @@ struct ProfileFormView: View {
     /// Only this section (hub / Community entry); nil = full onboarding form.
     private let section: ProfileSection?
     @State private var p: Profile
+    /// The profile as the section opened, for Undo (#285).
+    @State private var start: Profile
+    @State private var closeGuard = CloseGuard()
     @Environment(HealthManager.self) private var health
     @Environment(AppModel.self) private var model
     /// Body figure for muscle maps, asked once in onboarding (#110); changed later in Account → Body & Health.
@@ -20,8 +23,9 @@ struct ProfileFormView: View {
     /// Section to scroll to on appear (demo screenshots).
     private let scrollTo: String?
 
+    /// `restoring`: the section's values brought back by Undo (#285).
     init(initial: Profile?, section: ProfileSection? = nil, scrollTo: String? = nil, onGymChange: ((Profile) -> Void)? = nil,
-         onSave: @escaping (Profile) -> Void) {
+         restoring: Profile? = nil, onSave: @escaping (Profile) -> Void) {
         self.onSave = onSave
         self.onGymChange = onGymChange
         self.section = section
@@ -32,7 +36,13 @@ struct ProfileFormView: View {
             start.applyGoal(start.goal)
             start.climbs = false
         }
-        _p = State(initialValue: start)
+        _start = State(initialValue: start)
+        // Gym and equipment saved themselves already (#271): keep the current ones.
+        var shown = restoring ?? start
+        shown.gym = start.gym
+        shown.equipment = start.equipment
+        shown.gymLayout = start.gymLayout
+        _p = State(initialValue: shown)
     }
 
     private var minutes: Int { Generator.sessionMinutes(p) }
@@ -109,6 +119,7 @@ struct ProfileFormView: View {
         .background(Theme.bg.ignoresSafeArea())
         .safeAreaInset(edge: .bottom) {
             Button {
+                closeGuard.done()
                 onSave(p)
                 if isNew { model.setBodyFigure(figure) }
             } label: {
@@ -130,6 +141,22 @@ struct ProfileFormView: View {
             if isNew, !p.climbs, let perWeek = health.snapshot.climbingPerWeek4w, perWeek >= 0.5 {
                 p.climbingDaysPerWeek = min(4, max(1, Int(perWeek.rounded())))
             }
+        }
+        .undoableClose(closeGuard, offer: undoOffer)
+    }
+
+    /// Undo bar when a hub section was changed (#285); gym and equipment save themselves, onboarding never offers.
+    private var undoOffer: UndoOffer? {
+        guard let section, !isNew else { return nil }
+        var edited = p
+        edited.gym = start.gym
+        edited.equipment = start.equipment
+        edited.gymLayout = start.gymLayout
+        guard edited != start else { return nil }
+        let kept = p
+        return UndoOffer(title: "\(section.title) closed", detail: ProfileSectionCard(section: section, profile: kept).value, symbol: "slider.horizontal.3",
+                         colors: WorkoutEngine.Category.strength.colors) {
+            AnyView(UndoReopenedPush { ProfileSectionView(section: section, restoring: kept) })
         }
     }
 

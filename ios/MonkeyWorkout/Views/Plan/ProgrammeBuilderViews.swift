@@ -239,10 +239,14 @@ private struct ProgrammeChipLayout: Layout {
 struct ProgrammeEditorView: View {
     @State var programme: Programme
     let isNew: Bool
+    /// The programme as it was when closed, brought back by Undo (#285).
+    var restoring: Programme? = nil
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var adding = false
     @State private var confirmDelete = false
+    @State private var start: Programme? = nil
+    @State private var closeGuard = CloseGuard()
 
     var body: some View {
         NavigationStack {
@@ -354,6 +358,7 @@ struct ProgrammeEditorView: View {
             }
             .confirmationDialog("Delete \(programme.name)?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete programme", role: .destructive) {
+                    closeGuard.done()
                     model.deleteProgramme(programme.id)
                     dismiss()
                 }
@@ -362,6 +367,24 @@ struct ProgrammeEditorView: View {
                      ? "It keeps running until you leave or finish it."
                      : "Your workouts and history stay.")
             }
+        }
+        .onAppear {
+            guard start == nil else { return }
+            start = programme
+            if let restoring { programme = restoring }
+        }
+        .undoableClose(closeGuard, offer: undoOffer)
+    }
+
+    /// Undo bar when anything changed since the editor opened (#285).
+    private var undoOffer: UndoOffer? {
+        guard let start, programme != start else { return nil }
+        let kept = programme, new = isNew
+        let detail = undoDetail(programme.name, programme.plan,
+                                programme.signatures.isEmpty ? nil : "\(programme.signatures.count) pinned")
+        return UndoOffer(title: new ? "Programme closed" : "Edit closed", detail: detail, symbol: programme.symbol,
+                         colors: programme.palette.colors) {
+            AnyView(ProgrammeEditorView(programme: start, isNew: new, restoring: kept))
         }
     }
 
@@ -388,6 +411,7 @@ struct ProgrammeEditorView: View {
         if p.name.isEmpty { p.name = "My programme" }
         p.tagline = "My programme · \(p.sessionsPerWeek)× a week"
         model.saveProgramme(p)
+        closeGuard.done()
         dismiss()
     }
 }
@@ -408,6 +432,48 @@ struct ProgrammeBuilderView: View {
     @State private var progression = true
     @State private var lifts: [String] = []
     @State private var pickingDay: Int?
+    @State private var closeGuard = CloseGuard()
+
+    /// Every answer and the step, kept for Undo (#285). `Draft()` is the untouched builder.
+    struct Draft: Equatable {
+        var step = 0
+        var goal: Goal?
+        var name = ""
+        var weeks = 8
+        var sessions = 3
+        var days: [ProgrammeWorkoutSource?] = Array(repeating: nil, count: 3)
+        var progression = true
+        var lifts: [String] = []
+    }
+
+    init(restoring: Draft? = nil) {
+        let d = restoring ?? Draft()
+        _step = State(initialValue: d.step)
+        _goal = State(initialValue: d.goal)
+        _name = State(initialValue: d.name)
+        _weeks = State(initialValue: d.weeks)
+        _sessions = State(initialValue: d.sessions)
+        _days = State(initialValue: d.days)
+        _progression = State(initialValue: d.progression)
+        _lifts = State(initialValue: d.lifts)
+    }
+
+    private var answers: Draft {
+        Draft(step: step, goal: goal, name: name, weeks: weeks, sessions: sessions, days: days, progression: progression, lifts: lifts)
+    }
+
+    /// Undo bar once any step was answered (#285).
+    private var undoOffer: UndoOffer? {
+        let kept = answers
+        guard kept != Draft() else { return nil }
+        let d = goal.map { Programme.defaults(for: $0) }
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let detail = undoDetail("Step \(step + 1) of 4", goal?.config.label, n)
+        return UndoOffer(title: "Programme closed", detail: detail, symbol: d?.symbol ?? "calendar",
+                         colors: (d?.palette ?? .strength).colors) {
+            AnyView(ProgrammeBuilderView(restoring: kept))
+        }
+    }
 
     private static let goals: [Goal] = [.strength, .build, .athletic, .climbing, .balanced, .endurance]
     private static let titles = ["What for?", "How long?", "Your week", "Test lifts"]
@@ -465,6 +531,7 @@ struct ProgrammeBuilderView: View {
             }
             .onAppear(perform: demo)
         }
+        .undoableClose(closeGuard, offer: undoOffer)
     }
 
     private struct DayIndex: Identifiable {
@@ -602,6 +669,7 @@ struct ProgrammeBuilderView: View {
         var p = draft
         p.id = Programme.minePrefix + UUID().uuidString.lowercased()
         model.saveProgramme(p)
+        closeGuard.done()
         dismiss()
     }
 

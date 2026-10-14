@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Close + Undo** (#285): closing a screen with unsaved input (X, Cancel, swipe down or back) lost it without a word. Now the screen still closes at once, and a gradient bar (design A from `cancel-confirm/toasts.png`: icon tile, what was closed and what was in it, lime **Undo** in a 6 s countdown ring) brings it back with every value. Untouched screens close silently; saving never shows it. Covers New programme, Edit programme / Make it mine, Build your own exercise, Exercise picker, Gym setup, Log a missed workout, PR attempt (once tries are logged), Log measurements, Away period, Log a climb, Training profile sections, Body & Health, Community profile, Share a win, 2-step setup / new recovery codes (one-time codes come back so they can be saved) and Change email (code sent). The bar sits in its own window above sheets, swipe down to hide it, VoiceOver announces it with an Undo action. `UndoClose.swift` (`UndoOffer`, `CloseGuard`, `.undoableClose`); demo screen `undo-bar`. Audit in `cancel-confirm/audit.md`.
+
 ### Changed
 - **Release notes for the 2026-10-14 morning release** (What's new `2026-10-14.1`): 5 cards covering #268/#269 programmes (4 cards merged into 2), #266 missed workouts + Next up, #274 gym zones, #271/#273 gym save + Add a gym and #264 calendar day sheet.
 

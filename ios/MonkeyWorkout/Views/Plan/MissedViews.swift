@@ -39,12 +39,24 @@ struct MissedActionsRow: View {
 /// Logs a missed session after the fact on its day: when, how long, sets done and kg per exercise.
 struct MissedLogSheet: View {
     let session: Session
+    /// Values brought back by Undo (#285).
+    var restoring: Draft?
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var start = Date()
     @State private var minutes = 60
     @State private var sets: [String: Int] = [:]
     @State private var kg: [String: Double] = [:]
+    @State private var baseline: Draft?
+    @State private var closeGuard = CloseGuard()
+
+    /// What's entered, kept for Undo (#285).
+    struct Draft: Equatable {
+        var start: Date
+        var minutes: Int
+        var sets: [String: Int]
+        var kg: [String: Double]
+    }
 
     private struct Row: Identifiable {
         let item: PlannedExercise
@@ -91,6 +103,20 @@ struct MissedLogSheet: View {
         .presentationDetents([.large])
         .preferredColorScheme(.dark)
         .onAppear(perform: prefill)
+        .undoableClose(closeGuard, offer: undoOffer)
+    }
+
+    private var draft: Draft { Draft(start: start, minutes: minutes, sets: sets, kg: kg) }
+
+    /// Undo bar when something was changed since the sheet opened (#285).
+    private var undoOffer: UndoOffer? {
+        guard let baseline, draft != baseline else { return nil }
+        let kept = draft
+        let s = self.session
+        return UndoOffer(title: "Log closed", detail: undoDetail(s.displayTitle, "\(kept.minutes) min"),
+                         symbol: "calendar.badge.exclamationmark", colors: WorkoutEngine.Category.power.colors) {
+            AnyView(MissedLogSheet(session: s, restoring: kept))
+        }
     }
 
     private var header: some View {
@@ -139,6 +165,7 @@ struct MissedLogSheet: View {
             for b in session.blocks { for it in b.items { done[it.uid] = max(1, it.prescription.sets) } }
             for (uid, n) in sets { done[uid] = n }
             model.logMissed(session, setsDone: done, weights: kg.filter { $0.value > 0 }, start: start, minutes: minutes)
+            closeGuard.done()
             dismiss()
         } label: {
             Label("Save workout", systemImage: "checkmark")
@@ -152,9 +179,17 @@ struct MissedLogSheet: View {
     }
 
     private func prefill() {
+        guard baseline == nil else { return }
         start = model.defaultStart(of: session)
         minutes = max(5, (session.estMin + 4) / 5 * 5)
         for r in rows where r.loaded { if kg[r.exercise.id] == nil { kg[r.exercise.id] = model.lastWeight(r.exercise.id) } }
+        baseline = draft
+        if let restoring {
+            start = restoring.start
+            minutes = restoring.minutes
+            sets = restoring.sets
+            kg = restoring.kg
+        }
     }
 }
 

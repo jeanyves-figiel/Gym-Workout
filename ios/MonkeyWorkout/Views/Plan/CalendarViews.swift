@@ -507,17 +507,49 @@ struct AwayEditorView: View {
     @State private var searching = false
     @State private var findingGym = false
     @State private var settingUp = false
+    @State private var closeGuard = CloseGuard()
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    private let initial: AwayPeriod
+    private let baseline: Draft
 
-    init(initial: AwayPeriod, isNew: Bool, onDone: @escaping (AwayPeriod?) -> Void) {
+    /// What's entered, kept for Undo (#285). Dates as calendar days.
+    struct Draft: Equatable {
+        var period: AwayPeriod
+        var from: String
+        var to: String
+        var note: String
+    }
+
+    init(initial: AwayPeriod, isNew: Bool, restoring: Draft? = nil, onDone: @escaping (AwayPeriod?) -> Void) {
         self.isNew = isNew
         self.onDone = onDone
+        self.initial = initial
+        let base = Draft(period: initial, from: initial.start, to: initial.end, note: initial.note ?? "")
+        self.baseline = base
+        let shown = restoring ?? base
         let cal = Progression.calendar()
-        _draft = State(initialValue: initial)
-        _from = State(initialValue: PlanCalendar.date(initial.start, cal) ?? Date())
-        _to = State(initialValue: PlanCalendar.date(initial.end, cal) ?? Date())
-        _note = State(initialValue: initial.note ?? "")
+        _draft = State(initialValue: shown.period)
+        _from = State(initialValue: PlanCalendar.date(shown.from, cal) ?? Date())
+        _to = State(initialValue: PlanCalendar.date(shown.to, cal) ?? Date())
+        _note = State(initialValue: shown.note)
+    }
+
+    private var entered: Draft {
+        let cal = Progression.calendar()
+        return Draft(period: draft, from: PlanCalendar.key(from, cal), to: PlanCalendar.key(to, cal), note: note)
+    }
+
+    /// Undo bar when anything was changed since the sheet opened (#285).
+    private var undoOffer: UndoOffer? {
+        let kept = entered
+        guard kept != baseline else { return nil }
+        let original = self.initial, new = self.isNew, done = self.onDone
+        let kind = kept.period.kind
+        return UndoOffer(title: new ? "Away closed" : "Edit closed", detail: undoDetail(kind.label, kept.note),
+                         symbol: kind.symbol, colors: kind == .off ? WorkoutEngine.Category.power.colors : WorkoutEngine.Category.cardio.colors) {
+            AnyView(AwayEditorView(initial: original, isNew: new, restoring: kept, onDone: done))
+        }
     }
 
     var body: some View {
@@ -578,6 +610,7 @@ struct AwayEditorView: View {
                         .padding(.top, 6)
                     if !isNew {
                         Button(role: .destructive) {
+                            closeGuard.done()
                             onDone(nil)
                             dismiss()
                         } label: {
@@ -625,6 +658,7 @@ struct AwayEditorView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .undoableClose(closeGuard, offer: undoOffer)
     }
 
     private var kindPicker: some View {
@@ -736,6 +770,7 @@ struct AwayEditorView: View {
         let p = AwayPeriod(id: draft.id, kind: draft.kind, start: PlanCalendar.key(from, cal), end: PlanCalendar.key(max(from, to), cal),
                            note: n.isEmpty ? nil : n, setup: draft.kind == .travel ? (draft.setup ?? .hotelGym) : nil,
                            equipment: draft.kind == .travel ? draft.equipment : nil, gym: draft.kind == .travel ? draft.gym : nil)
+        closeGuard.done()
         onDone(p)
         dismiss()
     }
