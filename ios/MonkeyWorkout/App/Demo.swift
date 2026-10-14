@@ -80,6 +80,27 @@ enum Demo {
             secondary: [.adductors], equipment: [.hipAdAbductor], machine: "Technogym Selection 700", cues: ["Slow return, 2 s"], drawing: pose)
     }()
 
+    /// Training programme screens (#255): Strength foundation running (week 4, or week 8 = test week), and
+    /// Climber's power finished earlier.
+    @MainActor static func programme(_ model: AppModel) {
+        let running = ["train-programme", "programme-test", "programme-running", "progress-programmes", "profile-programme",
+                       "calendar-programme"]
+        guard running.contains(screen) || screen == "programme-finished" else { return }
+        let cal = Progression.calendar()
+        let now = Date()
+        let past = cal.date(byAdding: .weekOfYear, value: -14, to: now)!
+        model.state.synced?.programmeHistory = [
+            ProgrammeRecord(programmeId: "climbers-power", start: past, end: cal.date(byAdding: .weekOfYear, value: 6, to: past)!,
+                            finished: true, weeks: 6),
+        ]
+        guard running.contains(screen), let prog = Programme.find("strength-foundation") else { return }
+        let start = cal.date(byAdding: .weekOfYear, value: screen == "programme-test" ? -7 : -3, to: now)!
+        model.state.synced?.programme = ActiveProgramme(
+            programmeId: prog.id, start: Progression.weekStart(start, cal), seed: 11,
+            saved: .init(profile: profile, seed: 7, week: week))
+        model.syncProgramme(now: now, starting: true)
+    }
+
     /// Current cycle week (2 = Build). Every demo screen (Train chip, cycle sheet, calendar, library) reads it via the plan.
     static let week = 2
 
