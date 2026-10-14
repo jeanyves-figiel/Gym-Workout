@@ -13,6 +13,9 @@ struct SessionView: View {
     @State private var undoing: WorkoutRecord?
     @State private var editingFlow = false
     @State private var editingCustom: CustomWorkout?
+    @State private var editingExercises = false
+    /// Swap from a card that changes this workout's own list (#295) rather than the plan.
+    @State private var pickingSwap: ExerciseRef?
 
     private var session: Session? { model.session(sessionId) }
 
@@ -22,12 +25,15 @@ struct SessionView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     header(session)
                     FlowOverview(session: session, onEdit: flowEdit(session))
+                    exercisesHeader(session)
                     ForEach(session.blocks) { block in
-                        BlockSection(block: block, sessionId: session.id, canSwap: { model.canSwap(uid: $0.uid) }) { item in
+                        BlockSection(block: block, sessionId: session.id,
+                                     canSwap: { model.swapsThroughPlan(session, uid: $0.uid) || model.canEditExercises(session) }) { item in
                             // Example and custom workouts are fixed lists: no planned item behind them.
                             detail = ExerciseRef(exerciseId: item.exerciseId, uid: session.isStandalone ? nil : item.uid)
                         } onSwap: { item in
-                            swapping = ExerciseRef(exerciseId: item.exerciseId, uid: item.uid)
+                            let ref = ExerciseRef(exerciseId: item.exerciseId, uid: item.uid)
+                            if model.swapsThroughPlan(session, uid: item.uid) { swapping = ref } else { pickingSwap = ref }
                         }
                     }
                     finishButton(session)
@@ -68,8 +74,73 @@ struct SessionView: View {
             .sheet(item: $swapping) { ref in
                 if let uid = ref.uid { SwapExerciseSheet(exerciseId: ref.exerciseId, uid: uid) }
             }
+            .sheet(item: $pickingSwap) { ref in
+                if let uid = ref.uid {
+                    SwapExerciseSheet(exerciseId: ref.exerciseId, uid: uid, onPick: { model.swapInSession(session.id, uid: uid, to: $0) })
+                }
+            }
+            .sheet(isPresented: $editingExercises) {
+                if let base = model.uneditedSession(session.id), let blocks = model.editableBlocks(session.id) {
+                    EditExercisesSheet(sessionId: session.id, base: base, blocks: blocks)
+                }
+            }
         } else {
             ContentUnavailableView("Session not found", systemImage: "questionmark")
+        }
+    }
+
+    /// Exercise count tile; until the workout starts it opens the exercise editor (#295).
+    @ViewBuilder
+    private func exercisesStat(_ s: Session) -> some View {
+        let stat = GradientStat(symbol: "figure.strengthtraining.traditional", value: "\(s.blocks.reduce(0) { $0 + $1.items.count })", label: "Exercises",
+                                gradient: WorkoutEngine.Category.mobility.gradient)
+        if model.canEditExercises(s) {
+            Button { editingExercises = true } label: {
+                stat.overlay(alignment: .topTrailing) {
+                    Image(systemName: "pencil").font(.system(size: 13, weight: .heavy)).foregroundStyle(.white).padding(12)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Edit exercises")
+        } else {
+            stat
+        }
+    }
+
+    /// Exercises title with Edit (#295); an edited workout says so and can go back to the plan.
+    @ViewBuilder
+    private func exercisesHeader(_ s: Session) -> some View {
+        let editable = model.canEditExercises(s)
+        let edited = model.isEdited(s.id)
+        if editable || edited {
+            HStack(spacing: 8) {
+                Text("Exercises").eyebrow()
+                if edited {
+                    Text("Edited").font(Theme.label(11)).foregroundStyle(Theme.ink)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Capsule().fill(WorkoutEngine.Category.cardio.gradient))
+                    if editable {
+                        Button { withAnimation { model.resetSessionEdit(s.id) } } label: {
+                            Label("Reset", systemImage: "arrow.uturn.backward").font(Theme.label(12)).foregroundStyle(Theme.muted)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Back to the workout as planned")
+                    }
+                }
+                Spacer()
+                if editable {
+                    Button { editingExercises = true } label: {
+                        Label("Edit", systemImage: "pencil")
+                            .font(Theme.label(13))
+                            .foregroundStyle(Theme.ink)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(Theme.lime))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Edit exercises")
+                }
+            }
         }
     }
 
@@ -103,8 +174,7 @@ struct SessionView: View {
             HStack(spacing: 10) {
                 GradientStat(symbol: "stopwatch.fill", value: "\(s.estMin)′", label: "Duration",
                              gradient: WorkoutEngine.Category.cardio.gradient)
-                GradientStat(symbol: "figure.strengthtraining.traditional", value: "\(s.blocks.reduce(0) { $0 + $1.items.count })", label: "Exercises",
-                             gradient: WorkoutEngine.Category.mobility.gradient)
+                exercisesStat(s)
                 GradientStat(symbol: "square.stack.3d.up.fill", value: "\(s.blocks.filter { [BlockKind.power, .strength].contains($0.kind) }.flatMap(\.items).reduce(0) { $0 + $1.prescription.sets })", label: "Work sets",
                              gradient: WorkoutEngine.Category.strength.gradient)
             }
