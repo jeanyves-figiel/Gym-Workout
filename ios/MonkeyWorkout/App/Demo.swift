@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|account-security|account-reauth|account-2step|account-recovery|account-passkeys|signin-2step|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|whats-new-history|watch-home|game-{week|session|done|progress}-{coach|deck|rings}|game-quest-deck|game-ladder|game-levelup|game-levelup-legend|game-level-row]`
+/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|account-security|account-reauth|account-2step|account-recovery|account-passkeys|signin-2step|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|whats-new-history|watch-home|game-{week|session|done|progress}-{coach|deck|rings}|game-quest-deck|game-ladder|game-levelup|game-levelup-legend|game-level-row|explore-programmes|programme|programme-running|train-programme|programme-test|progress-programmes|profile-programme|calendar-programme|programme-finished]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("-demo") }
@@ -79,6 +79,27 @@ enum Demo {
             createdAt: Date(timeIntervalSince1970: 1_791_000_000), category: .strength, primary: [.glutes],
             secondary: [.adductors], equipment: [.hipAdAbductor], machine: "Technogym Selection 700", cues: ["Slow return, 2 s"], drawing: pose)
     }()
+
+    /// Training programme screens (#255): Strength foundation running (week 4, or week 8 = test week), and
+    /// Climber's power finished earlier.
+    @MainActor static func programme(_ model: AppModel) {
+        let running = ["train-programme", "programme-test", "programme-running", "progress-programmes", "profile-programme",
+                       "calendar-programme"]
+        guard running.contains(screen) || screen == "programme-finished" else { return }
+        let cal = Progression.calendar()
+        let now = Date()
+        let past = cal.date(byAdding: .weekOfYear, value: -14, to: now)!
+        model.state.synced?.programmeHistory = [
+            ProgrammeRecord(programmeId: "climbers-power", start: past, end: cal.date(byAdding: .weekOfYear, value: 6, to: past)!,
+                            finished: true, weeks: 6),
+        ]
+        guard running.contains(screen), let prog = Programme.find("strength-foundation") else { return }
+        let start = cal.date(byAdding: .weekOfYear, value: screen == "programme-test" ? -7 : -3, to: now)!
+        model.state.synced?.programme = ActiveProgramme(
+            programmeId: prog.id, start: Progression.weekStart(start, cal), seed: 11,
+            saved: .init(profile: profile, seed: 7, week: week))
+        model.syncProgramme(now: now, starting: true)
+    }
 
     /// Current cycle week (2 = Build). Every demo screen (Train chip, cycle sheet, calendar, library) reads it via the plan.
     static let week = 2

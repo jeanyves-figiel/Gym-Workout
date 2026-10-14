@@ -46,6 +46,11 @@ struct CalendarView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 hero(weeks)
+                // Training programme (#255): its phases over the coming weeks.
+                if let a = model.activeProgramme, !a.paused, let p = a.programme {
+                    Text("\(p.name) · week \(model.programmeWeek ?? 1) of \(p.weeks)").eyebrow()
+                    ProgrammePhaseStrip(programme: p, week: model.programmeWeek)
+                }
                 HStack(spacing: 10) {
                     ForEach(AwayKind.allCases) { kind in
                         Button { start(kind) } label: {

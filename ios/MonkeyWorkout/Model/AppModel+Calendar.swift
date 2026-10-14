@@ -48,7 +48,8 @@ extension AppModel {
         guard let sp = state.synced else { return [] }
         // Library extras and one-off moves (#113) show on their day this week.
         return PlanCalendar.weeks(sp.profile, seed: sp.seed, currentWeek: sp.week, current: plan, done: doneIds,
-                                  away: away, now: now, count: count, fixed: movesThisWeek(now), calendar: planCalendar)
+                                  away: away, now: now, count: count, fixed: movesThisWeek(now), calendar: planCalendar,
+                                  future: programmeWeeks(sp))
     }
 
     /// Planned, not yet done sessions with their date, from `from` to `to` inclusive (e.g. for reminders).

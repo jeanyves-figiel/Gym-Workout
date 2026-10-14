@@ -130,6 +130,14 @@ private struct DemoScreen: View {
         case "explore-list": NavigationStack { LibraryView(scrollTo: .back) }
         case "explore-volume": NavigationStack { LibraryView(scrollTo: .shoulders) }
         case "explore-workouts": NavigationStack { LibraryView(mode: .workouts) }
+        // Training programmes (#255); train-programme and programme-test are the Train tab.
+        case "explore-programmes": NavigationStack { LibraryView(mode: .programmes) }
+        case "programme", "programme-running": NavigationStack { ProgrammeDetailView(programme: Programme.all[0]) }
+        case "progress-programmes": NavigationStack { ProgressTabView(demoSection: .programmes) }
+        case "profile-programme": NavigationStack { TrainingProfileView().navigationTitle("Training profile") }
+        case "calendar-programme": NavigationStack { CalendarView() }
+        case "programme-finished":
+            if let r = model.programmeHistory.last { ProgrammeFinishedSheet(record: r) }
         case "monkeygrade": NavigationStack { MonkeyGradeView() }
         case "climb-settings": ClimbSettingsView()
         case "climb": LogClimbView(initial: ClimbLog(start: Date().addingTimeInterval(-90 * 60), effort: 8, topGrade: "6C"))

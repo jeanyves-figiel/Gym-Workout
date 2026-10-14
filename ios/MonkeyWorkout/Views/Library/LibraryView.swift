@@ -4,7 +4,7 @@ import WorkoutEngine
 /// "Explore" tab: exercises by body map / muscle group or training category, and the workout library.
 struct LibraryView: View {
     enum Mode: String, CaseIterable, Identifiable {
-        case muscles = "Muscles", categories = "Categories", workouts = "Workouts"
+        case muscles = "Muscles", categories = "Categories", workouts = "Workouts", programmes = "Programmes"
         var id: String { rawValue }
     }
 
@@ -34,12 +34,17 @@ struct LibraryView: View {
                                 detail: "\(WorkoutEngine.Category.allCases.count) types"),
                     SegmentItem(value: .workouts, title: "Workouts", symbol: "list.bullet.rectangle.fill",
                                 detail: "\(model.myLibrary.count + model.builtInLibrary.count) workouts"),
+                    // Training programmes (#255).
+                    SegmentItem(value: .programmes, title: "Programmes", symbol: "flag.checkered",
+                                detail: model.activeProgramme.map { $0.paused ? "paused" : "week \(model.programmeWeek ?? 1)" }
+                                    ?? "\(Programme.all.count) goals"),
                 ])
 
                 switch mode {
                 case .muscles: muscles
                 case .categories: categories
                 case .workouts: WorkoutLibrarySection()
+                case .programmes: ProgrammeLibrarySection()
                 }
             }
             .padding(16)
@@ -55,6 +60,7 @@ struct LibraryView: View {
         .navigationDestination(for: Muscle.self) { MuscleDetailView(muscle: $0) }
         .navigationDestination(for: WorkoutEngine.Category.self) { CategoryDetailView(category: $0) }
         .navigationDestination(for: String.self) { SessionView(sessionId: $0) }
+        .navigationDestination(for: ProgrammeRoute.self) { r in Programme.find(r.id).map { ProgrammeDetailView(programme: $0) } }
         .navigationDestination(item: $tapped) { MuscleDetailView(muscle: $0) }
     }
 

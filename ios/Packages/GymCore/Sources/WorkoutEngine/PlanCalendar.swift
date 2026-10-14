@@ -277,7 +277,8 @@ public enum PlanCalendar {
     /// The current week (from the app's plan, done state kept) followed by the coming weeks.
     public static func weeks(
         _ profile: Profile, seed: UInt32, currentWeek: Int, current: WeekPlan?, done: Set<String>,
-        away: [AwayPeriod], now: Date = Date(), count: Int = horizonWeeks, fixed: [String: Int] = [:], calendar cal: Calendar
+        away: [AwayPeriod], now: Date = Date(), count: Int = horizonWeeks, fixed: [String: Int] = [:], calendar cal: Calendar,
+        future: ((Int) -> (profile: Profile, week: Int, seed: UInt32))? = nil
     ) -> [Week] {
         let thisMonday = Progression.weekStart(now, cal)
         let today = WeekSchedule.fromCalendar(cal.component(.weekday, from: now))
@@ -289,6 +290,10 @@ public enum PlanCalendar {
                     || current?.sessions.contains { $0.weekday == nil && !$0.isPlanInsert && fixed[$0.id] == nil } ?? true
                 return adapt(profile, week: currentWeek, seed: seed, weekStart: start, away: away,
                              base: current, done: done, firstDay: touched ? today : 1, fixed: fixed, calendar: cal)
+            }
+            // A training programme (#255) sets each coming week's profile, cycle week and seed.
+            if let f = future?(offset) {
+                return adapt(f.profile, week: f.week, seed: f.seed, weekStart: start, away: away, calendar: cal)
             }
             return adapt(profile, week: cycleWeek(current: currentWeek, offset: offset), seed: seed,
                          weekStart: start, away: away, calendar: cal)
