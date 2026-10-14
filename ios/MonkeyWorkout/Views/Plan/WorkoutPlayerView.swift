@@ -193,8 +193,19 @@ struct WorkoutPlayerView: View {
         var colors: [Color]
     }
 
-    /// Next set of this exercise (when `includeSets`) or the next exercise.
+    /// Next set or exercise; another exercise also says where it is (#274): same spot, or the zone to walk to.
     private func upNext(after step: Step, done: Int, sets: Int, includeSets: Bool) -> UpNext? {
+        guard var next = baseUpNext(after: step, done: done, sets: sets, includeSets: includeSets) else { return nil }
+        if let e = next.exercise, e.id != step.exercise.id, let to = model.gymZone(e.id) {
+            let here = model.gymZone(step.exercise.id)
+            let cue = here?.id == to.id ? "📍 Same spot" : here.map { _ in "📍 Walk to \(to.name)" } ?? "📍 \(to.name)"
+            next.detail = [next.detail, cue].filter { !$0.isEmpty }.joined(separator: " · ")
+        }
+        return next
+    }
+
+    /// Next set of this exercise (when `includeSets`) or the next exercise.
+    private func baseUpNext(after step: Step, done: Int, sets: Int, includeSets: Bool) -> UpNext? {
         let cat = step.block.kind.category
         // Superset/circuit: the next member (no rest) or the round's first member (after the rest).
         if includeSets || done < sets, let j = groupJump(step, done: includeSets ? done : done + 1), j.index != index {

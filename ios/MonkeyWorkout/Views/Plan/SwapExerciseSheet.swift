@@ -34,7 +34,27 @@ struct SwapExerciseSheet: View {
 
     private var options: [Exercise] {
         guard let profile = model.profile else { return [] }
-        return Array(exercise.swapOptions(for: profile, excluding: Set(variations.map(\.id))).prefix(12))
+        let list = Array(exercise.swapOptions(for: profile, excluding: Set(variations.map(\.id))).prefix(12))
+        // Gym zones (#274): moves done near the rest of its superset / circuit first.
+        return list.filter { nearHere($0) != false } + list.filter { nearHere($0) == false }
+    }
+
+    /// The rest of its superset / circuit.
+    private var partners: [Exercise] {
+        guard let b = session?.blocks.first(where: { $0.items.contains { $0.uid == uid } }) else { return [] }
+        return b.groupMembers(of: uid).filter { $0.uid != uid }.compactMap { Exercise.find($0.exerciseId) }
+    }
+
+    /// Done near its group (or near the exercise it replaces); nil without gym zones.
+    private func nearHere(_ e: Exercise) -> Bool? {
+        guard let layout = model.profile?.gymLayout else { return nil }
+        return (partners.isEmpty ? [exercise] : partners).allSatisfy { layout.near(e, $0) }
+    }
+
+    private func row(_ e: Exercise) -> some View {
+        let near = nearHere(e)
+        return OptionRow(exercise: e, zone: model.gymZone(e.id), near: near,
+                         warning: near == false && !partners.isEmpty ? "Would split its group across the gym" : nil)
     }
 
     var body: some View {
@@ -77,7 +97,7 @@ struct SwapExerciseSheet: View {
                     if !variations.isEmpty {
                         GradientSection(symbol: "square.stack.3d.down.right.fill", title: "Variations", gradient: exercise.category.gradient) {
                             ForEach(variations) { e in
-                                Button { apply(e.id) } label: { OptionRow(exercise: e) }
+                                Button { apply(e.id) } label: { row(e) }
                                     .buttonStyle(.plain)
                             }
                         }
@@ -85,7 +105,7 @@ struct SwapExerciseSheet: View {
                     if !options.isEmpty {
                         GradientSection(symbol: "arrow.triangle.2.circlepath", title: "Best matches", gradient: exercise.category.gradient) {
                             ForEach(options) { e in
-                                Button { apply(e.id) } label: { OptionRow(exercise: e) }
+                                Button { apply(e.id) } label: { row(e) }
                                     .buttonStyle(.plain)
                             }
                         }
@@ -162,6 +182,10 @@ struct SwapExerciseSheet: View {
 
 private struct OptionRow: View {
     let exercise: Exercise
+    /// Gym zone it's done in (#274); `near` = next to its group, shown as "here".
+    var zone: GymLayout.Zone?
+    var near: Bool?
+    var warning: String?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -171,6 +195,10 @@ private struct OptionRow: View {
                 Text(exercise.primary.map(\.name).joined(separator: " · ")).font(.caption.weight(.medium)).opacity(0.85)
                 Text(exercise.equipment.isEmpty ? "Bodyweight" : exercise.equipment.map(\.label).joined(separator: " · "))
                     .font(.caption2.weight(.semibold)).opacity(0.7)
+                if let zone { ZoneTag(zone: zone, text: near == true ? "here · \(zone.name)" : zone.name) }
+                if let warning {
+                    Label(warning, systemImage: "exclamationmark.triangle.fill").font(.caption2.weight(.bold)).foregroundStyle(.yellow)
+                }
             }
             Spacer()
             Image(systemName: "arrow.triangle.2.circlepath").font(.body.weight(.bold))

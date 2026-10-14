@@ -12,13 +12,16 @@ extension AppModel {
         let ref = profile?.gym ?? Gym.puls5.ref
         let saved = state.synced?.savedGyms?.first { $0.id == ref.id }
         return SavedGym(ref: ref, kind: saved?.kind, equipment: profile?.equipment ?? Gym.puls5.equipment,
-                        unsure: saved?.unsure, updated: saved?.updated ?? Date())
+                        unsure: saved?.unsure, updated: saved?.updated ?? Date(), layout: profile?.gymLayout)
     }
 
     /// Adds or replaces a saved gym (max 20, oldest dropped) and shares a place's list with gym memory.
-    func saveGym(_ gym: SavedGym, share: Bool = true) {
+    /// A gym saved without zones keeps the ones it had (a redo in swipes, #274) unless `keepLayout` is false.
+    func saveGym(_ gym: SavedGym, share: Bool = true, keepLayout: Bool = true) {
         guard state.synced != nil else { return }
         var list = state.synced?.savedGyms ?? []
+        var gym = gym
+        if keepLayout, gym.layout == nil { gym.layout = list.first { $0.id == gym.id }?.layout }
         list.removeAll { $0.id == gym.id }
         list.insert(gym, at: 0)
         state.synced?.savedGyms = Array(list.sorted { $0.updated > $1.updated }.prefix(20))
@@ -42,11 +45,26 @@ extension AppModel {
     /// Saves the home gym as edited in Training profile → Your gym, so switching back restores its list.
     func rememberHomeGym() {
         let g = homeGym
-        if let saved = state.synced?.savedGyms?.first(where: { $0.id == g.id }), saved.equipment == g.equipment { return }
+        if let saved = state.synced?.savedGyms?.first(where: { $0.id == g.id }), saved.equipment == g.equipment,
+           saved.layout == g.layout { return }
         var updated = g
         updated.unsure = g.unsure?.filter { g.equipment.contains($0) }
         updated.updated = Date()
-        saveGym(updated)
+        saveGym(updated, keepLayout: false)
+    }
+
+    /// Where the home gym's equipment sits (#274): re-plans so supersets and circuits stay in one zone; nil = off.
+    func setGymLayout(_ layout: GymLayout?) {
+        guard var p = profile, p.gymLayout != layout else { return }
+        p.gymLayout = layout
+        updateProfile(p)
+        rememberHomeGym()
+    }
+
+    /// Zone of the home gym an exercise is done in (#274); nil without zones, or anywhere (bodyweight, mat…).
+    func gymZone(_ exerciseId: String) -> GymLayout.Zone? {
+        guard let layout = profile?.gymLayout, let e = Exercise.find(exerciseId) else { return nil }
+        return layout.zone(of: e)
     }
 
     /// Training profile → Your gym edit (#271), kept as soon as it's made: the gym and its list from `edited`, the
@@ -56,6 +74,11 @@ extension AppModel {
         guard var p = profile else { return updateProfile(edited) }
         guard p.gym != edited.gym || p.equipment != edited.equipment else { return }
         if (edited.gym ?? Gym.puls5.ref).id != homeGym.id { rememberHomeGym() }
+        // Another gym brings its own zones (#274): the ones picked with it, else the ones it was saved with.
+        if (edited.gym ?? Gym.puls5.ref).id != (p.gym ?? Gym.puls5.ref).id {
+            let id = (edited.gym ?? Gym.puls5.ref).id
+            p.gymLayout = edited.gymLayout ?? state.synced?.savedGyms?.first { $0.id == id }?.layout
+        }
         p.gym = edited.gym
         p.equipment = edited.equipment
         updateProfile(p)
@@ -74,9 +97,12 @@ extension AppModel {
     /// Makes a saved gym the home gym (re-plans the week for its equipment).
     func useGym(_ gym: SavedGym) {
         guard var p = profile else { return }
+        // A redo in swipes has no zones yet: the gym keeps the ones it had (#274).
+        let layout = gym.layout ?? state.synced?.savedGyms?.first { $0.id == gym.id }?.layout
         p.gym = gym.ref
         p.equipment = gym.equipment
-        saveGym(SavedGym(ref: gym.ref, kind: gym.kind, equipment: gym.equipment, unsure: gym.unsure), share: false)
+        p.gymLayout = layout
+        saveGym(SavedGym(ref: gym.ref, kind: gym.kind, equipment: gym.equipment, unsure: gym.unsure, layout: layout), share: false)
         updateProfile(p)
     }
 

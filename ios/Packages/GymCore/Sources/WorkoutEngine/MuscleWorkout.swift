@@ -168,21 +168,20 @@ extension CustomWorkout {
             if buckets[k] == nil { order.append(k) }
             buckets[k, default: []].append(i)
         }
+        // Gym zones (#274): a group only holds exercises near each other.
+        let near: (Int, Int) -> Bool = { profile.gymLayout.near(items[$0].item.exerciseId, items[$1].item.exerciseId) }
         var groups: [[Int]] = []
         for k in order {
-            let idx = buckets[k]!
-            var i = 0
-            while i < idx.count {
-                let chunk = Array(idx[i..<min(i + size, idx.count)])
-                // A trailing single joins the previous circuit of that area, else stays straight.
+            for chunk in GymLayout.chunk(buckets[k]!, size: size, near: near) {
+                // A single joins the previous circuit of that area (when near), else stays straight.
                 if chunk.count == 1 {
-                    if options.grouping == .circuits, let lastGroup = groups.last, items[lastGroup[0]].key == k {
+                    if options.grouping == .circuits, let lastGroup = groups.last, items[lastGroup[0]].key == k,
+                       lastGroup.allSatisfy({ near($0, chunk[0]) }) {
                         groups[groups.count - 1].append(chunk[0])
                     }
                 } else {
                     groups.append(chunk)
                 }
-                i += size
             }
         }
         // Each group sits at its first member's position; members share the longest rest.

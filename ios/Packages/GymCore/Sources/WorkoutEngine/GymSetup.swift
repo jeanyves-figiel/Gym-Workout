@@ -174,15 +174,19 @@ public struct SavedGym: Codable, Hashable, Sendable, Identifiable {
     /// Items kept because the member wasn't sure; dropped one by one with "Not here?" in a workout.
     public var unsure: [Equipment]?
     public var updated: Date
+    /// Where its equipment sits (#274); nil = not set up.
+    public var layout: GymLayout?
 
     public var id: String { ref.id }
 
-    public init(ref: GymRef, kind: GymKind? = nil, equipment: [Equipment], unsure: [Equipment]? = nil, updated: Date = Date()) {
+    public init(ref: GymRef, kind: GymKind? = nil, equipment: [Equipment], unsure: [Equipment]? = nil, updated: Date = Date(),
+                layout: GymLayout? = nil) {
         self.ref = ref
         self.kind = kind
         self.equipment = equipment
         self.unsure = unsure?.isEmpty == true ? nil : unsure
         self.updated = updated
+        self.layout = layout
     }
 
     /// Gym without a map place (home, hotel room): an id of its own.

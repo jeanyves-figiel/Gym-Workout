@@ -37,13 +37,32 @@ struct EquipmentSheet: View {
     var unsure: [Equipment] = []
     /// Redo this gym's list in a few swipes (#180); the sheet closes first, the caller opens the setup.
     var onSetup: (() -> Void)?
+    /// Where the items sit in the gym (#274); nil = no zones on this page (trips, new gym setup).
+    var layout: Binding<GymLayout?>?
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
+    /// Zone being painted (#274): a tap moves the picture there instead of ticking it.
+    @State private var painting: String?
 
-    init(equipment: Binding<[Equipment]>, unsure: [Equipment] = [], onSetup: (() -> Void)? = nil) {
+    init(equipment: Binding<[Equipment]>, unsure: [Equipment] = [], layout: Binding<GymLayout?>? = nil, onSetup: (() -> Void)? = nil) {
         _equipment = equipment
         self.unsure = unsure
+        self.layout = layout
         self.onSetup = onSetup
+    }
+
+    private var zones: GymLayout? { layout?.wrappedValue }
+
+    /// Painting: the item goes to the painted zone (and is ticked on: it's there). Else ticked / unticked.
+    private func tap(_ e: Equipment) {
+        if let id = painting, let layout {
+            layout.wrappedValue?.move(e, to: id)
+            if !equipment.contains(e) { equipment.append(e) }
+        } else if equipment.contains(e) {
+            equipment.removeAll { $0 == e }
+        } else {
+            equipment.append(e)
+        }
     }
 
     private var anyArea: Bool { GymArea.allCases.contains { a in a.items.contains { $0.matches(query) } } }
@@ -58,14 +77,19 @@ struct EquipmentSheet: View {
                         hero
                         if let onSetup { setupCard(onSetup) }
                     }
+                    if let layout {
+                        ZoneBar(layout: layout, painting: $painting, equipment: equipment)
+                    }
                     ForEach(GymArea.allCases) { area in
                         let items = area.items.filter { $0.matches(query) }
-                        if !items.isEmpty { AreaSection(area: area, items: items, equipment: $equipment, unsure: unsure) }
+                        if !items.isEmpty {
+                            AreaSection(area: area, items: items, equipment: $equipment, unsure: unsure, layout: zones, tap: tap)
+                        }
                     }
                     if !floor.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Floor").eyebrow()
-                            EquipmentGrid(items: floor, equipment: $equipment, unsure: unsure)
+                            EquipmentGrid(items: floor, equipment: $equipment, unsure: unsure, layout: zones, tap: tap)
                         }
                     }
                     if !anyArea && floor.isEmpty {
@@ -138,6 +162,8 @@ private struct AreaSection: View {
     let items: [Equipment]
     @Binding var equipment: [Equipment]
     let unsure: [Equipment]
+    var layout: GymLayout?
+    var tap: ((Equipment) -> Void)?
 
     var body: some View {
         let on = items.filter { equipment.contains($0) }.count
@@ -157,7 +183,7 @@ private struct AreaSection: View {
                 .font(.caption.bold())
                 .foregroundStyle(Theme.lime)
             }
-            EquipmentGrid(items: items, equipment: $equipment, unsure: unsure)
+            EquipmentGrid(items: items, equipment: $equipment, unsure: unsure, layout: layout, tap: tap)
         }
     }
 }
@@ -166,11 +192,15 @@ struct EquipmentGrid: View {
     let items: [Equipment]
     @Binding var equipment: [Equipment]
     var unsure: [Equipment] = []
+    /// Zones (#274): each picture shows its zone's colour; `tap` paints or ticks (default: tick / untick).
+    var layout: GymLayout?
+    var tap: ((Equipment) -> Void)?
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 10)], spacing: 12) {
             ForEach(items) { e in
-                EquipmentTile(item: e, on: equipment.contains(e), unsure: unsure.contains(e)) {
+                EquipmentTile(item: e, on: equipment.contains(e), unsure: unsure.contains(e), zone: layout?.zone(of: e)) {
+                    if let tap { return tap(e) }
                     if equipment.contains(e) { equipment.removeAll { $0 == e } } else { equipment.append(e) }
                 }
             }
@@ -183,6 +213,8 @@ struct EquipmentTile: View {
     let item: Equipment
     let on: Bool
     var unsure = false
+    /// Zone it sits in (#274): a dot in the zone's colours, top left.
+    var zone: GymLayout.Zone?
     let action: () -> Void
 
     var body: some View {
@@ -201,6 +233,15 @@ struct EquipmentTile: View {
                             .foregroundStyle(on ? Theme.ink : .white, on ? Theme.lime : .white.opacity(0.0))
                             .padding(6)
                     }
+                    .overlay(alignment: .topLeading) {
+                        if let zone, on {
+                            Circle().fill(zone.gradient)
+                                .frame(width: 16, height: 16)
+                                .overlay(Circle().strokeBorder(.white, lineWidth: 2))
+                                .padding(8)
+                                .accessibilityHidden(true)
+                        }
+                    }
                 Text(item.label)
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(on ? .white : Theme.muted)
@@ -211,7 +252,7 @@ struct EquipmentTile: View {
         }
         .buttonStyle(.plain)
         .sensoryFeedback(.selection, trigger: on)
-        .accessibilityLabel(item.label)
+        .accessibilityLabel(zone.map { "\(item.label), \($0.name)" } ?? item.label)
         .accessibilityAddTraits(on ? .isSelected : [])
         .accessibilityHint(on ? "At this gym. Double-tap to remove." : "Not at this gym. Double-tap to add.")
     }
