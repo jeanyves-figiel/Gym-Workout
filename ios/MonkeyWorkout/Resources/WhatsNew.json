@@ -18,6 +18,12 @@
       "tint": "warmup",
       "title": "See each style before you pick",
       "body": "Account → Style: swipe through the styles, each with its real iPhone and Watch screens, then tap Use to switch."
+    },
+    {
+      "symbol": "figure.strengthtraining.traditional",
+      "tint": "strength",
+      "title": "Fluid motion, every exercise",
+      "body": "Fast moves like burpees, swings and twists now play with up to 49 poses, so nothing jumps. Every animation was checked again: hands stay on the bar, bodies sit on the bench and limbs no longer pass through machines."
     }
   ]
 }

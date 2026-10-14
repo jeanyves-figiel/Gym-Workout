@@ -9,7 +9,13 @@ import Testing
         #expect(Exercise.catalog.filter(\.hasIllustration).count == ExerciseIllustrations.ids.count)
         let n = ExerciseIllustrations.frameCount
         #expect(n >= 9 && n % 2 == 1)
-        #expect(ExerciseIllustrations.keyFrames == [0, n / 2, n - 1])
+        #expect(ExerciseIllustrations.keyFrames(n) == [0, n / 2, n - 1])
+        // #256: more frames only for some exercises, always odd (a middle key pose) and more than the default.
+        #expect(!ExerciseIllustrations.frameCounts.isEmpty)
+        for (id, c) in ExerciseIllustrations.frameCounts {
+            #expect(ExerciseIllustrations.ids.contains(id) && c > n && c % 2 == 1 && c <= 49, "\(id)")
+        }
+        #expect(ExerciseIllustrations.frameCount(of: "not-an-exercise") == 0)
     }
 
     @Test func illustrationAssetsExistInAppCatalog() throws {
@@ -20,13 +26,13 @@ import Testing
         let assets = ios.appendingPathComponent("MonkeyWorkout/Resources/Illustrations.xcassets")
         for e in Exercise.catalog {
             let names = e.illustrationAssets
-            #expect(names.count == ExerciseIllustrations.frameCount, "\(e.id)")
+            #expect(names.count == ExerciseIllustrations.frameCount(of: e.id), "\(e.id)")
             for name in names {
                 let png = assets.appendingPathComponent("\(name).imageset/\(name).png")
                 #expect(FileManager.default.fileExists(atPath: png.path), "\(png.path)")
             }
         }
-        #expect(Exercise.get("back-squat").illustrationAssets == (0..<ExerciseIllustrations.frameCount).map { "illustration-back-squat-\($0)" })
+        #expect(Exercise.get("back-squat").illustrationAssets == (0..<ExerciseIllustrations.frameCount(of: "back-squat")).map { "illustration-back-squat-\($0)" })
     }
 
     @Test func everyIllustrationHasMotion() {
@@ -35,7 +41,7 @@ import Testing
                 Issue.record("\(e.id) has no motion")
                 continue
             }
-            #expect(m.path.isEmpty || m.points.count == ExerciseIllustrations.frameCount, "\(e.id)")
+            #expect(m.path.isEmpty || m.points.count == ExerciseIllustrations.frameCount(of: e.id), "\(e.id)")
             for p in m.points {
                 #expect((-0.1...1.1).contains(p.x) && (-0.1...1.1).contains(p.y), "\(e.id) path leaves the picture")
             }

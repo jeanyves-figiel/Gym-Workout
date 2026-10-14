@@ -564,15 +564,19 @@ HT_EDGE = (148, 218)  # bench edge under the shoulder blades
 HT_ANK = (264, ANK)
 
 
-def thrust_hip(t, edge=HT_EDGE):
-    """Upper back rests on the bench edge: shoulder and hip for a torso angle t (≈180 = flat, head left)."""
+HT_REST = dict(back=10, along=18)  # bench versions: shoulder blades (not the top of the shoulder) on the pad edge
+
+
+def thrust_hip(t, edge=HT_EDGE, back=15, along=8):
+    """Upper back rests on the bench edge: shoulder and hip for a torso angle t (≈180 = flat, head left).
+    The shoulder joint sits `back` px off the edge (towards the chest) and `along` px past it (towards the head)."""
     td, n = tframe(t)
-    s = art.add(art.add(edge, n, 15), td, 8)
+    s = art.add(art.add(edge, n, back), td, along)
     return pt(s, t, -TOR)
 
 
-def thrust_pose(t, ank=HT_ANK, bar=True, legF=None, edge=HT_EDGE, **kw):
-    hip = thrust_hip(t, edge)
+def thrust_pose(t, ank=HT_ANK, bar=True, legF=None, edge=HT_EDGE, back=15, along=8, **kw):
+    hip = thrust_hip(t, edge, back, along)
     td, n = tframe(t)
     if bar:
         b = art.add(hip, n, 20)
@@ -650,6 +654,18 @@ def sofa(doc, x0, x1, top):
             f'stroke="#0A0B0D" stroke-width="0.8"/>')
     for x in (x0 + 8, x1 - 10):
         doc.add(f'<rect x="{x:.1f}" y="{GROUND - 8:.1f}" width="5" height="7" fill="#20242A"/>')
+
+
+def sl_thrust_pose(t, legF):
+    """Single-leg hip thrust: shoulder blades on the sofa edge the whole time, arms resting along the cushion
+    (not propped on the floor), free leg held up."""
+    hip = thrust_hip(t, SOFA_EDGE, **HT_REST)
+    s = shoulder(hip, t)
+    g = (s[0] - 76, SOFA_EDGE[1] - 5)
+    p = body(hip, t, h=t + 18, ankN=HT_ANK, ankF=(HT_ANK[0] - 4, ANK), gN=g, gF=(g[0] + 5, g[1] - 1), eN=-1, eF=-1,
+             hN=180, hF=180, lit_sides="N")
+    p["lF"] = legF
+    return p
 
 
 def sl_thrust_scene(doc, j, layer):
@@ -1099,8 +1115,10 @@ HA_HIP = (200, 142)
 
 
 def hip_machine_scene(doc, j, layer, outer, backrest=True):
+    if layer == "back":
+        seated_front_legs(j)
     kn, kf = j["kneeN"], j["kneeF"]
-    spread = (kn[0] - kf[0])
+    spread = abs(kn[0] - kf[0])
     if layer == "back":
         floor(doc, 214, 130)
         # Weight stack column on the right, cable down to the pivot under the seat.
@@ -1120,22 +1138,43 @@ def hip_machine_scene(doc, j, layer, outer, backrest=True):
             doc.add(f'<rect x="166" y="66" width="68" height="84" rx="9" fill="{g}" stroke="#0A0B0D" stroke-width="0.8"/>')
             art.tube(doc, (200, 150), (200, 160), 10)
         g = doc.box_grad([(0, "#3A4048"), (0.3, "#1E2227"), (1, "#121417")])
-        doc.add(f'<rect x="162" y="148" width="76" height="16" rx="7" fill="{g}" stroke="#0A0B0D" stroke-width="0.8"/>')
-    else:
-        for side, k, a in (("N", kn, j["ankleN"]), ("F", kf, j["ankleF"])):
-            s = 1 if side == "N" else -1
-            piv = (200 + s * 10, 168)
-            off = s * (13 if outer else -13)
-            pad_c = (k[0] + off, k[1] + 6)
-            art.tube(doc, piv, (pad_c[0], pad_c[1] + 20), 7)
-            art.tube(doc, (pad_c[0], pad_c[1] - 14), (pad_c[0], pad_c[1] + 24), 6)
-            g = doc.box_grad([(0, "#3A4048"), (0.3, "#1E2227"), (1, "#121417")], vertical=False)
-            doc.add(f'<rect x="{pad_c[0] - 5:.1f}" y="{pad_c[1] - 16:.1f}" width="10" height="34" rx="4.5" fill="{g}" '
-                    f'stroke="#0A0B0D" stroke-width="0.8"/>')
-            # Foot peg under the foot on the same arm.
-            art.tube(doc, (pad_c[0], pad_c[1] + 22), (a[0] + s * 4, a[1] + 8), 5)
+        doc.add(f'<rect x="168" y="147" width="64" height="18" rx="7" fill="{g}" stroke="#0A0B0D" stroke-width="0.8"/>')
+        # Lever arms and foot pegs run behind the shins.
+        for side in "NF":
+            k, a = j["knee" + side], j["ankle" + side]
+            s = 1 if k[0] > HA_HIP[0] else -1
+            pad_c = hip_pad_centre(k, s, outer)
+            art.tube(doc, (HA_HIP[0] + s * 10, 168), (pad_c[0], pad_c[1] + 16), 7)
+            art.tube(doc, (pad_c[0], pad_c[1] + 16), (a[0] + s * 4, a[1] + 8), 5)
             art.tube(doc, (a[0] - 10, a[1] + 8), (a[0] + 10, a[1] + 8), 5)
         art.pulley(doc, (200, 170), 6)
+    else:
+        # Knee pads: on the outside of the knees (abduction) or between them (adduction), never over the legs.
+        for side in "NF":
+            k = j["knee" + side]
+            s = 1 if k[0] > HA_HIP[0] else -1
+            pad_c = hip_pad_centre(k, s, outer)
+            g = doc.box_grad([(0, "#3A4048"), (0.3, "#1E2227"), (1, "#121417")], vertical=False)
+            doc.add(f'<rect x="{pad_c[0] - 5:.1f}" y="{pad_c[1] - 15:.1f}" width="10" height="30" rx="4.5" fill="{g}" '
+                    f'stroke="#0A0B0D" stroke-width="0.8"/>')
+
+
+def hip_pad_centre(knee, s, outer):
+    """Centre of the knee pad on side s (+1 = right of the seat): just clear of the knee, outside or inside."""
+    return (knee[0] + s * (15 if outer else -15), knee[1] + 2)
+
+
+def seated_front_legs(j):
+    """Seated, seen from the front / back: the thighs point at / away from the camera, so they read short (knees
+    just below hip height); the shins hang to the foot pegs, the feet point at the camera."""
+    for side in "NF":
+        hp, k = j["hip" + side], j["knee" + side]
+        s = 1 if k[0] > HA_HIP[0] else -1
+        knee = (k[0], hp[1] + 12)
+        ank = (knee[0] + s * 2, knee[1] + SH - 2)
+        j["knee" + side] = knee
+        j["ankle" + side] = ank
+        j["toe" + side] = (ank[0] + s * 4, ank[1] + 6)
 
 
 def adduction_scene(doc, j, layer):
@@ -1143,7 +1182,7 @@ def adduction_scene(doc, j, layer):
 
 
 def abduction_scene(doc, j, layer):
-    hip_machine_scene(doc, j, layer, outer=True, backrest=False)
+    hip_machine_scene(doc, j, layer, outer=True)
 
 
 def hip_machine_pose(thigh, view):
@@ -1191,10 +1230,10 @@ SCENES = {
         hinge_pose((DL_X, 190), -58, DL_ANK, dx=-2),
         hinge_pose((DL_X, 214), -27, DL_ANK, dx=4, h=-20),
     ], "tr"), (44, 28, 332)),
-    "good-morning": (good_morning_scene, ins([
+    "good-morning": (good_morning_scene, ins([  # soft knees only, torso down to about parallel
         gm_pose((198, 152), -90),
-        gm_pose((182, 158), -52, h=-46),
-        gm_pose((166, 164), -14, h=-4),
+        gm_pose((183, 155), -48, h=-42),
+        gm_pose((166, 159), 0, h=8),
     ], "tr"), (52, 28, 332)),
     "band-good-morning": (band_gm_scene, ins([
         band_gm_pose((198, 152), -90),
@@ -1221,14 +1260,15 @@ SCENES = {
         back_ext_pose(4, h=2),
         back_ext_pose(-44, h=-42),
     ], "tl"), (40, 30, 330)),
-    "hip-thrust": (hip_thrust_scene, ins([thrust_pose(206), thrust_pose(193), thrust_pose(180)], "tl"),
+    "hip-thrust": (hip_thrust_scene, ins([thrust_pose(206, **HT_REST), thrust_pose(193, **HT_REST),
+                                          thrust_pose(180, **HT_REST)], "tl"),
                    (44, 82, 260)),
     "hip-thrust-machine": (hip_thrust_machine_scene, ins([thrust_pose(206, bar=False), thrust_pose(193, bar=False),
                                                          thrust_pose(180, bar=False)], "tr"), (16, 70, 284)),
     "sl-hip-thrust": (sl_thrust_scene, ins([
-        thrust_pose(206, bar=False, edge=SOFA_EDGE, legF=(-70, 8, -82), lit_sides="N"),
-        thrust_pose(193, bar=False, edge=SOFA_EDGE, legF=(-80, 0, -90), lit_sides="N"),
-        thrust_pose(180, bar=False, edge=SOFA_EDGE, legF=(-90, -8, -98), lit_sides="N"),
+        sl_thrust_pose(206, (-70, 8, -82)),
+        sl_thrust_pose(193, (-80, 0, -90)),
+        sl_thrust_pose(180, (-90, -8, -98)),
     ], "tl"), (40, 70, 276)),
     "bw-split-squat": (bw_scene, split_frames("hips"), (48, 28, 332)),
     "barbell-split-squat": (bar_split_scene, split_frames("bar"), (40, 28, 332)),
@@ -1269,8 +1309,8 @@ SCENES = {
         cossack_pose((220, 202), -88, (266, ANK), (134, ANK), 180),
         cossack_pose((238, 224), -84, (266, ANK), (130, GROUND - 8), -95),
     ], "tl"), (36, 28, 332)),
-    "hip-adduction": (adduction_scene, ins([hip_machine_pose(42, True), hip_machine_pose(60, True),
-                                            hip_machine_pose(80, True)], "tl"), (40, 22, 330)),
-    "hip-abduction": (abduction_scene, ins([hip_machine_pose(80, "back"), hip_machine_pose(60, "back"),
-                                            hip_machine_pose(42, "back")], "tl"), (40, 22, 330)),
+    "hip-adduction": (adduction_scene, ins([hip_machine_pose(42, True), hip_machine_pose(59, True),
+                                            hip_machine_pose(76, True)], "tl"), (40, 22, 330)),
+    "hip-abduction": (abduction_scene, ins([hip_machine_pose(76, True), hip_machine_pose(59, True),
+                                            hip_machine_pose(42, True)], "tl"), (40, 22, 330)),
 }

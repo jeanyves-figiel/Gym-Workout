@@ -159,9 +159,16 @@ def sh_scene_for(frame):
 
 
 def sh_scene(doc, j, layer):
-    """The frame is read off the torso angle: hinged (start), half-up with the bag lapped (middle), tall."""
+    """The bag's place is read off the torso angle: on the floor (hinged start), lapped (middle), on the shoulder
+    (tall); in between it travels from one to the next (#256: it used to jump at the halfway angles)."""
+    if layer == "back":
+        floor(doc, 196, 90)
+        return
     t = j["_t"]
-    sh_scene_for(0 if t > -50 else 1 if t > -84 else 2)(doc, j, layer)
+    a, b, k = (0, 1, (-32 - t) / 40) if t > -72 else (1, 2, (-72 - t) / 18)
+    k = min(max(k, 0), 1)
+    (ca, aa), (cb, ab) = sh_bag(j, a), sh_bag(j, b)
+    sandbag(doc, (ca[0] + (cb[0] - ca[0]) * k, ca[1] + (cb[1] - ca[1]) * k), w=44, h=26, ang=aa + (ab - aa) * k)
 
 
 SHO = ins([
