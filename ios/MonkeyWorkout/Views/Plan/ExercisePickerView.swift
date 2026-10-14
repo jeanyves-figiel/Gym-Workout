@@ -30,9 +30,11 @@ struct ExercisePickerView: View {
         }
     }
 
-    init(limit: Int, selected: [String] = [], onAdd: @escaping ([Exercise]) -> Void) {
+    /// `category`: filter the grid starts on (e.g. warm-up drills when adding a warm-up move, #293).
+    init(limit: Int, selected: [String] = [], category: WorkoutEngine.Category? = nil, onAdd: @escaping ([Exercise]) -> Void) {
         self.limit = limit
         self.onAdd = onAdd
+        _category = State(initialValue: category)
         _selected = State(initialValue: Array(selected.prefix(max(0, limit))))
     }
 

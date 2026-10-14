@@ -76,6 +76,9 @@ struct CustomWorkoutEditor: View {
     @State private var planned = false
     /// Session flow (#198): minutes of the blocks played around the exercises.
     @State private var flowMinutes: [BlockKind: Int]
+    /// Warm-up / cool-down style or exact moves (#293).
+    @State private var tweaks: FlowTweaks
+    @State private var tweaking: FlowTweakTarget?
     private let initial: CustomWorkout
     /// Set when building a workout for a day (#178): Save saves it and hands it over (the caller places it).
     private let onSave: ((CustomWorkout) -> Void)?
@@ -89,6 +92,7 @@ struct CustomWorkoutEditor: View {
         // New workouts start with a warm-up and a cool-down; saved ones keep theirs.
         let fresh = initial.flow.isEmpty && (initial.items.isEmpty || generated != nil)
         _flowMinutes = State(initialValue: fresh ? [.warmup: 6, .cooldown: 5] : initial.flowMinutes)
+        _tweaks = State(initialValue: initial.flowTweaks ?? FlowTweaks())
     }
 
     private var isNew: Bool { model.customWorkout(initial.id) == nil }
@@ -167,8 +171,8 @@ struct CustomWorkoutEditor: View {
 
                 if !draft.items.isEmpty {
                     Text("Session flow").eyebrow().padding(.top, 8).cardRow()
-                    CustomFlowEditor(minutes: $flowMinutes, yours: draft.ownMinutes).cardRow()
-                    AccountNote(text: "Warm-up, mobility, cardio and cool-down are picked to match your exercises and gym. Drag the bar to resize them.")
+                    CustomFlowEditor(minutes: $flowMinutes, yours: draft.ownMinutes) { tweaking = FlowTweakTarget(kind: $0) }.cardRow()
+                    AccountNote(text: "Tap Warm-up or Cool-down to pick a style or your own moves. Mobility and cardio are picked to match your exercises and gym. Drag the bar to resize.")
                         .cardRow()
                     AccountCard(symbol: "stopwatch.fill", title: "Estimated duration",
                                 subtitle: draft.kcal.map { "\($0) kcal" }, gradient: WorkoutEngine.Category.cardio.gradient) {
@@ -215,6 +219,12 @@ struct CustomWorkoutEditor: View {
             .confirmationDialog("Discard changes?", isPresented: $confirmDiscard, titleVisibility: .visible) {
                 Button("Discard", role: .destructive) { dismiss() }
             }
+            .sheet(item: $tweaking) { t in
+                FlowTweakSheet(kind: t.kind, tweaks: $tweaks, preview: { previewFlow($0, t.kind) }) {
+                    flowMinutes[t.kind] = nil
+                    tweaks.setMoves(nil, for: t.kind)
+                }
+            }
             .sheet(isPresented: $picking) {
                 ExercisePickerView(limit: CustomWorkout.maxItems - draft.items.count) { picked in
                     draft.items += picked.map { CustomWorkout.Item(adding: $0) }
@@ -242,14 +252,29 @@ struct CustomWorkoutEditor: View {
         .interactiveDismissDisabled(draft != initial && !saved)
         .onAppear { if initial.flow.isEmpty { rebuildFlow() } }
         .onChange(of: flowMinutes) { rebuildFlow() }
+        .onChange(of: tweaks) { rebuildFlow() }
         .onChange(of: draft.items) { rebuildFlow() }
     }
 
     /// Picks the flow blocks again for the current minutes and exercises.
     private func rebuildFlow() {
         guard let profile = model.profile else { return }
-        let next = draft.withFlow(flowMinutes, profile: profile)
+        // Exact moves set their block's time (#293).
+        for k in FlowTweaks.kinds {
+            if let m = tweaks.movesMinutes(k), let cur = flowMinutes[k], cur != m { flowMinutes[k] = m }
+        }
+        let kept = tweaks.isEmpty ? nil : tweaks
+        if draft.flowTweaks != kept { draft.flowTweaks = kept }
+        let next = draft.withFlow(flowMinutes, profile: profile.applying(tweaks))
         if next.flow != draft.flow { draft.flow = next.flow }
+    }
+
+    /// Moves `kind` gets with `t` (the warm-up / cool-down sheet's list).
+    private func previewFlow(_ t: FlowTweaks, _ kind: BlockKind) -> [PlannedExercise] {
+        guard let profile = model.profile else { return [] }
+        var m = flowMinutes
+        if m[kind] == nil { m[kind] = CustomFlowEditor.defaults[kind] }
+        return draft.withFlow(m, profile: profile.applying(t)).flow.first { $0.kind == kind }?.items ?? []
     }
 
     /// Saves the draft (once per change), then runs `next`.
