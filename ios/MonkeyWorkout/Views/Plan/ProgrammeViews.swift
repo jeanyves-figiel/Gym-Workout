@@ -670,8 +670,8 @@ struct PickedProgrammeSession: Identifiable {
     var id: String { "\(week)-\(session.id)" }
 }
 
-/// Every programme workout, one row per week: signature workouts in the programme's colours, the test week in gold,
-/// the easy week in green, the rest plain. Weeks already done fade.
+/// Every programme workout, one row per week: signature workouts in the programme's colours with a star, the other
+/// days in their week's phase colour (#280), the test week in gold. Weeks already done fade.
 struct ProgrammeWorkoutGrid: View {
     let programme: Programme
     let weeks: [[Session]]
@@ -705,9 +705,15 @@ struct ProgrammeWorkoutGrid: View {
 
     private func cell(_ s: Session, _ kind: ProgrammePhaseKind) -> some View {
         let lead = s.isPlanInsert ? s.blocks.first { $0.kind == .strength }?.items.first?.prescription : nil
-        let plain = !s.isPlanInsert && kind != .test && kind != .ease
+        let signature = s.isPlanInsert && kind != .test
         return VStack(alignment: .leading, spacing: 2) {
-            Text(s.title).font(.system(size: 11, weight: .heavy, design: .rounded)).lineLimit(2).minimumScaleFactor(0.8)
+            HStack(alignment: .top, spacing: 2) {
+                Text(s.title).font(.system(size: 11, weight: .heavy, design: .rounded)).lineLimit(2).minimumScaleFactor(0.8)
+                if signature {
+                    Spacer(minLength: 0)
+                    Image(systemName: "star.fill").font(.system(size: 8, weight: .black)).accessibilityLabel("Signature")
+                }
+            }
             Text(kind == .test ? "Test week" : lead.map { "\($0.sets) × \($0.reps)" } ?? "\(s.estMin) min")
                 .font(.system(size: 9.5, weight: .bold, design: .rounded)).opacity(0.8)
         }
@@ -716,13 +722,9 @@ struct ProgrammeWorkoutGrid: View {
         .frame(maxWidth: .infinity, minHeight: 50, alignment: .topLeading)
         .background {
             RoundedRectangle(cornerRadius: 12, style: .continuous).fill(
-                kind == .test ? AnyShapeStyle(LinearGradient(colors: ProgrammePhaseKind.test.colors, startPoint: .leading, endPoint: .trailing))
-                    : s.isPlanInsert ? AnyShapeStyle(programme.gradient)
-                    : kind == .ease ? AnyShapeStyle(LinearGradient(colors: ProgrammePhaseKind.ease.colors.map { $0.opacity(0.45) },
-                                                                    startPoint: .leading, endPoint: .trailing))
-                    : AnyShapeStyle(Theme.card))
+                signature ? AnyShapeStyle(programme.gradient)
+                    : AnyShapeStyle(LinearGradient(colors: kind.colors, startPoint: .leading, endPoint: .trailing)))
         }
-        .overlay { if plain { RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white.opacity(0.08)) } }
         .accessibilityElement(children: .combine)
         .accessibilityHint("Shows the workout")
     }
