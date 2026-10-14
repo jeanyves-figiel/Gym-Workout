@@ -111,8 +111,21 @@ private struct JoinVisibilityCard: View {
 struct CommunityProfileForm: View {
     let profile: CommunityProfile?
     var account = false
+    /// Values brought back by Undo (#285).
+    var restoring: Draft?
     var onSaved: () -> Void = {}
     @Environment(AppModel.self) private var model
+
+    /// What's entered, kept for Undo (#285).
+    struct Draft: Equatable {
+        var nickname: String
+        var bio: String
+        var visibility: CommunityVisibility
+        var autoShare: Bool
+        var photo: Data?
+        var removePhoto: Bool
+    }
+
     @State private var nickname = ""
     @State private var bio = ""
     @State private var visibility: CommunityVisibility = .members
@@ -126,6 +139,8 @@ struct CommunityProfileForm: View {
     @State private var loaded = false
     /// Join with an Account profile already set: show it as a card instead of the fields.
     @State private var prefilled = false
+    @State private var start: Draft?
+    @State private var closeGuard = CloseGuard()
 
     private var joining: Bool { profile == nil && !account }
     private var member: Bool { Community.shared.profile != nil }
@@ -160,9 +175,38 @@ struct CommunityProfileForm: View {
             fillFromProfile()
             visibility = profile?.defaultVisibility ?? .members  // join preselects Members (#90)
             autoShare = profile?.autoShare ?? false
+            start = draft
+            if let restoring {
+                nickname = restoring.nickname
+                bio = restoring.bio
+                visibility = restoring.visibility
+                autoShare = restoring.autoShare
+                photo = restoring.photo
+                removePhoto = restoring.removePhoto
+            }
         }
         // The join screen stays alive in its tab: follow Account edits made meanwhile (#122).
         .onChange(of: Community.shared.me) { _, _ in if joining { fillFromProfile() } }
+        .undoableClose(closeGuard, offer: undoOffer)
+    }
+
+    private var draft: Draft {
+        Draft(nickname: nickname, bio: bio, visibility: visibility, autoShare: autoShare, photo: photo, removePhoto: removePhoto)
+    }
+
+    /// Undo bar when Account → Profile or Edit profile closes with changes (#285); joining has no close.
+    private var undoOffer: UndoOffer? {
+        guard !joining, let start, draft != start else { return nil }
+        let kept = draft
+        let edited = self.profile, fromAccount = self.account
+        let detail = undoDetail(kept.nickname, kept.photo != nil ? "new photo" : kept.removePhoto ? "photo removed" : nil)
+        return UndoOffer(title: "Profile closed", detail: detail.isEmpty ? "Changes not saved" : detail,
+                         symbol: "person.crop.circle.fill", colors: [Color(red: 0.08, green: 0.78, blue: 0.56), Color(red: 0.12, green: 0.5, blue: 1)]) {
+            if !fromAccount, let edited {
+                return AnyView(UndoReopenedPush { EditCommunityProfileView(profile: edited, restoring: kept) })
+            }
+            return AnyView(UndoReopenedPush { PublicProfileView(restoring: kept) })
+        }
     }
 
     private func fillFromProfile() {
@@ -345,9 +389,11 @@ struct CommunityProfileForm: View {
         let n = nickname.trimmingCharacters(in: .whitespaces)
         let b = bio.trimmingCharacters(in: .whitespacesAndNewlines)
         let v = visibility, a = autoShare, join = joining, newPhoto = photo, remove = removePhoto
+        let closing = closeGuard
         task.run {
             #if DEBUG
             if model.demo {
+                closing.done()
                 onSaved()
                 return
             }
@@ -356,6 +402,7 @@ struct CommunityProfileForm: View {
                 var pp = try await api.savePublicProfile(nickname: n, bio: b)
                 if let newPhoto { pp = try await api.uploadPublicAvatar(jpeg: newPhoto) } else if remove, pp.avatarUrl != nil { pp = try await api.deletePublicAvatar() }
                 Community.shared.setPublic(pp)
+                closing.done()
                 onSaved()
                 return
             }
@@ -363,6 +410,7 @@ struct CommunityProfileForm: View {
             if let newPhoto { p = try await api.uploadAvatar(jpeg: newPhoto) } else if remove, p.avatarUrl != nil { p = try await api.deleteAvatar() }
             Community.shared.setProfile(p)
             if join { await Community.shared.refresh(api: api) }
+            closing.done()
             onSaved()
         }
     }
@@ -520,11 +568,13 @@ struct CommunityProfileView: View {
 
 private struct EditCommunityProfileView: View {
     let profile: CommunityProfile
+    /// Values brought back by Undo (#285).
+    var restoring: CommunityProfileForm.Draft?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
-            CommunityProfileForm(profile: profile) { dismiss() }.padding(16)
+            CommunityProfileForm(profile: profile, restoring: restoring) { dismiss() }.padding(16)
         }
         .readableWidth()
         .scrollDismissesKeyboard(.interactively)
@@ -844,6 +894,8 @@ extension CommunityReportReason {
 
 /// Nickname, photo and about edited from Account; the same record as the community profile.
 struct PublicProfileView: View {
+    /// Values brought back by Undo (#285).
+    var restoring: CommunityProfileForm.Draft?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -851,7 +903,7 @@ struct PublicProfileView: View {
             VStack(alignment: .leading, spacing: 18) {
                 AccountHeader(symbol: "person.crop.circle.fill", title: "Profile",
                               subtitle: "Set once, shown on Account and in Community.", gradient: AccountTint.publicProfile)
-                CommunityProfileForm(profile: Community.shared.profile, account: true) { dismiss() }
+                CommunityProfileForm(profile: Community.shared.profile, account: true, restoring: restoring) { dismiss() }
             }
             .padding(16)
             .padding(.bottom, 24)

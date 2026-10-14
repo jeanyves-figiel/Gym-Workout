@@ -372,12 +372,36 @@ struct TwoStepView: View {
     @State private var recovery: [String]?
     @State private var confirmOff = false
     @State private var task = FormTask()
+    @State private var closeGuard = CloseGuard()
 
-    init(enabled: Bool, codesLeft: Int, setup: TotpSetup? = nil, changed: @escaping () -> Void = {}) {
+    /// Setup or new codes on screen, kept for Undo (#285).
+    struct Draft: Equatable {
+        var setup: TotpSetup?
+        var code: String
+        var recovery: [String]?
+    }
+
+    /// `restoring`: the setup or recovery codes brought back by Undo (#285).
+    init(enabled: Bool, codesLeft: Int, setup: TotpSetup? = nil, restoring: Draft? = nil, changed: @escaping () -> Void = {}) {
         self.enabled = enabled
         self.codesLeft = codesLeft
         self.changed = changed
-        _setup = State(initialValue: setup)
+        _setup = State(initialValue: restoring?.setup ?? setup)
+        _code = State(initialValue: restoring?.code ?? "")
+        _recovery = State(initialValue: restoring?.recovery)
+    }
+
+    /// Undo bar while recovery codes (never shown again) or a setup key are on screen (#285).
+    private var undoOffer: UndoOffer? {
+        guard recovery != nil || (!enabled && setup != nil) else { return nil }
+        let kept = Draft(setup: setup, code: code, recovery: recovery)
+        let on = self.enabled, left = self.codesLeft, done = self.changed
+        return UndoOffer(title: "2-step sign-in closed",
+                         detail: kept.recovery != nil ? "Recovery codes not shown again" : "Setup not finished",
+                         symbol: kept.recovery != nil ? "list.number" : "number.square.fill",
+                         colors: [Color(red: 0.97, green: 0.59, blue: 0.12), Color(red: 1, green: 0.82, blue: 0)]) {
+            AnyView(UndoReopenedPush { TwoStepView(enabled: on, codesLeft: left, restoring: kept, changed: done) })
+        }
     }
 
     var body: some View {
@@ -386,6 +410,7 @@ struct TwoStepView: View {
                 if let recovery {
                     RecoveryCodesList(codes: recovery)
                     LimeActionButton(title: "I saved them") {
+                        closeGuard.done()
                         changed()
                         dismiss()
                     }
@@ -426,6 +451,7 @@ struct TwoStepView: View {
             Button("Turn off", role: .destructive) {
                 task.run {
                     try await gate.run(model.api) { try await model.api.disableTwoStep() }
+                    closeGuard.done()
                     changed()
                     dismiss()
                 }
@@ -433,6 +459,7 @@ struct TwoStepView: View {
         } message: {
             Text("Your recovery codes stop working too.")
         }
+        .undoableClose(closeGuard, offer: undoOffer)
     }
 
     @ViewBuilder
@@ -490,9 +517,19 @@ struct RecoveryCodesView: View {
     @State private var codes: [String]?
     @State private var gate = ReauthGate()
     @State private var task = FormTask()
+    @State private var closeGuard = CloseGuard()
 
     init(codes: [String]?) {
         _codes = State(initialValue: codes)
+    }
+
+    /// Undo bar whenever new codes are on screen: they can't be shown again (#285). Reopens with the same codes.
+    private var undoOffer: UndoOffer? {
+        guard let kept = codes else { return nil }
+        return UndoOffer(title: "Recovery codes closed", detail: "Recovery codes not shown again", symbol: "list.number",
+                         colors: [Color(red: 0.23, green: 0.42, blue: 1), Color(red: 0.54, green: 0.3, blue: 1)]) {
+            AnyView(UndoReopenedPush { RecoveryCodesView(codes: kept) })
+        }
     }
 
     var body: some View {
@@ -518,6 +555,7 @@ struct RecoveryCodesView: View {
         .navigationTitle("Recovery codes")
         .toolbarTitleDisplayMode(.inline)
         .reauthSheet(gate)
+        .undoableClose(closeGuard, offer: undoOffer)
     }
 }
 

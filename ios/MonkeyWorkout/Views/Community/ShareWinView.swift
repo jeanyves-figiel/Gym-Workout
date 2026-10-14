@@ -6,11 +6,23 @@ import WorkoutEngine
 struct ShareWinView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    /// Values brought back by Undo (#285).
+    var restoring: Draft?
+
+    /// What's picked and typed, kept for Undo (#285).
+    struct Draft: Equatable {
+        var selected: String?
+        var caption: String
+        var visibility: CommunityVisibility
+    }
+
     @State private var wins: [WinCard] = []
     @State private var selected: String?
     @State private var caption = ""
     @State private var visibility: CommunityVisibility = .onlyMe
     @State private var task = FormTask()
+    @State private var start: Draft?
+    @State private var closeGuard = CloseGuard()
 
     var body: some View {
         NavigationStack {
@@ -51,6 +63,20 @@ struct ShareWinView: View {
             .onAppear(perform: buildWins)
         }
         .preferredColorScheme(.dark)
+        .undoableClose(closeGuard, offer: undoOffer)
+    }
+
+    /// Undo bar when a caption was typed or another win picked (#285).
+    private var undoOffer: UndoOffer? {
+        guard let start else { return nil }
+        let typed = !caption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard typed || selected != start.selected else { return nil }
+        let kept = Draft(selected: selected, caption: caption, visibility: visibility)
+        let title = wins.first { $0.id == selected }?.card.title
+        return UndoOffer(title: "Post closed", detail: undoDetail(title, typed ? "“\(caption)”" : nil), symbol: "square.and.arrow.up.fill",
+                         colors: WorkoutEngine.Category.power.colors) {
+            AnyView(ShareWinView(restoring: kept))
+        }
     }
 
     @ViewBuilder
@@ -80,14 +106,23 @@ struct ShareWinView: View {
             .prefix(5).map(WinCard.badge)
         wins = Array(workouts) + Array(bests) + Array(badges)
         selected = wins.first?.id
+        guard start == nil else { return }
+        start = Draft(selected: selected, caption: caption, visibility: visibility)
+        if let restoring {
+            selected = restoring.selected
+            caption = restoring.caption
+            visibility = restoring.visibility
+        }
     }
 
     private func share() {
         guard let w = wins.first(where: { $0.id == selected }) else { return }
         let text = caption.trimmingCharacters(in: .whitespacesAndNewlines)
+        let closing = closeGuard
         task.run {
             #if DEBUG
             if model.demo {
+                closing.done()
                 dismiss()
                 return
             }
@@ -95,6 +130,7 @@ struct ShareWinView: View {
             let post = try await model.api.sharePost(
                 kind: w.kind, refId: w.refId, visibility: visibility, caption: text.isEmpty ? nil : text, card: w.card)
             Community.shared.insert(post)
+            closing.done()
             dismiss()
         }
     }

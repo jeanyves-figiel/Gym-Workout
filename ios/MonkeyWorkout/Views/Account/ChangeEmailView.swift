@@ -12,6 +12,33 @@ struct ChangeEmailView: View {
     @State private var sentTo: String?
     @State private var task = FormTask()
     @State private var resendTask = FormTask()
+    @State private var closeGuard = CloseGuard()
+
+    /// The new address and sent code, kept for Undo (#285).
+    struct Draft: Equatable {
+        var newEmail: String
+        var sentTo: String?
+        var code: String
+    }
+
+    /// `restoring`: brought back by Undo (#285), so the code that was sent can still be typed.
+    init(currentEmail: String?, restoring: Draft? = nil) {
+        self.currentEmail = currentEmail
+        _newEmail = State(initialValue: restoring?.newEmail ?? "")
+        _sentTo = State(initialValue: restoring?.sentTo)
+        _code = State(initialValue: restoring?.code ?? "")
+    }
+
+    /// Undo bar once a code was sent (#285).
+    private var undoOffer: UndoOffer? {
+        guard let sentTo else { return nil }
+        let kept = Draft(newEmail: newEmail, sentTo: sentTo, code: code)
+        let current = self.currentEmail
+        return UndoOffer(title: "Email change closed", detail: undoDetail("Code sent to \(sentTo)"), symbol: "envelope.badge.fill",
+                         colors: [Color(red: 0, green: 0.79, blue: 0.65), Color(red: 0.18, green: 0.77, blue: 1)]) {
+            AnyView(UndoReopenedPush { ChangeEmailView(currentEmail: current, restoring: kept) })
+        }
+    }
 
     private var trimmed: String { newEmail.trimmingCharacters(in: .whitespaces) }
 
@@ -34,6 +61,7 @@ struct ChangeEmailView: View {
                     LimeActionButton(title: "Confirm new email", busy: task.busy, disabled: code.count != 6) {
                         task.run {
                             model.user = try await model.api.confirmEmailChange(code: code)
+                            closeGuard.done()
                             dismiss()
                         }
                     }
@@ -79,5 +107,6 @@ struct ChangeEmailView: View {
         .navigationTitle(currentEmail == nil ? "Add email" : "Change email")
         .toolbarTitleDisplayMode(.inline)
         .reauthSheet(gate)
+        .undoableClose(closeGuard, offer: undoOffer)
     }
 }

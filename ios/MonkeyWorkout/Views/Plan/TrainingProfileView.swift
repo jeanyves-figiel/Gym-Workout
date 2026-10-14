@@ -54,12 +54,14 @@ struct TrainingProfileView: View {
 /// One section's editor; saving re-plans the current week and goes back. Also opened from Community (Your gym).
 struct ProfileSectionView: View {
     let section: ProfileSection
+    /// Values brought back by Undo (#285).
+    var restoring: Profile?
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ProfileFormView(initial: model.profile, section: section,
-                        onGymChange: section == .gym ? { model.editGym($0) } : nil) { p in
+                        onGymChange: section == .gym ? { model.editGym($0) } : nil, restoring: restoring) { p in
             if section == .gym { model.editGym(p) } else { model.updateProfile(p) }
             dismiss()
         }
@@ -118,7 +120,8 @@ struct ProfileSectionCard: View {
         }
     }
 
-    private var value: String {
+    /// Also the Undo detail (#285).
+    var value: String {
         switch section {
         case .goal:
             ([profile.goal.config.label,

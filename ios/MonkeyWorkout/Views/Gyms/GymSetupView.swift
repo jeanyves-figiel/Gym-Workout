@@ -61,23 +61,74 @@ struct GymSetupView: View {
     @State private var name: String
     @State private var drag: CGSize = .zero
     @State private var showEquipment = false
+    @State private var baseline: Draft
+    @State private var closeGuard = CloseGuard()
+    private let initialName: String
+    private let startStep: Step
+    private let startKind: GymKind?
+
+    /// Where the wizard is and what was answered, kept for Undo (#285).
+    struct Draft: Equatable {
+        var step: Step
+        var kind: GymKind?
+        var answers: [GymArea: ZoneAnswer]
+        var order: [GymArea]
+        var index: Int
+        var source: String?
+        var equipment: [Equipment]
+        var unsure: [Equipment]
+        var name: String
+    }
 
     init(ref: GymRef?, name: String = "", actionTitle: String, preset: GymSetupPreset? = nil, startStep: Step = .kind,
-         startKind: GymKind? = nil, onDone: @escaping (SavedGym) -> Void) {
+         startKind: GymKind? = nil, restoring: Draft? = nil, onDone: @escaping (SavedGym) -> Void) {
         self.ref = ref
         self.actionTitle = actionTitle
         self.preset = preset
         self.onDone = onDone
-        _step = State(initialValue: startStep)
-        _kind = State(initialValue: startKind)
-        _name = State(initialValue: ref?.name ?? name)
+        self.initialName = name
+        self.startStep = startStep
+        self.startKind = startKind
+        var base = Draft(step: startStep, kind: startKind, answers: [:], order: GymArea.allCases, index: 0, source: nil,
+                         equipment: [], unsure: [], name: ref?.name ?? name)
         if let k = startKind {
-            _answers = State(initialValue: k.guess)
+            base.answers = k.guess
             let r = GymSetup.equipment(k.guess)
-            _equipment = State(initialValue: r.equipment)
-            _unsure = State(initialValue: r.unsure)
+            base.equipment = r.equipment
+            base.unsure = r.unsure
         }
-        if startStep == .swipe { _index = State(initialValue: 2) }
+        if startStep == .swipe { base.index = 2 }
+        _baseline = State(initialValue: base)
+        let shown = restoring ?? base
+        _step = State(initialValue: shown.step)
+        _kind = State(initialValue: shown.kind)
+        _answers = State(initialValue: shown.answers)
+        _order = State(initialValue: shown.order)
+        _index = State(initialValue: shown.index)
+        _source = State(initialValue: shown.source)
+        _equipment = State(initialValue: shown.equipment)
+        _unsure = State(initialValue: shown.unsure)
+        _name = State(initialValue: shown.name)
+    }
+
+    private var draft: Draft {
+        Draft(step: step, kind: kind, answers: answers, order: order, index: index, source: source,
+              equipment: equipment, unsure: unsure, name: name)
+    }
+
+    /// Undo bar when the wizard moved on or anything was answered or edited (#285).
+    private var undoOffer: UndoOffer? {
+        let kept = draft
+        guard kept != baseline else { return nil }
+        let ref = self.ref, name = self.initialName, actionTitle = self.actionTitle, preset = self.preset
+        let startStep = self.startStep, startKind = self.startKind, onDone = self.onDone
+        let progress: String? = kept.step == .swipe ? "\(min(kept.index + 1, kept.order.count)) of \(kept.order.count)"
+            : kept.step == .result ? "\(kept.equipment.count) items" : nil
+        return UndoOffer(title: "Gym setup closed", detail: undoDetail(ref?.name, kept.source ?? kept.kind?.label, progress),
+                         symbol: kept.kind?.symbol ?? "building.2.fill", colors: (kept.kind?.category ?? .strength).colors) {
+            AnyView(GymSetupView(ref: ref, name: name, actionTitle: actionTitle, preset: preset, startStep: startStep,
+                                 startKind: startKind, restoring: kept, onDone: onDone))
+        }
     }
 
     var body: some View {
@@ -103,13 +154,17 @@ struct GymSetupView: View {
             }
             .sheet(isPresented: $showEquipment) { EquipmentSheet(equipment: $equipment, unsure: unsure) }
             .task {
-                if step == .swipe { order = GymSetup.order(for: model.plan) }
+                if step == .swipe {
+                    order = GymSetup.order(for: model.plan)
+                    baseline.order = order
+                }
                 if let ref { known = await model.knownGym(ref) }
             }
         }
         .preferredColorScheme(.dark)
         .animation(.spring(duration: 0.35), value: step)
         .animation(.spring(duration: 0.35), value: index)
+        .undoableClose(closeGuard, offer: undoOffer)
     }
 
     private var title: String {
@@ -414,6 +469,7 @@ struct GymSetupView: View {
 
                 Button(actionTitle) {
                     let r = ref ?? SavedGym.customRef(name: trimmedName.isEmpty ? (kind?.label ?? "My gym") : trimmedName)
+                    closeGuard.done()
                     onDone(SavedGym(ref: r, kind: kind, equipment: equipment, unsure: unsure.filter { equipment.contains($0) }))
                     dismiss()
                 }
