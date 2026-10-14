@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Programme look fixes after build 33** (#280, #281, #282). **Grey days** (#280, design 1A from `programmes/fixes/item1.png`): in a programme's All workouts grid, days that aren't signature workouts (e.g. Strength foundation's Day 3) were dark grey; they now take their week's phase colour (Base, Build, Peak, Ease) and signature workouts keep the programme colour with a ★. **Two-line picker rows** (#281, design 2A from `item2.png`): on Make it mine, Goal / Split / Method values like "Explosive / athletic" wrapped beside the label, giving uneven rows and clipping the Method row; they are now stacked (label on top, value large in lime under it; new `StackedMenuRow`); Body & Health Gender and Sex show the picked value under the title too. **New workout from a programme** (#282, design 3A from `item3.png`): Pick a workout (Make it mine → Add a workout, and the builder's days) starts with a **New workout** card that opens the workout builder (Pro, like Build a workout); on **Add** the workout is saved to My workouts and added to the programme (a workout with no strength or power exercise is saved but not added, with a note).
+
 ### Changed
 - **Release notes for the 2026-10-14 morning release** (What's new `2026-10-14.1`): 5 cards covering #268/#269 programmes (4 cards merged into 2), #266 missed workouts + Next up, #274 gym zones, #271/#273 gym save + Add a gym and #264 calendar day sheet.
 
