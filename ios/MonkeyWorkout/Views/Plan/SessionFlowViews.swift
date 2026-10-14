@@ -138,15 +138,20 @@ struct FlowChips: View {
     let included: (BlockKind) -> Bool
     let toggle: (BlockKind) -> Void
     var label: (BlockKind) -> String = { $0.flowLabel }
+    /// Blocks whose chip, when included, opens their options instead of leaving them out (#293).
+    var opens: (BlockKind) -> Bool = { _ in false }
+    var open: (BlockKind) -> Void = { _ in }
 
     var body: some View {
         FlowLayout(spacing: 6) {
             ForEach(kinds, id: \.self) { k in
                 let on = included(k)
-                Button { toggle(k) } label: {
+                let opening = on && opens(k)
+                Button { if opening { open(k) } else { toggle(k) } } label: {
                     HStack(spacing: 5) {
                         Image(systemName: on ? k.symbol : "plus")
                         Text(label(k))
+                        if opening { Image(systemName: "chevron.right").font(.system(size: 10, weight: .heavy)) }
                     }
                     .font(Theme.label(13))
                     .foregroundStyle(on ? .white : Theme.muted)
@@ -163,7 +168,7 @@ struct FlowChips: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(label(k))
                 .accessibilityValue(on ? "In the flow" : "Left out")
-                .accessibilityHint(on ? "Removes it; its time goes to the other blocks" : "Adds it")
+                .accessibilityHint(opening ? "Opens its style and moves" : on ? "Removes it; its time goes to the other blocks" : "Adds it")
             }
         }
         .sensoryFeedback(.selection, trigger: kinds.map(included))
@@ -352,6 +357,8 @@ struct CustomFlowEditor: View {
     @Binding var minutes: [BlockKind: Int]
     /// Estimated minutes of the member's own exercises.
     let yours: Int
+    /// Opens a warm-up / cool-down's style and moves (#293); nil = their chips toggle like the others.
+    var open: ((BlockKind) -> Void)?
 
     static let kinds: [BlockKind] = [.warmup, .power, .mobility, .cardio, .cooldown]
     static let defaults: [BlockKind: Int] = [.warmup: 6, .power: 6, .mobility: 6, .cardio: 10, .cooldown: 5]
@@ -370,9 +377,9 @@ struct CustomFlowEditor: View {
                 next[.strength] = nil
                 minutes = next
             })
-            FlowChips(kinds: Self.kinds, included: { minutes[$0] != nil }) { k in
+            FlowChips(kinds: Self.kinds, included: { minutes[$0] != nil }, toggle: { k in
                 withAnimation(.spring(duration: 0.3)) { minutes[k] = minutes[k] == nil ? Self.defaults[k] : nil }
-            }
+            }, opens: { open != nil && FlowTweaks.kinds.contains($0) }, open: { open?($0) })
         }
         .animation(.interactiveSpring(), value: segs)
     }

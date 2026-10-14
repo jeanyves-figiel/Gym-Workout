@@ -261,6 +261,17 @@ private struct DemoScreen: View {
         case "flow-picks":
             BlockPicksSheet(kind: .warmup, picks: .constant(BlockPicks(items: [BlockPick(exerciseId: "treadmill-run", minutes: 7),
                                                                                 BlockPick(exerciseId: "cat-cow", minutes: 2)])))
+        case "flow-warmup", "flow-cooldown":
+            let k: BlockKind = Demo.screen == "flow-warmup" ? .warmup : .cooldown
+            let t = k == .warmup ? FlowTweaks(warmupStyle: .pulse)
+                : FlowTweaks(cooldownMoves: [BlockPick(exerciseId: "foam-roll-glutes", minutes: 2), BlockPick(exerciseId: "childs-pose-reach", minutes: 2),
+                                             BlockPick(exerciseId: "breathing", minutes: 2)])
+            FlowTweakSheet(kind: k, tweaks: .constant(t), preview: { tw in
+                let ex = Demo.customWorkouts[0].playableItems.compactMap(\.exercise)
+                return Generator.flowBlocks((model.profile ?? Profile()).applying(tw), around: ex, minutes: [k: 6], seed: 1).first?.items ?? []
+            }) {}
+        case "quick-flow":
+            NavigationStack { QuickSessionOptionsView(focus: .push, day: "Thursday") { _, _, _ in true } }
         case "equipment": EquipmentSheet(equipment: .constant(GymKind.budget.equipment))
         case "equipment-zones", "equipment-by-zone": EquipmentSheet(equipment: .constant(Gym.puls5.equipment), layout: .constant(Demo.layout))
         case "floor-plan": FloorPlanSheet(layout: .constant(Demo.layout), equipment: Gym.puls5.equipment)

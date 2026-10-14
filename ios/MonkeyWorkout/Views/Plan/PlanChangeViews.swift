@@ -231,8 +231,8 @@ struct AddWorkoutSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }
             .navigationDestination(item: $quick) { f in
-                QuickSessionOptionsView(focus: f, day: dayDate.formatted(.dateTime.weekday(.wide))) { minutes, groups in
-                    addQuick(f, minutes: minutes, groups: groups)
+                QuickSessionOptionsView(focus: f, day: dayDate.formatted(.dateTime.weekday(.wide))) { minutes, groups, tweaks in
+                    addQuick(f, minutes: minutes, groups: groups, tweaks: tweaks)
                 }
             }
             .sheet(item: $logging, onDismiss: { if model.climbLogs.count > climbsBefore { dismiss() } }) {
@@ -382,13 +382,13 @@ struct AddWorkoutSheet: View {
 
     /// Generated for the focus (preset muscles) or for the chosen muscles; false when nothing fits.
     @discardableResult
-    private func addQuick(_ f: Focus, minutes: Int, groups: Set<MuscleGroup>? = nil) -> Bool {
+    private func addQuick(_ f: Focus, minutes: Int, groups: Set<MuscleGroup>? = nil, tweaks: FlowTweaks? = nil) -> Bool {
         if let groups, groups != f.muscleGroups, !groups.isEmpty {
-            guard var w = model.quickWorkout(groups, minutes: minutes) else { return false }
+            guard var w = model.quickWorkout(groups, minutes: minutes, tweaks: tweaks) else { return false }
             w.name = "Extra · " + CustomWorkout.generatedName(groups)
             model.addExtra(w, weekday: weekday)
         } else {
-            guard let s = model.quickSession(f, minutes: minutes) else { return false }
+            guard let s = model.quickSession(f, minutes: minutes, tweaks: tweaks) else { return false }
             model.addExtra(CustomWorkout(name: "Extra · \(f.quickLabel)"), generated: s, weekday: weekday)
         }
         dismiss()
@@ -408,13 +408,17 @@ struct QuickSessionOptionsView: View {
     let focus: Focus
     let day: String
     /// Returns false when nothing fits the equipment.
-    let onAdd: (Int, Set<MuscleGroup>) -> Bool
+    let onAdd: (Int, Set<MuscleGroup>, FlowTweaks) -> Bool
+    @Environment(AppModel.self) private var model
     @State private var minutes = Generator.quickDefaultMinutes
+    /// Warm-up / cool-down style or exact moves (#293).
+    @State private var tweaks = FlowTweaks()
+    @State private var tweaking: FlowTweakTarget?
     @State private var groups: Set<MuscleGroup>
     @State private var nothingFits = false
     @State private var gate: ProGate?
 
-    init(focus: Focus, day: String, onAdd: @escaping (Int, Set<MuscleGroup>) -> Bool) {
+    init(focus: Focus, day: String, onAdd: @escaping (Int, Set<MuscleGroup>, FlowTweaks) -> Bool) {
         self.focus = focus
         self.day = day
         self.onAdd = onAdd
@@ -468,6 +472,13 @@ struct QuickSessionOptionsView: View {
                 }
                 Text(note).font(.footnote).foregroundStyle(Theme.muted)
 
+                if canAdd {
+                    Text("Warm-up & cool-down").eyebrow().padding(.top, 10)
+                    HStack(spacing: 10) {
+                        ForEach(FlowTweaks.kinds, id: \.self) { k in flowCard(k) }
+                    }
+                }
+
                 if nothingFits {
                     Text("Nothing fits your equipment for these muscles. Pick other muscles or update your gym in the training profile.")
                         .font(.footnote.weight(.semibold))
@@ -490,6 +501,36 @@ struct QuickSessionOptionsView: View {
         .navigationTitle("Quick session")
         .navigationBarTitleDisplayMode(.inline)
         .proPaywall($gate)
+        .sheet(item: $tweaking) { t in
+            FlowTweakSheet(kind: t.kind, tweaks: $tweaks, preview: { flowPreview($0, t.kind) })
+        }
+    }
+
+    /// Warm-up or cool-down card: style (or own moves); opens its sheet (#293).
+    private func flowCard(_ k: BlockKind) -> some View {
+        Button { tweaking = FlowTweakTarget(kind: k) } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Image(systemName: k.symbol).font(.system(size: 18, weight: .bold))
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.footnote.bold()).opacity(0.8)
+                }
+                Text(k.flowLabel).font(Theme.display(18))
+                Text(tweaks.summary(k, profile: model.profile)).font(Theme.label(12)).opacity(0.9).lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .gradientCard(k.gradient, padding: 14)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens its style and moves")
+    }
+
+    /// Moves `kind` gets with `t` for the current duration and muscles.
+    private func flowPreview(_ t: FlowTweaks, _ kind: BlockKind) -> [PlannedExercise] {
+        let blocks = preset || groups.isEmpty
+            ? model.quickSession(focus, minutes: minutes, tweaks: t)?.blocks
+            : model.quickWorkout(groups, minutes: minutes, tweaks: t)?.flow
+        return blocks?.first { $0.kind == kind }?.items ?? []
     }
 
     private var note: String {
@@ -499,7 +540,7 @@ struct QuickSessionOptionsView: View {
                 : "The \(focus.quickLabel.lowercased()) session with warm-up and cool-down. Pick other muscles to target them instead."
         }
         if groups.isEmpty { return "Pick at least one muscle group." }
-        return "Strength work for these muscles, sized to \(minutes) min, with your goal's sets and reps. Pro, like Generate from muscles."
+        return "Strength work for these muscles with a warm-up and cool-down, sized to \(minutes) min, with your goal's sets and reps. Pro, like Generate from muscles."
     }
 
     private var header: some View {
@@ -528,9 +569,9 @@ struct QuickSessionOptionsView: View {
 
     private func add() {
         if preset {
-            nothingFits = !onAdd(minutes, groups)
+            nothingFits = !onAdd(minutes, groups, tweaks)
         } else {
-            ProStore.shared.run(.generateWorkout, $gate) { nothingFits = !onAdd(minutes, groups) }
+            ProStore.shared.run(.generateWorkout, $gate) { nothingFits = !onAdd(minutes, groups, tweaks) }
         }
     }
 }
