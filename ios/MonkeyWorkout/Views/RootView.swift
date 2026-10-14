@@ -183,6 +183,15 @@ private struct DemoScreen: View {
         case "body": NavigationStack { BodyHealthView() }
         case "measurements": NavigationStack { MeasurementsView() }
         case "measurement-log": MeasurementLogSheet(initial: model.measurements.last ?? BodyMeasurement(date: Date()), isNew: false)
+        // Close + Undo bar (#285) over Train, as after closing a half-filled measurements sheet.
+        case "undo-bar":
+            NavigationStack { WeekView() }
+                .overlay(alignment: .bottom) {
+                    UndoBar(offer: UndoOffer(title: "Measurements closed", detail: "Weight, body fat · 6 girths", symbol: "ruler.fill",
+                                             colors: WorkoutEngine.Category.mobility.colors) { AnyView(EmptyView()) },
+                            undo: {})
+                        .padding(.horizontal, 12).padding(.bottom, 60)
+                }
         case "measurement-detail": NavigationStack { MeasurementDetailView(metric: .girth(.upperArm)) }
         case "measurement-howto": MeasurementHowToSheet(metric: .girth(.waist))
         case "measurement-guide":

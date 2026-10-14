@@ -667,7 +667,7 @@ private struct NextUpCard: View {
                 }
             }
             if picked != nil && !isNext, let next = model.nextSession {
-                BackToNextUpButton(label: "Back to next up (\(WeekSchedule.shortName(next.weekday ?? 1)))", action: onBack)
+                BackToNextUpButton(label: backLabel(next), action: onBack)
             } else if picked != nil && !isNext {
                 BackToNextUpButton(label: "Back to this week", action: onBack)
             }
@@ -686,6 +686,11 @@ private struct NextUpCard: View {
             .accessibilityLabel("Session overview")
         }
     }
+}
+
+/// "Back to next up (Thu)"; no day for an unscheduled session.
+private func backLabel(_ next: Session) -> String {
+    next.weekday.map { "Back to next up (\(WeekSchedule.shortName($0)))" } ?? "Back to next up"
 }
 
 /// "Back to next up" under a day picked in the strip (#277).
@@ -744,7 +749,7 @@ private struct RestDayCard: View {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.35), style: StrokeStyle(lineWidth: 2, dash: [7, 5]))
             }
-            BackToNextUpButton(label: model.nextSession.map { "Back to next up (\(WeekSchedule.shortName($0.weekday ?? 1)))" } ?? "Back to this week",
+            BackToNextUpButton(label: model.nextSession.map(backLabel) ?? "Back to this week",
                                action: onBack)
         }
         .padding(20)

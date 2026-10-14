@@ -12,11 +12,26 @@ struct EditExercisesSheet: View {
     @State private var blocks: [Block]
     @State private var swapping: PlannedExercise?
     @State private var adding: Block?
+    @State private var closeGuard = CloseGuard()
+    /// The list as it was when the sheet first opened: closing with changes offers Undo (#285).
+    private let start: [Block]
 
-    init(sessionId: String, base: Session, blocks: [Block]) {
+    /// `start`: the list before this round of edits, when reopened by Undo with `blocks` kept.
+    init(sessionId: String, base: Session, blocks: [Block], start: [Block]? = nil) {
         self.sessionId = sessionId
         self.base = base
+        self.start = start ?? blocks
         _blocks = State(initialValue: blocks)
+    }
+
+    /// Undo bar when the list changed and the sheet closed without Save.
+    private var undoOffer: UndoOffer? {
+        guard blocks != start else { return nil }
+        let kept = blocks, first = start, id = sessionId, b = base
+        return UndoOffer(title: "Exercise edits closed", detail: undoDetail(b.displayTitle, "\(kept.itemCount) exercises"),
+                         symbol: "pencil", colors: WorkoutEngine.Category.mobility.colors) {
+            AnyView(EditExercisesSheet(sessionId: id, base: b, blocks: kept, start: first))
+        }
     }
 
     private var minutes: Int { max(1, base.estMin + Int((Double(blocks.estSec - base.blocks.estSec) / 60).rounded())) }
@@ -68,6 +83,7 @@ struct EditExercisesSheet: View {
             .safeAreaInset(edge: .bottom) {
                 Button {
                     model.saveSessionEdit(sessionId, blocks: blocks)
+                    closeGuard.done()
                     dismiss()
                 } label: {
                     Text("Save · \(minutes)′ · \(blocks.itemCount) exercise\(blocks.itemCount == 1 ? "" : "s")")
@@ -90,6 +106,7 @@ struct EditExercisesSheet: View {
             }
         }
         .presentationDetents([.large])
+        .undoableClose(closeGuard, offer: undoOffer)
     }
 
     private func row(_ item: PlannedExercise, block: Block) -> some View {

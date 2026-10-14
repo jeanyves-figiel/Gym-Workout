@@ -190,8 +190,14 @@ struct LogClimbView: View {
     @Environment(HealthManager.self) private var health
     @Environment(\.dismiss) private var dismiss
     @State private var log: ClimbLog
+    @State private var closeGuard = CloseGuard()
+    private let initial: ClimbLog
 
-    init(initial: ClimbLog) { _log = State(initialValue: initial) }
+    /// `restoring`: the climb brought back by Undo (#285).
+    init(initial: ClimbLog, restoring: ClimbLog? = nil) {
+        self.initial = initial
+        _log = State(initialValue: restoring ?? initial)
+    }
 
     private var grade: Binding<String> {
         Binding(get: { log.topGrade ?? "" }, set: { log.topGrade = $0.isEmpty ? nil : String($0.prefix(12)) })
@@ -281,6 +287,19 @@ struct LogClimbView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .undoableClose(closeGuard, offer: undoOffer)
+    }
+
+    /// Undo bar when anything was changed since the sheet opened (#285).
+    private var undoOffer: UndoOffer? {
+        guard log != initial else { return nil }
+        let kept = log
+        let original = initial
+        return UndoOffer(title: "Climb closed",
+                         detail: undoDetail(kept.kind.label, Climbs.duration(kept.minutes), kept.topGrade),
+                         symbol: kept.kind.symbol, colors: kept.kind.colors) {
+            AnyView(LogClimbView(initial: original, restoring: kept))
+        }
     }
 
     private func save() {
@@ -292,6 +311,7 @@ struct LogClimbView: View {
                 await health.refresh()
             }
         }
+        closeGuard.done()
         dismiss()
     }
 }
