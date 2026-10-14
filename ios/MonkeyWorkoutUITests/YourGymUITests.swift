@@ -44,7 +44,8 @@ final class YourGymUITests: XCTestCase {
         XCTAssertFalse(app.buttons["ADD ALL"].exists)
     }
 
-    func testEquipmentPageAdditionSticksAfterSave() {
+    /// The member's path on build 32: Equipment page → Done → back, no SAVE.
+    func testEquipmentPageAdditionSticksWithoutSave() {
         openYourGym()
         XCTAssertTrue(count(48).waitForExistence(timeout: 5))
         app.staticTexts["Equipment"].tap()
@@ -57,7 +58,10 @@ final class YourGymUITests: XCTestCase {
         ghd.tap()
         app.buttons["Done"].firstMatch.tap()
         XCTAssertTrue(count(49).waitForExistence(timeout: 5), "item added on the Equipment page")
-        save()
+        sleep(2)
+        XCTAssertTrue(count(49).exists, "count stays after Done")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.tabBars.buttons["Account"].waitForExistence(timeout: 10))
         openYourGym()
         XCTAssertTrue(count(49).waitForExistence(timeout: 5), "saved list reopened")
     }
