@@ -49,12 +49,11 @@ final class YourGymUITests: XCTestCase {
         openYourGym()
         XCTAssertTrue(count(48).waitForExistence(timeout: 5))
         app.staticTexts["Equipment"].tap()
-        let search = app.searchFields.firstMatch
-        XCTAssertTrue(search.waitForExistence(timeout: 5))
-        search.tap()
-        search.typeText("glute ham")
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
+        // Scroll to the tile (search would hide Done while it's active).
         let ghd = app.buttons["Glute-ham developer (GHD)"].firstMatch
-        XCTAssertTrue(ghd.waitForExistence(timeout: 5))
+        for _ in 0..<15 where !(ghd.exists && ghd.isHittable) { app.swipeUp() }
+        XCTAssertTrue(ghd.isHittable)
         ghd.tap()
         app.buttons["Done"].firstMatch.tap()
         XCTAssertTrue(count(49).waitForExistence(timeout: 5), "item added on the Equipment page")
