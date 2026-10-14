@@ -164,7 +164,7 @@ private struct ProgrammeLiftChips: View {
         if candidates.isEmpty {
             Text("Pin a workout with strength exercises to test a lift at the end.").font(.caption).foregroundStyle(Theme.muted)
         } else {
-            FlowChips(items: candidates) { id in
+            ProgrammeChipFlow(items: candidates) { id in
                 let on = lifts.contains(id)
                 Button {
                     if on { lifts.removeAll { $0 == id } } else if lifts.count < 4 { lifts.append(id) }
@@ -186,16 +186,16 @@ private struct ProgrammeLiftChips: View {
 }
 
 /// Wrapping row of chips.
-private struct FlowChips<Item: Hashable, Chip: View>: View {
+private struct ProgrammeChipFlow<Item: Hashable, Chip: View>: View {
     let items: [Item]
     @ViewBuilder let chip: (Item) -> Chip
 
     var body: some View {
-        ChipFlow(spacing: 6) { ForEach(items, id: \.self) { chip($0) } }
+        ProgrammeChipLayout(spacing: 6) { ForEach(items, id: \.self) { chip($0) } }
     }
 }
 
-private struct ChipFlow: Layout {
+private struct ProgrammeChipLayout: Layout {
     var spacing: CGFloat
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
