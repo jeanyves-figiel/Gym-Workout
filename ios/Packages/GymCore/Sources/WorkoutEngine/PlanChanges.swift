@@ -74,8 +74,9 @@ extension Generator {
     public static let quickDefaultMinutes = 30
 
     /// One generated session of `focus` for this profile and cycle week (equipment, goal and style kept), unscheduled.
-    /// `minutes` sets its length (#178); nil = the plan's session length.
-    public static func quickSession(_ profile: Profile, focus: Focus, week: Int, seed: UInt32, minutes: Int? = nil) -> Session? {
+    /// `minutes` sets its length (#178); nil = the plan's session length. `tweaks`: warm-up / cool-down choices (#293).
+    public static func quickSession(_ profile: Profile, focus: Focus, week: Int, seed: UInt32, minutes: Int? = nil,
+                                    tweaks: FlowTweaks? = nil) -> Session? {
         // The goal's own week when it has this focus (#194), else the default split that does.
         let sizes = Rules.splits.keys.sorted()
         let own = sizes.first { Rules.split(profile.goal, $0).contains(focus) }
@@ -84,7 +85,7 @@ extension Generator {
         // Always explicit: the profile's own split style or per-day picks must not change which week is used.
         let split = own.map { Rules.split(profile.goal, $0) } ?? Rules.splits[n].flatMap { $0.contains(focus) ? $0 : nil }
             ?? Array(repeating: focus, count: n)
-        var p = profile
+        var p = profile.applying(tweaks)
         p.sessionsPerWeek = n
         p.climbingWeekdays = nil
         p.gymWeekdays = nil

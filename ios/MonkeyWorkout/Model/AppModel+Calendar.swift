@@ -215,16 +215,23 @@ extension AppModel {
 
     /// A quick generated session of `focus` for this week (equipment, goal and style from the profile);
     /// `minutes` sets its length (#178), nil = the plan's session length.
-    func quickSession(_ focus: Focus, minutes: Int? = nil) -> Session? {
+    func quickSession(_ focus: Focus, minutes: Int? = nil, tweaks: FlowTweaks? = nil) -> Session? {
         guard let sp = state.synced else { return nil }
-        return Generator.quickSession(sp.tasteProfile, focus: focus, week: sp.week, seed: quickSeed(sp), minutes: minutes)
+        return Generator.quickSession(sp.tasteProfile, focus: focus, week: sp.week, seed: quickSeed(sp), minutes: minutes, tweaks: tweaks)
     }
 
-    /// A quick workout for chosen muscle groups (#178), sized to `minutes`; empty when nothing fits.
-    func quickWorkout(_ groups: Set<MuscleGroup>, minutes: Int) -> CustomWorkout? {
+    /// A quick workout for chosen muscle groups (#178), sized to `minutes` with a warm-up and a cool-down (#293);
+    /// nil when nothing fits.
+    func quickWorkout(_ groups: Set<MuscleGroup>, minutes: Int, tweaks: FlowTweaks? = nil) -> CustomWorkout? {
         guard let sp = state.synced else { return nil }
-        let w = Generator.quickWorkout(sp.profile, groups: groups, minutes: minutes, seed: quickSeed(sp))
-        return w.items.isEmpty ? nil : w
+        let t = tweaks ?? FlowTweaks()
+        var flow: [BlockKind: Int] = minutes <= 20 ? [.warmup: 4, .cooldown: 3] : [.warmup: 5, .cooldown: 4]
+        for k in FlowTweaks.kinds { if let m = t.movesMinutes(k) { flow[k] = m } }
+        let own = max(8, minutes - flow.values.reduce(0, +))
+        var w = Generator.quickWorkout(sp.profile, groups: groups, minutes: own, seed: quickSeed(sp))
+        guard !w.items.isEmpty else { return nil }
+        w.flowTweaks = t.isEmpty ? nil : t
+        return w.withFlow(flow, profile: sp.profile.applying(t))
     }
 
     private func quickSeed(_ sp: SyncedProfile) -> UInt32 {
