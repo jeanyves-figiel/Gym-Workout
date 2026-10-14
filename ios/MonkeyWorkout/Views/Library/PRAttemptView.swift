@@ -21,6 +21,18 @@ struct PRAttemptView: View {
     @State private var tries: [PRSet] = []
     @State private var result: PRAttempt?
     @State private var shareImage: Image?
+    @State private var closeGuard = CloseGuard()
+    private let restoring: Draft?
+
+    /// A live attempt, kept for Undo (#285).
+    struct Draft: Equatable {
+        var kind: PRKind
+        var repTarget: Int
+        var kg: Double
+        var reps: Int
+        var rampDone: Set<Int>
+        var tries: [PRSet]
+    }
 
     private var e: Exercise { Exercise.get(exerciseId) }
     private var step: Double { LoadAdvisor.steps(for: e, kg: kg).granularity }
@@ -28,12 +40,23 @@ struct PRAttemptView: View {
     private var targetReps: Int { kind == .oneRepMax ? 1 : repTarget }
 
     /// `showing` opens straight on a saved result (demo screenshots).
-    init(exerciseId: String, initialKind: PRKind? = nil, showing saved: PRAttempt? = nil) {
+    /// `restoring` brings a live attempt back after Undo (#285).
+    init(exerciseId: String, initialKind: PRKind? = nil, showing saved: PRAttempt? = nil, restoring: Draft? = nil) {
         self.exerciseId = exerciseId
+        self.restoring = restoring
         let kinds = PRPlanner.kinds(for: Exercise.get(exerciseId))
         _kind = State(initialValue: saved?.kind ?? initialKind.flatMap { kinds.contains($0) ? $0 : nil } ?? kinds.first ?? .maxReps)
         _result = State(initialValue: saved)
         _stage = State(initialValue: saved == nil ? .setup : .result)
+        if let restoring, saved == nil {
+            _stage = State(initialValue: .live)
+            _kind = State(initialValue: restoring.kind)
+            _repTarget = State(initialValue: restoring.repTarget)
+            _kg = State(initialValue: restoring.kg)
+            _reps = State(initialValue: restoring.reps)
+            _rampDone = State(initialValue: restoring.rampDone)
+            _tries = State(initialValue: restoring.tries)
+        }
     }
 
     var body: some View {
@@ -55,8 +78,26 @@ struct PRAttemptView: View {
                 }
             }
         }
-        .onAppear { if result == nil { replan(keepKg: false) } }
+        .onAppear {
+            guard result == nil else { return }
+            replan(keepKg: restoring != nil)
+            if let restoring { reps = restoring.reps }
+        }
         .sensoryFeedback(.success, trigger: result?.isRecord == true)
+        .undoableClose(closeGuard, offer: undoOffer)
+    }
+
+    /// Undo bar when Cancel closes a live attempt with warm-up sets ticked or attempts logged (#285).
+    private var undoOffer: UndoOffer? {
+        guard stage == .live, result == nil, !tries.isEmpty || !rampDone.isEmpty else { return nil }
+        let kept = Draft(kind: kind, repTarget: repTarget, kg: kg, reps: reps, rampDone: rampDone, tries: tries)
+        let id = self.exerciseId
+        let n = tries.count
+        let detail = undoDetail(e.name, n > 0 ? "\(n) attempt\(n == 1 ? "" : "s")" : "\(rampDone.count) warm-up set\(rampDone.count == 1 ? "" : "s")")
+        return UndoOffer(title: "PR attempt closed", detail: detail, symbol: kind.symbol, colors: kind.palette.colors,
+                         fullScreen: true) {
+            AnyView(PRAttemptView(exerciseId: id, restoring: kept))
+        }
     }
 
     // MARK: Setup
@@ -317,9 +358,11 @@ struct PRAttemptView: View {
         let attempt = PRPlanner.finish(exerciseId: exerciseId, kind: kind, targetReps: targetReps,
                                        sets: warmups + tries, previousBest: previous)
         guard !tries.isEmpty else {
+            closeGuard.done()
             dismiss()
             return
         }
+        closeGuard.done()
         model.savePRAttempt(attempt)
         result = attempt
         stage = .result

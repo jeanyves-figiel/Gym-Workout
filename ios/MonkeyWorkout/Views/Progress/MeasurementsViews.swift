@@ -227,6 +227,15 @@ struct MeasurementLogSheet: View {
 
     let initial: BodyMeasurement
     var isNew = true
+    /// Values brought back by Undo (#285).
+    var restoring: Draft?
+
+    /// What's typed, kept for Undo (#285).
+    struct Draft: Equatable {
+        var date: Date
+        var text: [String: String]
+        var perSide: Bool
+    }
 
     @State private var date = Date()
     @State private var text: [String: String] = [:]
@@ -236,6 +245,8 @@ struct MeasurementLogSheet: View {
     @State private var confirmDelete = false
     @State private var help: HelpTopic?
     @State private var guiding = false
+    @State private var start: Draft?
+    @State private var closeGuard = CloseGuard()
     @FocusState private var focus: String?
 
     /// The ? on a card (#220).
@@ -321,12 +332,31 @@ struct MeasurementLogSheet: View {
             .fullScreenCover(isPresented: $guiding) { MeasureGuideView(steps: guideSteps, text: $text) }
             .confirmationDialog("Delete this entry?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete", role: .destructive) {
+                    closeGuard.done()
                     model.deleteMeasurement(initial.id)
                     dismiss()
                 }
             }
         }
         .onAppear(perform: load)
+        .undoableClose(closeGuard, offer: undoOffer)
+    }
+
+    private var draft: Draft { Draft(date: date, text: text.filter { !$0.value.trimmingCharacters(in: .whitespaces).isEmpty }, perSide: perSide) }
+
+    /// Undo bar when something was typed or changed since the sheet opened (#285).
+    private var undoOffer: UndoOffer? {
+        guard let start, draft != start else { return nil }
+        let kept = draft
+        let m = entry
+        let girths = m.girthsCm?.count ?? 0
+        let detail = undoDetail(m.weightKg.map { _ in "Weight" }, m.bodyFatPct.map { _ in "body fat" },
+                                girths > 0 ? "\(girths) girth\(girths == 1 ? "" : "s")" : nil)
+        let original = self.initial, new = self.isNew
+        return UndoOffer(title: new ? "Measurements closed" : "Edit closed", detail: detail, symbol: "ruler.fill",
+                         colors: WorkoutEngine.Category.mobility.colors) {
+            AnyView(MeasurementLogSheet(initial: original, isNew: new, restoring: kept))
+        }
     }
 
     private func section(_ title: String) -> some View {
@@ -383,11 +413,16 @@ struct MeasurementLogSheet: View {
     private func load() {
         guard !loaded else { return }
         loaded = true
-        date = initial.date
-        if let w = initial.weightKg { text[Self.weightKey] = MeasureFormat.value(w) }
-        if let f = initial.bodyFatPct { text[Self.fatKey] = MeasureFormat.value(f) }
-        for (k, v) in initial.girthsCm ?? [:] { text[k] = MeasureFormat.value(v) }
-        perSide = GirthSite.allCases.contains { p in p.bilateral && LimbSide.allCases.contains { initial.girth(p, side: $0) != nil } }
+        var t: [String: String] = [:]
+        if let w = initial.weightKg { t[Self.weightKey] = MeasureFormat.value(w) }
+        if let f = initial.bodyFatPct { t[Self.fatKey] = MeasureFormat.value(f) }
+        for (k, v) in initial.girthsCm ?? [:] { t[k] = MeasureFormat.value(v) }
+        let sides = GirthSite.allCases.contains { p in p.bilateral && LimbSide.allCases.contains { initial.girth(p, side: $0) != nil } }
+        start = Draft(date: initial.date, text: t, perSide: sides)
+        let shown = restoring ?? start!
+        date = shown.date
+        text = shown.text
+        perSide = shown.perSide
     }
 
     private func number(_ key: String, in range: ClosedRange<Double>) -> Double? {
@@ -416,6 +451,7 @@ struct MeasurementLogSheet: View {
         let m = entry
         model.saveMeasurement(m)
         if health.connected && toHealth && isNew { Task { await health.saveMeasurement(m) } }
+        closeGuard.done()
         dismiss()
     }
 }

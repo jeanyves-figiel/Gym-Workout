@@ -17,6 +17,9 @@ struct ExercisePickerView: View {
     @State private var gate: ProGate?
     /// Bases whose variations are shown (#174).
     @State private var expanded: Set<String> = []
+    @State private var closeGuard = CloseGuard()
+    /// Selection the picker opened with, the Undo baseline (#285).
+    private let initialSelection: [String]
 
     /// Custom exercise builder (#52): new, or edit one of the user's own.
     private enum BuilderSheet: Identifiable {
@@ -30,10 +33,25 @@ struct ExercisePickerView: View {
         }
     }
 
-    init(limit: Int, selected: [String] = [], onAdd: @escaping ([Exercise]) -> Void) {
+    /// `restoring`: the selection brought back by Undo (#285).
+    init(limit: Int, selected: [String] = [], restoring: [String]? = nil, onAdd: @escaping ([Exercise]) -> Void) {
         self.limit = limit
         self.onAdd = onAdd
-        _selected = State(initialValue: Array(selected.prefix(max(0, limit))))
+        let first = Array(selected.prefix(max(0, limit)))
+        initialSelection = first
+        _selected = State(initialValue: restoring ?? first)
+    }
+
+    /// Undo bar when the selection changed since the picker opened (#285).
+    private var undoOffer: UndoOffer? {
+        guard selected != initialSelection else { return nil }
+        let kept = selected, first = initialSelection, cap = limit, add = onAdd
+        let detail = undoDetail(selected.count == 1 ? "1 exercise" : "\(selected.count) exercises",
+                                selected.first.flatMap { Exercise.find($0)?.name })
+        return UndoOffer(title: "Picker closed", detail: detail, symbol: "dumbbell.fill",
+                         colors: WorkoutEngine.Category.strength.colors) {
+            AnyView(ExercisePickerView(limit: cap, selected: first, restoring: kept, onAdd: add))
+        }
     }
 
     private static let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
@@ -119,6 +137,7 @@ struct ExercisePickerView: View {
                 CloseToolbarItem { dismiss() }
             }
         }
+        .undoableClose(closeGuard, offer: undoOffer)
     }
 
     @ViewBuilder private func customMenu(_ e: Exercise) -> some View {
@@ -194,6 +213,7 @@ struct ExercisePickerView: View {
             }
             Button {
                 onAdd(selected.compactMap { Exercise.find($0) })
+                closeGuard.done()
                 dismiss()
             } label: {
                 Text(selected.count == 1 ? "Add 1 exercise" : "Add \(selected.count) exercises")

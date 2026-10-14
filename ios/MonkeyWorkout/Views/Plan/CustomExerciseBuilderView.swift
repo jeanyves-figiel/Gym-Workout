@@ -17,12 +17,31 @@ struct CustomExerciseBuilderView: View {
     @State private var designing = false
     @State private var confirmArchive = false
     @State private var pickingMuscles = false
+    /// What the builder opened with, the Undo baseline (#285).
+    @State private var start: CustomExercise
+    @State private var closeGuard = CloseGuard()
 
     /// `prefill` seeds a new exercise, e.g. the muscle or category it is added from in Explore.
-    init(existing: CustomExercise? = nil, prefill: CustomExercise? = nil, onSave: @escaping (CustomExercise) -> Void = { _ in }) {
+    /// `restoring`: the exercise as it was when closed, brought back by Undo (#285).
+    init(existing: CustomExercise? = nil, prefill: CustomExercise? = nil, restoring: CustomExercise? = nil,
+         onSave: @escaping (CustomExercise) -> Void = { _ in }) {
         self.existing = existing
         self.onSave = onSave
-        _draft = State(initialValue: existing ?? prefill ?? CustomExercise())
+        let first = existing ?? prefill ?? CustomExercise()
+        _start = State(initialValue: first)
+        _draft = State(initialValue: restoring ?? first)
+    }
+
+    /// Undo bar when anything was entered or changed since the builder opened (#285).
+    private var undoOffer: UndoOffer? {
+        guard draft.sanitized != start.sanitized else { return nil }
+        let kept = draft, base = start, original = existing, save = onSave
+        let detail = undoDetail(draft.name, draft.category.label,
+                                draft.photo != nil ? "photo" : nil, draft.drawing != nil ? "pose" : nil)
+        return UndoOffer(title: original == nil ? "New exercise closed" : "Edit closed", detail: detail,
+                         symbol: "figure.strengthtraining.traditional", colors: draft.category.colors) {
+            AnyView(CustomExerciseBuilderView(existing: original, prefill: base, restoring: kept, onSave: save))
+        }
     }
 
     var body: some View {
@@ -53,6 +72,7 @@ struct CustomExerciseBuilderView: View {
                     Button {
                         let saved = model.saveCustomExercise(draft)
                         onSave(saved)
+                        closeGuard.done()
                         dismiss()
                     } label: {
                         Text("Save").font(.system(.body, design: .rounded).weight(.heavy))
@@ -93,12 +113,14 @@ struct CustomExerciseBuilderView: View {
             .confirmationDialog("Remove this exercise?", isPresented: $confirmArchive, titleVisibility: .visible) {
                 Button("Remove", role: .destructive) {
                     model.archiveCustomExercise(draft.id)
+                    closeGuard.done()
                     dismiss()
                 }
             } message: {
                 Text("It disappears from the picker. Workouts and history that use it keep it.")
             }
         }
+        .undoableClose(closeGuard, offer: undoOffer)
     }
 
     // MARK: Sections

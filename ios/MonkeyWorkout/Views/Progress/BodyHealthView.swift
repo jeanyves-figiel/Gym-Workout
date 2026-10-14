@@ -6,6 +6,20 @@ struct BodyHealthView: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @Environment(\.dismiss) private var dismiss
+    /// Values brought back by Undo (#285).
+    var restoring: Draft?
+
+    /// What's entered, kept for Undo (#285).
+    struct Draft: Equatable {
+        var height: String
+        var weight: String
+        var birthYear: String
+        var sex: BodyMetrics.Sex?
+        var gender: BodyMetrics.Gender?
+        var genderText: String
+        var figure: BodyFigure?
+        var writeToHealth: Bool
+    }
 
     @State private var height = ""
     @State private var weight = ""
@@ -18,6 +32,8 @@ struct BodyHealthView: View {
     @State private var writeToHealth = true
     @State private var loaded = false
     @State private var showAccess = false
+    @State private var start: Draft?
+    @State private var closeGuard = CloseGuard()
     @FocusState private var focus: Metric?
 
     private enum Metric: Hashable { case height, weight, birthYear }
@@ -154,6 +170,24 @@ struct BodyHealthView: View {
         .toolbarTitleDisplayMode(.inline)
         .onAppear(perform: load)
         .task { await health.refresh() }
+        .undoableClose(closeGuard, offer: undoOffer)
+    }
+
+    private var draft: Draft {
+        Draft(height: height, weight: weight, birthYear: birthYear, sex: sex, gender: gender, genderText: genderText,
+              figure: figure, writeToHealth: writeToHealth)
+    }
+
+    /// Undo bar when something was changed since the screen opened (#285).
+    private var undoOffer: UndoOffer? {
+        guard let start, draft != start else { return nil }
+        let kept = draft
+        let detail = undoDetail(kept.height.isEmpty ? nil : "\(kept.height) cm", kept.weight.isEmpty ? nil : "\(kept.weight) kg",
+                                kept.birthYear.isEmpty ? nil : "born \(kept.birthYear)")
+        return UndoOffer(title: "Body & Health closed", detail: detail.isEmpty ? "Changes not saved" : detail,
+                         symbol: "heart.text.square.fill", colors: WorkoutEngine.Category.power.colors) {
+            AnyView(UndoReopenedPush { BodyHealthView(restoring: kept) })
+        }
     }
 
     private func section(_ title: String) -> some View {
@@ -206,6 +240,17 @@ struct BodyHealthView: View {
         gender = b.gender
         genderText = b.genderDescription ?? ""
         figure = b.figure
+        start = draft
+        if let restoring {
+            height = restoring.height
+            weight = restoring.weight
+            birthYear = restoring.birthYear
+            sex = restoring.sex
+            gender = restoring.gender
+            genderText = restoring.genderText
+            figure = restoring.figure
+            writeToHealth = restoring.writeToHealth
+        }
     }
 
     private func number(_ s: String) -> Double? { Double(s.replacingOccurrences(of: ",", with: ".")) }
@@ -227,6 +272,7 @@ struct BodyHealthView: View {
             if snap.weightKg == nil { toHealth.weightKg = b.weightKg }
             Task { await health.saveBody(toHealth) }
         }
+        closeGuard.done()
         dismiss()
     }
 }

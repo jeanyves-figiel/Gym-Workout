@@ -19,6 +19,11 @@ struct MonkeyWorkoutApp: App {
                 .environment(\.bodyFigure, model.bodyFigure)
                 .task {
                     model.health = health
+                    // Screens reopened by Undo (#285) live outside this tree: give them the same environment.
+                    UndoCloseCenter.shared.environment = { [model, lock, health] view in
+                        AnyView(view.environment(model).environment(lock).environment(health)
+                            .environment(\.bodyFigure, model.bodyFigure).preferredColorScheme(.dark).tint(Theme.lime))
+                    }
                     await model.bootstrap()
                     WatchSync.shared.start(model: model, health: health)
                     await AppleCredentialCheck.verify(model)
