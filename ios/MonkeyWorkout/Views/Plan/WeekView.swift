@@ -13,6 +13,8 @@ struct WeekView: View {
     @State private var moving: Session?
     @State private var adding = false
     @State private var addingDay: Int?
+    /// Day picked in the Next up strip (#277); nil = the next session.
+    @State private var pickedDay: Int?
     @State private var removing: Session?
     @State private var swipe: (id: String, dx: CGFloat)?
     /// Editing the Train widgets (#260).
@@ -22,6 +24,9 @@ struct WeekView: View {
     @State private var showingCalendar = false
     /// CI screenshots: open in edit mode.
     var demoEditing = false
+    /// Demo screens train-day-picked / train-rest-day (#277): a later planned day or a rest day picked in the strip.
+    var demoPick: DemoPick?
+    enum DemoPick { case planned, rest }
 
     var body: some View {
         ScrollView {
@@ -114,9 +119,34 @@ struct WeekView: View {
             model.syncProgramme()
             model.rollWeekIfNeeded()
             if demoEditing { arranging = true }
+            if let demoPick, let plan = model.plan {
+                let today = model.todayWeekday
+                let days = Set(plan.sessions.compactMap(\.weekday))
+                pickedDay = demoPick == .rest
+                    ? (today...7).first { !days.contains($0) }
+                    : WeekProgress.ordered(plan).last { ($0.weekday ?? 0) > today && $0.id != model.nextSession?.id }?.weekday
+            }
             // Away periods (#68): re-plan from today on (new day, period starting this week).
             model.replanCurrentWeek()
             model.persist()
+        }
+    }
+
+    /// Next up (#266), or the day picked in its strip (#277): that day's workout, or a rest day with Add workout.
+    @ViewBuilder private func nextUpCard(_ plan: WeekPlan) -> some View {
+        let next = model.nextSession
+        let pick: (Int) -> Void = { wd in
+            withAnimation(.snappy) { pickedDay = pickedDay == wd || (pickedDay == nil && next?.weekday == wd) ? nil : wd }
+        }
+        let back = { withAnimation(.snappy) { pickedDay = nil } }
+        if let d = pickedDay, let s = plan.sessions.first(where: { $0.weekday == d }) {
+            NextUpCard(session: s, picked: d, onPick: pick, onBack: back) { playing = s }
+        } else if let d = pickedDay {
+            RestDayCard(weekday: d, onPick: pick, onBack: back) { addingDay = d; adding = true }
+        } else if let next {
+            NextUpCard(session: next, picked: nil, onPick: pick, onBack: back) { playing = next }
+        } else {
+            WeekCompleteCard(missed: model.missedSessions.count, onPick: pick)
         }
     }
 
@@ -250,11 +280,7 @@ struct WeekView: View {
             if w.size == .large {
                 VStack(alignment: .leading, spacing: 18) {
                     if !arranging, let undo = model.variationUndo { VariationUndoCard(undo: undo) }
-                    if let next = model.nextSession {
-                        NextUpCard(session: next) { playing = next }
-                    } else {
-                        WeekCompleteCard(missed: model.missedSessions.count)
-                    }
+                    nextUpCard(plan)
                     if !arranging { notices(plan: plan, profile: profile, undo: false) }
                 }
             } else {
@@ -548,6 +574,10 @@ struct DoneRing: View {
 
 private struct NextUpCard: View {
     let session: Session
+    /// Day picked in the strip (#277); nil = this is the next session.
+    var picked: Int? = nil
+    var onPick: (Int) -> Void = { _ in }
+    var onBack: () -> Void = {}
     let onStart: () -> Void
     @Environment(AppModel.self) private var model
 
@@ -557,8 +587,8 @@ private struct NextUpCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // The week at a glance (#266): missed days red (tap to catch up), today ringed.
-            WeekDayStrip()
+            // The week at a glance (#266): missed days red (tap to catch up), today ringed; any other day shows here (#277).
+            WeekDayStrip(selected: picked ?? session.weekday, onPick: onPick)
             // Tapping the card opens the session page, same as the list button (#150).
             NavigationLink(value: session.id) {
                 summary
@@ -579,7 +609,7 @@ private struct NextUpCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Next up · \(model.upcomingDayLabel(session))").font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
+                    Text(eyebrow).font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
                     Text(session.displayTitle).font(Theme.display(30)).foregroundStyle(.white).fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 10) {
                         Label("\(session.estMin) min", systemImage: "clock.fill").font(Theme.label(14)).foregroundStyle(.white.opacity(0.9))
@@ -601,12 +631,40 @@ private struct NextUpCard: View {
         .contentShape(Rectangle())
     }
 
+    private var done: Bool { model.doneIds.contains(session.id) }
+    private var isNext: Bool { session.id == model.nextSession?.id }
+
+    private var eyebrow: String {
+        guard let d = picked else { return "Next up · \(model.upcomingDayLabel(session))" }
+        let state = done ? "done" : model.missedSessions.contains { $0.id == session.id } ? "missed"
+            : isNext ? "next up" : d == model.todayWeekday ? "today" : "planned"
+        return "\(WeekSchedule.name(d)) · \(state)"
+    }
+
     private var actions: some View {
-        HStack(spacing: 10) {
-            Button(action: onStart) {
-                Label(model.activeWorkout(session.id) == nil ? "Start workout" : "Resume workout", systemImage: "play.fill")
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                if done {
+                    NavigationLink(value: session.id) { Label("Done · see workout", systemImage: "checkmark.seal.fill") }
+                        .buttonStyle(LimeButtonStyle())
+                } else {
+                    Button(action: onStart) {
+                        Label(model.activeWorkout(session.id) == nil ? "Start workout" : "Resume workout", systemImage: "play.fill")
+                    }
+                    .buttonStyle(LimeButtonStyle())
+                }
+                overviewLink
             }
-            .buttonStyle(LimeButtonStyle())
+            if picked != nil && !isNext, let next = model.nextSession {
+                BackToNextUpButton(label: "Back to next up (\(WeekSchedule.shortName(next.weekday ?? 1)))", action: onBack)
+            } else if picked != nil && !isNext {
+                BackToNextUpButton(label: "Back to this week", action: onBack)
+            }
+        }
+    }
+
+    private var overviewLink: some View {
+        HStack(spacing: 10) {
             NavigationLink(value: session.id) {
                 Image(systemName: "list.bullet")
                     .font(.system(size: 18, weight: .heavy))
@@ -619,13 +677,71 @@ private struct NextUpCard: View {
     }
 }
 
+/// "Back to next up" under a day picked in the strip (#277).
+private struct BackToNextUpButton: View {
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(label, systemImage: "arrow.left")
+                .font(Theme.label(14))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Capsule().fill(Color.white.opacity(0.15)))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// A rest day picked in the strip (#277): nothing planned, offer to add a workout.
+private struct RestDayCard: View {
+    let weekday: Int
+    var onPick: (Int) -> Void = { _ in }
+    var onBack: () -> Void = {}
+    let onAdd: () -> Void
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            WeekDayStrip(selected: weekday, onPick: onPick)
+            Text("\(WeekSchedule.name(weekday)) · rest day").font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
+            VStack(spacing: 6) {
+                Text("Rest day 😴").font(Theme.display(26)).foregroundStyle(.white)
+                Text("Nothing planned. Fancy a session?").font(.footnote).foregroundStyle(.white.opacity(0.8))
+                Button(action: onAdd) { Label("Add workout", systemImage: "plus") }
+                    .buttonStyle(LimeButtonStyle())
+                    .padding(.top, 6)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(16)
+            .background {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.35), style: StrokeStyle(lineWidth: 2, dash: [7, 5]))
+            }
+            BackToNextUpButton(label: model.nextSession.map { "Back to next up (\(WeekSchedule.shortName($0.weekday ?? 1)))" } ?? "Back to this week",
+                               action: onBack)
+        }
+        .padding(20)
+        .background {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(LinearGradient(colors: [Color(hex: 0x3D4BD6).opacity(0.85), Color(hex: 0x5A2FA0).opacity(0.6), Theme.bg],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+        }
+        .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Color.white.opacity(0.15)))
+    }
+}
+
 private struct WeekCompleteCard: View {
     /// Missed sessions this week (#266): the week is over for training, not complete.
     var missed = 0
+    /// A day tapped in the strip (#277).
+    var onPick: (Int) -> Void = { _ in }
 
     var body: some View {
         VStack(spacing: 10) {
-            WeekDayStrip().padding(.bottom, 6)
+            WeekDayStrip(onPick: onPick).padding(.bottom, 6)
             Image(systemName: missed > 0 ? "moon.zzz.fill" : "trophy.fill").font(.system(size: 44)).foregroundStyle(Theme.lime)
                 .symbolEffect(.bounce, options: .repeat(2))
             Text(missed > 0 ? "No more sessions this week" : "Week complete").font(Theme.display(28))
