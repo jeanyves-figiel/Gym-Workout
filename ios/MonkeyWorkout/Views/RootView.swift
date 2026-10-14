@@ -257,7 +257,7 @@ private struct DemoScreen: View {
             BlockPicksSheet(kind: .warmup, picks: .constant(BlockPicks(items: [BlockPick(exerciseId: "treadmill-run", minutes: 7),
                                                                                 BlockPick(exerciseId: "cat-cow", minutes: 2)])))
         case "equipment": EquipmentSheet(equipment: .constant(GymKind.budget.equipment))
-        case "equipment-zones": EquipmentSheet(equipment: .constant(Gym.puls5.equipment), layout: .constant(Demo.layout))
+        case "equipment-zones", "equipment-by-zone": EquipmentSheet(equipment: .constant(Gym.puls5.equipment), layout: .constant(Demo.layout))
         case "floor-plan": FloorPlanSheet(layout: .constant(Demo.layout), equipment: Gym.puls5.equipment)
         case "gym-setup": GymSetupView(ref: Demo.holmes, actionTitle: "USE THIS GYM") { _ in }
         case "gym-swipe": GymSetupView(ref: nil, actionTitle: "USE THIS GYM", startStep: .swipe, startKind: .budget) { _ in }

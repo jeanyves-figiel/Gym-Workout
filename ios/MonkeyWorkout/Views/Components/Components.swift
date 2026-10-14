@@ -129,3 +129,34 @@ struct CloseToolbarItem: ToolbarContent {
         }
     }
 }
+
+/// Menu picker row with the label on top and the value large under it (#281): long values get the full width
+/// instead of wrapping beside the label, so every row keeps the same height.
+struct StackedMenuRow<Content: View>: View {
+    let title: String
+    let value: String
+    @ViewBuilder let options: () -> Content
+
+    var body: some View {
+        Menu(content: options) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).eyebrow()
+                HStack(spacing: 8) {
+                    Text(value).font(Theme.display(18)).foregroundStyle(Theme.lime)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 12, weight: .heavy))
+                        .foregroundStyle(Theme.lime.opacity(0.8))
+                }
+            }
+            .padding(.vertical, 11)
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.card))
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityValue(value)
+    }
+}

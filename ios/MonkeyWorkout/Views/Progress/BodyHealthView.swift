@@ -121,8 +121,8 @@ struct BodyHealthView: View {
                         ForEach(BodyMetrics.Gender.allCases) { Text($0.label).tag(BodyMetrics.Gender?.some($0)) }
                     }
                 } label: {
-                    AccountCard(symbol: "person.fill", title: "Gender", subtitle: "Only for you", gradient: AccountTint.profile) {
-                        menuValue(gender?.label ?? "Not set")
+                    AccountCard(symbol: "person.fill", title: "Gender", subtitle: gender?.label ?? "Not set", gradient: AccountTint.profile) {
+                        menuChevron
                     }
                 }
                 if gender == .selfDescribe {
@@ -149,9 +149,9 @@ struct BodyHealthView: View {
                             ForEach(BodyMetrics.Sex.allCases) { Text($0.label).tag(BodyMetrics.Sex?.some($0)) }
                         }
                     } label: {
-                        AccountCard(symbol: "figure.stand", title: "Sex", subtitle: "Refines calories & heart rate",
+                        AccountCard(symbol: "figure.stand", title: "Sex", subtitle: sex?.label ?? "Not set",
                                     gradient: WorkoutEngine.Category.stretch.gradient) {
-                            menuValue(sex?.label ?? "Not set")
+                            menuChevron
                         }
                     }
                 }
@@ -223,12 +223,9 @@ struct BodyHealthView: View {
     }
 
     /// Current choice + up/down chevron on the right of a menu card.
-    private func menuValue(_ text: String) -> some View {
-        HStack(spacing: 5) {
-            Text(text).font(Theme.label(15)).lineLimit(2).multilineTextAlignment(.trailing)
-            Image(systemName: "chevron.up.chevron.down").font(.system(size: 12, weight: .heavy)).opacity(0.8)
-        }
-        .frame(maxWidth: 130, alignment: .trailing)
+    /// Menu cards show the picked value under the title (#281), so long values never squeeze beside it.
+    private var menuChevron: some View {
+        Image(systemName: "chevron.up.chevron.down").font(.system(size: 13, weight: .heavy)).opacity(0.8)
     }
 
     /// Once only: onAppear also fires when returning from a picker's pushed list, which would reset the selection.

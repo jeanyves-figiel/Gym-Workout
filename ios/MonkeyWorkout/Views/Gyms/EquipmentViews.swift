@@ -41,8 +41,14 @@ struct EquipmentSheet: View {
     var layout: Binding<GymLayout?>?
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
-    /// Zone being painted (#274): a tap moves the picture there instead of ticking it.
+    /// Zone being painted (#274): a tap moves the picture there instead of ticking it; `GymLayout.noZone` clears it.
     @State private var painting: String?
+    /// Pictures grouped by zone instead of by type (#289).
+    #if DEBUG
+    @State private var byZone = Demo.screen == "equipment-by-zone"
+    #else
+    @State private var byZone = false
+    #endif
 
     init(equipment: Binding<[Equipment]>, unsure: [Equipment] = [], layout: Binding<GymLayout?>? = nil, onSetup: (() -> Void)? = nil) {
         _equipment = equipment
@@ -56,7 +62,7 @@ struct EquipmentSheet: View {
     /// Painting: the item goes to the painted zone (and is ticked on: it's there). Else ticked / unticked.
     private func tap(_ e: Equipment) {
         if let id = painting, let layout {
-            layout.wrappedValue?.move(e, to: id)
+            if id == GymLayout.noZone { layout.wrappedValue?.unassign(e) } else { layout.wrappedValue?.move(e, to: id) }
             if !equipment.contains(e) { equipment.append(e) }
         } else if equipment.contains(e) {
             equipment.removeAll { $0 == e }
@@ -80,16 +86,27 @@ struct EquipmentSheet: View {
                     if let layout {
                         ZoneBar(layout: layout, painting: $painting, equipment: equipment)
                     }
-                    ForEach(GymArea.allCases) { area in
-                        let items = area.items.filter { $0.matches(query) }
-                        if !items.isEmpty {
-                            AreaSection(area: area, items: items, equipment: $equipment, unsure: unsure, layout: zones, tap: tap)
+                    if let zones {
+                        Picker("Group pictures", selection: $byZone) {
+                            Text("By type").tag(false)
+                            Text("By zone").tag(true)
                         }
+                        .pickerStyle(.segmented)
                     }
-                    if !floor.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Floor").eyebrow()
-                            EquipmentGrid(items: floor, equipment: $equipment, unsure: unsure, layout: zones, tap: tap)
+                    if let zones, byZone {
+                        zoneSections(zones)
+                    } else {
+                        ForEach(GymArea.allCases) { area in
+                            let items = area.items.filter { $0.matches(query) }
+                            if !items.isEmpty {
+                                AreaSection(area: area, items: items, equipment: $equipment, unsure: unsure, layout: zones, tap: tap, onMove: move)
+                            }
+                        }
+                        if !floor.isEmpty {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Floor").eyebrow()
+                                EquipmentGrid(items: floor, equipment: $equipment, unsure: unsure, layout: zones, tap: tap, onMove: move)
+                            }
                         }
                     }
                     if !anyArea && floor.isEmpty {
@@ -107,6 +124,29 @@ struct EquipmentSheet: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
         .preferredColorScheme(.dark)
+    }
+
+    /// Touch and hold → move to another zone, or no zone (#289).
+    private func move(_ e: Equipment, to id: String?) {
+        if let id { layout?.wrappedValue?.move(e, to: id) } else { layout?.wrappedValue?.unassign(e) }
+    }
+
+    /// By zone (#289): one coloured section per zone with the gym's items there, then those without a zone.
+    @ViewBuilder private func zoneSections(_ l: GymLayout) -> some View {
+        ForEach(l.zones) { z in
+            let items = z.items.filter { equipment.contains($0) && $0.matches(query) }
+            ZoneSection(title: z.name, count: items.count, fill: AnyShapeStyle(z.gradient), dashed: false) {
+                EquipmentGrid(items: items, equipment: $equipment, unsure: unsure, layout: l, tap: tap, onMove: move)
+            }
+        }
+        let loose = Equipment.allCases.filter { equipment.contains($0) && l.zone(of: $0) == nil && $0.matches(query) }
+        ZoneSection(title: "No zone", count: loose.count, fill: AnyShapeStyle(Theme.cardStrong), dashed: true) {
+            if loose.isEmpty {
+                Text("Every item has a zone.").font(.caption).foregroundStyle(Theme.muted)
+            } else {
+                EquipmentGrid(items: loose, equipment: $equipment, unsure: unsure, layout: l, tap: tap, onMove: move)
+            }
+        }
     }
 
     private func setupCard(_ action: @escaping () -> Void) -> some View {
@@ -164,6 +204,7 @@ private struct AreaSection: View {
     let unsure: [Equipment]
     var layout: GymLayout?
     var tap: ((Equipment) -> Void)?
+    var onMove: ((Equipment, String?) -> Void)?
 
     var body: some View {
         let on = items.filter { equipment.contains($0) }.count
@@ -183,7 +224,31 @@ private struct AreaSection: View {
                 .font(.caption.bold())
                 .foregroundStyle(Theme.lime)
             }
-            EquipmentGrid(items: items, equipment: $equipment, unsure: unsure, layout: layout, tap: tap)
+            EquipmentGrid(items: items, equipment: $equipment, unsure: unsure, layout: layout, tap: tap, onMove: onMove)
+        }
+    }
+}
+
+/// By zone section (#289): a bar in the zone's colours with its name and count, the pictures under it.
+private struct ZoneSection<Content: View>: View {
+    let title: String
+    let count: Int
+    let fill: AnyShapeStyle
+    let dashed: Bool
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(title).font(Theme.display(18)).lineLimit(1)
+                Spacer()
+                Text("\(count)").font(Theme.display(18)).monospacedDigit()
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .background(Capsule().fill(fill))
+            .overlay(Capsule().strokeBorder(style: StrokeStyle(lineWidth: dashed ? 1.5 : 0, dash: [5, 4])).foregroundStyle(Theme.muted))
+            content
         }
     }
 }
@@ -195,11 +260,19 @@ struct EquipmentGrid: View {
     /// Zones (#274): each picture shows its zone's colour; `tap` paints or ticks (default: tick / untick).
     var layout: GymLayout?
     var tap: ((Equipment) -> Void)?
+    /// Touch and hold a picture to move it to another zone or no zone (#289).
+    var onMove: ((Equipment, String?) -> Void)?
+
+    private func mover(_ e: Equipment) -> ((String?) -> Void)? {
+        guard let onMove else { return nil }
+        return { (id: String?) in onMove(e, id) }
+    }
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 10)], spacing: 12) {
             ForEach(items) { e in
-                EquipmentTile(item: e, on: equipment.contains(e), unsure: unsure.contains(e), zone: layout?.zone(of: e)) {
+                EquipmentTile(item: e, on: equipment.contains(e), unsure: unsure.contains(e), zone: layout?.zone(of: e),
+                              zones: layout?.zones, onMove: mover(e)) {
                     if let tap { return tap(e) }
                     if equipment.contains(e) { equipment.removeAll { $0 == e } } else { equipment.append(e) }
                 }
@@ -213,9 +286,19 @@ struct EquipmentTile: View {
     let item: Equipment
     let on: Bool
     var unsure = false
-    /// Zone it sits in (#274): a dot in the zone's colours, top left.
+    /// Zone it sits in (#274): ribbon with its name and a border in its colours (#289).
     var zone: GymLayout.Zone?
+    /// The gym's zones when it has them (nil = no zones): a ticked picture without a zone says "No zone".
+    var zones: [GymLayout.Zone]?
+    /// Touch and hold: move to a zone id, or nil for no zone.
+    var onMove: ((String?) -> Void)?
     let action: () -> Void
+
+    private var border: AnyShapeStyle {
+        guard on else { return AnyShapeStyle(Theme.stroke) }
+        guard zones != nil else { return AnyShapeStyle(Theme.lime) }
+        return zone.map { AnyShapeStyle($0.gradient) } ?? AnyShapeStyle(Theme.muted)
+    }
 
     var body: some View {
         Button(action: action) {
@@ -226,21 +309,16 @@ struct EquipmentTile: View {
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     .saturation(on ? 1 : 0)
                     .opacity(on ? 1 : 0.45)
-                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(on ? Theme.lime : Theme.stroke, lineWidth: on ? 3 : 1))
+                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(border, style: StrokeStyle(lineWidth: on ? 3 : 1, dash: on && zones != nil && zone == nil ? [6, 4] : [])))
                     .overlay(alignment: .topTrailing) {
                         Image(systemName: on ? (unsure ? "questionmark.circle.fill" : "checkmark.circle.fill") : "circle")
                             .font(.system(size: 22, weight: .bold))
                             .foregroundStyle(on ? Theme.ink : .white, on ? Theme.lime : .white.opacity(0.0))
                             .padding(6)
                     }
-                    .overlay(alignment: .topLeading) {
-                        if let zone, on {
-                            Circle().fill(zone.gradient)
-                                .frame(width: 16, height: 16)
-                                .overlay(Circle().strokeBorder(.white, lineWidth: 2))
-                                .padding(8)
-                                .accessibilityHidden(true)
-                        }
+                    .overlay(alignment: .bottom) {
+                        if on, zones != nil { ribbon }
                     }
                 Text(item.label)
                     .font(.system(size: 12, weight: .bold, design: .rounded))
@@ -251,9 +329,32 @@ struct EquipmentTile: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            if let zones, let onMove {
+                Section("Where is it?") {
+                    ForEach(zones) { z in
+                        Button(z.id == zone?.id ? "\(z.name) ✓" : z.name) { onMove(z.id) }
+                    }
+                    Button("No zone", systemImage: "xmark.circle") { onMove(nil) }
+                }
+            }
+        }
         .sensoryFeedback(.selection, trigger: on)
-        .accessibilityLabel(zone.map { "\(item.label), \($0.name)" } ?? item.label)
+        .accessibilityLabel(zones == nil ? item.label : "\(item.label), \(zone?.name ?? "no zone")")
         .accessibilityAddTraits(on ? .isSelected : [])
         .accessibilityHint(on ? "At this gym. Double-tap to remove." : "Not at this gym. Double-tap to add.")
+    }
+
+    /// Zone name on its colours across the bottom of the picture (#289); grey "No zone" when it has none.
+    private var ribbon: some View {
+        Text((zone?.name ?? "No zone").uppercased())
+            .font(Theme.label(10)).tracking(0.6)
+            .lineLimit(1).minimumScaleFactor(0.7)
+            .foregroundStyle(zone == nil ? Theme.muted : .white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+            .background(zone.map { AnyShapeStyle($0.gradient) } ?? AnyShapeStyle(Color.black.opacity(0.7)))
+            .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 18, bottomTrailingRadius: 18, style: .continuous))
+            .accessibilityHidden(true)
     }
 }

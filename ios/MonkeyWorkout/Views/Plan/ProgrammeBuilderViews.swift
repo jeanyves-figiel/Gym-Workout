@@ -60,16 +60,21 @@ private func testableLifts(_ signatures: [ProgrammeSignature]) -> [String] {
     return out
 }
 
-/// Pick a workout to pin: My workouts first, then the library.
+/// Pick a workout to pin: a new one built on the spot (#282), My workouts, then the library.
 struct ProgrammeWorkoutPicker: View {
     let pick: (ProgrammeWorkoutSource) -> Void
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @State private var building: CustomWorkout?
+    @State private var built = false
+    @State private var noMain = false
+    @State private var gate: ProGate?
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
+                    newCard
                     let mine = model.customWorkouts.map(ProgrammeWorkoutSource.init).filter { $0.mainCount > 0 }
                     if !mine.isEmpty {
                         Text("My workouts").eyebrow()
@@ -92,7 +97,45 @@ struct ProgrammeWorkoutPicker: View {
                     Button { dismiss() } label: { Image(systemName: "xmark") }.accessibilityLabel("Close")
                 }
             }
+            // Saved to My workouts and pinned to the programme in one go.
+            .sheet(item: $building, onDismiss: { if built { dismiss() } }) { w in
+                CustomWorkoutEditor(initial: w) { saved in
+                    let source = ProgrammeWorkoutSource(saved)
+                    if source.mainCount > 0 {
+                        pick(source)
+                        built = true
+                    } else {
+                        noMain = true
+                    }
+                }
+            }
+            .alert("Saved to My workouts", isPresented: $noMain) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("A programme workout needs at least one strength or power exercise, so it was not added.")
+            }
+            .proPaywall($gate)
         }
+    }
+
+    private var newCard: some View {
+        Button { ProStore.shared.run(.buildWorkout, $gate) { building = CustomWorkout(name: "") } } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "plus").font(.system(size: 20, weight: .black))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("New workout").font(Theme.display(20))
+                    Text("Build it now, it joins this programme").font(.caption.weight(.semibold)).opacity(0.75)
+                }
+                Spacer()
+            }
+            .foregroundStyle(Theme.ink)
+            .padding(16)
+            .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(LinearGradient(colors: [Theme.lime, Color(red: 0.2, green: 0.9, blue: 0.6)],
+                                     startPoint: .leading, endPoint: .trailing)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens the workout builder; the saved workout is added to the programme")
     }
 
     private func row(_ w: ProgrammeWorkoutSource, colors: [Color]) -> some View {
@@ -265,23 +308,20 @@ struct ProgrammeEditorView: View {
                         Stepper("\(programme.sessionsPerWeek)", value: $programme.sessionsPerWeek, in: 2...6)
                             .font(Theme.label(15)).fixedSize()
                     }
-                    ProgrammeFieldRow(title: "Goal") {
+                    StackedMenuRow(title: "Goal", value: programme.goal.config.label) {
                         Picker("Goal", selection: $programme.goal) {
                             ForEach(Goal.allCases) { Text($0.config.label).tag($0) }
                         }
-                        .tint(Theme.lime)
                     }
-                    ProgrammeFieldRow(title: "Split") {
+                    StackedMenuRow(title: "Split", value: programme.split == .auto ? "Built for the goal" : programme.split.title) {
                         Picker("Split", selection: $programme.split) {
                             ForEach(SplitStyle.allCases) { Text($0 == .auto ? "Built for the goal" : $0.title).tag($0) }
                         }
-                        .tint(Theme.lime)
                     }
-                    ProgrammeFieldRow(title: "Method") {
+                    StackedMenuRow(title: "Method", value: programme.method.label) {
                         Picker("Method", selection: $programme.method) {
                             ForEach(TrainingMethod.allCases) { Text($0.label).tag($0) }
                         }
-                        .tint(Theme.lime)
                     }
                     HStack {
                         Text("Signature workouts").eyebrow()
