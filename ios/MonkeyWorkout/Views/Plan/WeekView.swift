@@ -557,6 +557,8 @@ private struct NextUpCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            // The week at a glance (#266): missed days red (tap to catch up), today ringed.
+            WeekDayStrip()
             // Tapping the card opens the session page, same as the list button (#150).
             NavigationLink(value: session.id) {
                 summary
@@ -623,11 +625,12 @@ private struct WeekCompleteCard: View {
 
     var body: some View {
         VStack(spacing: 10) {
+            WeekDayStrip().padding(.bottom, 6)
             Image(systemName: missed > 0 ? "moon.zzz.fill" : "trophy.fill").font(.system(size: 44)).foregroundStyle(Theme.lime)
                 .symbolEffect(.bounce, options: .repeat(2))
             Text(missed > 0 ? "No more sessions this week" : "Week complete").font(Theme.display(28))
                 .multilineTextAlignment(.center)
-            Text(missed > 0 ? "\(missed) missed: log it, mark it done or do it today. A fresh week starts Monday."
+            Text(missed > 0 ? "\(missed) missed: tap the red day to log it, mark it done or do it today. A fresh week starts Monday."
                             : "A fresh week starts Monday. Rest and climb meanwhile.").font(.footnote).foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)
         }

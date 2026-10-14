@@ -229,7 +229,7 @@ struct WeekCalendarCard: View {
         let climb = week.climbing.contains(wd)
         let past = key < today
         // An earlier day of this week with its session not done (#266).
-        let missed = current && past && !done && session.map { s in model.missedSessions.contains { $0.id == s.id } } == true
+        let missed = current && !done && session.map { s in model.missedSessions.contains { $0.id == s.id } } == true
         let day = week.date(wd, cal).map { cal.component(.day, from: $0) } ?? 0
         let count = week.plan.sessions.filter { $0.weekday == wd }.count
         let tag: String? = session.map { short($0.focus) + (count > 1 ? " +\(count - 1)" : "") } ?? (off ? "Off" : climb ? "Climb" : nil)

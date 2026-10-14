@@ -162,3 +162,125 @@ enum MissedStyle {
     static let gradient = LinearGradient(colors: [Color(hex: 0xFF3D6E), Color(hex: 0xFF8A3D)],
                                          startPoint: .topLeading, endPoint: .bottomTrailing)
 }
+
+/// The week as seven day cells (design C, #266): missed days red, done days lime, today ringed, planned days lit.
+/// A missed day opens the catch-up sheet; a planned or done day opens its session.
+struct WeekDayStrip: View {
+    @Environment(AppModel.self) private var model
+    @State private var catchUp: DayPick?
+
+    struct DayPick: Identifiable { let id: Int }
+
+    var body: some View {
+        let sessions = model.plan?.sessions ?? []
+        if sessions.contains(where: { $0.weekday != nil }) {
+            let missed = model.missedSessions
+            let skipped = model.skippedIds
+            let done = model.doneIds
+            let today = model.todayWeekday
+            HStack(spacing: 5) {
+                ForEach(WeekSchedule.weekdays, id: \.self) { wd in
+                    let day = sessions.filter { $0.weekday == wd }
+                    let dayMissed = missed.filter { $0.weekday == wd }
+                    if !dayMissed.isEmpty {
+                        Button { catchUp = DayPick(id: wd) } label: {
+                            cell(wd, today: today, state: .missed(skipped: dayMissed.allSatisfy { skipped.contains($0.id) }))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(WeekSchedule.name(wd)): \(dayMissed.map(\.displayTitle).joined(separator: ", ")) missed")
+                        .accessibilityHint("Log it, mark it done, do it today or skip")
+                    } else if let s = day.first {
+                        let allDone = day.allSatisfy { done.contains($0.id) }
+                        NavigationLink(value: s.id) { cell(wd, today: today, state: allDone ? .done : .planned) }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(WeekSchedule.name(wd)): \(s.displayTitle)\(allDone ? ", done" : "")")
+                    } else {
+                        cell(wd, today: today, state: .rest)
+                            .accessibilityLabel("\(WeekSchedule.name(wd)): rest")
+                    }
+                }
+            }
+            .sheet(item: $catchUp) { MissedCatchUpSheet(weekday: $0.id) }
+        }
+    }
+
+    private enum DayState: Equatable { case missed(skipped: Bool), done, planned, rest }
+
+    private func cell(_ wd: Int, today: Int, state: DayState) -> some View {
+        let isToday = wd == today
+        let fill: AnyShapeStyle = switch state {
+        case .missed: AnyShapeStyle(MissedStyle.gradient)
+        case .done: AnyShapeStyle(Theme.lime)
+        case .planned: AnyShapeStyle(Color.white.opacity(0.2))
+        case .rest: AnyShapeStyle(Color.black.opacity(0.25))
+        }
+        let ink: Color = state == .done ? Theme.ink : state == .rest ? .white.opacity(0.55) : .white
+        let symbol: String = switch state {
+        case .missed(let skipped): skipped ? "minus" : "exclamationmark"
+        case .done: "checkmark"
+        case .planned: "circle.fill"
+        case .rest: "moon.fill"
+        }
+        return VStack(spacing: 4) {
+            Text(WeekSchedule.shortName(wd).uppercased()).font(Theme.label(9)).tracking(0.5)
+            Image(systemName: symbol).font(.system(size: state == .planned ? 7 : 11, weight: .black)).frame(height: 12)
+        }
+        .foregroundStyle(isToday && state == .planned ? Theme.lime : ink)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(fill).opacity(state == .missed(skipped: true) ? 0.5 : 1))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.lime, lineWidth: isToday ? 2 : 0))
+    }
+}
+
+/// Catch-up sheet for a missed day: each missed session with Log it · Mark done · Do today · Skip.
+struct MissedCatchUpSheet: View {
+    let weekday: Int
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var logging: Session?
+
+    var body: some View {
+        let missed = model.missedSessions.filter { $0.weekday == weekday }
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    ForEach(missed) { s in
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 12) {
+                                Image(systemName: s.focus.symbol)
+                                    .font(.system(size: 20, weight: .heavy))
+                                    .frame(width: 44, height: 44)
+                                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.25)))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(s.displayTitle).font(Theme.display(22)).lineLimit(1).minimumScaleFactor(0.6)
+                                    Text("\(model.skippedIds.contains(s.id) ? "Skipped" : "Missed") · \(s.estMin) min planned")
+                                        .font(.subheadline.weight(.semibold)).opacity(0.9)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .foregroundStyle(.white)
+                            MissedActionsRow(session: s, primary: Theme.lime, primaryInk: Theme.ink) { logging = s }
+                        }
+                        .padding(16)
+                        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(MissedStyle.gradient))
+                    }
+                    Text("Log it adds the workout on its day with what you did. Do today moves it next to today's session. Skip keeps it as missed.")
+                        .font(.footnote).foregroundStyle(Theme.muted)
+                }
+                .padding(16)
+            }
+            .readableWidth()
+            .background(Theme.bg.ignoresSafeArea())
+            .navigationTitle("Missed · \(WeekSchedule.name(weekday))")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { CloseToolbarItem { dismiss() } }
+        }
+        .presentationDetents([.medium, .large])
+        .preferredColorScheme(.dark)
+        .sheet(item: $logging, onDismiss: { if model.missedSessions.allSatisfy({ $0.weekday != weekday }) { dismiss() } }) { s in
+            MissedLogSheet(session: s)
+        }
+        .onChange(of: missed.map(\.id)) { _, ids in if ids.isEmpty && logging == nil { dismiss() } }
+    }
+}
