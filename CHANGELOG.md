@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Calendar day sheet shows everything on open** (#264): tapping a day in Calendar opened the sheet at half height, so **Add another workout**, **Can't train** and **Travelling** were cut off below the screen. The sheet now opens sized to its content (design B from `calendar-day-sheet/proposals.png`), up to full screen, and can still be pulled to full height; a close **X** sits top right.
+
 ### Changed
 - **Release notes for the 2026-10-14 night release** (What's new `2026-10-13.4`): the Train widgets card (#260) is folded into the Style picker card (#251) as **Make Train and the app yours**, keeping 5 cards: Training programmes, Make Train and the app yours, 10 new workouts, Fluid motion, Safer account.
 

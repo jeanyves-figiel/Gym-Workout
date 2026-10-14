@@ -104,7 +104,6 @@ struct CalendarView: View {
                 selected = nil
                 edit(a)
             }
-            .presentationDetents([.medium, .large])
         }
     }
 
@@ -331,6 +330,10 @@ struct DaySheet: View {
     @State private var moving: Session?
     @State private var adding = false
     @State private var insertsBefore = 0
+    /// Opens sized to its content (#264): the medium detent cut off Can't train / Travelling.
+    @State private var contentHeight: CGFloat = 0
+    @State private var chromeHeight: CGFloat = 0
+    @State private var detent: PresentationDetent = .large
 
     var body: some View {
         let cal = model.planCalendar
@@ -388,13 +391,27 @@ struct DaySheet: View {
                     }
                 }
                 .padding(20)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0; fit() }
             }
+            .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top + $0.safeAreaInsets.bottom } action: { chromeHeight = $0; fit() }
             .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
         .preferredColorScheme(.dark)
+        .presentationDetents(fitDetent.map { [$0, .large] } ?? [.large], selection: $detent)
         .sheet(item: $moving) { s in MoveSessionSheet(sessionId: s.id) { _ in dismiss() } }
         .sheet(isPresented: $adding, onDismiss: { if (model.state.synced?.planInserts?.count ?? 0) > insertsBefore { dismiss() } }) { AddWorkoutSheet(weekday: wd) }
+    }
+
+    /// Content + close bar + home indicator; nil until measured.
+    private var fitDetent: PresentationDetent? {
+        contentHeight > 0 ? .height((contentHeight + chromeHeight).rounded(.up)) : nil
+    }
+
+    /// Snap to the fitted height on open and when the content changes (e.g. a session moved away).
+    private func fit() {
+        if let d = fitDetent { detent = d }
     }
 }
 
