@@ -49,6 +49,19 @@ extension AppModel {
         saveGym(updated)
     }
 
+    /// Training profile → Your gym edit (#271), kept as soon as it's made: the gym and its list from `edited`, the
+    /// rest of the profile as it is. Switching gyms keeps the previous one saved with its list (#180); the gym's own
+    /// list is kept for switching back later (#162).
+    func editGym(_ edited: Profile) {
+        guard var p = profile else { return updateProfile(edited) }
+        guard p.gym != edited.gym || p.equipment != edited.equipment else { return }
+        if (edited.gym ?? Gym.puls5.ref).id != homeGym.id { rememberHomeGym() }
+        p.gym = edited.gym
+        p.equipment = edited.equipment
+        updateProfile(p)
+        rememberHomeGym()
+    }
+
     /// Saved gyms other than the home gym, to switch to in one tap (#180).
     var otherGyms: [SavedGym] { savedGyms.filter { $0.id != homeGym.id } }
 

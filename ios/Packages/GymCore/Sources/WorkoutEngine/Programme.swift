@@ -353,6 +353,19 @@ public struct ActiveProgramme: Codable, Hashable, Sendable {
             self.seed = seed
             self.week = week
         }
+
+        /// The member's own plan back on `current`: only what a programme sets (goal, split, method, focus,
+        /// sessions per week) comes from the saved profile; edits made meanwhile (gym, equipment, days…) stay.
+        public func restoring(onto current: Profile) -> Profile {
+            var p = current
+            p.goal = profile.goal
+            p.split = profile.split
+            p.splitDays = profile.splitDays
+            p.method = profile.method
+            p.focusMuscles = profile.focusMuscles
+            p.sessionsPerWeek = profile.sessionsPerWeek
+            return p
+        }
     }
 
     public init(programmeId: String, start: Date, seed: UInt32, saved: SavedPlan, pausedAt: Date? = nil, pausedWeeks: Int = 0,

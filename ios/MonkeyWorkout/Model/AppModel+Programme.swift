@@ -149,7 +149,9 @@ extension AppModel {
 
     private func restoreOwnPlan(_ saved: ActiveProgramme.SavedPlan) {
         state.synced?.planInserts = nil
-        applyProfile(saved.profile, seed: saved.seed, week: saved.week)
+        // Gym and equipment edited during the programme are kept.
+        let current = state.synced?.profile ?? saved.profile
+        applyProfile(saved.restoring(onto: current), seed: saved.seed, week: saved.week)
     }
 
     private func persistProgrammeChange() {

@@ -9,6 +9,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Calendar day sheet shows everything on open** (#264): tapping a day in Calendar opened the sheet at half height, so **Add another workout**, **Can't train** and **Travelling** were cut off below the screen. The sheet now opens sized to its content (design B from `calendar-day-sheet/proposals.png`), up to full screen, and can still be pulled to full height; a close **X** sits top right.
 
 ### Changed
+- **Your gym: one Add a gym button** (#273): the separate "Gyms near me" button, "Set up a gym in a few swipes" card and search field are now one lime **Add a gym** button (design C from `gym-setup-entry/proposals.png`) opening three choices: **Near me** (map), **Search by name** (search field with suggestions), **Home or hotel** (swipe setup, no map place). Picking a new gym from the map or search still opens its swipe setup; redoing this gym stays on the Equipment page. Demo screen `profile-gym-add`.
+
+### Fixed
+- **Your gym: added equipment no longer reverts** (#271): on build 32 items added to the gym list (ADD ALL or the Equipment page) fell back to 48 items; the Equipment page only has **Done**, and the edit waited for **SAVE** on Your gym. Gym and equipment edits on Your gym are now kept as soon as they're made (`AppModel.editGym`; SAVE and the back button both keep them). Leaving, pausing or finishing a training programme restored the whole profile saved at its start, gym list included; now only what the programme set (goal, split, method, focus, sessions per week) comes back and gym, equipment and days edited meanwhile stay (`ActiveProgramme.SavedPlan.restoring(onto:)`, unit tested). Profile sync no longer marks an edit as sent when it was made while an earlier save was still on its way. New CI job **UI tests (demo mode)** (`MonkeyWorkoutUITests`, demo screen `gym-missing`): ADD ALL, the Equipment page and SAVE keep the new list.
+
+### Changed
 - **Release notes for the 2026-10-14 night release** (What's new `2026-10-13.4`): the Train widgets card (#260) is folded into the Style picker card (#251) as **Make Train and the app yours**, keeping 5 cards: Training programmes, Make Train and the app yours, 10 new workouts, Fluid motion, Safer account.
 
 ### Added
