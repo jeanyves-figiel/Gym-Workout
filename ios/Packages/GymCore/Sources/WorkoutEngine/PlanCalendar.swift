@@ -237,6 +237,7 @@ public enum PlanCalendar {
                 if trips[trip.id] == nil {
                     var p = used
                     p.equipment = trip.travelEquipment
+                    p.gymLayout = nil // home gym zones (#274) don't apply away
                     trips[trip.id] = Generator.generateWeek(p, week: week, seed: seed)
                 }
                 if let t = trips[trip.id]?.sessions.first(where: { $0.id == s.id && $0.focus == s.focus }) {

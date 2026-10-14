@@ -52,6 +52,8 @@ final class Ctx {
     var flow: SessionFlow? { style?.flow ?? profile.sessionFlow }
     /// Training method (#156).
     var method: TrainingMethod { profile.trainingMethod }
+    /// Gym zones (#274); nil = groups formed as before.
+    var layout: GymLayout? { profile.gymLayout }
     /// Daily-undulating day type of the session being generated; nil for other methods.
     var zone: DayZone?
 

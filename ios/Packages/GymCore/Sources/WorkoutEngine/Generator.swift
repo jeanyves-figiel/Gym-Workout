@@ -165,7 +165,7 @@ public enum Generator {
             var st = strength(ctx, focus, variant, strengthMin + powerLeft, "\(id)-st", regions, leadStep: ctx.week - 1 + index)
             // Supersets / circuits (#78); the rest time they save goes back into extra rounds (not in a deload week).
             let grouping = focus == .conditioning ? Grouping.straight : ctx.group
-            st = applyGrouping(st, grouping)
+            st = applyGrouping(st, grouping, layout: ctx.layout)
             // Minimal dose (#156) keeps its 2 hard sets: saved time shortens the session instead.
             if grouping != .straight && !ctx.deload && ctx.method != .minimal { st = fillGroupedTime(st, targetMin: st.targetMin) }
             if ctx.preClimb {

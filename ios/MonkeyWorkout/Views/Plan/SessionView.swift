@@ -264,7 +264,11 @@ struct ExerciseCard: View {
                         Spacer(minLength: 4)
                         Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.muted)
                     }
-                    Text(Format.prescription(item.prescription)).font(.subheadline.weight(.semibold)).foregroundStyle(block.kind.category.color)
+                    HStack(spacing: 6) {
+                        Text(Format.prescription(item.prescription)).font(.subheadline.weight(.semibold)).foregroundStyle(block.kind.category.color)
+                        // Gym zone it's done in (#274), when the member set zones up.
+                        if let zone = model.gymZone(item.exerciseId) { ZoneTag(zone: zone) }
+                    }
                     let meta = [item.prescription.intensity, item.prescription.note].compactMap { $0 }
                     if !meta.isEmpty {
                         Text(meta.joined(separator: " · ")).font(.caption).foregroundStyle(Theme.muted).multilineTextAlignment(.leading)

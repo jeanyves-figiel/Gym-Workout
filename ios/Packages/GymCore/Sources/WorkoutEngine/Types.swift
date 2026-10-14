@@ -247,6 +247,8 @@ public struct Profile: Codable, Hashable, Sendable {
     public var splitDays: [Focus]?
     /// Muscle groups to prioritise (#200): +1 set and first among accessories. nil / empty = none.
     public var focusMuscles: [MuscleGroup]?
+    /// Where equipment sits in the home gym (#274): supersets / circuits stay in one zone. nil = grouped as before.
+    public var gymLayout: GymLayout?
 
     public init(
         goal: Goal = .balanced, sessionsPerWeek: Int = 3, experience: Experience = .intermediate,
