@@ -60,7 +60,7 @@ struct LibraryView: View {
         .navigationDestination(for: Muscle.self) { MuscleDetailView(muscle: $0) }
         .navigationDestination(for: WorkoutEngine.Category.self) { CategoryDetailView(category: $0) }
         .navigationDestination(for: String.self) { SessionView(sessionId: $0) }
-        .navigationDestination(for: ProgrammeRoute.self) { r in Programme.find(r.id).map { ProgrammeDetailView(programme: $0) } }
+        .navigationDestination(for: ProgrammeRoute.self) { r in model.findProgramme(r.id).map { ProgrammeDetailView(programme: $0) } }
         .navigationDestination(item: $tapped) { MuscleDetailView(muscle: $0) }
     }
 

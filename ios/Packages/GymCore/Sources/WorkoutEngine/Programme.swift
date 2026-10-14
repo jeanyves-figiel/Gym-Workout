@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Training programmes (#255)
 
 /// A stage of a programme. Each maps onto one week of the 4-week block the generator already knows.
-public enum ProgrammePhaseKind: String, Codable, Sendable, CaseIterable {
+public enum ProgrammePhaseKind: String, Codable, Sendable, CaseIterable, CodingKeyRepresentable {
     case base, build, peak, ease, test
 
     /// Generator week (1 Base … 4 Deload) a programme week of this phase is built as.
@@ -27,17 +27,23 @@ public enum ProgrammePhaseKind: String, Codable, Sendable, CaseIterable {
     }
 }
 
-public struct ProgrammePhase: Hashable, Sendable {
-    public let kind: ProgrammePhaseKind
-    public let weeks: Int
+public struct ProgrammePhase: Codable, Hashable, Sendable {
+    public var kind: ProgrammePhaseKind
+    public var weeks: Int
     /// What this phase does, one line.
-    public let note: String
+    public var note: String
+
+    public init(kind: ProgrammePhaseKind, weeks: Int, note: String) {
+        self.kind = kind
+        self.weeks = weeks
+        self.note = note
+    }
 }
 
 /// A workout the programme pins into every week of some phases: the generated session of the closest type keeps its
 /// warm-up, cardio and cool-down, its strength block becomes these exercises.
-public struct ProgrammeSignature: Hashable, Sendable, Identifiable {
-    public struct Dose: Hashable, Sendable {
+public struct ProgrammeSignature: Codable, Hashable, Sendable, Identifiable {
+    public struct Dose: Codable, Hashable, Sendable {
         public let sets: Int
         public let reps: String
         public init(_ sets: Int, _ reps: String) {
@@ -46,14 +52,14 @@ public struct ProgrammeSignature: Hashable, Sendable, Identifiable {
         }
     }
 
-    public struct Item: Hashable, Sendable {
+    public struct Item: Codable, Hashable, Sendable {
         public let exerciseId: String
         /// Dose per phase; phases not listed use `dose`.
         public let byPhase: [ProgrammePhaseKind: Dose]
         public let dose: Dose
         public let restSec: Int
 
-        init(_ exerciseId: String, _ dose: Dose, rest: Int = 90, _ byPhase: [ProgrammePhaseKind: Dose] = [:]) {
+        public init(_ exerciseId: String, _ dose: Dose, rest: Int = 90, _ byPhase: [ProgrammePhaseKind: Dose] = [:]) {
             self.exerciseId = exerciseId
             self.dose = dose
             self.restSec = rest
@@ -63,34 +69,68 @@ public struct ProgrammeSignature: Hashable, Sendable, Identifiable {
         public func dose(_ phase: ProgrammePhaseKind) -> Dose { byPhase[phase] ?? dose }
     }
 
-    public let id: String
-    public let name: String
+    public var id: String
+    public var name: String
     /// Session types it can take the place of, best first.
-    public let replaces: [Focus]
+    public var replaces: [Focus]
     /// Phases it is pinned in.
-    public let phases: Set<ProgrammePhaseKind>
-    public let items: [Item]
+    public var phases: Set<ProgrammePhaseKind>
+    public var items: [Item]
+
+    public init(id: String, name: String, replaces: [Focus], phases: Set<ProgrammePhaseKind>, items: [Item]) {
+        self.id = id
+        self.name = name
+        self.replaces = replaces
+        self.phases = phases
+        self.items = items
+    }
 }
 
 /// A multi-week programme toward one goal (#255, design C hybrid): phases, signature workouts, the rest of each week
 /// built by the generator for the member's gym, days and time, and an optional PR test week to finish.
-public struct Programme: Identifiable, Hashable, Sendable {
-    public let id: String
-    public let name: String
-    public let tagline: String
-    public let summary: String
-    public let symbol: String
+public struct Programme: Codable, Identifiable, Hashable, Sendable {
+    public var id: String
+    public var name: String
+    public var tagline: String
+    public var summary: String
+    public var symbol: String
     /// Explore palette of its cards.
-    public let palette: Category
-    public let goal: Goal
-    public let sessionsPerWeek: Int
-    public let split: SplitStyle
-    public let method: TrainingMethod
-    public let focusMuscles: [MuscleGroup]
-    public let phases: [ProgrammePhase]
-    public let signatures: [ProgrammeSignature]
+    public var palette: Category
+    public var goal: Goal
+    public var sessionsPerWeek: Int
+    public var split: SplitStyle
+    public var method: TrainingMethod
+    public var focusMuscles: [MuscleGroup]
+    public var phases: [ProgrammePhase]
+    public var signatures: [ProgrammeSignature]
     /// Lifts tested in the test week and compared start vs now in Progress.
-    public let lifts: [String]
+    public var lifts: [String]
+    /// Member-made programme (#269): the catalog programme it was copied from, if any.
+    public var basedOn: String?
+
+    public init(id: String, name: String, tagline: String, summary: String, symbol: String, palette: Category, goal: Goal,
+                sessionsPerWeek: Int, split: SplitStyle, method: TrainingMethod, focusMuscles: [MuscleGroup],
+                phases: [ProgrammePhase], signatures: [ProgrammeSignature], lifts: [String], basedOn: String? = nil) {
+        self.id = id
+        self.name = name
+        self.tagline = tagline
+        self.summary = summary
+        self.symbol = symbol
+        self.palette = palette
+        self.goal = goal
+        self.sessionsPerWeek = sessionsPerWeek
+        self.split = split
+        self.method = method
+        self.focusMuscles = focusMuscles
+        self.phases = phases
+        self.signatures = signatures
+        self.lifts = lifts
+        self.basedOn = basedOn
+    }
+
+    /// Made by the member (#269), not from the catalog.
+    public var mine: Bool { id.hasPrefix(Programme.minePrefix) }
+    public static let minePrefix = "my-"
     /// Climbing days stay part of the week (climbing goal).
     public var climbing: Bool { goal == .climbing }
 
@@ -119,6 +159,49 @@ public struct Programme: Identifiable, Hashable, Sendable {
     public func cycleWeek(week: Int) -> Int { phase(week: week).kind.cycleWeek }
 
     public var hasTest: Bool { phases.contains { $0.kind == .test } }
+
+    // MARK: Length (#268)
+
+    /// Lengths a member can pick: Base and Build get longer or shorter, Peak, Ease and Test stay as they are.
+    public var lengths: [ProgrammeLength] {
+        let std = Programme.find(id) ?? self
+        let tail = std.weeks - std.coreWeeks
+        return [(-2, "Quick"), (0, "Standard"), (2, "Extended"), (4, "Long haul")].compactMap { delta, name in
+            let core = std.coreWeeks + delta
+            guard core >= 2 else { return nil }
+            return ProgrammeLength(name: name, weeks: core + tail, standard: delta == 0, phases: std.resized(to: core + tail).phases)
+        }
+    }
+
+    /// Weeks of Base and Build.
+    var coreWeeks: Int { phases.filter { $0.kind == .base || $0.kind == .build }.reduce(0) { $0 + $1.weeks } }
+
+    /// This programme at `weeks` weeks: Base and Build share the change in the catalog's ratio, one week each at least.
+    public func resized(to weeks: Int) -> Programme {
+        let std = Programme.find(id) ?? self
+        let core = std.coreWeeks
+        let target = weeks - (std.weeks - core)
+        guard target != core, target >= 2, let baseStd = std.phases.first(where: { $0.kind == .base })?.weeks,
+              std.phases.contains(where: { $0.kind == .build }) else { return std }
+        let base = min(target - 1, max(1, Int((Double(target * baseStd) / Double(core)).rounded())))
+        var p = std
+        p.phases = std.phases.map { ph in
+            switch ph.kind {
+            case .base: ProgrammePhase(kind: .base, weeks: base, note: ph.note)
+            case .build: ProgrammePhase(kind: .build, weeks: target - base, note: ph.note)
+            default: ph
+            }
+        }
+        return p
+    }
+
+    /// Programme week `week` as the member gets it, for the programme page: the generated week with its signature
+    /// workouts. `starting`: the member has not started it yet (their session count becomes the programme's).
+    public func previewWeek(_ week: Int, member: Profile, seed: UInt32, starting: Bool) -> WeekPlan {
+        let p = self.profile(from: member, starting: starting)
+        let plan = Generator.generateWeek(p, week: cycleWeek(week: week), seed: Programme.seed(seed, week: week))
+        return plan.applying(signatureInserts(week: week, plan: plan, profile: p))
+    }
 
     /// The member's profile running this programme: goal, split, method and focus muscles come from the programme;
     /// days, gym, time, experience, climbing and every other choice stay the member's.
@@ -185,7 +268,7 @@ public struct Programme: Identifiable, Hashable, Sendable {
             used.insert(e.id)
             let d = it.dose(phase)
             let reps = Double(Int(d.reps.prefix { $0.isNumber }) ?? 8)
-            let work = Double(d.sets) * reps * (e.secPerRep ?? 3) * (e.unilateral ? 2 : 1)
+            let work = Double(d.sets) * reps * (e.unit == .sec ? 1 : e.secPerRep ?? 3) * (e.unilateral ? 2 : 1)
             items.append(PlannedExercise(
                 uid: "\(base.id)-sig\(n)", exerciseId: e.id, slot: e.pattern,
                 prescription: Prescription(sets: d.sets, reps: d.reps, restSec: it.restSec,
@@ -227,6 +310,16 @@ public struct Programme: Identifiable, Hashable, Sendable {
     }
 }
 
+/// One length a programme can run at (#268).
+public struct ProgrammeLength: Hashable, Sendable, Identifiable {
+    public let name: String
+    public let weeks: Int
+    /// The catalog's length.
+    public let standard: Bool
+    public let phases: [ProgrammePhase]
+    public var id: Int { weeks }
+}
+
 // MARK: - Running a programme
 
 /// The member's programme in progress, synced with the profile. While it runs it replaces the plan; the member's
@@ -245,6 +338,10 @@ public struct ActiveProgramme: Codable, Hashable, Sendable {
     public var appliedWeek: Int?
     /// The member's own plan to restore.
     public var saved: SavedPlan
+    /// Weeks picked by the member (#268); nil = the programme's standard length.
+    public var length: Int?
+    /// The member's own programme as it was started (#269); nil for a catalog one.
+    public var custom: Programme?
 
     public struct SavedPlan: Codable, Hashable, Sendable {
         public var profile: Profile
@@ -258,8 +355,11 @@ public struct ActiveProgramme: Codable, Hashable, Sendable {
         }
     }
 
-    public init(programmeId: String, start: Date, seed: UInt32, saved: SavedPlan, pausedAt: Date? = nil, pausedWeeks: Int = 0) {
+    public init(programmeId: String, start: Date, seed: UInt32, saved: SavedPlan, pausedAt: Date? = nil, pausedWeeks: Int = 0,
+                length: Int? = nil, custom: Programme? = nil) {
         self.programmeId = programmeId
+        self.length = length
+        self.custom = custom
         self.start = start
         self.seed = seed
         self.saved = saved
@@ -267,7 +367,8 @@ public struct ActiveProgramme: Codable, Hashable, Sendable {
         self.pausedWeeks = pausedWeeks
     }
 
-    public var programme: Programme? { Programme.find(programmeId) }
+    /// The programme at the member's length.
+    public var programme: Programme? { Programme.find(programmeId, length: length, custom: custom) }
     public var paused: Bool { pausedAt != nil }
 
     /// Programme week on `date` (1-based; above `weeks` once it is over). Paused: the week it was paused in.
@@ -305,9 +406,16 @@ public struct ProgrammeRecord: Codable, Hashable, Sendable, Identifiable {
     public var finished: Bool
     /// Programme weeks trained (finished = all of them).
     public var weeks: Int
+    /// Length the member ran it at (#268); nil = standard.
+    public var length: Int?
+    /// The member's own programme (#269); nil for a catalog one.
+    public var custom: Programme?
 
-    public init(id: UUID = UUID(), programmeId: String, start: Date, end: Date, finished: Bool, weeks: Int) {
+    public init(id: UUID = UUID(), programmeId: String, start: Date, end: Date, finished: Bool, weeks: Int, length: Int? = nil,
+                custom: Programme? = nil) {
         self.id = id
+        self.length = length
+        self.custom = custom
         self.programmeId = programmeId
         self.start = start
         self.end = end
@@ -315,7 +423,7 @@ public struct ProgrammeRecord: Codable, Hashable, Sendable, Identifiable {
         self.weeks = weeks
     }
 
-    public var programme: Programme? { Programme.find(programmeId) }
+    public var programme: Programme? { Programme.find(programmeId, length: length, custom: custom) }
 }
 
 /// Start vs now for one programme lift: best estimated 1RM in the 8 weeks before the start, and since.
@@ -348,7 +456,12 @@ public struct ProgrammeLift: Hashable, Sendable, Identifiable {
 extension Programme {
     public static func find(_ id: String) -> Programme? { all.first { $0.id == id } }
 
-    public static let all: [Programme] = [strengthFoundation, muscleBuilder, climbersPower]
+    /// Catalog programme (or the member's own, `custom`) at `length` weeks (nil = standard).
+    public static func find(_ id: String, length: Int?, custom: Programme? = nil) -> Programme? {
+        (custom ?? find(id)).map { p in length.map { p.resized(to: $0) } ?? p }
+    }
+
+    public static let all: [Programme] = [strengthFoundation, muscleBuilder, climbersPower, athleticEngine, freshStart]
 
     private typealias Item = ProgrammeSignature.Item
     private typealias Dose = ProgrammeSignature.Dose
@@ -450,4 +563,173 @@ extension Programme {
                 ]),
         ],
         lifts: ["weighted-pull-up", "one-arm-db-row"])
+
+    static let athleticEngine = Programme(
+        id: "athletic-engine", name: "Athletic engine",
+        tagline: "Jump, lift, condition · 3× a week",
+        summary: "Six weeks to be quicker and fitter: jumps and a heavy trap-bar pull on leg day, a kettlebell and slam circuit for conditioning, then you test your pull and swing.",
+        symbol: "bolt.heart.fill", palette: .warmup,
+        goal: .athletic, sessionsPerWeek: 3, split: .hybrid, method: .undulating, focusMuscles: [],
+        phases: [
+            ProgrammePhase(kind: .base, weeks: 2, note: "Learn the jumps, moderate pulls, steady circuits"),
+            ProgrammePhase(kind: .build, weeks: 2, note: "Heavier pulls, faster circuits"),
+            ProgrammePhase(kind: .peak, weeks: 1, note: "Heaviest pulls, sharpest jumps"),
+            ProgrammePhase(kind: .test, weeks: 1, note: "Test your trap-bar deadlift and swing"),
+        ],
+        signatures: [
+            ProgrammeSignature(
+                id: "jump-lift", name: "Jump + lift", replaces: [.fullLower, .lower, .legs, .fullPower],
+                phases: [.base, .build, .peak],
+                items: [
+                    Item("box-jump", Dose(4, "3"), rest: 90),
+                    Item("trap-bar-deadlift", Dose(4, "5"), rest: 180, [.build: Dose(5, "3"), .peak: Dose(5, "2")]),
+                    Item("step-up", Dose(3, "8")),
+                    Item("dead-bug", Dose(3, "10"), rest: 60),
+                ]),
+            ProgrammeSignature(
+                id: "engine-circuit", name: "Engine circuit", replaces: [.conditioning, .fullPower, .fullUpper],
+                phases: [.base, .build, .peak],
+                items: [
+                    Item("kb-swing", Dose(4, "15"), rest: 60, [.build: Dose(5, "15"), .peak: Dose(5, "12")]),
+                    Item("ball-slam", Dose(4, "10"), rest: 60),
+                    Item("broad-jump", Dose(3, "5"), rest: 90),
+                    Item("goblet-squat", Dose(3, "12"), rest: 60),
+                ]),
+        ],
+        lifts: ["trap-bar-deadlift", "kb-swing"])
+
+    static let freshStart = Programme(
+        id: "fresh-start", name: "Fresh start",
+        tagline: "New or coming back · 3× a week",
+        summary: "Four weeks to learn the basics and build the habit: simple full-body sessions, a few more reps each week, then you see where you stand.",
+        symbol: "sparkles", palette: .mobility,
+        goal: .balanced, sessionsPerWeek: 3, split: .fullBody, method: .minimal, focusMuscles: [],
+        phases: [
+            ProgrammePhase(kind: .base, weeks: 2, note: "Learn each move, stop 3 reps before it gets hard"),
+            ProgrammePhase(kind: .build, weeks: 1, note: "A little heavier, same moves"),
+            ProgrammePhase(kind: .test, weeks: 1, note: "Find your 10-rep bests"),
+        ],
+        signatures: [
+            ProgrammeSignature(
+                id: "full-body-basics", name: "Full body basics", replaces: [.fullLower, .fullPower, .lower, .legs],
+                phases: [.base, .build],
+                items: [
+                    Item("goblet-squat", Dose(3, "10"), [.build: Dose(3, "8")]),
+                    Item("db-bench", Dose(3, "10"), [.build: Dose(3, "8")]),
+                    Item("lat-pulldown", Dose(3, "10")),
+                    Item("glute-bridge", Dose(3, "12"), rest: 60),
+                    Item("dead-bug", Dose(2, "10"), rest: 60),
+                ]),
+            ProgrammeSignature(
+                id: "pull-hinge-basics", name: "Pull + hinge basics", replaces: [.fullUpper, .upper, .pull, .fullPower],
+                phases: [.base, .build],
+                items: [
+                    Item("seated-cable-row", Dose(3, "10")),
+                    Item("db-rdl", Dose(3, "10"), [.build: Dose(3, "8")]),
+                    Item("step-up", Dose(2, "8")),
+                    Item("plank", Dose(2, "30 s"), rest: 60),
+                ]),
+        ],
+        lifts: ["goblet-squat", "db-bench", "lat-pulldown"])
+}
+
+// MARK: - Member-made programmes (#269)
+
+extension Programme {
+    /// Phases of a member-made programme at `weeks` weeks: Peak, an easy week from 6 weeks on, and a test week when it
+    /// has lifts to test; Base and Build share the rest, Base a little more.
+    public static func phases(weeks: Int, test: Bool) -> [ProgrammePhase] {
+        let weeks = min(16, max(4, weeks))
+        let ease = weeks >= 6 || !test
+        let core = max(2, weeks - 1 - (ease ? 1 : 0) - (test ? 1 : 0))
+        let base = max(1, min(core - 1, Int((Double(core) * 0.6).rounded())))
+        var out = [
+            ProgrammePhase(kind: .base, weeks: base, note: "Learn the moves, leave a few reps in reserve"),
+            ProgrammePhase(kind: .build, weeks: core - base, note: "Heavier, fewer reps"),
+            ProgrammePhase(kind: .peak, weeks: 1, note: "Heaviest week"),
+        ]
+        if ease { out.append(ProgrammePhase(kind: .ease, weeks: 1, note: "Light week to recover")) }
+        if test { out.append(ProgrammePhase(kind: .test, weeks: 1, note: "Test your bests")) }
+        return out
+    }
+
+    /// Split, method, icon and colours that suit `goal` for a member-made programme.
+    public static func defaults(for goal: Goal) -> (split: SplitStyle, method: TrainingMethod, symbol: String, palette: Category) {
+        switch goal {
+        case .strength: (.fullBody, .block, "figure.strengthtraining.traditional", .power)
+        case .build: (.upperLower, .volume, "dumbbell.fill", .strength)
+        case .athletic: (.hybrid, .undulating, "bolt.heart.fill", .warmup)
+        case .climbing: (.auto, .block, "figure.climbing", .cardio)
+        case .endurance: (.hybrid, .autoregulated, "heart.circle.fill", .cardio)
+        case .balanced: (.fullBody, .minimal, "sparkles", .mobility)
+        }
+    }
+
+    /// A member's copy of this programme to edit ("Make it mine").
+    public func copy(name: String? = nil) -> Programme {
+        var p = self
+        p.id = Programme.minePrefix + UUID().uuidString.lowercased()
+        p.name = name ?? "My " + self.name.prefix(1).lowercased() + String(self.name.dropFirst())
+        p.basedOn = mine ? basedOn : id
+        return p
+    }
+}
+
+extension ProgrammeSignature {
+    /// A workout's strength and power exercises as a signature workout (#269). With `progression`, rep exercises
+    /// get heavier as the phases go (Build: 2 fewer reps, Peak: about half, Ease: one set less).
+    public static func from(id: String, name: String, focus: Focus?, items: [(exerciseId: String, sets: Int, reps: Int, restSec: Int)],
+                            progression: Bool) -> ProgrammeSignature {
+        var out: [Item] = []
+        for it in items {
+            guard let e = Exercise.find(it.exerciseId), e.category == .strength || e.category == .power,
+                  !out.contains(where: { $0.exerciseId == e.id }) else { continue }
+            let sets = max(1, it.sets)
+            let measure = CustomWorkout.Measure(e)
+            let reps = measure == .seconds ? "\(it.reps) s" : measure == .minutes ? "\(it.reps) min" : "\(it.reps)"
+            var byPhase: [ProgrammePhaseKind: Dose] = [:]
+            if progression, measure == .reps, it.reps >= 5 {
+                byPhase[.build] = Dose(sets, "\(max(3, it.reps - 2))")
+                byPhase[.peak] = Dose(sets, "\(max(2, it.reps / 2))")
+                byPhase[.ease] = Dose(max(1, sets - 1), reps)
+            } else if progression {
+                byPhase[.ease] = Dose(max(1, sets - 1), reps)
+            }
+            out.append(Item(e.id, Dose(sets, reps), rest: max(30, it.restSec), byPhase))
+        }
+        return ProgrammeSignature(id: id, name: name, replaces: Focus.ranked(focus: focus, exercises: out.map(\.exerciseId)),
+                                  phases: [.base, .build, .peak, .ease], items: out)
+    }
+}
+
+extension Focus {
+    /// Session types a workout fits, best first, then every other type so it always finds a day: `focus` when the
+    /// workout has one, else from what its exercises train (legs, push, pull).
+    static func ranked(focus: Focus?, exercises: [String]) -> [Focus] {
+        var lower = 0, push = 0, pull = 0
+        for id in exercises {
+            switch Exercise.find(id)?.pattern {
+            case .squat, .hinge, .singleLeg: lower += 1
+            case .hPush, .vPush: push += 1
+            case .hPull, .vPull: pull += 1
+            default: break
+            }
+        }
+        var best: [Focus]
+        if lower > push + pull {
+            best = [.legs, .lower, .fullLower, .posterior, .fullPower]
+        } else if push > 0, pull > 0, lower == 0 {
+            best = [.upper, .fullUpper, .chestBack, .push, .pull]
+        } else if push > pull, lower == 0 {
+            best = [.push, .chestTri, .upper, .fullUpper, .shouldersArms]
+        } else if pull > push, lower == 0 {
+            best = [.pull, .backBi, .upper, .fullUpper]
+        } else {
+            best = [.fullPower, .fullLower, .fullUpper, .conditioning]
+        }
+        if let focus { best.insert(focus, at: 0) }
+        var out: [Focus] = []
+        for f in best + Focus.allCases where !out.contains(f) { out.append(f) }
+        return out
+    }
 }

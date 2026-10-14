@@ -1,35 +1,29 @@
 {
-  "id": "2026-10-13.4",
+  "id": "2026-10-14.1",
   "items": [
     {
-      "symbol": "flag.checkered",
-      "tint": "power",
-      "title": "Training programmes",
-      "body": "Explore → Programmes: Strength foundation (8 weeks), Muscle builder (6) and Climber's power (6). A programme runs your plan in phases with signature workouts and ends with a PR test. Pause it any time; your own plan comes back."
+      "symbol": "square.grid.3x3.fill",
+      "tint": "strength",
+      "title": "Every workout of a programme",
+      "body": "A programme's page now shows all its workouts week by week, built for your gym and days. Tap one to see its exercises, sets and reps."
     },
     {
-      "symbol": "square.grid.2x2.fill",
+      "symbol": "calendar.badge.clock",
+      "tint": "cardio",
+      "title": "Pick your programme length",
+      "body": "Quick, Standard, Extended or Long haul: choose how long a programme runs when you start it, and change it later. Base and Build stretch or shrink to fit."
+    },
+    {
+      "symbol": "bolt.heart.fill",
       "tint": "warmup",
-      "title": "Make Train and the app yours",
-      "body": "Tap the grid button next to LV to edit Train: add widgets like calendar, streak, records or body weight, resize and drag them, or pick a preset. Account → Style now shows each style's real iPhone and Watch screens before you switch."
+      "title": "Two new programmes",
+      "body": "Athletic engine (6 weeks of jumps, heavy pulls and conditioning) and Fresh start (4 weeks for new or returning members)."
     },
     {
-      "symbol": "books.vertical.fill",
-      "tint": "strength",
-      "title": "10 new workouts, easy to find",
-      "body": "Push power, Pull strength, Posterior chain, Dumbbell full body, Bodyweight anywhere, Machine starter, Core crusher, HIIT circuit, Climber's strength and Mobility reset. Explore → Workouts has goal chips and a search by name, muscle or goal."
-    },
-    {
-      "symbol": "figure.strengthtraining.traditional",
-      "tint": "strength",
-      "title": "Fluid motion, every exercise",
-      "body": "Fast moves like burpees, swings and twists now play with up to 49 poses, so nothing jumps. Every animation was checked again: hands stay on the bar, bodies sit on the bench and limbs no longer pass through machines."
-    },
-    {
-      "symbol": "checkmark.shield.fill",
+      "symbol": "square.and.pencil",
       "tint": "power",
-      "title": "Safer account: passkeys and 2-step",
-      "body": "Password, email and account changes now ask you to confirm it's you first. Account → Security: add a passkey to sign in with Face ID, or turn on 2-step codes from an authenticator app. Apple and passkeys skip 2-step."
+      "title": "Build your own programme",
+      "body": "Explore → Programmes → New programme: pick a goal, length and your own workouts in 4 steps. Or tap Make it mine on any programme to copy and change it."
     }
   ]
 }
