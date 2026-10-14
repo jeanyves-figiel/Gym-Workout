@@ -38,6 +38,9 @@ struct WorkoutPlayerView: View {
     /// Done set opened for a correction in the set card.
     @State private var editingSet: Int?
     @State private var live = LiveWorkout()
+    /// Finish early (#300): the remaining workout re-fitted to the time left, and the time to be done by.
+    @State private var fitted: [Block]?
+    @State private var fitEnd: Date?
 
     /// Overlay after a set: optional rest countdown and the one-tap effort picker for that set.
     struct Pause: Equatable {
@@ -64,7 +67,14 @@ struct WorkoutPlayerView: View {
         var timedSpec: TimedSpec? { TimedSpec(item.prescription, unit: exercise.unit) }
     }
 
-    private var session: Session? { model.session(sessionId) }
+    private var session: Session? {
+        guard let s = model.session(sessionId) else { return nil }
+        guard let fitted else { return s }
+        var out = s
+        out.blocks = fitted
+        out.estMin = max(1, s.estMin + Int((Double(fitted.estSec - s.blocks.estSec) / 60).rounded()))
+        return out
+    }
     private var steps: [Step] { session?.blocks.flatMap { b in b.items.map { Step(item: $0, block: b) } } ?? [] }
 
     var body: some View {
@@ -482,6 +492,8 @@ struct WorkoutPlayerView: View {
         if let w = model.activeWorkout(sessionId) {
             index = min(max(0, w.index), max(0, steps.count - 1))
             setsDone = w.setsDone
+            fitted = w.fitted
+            fitEnd = w.fitEnd
             started = Date().addingTimeInterval(-w.elapsed)
         } else {
             model.beginWorkout(session)
@@ -525,7 +537,36 @@ struct WorkoutPlayerView: View {
         guard ready, !finished, !discarded else { return }
         model.saveActiveWorkout(ActiveWorkout(
             sessionId: sessionId, index: index, setsDone: setsDone,
-            elapsed: Date().timeIntervalSince(started), updatedAt: Date()))
+            elapsed: Date().timeIntervalSince(started), updatedAt: Date(), fitted: fitted, fitEnd: fitEnd))
+    }
+
+    // MARK: Finish early (#300)
+
+    /// Re-fits what is left to the minutes given; the player stays on the same exercise.
+    private func finishEarly(minutes: Int) {
+        guard let base = model.session(sessionId), steps.indices.contains(index) else { return }
+        let uid = steps[index].item.uid
+        let fit = FinishEarly.fit(fitted ?? base.blocks, setsDone: setsDone, current: uid, minutes: minutes)
+        fitted = fit.blocks
+        fitEnd = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        relocate(uid)
+    }
+
+    /// Back to the full workout.
+    private func undoFinishEarly() {
+        guard steps.indices.contains(index) else { return }
+        let uid = steps[index].item.uid
+        fitted = nil
+        fitEnd = nil
+        relocate(uid)
+    }
+
+    /// Same item on screen after the step list changed.
+    private func relocate(_ uid: String) {
+        index = steps.firstIndex { $0.item.uid == uid } ?? min(index, max(0, steps.count - 1))
+        reloadLog()
+        saveProgress()
+        updateLive()
     }
 
     private func liveState() -> WorkoutActivityAttributes.ContentState {

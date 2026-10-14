@@ -88,6 +88,9 @@ struct ActiveWorkout: Codable, Equatable {
     /// Active seconds before the pause; paused time is not counted.
     var elapsed: TimeInterval
     var updatedAt: Date
+    /// Finish early (#300): the workout re-fitted to the time left, and when the member has to be done.
+    var fitted: [Block]? = nil
+    var fitEnd: Date? = nil
 }
 
 /// JSON file in Application Support, encrypted at rest by iOS data protection.
