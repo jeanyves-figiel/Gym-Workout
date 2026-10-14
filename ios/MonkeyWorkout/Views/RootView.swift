@@ -115,6 +115,11 @@ private struct DemoScreen: View {
         let second = model.plan?.sessions.dropFirst().first?.id ?? ""
         switch Demo.screen {
         case "session", "session-zones": NavigationStack { SessionView(sessionId: second) }
+        case "edit-exercises":
+            if let s = model.uneditedSession(second) { EditExercisesSheet(sessionId: second, base: s, blocks: Demo.editedBlocks(s)) }
+        case "session-edited":
+            NavigationStack { SessionView(sessionId: second) }
+                .onAppear { if let s = model.uneditedSession(second), !model.isEdited(second) { model.saveSessionEdit(second, blocks: Demo.editedBlocks(s)) } }
         case "workout-style": if let s = model.session(second) { WorkoutStyleSheet(session: s) }
         case "swap":
             if let item = model.plan?.sessions.dropFirst().first?.blocks.first(where: { $0.kind == .strength })?.items.first {

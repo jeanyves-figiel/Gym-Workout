@@ -33,6 +33,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var customProgrammes: [Programme]?
     /// Monday ("yyyy-MM-dd") of the calendar week the plan belongs to (#266); a new calendar week moves the plan on.
     var weekOf: String?
+    /// Exercise lists the member edited before starting (#295): plan sessions of this week and library workouts.
+    var sessionEdits: [SessionEdit]?
 
     /// Profile the plan is generated from: the training profile plus this week's per-workout overrides.
     var planProfile: Profile {

@@ -192,8 +192,13 @@ final class AppModel {
     /// placed into it (#62).
     /// On a low-readiness day, RIR-autoregulated plans (#156) ease today's session.
     var plan: WeekPlan? {
-        guard let p = swappedPlan?.applying(state.synced?.variation).applying(state.synced?.planInserts ?? []) else { return nil }
+        guard let p = uneditedPlan?.applying(edits: state.synced?.sessionEdits ?? []) else { return nil }
         return p.easedForReadiness(readinessEasedIds(p))
+    }
+
+    /// The plan before the member's per-workout exercise edits (#295): what an edit is made on.
+    var uneditedPlan: WeekPlan? {
+        swappedPlan?.applying(state.synced?.variation).applying(state.synced?.planInserts ?? [])
     }
 
     /// Today's sessions when an RIR-autoregulated plan meets a "Take it easier" readiness (#156): sessions on
@@ -234,7 +239,9 @@ final class AppModel {
                                savedGyms: state.synced?.savedGyms, programme: state.synced?.programme,
                                programmeHistory: state.synced?.programmeHistory, trainLayout: state.synced?.trainLayout,
                                customProgrammes: state.synced?.customProgrammes,
-                               weekOf: state.synced?.weekOf)
+                               weekOf: state.synced?.weekOf,
+                               // Exercise edits (#295): library workouts keep theirs; this week's plan days only within the week.
+                               sessionEdits: state.synced?.sessionEdits.map { list in list.filter { $0.week == nil || !newWeek } }.flatMap { $0.isEmpty ? nil : $0 })
         state.synced = sp
         // A profile edit (goal, days, gym…) re-plans the rest of this week (#194): sessions already done and the
         // one in progress keep their content; everything else follows the new profile.
@@ -284,8 +291,12 @@ final class AppModel {
 
     /// A session of this week's plan, an example workout, one of the user's custom workouts or a member's shared one.
     func session(_ id: String) -> Session? {
-        plan?.sessions.first { $0.id == id } ?? WorkoutTemplate.find(sessionId: id)?.session ?? customWorkout(sessionId: id)?.session
-            ?? sharedWorkout(sessionId: id)?.workout.session
+        plan?.sessions.first { $0.id == id } ?? standaloneSession(id).map { $0.applying(sessionEdit(id)) }
+    }
+
+    /// An example, own or shared library workout opened on its own (not part of this week's plan), unedited.
+    func standaloneSession(_ id: String) -> Session? {
+        WorkoutTemplate.find(sessionId: id)?.session ?? customWorkout(sessionId: id)?.session ?? sharedWorkout(sessionId: id)?.workout.session
     }
 
     /// First session not yet completed from today on, by day (moved and extra sessions included). Sessions of
@@ -449,6 +460,8 @@ final class AppModel {
         state.history.append(r)
         state.pendingHistoryIds.insert(r.id)
         state.done[session.id] = true
+        // A library workout's edit was for this run only (#295); the next time starts from the workout itself.
+        if plan?.sessions.contains(where: { $0.id == session.id }) != true { dropSessionEdit(session.id) }
         persist()
         Task { await sync() }
         Community.shared.didRecord(r, api: api, userId: user?.id)
