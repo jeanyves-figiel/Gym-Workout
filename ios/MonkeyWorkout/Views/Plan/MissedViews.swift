@@ -164,8 +164,12 @@ enum MissedStyle {
 }
 
 /// The week as seven day cells (design C, #266): missed days red, done days lime, today ringed, planned days lit.
-/// A missed day opens the catch-up sheet; a planned or done day opens its session.
+/// A missed day opens the catch-up sheet; any other day is picked and the Next up card follows it (#277).
 struct WeekDayStrip: View {
+    /// Day the Next up card shows (#277), white in the strip; nil = the next session's.
+    var selected: Int? = nil
+    /// Tap on a day that isn't missed (#277): the Next up card follows it. Missed days open the catch-up sheet.
+    var onPick: (Int) -> Void = { _ in }
     @Environment(AppModel.self) private var model
     @State private var catchUp: DayPick?
 
@@ -178,6 +182,8 @@ struct WeekDayStrip: View {
             let skipped = model.skippedIds
             let done = model.doneIds
             let today = model.todayWeekday
+            // Climbing days of a climber show orange (#277).
+            let climbDays = model.profile.map { Generator.isClimber($0) ? $0.climbingDays : [] } ?? []
             HStack(spacing: 5) {
                 ForEach(WeekSchedule.weekdays, id: \.self) { wd in
                     let day = sessions.filter { $0.weekday == wd }
@@ -191,12 +197,17 @@ struct WeekDayStrip: View {
                         .accessibilityHint("Log it, mark it done, do it today or skip")
                     } else if let s = day.first {
                         let allDone = day.allSatisfy { done.contains($0.id) }
-                        NavigationLink(value: s.id) { cell(wd, today: today, state: allDone ? .done : .planned) }
+                        Button { onPick(wd) } label: { cell(wd, today: today, state: allDone ? .done : .planned, picked: selected == wd) }
                             .buttonStyle(.plain)
                             .accessibilityLabel("\(WeekSchedule.name(wd)): \(s.displayTitle)\(allDone ? ", done" : "")")
+                            .accessibilityAddTraits(selected == wd ? .isSelected : [])
                     } else {
-                        cell(wd, today: today, state: .rest)
-                            .accessibilityLabel("\(WeekSchedule.name(wd)): rest")
+                        let climb = climbDays.contains(wd)
+                        Button { onPick(wd) } label: { cell(wd, today: today, state: climb ? .climb : .rest, picked: selected == wd) }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(WeekSchedule.name(wd)): \(climb ? "climbing day" : "rest day")")
+                            .accessibilityHint("Add a workout")
+                            .accessibilityAddTraits(selected == wd ? .isSelected : [])
                     }
                 }
             }
@@ -204,28 +215,31 @@ struct WeekDayStrip: View {
         }
     }
 
-    private enum DayState: Equatable { case missed(skipped: Bool), done, planned, rest }
+    private enum DayState: Equatable { case missed(skipped: Bool), done, planned, rest, climb }
 
-    private func cell(_ wd: Int, today: Int, state: DayState) -> some View {
+    private func cell(_ wd: Int, today: Int, state: DayState, picked: Bool = false) -> some View {
         let isToday = wd == today
-        let fill: AnyShapeStyle = switch state {
+        let base: AnyShapeStyle = switch state {
         case .missed: AnyShapeStyle(MissedStyle.gradient)
         case .done: AnyShapeStyle(Theme.lime)
         case .planned: AnyShapeStyle(Color.white.opacity(0.2))
         case .rest: AnyShapeStyle(Color.black.opacity(0.25))
+        case .climb: AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xFF7A3C), Color(hex: 0xFFB347)], startPoint: .topLeading, endPoint: .bottomTrailing))
         }
-        let ink: Color = state == .done ? Theme.ink : state == .rest ? .white.opacity(0.55) : .white
+        let fill = picked ? AnyShapeStyle(Color.white) : base
+        let ink: Color = picked ? Color(hex: 0x2A1D6E) : state == .done ? Theme.ink : state == .rest ? .white.opacity(0.55) : .white
         let symbol: String = switch state {
         case .missed(let skipped): skipped ? "minus" : "exclamationmark"
         case .done: "checkmark"
         case .planned: "circle.fill"
         case .rest: "moon.fill"
+        case .climb: "figure.climbing"
         }
         return VStack(spacing: 4) {
             Text(WeekSchedule.shortName(wd).uppercased()).font(Theme.label(9)).tracking(0.5)
             Image(systemName: symbol).font(.system(size: state == .planned ? 7 : 11, weight: .black)).frame(height: 12)
         }
-        .foregroundStyle(isToday && state == .planned ? Theme.lime : ink)
+        .foregroundStyle(isToday && state == .planned && !picked ? Theme.lime : ink)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(fill).opacity(state == .missed(skipped: true) ? 0.5 : 1))

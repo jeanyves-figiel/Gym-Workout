@@ -149,18 +149,29 @@ struct LevelBarCard: View {
 
 // MARK: - Monkey coach
 
-/// Train: the monkey with a mood from the week, streak and readiness; tap it for the next tip.
+/// Train: the monkey with a mood from the week, streak and readiness. Tap or swipe for the next tip; every chip
+/// and each tip's button opens its place (#278).
 struct MonkeyCoachCard: View {
+    /// Starts a session in the player (the Train screen owns it).
+    var onStart: (Session) -> Void = { _ in }
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tip = 0
     @State private var hop = false
     @State private var bob = false
+    @State private var catchUp: WeekDayStrip.DayPick?
+    @State private var levels = false
+
+    private enum Action {
+        case start(Session), catchUp(Int), progress(ProgressSection), exercise(String), levels, calendar
+    }
 
     private struct Tip {
         var text: String
         var tint: (UInt32, UInt32)
+        var cta: String
+        var action: Action
     }
 
     var body: some View {
@@ -171,54 +182,110 @@ struct MonkeyCoachCard: View {
                                         readiness: Readiness.assess(health.snapshot)?.0.title, streakWeeks: stats.currentStreakWeeks)
         let all = tips(mood: mood, next: next, stats: stats, target: target)
         let current = all[tip % all.count]
-        Button { poke(count: all.count) } label: {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .center, spacing: 10) {
-                    MonkeyFace(mood: mood, scale: 1.45, gear: model.rank.gear)
-                        .scaleEffect(hop ? 1.12 : 1)
-                        .rotationEffect(.degrees(hop ? -12 : 0))
-                        .offset(y: hop ? -8 : (bob ? -2 : 0))
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Coach Monkey · \(mood.word)").font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.85)
-                        Text(current.text)
-                            .font(Theme.display(21)).lineLimit(3).minimumScaleFactor(0.7)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .id(tip)
-                            .transition(.scale(scale: 0.7, anchor: .leading).combined(with: .opacity))
-                    }
-                    Spacer(minLength: 0)
+        let missed = model.missedSessions
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 10) {
+                MonkeyFace(mood: mood, scale: 1.45, gear: model.rank.gear)
+                    .scaleEffect(hop ? 1.12 : 1)
+                    .rotationEffect(.degrees(hop ? -12 : 0))
+                    .offset(y: hop ? -8 : (bob ? -2 : 0))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Coach Monkey · \(mood.word)").font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.85)
+                    Text(current.text)
+                        .font(Theme.display(21)).lineLimit(3).minimumScaleFactor(0.7)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .id(tip)
+                        .transition(.scale(scale: 0.7, anchor: .leading).combined(with: .opacity))
                 }
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { poke(by: 1, count: all.count) }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Monkey coach: \(current.text)")
+            .accessibilityHint("Shows another tip")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { poke(by: 1, count: all.count) }
+            ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    gameChip("🔥 \(stats.currentStreakWeeks) wk")
-                    gameChip("\(stats.thisWeek)/\(target) this week")
-                    if !model.missedSessions.isEmpty {
-                        gameChip("\(model.missedSessions.count) missed", fill: Color(hex: 0xFFD23F), ink: Theme.ink)
+                    Button { open(.progress(.training)) } label: { gameChip("🔥 \(stats.currentStreakWeeks) wk ›") }
+                        .accessibilityLabel("\(stats.currentStreakWeeks)-week streak").accessibilityHint("Opens Training in Progress")
+                    NavigationLink { CalendarView() } label: { gameChip("\(stats.thisWeek)/\(target) this week ›") }
+                        .accessibilityLabel("\(stats.thisWeek) of \(target) this week").accessibilityHint("Opens the calendar")
+                    if let m = missed.first {
+                        Button { catchUp = .init(id: m.weekday ?? model.todayWeekday) } label: {
+                            gameChip("\(missed.count) missed ›", fill: Color(hex: 0xFFD23F), ink: Theme.ink)
+                        }
+                        .accessibilityHint("Log it, mark it done, do it today or skip")
                     }
-                    Spacer(minLength: 0)
-                    gameChip("tap me", fill: .white.opacity(0.25))
+                    Button { poke(by: 1, count: all.count) } label: { gameChip("next tip ↻", fill: .white.opacity(0.25)) }
+                        .accessibilityLabel("Next tip")
                 }
             }
-            .foregroundStyle(.white)
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(LinearGradient(colors: [Color(hex: current.tint.0), Color(hex: current.tint.1)], startPoint: .topLeading, endPoint: .bottomTrailing)))
-            .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .scrollClipDisabled()
+            .buttonStyle(.plain)
+            tipButton(current)
+            if all.count > 1 {
+                HStack(spacing: 5) {
+                    ForEach(all.indices, id: \.self) { i in
+                        Circle().fill(.white.opacity(i == tip % all.count ? 1 : 0.4)).frame(width: 6, height: 6)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .accessibilityHidden(true)
+            }
         }
-        .buttonStyle(.plain)
+        .foregroundStyle(.white)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 26, style: .continuous)
+            .fill(LinearGradient(colors: [Color(hex: current.tint.0), Color(hex: current.tint.1)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .simultaneousGesture(DragGesture(minimumDistance: 24).onEnded { v in
+            guard abs(v.translation.width) > abs(v.translation.height) * 1.5 else { return }
+            poke(by: v.translation.width < 0 ? 1 : -1, count: all.count)
+        })
         .animation(.easeInOut(duration: 0.35), value: tip)
         .sensoryFeedback(.impact(weight: .light), trigger: tip)
-        .accessibilityLabel("Monkey coach: \(current.text)")
-        .accessibilityHint("Shows another tip")
+        .sheet(item: $catchUp) { MissedCatchUpSheet(weekday: $0.id) }
+        .sheet(isPresented: $levels) { LevelLadderSheet() }
         .onAppear {
             guard !reduceMotion else { return }
-            poke(count: 0)
+            poke(by: 0, count: 0)
             withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { bob = true }
         }
     }
 
-    private func poke(count: Int) {
-        if count > 0 { tip = (tip + 1) % count }
+    /// The current tip's action as a big lime button.
+    @ViewBuilder private func tipButton(_ t: Tip) -> some View {
+        let label = Text("\(t.cta) ›").font(Theme.label(15)).foregroundStyle(Theme.ink)
+            .frame(maxWidth: .infinity).padding(.vertical, 11)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(hex: 0xD6FF3D)))
+        Group {
+            switch t.action {
+            case .calendar: NavigationLink { CalendarView() } label: { label }
+            case .exercise(let id): NavigationLink { ExerciseDetailView(exerciseId: id) } label: { label }
+            default: Button { open(t.action) } label: { label }
+            }
+        }
+        .buttonStyle(.plain)
+        .id(tip)
+    }
+
+    private func open(_ action: Action) {
+        switch action {
+        case .start(let s): onStart(s)
+        case .catchUp(let wd): catchUp = .init(id: wd)
+        case .progress(let section):
+            model.progressJump = section
+            model.tab = .progress
+        case .levels: levels = true
+        case .exercise, .calendar: break // NavigationLinks
+        }
+    }
+
+    private func poke(by step: Int, count: Int) {
+        if count > 0 { tip = ((tip + step) % count + count) % count }
         guard !reduceMotion else { return }
         withAnimation(.spring(response: 0.22, dampingFraction: 0.35)) { hop = true }
         Task { @MainActor in
@@ -231,26 +298,31 @@ struct MonkeyCoachCard: View {
     private func tips(mood: MonkeyFace.Mood, next: Session?, stats: ProgressStats, target: Int) -> [Tip] {
         let title = next?.displayTitle ?? "it"
         let missed = model.missedSessions
+        let go: Action = next.map { .start($0) } ?? .progress(.training)
+        let cta = next.map { "Start \($0.displayTitle)" } ?? "See progress"
         var out: [Tip] = if next == nil, let m = missed.first, mood != .party {
             // Nothing left this week but a missed session (#266).
-            [Tip(text: "Missed \(m.displayTitle)? Log it or do it today 💪", tint: (0xFF3D6E, 0xFF8A3D))]
+            [Tip(text: "Missed \(m.displayTitle)? Log it or do it today 💪", tint: (0xFF3D6E, 0xFF8A3D), cta: "Catch up", action: .catchUp(m.weekday ?? model.todayWeekday))]
         } else {
             switch mood {
-            case .party: [Tip(text: "Week done! You legend 🏆", tint: (0x3DFFB0, 0x1E9BFF))]
-            case .sleepy: [Tip(text: "Easy does it today. Quality reps 😴", tint: (0x3D5AFF, 0x7B3DFF))]
-            case .fired: [Tip(text: "Let's crush \(title)! 💥", tint: (0xB23DFF, 0xFF3DA8))]
-            case .happy: [Tip(text: "Ready for \(title)? 💪", tint: (0xFFC23D, 0xFF7A3D))]
+            case .party: [Tip(text: "Week done! You legend 🏆", tint: (0x3DFFB0, 0x1E9BFF), cta: "See progress", action: .progress(.training))]
+            case .sleepy: [Tip(text: "Easy does it today. Quality reps 😴", tint: (0x3D5AFF, 0x7B3DFF), cta: cta, action: go)]
+            case .fired: [Tip(text: "Let's crush \(title)! 💥", tint: (0xB23DFF, 0xFF3DA8), cta: cta, action: go)]
+            case .happy: [Tip(text: "Ready for \(title)? 💪", tint: (0xFFC23D, 0xFF7A3D), cta: cta, action: go)]
             }
         }
         if stats.currentStreakWeeks > 0 {
             let best = stats.currentStreakWeeks >= stats.bestStreakWeeks && stats.currentStreakWeeks > 1
-            out.append(Tip(text: "🔥 \(stats.currentStreakWeeks)-week streak\(best ? ". Best ever!" : "")", tint: (0xFFC23D, 0xFF7A3D)))
+            out.append(Tip(text: "🔥 \(stats.currentStreakWeeks)-week streak\(best ? ". Best ever!" : "")", tint: (0xFFC23D, 0xFF7A3D),
+                           cta: "See streak", action: .progress(.training)))
         }
         if let r = stats.personalRecords.first {
-            out.append(Tip(text: "🏅 Best \(Exercise.get(r.exerciseId).name): \(Format.kg(r.kg)) kg. Beat it!", tint: (0x3D5AFF, 0x1E9BFF)))
+            out.append(Tip(text: "🏅 Best \(Exercise.get(r.exerciseId).name): \(Format.kg(r.kg)) kg. Beat it!", tint: (0x3D5AFF, 0x1E9BFF),
+                           cta: "Open \(Exercise.get(r.exerciseId).name)", action: .exercise(r.exerciseId)))
         }
         let g = model.game
-        out.append(Tip(text: "⭐ Level \(g.level): \(g.xpToNext) XP to level \(g.level + 1)", tint: (0x3DFFB0, 0x1E9BFF)))
+        out.append(Tip(text: "⭐ Level \(g.level): \(g.xpToNext) XP to level \(g.level + 1)", tint: (0x3DFFB0, 0x1E9BFF),
+                       cta: "See levels", action: .levels))
         let left = max(0, target - stats.thisWeek)
         let text: String = if left == 0 {
             "\(stats.thisWeek)/\(target) this week. Bonus round?"
@@ -260,7 +332,7 @@ struct MonkeyCoachCard: View {
         } else {
             "\(stats.thisWeek)/\(target) this week. \(left) to go!"
         }
-        out.append(Tip(text: text, tint: (0xFF7A3D, 0xFF3D5A)))
+        out.append(Tip(text: text, tint: (0xFF7A3D, 0xFF3D5A), cta: "Open calendar", action: .calendar))
         return out
     }
 }
