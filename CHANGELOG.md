@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Release notes for the 2026-10-14 morning release** (What's new `2026-10-14.1`): 5 cards covering #268/#269 programmes (4 cards merged into 2), #266 missed workouts + Next up, #274 gym zones, #271/#273 gym save + Add a gym and #264 calendar day sheet.
+
 ### Added
 - **Gym zones: supersets stay in one spot** (#274): members can group their gym's equipment by where it sits, so a superset or circuit no longer sends them across the gym. Designs A + B from `gym-zones/proposals.png`. **Equipment page**: a **Group by where it sits** card starts from the usual layout (Free weights, Machines, Functional, Cardio, Stretch); pick a zone chip and tap pictures to move them there (each picture shows its zone's colour dot); **+ Zone**, rename / recolour / delete (touch and hold a chip), back to the usual layout or zones off. **Floor plan** (optional, `FloorPlanSheet`): drag zone blocks onto a rough plan and resize them; blocks that touch count as next to each other. **Workouts**: supersets and circuits only pair exercises from one zone or neighbouring zones (exercises needing only mat, bands and other carried items fit anywhere), groups in the same zone follow each other after the main lift, letters stay A, B, C in order; same for Generate-and-do-today workouts. Session cards show a zone tag; the player's Up next says **Same spot** or **Walk to <zone>**; Swap lists moves near the rest of the group first, tagged **here**, and warns when one would split the group. Zones are kept per saved gym (`GymLayout`, `Profile.gymLayout`, `SavedGym.layout`; a redo in swipes keeps them) and don't apply on trips. No zones = plans exactly as before (unit tested). Demo screens `equipment-zones`, `floor-plan`, `session-zones`, `swap-zones`, `player-zones`.
 
