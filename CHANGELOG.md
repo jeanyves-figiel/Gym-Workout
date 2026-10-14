@@ -10,6 +10,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Coach Monkey card: every chip and tip leads somewhere** (#278): tapping the card only showed the next tip; its chips (streak, this week, missed, tap me) did nothing. Designs A + B from `coach-monkey-actions/proposals.png`: **🔥 wk ›** opens Progress → Training, **n/3 this week ›** opens the calendar, **n missed ›** opens the catch-up sheet, **next tip ↻** replaces "tap me". Each tip gets its own lime button: **Start <workout>** (opens the player), **Catch up**, **See streak** / **See progress**, **Open <exercise>** on the best-lift tip, **See levels**, **Open calendar**. Tap the monkey or swipe left/right for the next tip; dots show which tip is on.
 
 ### Changed
+- **Gym zones: see each item's zone, By zone view, items without a zone** (#289), after build 33 feedback (designs A + B from `gym-zones/v2/proposals.png`). The zone dot on each picture blended into it, zone chips slid sideways and hid zones, and an item couldn't be left without a zone. **Pictures**: each ticked picture now has a ribbon with its zone's name in the zone's colours and a border in those colours (grey dashed with **NO ZONE** when it has none). **Zone chips** wrap on as many lines as needed, followed by a **No zone** eraser chip: with it on, tapping pictures clears their zone (`GymLayout.unassign`, unit tested); items without a zone fit any zone in a workout. **By type / By zone** switch: By zone shows one bar per zone in its colours with its items, then **No zone**. Touch and hold any picture to move it to another zone or **No zone**. Demo screen `equipment-by-zone`.
+
+### Changed
 - **Release notes for the 2026-10-14 morning release** (What's new `2026-10-14.1`): 5 cards covering #268/#269 programmes (4 cards merged into 2), #266 missed workouts + Next up, #274 gym zones, #271/#273 gym save + Add a gym and #264 calendar day sheet.
 
 ### Added
