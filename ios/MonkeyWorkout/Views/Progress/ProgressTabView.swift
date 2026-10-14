@@ -13,6 +13,8 @@ struct ProgressTabView: View {
     @State private var active: ProgressSection?
     @State private var tops: [ProgressSection: CGFloat] = [:]
     @State private var barBottom: CGFloat = 0
+    @State private var viewport: CGFloat = 0
+    @State private var pageEnd: CGFloat = .infinity
     /// CI screenshots: open with this tile flipped.
     var demoFlipped: StatMetric?
     /// CI screenshots: open scrolled to this section, bar pinned (#243).
@@ -88,10 +90,20 @@ struct ProgressTabView: View {
                                 Color.clear.preference(key: SectionBarBottomKey.self, value: g.frame(in: .named("progress")).maxY)
                             })
                     }
+                    // Page end marker: how far the page can still scroll, for lighting the last sections.
+                    Color.clear.frame(height: 0)
+                        .background(GeometryReader { g in
+                            Color.clear.preference(key: PageEndKey.self, value: g.frame(in: .named("progress")).maxY)
+                        })
                 }
                 .padding(16)
             }
+            .background(GeometryReader { g in
+                Color.clear.preference(key: ViewportHeightKey.self, value: g.size.height)
+            })
             .coordinateSpace(name: "progress")
+            .onPreferenceChange(ViewportHeightKey.self) { viewport = $0; updateActive() }
+            .onPreferenceChange(PageEndKey.self) { pageEnd = $0; updateActive() }
             .onPreferenceChange(SectionTopsKey.self) { tops = $0; updateActive() }
             .onPreferenceChange(SectionBarBottomKey.self) { barBottom = $0; updateActive() }
             .task {
@@ -138,11 +150,24 @@ struct ProgressTabView: View {
         .padding(.top, -Self.barClearance)
     }
 
-    /// Lit chip: the last section whose top has passed under the bar; none while the page map is on screen.
+    /// Lit chip: the last section whose top has passed the reading line; none while the page map is on screen.
+    /// The line sits just under the bar, then slides down to the screen bottom over the last screenful of
+    /// scrolling, so the short sections at the end (which never reach the bar) light up too (#286).
     private func updateActive() {
-        let passed = ProgressSection.allCases.filter { (tops[$0] ?? .infinity) <= barBottom + 24 }
+        let line = Self.readingLine(barBottom: barBottom, viewport: viewport, pageEnd: pageEnd)
+        let passed = ProgressSection.allCases.filter { (tops[$0] ?? .infinity) <= line }
         let now = passed.last
         if now != active { active = now }
+    }
+
+    static func readingLine(barBottom: CGFloat, viewport: CGFloat, pageEnd: CGFloat) -> CGFloat {
+        let top = barBottom + 24
+        let bottom = viewport - 120
+        guard viewport > 0, bottom > top else { return top }
+        let left = max(0, pageEnd - viewport)  // scroll distance still to go
+        let span = viewport - barBottom
+        let p = min(1, max(0, 1 - left / span))
+        return top + p * (bottom - top)
     }
 
     private func jump(_ section: ProgressSection, _ proxy: ScrollViewProxy) {

@@ -265,6 +265,17 @@ struct SectionBarBottomKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
+/// Progress scroll view height and the page end (bottom marker, absent while lazily unloaded = far away).
+struct ViewportHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+struct PageEndKey: PreferenceKey {
+    static let defaultValue: CGFloat = .infinity
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = min(value, nextValue()) }
+}
+
 /// Slim lime streak row (was the big hero): streak, best, this week vs goal.
 struct StreakRow: View {
     let current: Int

@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Progress section bar lights the section on screen** (#286): scrolled to the bottom of Progress, the pinned bar still lit **Badges** while Muscles and History filled the screen, because a chip lit only once its section's top reached the bar and the short end sections never get there. The reading line now slides from under the bar down to the screen bottom over the last screenful of scrolling, so Muscles and then History light as they come into view; the bar still scrolls to keep the lit chip visible.
+
 ### Changed
 - **Release notes for the 2026-10-14 morning release** (What's new `2026-10-14.1`): 5 cards covering #268/#269 programmes (4 cards merged into 2), #266 missed workouts + Next up, #274 gym zones, #271/#273 gym save + Add a gym and #264 calendar day sheet.
 
