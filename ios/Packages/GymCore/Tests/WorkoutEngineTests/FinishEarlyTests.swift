@@ -104,4 +104,15 @@ import Testing
         #expect(out.id == s.id && out.blocks == fit.blocks)
         #expect(out.estMin <= s.estMin)
     }
+
+    @Test func plansSaveTimeInOrder() throws {
+        let s = session
+        let (current, done) = try onMainLift(s)
+        let wrap = try #require(FinishEarly.minutes(for: .wrapUp, s.blocks, setsDone: done, current: current))
+        let express = try #require(FinishEarly.minutes(for: .express, s.blocks, setsDone: done, current: current))
+        let balanced = try #require(FinishEarly.minutes(for: .balanced, s.blocks, setsDone: done, current: current))
+        #expect(wrap == 0 && wrap < express && express <= balanced)
+        let full = FinishEarly.fit(s.blocks, setsDone: done, current: current, minutes: 600).leftSec
+        #expect(balanced * 60 < full)
+    }
 }

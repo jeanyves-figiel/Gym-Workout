@@ -92,6 +92,35 @@ public enum FinishEarly {
         return out
     }
 
+    /// Coach Monkey's ready plans (#300, design C).
+    public enum Plan: String, CaseIterable, Sendable {
+        /// Current exercise, the main lift and a short cool-down.
+        case express
+        /// Halfway between express and the full workout: accessories kept with fewer sets.
+        case balanced
+        /// Finish the current exercise, then straight to the cool-down.
+        case wrapUp
+    }
+
+    /// Minutes asked for a plan; nil when the plan would not save time.
+    public static func minutes(for plan: Plan, _ blocks: [Block], setsDone done: [String: Int], current: String?) -> Int? {
+        let setsDone = behind(blocks, setsDone: done, current: current)
+        let full = remainingSec(blocks, setsDone: setsDone)
+        let all = blocks.flatMap(\.items)
+        let cool = remainingSec(blocks.filter { $0.kind == .cooldown }, setsDone: setsDone)
+        let main = blocks.first { $0.kind == .strength }?.items.first { $0.supersetWith == nil }
+        let now = all.first { $0.uid == current }.map { left($0, setsDone) } ?? 0
+        let mainLeft = main.flatMap { $0.uid == current ? nil : left($0, setsDone) } ?? 0
+        let express = now + mainLeft + min(cool, minCooldownSec)
+        let sec = switch plan {
+        case .wrapUp: 0
+        case .express: express
+        case .balanced: (express + full) / 2
+        }
+        let m = (sec + 59) / 60
+        return m * 60 < full ? m : nil
+    }
+
     /// Sets done with the items behind `current` counted as finished.
     public static func behind(_ blocks: [Block], setsDone: [String: Int], current: String?) -> [String: Int] {
         guard let current else { return setsDone }
