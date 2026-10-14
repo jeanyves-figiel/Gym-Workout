@@ -16,8 +16,8 @@
     {
       "symbol": "timer",
       "tint": "cardio",
-      "title": "Need to leave early?",
-      "body": "Tell the player how many minutes you have left. The rest of the workout is refitted to that time, keeping your main lift and a cool-down."
+      "title": "Short on time?",
+      "body": "Tap the clock in the player (or pause → Finish early) and Coach Monkey fits the rest of your workout to the time you have: Express, Balanced, Wrap up now or your own minutes. Your main lift goes last, the cool-down stays, and Undo brings the full workout back."
     },
     {
       "symbol": "hand.tap.fill",
