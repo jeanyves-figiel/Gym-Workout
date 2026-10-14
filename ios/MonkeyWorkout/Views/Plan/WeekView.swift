@@ -79,7 +79,7 @@ struct WeekView: View {
         .navigationTitle("Train")
         .toolbarTitleDisplayMode(.inlineLarge)
         .navigationDestination(for: String.self) { id in SessionView(sessionId: id) }
-        .navigationDestination(for: ProgrammeRoute.self) { r in Programme.find(r.id).map { ProgrammeDetailView(programme: $0) } }
+        .navigationDestination(for: ProgrammeRoute.self) { r in model.findProgramme(r.id).map { ProgrammeDetailView(programme: $0) } }
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $editing) {
             NavigationStack {

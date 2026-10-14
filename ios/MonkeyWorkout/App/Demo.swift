@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|account-security|account-reauth|account-2step|account-recovery|account-passkeys|signin-2step|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|whats-new-history|watch-home|game-{week|session|done|progress}-{coach|deck|rings}|game-quest-deck|game-ladder|game-levelup|game-levelup-legend|game-level-row|explore-programmes|programme|programme-running|train-programme|programme-test|progress-programmes|profile-programme|calendar-programme|programme-finished|train-missed|missed-catchup|missed-log|calendar-missed]`
+/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|account-security|account-reauth|account-2step|account-recovery|account-passkeys|signin-2step|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|whats-new-history|watch-home|game-{week|session|done|progress}-{coach|deck|rings}|game-quest-deck|game-ladder|game-levelup|game-levelup-legend|game-level-row|explore-programmes|programme|programme-running|train-programme|programme-test|progress-programmes|profile-programme|calendar-programme|programme-finished|programme-length|programme-grid|programme-grid-running|programme-mine|programme-builder|programme-builder-week|train-missed|missed-catchup|missed-log|calendar-missed]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("-demo") }
@@ -81,10 +81,16 @@ enum Demo {
     }()
 
     /// Training programme screens (#255): Strength foundation running (week 4, or week 8 = test week), and
-    /// Climber's power finished earlier.
+    /// Climber's power finished earlier; a member-made programme on Explore (#269).
     @MainActor static func programme(_ model: AppModel) {
-        let running = ["train-programme", "programme-test", "programme-running", "progress-programmes", "profile-programme",
+        let running = ["train-programme", "programme-test", "programme-running", "programme-grid-running", "progress-programmes", "profile-programme",
                        "calendar-programme"]
+        if screen == "explore-programmes" {
+            // Member-made programme (#269) in My programmes.
+            guard var mine = Programme.find("strength-foundation")?.copy(name: "My summer strength") else { return }
+            mine.phases = Programme.phases(weeks: 10, test: true)
+            model.state.synced?.customProgrammes = [mine]
+        }
         guard running.contains(screen) || screen == "programme-finished" else { return }
         let cal = Progression.calendar()
         let now = Date()

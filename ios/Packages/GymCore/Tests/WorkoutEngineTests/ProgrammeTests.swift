@@ -22,7 +22,7 @@ import Testing
     }
 
     @Test func catalogIsSoundAndUsesRealExercises() {
-        #expect(Programme.all.count >= 3)
+        #expect(Programme.all.count >= 5)
         #expect(Set(Programme.all.map(\.id)).count == Programme.all.count)
         for p in Programme.all {
             #expect(p.weeks >= 4 && p.weeks <= 12, "\(p.id)")
@@ -152,5 +152,113 @@ import Testing
         #expect(out[0].before! < out[0].now!)
         #expect(out[0].change! > 0)
         #expect(out[1].before == nil && out[1].now == nil && out[1].change == nil)
+    }
+
+    @Test func lengthsStretchBaseAndBuildOnly() {
+        let sf = Programme.strengthFoundation
+        #expect(sf.lengths.map(\.weeks) == [6, 8, 10, 12])
+        #expect(sf.lengths.filter(\.standard).map(\.weeks) == [8])
+        let ten = sf.resized(to: 10)
+        #expect(ten.weeks == 10)
+        #expect(ten.phases.map(\.weeks) == [4, 3, 1, 1, 1])
+        #expect(sf.resized(to: 6).phases.map(\.weeks) == [2, 1, 1, 1, 1])
+        #expect(sf.resized(to: 12).phases.map(\.weeks) == [5, 4, 1, 1, 1])
+        #expect(sf.resized(to: 8) == sf)
+        // Too short to keep a week of Base and Build: standard.
+        #expect(sf.resized(to: 4) == sf)
+        #expect(ten.phase(week: 10).kind == .test && ten.phase(week: 4).kind == .base && ten.phase(week: 5).kind == .build)
+        for p in Programme.all {
+            #expect(p.lengths.count >= 3, "\(p.id)")
+            for l in p.lengths {
+                let r = p.resized(to: l.weeks)
+                #expect(r.weeks == l.weeks && r.phases == l.phases, "\(p.id) \(l.weeks)")
+                #expect(r.phases.allSatisfy { $0.weeks >= 1 })
+                #expect(r.phases.map(\.kind) == p.phases.map(\.kind))
+            }
+        }
+        #expect(Programme.muscleBuilder.lengths.map(\.weeks) == [4, 6, 8, 10])
+    }
+
+    @Test func memberLengthIsKeptAndDecodesFromOlderProfiles() throws {
+        let saved = ActiveProgramme.SavedPlan(profile: member(), seed: 1, week: 1)
+        let a = ActiveProgramme(programmeId: "strength-foundation", start: day("2026-10-12"), seed: 3, saved: saved, length: 12)
+        #expect(a.programme?.weeks == 12)
+        #expect(!a.finished(on: day("2026-12-28"), calendar: cal))
+        #expect(a.finished(on: day("2027-01-04"), calendar: cal))
+        let back = try JSONDecoder().decode(ActiveProgramme.self, from: JSONEncoder().encode(a))
+        #expect(back.length == 12)
+        // Saved before #268: no length, standard programme.
+        var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(a)) as! [String: Any]
+        json.removeValue(forKey: "length")
+        let old = try JSONDecoder().decode(ActiveProgramme.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(old.length == nil && old.programme?.weeks == 8)
+        let r = ProgrammeRecord(programmeId: "muscle-builder", start: day("2026-10-12"), end: day("2026-12-12"), finished: true,
+                                weeks: 8, length: 8)
+        #expect(r.programme?.weeks == 8)
+    }
+
+    @Test func previewWeeksCarryTheSignatures() {
+        let prog = Programme.strengthFoundation.resized(to: 10)
+        for week in 1...prog.weeks {
+            let plan = prog.previewWeek(week, member: member(), seed: 1, starting: true)
+            #expect(plan.sessions.count == prog.sessionsPerWeek, "week \(week)")
+            let sigs = plan.sessions.filter(\.isPlanInsert).count
+            #expect(prog.phase(week: week).kind == .test ? sigs == 0 : sigs == 2, "week \(week)")
+        }
+        // Every programme pins at least one signature in week 1.
+        for p in Programme.all {
+            let plan = p.previewWeek(1, member: member(climbing: p.climbing ? 2 : 0), seed: 1, starting: true)
+            #expect(plan.sessions.contains { $0.isPlanInsert }, "\(p.id)")
+        }
+        // Same seed, same preview.
+        #expect(prog.previewWeek(3, member: member(), seed: 5, starting: true) == prog.previewWeek(3, member: member(), seed: 5, starting: true))
+    }
+
+    @Test func memberProgrammePhasesFitTheLength() {
+        for weeks in 4...12 {
+            for test in [true, false] {
+                let ph = Programme.phases(weeks: weeks, test: test)
+                #expect(ph.reduce(0) { $0 + $1.weeks } == weeks, "\(weeks) \(test)")
+                #expect(ph.allSatisfy { $0.weeks >= 1 })
+                #expect(ph.last?.kind == (test ? .test : .ease))
+                #expect(ph.first?.kind == .base)
+            }
+        }
+        #expect(Programme.phases(weeks: 8, test: true).map(\.weeks) == [3, 2, 1, 1, 1])
+    }
+
+    @Test func workoutBecomesASignatureWithProgression() {
+        let sig = ProgrammeSignature.from(
+            id: "sig-1", name: "My legs", focus: nil,
+            items: [("arm-circles", 1, 15, 0), ("back-squat", 4, 8, 150), ("back-squat", 3, 5, 90), ("plank", 3, 30, 60)],
+            progression: true)
+        #expect(sig.items.map(\.exerciseId) == ["back-squat", "plank"])
+        #expect(sig.items[0].dose(.base) == .init(4, "8"))
+        #expect(sig.items[0].dose(.build) == .init(4, "6"))
+        #expect(sig.items[0].dose(.peak) == .init(4, "4"))
+        #expect(sig.items[0].dose(.ease) == .init(3, "8"))
+        #expect(sig.items[1].dose(.base).reps == "30 s")
+        #expect(sig.replaces.first == .legs)
+        #expect(Set(sig.replaces) == Set(Focus.allCases))
+        let flat = ProgrammeSignature.from(id: "s", name: "x", focus: .push, items: [("bench-press", 3, 8, 90)], progression: false)
+        #expect(flat.items[0].dose(.peak) == .init(3, "8") && flat.replaces.first == .push)
+    }
+
+    @Test func memberProgrammeRunsFromItsSnapshot() throws {
+        var mine = Programme.strengthFoundation.copy()
+        #expect(mine.mine && mine.basedOn == "strength-foundation" && mine.name == "My strength foundation")
+        #expect(Programme.find(mine.id) == nil)
+        mine.phases = Programme.phases(weeks: 10, test: true)
+        let saved = ActiveProgramme.SavedPlan(profile: member(), seed: 1, week: 1)
+        let a = ActiveProgramme(programmeId: mine.id, start: day("2026-10-12"), seed: 3, saved: saved, custom: mine)
+        #expect(a.programme == mine && a.programme?.weeks == 10)
+        #expect(mine.lengths.contains { $0.standard && $0.weeks == 10 })
+        let back = try JSONDecoder().decode(ActiveProgramme.self, from: JSONEncoder().encode(a))
+        #expect(back == a)
+        var shorter = a
+        shorter.length = mine.lengths.first!.weeks
+        #expect(shorter.programme!.weeks < 10)
+        let plan = mine.previewWeek(1, member: member(), seed: 1, starting: true)
+        #expect(plan.sessions.contains { $0.isPlanInsert })
     }
 }

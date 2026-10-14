@@ -6,6 +6,30 @@
       "tint": "power",
       "title": "Missed a workout? Catch up",
       "body": "Train now shows today or your next training day. Next up has a week strip: a missed day turns red. Tap it to log what you did, mark it done, do it today or skip it. The coach, Calendar and Apple Watch show it too, and a new week starts on its own every Monday."
+    },
+    {
+      "symbol": "square.grid.3x3.fill",
+      "tint": "strength",
+      "title": "Every workout of a programme",
+      "body": "A programme's page now shows all its workouts week by week, built for your gym and days. Tap one to see its exercises, sets and reps."
+    },
+    {
+      "symbol": "calendar.badge.clock",
+      "tint": "cardio",
+      "title": "Pick your programme length",
+      "body": "Quick, Standard, Extended or Long haul: choose how long a programme runs when you start it, and change it later. Base and Build stretch or shrink to fit."
+    },
+    {
+      "symbol": "bolt.heart.fill",
+      "tint": "warmup",
+      "title": "Two new programmes",
+      "body": "Athletic engine (6 weeks of jumps, heavy pulls and conditioning) and Fresh start (4 weeks for new or returning members)."
+    },
+    {
+      "symbol": "square.and.pencil",
+      "tint": "power",
+      "title": "Build your own programme",
+      "body": "Explore → Programmes → New programme: pick a goal, length and your own workouts in 4 steps. Or tap Make it mine on any programme to copy and change it."
     }
   ]
 }

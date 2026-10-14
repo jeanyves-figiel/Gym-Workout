@@ -140,6 +140,11 @@ private struct DemoScreen: View {
         // Training programmes (#255); train-programme and programme-test are the Train tab.
         case "explore-programmes": NavigationStack { LibraryView(mode: .programmes) }
         case "programme", "programme-running": NavigationStack { ProgrammeDetailView(programme: Programme.all[0]) }
+        case "programme-length": NavigationStack { ProgrammeDetailView(programme: Programme.all[0], demoLength: true) }
+        case "programme-grid", "programme-grid-running":
+            NavigationStack { ProgrammeDetailView(programme: Programme.all[0], demoGrid: true) }
+        case "programme-mine": NavigationStack { ProgrammeDetailView(programme: Programme.all[0], demoEdit: true) }
+        case "programme-builder", "programme-builder-week": ProgrammeBuilderView()
         case "progress-programmes": NavigationStack { ProgressTabView(demoSection: .programmes) }
         case "profile-programme": NavigationStack { TrainingProfileView().navigationTitle("Training profile") }
         case "calendar-programme": NavigationStack { CalendarView() }
