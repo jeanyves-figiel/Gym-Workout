@@ -218,12 +218,22 @@ public enum Generator {
     static let raiseUpper = ["rower", "ski-erg", "air-bike", "elliptical"]
     static let raiseLower = ["bike", "incline-walk", "rower", "elliptical", "stair-climber"]
 
+    /// Drills that wake up glutes, scapulae and rotator cuff (activation warm-up, #293).
+    static let activationDrills = ["glute-bridge", "scap-push-up", "band-dislocates", "kb-halo", "wrist-prep"]
+
     static func warmup(_ ctx: Ctx, _ focus: Focus, _ minutes: Int, _ uid: String) -> Block {
         ctx.begin(uid)
+        let style = ctx.profile.warmupStyle ?? .auto
         let upper = [Focus.upper, .push, .pull, .fullUpper, .chestTri, .backBi, .shouldersArms, .chestBack].contains(focus)
-        let raiseMin = ctx.short ? 2 : minutes > 10 ? minutes - 5 : minutes >= 9 ? 5 : 4
+        let raiseMin: Int
+        switch style {
+        case .auto: raiseMin = ctx.short ? 2 : minutes > 10 ? minutes - 5 : minutes >= 9 ? 5 : 4
+        case .pulse: raiseMin = max(2, minutes - 2)
+        case .dynamic: raiseMin = 0
+        case .activation: raiseMin = ctx.short ? 1 : 2
+        }
         var items: [PlannedExercise] = []
-        if let raise = Selector.select(ctx, Query(category: .cardio, prefer: upper ? raiseUpper : raiseLower)) {
+        if raiseMin > 0, let raise = Selector.select(ctx, Query(category: .cardio, prefer: upper ? raiseUpper : raiseLower)) {
             items.append(PlannedExercise(
                 uid: "\(uid)-0", exerciseId: raise.id, slot: .general,
                 prescription: Prescription(sets: 1, reps: "\(raiseMin) min", restSec: 0, intensity: "Easy → moderate · RPE 3–5"),
@@ -231,16 +241,28 @@ public enum Generator {
         }
         var regions = Rules.regions(focus)
         if ctx.climber && !regions.contains(.wrists) { regions.append(.wrists) }
-        let drills = ctx.short ? 2 : clamp(Int((Double(minutes - raiseMin) / 0.9).rounded()), 3, 6)
+        let drills: Int
+        switch style {
+        case .pulse: drills = ctx.short ? 1 : 2
+        case .dynamic: drills = clamp(Int((Double(minutes) / 0.9).rounded()), 3, 8)
+        case .auto, .activation: drills = ctx.short ? 2 : clamp(Int((Double(minutes - raiseMin) / 0.9).rounded()), 3, 6)
+        }
+        let prefer = style == .activation ? activationDrills : []
         for i in 0..<drills {
-            guard let d = Selector.select(ctx, Query(category: .warmup, regions: [regions[i % regions.count]])) else { continue }
+            guard let d = Selector.select(ctx, Query(category: .warmup, regions: [regions[i % regions.count]], prefer: prefer)) else { continue }
             items.append(PlannedExercise(
                 uid: "\(uid)-\(items.count)", exerciseId: d.id, slot: .general,
                 prescription: Prescription(sets: 1, reps: d.unilateral ? "6 / side" : "8–10", restSec: 0),
                 estSec: 50))
         }
-        return Block(kind: .warmup, title: "Warm-up", targetMin: minutes, items: items,
-                     note: "Raise heart rate, then move through today's ranges. Ramp-up sets for the first lift come in the strength block.")
+        let note: String
+        switch style {
+        case .auto: note = "Raise heart rate, then move through today's ranges. Ramp-up sets for the first lift come in the strength block."
+        case .pulse: note = "Easy cardio to get warm, then two drills. Ramp-up sets for the first lift come in the strength block."
+        case .dynamic: note = "No machine: flow through today's ranges until you feel warm. Ramp-up sets come in the strength block."
+        case .activation: note = "Short raise, then wake up glutes, shoulder blades and rotator cuff. Ramp-up sets come in the strength block."
+        }
+        return Block(kind: .warmup, title: "Warm-up", targetMin: minutes, items: items, note: note)
     }
 
     // MARK: Power
@@ -509,26 +531,66 @@ public enum Generator {
     public static let minStretches = 3
 
     static func cooldown(_ ctx: Ctx, _ minutes: Int, _ prior: [Block], _ uid: String) -> Block {
+        let style = ctx.profile.cooldownStyle ?? .auto
         let budget = Double(minutes * 60)
         var load = muscleLoad(prior)
         if ctx.climber { load[.forearms, default: 0] += 2 }
         var items: [PlannedExercise] = []
         var used = 0.0
 
-        if let cardio = prior.first(where: { $0.kind == .cardio }), !cardio.title.contains("Zone 2"), let c = cardio.items.first {
-            items.append(PlannedExercise(
-                uid: "\(uid)-flush", exerciseId: c.exerciseId, slot: .general,
-                prescription: Prescription(sets: 1, reps: "2 min", restSec: 0, intensity: "Very easy · bring HR down"), estSec: 120))
-            used += 120
+        switch style {
+        case .auto:
+            if let cardio = prior.first(where: { $0.kind == .cardio }), !cardio.title.contains("Zone 2"), let c = cardio.items.first {
+                items.append(PlannedExercise(
+                    uid: "\(uid)-flush", exerciseId: c.exerciseId, slot: .general,
+                    prescription: Prescription(sets: 1, reps: "2 min", restSec: 0, intensity: "Very easy · bring HR down"), estSec: 120))
+                used += 120
+            }
+        case .easyCardio:
+            let easyMin = max(3, minutes / 2)
+            let machine = prior.first(where: { $0.kind == .cardio })?.items.first?.exerciseId
+                ?? Selector.candidates(level: ctx.level, equipment: ctx.equipment, Query(category: .cardio))
+                    .first { raiseLower.contains($0.id) }?.id
+            if let machine {
+                items.append(PlannedExercise(
+                    uid: "\(uid)-flush", exerciseId: machine, slot: .general,
+                    prescription: Prescription(sets: 1, reps: "\(easyMin) min", restSec: 0, intensity: "Very easy · bring HR down"),
+                    estSec: easyMin * 60))
+                used += Double(easyMin * 60)
+            }
+        case .foamRoll:
+            let rolls = Exercise.catalog.filter { $0.id.hasPrefix("foam-roll") && Selector.isAvailable($0, ctx.equipment) }
+            var left = load
+            var rolled: Set<String> = []
+            while used < budget * 0.5 {
+                var best: Exercise?
+                var bestScore = 0.0
+                for r in rolls where !rolled.contains(r.id) {
+                    let sc = r.primary.reduce(0) { $0 + (left[$1] ?? 0) }
+                    if sc > bestScore + 1e-9 { bestScore = sc; best = r }
+                }
+                guard let r = best else { break }
+                rolled.insert(r.id)
+                for m in r.primary { left[m] = (left[m] ?? 0) * 0.25 }
+                let est = r.unilateral ? 90.0 : 60.0
+                items.append(PlannedExercise(
+                    uid: "\(uid)-roll\(items.count)", exerciseId: r.id, slot: .general,
+                    prescription: Prescription(sets: 1, reps: r.unilateral ? "40 s / side" : "60 s", restSec: 0, intensity: "Slow · pause on tight spots"),
+                    estSec: Int(est)))
+                used += est
+            }
+        case .stretch, .breathe:
+            break
         }
 
-        let breathingSec = 90.0
+        let rolledAny = items.contains { $0.exerciseId.hasPrefix("foam-roll") }
+        let breathingSec = style == .breathe ? 180.0 : 90.0
         let stretches = Selector.candidates(level: ctx.level, equipment: ctx.equipment, Query(category: .stretch)).filter { $0.id != "breathing" }
         var remaining = load
         var chosen: Set<String> = []
         var stretchCount = 0
         // Stretching is mandatory: at least `minStretches` (2 in a short quick session), more while the budget allows.
-        let least = ctx.short ? 2 : minStretches
+        let least = ctx.short || rolledAny || style == .easyCardio || style == .breathe ? 2 : minStretches
         while stretchCount < least || used + breathingSec < budget {
             var best: Exercise?
             var bestScore = 0.0
@@ -550,10 +612,12 @@ public enum Generator {
         }
         items.append(PlannedExercise(
             uid: "\(uid)-breath", exerciseId: "breathing", slot: .general,
-            prescription: Prescription(sets: 1, reps: "90 s", restSec: 0), estSec: Int(breathingSec)))
+            prescription: Prescription(sets: 1, reps: "\(Int(breathingSec)) s", restSec: 0), estSec: Int(breathingSec)))
 
         let top = load.sorted { $0.value > $1.value || ($0.value == $1.value && $0.key.rawValue < $1.key.rawValue) }.prefix(4).map(\.key.label)
         return Block(kind: .cooldown, title: "Stretching & cool-down", targetMin: minutes, items: items,
-                     note: "Static stretches for today's most-loaded muscles: \(top.joined(separator: ", ")).")
+                     note: (rolledAny ? "Foam rolling, then static stretches" : "Static stretches")
+                        + " for today's most-loaded muscles: \(top.joined(separator: ", "))."
+                        + (style == .breathe ? " Finish with long, slow breathing." : ""))
     }
 }

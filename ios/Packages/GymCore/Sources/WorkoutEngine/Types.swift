@@ -249,6 +249,9 @@ public struct Profile: Codable, Hashable, Sendable {
     public var focusMuscles: [MuscleGroup]?
     /// Where equipment sits in the home gym (#274): supersets / circuits stay in one zone. nil = grouped as before.
     public var gymLayout: GymLayout?
+    /// Default warm-up / cool-down style (#293); nil = `.auto` (picked to match the exercises as before).
+    public var warmupStyle: WarmupStyle?
+    public var cooldownStyle: CooldownStyle?
 
     public init(
         goal: Goal = .balanced, sessionsPerWeek: Int = 3, experience: Experience = .intermediate,
