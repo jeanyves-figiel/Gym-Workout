@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Coach Monkey card: every chip and tip leads somewhere** (#278): tapping the card only showed the next tip; its chips (streak, this week, missed, tap me) did nothing. Designs A + B from `coach-monkey-actions/proposals.png`: **🔥 wk ›** opens Progress → Training, **n/3 this week ›** opens the calendar, **n missed ›** opens the catch-up sheet, **next tip ↻** replaces "tap me". Each tip gets its own lime button: **Start <workout>** (opens the player), **Catch up**, **See streak** / **See progress**, **Open <exercise>** on the best-lift tip, **See levels**, **Open calendar**. Tap the monkey or swipe left/right for the next tip; dots show which tip is on.
+
 ### Changed
 - **Release notes for the 2026-10-14 morning release** (What's new `2026-10-14.1`): 5 cards covering #268/#269 programmes (4 cards merged into 2), #266 missed workouts + Next up, #274 gym zones, #271/#273 gym save + Add a gym and #264 calendar day sheet.
 
