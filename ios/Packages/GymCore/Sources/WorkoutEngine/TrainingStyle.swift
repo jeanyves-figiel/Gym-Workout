@@ -179,7 +179,8 @@ extension Generator {
     /// Groups the strength block's accessories per the profile's grouping. The main lift stays straight sets;
     /// prehab supersetted into another exercise's rest stays attached to it. Members are moved next to each other,
     /// get the same rest (taken after the round) and a label: "A1", "A2", "B1", …
-    static func applyGrouping(_ block: Block, _ grouping: Grouping) -> Block {
+    /// With gym zones (#274) a group only holds exercises near each other, and groups in the same zone follow each other.
+    static func applyGrouping(_ block: Block, _ grouping: Grouping, layout: GymLayout? = nil) -> Block {
         guard grouping != .straight, block.kind == .strength else { return block }
         var b = block
         let attached = Dictionary(grouping: b.items.filter { $0.supersetWith != nil }, by: { $0.supersetWith! })
@@ -198,21 +199,18 @@ extension Generator {
             if buckets[k] == nil { order.append(k) }
             buckets[k, default: []].append(item)
         }
+        let near: (PlannedExercise, PlannedExercise) -> Bool = { layout.near($0.exerciseId, $1.exerciseId) }
         var groups: [[PlannedExercise]] = []
         for k in order {
-            let members = buckets[k]!
-            var i = 0
-            while i < members.count {
-                let chunk = Array(members[i..<min(i + size, members.count)])
-                // A trailing single can't group: it joins the previous group of that area (circuits) or stays straight.
+            for chunk in GymLayout.chunk(buckets[k]!, size: size, near: near) {
+                // A single can't group: it joins the previous group of that area (circuits, when near) or stays straight.
                 if chunk.count == 1 {
-                    if grouping == .circuits, !groups.isEmpty, key(groups[groups.count - 1][0]) == k {
+                    if grouping == .circuits, let last = groups.last, key(last[0]) == k, last.allSatisfy({ near($0, chunk[0]) }) {
                         groups[groups.count - 1].append(chunk[0])
                     }
                 } else {
                     groups.append(chunk)
                 }
-                i += size
             }
         }
         guard !groups.isEmpty else { return b }
@@ -243,10 +241,52 @@ extension Generator {
                 out += attached[item.uid] ?? []
             }
         }
-        b.items = out
+        b.items = layout.map { roomOrder(out, $0) } ?? out
         let style = grouping == .supersets ? "Supersets" : "Circuits"
         b.note = [b.note, "\(style): same-letter exercises back to back (A1 → A2), rest after the round."].compactMap { $0 }.joined(separator: " ")
         return b
+    }
+
+    /// Gym zones (#274): after the main lift, each group (or straight exercise) pulls the later ones in its zone
+    /// right behind it, so the member moves zone as few times as possible. Order otherwise kept.
+    static func roomOrder(_ items: [PlannedExercise], _ layout: GymLayout) -> [PlannedExercise] {
+        // Units: a group's members, or one exercise, each with the prehab riding its rest.
+        var units: [[PlannedExercise]] = []
+        for item in items {
+            let letter = item.group?.first
+            if let last = units.last?.first(where: { $0.supersetWith == nil }),
+               item.supersetWith != nil || (letter != nil && last.group?.first == letter) {
+                units[units.count - 1].append(item)
+            } else {
+                units.append([item])
+            }
+        }
+        guard units.count > 2 else { return items }
+        let zoneOf: ([PlannedExercise]) -> String? = { u in
+            u.lazy.compactMap { Exercise.find($0.exerciseId).flatMap { layout.zone(of: $0)?.id } }.first
+        }
+        var left = Array(units.dropFirst())
+        var out = [units[0]]
+        while !left.isEmpty {
+            let u = left.removeFirst()
+            out.append(u)
+            guard let z = zoneOf(u) else { continue }
+            // Pulled forward only past a unit in another zone (units done anywhere don't make anyone walk).
+            while let j = left.firstIndex(where: { zoneOf($0) == z }),
+                  left[..<j].contains(where: { zoneOf($0).map { $0 != z } ?? false }) {
+                out.append(left.remove(at: j))
+            }
+        }
+        // Letters follow the new order: A, B, C…
+        var letters: [Character: Character] = [:]
+        return out.flatMap { $0 }.map { item in
+            guard let g = item.group, let old = g.first else { return item }
+            let new = letters[old] ?? Character(Unicode.Scalar(UInt8(65 + letters.count % 26)))
+            letters[old] = new
+            var m = item
+            m.group = String(new) + g.dropFirst()
+            return m
+        }
     }
 
     /// Grouping can leave the block short when the focus has no more slots to fill: add a round to the groups

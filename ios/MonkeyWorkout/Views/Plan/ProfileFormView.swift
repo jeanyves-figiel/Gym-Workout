@@ -784,12 +784,14 @@ private struct GymPicker: View {
             Text(note).font(.footnote).foregroundStyle(Theme.muted)
         }
         .sheet(isPresented: $showEquipment, onDismiss: {
+            // Zones (#274) are kept as soon as the page closes, like the list.
+            if selectedId == model.homeGym.id { model.setGymLayout(profile.gymLayout) }
             if setupAfterEquipment {
                 setupAfterEquipment = false
                 settingUp = SetupTarget(ref: selectedRef)
             }
         }) {
-            EquipmentSheet(equipment: $profile.equipment) { setupAfterEquipment = true }
+            EquipmentSheet(equipment: $profile.equipment, layout: $profile.gymLayout) { setupAfterEquipment = true }
         }
         .sheet(isPresented: $findingNearby, onDismiss: {
             // After the map closes, so an unknown gym's setup sheet can open.
@@ -802,6 +804,7 @@ private struct GymPicker: View {
                 model.saveGym(g)
                 profile.gym = g.ref
                 profile.equipment = g.equipment
+                profile.gymLayout = model.savedGyms.first { $0.id == g.id }?.layout
             }
         }
         .task(id: query) {
@@ -916,6 +919,7 @@ private struct GymPicker: View {
     private func use(_ g: SavedGym) {
         profile.gym = g.ref
         profile.equipment = g.equipment
+        profile.gymLayout = g.layout
     }
 }
 

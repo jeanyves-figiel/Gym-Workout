@@ -114,13 +114,18 @@ private struct DemoScreen: View {
     var body: some View {
         let second = model.plan?.sessions.dropFirst().first?.id ?? ""
         switch Demo.screen {
-        case "session": NavigationStack { SessionView(sessionId: second) }
+        case "session", "session-zones": NavigationStack { SessionView(sessionId: second) }
         case "workout-style": if let s = model.session(second) { WorkoutStyleSheet(session: s) }
         case "swap":
             if let item = model.plan?.sessions.dropFirst().first?.blocks.first(where: { $0.kind == .strength })?.items.first {
                 SwapExerciseSheet(exerciseId: item.exerciseId, uid: item.uid)
             }
-        case "player": WorkoutPlayerView(sessionId: second)
+        case "swap-zones":
+            // A superset member (#274): swap options near its partner first.
+            if let item = model.plan?.sessions.dropFirst().first?.blocks.first(where: { $0.kind == .strength })?.items.first(where: { $0.group != nil }) {
+                SwapExerciseSheet(exerciseId: item.exerciseId, uid: item.uid)
+            }
+        case "player", "player-zones": WorkoutPlayerView(sessionId: second)
         case "player-rest": WorkoutPlayerView(sessionId: second, demoRest: true)
         case "player-timed": WorkoutPlayerView(sessionId: second, demoMode: "timed")
         case "player-logged": WorkoutPlayerView(sessionId: second, demoMode: "logged")
@@ -243,6 +248,8 @@ private struct DemoScreen: View {
             BlockPicksSheet(kind: .warmup, picks: .constant(BlockPicks(items: [BlockPick(exerciseId: "treadmill-run", minutes: 7),
                                                                                 BlockPick(exerciseId: "cat-cow", minutes: 2)])))
         case "equipment": EquipmentSheet(equipment: .constant(GymKind.budget.equipment))
+        case "equipment-zones": EquipmentSheet(equipment: .constant(Gym.puls5.equipment), layout: .constant(Demo.layout))
+        case "floor-plan": FloorPlanSheet(layout: .constant(Demo.layout), equipment: Gym.puls5.equipment)
         case "gym-setup": GymSetupView(ref: Demo.holmes, actionTitle: "USE THIS GYM") { _ in }
         case "gym-swipe": GymSetupView(ref: nil, actionTitle: "USE THIS GYM", startStep: .swipe, startKind: .budget) { _ in }
         case "gym-result": GymSetupView(ref: nil, name: "Hotel Adlon", actionTitle: "USE FOR THIS TRIP", startStep: .result, startKind: .hotel) { _ in }

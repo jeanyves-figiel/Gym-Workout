@@ -96,6 +96,11 @@ final class AppModel {
                 ])
             default: break
             }
+            // Gym zones (#274): supersets kept in one zone.
+            if ["session-zones", "swap-zones", "player-zones"].contains(Demo.screen) {
+                state.synced?.profile.gymLayout = Demo.layout
+                state.synced?.profile.grouping = .supersets
+            }
             replanCurrentWeek()
             Demo.programme(self)
             Demo.missed(self)
