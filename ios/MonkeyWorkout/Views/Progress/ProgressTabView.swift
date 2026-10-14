@@ -114,7 +114,7 @@ struct ProgressTabView: View {
         .navigationTitle("Progress")
         .toolbarTitleDisplayMode(.inlineLarge)
         .navigationDestination(for: UUID.self) { id in HistoryDetailView(recordId: id) }
-        .navigationDestination(for: ProgrammeRoute.self) { r in Programme.find(r.id).map { ProgrammeDetailView(programme: $0) } }
+        .navigationDestination(for: ProgrammeRoute.self) { r in model.findProgramme(r.id).map { ProgrammeDetailView(programme: $0) } }
         .sheet(item: $badge) { b in BadgeSheet(badge: b).presentationDetents([.medium]) }
     }
 

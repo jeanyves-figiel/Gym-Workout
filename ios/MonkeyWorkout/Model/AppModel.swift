@@ -222,7 +222,8 @@ final class AppModel {
                                exerciseSwaps: state.synced?.exerciseSwaps, variation: variation, moves: state.synced?.moves,
                                sessionStyles: state.synced?.sessionStyles?.filter { $0.key.hasPrefix("w\(week)s") },
                                savedGyms: state.synced?.savedGyms, programme: state.synced?.programme,
-                               programmeHistory: state.synced?.programmeHistory, trainLayout: state.synced?.trainLayout)
+                               programmeHistory: state.synced?.programmeHistory, trainLayout: state.synced?.trainLayout,
+                               customProgrammes: state.synced?.customProgrammes)
         state.synced = sp
         // A profile edit (goal, days, gym…) re-plans the rest of this week (#194): sessions already done and the
         // one in progress keep their content; everything else follows the new profile.
