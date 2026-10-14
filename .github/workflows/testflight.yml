@@ -116,6 +116,10 @@ jobs:
           plutil -p "$X/Info.plist" | grep -E 'CFBundleIdentifier|NSExtensionPointIdentifier|MWAppGroup|MinimumOSVersion'
           codesign -d --entitlements - "$X" 2>/dev/null | grep -A3 application-groups || echo "::warning::no App Group entitlement on the complications extension"
           codesign -d --entitlements - "$W" 2>/dev/null | grep -A3 application-groups || echo "::warning::no App Group entitlement on the Watch app"
+          # Home Screen widgets (#297): the iPhone app writes, the widget extension reads the same App Group.
+          A="$RUNNER_TEMP/MonkeyWorkout.xcarchive/Products/Applications/MonkeyWorkout.app"
+          codesign -d --entitlements - "$A" 2>/dev/null | grep -A3 application-groups || echo "::warning::no App Group entitlement on the iPhone app: Home Screen widgets stay empty"
+          codesign -d --entitlements - "$A/PlugIns/MonkeyWorkoutWidgets.appex" 2>/dev/null | grep -A3 application-groups || echo "::warning::no App Group entitlement on the widget extension: Home Screen widgets stay empty"
       - name: Export + upload to App Store Connect
         if: steps.secrets.outputs.ok == 'true'
         run: |
