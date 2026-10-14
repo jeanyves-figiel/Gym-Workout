@@ -66,8 +66,6 @@ final class AppModel {
             state.synced = SyncedProfile(profile: Demo.profile, seed: 7, week: Demo.week)
             state.plan = Generator.generateWeek(Demo.profile, week: Demo.week, seed: 7)
             if let first = state.plan?.sessions.first { state.done[first.id] = true }
-            // Today = the day after the done session's, so nothing shows as missed by default.
-            demoToday = state.plan.map { WeekProgress.ordered($0).dropFirst().first?.weekday ?? 1 } ?? 1
             let demo = Demo.history()
             state.history = demo.records
             state.logs = demo.logs

@@ -109,10 +109,16 @@ enum Demo {
 
     /// Missed session screens (#266): the first session of the week not done and today on the second one's day.
     @MainActor static func missed(_ model: AppModel) {
-        guard ["train-missed", "missed-catchup", "missed-log", "calendar-missed"].contains(screen), let plan = model.plan else { return }
-        let ordered = WeekProgress.ordered(plan)
-        model.state.done = [:]
-        model.demoToday = ordered.dropFirst().first?.weekday ?? 3
+        if ["train-missed", "missed-catchup", "missed-log", "calendar-missed"].contains(screen) {
+            // No away periods: they re-plan undone sessions from the real today, so nothing would be missed.
+            model.state.synced?.away = nil
+            model.state.done = [:]
+            model.replanCurrentWeek()
+        }
+        // "Today" = the first session not done (nothing missed), or the second one's day on the screens above.
+        let ordered = model.plan.map(WeekProgress.ordered) ?? []
+        let next = model.state.done.isEmpty ? ordered.dropFirst().first : ordered.first { !model.doneIds.contains($0.id) }
+        model.demoToday = next?.weekday ?? 3
     }
 
     /// Current cycle week (2 = Build). Every demo screen (Train chip, cycle sheet, calendar, library) reads it via the plan.
