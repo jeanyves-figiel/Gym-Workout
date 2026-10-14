@@ -113,6 +113,12 @@ enum Demo {
             // No away periods: they re-plan undone sessions from the real today, so nothing would be missed.
             model.state.synced?.away = nil
             model.state.done = [:]
+            // Sessions on weekdays (gym Mon/Wed/Fri/Sun, climbing Tue/Sat), so the week strip shows.
+            var p = Demo.profile
+            p.gymWeekdays = [1, 3, 5, 7]
+            p.climbingWeekdays = [2, 6]
+            model.state.synced?.profile = p
+            model.state.plan = Generator.generateWeek(p, week: Demo.week, seed: 7)
             model.replanCurrentWeek()
         }
         // "Today" = the first session not done (nothing missed), or the second one's day on the screens above.
