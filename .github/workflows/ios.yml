@@ -91,6 +91,32 @@ jobs:
             exit 1
           fi
 
+  ui-tests:
+    name: UI tests (demo mode)
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select newest Xcode
+        run: |
+          XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+      - run: brew install xcodegen
+      - run: xcodegen generate --spec ios/project.yml
+      # Your gym edits stay after SAVE (#271).
+      - name: Run UI tests
+        run: |
+          set -o pipefail
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -E "iPhone 1[5-7] Pro \(" | grep -oE '[0-9A-F-]{36}')
+          echo "device=$DEVICE"
+          xcrun simctl boot "$DEVICE" || true
+          xcodebuild test -project ios/MonkeyWorkout.xcodeproj -scheme MonkeyWorkout -configuration Debug \
+            -destination "id=$DEVICE" -derivedDataPath build -skipPackagePluginValidation \
+            -only-testing:MonkeyWorkoutUITests CODE_SIGNING_ALLOWED=NO > test.log 2>&1 \
+            || { grep -E 'error:|failed|XCTAssert' test.log | sort -u | head -n 60; tail -n 80 test.log; exit 1; }
+          grep -E 'Test Case|Executed' test.log | tail -n 20
+
   screenshots:
     name: Screenshots (demo mode)
     needs: app
@@ -131,7 +157,7 @@ jobs:
           xcrun simctl status_bar "$DEVICE" override --time 9:41 --batteryLevel 100 --cellularBars 4 || true
           xcrun simctl install "$DEVICE" build/Build/Products/Debug-iphonesimulator/MonkeyWorkout.app
           mkdir -p shots
-          for s in welcome signin signup verify onboarding onboarding-climbing onboarding-figure week train-edit train-gallery train-customise train-data train-climber train-minimal train-looks climb climb-settings monkeygrade example session swap workout-style player player-rest player-timed player-logged explore explore-list explore-volume explore-female explore-3d explore-3d-back explore-3d-side explore-workouts muscle muscle-female exercise pr pr-attempt pr-result technique progress progress-flipped progress-records progress-empty history body account paywall pro pro-offer pro-gate account-profile account-password account-email account-security account-reauth account-2step account-recovery account-passkeys signin-2step readiness cycle picker library library-plan builder muscle-picker generate generated calendar day move add-workout add-workout-quick whats-new whats-new-history away gyms variety variation community community-join community-share community-profile community-members notifications reschedule profile profile-gym profile-goal profile-goal-focus day-focus profile-method profile-flow flow-session flow-builder flow-picks equipment gym-setup gym-swipe gym-result not-here measurements measurement-log measurement-detail measurement-howto measurement-guide watch-home game-week-coach game-week-deck game-week-rings game-session-coach game-session-deck game-session-rings game-done-coach game-done-deck game-done-rings game-progress-coach game-progress-deck game-progress-rings game-quest-deck game-ladder game-levelup game-levelup-legend game-level-row explore-programmes programme programme-running train-programme programme-test progress-programmes profile-programme calendar-programme programme-finished programme-length programme-grid programme-grid-running programme-mine programme-builder programme-builder-week train-missed missed-catchup missed-log calendar-missed; do
+          for s in welcome signin signup verify onboarding onboarding-climbing onboarding-figure week train-edit train-gallery train-customise train-data train-climber train-minimal train-looks climb climb-settings monkeygrade example session swap workout-style player player-rest player-timed player-logged explore explore-list explore-volume explore-female explore-3d explore-3d-back explore-3d-side explore-workouts muscle muscle-female exercise pr pr-attempt pr-result technique progress progress-flipped progress-records progress-empty history body account paywall pro pro-offer pro-gate account-profile account-password account-email account-security account-reauth account-2step account-recovery account-passkeys signin-2step readiness cycle picker library library-plan builder muscle-picker generate generated calendar day move add-workout add-workout-quick whats-new whats-new-history away gyms variety variation community community-join community-share community-profile community-members notifications reschedule profile profile-gym profile-gym-add profile-goal profile-goal-focus day-focus profile-method profile-flow flow-session flow-builder flow-picks equipment gym-setup gym-swipe gym-result not-here measurements measurement-log measurement-detail measurement-howto measurement-guide watch-home game-week-coach game-week-deck game-week-rings game-session-coach game-session-deck game-session-rings game-done-coach game-done-deck game-done-rings game-progress-coach game-progress-deck game-progress-rings game-quest-deck game-ladder game-levelup game-levelup-legend game-level-row explore-programmes programme programme-running train-programme programme-test progress-programmes profile-programme calendar-programme programme-finished programme-length programme-grid programme-grid-running programme-mine programme-builder programme-builder-week train-missed missed-catchup missed-log calendar-missed; do
             xcrun simctl launch --terminate-running-process "$DEVICE" Com.app.MonkeyWorkout.dev -demo -demoScreen "$s"
             sleep 6
             case "$s" in explore-3d*) sleep 10 ;; esac  # 3D figure is built after launch (Debug build)

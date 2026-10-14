@@ -2,12 +2,6 @@
   "id": "2026-10-14.1",
   "items": [
     {
-      "symbol": "calendar.badge.exclamationmark",
-      "tint": "power",
-      "title": "Missed a workout? Catch up",
-      "body": "Train now shows today or your next training day. Next up has a week strip: a missed day turns red. Tap it to log what you did, mark it done, do it today or skip it. The coach, Calendar and Apple Watch show it too, and a new week starts on its own every Monday."
-    },
-    {
       "symbol": "square.grid.3x3.fill",
       "tint": "strength",
       "title": "Every workout of a programme",

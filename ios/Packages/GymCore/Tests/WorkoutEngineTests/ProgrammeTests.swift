@@ -140,6 +140,24 @@ import Testing
         #expect(back == r)
     }
 
+    /// Leaving a programme brings back the member's goal, split and method, not the gym list they had then.
+    @Test func restoringKeepsGymEditedDuringTheProgramme() throws {
+        var own = member()
+        own.split = .upperLower
+        own.method = .block
+        own.equipment = Array(Gym.puls5.equipment.prefix(48))
+        let saved = ActiveProgramme.SavedPlan(profile: own, seed: 1, week: 2)
+        let prog = try #require(Programme.all.first)
+        var now = prog.profile(from: own, starting: true)
+        now.equipment = Gym.puls5.equipment
+        now.gymWeekdays = [1, 3, 5]
+        let back = saved.restoring(onto: now)
+        #expect(back.equipment == Gym.puls5.equipment)
+        #expect(back.gymWeekdays == [1, 3, 5])
+        #expect(back.goal == own.goal && back.split == own.split && back.method == own.method)
+        #expect(back.focusMuscles == own.focusMuscles && back.sessionsPerWeek == own.sessionsPerWeek)
+    }
+
     @Test func liftsCompareBeforeAndSinceTheStart() {
         let start = day("2026-10-12")
         let logs = [

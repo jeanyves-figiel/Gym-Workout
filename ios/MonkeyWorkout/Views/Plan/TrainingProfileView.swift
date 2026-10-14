@@ -58,12 +58,9 @@ struct ProfileSectionView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        ProfileFormView(initial: model.profile, section: section) { p in
-            // Switching gyms keeps the previous one saved with its list (#180).
-            if section == .gym, (p.gym ?? Gym.puls5.ref).id != model.homeGym.id { model.rememberHomeGym() }
-            model.updateProfile(p)
-            // Keeps the gym's own list for switching back later (#162).
-            if section == .gym { model.rememberHomeGym() }
+        ProfileFormView(initial: model.profile, section: section,
+                        onGymChange: section == .gym ? { model.editGym($0) } : nil) { p in
+            if section == .gym { model.editGym(p) } else { model.updateProfile(p) }
             dismiss()
         }
         .navigationTitle(section.title)
