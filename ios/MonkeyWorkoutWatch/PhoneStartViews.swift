@@ -3,9 +3,12 @@ import WatchKit
 
 // iPhone → Watch start prompt (#347): the iPhone started a workout and woke this Watch.
 
-/// Join card: the workout and one big START; Not now leaves the Watch alone.
+/// Join card with a countdown (user pick A + B): the workout and one big START whose ring runs down
+/// for 5 s with a tick each second, then tracking starts by itself. Not now leaves the Watch alone.
 struct PhoneStartView: View {
     @Environment(WatchStore.self) private var store
+    static let countdown = 5
+    @State private var left = PhoneStartView.countdown
 
     var body: some View {
         let theme = store.theme
@@ -17,10 +20,9 @@ struct PhoneStartView: View {
                 case .tiles: tiles(w)
                 case .game: game(w)
                 }
-                LimeButton(title: theme == .game ? "▶ GO!" : "▶ START ON WATCH") {
+                StartCountdownButton(title: theme == .game ? "GO!" : "START ON WATCH", left: left, total: Self.countdown) {
                     Task { await store.trackPhoneWorkout() }
                 }
-                .accessibilityHint("Tracks heart rate and calories and shows the iPhone workout controls")
                 Button { store.declineOffer() } label: {
                     Text("Not now").font(W.label(12)).foregroundStyle(.white)
                         .frame(maxWidth: .infinity, minHeight: 28)
@@ -31,7 +33,20 @@ struct PhoneStartView: View {
             .foregroundStyle(.white)
         }
         .modifier(ThemeBackground(theme: theme, colour: W.gradient(w.tint, 0x8A3DFF), glow: theme == .game ? 0x8A3DFF : w.tint))
-        .onAppear { WKInterfaceDevice.current().play(.start) }
+        .task {
+            WKInterfaceDevice.current().play(.start)
+            #if DEBUG
+            if Demo.on { left = 3; return }
+            #endif
+            while left > 0 {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, store.offered else { return }
+                left -= 1
+                if left > 0 { WKInterfaceDevice.current().play(.click) }
+            }
+            guard store.offered else { return }
+            await store.trackPhoneWorkout()
+        }
     }
 
     private func summary(_ w: (title: String, estMin: Int?, exercises: Int?, tint: UInt32)) -> String {
@@ -83,6 +98,38 @@ struct PhoneStartView: View {
             }
         }
         .padding(.bottom, 4)
+    }
+}
+
+/// Lime START with a ring that empties as the auto-start countdown runs; tap to start now.
+struct StartCountdownButton: View {
+    let title: String
+    let left: Int
+    let total: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                ZStack {
+                    Circle().stroke(W.ink.opacity(0.2), lineWidth: 3)
+                    Circle().trim(from: 0, to: CGFloat(left) / CGFloat(max(1, total)))
+                        .stroke(W.ink, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .animation(.linear(duration: 1), value: left)
+                    Text("\(left)").font(W.label(11)).monospacedDigit()
+                }
+                .frame(width: 24, height: 24)
+                Text(title).font(W.label(13)).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(W.ink)
+            .frame(maxWidth: .infinity, minHeight: 36)
+            .background(Capsule().fill(W.lime))
+            .shadow(color: W.lime.opacity(0.45), radius: 8)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title), starts in \(left) seconds")
+        .accessibilityHint("Tracks heart rate and calories and shows the iPhone workout controls")
     }
 }
 
