@@ -259,11 +259,10 @@ struct CommunityProfileForm: View {
         }
     }
 
-    /// Account → Profile: the same three fields, shown in Community too.
+    /// Settings → Community profile: photo and about; the nickname is edited on the Settings header card (#335).
     private var accountLayout: some View {
         VStack(alignment: .leading, spacing: 18) {
             photoRow
-            nicknameField
             bioField
             Text(member ? "Shown on your community profile and posts." : "Used when you join the community. Nothing is shared until then.")
                 .font(.footnote).foregroundStyle(Theme.muted)
@@ -901,8 +900,8 @@ struct PublicProfileView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                AccountHeader(symbol: "person.crop.circle.fill", title: "Profile",
-                              subtitle: "Set once, shown in Settings and in Community.", gradient: AccountTint.publicProfile)
+                AccountHeader(symbol: "person.2.fill", title: "Community profile",
+                              subtitle: "Photo and about. Your @nickname is on the Settings card.", gradient: AccountTint.publicProfile)
                 CommunityProfileForm(profile: Community.shared.profile, account: true, restoring: restoring) { dismiss() }
             }
             .padding(16)
@@ -911,7 +910,7 @@ struct PublicProfileView: View {
         .readableWidth()
         .scrollDismissesKeyboard(.interactively)
         .themedForm()
-        .navigationTitle("Profile")
+        .navigationTitle("Community profile")
         .toolbarTitleDisplayMode(.inline)
     }
 }

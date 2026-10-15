@@ -1,6 +1,43 @@
 {
   "releases": [
     {
+      "id": "2026-10-15.1",
+      "build": 35,
+      "date": "2026-10-15",
+      "items": [
+        {
+          "symbol": "figure.strengthtraining.functional",
+          "tint": "strength",
+          "title": "Real-life moves, every exercise",
+          "body": "All 422 animations were checked again for realism. You sit on the pec deck seat, arms sweep round instead of crossing, knees and elbows always bend the natural way, and hands and feet stay on the handles, bench and floor."
+        },
+        {
+          "symbol": "lock.shield.fill",
+          "tint": "mobility",
+          "title": "Your data, safer",
+          "body": "Workouts and climbs are backed up every day and saved automatically when you're back online, so nothing you log offline gets lost."
+        },
+        {
+          "symbol": "gearshape.fill",
+          "tint": "power",
+          "title": "Account is now Settings",
+          "body": "The last tab is now called Settings, with a gear icon. What Monkey learned moved from Training profile into your profile card at the top of Settings, with your top liked and avoided moves."
+        },
+        {
+          "symbol": "figure.climbing",
+          "tint": "warmup",
+          "title": "Log a climb on any rest day",
+          "body": "Climbing on? Tap a rest day in Next up and log a climb right there, next to Add workout. A climb logged for an earlier day is dated that day."
+        },
+        {
+          "symbol": "sparkles",
+          "tint": "cardio",
+          "title": "Coach Monkey card tidied",
+          "body": "Next tip is now a round ↻ button in the corner, and the chips always fit inside the card."
+        }
+      ]
+    },
+    {
       "id": "2026-10-14.2",
       "build": 34,
       "date": "2026-10-15",
