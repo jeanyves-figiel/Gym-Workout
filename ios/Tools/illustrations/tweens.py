@@ -45,18 +45,6 @@ EXTRA["man-maker"] = _man_maker
 EXTRA["turkish-get-up"] = _get_up
 
 
-def _prone_pulldown(keys):
-    """Prone pulldown: the arms lift off the floor and sweep back over the shoulders to the ribs, instead of
-    swinging down through the mat (#241)."""
-    p = art.lerp_pose(keys[0], keys[1], 0.5)
-    p["aN"] = (-55, -15, -15)
-    p["aF"] = (-57, -17, -17)
-    return {art.at(0.25): p}
-
-
-EXTRA["prone-pulldown"] = _prone_pulldown
-
-
 def _burpee(keys):
     import scenes_var_core as V
     return V.burpee_tweens(keys)

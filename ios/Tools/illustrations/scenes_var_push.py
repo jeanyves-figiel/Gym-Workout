@@ -473,6 +473,44 @@ def cable_fly_var_scene(py):
 
 LOW_PY, HIGH_PY = GROUND - 26, 44
 CFV_BOXES = [(CFV_L - 48, 10, CFV_L + 18, GROUND), (CFV_R - 18, 10, CFV_R + 48, GROUND)]
+CFV_REACH = 76  # shoulder → grip, elbows softly bent (the arm is 85 long straight)
+
+
+def cable_fly_arms(j, k, py, end_dy, gap, pole_y):
+    """Arms as a 3D chain projected to the front view (like the pec deck): each grip sweeps from the line to
+    its pulley, out to the side, round its shoulder to the hands meeting in front of the body (towards the
+    camera), elbows softly bent and pointing out and back, so the arms foreshorten as they close instead of
+    folding and crossing in the picture plane."""
+    shn, shf = fr_sh()
+    for s, sh, p in (("N", shn, (CFV_R - 12, py)), ("F", shf, (CFV_L + 12, py))):
+        sx = 1 if s == "N" else -1
+        a = (sh[0], sh[1], 0.0)
+        d0 = unit3((p[0] - sh[0], p[1] - sh[1], 0.0))
+        ex, ey = FR_HIP[0] + sx * gap - sh[0], end_dy
+        d1 = unit3((ex, ey, math.sqrt(max(0.0, CFV_REACH ** 2 - ex * ex - ey * ey))))
+        om = math.acos(max(-1.0, min(1.0, v3dot(d0, d1))))
+        w0, w1 = (math.sin((1 - k) * om) / math.sin(om), math.sin(k * om) / math.sin(om)) if om > 1e-3 else (1 - k, k)
+        g = v3add(a, v3mul(unit3(v3add(v3mul(d0, w0), v3mul(d1, w1))), CFV_REACH))
+        e = ik3(a, g, UPPER, FORE + HAND / 2, (sx * 1.0, pole_y, -0.6))
+        d = art.norm((g[0] - e[0], g[1] - e[1])) if math.dist(g[:2], e[:2]) > 0.5 else (sx * 1.0, 0.0)
+        fl = math.dist(g, e)  # 3D forearm + half hand
+        scale = math.dist(g[:2], e[:2]) / fl if fl else 1
+        j["elbow" + s] = (e[0], e[1])
+        j["wrist" + s] = art.add(g[:2], d, -HAND / 2 * scale)
+        j["hand" + s] = art.add(g[:2], d, HAND / 2 * scale)
+
+
+def cable_fly_var_entry(py, end_dy, gap, pole_y):
+    poses, view = fit(cable_fly_var_poses(py, end_dy, gap=gap), CFV_BOXES)
+    base = cable_fly_var_scene(py)
+
+    def make(k):
+        def scene(doc, j, layer):
+            if layer == "back":
+                cable_fly_arms(j, k, py, end_dy, gap, pole_y)
+            base(doc, j, layer)
+        return scene
+    return custom(make, poses, view, (0, 0.5, 1))
 
 
 # ==== push-up family ===============================================================================
@@ -643,7 +681,7 @@ def hspu_poses():
         hip = art.ang_pt(sh, t + 180, TORSO)
         # Legs lean back so the heels rest on the wall.
         legs = -90 + math.degrees(math.asin(max(-1, min(1, (HS_WALL - 7 - hip[0]) / (THIGH + SHIN)))))
-        out.append(B(hip, t, aN=G(HS_W, -1, end=180, wrist=True), aF=G((HS_W[0] + 3, HS_W[1]), -1, end=180, wrist=True),
+        out.append(B(hip, t, aN=G(HS_W, 1, end=180, wrist=True), aF=G((HS_W[0] + 3, HS_W[1]), 1, end=180, wrist=True),
                      lN=(legs, legs - 2, legs - 70), lF=(legs + 2, legs, legs - 68), h=t - 14 * k))
     return out
 
@@ -702,8 +740,22 @@ def seated_lateral_poses():
     return [B(SL_HIP, -90, front="back", aN=a, aF=b, **legs) for a, b in arms]
 
 
+def seat_legs_back(j):
+    """Back view of a seated figure: the thighs point away from the camera (short, foreshortened, knees a little
+    apart), the shins go down to the floor in front of the seat; not splayed sideways in the picture plane."""
+    for s in "NF":
+        hp = j["hip" + s]
+        sx = 1 if hp[0] >= j["hip"][0] else -1
+        kn = (hp[0] + sx * 22, hp[1] + 10)
+        an = (kn[0] + sx * 3, FLOOR_Y)
+        j["knee" + s] = kn
+        j["ankle" + s] = an
+        j["toe" + s] = (an[0] + sx * 3, an[1] - 2)
+
+
 def seated_lateral_scene(doc, j, layer):
     if layer == "back":
+        seat_legs_back(j)
         floor(doc, 200, 70)
         # Flat bench seen end-on under the hips.
         art.tube(doc, (SL_HIP[0], SL_SEAT + 12), (SL_HIP[0], GROUND - 2), 10, "butt")
@@ -780,11 +832,15 @@ def cross_scene(py, handle="d"):
 
 
 def y_raise_poses():
-    arms = (((112, 108), (68, 72)), ((20, 14), (160, 166)), ((-48, -52), (-132, -128)))
+    # Start: arms hanging, hands by the front of the thighs, the cables crossing in front of the body (behind it
+    # in this back view); never the arms crossed behind the back.
+    arms = (((97, 95), (83, 85)), ((20, 14), (160, 166)), ((-48, -52), (-132, -128)))
     return [P(t=-90, front="back", aN=a, aF=b, pin=("hip", FR_HIP), **FR_LEGS) for a, b in arms]
 
 
-RD_FRAMES = ((-16, 8), (40, 14), (88, 10))  # (arm angle from straight ahead towards the side, elbow bend)
+# (arm angle from straight ahead towards the side, elbow bend); the start has the hands straight ahead of the
+# shoulders: crossed further they would be drawn over the head and back in this back view.
+RD_FRAMES = ((2, 8), (44, 14), (88, 10))
 
 
 def rear_delt_arms(j, phi, bend):
@@ -1009,9 +1065,8 @@ SCENES = {
                               [(100, 100, 210, GROUND), (SS_X - 96, 10, SS_X + 96, GROUND)], held_at("N", 23)),
     "db-fly": flat_fly_entry(),
     "incline-db-fly": incline_fly_entry(),
-    "low-high-cable-fly": S(cable_fly_var_scene(LOW_PY), cable_fly_var_poses(LOW_PY, 32, gap=11, bends=(-1, 1)),
-                                CFV_BOXES),
-    "high-low-cable-fly": S(cable_fly_var_scene(HIGH_PY), cable_fly_var_poses(HIGH_PY, 74), CFV_BOXES),
+    "low-high-cable-fly": cable_fly_var_entry(LOW_PY, 10, 9, 0.0),  # hands meet at upper-chest height
+    "high-low-cable-fly": cable_fly_var_entry(HIGH_PY, 66, 5, -0.3),  # hands meet in front of the hips
     "incline-push-up": S(incline_push_scene, incline_push_poses(), [(IP_W[0] - 10, IP_TOP, IP_W[0] + 140, GROUND)]),
     "knee-push-up": S(mat_scene(70, 300), knee_push_poses(), [(70, GROUND - 6, 300, GROUND)]),
     "decline-push-up": S(decline_push_scene, decline_push_poses(), [(DP_TOE_X - 110, DP_TOP, DP_TOE_X + 18, GROUND)]),

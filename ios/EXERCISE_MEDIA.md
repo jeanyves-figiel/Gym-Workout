@@ -25,7 +25,7 @@ Illustrations: 422 · Total: 422
 | `bulgarian-split-squat` | Bulgarian split squat | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `reverse-lunge` | Dumbbell reverse lunge | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `walking-lunge` | Walking lunge | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `step-up` | Dumbbell step-up | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `step-up` | Dumbbell step-up | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `single-leg-rdl` | Single-leg RDL | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `cossack-squat` | Goblet Cossack squat | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `leg-curl` | Leg curl (machine) | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
@@ -38,7 +38,7 @@ Illustrations: 422 · Total: 422
 | `push-up` | Push-up | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `ring-push-up` | Ring push-up | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `dips` | Parallel bar dips | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `cable-fly` | Cable fly | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `cable-fly` | Cable fly | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `ohp` | Standing overhead press | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `seated-db-press` | Seated dumbbell press | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `landmine-press` | Half-kneeling landmine press | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
@@ -58,7 +58,7 @@ Illustrations: 422 · Total: 422
 | `trx-body-saw` | TRX body saw | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `pallof-press` | Pallof press | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `side-plank` | Side plank | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `landmine-rotation` | Landmine rotation | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `landmine-rotation` | Landmine rotation | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `hanging-knee-raise` | Hanging knee raise | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `toes-to-bar` | Strict toes-to-bar | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `cable-crunch` | Kneeling cable crunch | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
@@ -77,7 +77,7 @@ Illustrations: 422 · Total: 422
 | `cable-external-rotation` | Cable external rotation | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `band-pull-apart` | Band pull-apart | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `prone-ytw` | Prone Y-T-W | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `reverse-pec-deck` | Reverse pec deck | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `reverse-pec-deck` | Reverse pec deck | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `scap-pull-up` | Scapular pull-up | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `push-up-plus` | Push-up plus | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `standing-calf-raise` | Standing calf raise | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
@@ -166,7 +166,7 @@ Illustrations: 422 · Total: 422
 | `trx-hamstring-curl` | TRX hamstring curl | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `leg-press-calf-raise` | Leg press calf raise | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `incline-bench-press` | Incline barbell bench press | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `pec-deck-fly` | Pec deck fly | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `pec-deck-fly` | Pec deck fly | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `chin-up` | Chin-up | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `band-assisted-pull-up` | Band-assisted pull-up | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `close-grip-bench` | Close-grip bench press | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
@@ -212,7 +212,7 @@ Illustrations: 422 · Total: 422
 | `sl-hip-thrust` | Single-leg hip thrust | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `bw-sl-rdl` | Single-leg RDL (bodyweight) | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `table-row` | Table inverted row | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `prone-pulldown` | Prone floor pulldown | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `prone-pulldown` | Prone floor pulldown | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `pike-push-up` | Pike push-up | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `bw-calf-raise` | Single-leg calf raise | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `db-bent-row` | Dumbbell bent-over row | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
@@ -257,7 +257,7 @@ Illustrations: 422 · Total: 422
 | `single-leg-curl` | Single-leg leg curl | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `ball-hamstring-curl` | Stability ball hamstring curl | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `single-leg-extension` | Single-leg leg extension | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `sissy-squat` | Sissy squat | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `sissy-squat` | Sissy squat | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `spanish-squat` | Band Spanish squat | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `seated-db-calf-raise` | Seated dumbbell calf raise | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `decline-bench-press` | Decline barbell bench press | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
@@ -283,10 +283,10 @@ Illustrations: 422 · Total: 422
 | `seated-lateral-raise` | Seated dumbbell lateral raise | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `lean-away-lateral-raise` | Lean-away lateral raise | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `band-lateral-raise` | Band lateral raise | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `cable-y-raise` | Cable Y-raise | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `cable-y-raise` | Cable Y-raise | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `cable-upright-row` | Cable upright row | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `incline-reverse-fly` | Chest-supported reverse fly | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `cable-rear-delt-fly` | Cable rear delt fly | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `cable-rear-delt-fly` | Cable rear delt fly | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `pendlay-row` | Pendlay row | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `yates-row` | Underhand barbell row | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `meadows-row` | Meadows row | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
@@ -309,7 +309,7 @@ Illustrations: 422 · Total: 422
 | `zottman-curl` | Zottman curl | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `band-curl` | Band curl | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `rope-hammer-curl` | Cable rope hammer curl | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `cross-body-hammer-curl` | Cross-body hammer curl | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `cross-body-hammer-curl` | Cross-body hammer curl | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `reverse-ez-curl` | EZ-bar reverse curl | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `rope-pushdown` | Rope triceps pushdown | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `single-arm-pushdown` | Single-arm cable pushdown | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
@@ -373,8 +373,8 @@ Illustrations: 422 · Total: 422
 | `kb-overhead-squat` | Single-arm kettlebell overhead squat | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `barbell-upright-row` | Barbell upright row | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `db-upright-row` | Dumbbell upright row | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `sumo-high-pull` | Sumo deadlift high pull | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `kb-high-pull` | Kettlebell high pull | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `sumo-high-pull` | Sumo deadlift high pull | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `kb-high-pull` | Kettlebell high pull | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `man-maker` | Man maker | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `kb-windmill` | Kettlebell windmill | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `kb-halo` | Kettlebell halo | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
@@ -409,7 +409,7 @@ Illustrations: 422 · Total: 422
 | `spiderman-push-up` | Spiderman push-up | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `wall-push-up` | Wall push-up | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `freestanding-hspu` | Free-standing handstand push-up | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `kipping-hspu` | Kipping handstand push-up | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `kipping-hspu` | Kipping handstand push-up | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `pistol-squat` | Pistol squat | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `weighted-pistol` | Weighted pistol squat | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `bar-static-hold` | Bar static hold | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |

@@ -14,7 +14,7 @@ import scenes_mobility as MO
 import scenes_power as PW
 from art import GROUND
 from poses import P
-from scenes_arms_core import foreshorten_trunk
+from scenes_arms_core import CURL_CH, channel, foreshorten_trunk
 import scenes_lower as L
 from scenes_lower import ANK, bar_end, body, floor, grip, rack_arm, shoulder, tframe
 from scenes_power import fit
@@ -222,7 +222,7 @@ def db_upright_scene(doc, j, layer):
             art.db_side(doc, (g[0], g[1] + 1), 0, 8.5, 14)
 
 
-BUR = upright_poses(22, 14)
+BUR = upright_poses(18, 18)  # hands stay where they grip the bar (they slid 22 -> 14 px in)
 DUR = upright_poses(18, 22, 14)
 
 
@@ -246,10 +246,31 @@ SCENES.update({
 from scenes_var_lower import SDL_X, sumo_dl_pose  # noqa: E402
 
 
+SHP_GRIP = 14  # hands either side of the bar's centre (narrow grip, kept for the whole lift)
+
+
+def shp_arms(j):
+    """Hands stay on the bar at the same narrow grip while the elbows lead up and out: the joint-angle
+    in-betweens swung the forearms across each other in front of the chest."""
+    y = mid(grip(j, "N"), grip(j, "F"))[1]
+    for s, sx in (("N", 1), ("F", -1)):
+        sh = j["shoulder" + s]
+        best = None
+        for bend in (1, -1):
+            u, f = L.ik(sh, (SDL_X + sx * SHP_GRIP, y), L.UA, L.FA + L.HA / 2, bend)
+            e = art.ang_pt(sh, u, L.UA)
+            if best is None or sx * e[0] > sx * best[0][0]:
+                best = (e, f)
+        e, f = best
+        w = art.ang_pt(e, f, L.FA)
+        j["elbow" + s], j["wrist" + s], j["hand" + s] = e, w, art.ang_pt(w, f, L.HA)
+
+
 def shp_scene(doc, j, layer):
     if layer == "back":
         floor(doc, SDL_X, 140)
         foreshorten_trunk(j, sumo_k(j["hip"][1]))
+        shp_arms(j)
     else:
         bar_front(doc, mid(grip(j, "N"), grip(j, "F")))
         hand_dots(doc, j)
@@ -259,7 +280,7 @@ def shp_top():
     hip = (SDL_X, 156)
     s = shoulder(hip, -90)
     return body(hip, -90, ankN=(SDL_X + 48, ANK - 8), ankF=(SDL_X - 48, ANK - 8), kN=-1, kF=1, fN=60, fF=120,
-                gN=(SDL_X + 9, s[1] + 4), gF=(SDL_X - 9, s[1] + 4), eN=-1, eF=1, h=-90, front=True)
+                gN=(SDL_X + SHP_GRIP, s[1] + 8), gF=(SDL_X - SHP_GRIP, s[1] + 8), eN=-1, eF=1, h=-90, front=True)
 
 
 SHP = [sumo_dl_pose(196, GROUND - 25), sumo_dl_pose(161, 172), shp_top()]
@@ -269,20 +290,48 @@ SCENES["sumo-high-pull"] = (shp_scene, SHP, fit(SHP, (SDL_X - 140, GROUND - 52, 
 
 # ==== kettlebell high pull (side view): swing from the hips, elbow pulls high and back =================
 
+KBHP_WT = (17, 8)  # wrist at the top of the pull, relative to the shoulder: in front of the chest
+
+
+def kbhp_arms(j, k):
+    """Pull (k = 0 hips snapped, arms long .. 1 top): the hand rises straight up close to the body while the
+    elbow travels up and out to the side, towards the camera, so the upper arm foreshortens. Interpolating the
+    joint angles swung the elbow back and the bell behind the hips; the old top key had the elbow forward."""
+    sh = j["shoulder"]
+    for s, off in (("N", (0, 0)), ("F", (-4, 1))):
+        w = art.add(art.add(sh, mid(KBHP_W0, KBHP_WT, k)), off)
+        l1, l2 = L.UA * (1 - 0.55 * k), L.FA * (1 - 0.12 * k)
+        u, f = L.ik(sh, w, l1, l2, 1)
+        e = art.ang_pt(sh, u, l1)
+        if e[0] > sh[0]:  # elbow behind the shoulder–wrist line, never in front
+            u, f = L.ik(sh, w, l1, l2, -1)
+            e = art.ang_pt(sh, u, l1)
+        j["elbow" + s], j["wrist" + s] = e, art.ang_pt(e, f, l2)
+        j["hand" + s] = (j["wrist" + s][0], j["wrist" + s][1] + L.HA)
+
+
 def kbhp_scene(doc, j, layer):
     if layer == "back":
         PW.ground(doc, 200, 70)
+        k = channel(j)
+        if k > 0:
+            kbhp_arms(j, min(1.0, k))
     else:
         w, h = j["wristN"], j["handN"]
         PW.kb(doc, grip(j), math.degrees(math.atan2(h[1] - w[1], h[0] - w[0])) if h[1] > w[1] + 3 else 90, 12)
 
 
 KBHP = [
-    PW.B((152, 178), -22, ankN=(200, FOOT_Y), ankF=(196, FOOT_Y), wrN=(166, 208), wrF=(162, 208), h=-28),
+    PW.B((152, 178), -22, ankN=(200, FOOT_Y), ankF=(196, FOOT_Y), wrN=(166, 208), wrF=(162, 208), h=-28, curl=0),
     PW.B((196, 150), -94, ankN=(202, GROUND - 10), ankF=(198, GROUND - 10), footN=34, footF=34,
-         wrN=(214, 196), wrF=(210, 197), h=-90),
-    PW.B((198, 152), -90, ankN=(200, FOOT_Y), ankF=(196, FOOT_Y), aN=(-14, 122, 90), aF=(-10, 124, 90), h=-90),
+         wrN=(214, 196), wrF=(210, 197), h=-90, curl=0),
+    # Top: elbow high and back (out to the side, foreshortened by kbhp_elbows), bell hanging at the chest. It
+    # was (-14, 122): elbow pointing forward with the hand folded back under it.
+    PW.B((198, 152), -90, ankN=(200, FOOT_Y), ankF=(196, FOOT_Y), aN=(-165, 20, 90), aF=(-163, 22, 90), h=-90,
+         curl=1 / CURL_CH),  # pull progress for kbhp_arms (the scene redraws the arms)
 ]
+_j = F.place(KBHP[1])
+KBHP_W0 = art.sub(_j["wristN"], _j["shoulder"])  # wrist at the hip snap (arms long), relative to the shoulder
 SCENES["kb-high-pull"] = (kbhp_scene, KBHP, fit(KBHP, PW.ball_box(26)))
 
 
@@ -451,7 +500,7 @@ def crossed_arms(p):
 # ==== sit-up: feet anchored under a dumbbell, curl up spine first, lower slowly ======================
 
 SU_HIP_X = 196
-SU_ANK = (SU_HIP_X + 74, FOOT_Y)
+SU_ANK = (SU_HIP_X + 74, MAT - 4)  # heels on the mat top (at FOOT_Y the feet sank into the mat)
 
 
 def situp(t, curl, h):
@@ -464,7 +513,7 @@ def situp(t, curl, h):
 
 
 def situp_anchor(doc, j):
-    art.db_end(doc, (SU_ANK[0] + 9, GROUND - 13), 12)
+    art.db_end(doc, (SU_ANK[0] + 9, SU_ANK[1] - 9), 12)
 
 
 SITUP = [situp(180, 0, 178), situp(222, 8, 238), situp(-76, 6, -66)]
@@ -539,7 +588,8 @@ WS_ANK_X = WALL_X + 16 + 56  # knees over the ankles
 
 def wall_sit(hip_y, arms=None, h=-90):
     hip = (WALL_X + 16, hip_y)
-    kw = dict(gN=arms, gF=(arms[0] - 3, arms[1] + 1), eN=-1, eF=-1) if arms else {}
+    # Arms reaching forward: elbows softly flexed (eN=-1 bent them backwards, hyperextended).
+    kw = dict(gN=arms, gF=(arms[0] - 3, arms[1] + 1), eN=1, eF=1) if arms else {}
     p = body(hip, -90, h=h, ankN=(WS_ANK_X, ANK), ankF=(WS_ANK_X - 4, ANK), **kw)
     if not arms:
         p["aN"], p["aF"] = (92, 70, 70), (94, 72, 72)
@@ -613,23 +663,28 @@ SCENES["donkey-kick"] = MO.entry(mat_scene(70, 330), DONKEY, [(70, MAT, 330, GRO
 
 # ==== frog pump: soles together, knees out, drive the hips up ===========================================
 
-FP_SH = (130, GROUND - 13)
-FP_ANK = (232, FOOT_Y - 1)
+FP_SH = (130, MAT - 14)  # shoulders on the mat; at GROUND - 13 the pelvis sank through it at the bottom
+FP_ANK = (232, MAT - 5)  # feet on their outer edges on the mat (at FOOT_Y - 1 they sank through it)
 
 
 def frog(lift):
     hip = art.ang_pt(FP_SH, -lift, F.TORSO)
-    return PW.B(hip, 180 - lift, ankN=FP_ANK, ankF=(FP_ANK[0] - 2, FP_ANK[1]), footN=56, footF=60,
-                wrN=(FP_SH[0] + 79, GROUND - 6), wrF=(FP_SH[0] + 77, GROUND - 6), elbN=1, elbF=1, handN=0, handF=0,
+    return PW.B(hip, 180 - lift, ankN=FP_ANK, ankF=(FP_ANK[0] - 2, FP_ANK[1]), footN=8, footF=10,
+                wrN=(FP_SH[0] + 79, MAT - 5), wrF=(FP_SH[0] + 77, MAT - 5), elbN=-1, elbF=-1, handN=0, handF=0,
                 h=180)
 
 
 def frog_knees(doc, j):
-    """Knees fall out to the sides: the thighs point towards / away from the camera, so they read short and low."""
+    """Soles together, knees fallen out to the sides: each leg solved in 3D (hip either side of the pelvis,
+    ankles together on the mat, knee pushed out towards / away from the camera) and projected, so the thighs
+    read short and the knees low. The flat two-link solve stood the knees straight up and drove the shins and
+    toes down through the mat."""
+    from scenes_arms_core import _ik3
     hip = j["hip"]
-    for s, k, drop in (("N", 0.8, 9), ("F", 0.9, 4)):
-        kn = art.add(hip, art.sub(j["knee" + s], hip), k)
-        j["knee" + s] = (kn[0] + 3, kn[1] + drop)
+    for s, sz in (("N", 1), ("F", -1)):
+        a = j["ankle" + s]
+        k = _ik3((hip[0], hip[1], sz * 9.0), (a[0], a[1], sz * 2.0), F.THIGH, F.SHIN, (0.0, -0.3, sz * 1.0))
+        j["knee" + s] = (k[0], k[1])
 
 
 FROG = [frog(2), frog(14), frog(26)]

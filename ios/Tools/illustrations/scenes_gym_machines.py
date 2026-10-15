@@ -618,9 +618,11 @@ def db_pullover_scene(doc, j, layer):
 
 
 def db_pullover_pose(a):
-    g = art.ang_pt(DP_SH, a, 76)
+    g = art.ang_pt(DP_SH, a, 80)
+    # Elbows softly bent with the forearms folding towards the face over the chest and down towards the floor
+    # behind the head (eN=-1 bent them backwards: hyperextended).
     return body(DP_HIP, DP_T, h=DP_T - 6, ankN=DP_FOOT, ankF=(DP_FOOT[0] - 6, ANK), gN=g,
-                gF=(g[0] + 1, g[1] - 1), eN=-1, eF=-1)
+                gF=(g[0] + 1, g[1] - 1), eN=1, eF=1)
 
 
 DBP = [db_pullover_pose(a) for a in (-84, -132, -178)]

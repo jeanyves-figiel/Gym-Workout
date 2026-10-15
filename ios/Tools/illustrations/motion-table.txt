@@ -57,7 +57,7 @@ bosu-squat                         strength  handN    PUSH/PULL effort PUSH path
 box-jump                           power     hip      JUMP/RESET effort JUMP path yes
 box-pistol                         strength  toeF       UP/DOWN effort UP   path yes
 box-squat                          strength  handN    DOWN/UP   effort UP   path yes
-breathing                          stretch   handN    DOWN/UP   effort UP   path no 
+breathing                          stretch   head       UP/DOWN effort UP   path no 
 brettzel                           stretch   head       UP/DOWN effort UP   path no 
 broad-jump                         power     hip      JUMP/RESET effort JUMP path yes
 bulgarian-split-squat              strength  handN    DOWN/UP   effort UP   path yes
@@ -108,7 +108,7 @@ db-bent-row                        strength  handN      UP/DOWN effort UP   path
 db-calf-raise                      strength  handN      UP/DOWN effort UP   path no 
 db-curl                            strength  handN      UP/DOWN effort UP   path yes
 db-floor-press                     strength  handN    DOWN/UP   effort UP   path yes
-db-floor-pullover                  strength  handN    PULL/PUSH effort PULL path yes
+db-floor-pullover                  strength  handN    DOWN/UP   effort UP   path yes
 db-fly                             strength  handN    DOWN/UP   effort UP   path yes
 db-french-press                    strength  handN    DOWN/UP   effort UP   path yes
 db-front-raise                     strength  handN      UP/DOWN effort UP   path yes
@@ -118,7 +118,7 @@ db-lateral-raise                   strength  handN      UP/DOWN effort UP   path
 db-overhead-triceps                strength  handN      UP/DOWN effort UP   path yes
 db-preacher-curl                   strength  handN      UP/DOWN effort UP   path yes
 db-rdl                             strength  handN    DOWN/UP   effort UP   path yes
-db-reverse-fly                     strength  handF      UP/DOWN effort UP   path yes
+db-reverse-fly                     strength  handN      UP/DOWN effort UP   path yes
 db-shrug                           strength  handN      UP/DOWN effort UP   path no 
 db-side-bend                       strength  handF     OUT/IN   effort OUT  path yes
 db-snatch                          power     handN      UP/DOWN effort UP   path yes
@@ -163,7 +163,7 @@ foam-roll-upper-back               mobility  handN    PUSH/PULL effort PUSH path
 forearm-extensor                   stretch   handN    DOWN/UP   effort UP   path no 
 forearm-flexor                     stretch   handN      UP/DOWN effort UP   path no 
 forward-lunge                      strength  handN    DOWN/UP   effort UP   path yes
-freestanding-hspu                  strength  toeN     DOWN/UP   effort UP   path yes
+freestanding-hspu                  strength  head     DOWN/UP   effort UP   path yes
 frog-pump                          strength  hip        UP/DOWN effort UP   path yes
 frog-rockback                      mobility  hip      PULL/PUSH effort PUSH path yes
 frog-stretch                       stretch   head     PULL/PUSH effort PUSH path yes
@@ -186,7 +186,7 @@ hanging-shoulder-circles           mobility  head       UP/DOWN effort UP   path
 heel-elevated-goblet-squat         strength  handN    DOWN/UP   effort UP   path yes
 high-knees                         cardio    handN      UP/DOWN effort UP   path yes
 high-low-cable-fly                 strength  handN    DOWN/UP   effort UP   path yes
-hip-90-90                          warmup    toeN      OUT/IN   effort OUT  path yes
+hip-90-90                          warmup    toeF       IN/OUT  effort OUT  path yes
 hip-abduction                      strength  toeN      OUT/IN   effort OUT  path yes
 hip-adduction                      strength  toeN       IN/OUT  effort IN   path yes
 hip-car                            mobility  toeN     PULL/PUSH effort PUSH path yes
@@ -220,7 +220,7 @@ kb-snatch                          power     handN      UP/DOWN effort UP   path
 kb-swing                           power     handN      UP/DOWN effort UP   path yes
 kb-thruster                        power     handN      UP/DOWN effort UP   path yes
 kb-windmill                        strength  handN     OUT/IN   effort OUT  path yes
-kipping-hspu                       strength  toeF       UP/DOWN effort UP   path yes
+kipping-hspu                       strength  kneeN      UP/DOWN effort UP   path yes
 knee-push-up                       strength  head     DOWN/UP   effort UP   path yes
 knee-to-wall                       mobility  toeF     PUSH/PULL effort PUSH path yes
 l-sit                              strength  toeN       UP/DOWN effort UP   path yes
@@ -237,10 +237,10 @@ lean-away-lateral-raise            strength  handN      UP/DOWN effort UP   path
 leg-curl                           strength  toeF     PUSH/PULL effort PULL path yes
 leg-extension                      strength  toeN       UP/DOWN effort UP   path yes
 leg-press                          strength  toeF     DOWN/UP   effort UP   path yes
-leg-press-calf-raise               strength  toeN       UP/DOWN effort UP   path no 
+leg-press-calf-raise               strength  toeF       UP/DOWN effort UP   path no 
 leg-swings                         warmup    toeN       UP/DOWN effort UP   path yes
 lizard-stretch                     stretch   handN    PUSH/PULL effort PUSH path yes
-low-high-cable-fly                 strength  handN      IN/OUT  effort IN   path yes
+low-high-cable-fly                 strength  handN      UP/DOWN effort UP   path yes
 lunge-twist                        warmup    handF    PULL/PUSH effort PUSH path yes
 lying-leg-raise                    strength  toeF       UP/DOWN effort UP   path yes
 machine-calf-raise                 strength  handN      UP/DOWN effort UP   path no 
@@ -276,7 +276,7 @@ overhead-back-throw                power     handN      UP/DOWN effort UP   path
 overhead-carry                     strength  toeF     PUSH/PULL effort PUSH path yes
 overhead-squat                     strength  handN    DOWN/UP   effort UP   path yes
 overhead-triceps                   strength  handN    PUSH/PULL effort PUSH path yes
-pallof-press                       strength  handN    PUSH/PULL effort PUSH path yes
+pallof-press                       strength  handN    DOWN/UP   effort UP   path yes
 pancake-gm                         mobility  handN    DOWN/UP   effort UP   path yes
 pec-deck-fly                       strength  handN      IN/OUT  effort IN   path yes
 pec-stretch                        stretch   toeN     PUSH/PULL effort PUSH path yes
@@ -328,7 +328,7 @@ seated-lateral-raise               strength  handN      UP/DOWN effort UP   path
 shoulder-car                       mobility  handN    PULL/PUSH effort PUSH path yes
 shoulder-tap-push-up               strength  handN      UP/DOWN effort UP   path yes
 side-bend                          stretch   handN     OUT/IN   effort OUT  path yes
-side-delt-stretch                  stretch   handN      UP/DOWN effort UP   path yes
+side-delt-stretch                  stretch   handN     OUT/IN   effort OUT  path no 
 side-lying-adduction               strength  toeF       UP/DOWN effort UP   path yes
 side-lying-external-rotation       strength  handF      UP/DOWN effort UP   path yes
 side-lying-hip-abduction           strength  toeN       UP/DOWN effort UP   path yes
@@ -397,7 +397,7 @@ trx-hamstring-curl                 strength  kneeN      UP/DOWN effort UP   path
 tuck-back-lever                    strength  head     PUSH/PULL effort PUSH path yes
 tuck-front-lever                   strength  toeF       UP/DOWN effort UP   path yes
 tuck-jump                          power     hip      DOWN/UP   effort UP   path yes
-turkish-get-up                     strength  handF    PUSH/PULL effort PUSH path yes
+turkish-get-up                     strength  handN      UP/DOWN effort UP   path yes
 upper-trap                         stretch   handN     OUT/IN   effort OUT  path yes
 v-up                               strength  handN      UP/DOWN effort UP   path yes
 walking-lunge                      strength  handN    DOWN/UP   effort UP   path yes

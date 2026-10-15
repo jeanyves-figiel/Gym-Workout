@@ -477,7 +477,8 @@ def spider_tweens(keys):
     """tweens.EXTRA: on the way down the hips lift a little and the near knee swings forward under the body, foot up,
     instead of dragging the knee along the floor (kneel) between the plank and the knee-to-elbow pose."""
     def pose(hip, t, legN):
-        return B(hip, t, aN=G(PU_W, -1, end=80, wrist=True), aF=G((PU_W[0] - 3, PU_W[1]), -1, end=80, wrist=True),
+        # Elbows bend back towards the hips as in the key poses (bend -1 pushed them forward, past straight).
+        return B(hip, t, aN=G(PU_W, 1, end=80, wrist=True), aF=G((PU_W[0] - 3, PU_W[1]), 1, end=80, wrist=True),
                  lN=legN, lF=G((108, GROUND - 13), 1, end=80), h=t)
     return {art.at(0.14): pose((203, 189), -4, (126, 206, 236)),
             art.at(0.28): pose((205, 191), -7, (58, 190, 220))}
@@ -513,14 +514,17 @@ HS_WALL = 262
 
 
 def free_hspu_poses():
+    # Tripod bottom: the head lands on the mat in front of the hands, forearms stay near vertical with the elbows
+    # stacked over the wrists (shoulders only ~10 px ahead of the hands bent the elbows out behind, forearms flat);
+    # the hips and legs lean back over the hands to balance.
     out = []
     for k in (0, 0.5, 1):
-        sh = (HS_W[0] + 4 - 14 * k, HS_W[1] - 80 + 54 * k)
-        t = 92 - 12 * k  # hips drift over the hands as the head goes forward
+        sh = (HS_W[0] + 4 - 30 * k, HS_W[1] - 80 + 50 * k)
+        t = 92 + 8 * k
         hip = from_shoulder(sh, t)
-        legs = -90 - 6 * k
+        legs = -90 + 6 * k
         out.append(B(hip, t, aN=G(HS_W, -1, end=180, wrist=True), aF=G((HS_W[0] + 3, HS_W[1]), -1, end=180, wrist=True),
-                     lN=(legs, legs, legs - 12), lF=(legs + 2, legs + 2, legs - 10), h=t - 16 * k))
+                     lN=(legs, legs, legs - 12), lF=(legs + 2, legs + 2, legs - 10), h=t - 6 * k))
     return out
 
 
@@ -528,14 +532,23 @@ KH_W = (HS_WALL - 34, GROUND - 5)
 
 
 def kipping_poses():
+    # Bottom: head on the mat in front of the hands (tripod), elbows stacked over the wrists, hips back against the
+    # wall, knees tucked to the chest; the kick drives the feet up along the wall (never through it) to lockout.
     def pose(k, legs, t_off=0):
-        sh = (KH_W[0] + 2 - 12 * k, KH_W[1] - 80 + 52 * k)
+        sh = (KH_W[0] + 2 - 28 * k, KH_W[1] - 80 + 45 * k)
         t = 90 + math.degrees(math.atan2(HS_WALL - 7 - sh[0], TORSO + THIGH + SHIN)) - 3 + t_off
         hip = from_shoulder(sh, t)
         return B(hip, t, aN=G(KH_W, -1, end=180, wrist=True), aF=G((KH_W[0] + 3, KH_W[1]), -1, end=180, wrist=True),
-                 h=t - 14 * k, **legs)
-    tuck = pose(1, dict(lN=(166, -84, -40), lF=(170, -80, -36)), -8)
-    kick = pose(0.55, dict(lN=(-70, -62, -120), lF=(-66, -58, -116)), -2)
+                 h=t - 10 * k, **legs)
+
+    def wall_shin(k, thigh, t_off=0):
+        """Shin angle that puts the ankle just off the wall face, for a thigh at angle `thigh`."""
+        hip = U.place(pose(k, {}, t_off))["hip"]
+        knee_x = hip[0] + THIGH * math.cos(math.radians(thigh))
+        return -math.degrees(math.acos(max(-1, min(1, (HS_WALL - 7 - knee_x) / SHIN))))
+    tuck = pose(1, dict(lN=(170, -80, -36), lF=(174, -76, -32)), 14)
+    kn = wall_shin(0.55, -96, -2)
+    kick = pose(0.55, dict(lN=(-96, kn, kn - 60), lF=(-92, kn + 3, kn - 57)), -2)
     top = U.place(pose(0, {}))
     hip = top["hip"]
     legs = -90 + math.degrees(math.asin(max(-1, min(1, (HS_WALL - 7 - hip[0]) / (THIGH + SHIN)))))
@@ -561,7 +574,8 @@ PS_ANK = (206, FLOOR_Y)
 def pistol_pose(hip, t, legF, reach, h=None, held=False):
     sh = art.ang_pt(hip, t, TORSO)
     g = (sh[0] + reach[0], sh[1] + reach[1])
-    return B(hip, t, aN=G(g, -1 if not held else 1), aF=G((g[0] - 3, g[1] + 2), -1 if not held else 1),
+    # Elbows soft and down (bend -1 on the reaching arms bowed them up, past straight).
+    return B(hip, t, aN=G(g, 1), aF=G((g[0] - 3, g[1] + 2), 1),
              lN=G(PS_ANK, -1, end=0), lF=legF, h=t if h is None else h, lit_sides="N")
 
 

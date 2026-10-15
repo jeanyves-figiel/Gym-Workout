@@ -307,7 +307,7 @@ PR_UP = 38  # upper-arm angle on the preacher pad
 
 
 def preacher_poses():
-    return [arm_pose(PR_UP, f) for f in (74, -6, -88)]
+    return [arm_pose(PR_UP, f) for f in (30, -6, -88)]  # starts nearly straight along the pad, never past it
 
 
 # -- selectorized arm machines (curl / triceps extension): elbows on the cam axis, stack in front of the pad;
@@ -358,7 +358,7 @@ def arm_machine(ex_id, upper, fore0, sign):
 
 
 def machine_curl_poses():
-    return [arm_pose(PR_UP, f) for f in (68, -8, -86)]
+    return [arm_pose(PR_UP, f) for f in (30, -8, -86)]
 
 
 TX_UP = 30  # triceps machine: upper arms flatter on the pad
@@ -898,7 +898,7 @@ SCENES = {
     "ez-skullcrusher": S(skull_scene, [skull_pose(-100), skull_pose(-146), skull_pose(-192)],
                          [(SK_BENCH["x0"], SK_BENCH["top"], SK_BENCH["x1"], GROUND)], held_at("N", 21)),
     "db-preacher-curl": S(db_preacher_scene, preacher_poses(), [(PR_HIP[0] - 34, 150, 260, GROUND)], held_at("N", 11)),
-    "machine-curl": S(arm_machine("machine-curl", PR_UP, 68, 1), machine_curl_poses(),
+    "machine-curl": S(arm_machine("machine-curl", PR_UP, 30, 1), machine_curl_poses(),
                       [(PR_HIP[0] - 40, AM_TOP - 10, AM_STACK_X + 52, GROUND)], held_at("N", 10)),
     "machine-triceps-extension": S(arm_machine("machine-triceps-extension", TX_UP, -118, -1), triceps_poses(),
                                    [(PR_HIP[0] - 40, AM_TOP - 10, AM_STACK_X + 52, GROUND)], held_at("N", 10)),

@@ -248,8 +248,9 @@ def _dog(k):
     a = MO._ang((DD_HAND[0] - s[0], DD_HAND[1] - s[1]))
     p = dict(p, aN=(a, a, 0), aF=(a + 1, a + 1, 0), h=a - 180 + lerp(70, 40, k) if k else t + 6)
     ankle = (DD_FOOT, lerp(MAT - 12, MAT - 5, k))
-    p = reach(p, "lN", ankle, end=lerp(60, 0, k), pick=lambda m: -m[1])
-    return reach(p, "lF", (ankle[0] - 3, ankle[1]), end=lerp(60, 0, k), pick=lambda m: -m[1])
+    # Any slack in the legs is a soft knee bent forward (towards the hands), never locked back past straight.
+    p = reach(p, "lN", ankle, end=lerp(60, 0, k), pick=lambda m: m[0])
+    return reach(p, "lF", (ankle[0] - 3, ankle[1]), end=lerp(60, 0, k), pick=lambda m: m[0])
 
 
 add("downward-dog", E(floor_scene(200, 100, mat=(90, 320)), [_dog(0), _dog(0.5), _dog(1)], [(90, MAT, 320, GROUND)]))
@@ -400,7 +401,8 @@ WW_X = 200
 def _wipers(side):
     """side 0 = knees up, +1 = knees dropped to screen right, -1 = to screen left (front view, legs foreshortened)."""
     up_N, up_F = (-48, 104, 20), (228, 76, 160)
-    flat_N, flat_F = (8, 168, 170), (-40, 128, 160)
+    # Dropped near foot lies on its outer edge, toes to the side: turning it to 170 swept the toes down through the mat.
+    flat_N, flat_F = (8, 168, -10), (-40, 128, 160)
     if side == 0:
         lN, lF = up_N, up_F
     elif side > 0:

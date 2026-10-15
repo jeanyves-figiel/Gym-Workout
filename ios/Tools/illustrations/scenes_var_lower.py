@@ -16,7 +16,7 @@ from scenes_arms_core import foreshorten_trunk, tower
 from scenes_lower import (ANK, FT, SH, SW, TH, TOR, angle, arms_for, back_bar, back_ext_pose, back_ext_scene, bar_end,
                           bar_split_scene, body, dbs, floor, grip, hang_from, hinge_pose, hip_thrust_scene, ins,
                           leg_curl_pose, leg_curl_scene, leg_ext_pose, leg_ext_scene, leg_press_pose, leg_press_scene,
-                          norm2, pt, reverse_lunge_frames, shoulder, smith_bar, smith_frame, split_pose, step_block,
+                          norm2, pt, replant, reverse_lunge_frames, shoulder, smith_bar, smith_frame, split_pose, step_block,
                           tframe, thrust_pose, HT_REST)
 from scenes_power import fit
 
@@ -155,6 +155,8 @@ SUMO_X = 200
 
 def sumo_db_scene(doc, j, layer):
     if layer == "back":
+        for s, x, k in (("N", SUMO_X + 54, -1), ("F", SUMO_X - 54, 1)):
+            replant(j, s, (x, ANK), k)
         floor(doc, SUMO_X, 100)
     else:
         g = mid(grip(j, "N"), grip(j, "F"))
@@ -395,14 +397,14 @@ def box_pistol_scene(doc, j, layer):
 def box_pistol_pose(hip, t, legF, reach, h=None):
     s = shoulder(hip, t)
     g = (s[0] + reach[0], s[1] + reach[1])
-    p = body(hip, t, h=h, ankN=BP_ANK, gN=g, gF=(g[0] - 3, g[1] + 2), eN=-1, eF=-1, lit_sides="N")
+    p = body(hip, t, h=h, ankN=BP_ANK, gN=g, gF=(g[0] - 3, g[1] + 2), eN=1, eF=1, lit_sides="N")
     p["lF"] = legF
     return p
 
 
-BPIS = [box_pistol_pose((212, 152), -90, (70, 80, -10), (30, 60)),
-        box_pistol_pose((192, 184), -72, (16, 20, -70), (68, 18), h=-76),
-        box_pistol_pose((168, GROUND - BP_BOX[2] - 14), -56, (-6, -6, -96), (78, 2), h=-66)]
+BPIS = [box_pistol_pose((212, 152), -90, (70, 80, -10), (36, 72)),
+        box_pistol_pose((192, 184), -72, (16, 20, -70), (76, 24), h=-76),
+        box_pistol_pose((168, GROUND - BP_BOX[2] - 14), -56, (-6, -6, -96), (82, 6), h=-66)]
 
 
 # -- skater squat: back knee to the floor behind, arms forward, front heel down
@@ -412,7 +414,7 @@ SK_ANK = (216, ANK)
 def skater_pose(hip, t, legF, reach, h=None):
     s = shoulder(hip, t)
     g = (s[0] + reach[0], s[1] + reach[1])
-    p = body(hip, t, h=h, ankN=SK_ANK, gN=g, gF=(g[0] - 3, g[1] + 2), eN=-1, eF=-1, lit_sides="N")
+    p = body(hip, t, h=h, ankN=SK_ANK, gN=g, gF=(g[0] - 3, g[1] + 2), eN=1, eF=1, lit_sides="N")
     p["lF"] = legF
     return p
 
@@ -423,9 +425,9 @@ def skater_scene(doc, j, layer):
         kit.mat(doc, 120, 176, "#3A4048")
 
 
-SKS = [skater_pose((214, 152), -90, (100, 166, 104), (20, 70)),
-       skater_pose((196, 182), -62, (110, 172, 112), (62, 26), h=-70),
-       skater_pose((178, 210), -40, (117, 174, 118), (78, 8), h=-50)]
+SKS = [skater_pose((214, 152), -90, (100, 166, 104), (22, 80)),
+       skater_pose((196, 182), -62, (110, 172, 112), (74, 30), h=-70),
+       skater_pose((178, 210), -40, (117, 174, 118), (82, 8), h=-50)]
 
 
 SCENES.update({
@@ -565,7 +567,7 @@ BS_R = (176, GROUND - 9)
 
 def bstance_pose(bar, t, dx, h=None):
     hip = hang_from(bar, t, dx)
-    return body(hip, t, h=h, ankN=BS_F, ankF=BS_R, kF=-1, fF=58, gN=bar, gF=(bar[0] - 3, bar[1]), eN=-1, eF=-1,
+    return body(hip, t, h=h, ankN=BS_F, ankF=BS_R, kF=-1, fF=58, gN=bar, gF=(bar[0] - 3, bar[1]), eN=1, eF=1,
                 lit_sides="N")
 
 
@@ -622,10 +624,11 @@ def glute_bridge_pose(lift):
 GBB = [glute_bridge_pose(4), glute_bridge_pose(15), glute_bridge_pose(27)]
 
 
-# -- single-leg 45° back extension: one foot under the roller, the free leg bent off the platform
+# -- single-leg 45° back extension: one foot under the roller, the free leg hangs bent off the platform (hip a
+#    little flexed, knee bent so the shin folds back towards the working ankle, never forward past straight)
 def sl_back_ext_pose(t, h=None):
     p = back_ext_pose(t, h)
-    p["lF"] = (112, 64, 150)
+    p["lF"] = (100, 140, 50)
     p["lit_sides"] = "N"
     return p
 
@@ -916,11 +919,16 @@ def sissy_pose(f, shin_up, a, h=None):
     s = shoulder(hip, a)
     g = (SS_POST - 6, s[1] + 16)
     return body(hip, a, h=a if h is None else h, lN=(a + 180, angle(knee, ank), f), lF=(a + 181, angle(knee, ank) + 1, f),
-                gN=g, gF=(g[0] - 30, g[1] + 34), eN=-1, eF=-1, hN=-80)
+                gN=g, gF=(g[0] - 30, g[1] + 34), eN=1, eF=1, hN=-80)
 
 
 def sissy_scene(doc, j, layer):
     if layer == "back":
+        # Toes stay planted in the in-betweens: shift the whole figure back onto them.
+        d = (SS_TOE[0] - j["toeN"][0], SS_TOE[1] - j["toeN"][1])
+        for name in list(j):
+            if isinstance(j[name], tuple) and len(j[name]) == 2 and not name.startswith("_"):
+                j[name] = (j[name][0] + d[0], j[name][1] + d[1])
         floor(doc, 214, 90)
         kit.post(doc, SS_POST + 4, 60)
 
@@ -985,7 +993,7 @@ def seated_db_calf_pose(f):
     k = j["kneeN"]
     g = (k[0] - 10, k[1] - 13)
     return body(SDC_HIP, -92, ankN=ank, ankF=art.add(ank, (-3, 0)), fN=f, fF=f,
-                gN=g, gF=(g[0] - 1, g[1] + 1), eN=-1, eF=-1, hN=0, hF=0)
+                gN=g, gF=(g[0] - 1, g[1] + 1), eN=1, eF=1, hN=0, hF=0)
 
 
 SDCR = ins([seated_db_calf_pose(-26), seated_db_calf_pose(2), seated_db_calf_pose(30)], "tr")

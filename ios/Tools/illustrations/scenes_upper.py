@@ -914,11 +914,45 @@ def mat_scene(x0, x1):
 PRONE_HIP = (176, GROUND - 4 - 15)
 
 
+PP_CH = 1000.0  # pose channel: the sweep's progress rides in a tiny (invisible) torso curl
+
+
 def prone_pulldown_poses():
     legs = dict(lN=(180, 180, 110), lF=(180.5, 180.5, 110))
-    return [P(t=-5, h=-10, aN=(-10, -10), aF=(-12, -12), pin=("hip", PRONE_HIP), **legs),
-            P(t=-7, h=-12, aN=(196, -16), aF=(198, -16), pin=("hip", PRONE_HIP), **legs),
-            P(t=-8, h=-14, aN=(170, 6), aF=(172, 6), pin=("hip", PRONE_HIP), **legs)]
+    return [P(t=-5, h=-10, aN=(-10, -10), aF=(-12, -12), pin=("hip", PRONE_HIP), curl=0.0, **legs),
+            P(t=-7, h=-12, aN=(196, -16), aF=(198, -16), pin=("hip", PRONE_HIP), curl=0.5 / PP_CH, **legs),
+            P(t=-8, h=-14, aN=(170, 6), aF=(172, 6), pin=("hip", PRONE_HIP), curl=1.0 / PP_CH, **legs)]
+
+
+def prone_pulldown_arms(j):
+    """Arms as a 3D chain projected to the side view: they hover just off the floor and sweep in the
+    horizontal plane from overhead (a narrow Y) out and down until the elbows tuck to the ribs, the forearms
+    turning out to point at the head (a W). Seen from the side the arms foreshorten as they pass the T,
+    instead of lifting up over the back and folding the forearm back along the upper arm."""
+    k = max(0.0, min(1.0, j["_curl"] * PP_CH))
+    j["_curl"] = 0
+    sh = j["shoulder"]
+    tv = art.norm(art.sub(sh, j["hip"]))  # towards the head
+    up = (tv[1], -tv[0])                  # off the floor
+    lift = math.radians(10 - 4 * k)
+    # Upper arm in the floor plane: 0 = overhead, 90 = out to the side (the T, at the middle key), 146 = at the ribs.
+    au = math.radians(90 + (k - 0.5) * (152 if k < 0.5 else 112))
+    af = au - math.radians(6 + 96 * k)    # forearm lags towards the head as the elbow bends
+    for s in "NF":
+        def proj(base, a, ln):
+            x = math.cos(a) * math.cos(lift) * ln  # along the body; the sideways part points at the camera
+            y = math.sin(lift) * ln
+            return art.add(art.add(base, tv, x), up, y)
+        e = proj(sh, au, UPPER)
+        j["elbow" + s] = e
+        j["wrist" + s] = proj(e, af, FORE)
+        j["hand" + s] = proj(e, af, FORE + HAND)
+
+
+def prone_pulldown_scene(doc, j, layer):
+    if layer == "back":
+        prone_pulldown_arms(j)
+    mat_scene(84, 290)(doc, j, layer)
 
 
 # ---- kneeling pulldowns --------------------------------------------------------------------------
@@ -1014,7 +1048,8 @@ def pullover_poses():
     out = []
     for a in (-86, -128, -170):
         g = art.ang_pt(FL_SH, a, 78)
-        out.append(supine(g, (g[0] + 1, g[1] - 1), -1))
+        # Soft elbows bent the way an elbow flexes: towards the feet with the arms up, towards the ceiling overhead.
+        out.append(supine(g, (g[0] + 1, g[1] - 1), 1))
     return out
 
 
@@ -1152,17 +1187,50 @@ def cable_fly_poses():
     a_f = art.add(shf, art.norm(art.sub(pf, shf)), 78)
     mid = (FR_HIP[0], shn[1] + 48)
     out = []
-    for k in (0, 0.55, 1):
+    for k, sweep in ((0, 0.0), (0.55, CF_MID), (1, 1.0)):
         gn = lerp(a_n, (mid[0] + 5, mid[1]), k)
         gf = lerp(a_f, (mid[0] - 5, mid[1]), k)
         if k == 0.55:
             gn = art.add(shn, art.norm(art.sub(gn, shn)), 72)
             gf = art.add(shf, art.norm(art.sub(gf, shf)), 72)
-        out.append(B(FR_HIP, -90, front=True, aN=G(gn, 1), aF=G(gf, -1), lN=(80, 92, 12), lF=(100, 88, 168)))
+        # The arms are redrawn in 3D by the scene (cable_fly_arms) from the sweep carried in the curl channel.
+        out.append(B(FR_HIP, -90, front=True, aN=G(gn, 1), aF=G(gf, -1), lN=(80, 92, 12), lF=(100, 88, 168),
+                     curl=sweep / PP_CH))
     return out
 
 
+CF_REACH = 78  # shoulder → grip, elbows softly bent
+CF_MID = 0.77  # sweep at the middle key: the forearms point at the camera there (shortest in the picture)
+
+
+def cable_fly_arms(j):
+    """Arms as a 3D chain projected to the front view (as pec_arms): each grip sweeps on an arc round its
+    shoulder from out at the sides to together in front of the lower chest, elbows soft and pointing out, so
+    the arms foreshorten towards the camera instead of folding and crossing in the picture plane."""
+    from scenes_arms_core import _ik3
+    shn, shf = fr_sh()
+    k = max(0.0, min(1.0, j["_curl"] * PP_CH))
+    j["_curl"] = 0
+    drop = 14 + 18 * k  # the hands travel slightly down and in, towards the lower chest
+    r = math.sqrt(CF_REACH ** 2 - drop ** 2)
+    end = math.acos(max(-1.0, min(1.0, -(SW - 5) / r)))  # hands meet just in front of the sternum
+    phi = math.radians(-6) + (end - math.radians(-6)) * k
+    for s, sh in (("N", shn), ("F", shf)):
+        sx = 1 if s == "N" else -1
+        a = (sh[0], sh[1], 0.0)
+        g = (sh[0] + sx * r * math.cos(phi), sh[1] + drop, r * math.sin(phi))
+        e = _ik3(a, g, UPPER, FORE + HAND / 2, (sx * 0.7, 0.8, -0.4))
+        d = art.norm((g[0] - e[0], g[1] - e[1])) if math.dist(g[:2], e[:2]) > 0.5 else (sx * 1.0, 0.0)
+        fl = math.dist(g, e)
+        scale = math.dist(g[:2], e[:2]) / fl if fl else 1
+        j["elbow" + s] = (e[0], e[1])
+        j["wrist" + s] = art.add(g[:2], d, -HAND / 2 * scale)
+        j["hand" + s] = art.add(g[:2], d, HAND / 2 * scale)
+
+
 def cable_fly_scene(doc, j, layer):
+    if layer == "back":
+        cable_fly_arms(j)
     gn, gf = kit.grip(j), kit.grip(j, "F")
     if layer == "back":
         floor(doc, 200, 150)
@@ -1315,11 +1383,61 @@ def reverse_deck_poses():
     return out
 
 
+PD_REACH = 78  # shoulder → grip, elbows softly bent (the arm is 85 long straight)
+PD_DROP = 6  # grips just below shoulder height
+
+
+def pec_sweep(j, facing):
+    """0 = arms out to the sides, 1 = hands together in front of the chest, read from the pose's near grip."""
+    shn = fr_sh(PD_HIP)[0]
+    g = kit.grip(j)
+    wide, closed = shn[0] + 76, PD_HIP[0] + 5
+    return max(0.0, min(1.0, (wide - g[0]) / (wide - closed)))
+
+
+def pec_arms(j, facing):
+    """Arms as a 3D chain projected to the front / back view: each grip swings on a horizontal arc round its
+    shoulder (towards the camera in front view) with the elbow softly bent and pointing out and down, so the
+    arms foreshorten as they close instead of folding and crossing in the picture plane."""
+    from scenes_arms_core import _ik3
+    k = pec_sweep(j, facing)
+    shn, shf = fr_sh(PD_HIP)
+    r = math.sqrt(PD_REACH ** 2 - PD_DROP ** 2)
+    end = math.acos(max(-1.0, min(1.0, (SW - 5) / r)))
+    phi = math.radians(4) + (end - math.radians(4)) * k
+    toward = 1 if facing == "front" else -1  # +z = towards the camera
+    for s, sh in (("N", shn), ("F", shf)):
+        sx = 1 if s == "N" else -1
+        a = (sh[0], sh[1], 0.0)
+        g = (sh[0] + sx * r * math.cos(phi), sh[1] + PD_DROP, toward * r * math.sin(phi))
+        e = _ik3(a, g, UPPER, FORE + HAND / 2, (sx * 0.6, 1.0, -toward * 0.5))
+        d = art.norm((g[0] - e[0], g[1] - e[1])) if math.dist(g[:2], e[:2]) > 0.5 else (sx * 1.0, 0.0)
+        fl = math.dist(g, e)  # 3D forearm + half hand
+        flat = math.dist(g[:2], e[:2])
+        scale = flat / fl if fl else 1
+        j["elbow" + s] = (e[0], e[1])
+        j["wrist" + s] = art.add(g[:2], d, -HAND / 2 * scale)
+        j["hand" + s] = art.add(g[:2], d, HAND / 2 * scale)
+
+
+def pec_seat_legs(j):
+    """Seated, thighs pointing at the camera: short (foreshortened) thighs off the seat front, shins down."""
+    for s, sx in (("N", 1), ("F", -1)):
+        hp = j["hip" + s]
+        kn = (hp[0] + sx * 30, hp[1] + 12)
+        an = (kn[0] + sx * 2, GROUND - 4)
+        j["knee" + s] = kn
+        j["ankle" + s] = an
+        j["toe" + s] = (an[0] + sx * 5, an[1] + 3)
+
+
 def pec_machine(doc, j, layer, facing):
-    gn, gf = kit.grip(j), kit.grip(j, "F")
     shn, shf = fr_sh(PD_HIP)
     pivots = ((shn[0] + 6, PD_PIV_Y), (shf[0] - 6, PD_PIV_Y))
     if layer == "back":
+        pec_arms(j, facing)
+        pec_seat_legs(j)
+        gn, gf = kit.grip(j), kit.grip(j, "F")
         floor(doc, 200, 140)
         open_ = abs(gn[0] - gf[0])
         lift = max(0, (150 - open_) * 0.12) if facing == "front" else max(0, (open_ - 20) * 0.1)
@@ -1334,18 +1452,19 @@ def pec_machine(doc, j, layer, facing):
         art.tube(doc, (PD_HIP[0], PD_HIP[1] - 30), (PD_HIP[0], GROUND - 2), 10, "butt")
         doc.add(f'<rect x="{PD_HIP[0] - 22}" y="{shn[1] - 30:.1f}" width="44" height="{PD_HIP[1] - shn[1] + 22:.1f}" rx="8" '
                 f'fill="#23272C" stroke="#0A0B0D" stroke-width="0.9"/>')
-        art.tube(doc, (PD_HIP[0] - 30, PD_HIP[1] + 10), (PD_HIP[0] + 30, PD_HIP[1] + 10), 14)
+        # Seat under the hips: its front edge shows below the pelvis, the thighs come over it towards the camera.
+        art.tube(doc, (PD_HIP[0] - 22, PD_HIP[1] + 14), (PD_HIP[0] + 22, PD_HIP[1] + 14), 14)
+        doc.add(f'<rect x="{PD_HIP[0] - 48}" y="{PD_HIP[1] + 4}" width="96" height="14" rx="6" fill="#1E2227" '
+                f'stroke="#0A0B0D" stroke-width="0.8"/>')
         for p in pivots:
             art.tube(doc, (p[0], 30), p, 7)
             art.pulley(doc, p, 6)
     else:
+        gn, gf = kit.grip(j), kit.grip(j, "F")
         for p, g in zip(pivots, (gn, gf)):
             art.tube(doc, p, (g[0], g[1] - 12), 6)
             art.tube(doc, (g[0], g[1] - 12), (g[0], g[1] + 8), 6)
             doc.add(f'<rect x="{g[0] - 3.6:.1f}" y="{g[1] - 8:.1f}" width="7.2" height="16" rx="3.2" fill="#1B1D20"/>')
-        # Seat cushion in front of the hips.
-        doc.add(f'<rect x="{PD_HIP[0] - 30}" y="{PD_HIP[1] - 4}" width="60" height="16" rx="6" fill="#1E2227" '
-                f'stroke="#0A0B0D" stroke-width="0.8"/>')
 
 
 def pec_deck_scene(doc, j, layer):
@@ -1427,7 +1546,7 @@ SCENES = {
     "dips": S(dips_scene, dip_poses(), [(82, DIP_Y - 6, 272, GROUND)]),
     "ring-push-up": S(ring_push_scene, ring_push_poses(), [(RING[0] - 12, RING[1] - 40, RING[0] + 12, RING[1] + 10)]),
     "pike-push-up": S(floor_scene, pike_poses()),
-    "prone-pulldown": S(mat_scene(84, 290), prone_pulldown_poses(), [(84, GROUND - 6, 290, GROUND)]),
+    "prone-pulldown": S(prone_pulldown_scene, prone_pulldown_poses(), [(84, GROUND - 6, 290, GROUND)]),
     "single-arm-pulldown": S(single_pulldown_scene, kneel_pull_poses(SA_PULLEY, both=False), [tower_box(SA_TOWER_X)],
                              along(grip_n, SA_PULLEY)),
     "band-pulldown": S(band_pulldown_scene, kneel_pull_poses(DOOR_ANCHOR), [(DOOR_X - 6, 12, DOOR_X + 40, GROUND)],
