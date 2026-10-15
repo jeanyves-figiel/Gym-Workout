@@ -1,0 +1,120 @@
+name: Fly backups
+
+# Backups of the API database (#310). Two layers:
+# - Fly volume snapshots: daily, automatic, stored off the volume (cover losing the volume). Retention set here.
+# - App backups: the API writes /data/backups/app-<day>.db once a day (VACUUM INTO + quick_check), keeps 7.
+# Daily at 04:30 UTC (read only): fails if either app has no volume snapshot in the last 36 h.
+# Manual actions:
+#   status        list volume snapshots + app backups (read only)
+#   backup-now    write today's app backup now
+#   snapshot-now  take a volume snapshot now
+#   verify        open a backup copy read only: integrity check + row counts (restore drill, changes nothing)
+#   retention     set volume snapshot retention to `days` (1-60)
+#   restore       put backup `file` back: stages it, restarts the machine, current DB kept as backups/pre-restore-*.db.
+#                 Needs `confirm` = the Fly app name. Production only with the owner's explicit OK.
+on:
+  schedule:
+    - cron: '30 4 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target'
+        type: choice
+        options: [staging, production]
+        default: staging
+      action:
+        description: 'What to do'
+        type: choice
+        options: [status, backup-now, snapshot-now, verify, retention, restore]
+        default: status
+      file:
+        description: 'verify / restore: backup file, e.g. app-2026-10-14.db'
+        required: false
+        default: ''
+      days:
+        description: 'retention: days to keep volume snapshots'
+        required: false
+        default: '14'
+      confirm:
+        description: 'restore: type the Fly app name (monkeyworkout-staging / monkeyworkout-prod)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fly-backups-${{ inputs.environment || 'scheduled' }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [staging, production]
+    environment: ${{ matrix.environment }}
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_APP: ${{ matrix.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Newest volume snapshot younger than 36 h
+        run: |
+          vol=$(flyctl volumes list -a "$FLY_APP" --json | jq -r '.[0].id')
+          snaps=$(flyctl volumes snapshots list "$vol" --json)
+          newest=$(echo "$snaps" | jq -r '[.[] | (.created_at // .CreatedAt)] | sort | last // empty')
+          echo "$FLY_APP volume $vol: $(echo "$snaps" | jq length) snapshots, newest $newest" | tee -a "$GITHUB_STEP_SUMMARY"
+          [ -n "$newest" ] || { echo "::error::$FLY_APP has no volume snapshots"; exit 1; }
+          age=$(( $(date +%s) - $(date -d "$newest" +%s) ))
+          [ "$age" -lt 129600 ] || { echo "::error::$FLY_APP newest volume snapshot is $((age / 3600)) h old"; exit 1; }
+
+  run:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_APP: ${{ inputs.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
+      HOST: ${{ inputs.environment == 'production' && 'workout.monkeygrade.cloud' || 'workout-staging.monkeygrade.cloud' }}
+      ACTION: ${{ inputs.action }}
+      FILE: ${{ inputs.file }}
+      DAYS: ${{ inputs.days }}
+      CONFIRM: ${{ inputs.confirm }}
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Check inputs
+        run: |
+          case "$ACTION" in
+            verify|restore) echo "$FILE" | grep -Eq '^app-[0-9]{4}-[0-9]{2}-[0-9]{2}\.db$' || { echo "::error::file must look like app-YYYY-MM-DD.db"; exit 1; } ;;
+            retention) echo "$DAYS" | grep -Eq '^[0-9]+$' && [ "$DAYS" -ge 1 ] && [ "$DAYS" -le 60 ] || { echo "::error::days must be 1-60"; exit 1; } ;;
+          esac
+          if [ "$ACTION" = restore ] && [ "$CONFIRM" != "$FLY_APP" ]; then echo "::error::confirm must be $FLY_APP"; exit 1; fi
+      - name: Volume
+        id: vol
+        run: echo "id=$(flyctl volumes list -a "$FLY_APP" --json | jq -r '.[0].id')" >> "$GITHUB_OUTPUT"
+      - name: Wake machine
+        if: inputs.action != 'retention' && inputs.action != 'snapshot-now'
+        run: curl -fsS --retry 5 --retry-delay 3 "https://$HOST/healthz" >/dev/null
+      - name: Run
+        env:
+          VOL: ${{ steps.vol.outputs.id }}
+        run: |
+          admin() { flyctl ssh console -a "$FLY_APP" -C "su node -s /bin/sh -c 'node --disable-warning=ExperimentalWarning /app/src/admin/backup.ts $*'"; }
+          case "$ACTION" in
+            status)
+              flyctl volumes list -a "$FLY_APP"
+              echo "--- volume snapshots"; flyctl volumes snapshots list "$VOL"
+              echo "--- app backups"; admin list ;;
+            backup-now) admin now ;;
+            snapshot-now) flyctl volumes snapshots create "$VOL" ;;
+            verify) admin verify "$FILE" ;;
+            retention) flyctl volumes update "$VOL" -a "$FLY_APP" --snapshot-retention "$DAYS"; flyctl volumes show "$VOL" -a "$FLY_APP" ;;
+            restore)
+              admin stage-restore "$FILE"
+              flyctl machine restart -a "$FLY_APP" "$(flyctl machines list -a "$FLY_APP" --json | jq -r '.[0].id')"
+              curl -fsS --retry 10 --retry-delay 3 "https://$HOST/healthz"
+              admin list ;;
+          esac

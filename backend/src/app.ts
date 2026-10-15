@@ -18,6 +18,7 @@ import { communityPublicRoutes, communityRoutes } from './routes/community.ts';
 import { customExerciseRoutes } from './routes/customExercises.ts';
 import { customWorkoutRoutes } from './routes/customWorkouts.ts';
 import { bodyMeasurementRoutes } from './routes/bodyMeasurements.ts';
+import { climbRoutes } from './routes/climbs.ts';
 import { prAttemptRoutes } from './routes/prAttempts.ts';
 import { dataRoutes } from './routes/data.ts';
 import { gymRoutes } from './routes/gyms.ts';
@@ -114,6 +115,11 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   });
 
   app.register(rateLimit, { global: false });
+
+  // Personal data must not land in HTTP caches on the device or in between (#310).
+  app.addHook('onSend', async (req, reply) => {
+    if (req.headers.authorization && !reply.hasHeader('cache-control')) reply.header('cache-control', 'no-store');
+  });
 
   // Mail transport is exposed so the staging smoke test can tell real delivery from console logging.
   app.get('/healthz', async () => ({ ok: true, mail: deps.config.mail.transport }));
@@ -231,6 +237,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       communityRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
       customExerciseRoutes(r, deps.db, deps.now ?? (() => new Date()));
       prAttemptRoutes(r, deps.db, deps.now ?? (() => new Date()));
+      climbRoutes(r, deps.db, deps.now ?? (() => new Date()));
       bodyMeasurementRoutes(r, deps.db, deps.now ?? (() => new Date()));
       pushRoutes(r, push, deps.config.appleBundleIds, (id) => sharing(id)?.nickname ?? null);
       libraryRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
