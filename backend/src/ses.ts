@@ -24,7 +24,7 @@ export interface SignInput {
   method: string;
   url: URL;
   headers: Record<string, string>;
-  body: string;
+  body: string | Buffer;
   service: string;
   region: string;
   accessKeyId: string;

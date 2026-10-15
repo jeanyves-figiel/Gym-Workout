@@ -27,5 +27,14 @@ export const ensureSchemaExtras = (db: DB): void => {
     CREATE INDEX IF NOT EXISTS email_changes_user ON email_changes(user_id);
     CREATE INDEX IF NOT EXISTS codes_expires ON codes(expires_at);
     CREATE INDEX IF NOT EXISTS refresh_expires ON refresh_tokens(expires_at);
+    -- Climbing sessions (#312), synced from the app (routes/climbs.ts).
+    CREATE TABLE IF NOT EXISTS climbs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      start TEXT NOT NULL,
+      data TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS climbs_user_updated ON climbs(user_id, updated_at);
   `);
 };

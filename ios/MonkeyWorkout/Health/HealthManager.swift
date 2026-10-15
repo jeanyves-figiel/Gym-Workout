@@ -163,6 +163,11 @@ final class HealthManager {
         }
     }
 
+    /// Sign-out / account deletion: drop the cached readings file (the next refresh writes a fresh one).
+    static func clearCache() {
+        try? FileManager.default.removeItem(at: cacheURL)
+    }
+
     /// Nothing to wait for: not connected, or Health unavailable on this device.
     var settled: Bool { loaded || !connected || !available }
 

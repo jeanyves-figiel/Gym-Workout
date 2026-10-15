@@ -81,6 +81,11 @@ struct LocalState: Codable {
     var deletedCustomWorkoutIds: Set<UUID>?
     // Logged climbs (#44). Optional so older state files still decode.
     var climbs: [ClimbLog]?
+    /// Climbs not yet on the server / deleted here but not yet there (#312).
+    var pendingClimbIds: Set<UUID>?
+    var deletedClimbIds: Set<UUID>?
+    /// Climbs logged before #312 lived only here: uploaded once, then this is true.
+    var climbsUploaded: Bool?
     // Custom exercises (#52). Archived, never deleted.
     var customExerciseList: [CustomExercise]?
     var pendingCustomExerciseIds: Set<UUID>?
@@ -92,6 +97,10 @@ struct LocalState: Codable {
     var measurements: [BodyMeasurement]?
     var pendingMeasurementIds: Set<UUID>?
     var deletedMeasurementIds: Set<UUID>?
+    // Server deletes still to send: undone workouts (#133) and the set logs removed with them or with a PR attempt.
+    // Kept until the server confirms, so a full pull can't bring them back. Optional so older state files still decode.
+    var deletedWorkoutIds: Set<UUID>?
+    var deletedLogIds: Set<UUID>?
     /// Workout paused in the player, resumed at the same point (#57). Local only.
     var activeWorkout: ActiveWorkout?
 }
@@ -142,6 +151,7 @@ extension LocalState {
         plan = try? c.decodeIfPresent(WeekPlan.self, forKey: .plan)
         done = (try? c.decodeIfPresent([String: Bool].self, forKey: .done)) ?? [:]
         ticked = (try? c.decodeIfPresent([String: Bool].self, forKey: .ticked)) ?? [:]
+        skipped = try? c.decodeIfPresent([String: Bool].self, forKey: .skipped)
         logs = (try? c.decodeIfPresent([LogEntry].self, forKey: .logs)) ?? []
         pendingLogIds = (try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingLogIds)) ?? []
         lastLogPull = try? c.decodeIfPresent(Date.self, forKey: .lastLogPull)
@@ -153,11 +163,19 @@ extension LocalState {
         pendingCustomWorkoutIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingCustomWorkoutIds)
         deletedCustomWorkoutIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedCustomWorkoutIds)
         climbs = try? c.decodeIfPresent([ClimbLog].self, forKey: .climbs)
+        pendingClimbIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingClimbIds)
+        deletedClimbIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedClimbIds)
+        climbsUploaded = try? c.decodeIfPresent(Bool.self, forKey: .climbsUploaded)
         activeWorkout = try? c.decodeIfPresent(ActiveWorkout.self, forKey: .activeWorkout)
         customExerciseList = try? c.decodeIfPresent([CustomExercise].self, forKey: .customExerciseList)
         pendingCustomExerciseIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingCustomExerciseIds)
         prAttempts = try? c.decodeIfPresent([PRAttempt].self, forKey: .prAttempts)
         pendingPRAttemptIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingPRAttemptIds)
         deletedPRAttemptIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedPRAttemptIds)
+        measurements = try? c.decodeIfPresent([BodyMeasurement].self, forKey: .measurements)
+        pendingMeasurementIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingMeasurementIds)
+        deletedMeasurementIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedMeasurementIds)
+        deletedWorkoutIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedWorkoutIds)
+        deletedLogIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedLogIds)
     }
 }

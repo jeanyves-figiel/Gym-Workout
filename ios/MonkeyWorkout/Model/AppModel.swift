@@ -1,5 +1,6 @@
 import APIClient
 import Foundation
+import Network
 import UIKit
 import WorkoutEngine
 
@@ -37,6 +38,13 @@ final class AppModel {
     private let store: LocalStore
     private var syncing = false
     private var resyncRequested = false
+    /// Silent retry after a failed sync: 5 s, 15 s, 1 min, then every 5 min while the app is active; reset on success.
+    @ObservationIgnored private var retryTask: Task<Void, Never>?
+    @ObservationIgnored private var retryAttempt = 0
+    private static let retryDelays: [UInt64] = [5, 15, 60, 300]
+    /// Connectivity regained with something unsent → sync.
+    @ObservationIgnored private var pathMonitor: NWPathMonitor?
+    @ObservationIgnored private var online = true
 
     init(api: APIClient, store: LocalStore) {
         self.api = api
@@ -121,6 +129,7 @@ final class AppModel {
         }
         #endif
         state = store.load()
+        startConnectivityWatch()
         await api.setOnSignedOut { [weak self] in
             Task { @MainActor in self?.sessionExpired() }
         }
@@ -148,6 +157,7 @@ final class AppModel {
         self.user = user
         phase = .signedIn
         persist()
+        startConnectivityWatch()
         await pullProfile()
         await sync()
         await ProStore.shared.start(api: api, userId: user.id)
@@ -155,12 +165,14 @@ final class AppModel {
 
     /// Explicit sign-out: revoke this device and wipe local data.
     func signOut() async {
+        await flushPendingSync()
         await NotificationManager.shared.signOut(api: api)
         await api.logout()
         resetLocal()
     }
 
     func signOutEverywhere() async throws {
+        await flushPendingSync()
         await NotificationManager.shared.signOut(api: api)
         try await api.logoutAllDevices()
         resetLocal()
@@ -175,16 +187,40 @@ final class AppModel {
 
     /// Refresh token rejected: keep local data (unsynced logs survive), require sign-in.
     private func sessionExpired() {
+        stopAutoSync()
         user = nil
         phase = .signedOut
     }
 
+    /// Data export shared from Account (temporary directory); removed on sign-out and account deletion.
+    static var exportFileURL: URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("gym-workout-export.json")
+    }
+
     private func resetLocal() {
+        stopAutoSync()
         ProStore.shared.reset()
         store.wipe()
         state = LocalState()
         user = nil
         phase = .signedOut
+        // Personal copies outside state.json: cached Health readings, the data export, HTTP responses.
+        HealthManager.clearCache()
+        try? FileManager.default.removeItem(at: Self.exportFileURL)
+        URLCache.shared.removeAllCachedResponses()
+        // Signed-out snapshots for the Watch and the Home Screen widgets (WatchSync.push refreshes both).
+        WatchSync.shared.push()
+    }
+
+    /// Before a sign-out wipes this device: one last try (5 s at most) to send what hasn't reached the server.
+    private func flushPendingSync() async {
+        guard phase == .signedIn, !demo, hasPendingSync else { return }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await self.sync() }
+            group.addTask { try? await Task.sleep(nanoseconds: 5_000_000_000) }
+            await group.next()
+            group.cancelAll()
+        }
     }
 
     // MARK: Plan
@@ -507,12 +543,12 @@ final class AppModel {
             for b in s.blocks { for it in b.items { state.ticked[it.uid] = nil } }
             if state.activeWorkout?.sessionId == s.id { state.activeWorkout = nil }
         }
+        // Queued, not fire-and-forget: a failed delete is retried by the next sync, and pulls skip these ids meanwhile.
+        state.deletedWorkoutIds = (state.deletedWorkoutIds ?? []).union([id])
+        state.deletedLogIds = (state.deletedLogIds ?? []).union(logIds)
         persist()
         Community.shared.didUndo(r, api: api)
-        Task {
-            try? await api.deleteWorkout(id)
-            for l in logIds { try? await api.deleteLog(l) }
-        }
+        Task { await sync() }
     }
 
     /// Set logs of a recorded workout: same session, from its start until the end (plus slack for pauses),
@@ -572,6 +608,17 @@ final class AppModel {
         }
     }
 
+    /// Something not yet on the server: edits, new records or queued deletes.
+    var hasPendingSync: Bool {
+        state.profileDirty || !state.pendingLogIds.isEmpty || !state.pendingHistoryIds.isEmpty
+            || !(state.deletedWorkoutIds ?? []).isEmpty || !(state.deletedLogIds ?? []).isEmpty
+            || !(state.pendingCustomWorkoutIds ?? []).isEmpty || !(state.deletedCustomWorkoutIds ?? []).isEmpty
+            || !(state.pendingCustomExerciseIds ?? []).isEmpty
+            || !(state.pendingPRAttemptIds ?? []).isEmpty || !(state.deletedPRAttemptIds ?? []).isEmpty
+            || !(state.pendingMeasurementIds ?? []).isEmpty || !(state.deletedMeasurementIds ?? []).isEmpty
+            || !(state.pendingClimbIds ?? []).isEmpty || !(state.deletedClimbIds ?? []).isEmpty
+    }
+
     func sync() async {
         guard phase == .signedIn, !demo else { return }
         guard !syncing else {
@@ -586,48 +633,172 @@ final class AppModel {
                 Task { await sync() }
             }
         }
-        do {
-            if state.profileDirty, let sp = state.synced {
-                try await api.saveProfile(sp)
-                // An edit made while the save was in flight stays dirty, so the next sync sends it.
-                if state.synced == sp { state.profileDirty = false }
-            }
-            let pending = state.logs.filter { state.pendingLogIds.contains($0.id) }
-            if !pending.isEmpty {
-                try await api.pushLogs(pending)
-                state.pendingLogIds.subtract(pending.map(\.id))
-            }
-            let pendingRecords = state.history.filter { state.pendingHistoryIds.contains($0.id) }
-            if !pendingRecords.isEmpty {
-                try await api.pushWorkouts(pendingRecords)
-                state.pendingHistoryIds.subtract(pendingRecords.map(\.id))
-            }
-            // Full pull: the server list is the truth, so workouts removed elsewhere (undo on another device,
-            // admin undo) drop off this device too instead of lingering in Progress totals (#213).
-            // Unsynced local records are kept.
-            let remoteHistory = try await api.fetchWorkouts(WorkoutRecord.self)
-            var historyById = Dictionary(remoteHistory.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
-            for r in state.history where state.pendingHistoryIds.contains(r.id) { historyById[r.id] = r }
-            state.history = Array(historyById.values)
-            state.lastHistoryPull = Date()
-            // 5 min overlap absorbs clock skew; merge is idempotent by id.
-            let since = state.lastLogPull?.addingTimeInterval(-300)
-            let remote = try await api.fetchLogs(since: since)
-            var byId = Dictionary(state.logs.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
-            for l in remote where !state.pendingLogIds.contains(l.id) { byId[l.id] = l }
-            state.logs = byId.values.sorted { $0.date < $1.date }
-            state.lastLogPull = Date()
-            try await syncCustomExercises()
-            try await syncCustomWorkouts()
-            try await syncPRAttempts()
-            try await syncMeasurements()
+        // Each step runs even when an earlier one failed (a bad record doesn't hold back the rest);
+        // the first error is the one shown.
+        var firstError: Error?
+        guard await runSyncStep(&firstError, { try await self.pushProfile() }),
+              await runSyncStep(&firstError, { try await self.pushLogs() }),
+              await runSyncStep(&firstError, { try await self.pushHistory() }),
+              await runSyncStep(&firstError, { try await self.pushQueuedDeletes() }),
+              await runSyncStep(&firstError, { try await self.pullHistory() }),
+              await runSyncStep(&firstError, { try await self.pullLogs() }),
+              await runSyncStep(&firstError, { try await self.syncCustomExercises() }),
+              await runSyncStep(&firstError, { try await self.syncCustomWorkouts() }),
+              await runSyncStep(&firstError, { try await self.syncPRAttempts() }),
+              await runSyncStep(&firstError, { try await self.syncMeasurements() }),
+              await runSyncStep(&firstError, { try await self.syncClimbs() })
+        else { return sessionExpired() }
+        persist()
+        if let firstError {
+            syncError = firstError.localizedDescription
+            scheduleRetry()
+        } else {
             syncError = nil
-            persist()
-        } catch APIError.signedOut {
-            sessionExpired()
-        } catch {
-            syncError = error.localizedDescription
+            retryAttempt = 0
+            retryTask?.cancel()
+            retryTask = nil
         }
+    }
+
+    /// One sync step; a failure is remembered (first one wins) and the next steps still run.
+    /// Returns false when the session is gone, so the sync stops.
+    private func runSyncStep(_ firstError: inout Error?, _ work: () async throws -> Void) async -> Bool {
+        guard !Task.isCancelled else {
+            if firstError == nil { firstError = CancellationError() }
+            return true
+        }
+        do {
+            try await work()
+        } catch APIError.signedOut {
+            return false
+        } catch {
+            if firstError == nil { firstError = error }
+        }
+        return true
+    }
+
+    private func pushProfile() async throws {
+        guard state.profileDirty, let sp = state.synced else { return }
+        try await api.saveProfile(sp)
+        // An edit made while the save was in flight stays dirty, so the next sync sends it.
+        if state.synced == sp { state.profileDirty = false }
+    }
+
+    private func pushLogs() async throws {
+        let pending = state.logs.filter { state.pendingLogIds.contains($0.id) }
+        guard !pending.isEmpty else { return }
+        try await api.pushLogs(pending)
+        state.pendingLogIds.subtract(pending.map(\.id))
+    }
+
+    private func pushHistory() async throws {
+        let pendingRecords = state.history.filter { state.pendingHistoryIds.contains($0.id) }
+        guard !pendingRecords.isEmpty else { return }
+        try await api.pushWorkouts(pendingRecords)
+        state.pendingHistoryIds.subtract(pendingRecords.map(\.id))
+    }
+
+    /// Server deletes queued by Undo workout (#133) and PR-attempt removal; each id is dropped once the server
+    /// confirms (a 404 means it's already gone). Remaining ids are retried by the next sync.
+    private func pushQueuedDeletes() async throws {
+        var firstError: Error?
+        for id in state.deletedWorkoutIds ?? [] {
+            do {
+                try await deleteOnServer { try await self.api.deleteWorkout(id) }
+                state.deletedWorkoutIds?.remove(id)
+            } catch APIError.signedOut {
+                throw APIError.signedOut
+            } catch {
+                if firstError == nil { firstError = error }
+            }
+        }
+        for id in state.deletedLogIds ?? [] {
+            do {
+                try await deleteOnServer { try await self.api.deleteLog(id) }
+                state.deletedLogIds?.remove(id)
+            } catch APIError.signedOut {
+                throw APIError.signedOut
+            } catch {
+                if firstError == nil { firstError = error }
+            }
+        }
+        if let firstError { throw firstError }
+    }
+
+    private func deleteOnServer(_ delete: () async throws -> Void) async throws {
+        do {
+            try await delete()
+        } catch let APIError.server(status, _, _) where status == 404 {
+            // Already gone on the server.
+        }
+    }
+
+    private func pullHistory() async throws {
+        // Full pull: the server list is the truth, so workouts removed elsewhere (undo on another device,
+        // admin undo) drop off this device too instead of lingering in Progress totals (#213).
+        // Unsynced local records are kept; workouts whose delete is still queued stay gone.
+        let remoteHistory = try await api.fetchWorkouts(WorkoutRecord.self)
+        let deleted = state.deletedWorkoutIds ?? []
+        var historyById = Dictionary(remoteHistory.filter { !deleted.contains($0.id) }.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
+        for r in state.history where state.pendingHistoryIds.contains(r.id) { historyById[r.id] = r }
+        state.history = Array(historyById.values)
+        state.lastHistoryPull = Date()
+    }
+
+    private func pullLogs() async throws {
+        // 5 min overlap absorbs clock skew; merge is idempotent by id.
+        let since = state.lastLogPull?.addingTimeInterval(-300)
+        let remote = try await api.fetchLogs(since: since)
+        let deleted = state.deletedLogIds ?? []
+        var byId = Dictionary(state.logs.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
+        for l in remote where !state.pendingLogIds.contains(l.id) && !deleted.contains(l.id) { byId[l.id] = l }
+        state.logs = byId.values.sorted { $0.date < $1.date }
+        state.lastLogPull = Date()
+    }
+
+    // MARK: Automatic retry
+
+    /// Backoff retry after a failed sync, only while the app is in the foreground.
+    private func scheduleRetry() {
+        guard phase == .signedIn, !demo else { return }
+        retryTask?.cancel()
+        let delay = Self.retryDelays[min(retryAttempt, Self.retryDelays.count - 1)]
+        retryAttempt += 1
+        retryTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: delay * 1_000_000_000)
+            guard !Task.isCancelled, let self, UIApplication.shared.applicationState == .active else { return }
+            await self.sync()
+        }
+    }
+
+    /// Watches connectivity: back online with something unsent → sync (silently).
+    private func startConnectivityWatch() {
+        guard pathMonitor == nil, !demo else { return }
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            let online = path.status == .satisfied
+            Task { @MainActor in self?.connectivityChanged(online: online) }
+        }
+        monitor.start(queue: DispatchQueue(label: "AppModel.connectivity", qos: .utility))
+        pathMonitor = monitor
+    }
+
+    private func connectivityChanged(online now: Bool) {
+        let regained = now && !online
+        online = now
+        guard regained, phase == .signedIn, hasPendingSync, UIApplication.shared.applicationState == .active else { return }
+        retryAttempt = 0
+        Task { await sync() }
+    }
+
+    /// Sign-out or expired session: no more automatic syncs.
+    private func stopAutoSync() {
+        retryTask?.cancel()
+        retryTask = nil
+        retryAttempt = 0
+        pathMonitor?.cancel()
+        pathMonitor = nil
+        online = true
     }
 
     /// Internal (not private) so model extensions in other files can save.

@@ -1,3 +1,6 @@
+import { dirname, join } from 'node:path';
+import type { OffsiteConfig } from './offsite.ts';
+
 export interface Config {
   env: 'development' | 'test' | 'production';
   host: string;
@@ -40,6 +43,10 @@ export interface Config {
   webauthn: { rpId: string; origins: string[] };
   /** Apple team id, for /.well-known/apple-app-site-association (passkeys). */
   appleTeamId?: string;
+  /** Daily SQLite backups (#310) in `dir` (default `<db dir>/backups` in production; BACKUP_DIR=off disables). */
+  backup: { dir?: string; keepDays: number };
+  /** Encrypted off-site copy (#313): Fly Tigris bucket (secrets set by `flyctl storage create`) + BACKUP_KEY. Unset → off. */
+  offsite?: OffsiteConfig;
 }
 
 const required = (name: string, env: NodeJS.ProcessEnv, prod: boolean, dev: string): string => {
@@ -53,6 +60,13 @@ const subscriptionMode = (v?: string): Config['subscriptions']['mode'] => {
   const m = (v ?? 'off').toLowerCase();
   if (m !== 'off' && m !== 'preview' && m !== 'enforced') throw new Error('SUBSCRIPTIONS must be off, preview or enforced');
   return m;
+};
+
+const backupDir = (env: NodeJS.ProcessEnv, prod: boolean, dbPath: string): string | undefined => {
+  const v = env.BACKUP_DIR;
+  if (v && ['off', '0', 'false', 'no'].includes(v.toLowerCase())) return undefined;
+  if (v) return v;
+  return prod && dbPath !== ':memory:' ? join(dirname(dbPath), 'backups') : undefined;
 };
 
 export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
@@ -122,5 +136,21 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
         .filter(Boolean),
     },
     appleTeamId: env.APPLE_TEAM_ID || undefined,
+    backup: {
+      dir: backupDir(env, prod, env.DB_PATH ?? (prod ? '/data/app.db' : './data/dev.db')),
+      keepDays: Math.max(1, Number(env.BACKUP_KEEP_DAYS ?? 7)),
+    },
+    offsite:
+      env.AWS_ENDPOINT_URL_S3 && env.BUCKET_NAME && env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY && env.BACKUP_KEY
+        ? {
+            endpoint: env.AWS_ENDPOINT_URL_S3,
+            bucket: env.BUCKET_NAME,
+            region: env.AWS_REGION || 'auto',
+            accessKeyId: env.AWS_ACCESS_KEY_ID,
+            secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+            passphrase: env.BACKUP_KEY,
+            keepDays: Math.max(1, Number(env.BACKUP_OFFSITE_DAYS ?? 30)),
+          }
+        : undefined,
   };
 };

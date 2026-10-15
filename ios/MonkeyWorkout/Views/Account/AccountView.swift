@@ -355,8 +355,9 @@ struct AccountView: View {
     private func export() {
         exportTask.run {
             let data = try await model.api.exportData()
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("gym-workout-export.json")
-            try data.write(to: url, options: .atomic)
+            let url = AppModel.exportFileURL
+            // Encrypted while the device is locked; removed again on sign-out / account deletion.
+            try data.write(to: url, options: [.atomic, .completeFileProtection])
             exportURL = url
         }
     }

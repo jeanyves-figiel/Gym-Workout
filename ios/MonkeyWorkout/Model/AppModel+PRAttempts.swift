@@ -49,13 +49,14 @@ extension AppModel {
         if attempt.success && attempt.isRecord { NotificationManager.shared.announcePR(attempt, model: self) }
     }
 
-    /// Removes the attempt and the logged copies of its sets (best effort on the server).
+    /// Removes the attempt and the logged copies of its sets (queued deletes on the server).
     func deletePRAttempt(_ id: UUID) {
         guard let attempt = state.prAttempts?.first(where: { $0.id == id }) else { return }
         let logIds = state.logs.filter { $0.sessionId == attempt.sessionId }.map(\.id)
         state.logs.removeAll { $0.sessionId == attempt.sessionId }
         state.pendingLogIds.subtract(logIds)
-        Task { [api] in for l in logIds { try? await api.deleteLog(l) } }
+        // Queued for the next sync (retried until the server confirms); pulls skip these ids meanwhile.
+        state.deletedLogIds = (state.deletedLogIds ?? []).union(logIds)
         state.prAttempts?.removeAll { $0.id == id }
         state.pendingPRAttemptIds?.remove(id)
         var deleted = state.deletedPRAttemptIds ?? []
