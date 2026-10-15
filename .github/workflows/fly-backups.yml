@@ -108,13 +108,18 @@ jobs:
       ACTION: ${{ inputs.action }}
       FILE: ${{ inputs.file }}
       DAYS: ${{ inputs.days }}
-      CONFIRM: ${{ inputs.confirm }}
       BACKUP_KEY: ${{ secrets.BACKUP_KEY }}
-      EMAIL: ${{ inputs.email }}
       APPLY: ${{ inputs.apply }}
       OVERWRITE: ${{ inputs.overwrite }}
       PROFILE: ${{ inputs.profile }}
     steps:
+      # The repo is public: member emails (email, confirm) are read from the event file and masked before any
+      # step prints its env, so they never show in the log.
+      - name: Mask member email
+        run: |
+          email=$(jq -r '.inputs.email // ""' "$GITHUB_EVENT_PATH"); confirm=$(jq -r '.inputs.confirm // ""' "$GITHUB_EVENT_PATH")
+          for v in "$email" "$confirm"; do [ -n "$v" ] && echo "::add-mask::$v"; done
+          { echo "EMAIL=$email"; echo "CONFIRM=$confirm"; } >> "$GITHUB_ENV"
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Check inputs
         run: |
@@ -180,6 +185,7 @@ jobs:
             member-restore)
               args=$(jq -nc --arg email "$EMAIL" --argjson apply "$APPLY" --argjson overwrite "$OVERWRITE" --argjson profile "$PROFILE" \
                 '{email: $email, apply: $apply, overwrite: $overwrite, profile: $profile}' | base64 -w0)
+              echo "::add-mask::$args"
               flyctl ssh console -a "$FLY_APP" -C "su -p -s /bin/sh node -c 'node --disable-warning=ExperimentalWarning /app/src/admin/restoreMember.ts $FILE $args'" ;;
             member-delete)
               flyctl ssh console -a "$FLY_APP" -C "su -p -s /bin/sh node -c 'node --disable-warning=ExperimentalWarning /app/src/admin/deleteMember.ts $EMAIL $CONFIRM'" ;;
