@@ -1,5 +1,6 @@
 import APIClient
 import SwiftUI
+import WorkoutEngine
 
 struct AccountView: View {
     @Environment(AppModel.self) private var model
@@ -15,6 +16,7 @@ struct AccountView: View {
     @State private var exportURL: URL?
     @State private var exportTask = FormTask()
     @State private var confirmSignOutAll = false
+    @AppStorage(AutoNextPref.key) private var autoNextSec = AutoNextPref.fallback
     @State private var signOutAllTask = FormTask()
     @State private var deviceCount: Int?
     @State private var gate: ProGate?
@@ -84,6 +86,20 @@ struct AccountView: View {
                         .buttonStyle(.plain)
                     }
 
+                    // Workout flow (#357): what happens after an exercise's last set.
+                    Menu {
+                        Picker("After the last set", selection: $autoNextSec) {
+                            ForEach(AutoNextPref.choices, id: \.self) { Text(AutoNextPref.title($0)).tag($0) }
+                        }
+                    } label: {
+                        AccountCard(symbol: "forward.fill", title: "Workout flow",
+                                    subtitle: "Next exercise: " + AutoNextPref.title(autoNextSec).lowercased(),
+                                    gradient: WorkoutEngine.Category.cardio.gradient) {
+                            AccountChevron()
+                        }
+                    }
+                    .buttonStyle(.plain)
+
                     NavigationLink { NotificationSettingsView() } label: {
                         AccountCard(symbol: "bell.badge.fill", title: "Reminders & alerts",
                                     subtitle: "Session reminders, check-ins, cheers",
@@ -96,6 +112,18 @@ struct AccountView: View {
                         AccountCard(symbol: WatchHomePref.shared.style.phoneSymbol, title: "Style",
                                     subtitle: "\(WatchHomePref.shared.style.phoneTitle) on iPhone · \(WatchHomePref.shared.style.title) on Watch",
                                     gradient: WatchHomePref.shared.style.gradient)
+                    }
+                    .buttonStyle(.plain)
+
+                    // iPhone workout → Watch (#347): what the Watch does when a workout starts on the iPhone.
+                    Menu {
+                        Picker("Start on Apple Watch", selection: Binding(get: { WatchStartPref.shared.mode }, set: { WatchStartPref.shared.set($0) })) {
+                            ForEach(WatchStartMode.allCases) { Text($0.title).tag($0) }
+                        }
+                    } label: {
+                        AccountCard(symbol: "applewatch.radiowaves.left.and.right", title: "Start on Apple Watch",
+                                    subtitle: "iPhone workout → \(WatchStartPref.shared.mode.title)",
+                                    gradient: LinearGradient(colors: [Color(hex: 0xFF3FA4), Color(hex: 0x8A3DFF)], startPoint: .topLeading, endPoint: .bottomTrailing))
                     }
                     .buttonStyle(.plain)
 

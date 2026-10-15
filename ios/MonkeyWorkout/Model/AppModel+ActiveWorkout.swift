@@ -8,6 +8,16 @@ extension AppModel {
         state.activeWorkout.flatMap { $0.sessionId == sessionId ? $0 : nil }
     }
 
+    /// How long after going to the background a closed-by-iOS workout still counts as running (#359).
+    static let interruptedWindow: TimeInterval = 3 * 3600
+
+    /// Workout the player was running when iOS closed the app in the background, still within the window.
+    func interruptedWorkout(now: Date = Date()) -> Session? {
+        guard let w = state.activeWorkout, w.interrupted == true,
+              now.timeIntervalSince(w.updatedAt) < Self.interruptedWindow else { return nil }
+        return session(w.sessionId)
+    }
+
     /// Fresh start: forget earlier completion of this session's exercises and any other paused workout.
     func beginWorkout(_ session: Session) {
         for b in session.blocks { for it in b.items { state.ticked[it.uid] = nil } }
