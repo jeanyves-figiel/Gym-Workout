@@ -26,4 +26,11 @@ extension AppModel {
         state.activeWorkout = nil
         persist()
     }
+
+    /// Gym zones set during a workout (#352): re-plans once the player closed with no workout left running.
+    func replanAfterWorkoutIfDone() {
+        guard replanAfterWorkout, state.activeWorkout == nil, let p = profile else { return }
+        replanAfterWorkout = false
+        updateProfile(p)
+    }
 }

@@ -136,6 +136,9 @@ private struct DemoScreen: View {
         case "player-logged": WorkoutPlayerView(sessionId: second, demoMode: "logged")
         case "finish-early": WorkoutPlayerView(sessionId: second, demoMode: "finish")
         case "player-fitted": WorkoutPlayerView(sessionId: second, demoMode: "fitted")
+        case "player-superset": WorkoutPlayerView(sessionId: second, demoMode: "superset")
+        case "player-superset-fix": WorkoutPlayerView(sessionId: second, demoMode: "superset-fix")
+        case "player-split": WorkoutPlayerView(sessionId: second, demoMode: "superset-split")
         case "example": NavigationStack { SessionView(sessionId: WorkoutTemplate.all[1].sessionId) }
         case "explore": NavigationStack { LibraryView() }
         case "explore-female": NavigationStack { LibraryView() }.environment(\.bodyFigure, .female)

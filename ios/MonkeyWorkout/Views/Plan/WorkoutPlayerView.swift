@@ -46,6 +46,12 @@ struct WorkoutPlayerView: View {
     @State private var fitBanner: String?
     /// Superset split mid-workout (#352): what to put back on Undo, shown for a few seconds.
     @State private var splitUndo: SplitUndo?
+    /// Superset chip (#352): the item whose "machines not next to each other?" sheet is open, and what was picked there.
+    @State private var groupFix: PlannedExercise?
+    @State private var groupChoice: SupersetFixSheet.Choice?
+    @State private var swapPartner: PlannedExercise?
+    @State private var zonesOpen = false
+    @State private var zoneDraft: (layout: GymLayout?, equipment: [Equipment]) = (nil, [])
 
     /// Overlay after a set: optional rest countdown and the one-tap effort picker for that set.
     struct Pause: Equatable {
@@ -107,6 +113,28 @@ struct WorkoutPlayerView: View {
         .preferredColorScheme(.dark)
         .sheet(item: $formFor) { FormSheet(exercise: $0) }
         .sheet(item: $notHereFor) { NotHereSheet(exerciseId: $0.exerciseId, uid: $0.uid) }
+        .sheet(item: $groupFix, onDismiss: runGroupChoice) { item in
+            if let step = steps.first(where: { $0.item.uid == item.uid }) {
+                SupersetFixSheet(title: groupTitle(step), partner: swappablePartner(step).map { Exercise.get($0.exerciseId).name },
+                                 canZones: model.trip(forItem: item.uid) == nil, zonesSet: model.profile?.gymLayout != nil) {
+                    groupChoice = $0
+                }
+            }
+        }
+        .sheet(item: $swapPartner) { partner in
+            SwapExerciseSheet(exerciseId: partner.exerciseId, uid: partner.uid, onPick: { id in
+                let here = steps.indices.contains(index) ? steps[index].item.uid : partner.uid
+                model.swapInSession(sessionId, uid: partner.uid, to: id)
+                fitted?.swap(partner.uid, to: id)
+                relocate(here)
+            })
+        }
+        .sheet(isPresented: $zonesOpen, onDismiss: {
+            model.setGymLayoutDuringWorkout(zoneDraft.layout, equipment: zoneDraft.equipment)
+        }) {
+            EquipmentSheet(equipment: Binding(get: { zoneDraft.equipment }, set: { zoneDraft.equipment = $0 }),
+                           layout: Binding(get: { zoneDraft.layout }, set: { zoneDraft.layout = $0 }))
+        }
         .fullScreenCover(item: $prFor) { PRAttemptView(exerciseId: $0.id) }
         .proPaywall($gate)
         .sheet(isPresented: $finishingEarly) {
@@ -135,6 +163,7 @@ struct WorkoutPlayerView: View {
             saveProgress()
             live.end()
             WatchSync.shared.sendLive(nil)
+            model.replanAfterWorkoutIfDone()
         }
         .onChange(of: index) { reloadLog(); saveProgress(); updateLive() }
         .onChange(of: setsDone) { saveProgress(); updateLive() }
@@ -175,7 +204,8 @@ struct WorkoutPlayerView: View {
                                  onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
                                  onNotHere: !step.exercise.equipment.isEmpty && model.canSwap(uid: step.item.uid) && done == 0
                                      ? { notHereFor = step.item } : nil,
-                                 onSplit: canSplit(step) ? { split(step) } : nil) { formFor = step.exercise }
+                                 onSplit: canSplit(step) ? { split(step) } : nil,
+                                 onGroup: canSplit(step) ? { groupFix = step.item } : nil) { formFor = step.exercise }
                     .id(step.item.uid)
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
                     .layoutPriority(1)
@@ -551,6 +581,34 @@ struct WorkoutPlayerView: View {
         }
     }
 
+    /// "Superset A1 + A2" / "Circuit A1 + A2 + A3".
+    private func groupTitle(_ step: Step) -> String {
+        let members = step.block.groupMembers(of: step.item.uid)
+        return (members.count == 2 ? "Superset " : "Circuit ") + members.compactMap(\.group).joined(separator: " + ")
+    }
+
+    /// The next other member with no set done yet: it can still be swapped for an exercise nearby.
+    private func swappablePartner(_ step: Step) -> PlannedExercise? {
+        let members = step.block.groupMembers(of: step.item.uid)
+        guard let i = members.firstIndex(where: { $0.uid == step.item.uid }) else { return nil }
+        let order = members[(i + 1)...] + members[..<i]
+        return order.first { (setsDone[$0.uid] ?? 0) == 0 }
+    }
+
+    /// Runs the choice from the superset sheet once it has closed, so the next sheet can open.
+    private func runGroupChoice() {
+        guard let choice = groupChoice, steps.indices.contains(index) else { return }
+        groupChoice = nil
+        let step = steps[index]
+        switch choice {
+        case .split: split(step)
+        case .swap: swapPartner = swappablePartner(step)
+        case .zones:
+            zoneDraft = (model.profile?.gymLayout, model.profile?.equipment ?? [])
+            zonesOpen = true
+        }
+    }
+
     /// Back to the superset as it was, on the same exercise and set.
     private func undoSplit() {
         guard let u = splitUndo else { return }
@@ -594,6 +652,13 @@ struct WorkoutPlayerView: View {
             index = s
             reloadLog()
             if demoMode == "finish" { finishingEarly = true } else { finishEarly(minutes: 15) }
+        }
+        // Superset chip (#352): on the first grouped item; "superset-fix" opens its sheet, "superset-split" splits it.
+        if demoMode?.hasPrefix("superset") == true, let s = steps.firstIndex(where: { $0.item.group != nil }) {
+            index = s
+            reloadLog()
+            if demoMode == "superset-fix" { groupFix = steps[s].item }
+            if demoMode == "superset-split" { split(steps[s]) }
         }
         if demoMode == "done" {
             reward = Demo.reward
