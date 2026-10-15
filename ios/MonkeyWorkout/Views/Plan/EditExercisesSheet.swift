@@ -122,7 +122,21 @@ struct EditExercisesSheet: View {
                     }
                     Text(e.name).font(Theme.label(14)).lineLimit(1).minimumScaleFactor(0.8)
                 }
-                Text(item.prescription.reps).font(.caption.weight(.semibold)).foregroundStyle(block.kind.category.color)
+                HStack(spacing: 6) {
+                    Text(item.prescription.reps).font(.caption.weight(.semibold)).foregroundStyle(block.kind.category.color)
+                    // Split a superset / circuit into straight sets (#352), on its first member.
+                    if item.group?.hasSuffix("1") == true, item.supersetWith == nil {
+                        Button { withAnimation { blocks.split(item.uid) } } label: {
+                            Label("Split", systemImage: "scissors")
+                                .font(Theme.label(10))
+                                .foregroundStyle(Theme.lime)
+                                .padding(.horizontal, 7).padding(.vertical, 2)
+                                .background(Capsule().strokeBorder(Theme.lime, style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Split \(item.group?.first.map(String.init) ?? "") into straight sets")
+                    }
+                }
             }
             Spacer(minLength: 4)
             SetsStepper(sets: item.prescription.sets) { n in withAnimation { blocks.setSets(item.uid, n) } }

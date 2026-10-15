@@ -33,6 +33,8 @@ final class AppModel {
     var exploreJump: LibraryView.Mode?
     /// Workouts other members shared (#62), loaded on demand; not persisted.
     var sharedLibrary: [SharedWorkout] = []
+    /// Gym zones changed from the player (#352): the plan follows once the running workout is over; not persisted.
+    @ObservationIgnored var replanAfterWorkout = false
     /// Apple Health readings for first-time load estimates (#115); set at launch.
     @ObservationIgnored weak var health: HealthManager?
 
