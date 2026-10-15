@@ -64,7 +64,7 @@ final class HomeWidgetSync {
         let climbs = model.climbLogs
         let climbedDays = Set(climbs.filter { $0.start >= weekStart }.map { WeekSchedule.fromCalendar(cal.component(.weekday, from: $0.start)) })
         let climbPlan = Set(model.profile?.climbingWeekdays ?? [])
-        let missed = Set(model.missedSessions.map(\.id))
+        let missed = Set(model.missedToHandle.map(\.id))
         s.days = WeekSchedule.weekdays.map { wd in
             let sessions = plan.sessions.filter { $0.weekday == wd }
             return .init(weekday: wd, planned: !sessions.isEmpty,

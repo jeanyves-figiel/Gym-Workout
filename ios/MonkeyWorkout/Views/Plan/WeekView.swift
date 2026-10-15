@@ -153,7 +153,7 @@ struct WeekView: View {
         } else if let next {
             NextUpCard(session: next, picked: nil, onPick: pick, onBack: back) { playing = next }
         } else {
-            WeekCompleteCard(missed: model.missedSessions.count, onPick: pick)
+            WeekCompleteCard(missed: model.missedToHandle.count, onPick: pick)
         }
     }
 
@@ -672,7 +672,8 @@ private struct NextUpCard: View {
 
     private var eyebrow: String {
         guard let d = picked else { return "Next up · \(model.upcomingDayLabel(session))" }
-        let state = done ? "done" : model.missedSessions.contains { $0.id == session.id } ? "missed"
+        let state = done ? "done" : model.skippedIds.contains(session.id) ? "skipped"
+            : model.missedSessions.contains { $0.id == session.id } ? "missed"
             : isNext ? "next up" : d == model.todayWeekday ? "today" : "planned"
         return "\(WeekSchedule.name(d)) · \(state)"
     }
