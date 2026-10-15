@@ -367,11 +367,14 @@ public actor APIClient {
         return r.user
     }
 
-    private func store(_ t: TokenPair) {
-        tokens.save(StoredTokens(
+    @discardableResult
+    private func store(_ t: TokenPair) -> StoredTokens {
+        let stored = StoredTokens(
             accessToken: t.accessToken,
             accessExpiresAt: now().addingTimeInterval(TimeInterval(t.accessTokenExpiresIn)),
-            refreshToken: t.refreshToken))
+            refreshToken: t.refreshToken)
+        tokens.save(stored)
+        return stored
     }
 
     func decode<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
@@ -403,8 +406,8 @@ public actor APIClient {
             do {
                 let data = try await send("POST", "/v1/auth/refresh", Body(refreshToken: stale.refreshToken))
                 let pair = try decode(TokenPair.self, data)
-                store(pair)
-                return tokens.load()!
+                // The tokens just received, not a Keychain read-back that can fail (#351).
+                return store(pair)
             } catch let APIError.server(status, _, _) where status == 401 {
                 tokens.clear()
                 onSignedOut?()

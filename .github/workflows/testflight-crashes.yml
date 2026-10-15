@@ -7,9 +7,6 @@ on:
       limit:
         description: 'How many recent crash reports'
         default: '5'
-  push:
-    branches: [claude/fix-resume-crash-pvxqgt]
-    paths: [.github/workflows/testflight-crashes.yml, .github/scripts/asc_crashes.py]
 
 permissions:
   contents: read

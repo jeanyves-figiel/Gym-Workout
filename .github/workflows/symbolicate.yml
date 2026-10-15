@@ -10,9 +10,6 @@ on:
       offsets:
         description: 'Space-separated imageOffset values of the MonkeyWorkout image (decimal)'
         required: true
-  push:
-    branches: [claude/fix-resume-crash-pvxqgt]
-    paths: [.github/workflows/symbolicate.yml]
 
 permissions:
   contents: read
@@ -22,8 +19,8 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 60
     env:
-      REF: ${{ inputs.ref || '5a9d6cad' }}
-      OFFSETS: ${{ inputs.offsets || '3917276 204605 221709 736661 228240 99332 86232 82536 3808108' }}
+      REF: ${{ inputs.ref }}
+      OFFSETS: ${{ inputs.offsets }}
     steps:
       - uses: actions/checkout@v4
         with:

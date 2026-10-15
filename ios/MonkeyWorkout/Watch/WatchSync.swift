@@ -150,7 +150,7 @@ final class WatchSync: NSObject {
         let stats = Progression.stats(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
         s.progress = WProgress(
             streakWeeks: stats.currentStreakWeeks, bestStreakWeeks: stats.bestStreakWeeks, thisWeek: stats.thisWeek, target: target,
-            records: stats.personalRecords.prefix(5).map { WRecord(name: Exercise.get($0.exerciseId).name, kg: $0.kg) },
+            records: stats.personalRecords.prefix(5).map { WRecord(name: Exercise.find($0.exerciseId)?.name ?? "Exercise", kg: $0.kg) },
             recent: model.history.prefix(5).map { WRecent(title: $0.title, date: $0.startedAt, minutes: $0.durationSec / 60, sets: $0.totalSets) })
         // Game layer (#219, #227): same XP, level and badges as the iPhone.
         let game = model.game
@@ -169,7 +169,9 @@ final class WatchSync: NSObject {
             tint: (session.blocks.first { $0.kind == .strength } ?? session.blocks.first)?.kind.category.tintHex ?? 0xCCFF3D,
             blocks: session.blocks.map { b in
                 WBlock(title: b.title, tint: b.kind.category.tintHex, tint2: b.kind.category.tintHex2,
-                       items: b.items.map { item($0, block: b, sessionId: session.id, model: model) })
+                       // A custom exercise not loaded yet (mid-sync) is left out rather than trapping in Exercise.get (#351).
+                       items: b.items.filter { Exercise.find($0.exerciseId) != nil }
+                           .map { item($0, block: b, sessionId: session.id, model: model) })
             },
             missed: model.missedSessions.contains { $0.id == session.id })
     }
