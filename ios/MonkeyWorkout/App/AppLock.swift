@@ -20,7 +20,10 @@ final class AppLock {
         UserDefaults.standard.set(on, forKey: AppLock.key)
     }
 
-    var biometryName: String {
+    /// Asked once: `canEvaluatePolicy` is a synchronous call to the system and views read this on every render (#351).
+    @ObservationIgnored private(set) lazy var biometryName: String = Self.currentBiometryName()
+
+    private static func currentBiometryName() -> String {
         let ctx = LAContext()
         _ = ctx.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
         switch ctx.biometryType {

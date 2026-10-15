@@ -242,8 +242,9 @@ public enum LoadAdvisor {
         }
 
         if method == .autoregulated, let goal = p.targetRIR {
+            // Rating is optional in the player (#357): the rated working sets decide; none rated → reps rules below.
             let rirs = working.compactMap(\.rir)
-            if !rirs.isEmpty && rirs.count == working.count {
+            if !rirs.isEmpty {
                 let diff = Double(rirs.reduce(0, +)) / Double(rirs.count) - Double(goal)
                 if diff >= 1 && minReps >= range.low {
                     var target = round(kg + s.increment * (diff >= 2 ? 2 : 1), to: s.granularity)
@@ -262,7 +263,7 @@ public enum LoadAdvisor {
         if minReps >= range.high {
             let rirs = working.compactMap(\.rir)
             let baseWeek = week % Generator.mesocycleWeeks == 1
-            let easy = !baseWeek && rirs.count == working.count && (rirs.min() ?? 0) >= 4
+            let easy = !baseWeek && !rirs.isEmpty && (rirs.min() ?? 0) >= 4
             var target = round(kg + s.increment * (easy ? 2 : 1), to: s.granularity)
             if target <= kg { target = kg + s.granularity }
             return LoadSuggestion(kg: target, reps: range.low, action: .increase, basisKg: kg,

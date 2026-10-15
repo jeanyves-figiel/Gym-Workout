@@ -46,6 +46,15 @@ struct WorkoutPlayerView: View {
     @State private var finishingEarly = false
     /// What the last fit changed, shown with Undo for a few seconds.
     @State private var fitBanner: String?
+    /// "Next in 5" after an exercise's last set (#357); nil = not counting.
+    @State private var autoNext: AutoNext?
+    @AppStorage(AutoNextPref.key) private var autoNextSec = AutoNextPref.fallback
+
+    struct AutoNext: Equatable {
+        let uid: String
+        let end: Date
+        let total: Int
+    }
 
     /// Overlay after a set: optional rest countdown and the one-tap effort picker for that set.
     struct Pause: Equatable {
@@ -133,13 +142,13 @@ struct WorkoutPlayerView: View {
             UIApplication.shared.isIdleTimerDisabled = false
             saveProgress()
             live.end()
-            WatchSync.shared.sendLive(nil)
+            if !finished, !discarded { WatchSync.shared.endLive(.paused, sessionId: sessionId) }
         }
         .onChange(of: index) { reloadLog(); saveProgress(); updateLive() }
         .onChange(of: setsDone) { saveProgress(); updateLive() }
         .onChange(of: pause) { updateLive() }
         .onChange(of: log.rows) { updateLive() }
-        .onChange(of: scenePhase) { _, p in if p != .active { saveProgress() } }
+        .onChange(of: scenePhase) { _, p in if p != .active { saveProgress(interrupted: p == .background) } }
         .onReceive(NotificationCenter.default.publisher(for: .workoutRestAdd15)) { _ in extendRest() }
         .onReceive(NotificationCenter.default.publisher(for: .workoutRestSkip)) { _ in closePause() }
         .onReceive(NotificationCenter.default.publisher(for: .watchCommand)) { n in
@@ -189,6 +198,16 @@ struct WorkoutPlayerView: View {
                                colors: next.colors, compact: true)
                 }
                 controls(step, sets: sets, done: done)
+                    .overlay(alignment: .bottom) {
+                        if let a = autoNext, a.uid == step.item.uid {
+                            let next = upNext(after: step, done: done, sets: sets, includeSets: false)
+                            AutoNextBar(title: next?.title ?? "", detail: next?.detail ?? "", end: a.end, total: a.total,
+                                        finishing: index >= steps.count - 1,
+                                        onGo: { advance(step) }, onHold: { autoNext = nil })
+                                .padding(.bottom, 8)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
@@ -197,8 +216,11 @@ struct WorkoutPlayerView: View {
             if let p = pause {
                 PauseOverlay(
                     pause: p, color: cat.colors[0],
-                    doneLabel: p.effortSet.flatMap { i in log.values(i).map { "Set \(i + 1) done · \(LoadAdvisor.formatKg($0.kg)) × \($0.reps)" } }
-                        ?? "Set \(done) done",
+                    doneLabel: (step.loggable ? p.effortSet ?? max(0, done - 1) : nil).flatMap { i in
+                        log.values(i).map { v in
+                            "Set \(i + 1) done · \(LoadAdvisor.formatKg(v.kg)) × \(v.reps)" + (p.effort.map { " · \($0.caption.lowercased())" } ?? "")
+                        }
+                    } ?? "Set \(done) done",
                     drill: step.item.pairedWith.flatMap(Exercise.find),
                     next: upNext(after: step, done: done, sets: sets, includeSets: true)
                 ) { effort in
@@ -209,6 +231,14 @@ struct WorkoutPlayerView: View {
                     closePause()
                 }
             }
+        }
+        .task(id: autoNext) {
+            // Countdown over: on to the next exercise (a timed one waits for START).
+            guard let a = autoNext, a.uid == step.item.uid else { return }
+            let wait = a.end.timeIntervalSinceNow
+            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+            guard !Task.isCancelled, autoNext == a else { return }
+            advance(step)
         }
         .task(id: timed?.end) {
             // Timed set over: count it and buzz.
@@ -328,33 +358,52 @@ struct WorkoutPlayerView: View {
     }
 
     private func controls(_ step: Step, sets: Int, done: Int) -> some View {
-        HStack(spacing: 12) {
-            Button { go(index - 1) } label: {
-                Image(systemName: "chevron.left").font(.system(size: 20, weight: .heavy))
-                    .frame(width: 58, height: 58)
-                    .background(Circle().fill(Theme.cardStrong))
+        Group {
+            if step.loggable && done < sets {
+                // Loaded sets (#357): the effort tiles are the SET DONE button, so a set and its effort take one tap.
+                EffortDoneStrip(setNumber: (editingSet ?? done) + 1) { e in
+                    completeSet(step, sets: sets, done: done, effort: e)
+                } leading: {
+                    previousButton(size: 44)
+                } trailing: {
+                    skipButton(step, size: 44)
+                }
+            } else {
+                HStack(spacing: 12) {
+                    previousButton(size: 58)
+                    Button {
+                        mainAction(step, sets: sets, done: done)
+                    } label: {
+                        Text(mainLabel(step, sets: sets, done: done))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .buttonStyle(LimeButtonStyle())
+                    skipButton(step, size: 58)
+                }
             }
-            .disabled(index == 0)
-            .accessibilityLabel("Previous exercise")
-
-            Button {
-                mainAction(step, sets: sets, done: done)
-            } label: {
-                Text(mainLabel(step, sets: sets, done: done))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-            .buttonStyle(LimeButtonStyle())
-
-            Button { advance(step) } label: {
-                Image(systemName: "forward.end.fill").font(.system(size: 18, weight: .heavy))
-                    .frame(width: 58, height: 58)
-                    .background(Circle().fill(Theme.cardStrong))
-            }
-            .accessibilityLabel("Skip to next exercise")
         }
         .foregroundStyle(.white)
         .padding(.bottom, 8)
+    }
+
+    private func previousButton(size: CGFloat) -> some View {
+        Button { go(index - 1) } label: {
+            Image(systemName: "chevron.left").font(.system(size: size > 50 ? 20 : 16, weight: .heavy))
+                .frame(width: size, height: size)
+                .background(Circle().fill(Theme.cardStrong))
+        }
+        .disabled(index == 0)
+        .accessibilityLabel("Previous exercise")
+    }
+
+    private func skipButton(_ step: Step, size: CGFloat) -> some View {
+        Button { advance(step) } label: {
+            Image(systemName: "forward.end.fill").font(.system(size: size > 50 ? 18 : 15, weight: .heavy))
+                .frame(width: size, height: size)
+                .background(Circle().fill(Theme.cardStrong))
+        }
+        .accessibilityLabel("Skip to next exercise")
     }
 
     private func mainLabel(_ step: Step, sets: Int, done: Int) -> String {
@@ -386,7 +435,8 @@ struct WorkoutPlayerView: View {
         timed = run
     }
 
-    private func completeSet(_ step: Step, sets: Int, done: Int) {
+    /// `effort`: the tile tapped as SET DONE (#357); nil leaves the rating to the optional picker during rest.
+    private func completeSet(_ step: Step, sets: Int, done: Int, effort tapped: Effort? = nil) {
         if let e = editingSet {
             editingSet = nil
             _ = log.log(e, model: model)
@@ -394,25 +444,38 @@ struct WorkoutPlayerView: View {
         guard done < sets else { return advance(step) }
         let now = done + 1
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        let logged = step.loggable && log.item?.uid == step.item.uid && log.log(done, model: model)
+        let onScreen = step.loggable && log.item?.uid == step.item.uid
+        if onScreen, let tapped, log.rows.indices.contains(done) { log.rows[done].rir = String(tapped.rir) }
+        let logged = onScreen && log.log(done, model: model)
         setsDone[step.item.uid] = now
         if now >= sets { model.setTicked(step.item.uid) }
         // Superset/circuit: on to the next member without rest, rest after the round (#78).
         let jump = groupJump(step, done: now)
         let target = jump.flatMap { $0.index == index ? nil : $0.index }
         let rest = jump?.rest ?? (now < sets ? step.timedSpec?.easySec ?? step.item.prescription.restSec : 0)
-        // Last set: straight on to the next exercise (after the effort tap when the set was logged).
-        guard rest > 0 || logged else {
+        // No rest: the next group member at once, or after the last set the "Next in" countdown (#357).
+        guard rest > 0 else {
             if let target { return moveTo(target) }
-            if now >= sets { advance(step) }
+            if now >= sets { nextExercise(step) }
             return
         }
         pendingJump = target
+        // A set logged without a rating offers the optional picker during the rest; a rated one shows its effort.
         var effort: Effort?
         if logged, let rir = log.values(done)?.rir { effort = Effort(rir: rir) }
         pause = Pause(
-            end: rest > 0 ? Date().addingTimeInterval(TimeInterval(rest)) : nil, total: rest,
-            effortSet: logged ? done : nil, effort: effort)
+            end: Date().addingTimeInterval(TimeInterval(rest)), total: rest,
+            effortSet: logged && effort == nil ? done : nil, effort: effort)
+    }
+
+    /// After an exercise's last set: straight on, a "Next in N" countdown, or wait for NEXT (Settings, #357).
+    private func nextExercise(_ step: Step) {
+        switch autoNextSec {
+        case ..<0: return
+        case 0: advance(step)
+        default:
+            autoNext = AutoNext(uid: step.item.uid, end: Date().addingTimeInterval(TimeInterval(autoNextSec)), total: autoNextSec)
+        }
     }
 
     private func pickEffort(_ e: Effort) {
@@ -432,7 +495,7 @@ struct WorkoutPlayerView: View {
         }
         guard steps.indices.contains(index) else { return }
         let step = steps[index]
-        if (setsDone[step.item.uid] ?? 0) >= step.sets { advance(step) }
+        if (setsDone[step.item.uid] ?? 0) >= step.sets { nextExercise(step) }
     }
 
     private func extendRest() {
@@ -444,6 +507,7 @@ struct WorkoutPlayerView: View {
     }
 
     private func advance(_ step: Step) {
+        autoNext = nil
         if (setsDone[step.item.uid] ?? 0) >= step.sets { model.setTicked(step.item.uid) }
         if index >= steps.count - 1 {
             finish()
@@ -461,14 +525,17 @@ struct WorkoutPlayerView: View {
                 bodyMassKg: health.snapshot.weightKg ?? model.body.weightKg)
             record = r
             reward = GameReward(before: before.game, after: model.game, badgesBefore: before.badges, badgesAfter: model.badges)
-            Task {
-                let hr = await health.save(r)
-                model.attachHeartRate(r.id, avg: hr.avg, max: hr.max)
+            // A Watch tracking this workout saves the Health workout with its heart rate (#347).
+            if !WatchSync.shared.watchTracks(sessionId) {
+                Task {
+                    let hr = await health.save(r)
+                    model.attachHeartRate(r.id, avg: hr.avg, max: hr.max)
+                }
             }
         }
         model.clearActiveWorkout(sessionId)
         live.end()
-        WatchSync.shared.sendLive(nil)
+        WatchSync.shared.endLive(.finished, sessionId: sessionId, record: record)
         pause = nil
         finished = true
     }
@@ -483,6 +550,7 @@ struct WorkoutPlayerView: View {
         model.clearActiveWorkout(sessionId)
         discarded = true
         live.end()
+        WatchSync.shared.endLive(.discarded, sessionId: sessionId)
         dismiss()
     }
 
@@ -492,6 +560,7 @@ struct WorkoutPlayerView: View {
         pendingJump = nil
         timed = nil
         editingSet = nil
+        autoNext = nil
         index = i
     }
 
@@ -535,7 +604,15 @@ struct WorkoutPlayerView: View {
             setsDone = w.setsDone
             fitted = w.fitted
             fitEnd = w.fitEnd
-            started = Date().addingTimeInterval(-w.elapsed)
+            if w.interrupted == true, Date().timeIntervalSince(w.updatedAt) < AppModel.interruptedWindow {
+                // iOS closed the app mid-workout (#359): the time away was training, and a rest may still run.
+                started = w.updatedAt.addingTimeInterval(-w.elapsed)
+                if let end = w.restEnd, end > Date() {
+                    pause = Pause(start: end.addingTimeInterval(-TimeInterval(w.restTotal ?? 0)), end: end, total: w.restTotal ?? 0)
+                }
+            } else {
+                started = Date().addingTimeInterval(-w.elapsed)
+            }
         } else {
             model.beginWorkout(session)
             started = Date()
@@ -543,6 +620,7 @@ struct WorkoutPlayerView: View {
         reloadLog()
         ready = true
         live.start(title: session.displayTitle, startedAt: started, state: liveState())
+        WatchSync.shared.offerStart(sessionId: sessionId)
         #if DEBUG
         if demoRest, steps.indices.contains(index) {
             let s = steps.firstIndex { $0.loggable } ?? index
@@ -569,6 +647,12 @@ struct WorkoutPlayerView: View {
             reward = Demo.reward
             finished = true
         }
+        if demoMode == "next", let s = steps.firstIndex(where: { $0.loggable }), s < steps.count - 1 {
+            index = s
+            reloadLog()
+            setsDone[steps[s].item.uid] = steps[s].sets
+            autoNext = AutoNext(uid: steps[s].item.uid, end: Date().addingTimeInterval(64), total: 80)
+        }
         if demoMode == "logged", let s = steps.firstIndex(where: { $0.loggable && $0.sets > 2 }) {
             index = s
             reloadLog()
@@ -583,11 +667,14 @@ struct WorkoutPlayerView: View {
         log.load(item: steps[index].item, sessionId: sessionId, model: model)
     }
 
-    private func saveProgress() {
+    /// `interrupted`: the app is going to the background with the player open (#359), not a pause by the member.
+    private func saveProgress(interrupted: Bool = false) {
         guard ready, !finished, !discarded else { return }
+        let rest = interrupted ? pause.flatMap { p in p.end.map { (end: $0, total: p.total) } } : nil
         model.saveActiveWorkout(ActiveWorkout(
             sessionId: sessionId, index: index, setsDone: setsDone,
-            elapsed: Date().timeIntervalSince(started), updatedAt: Date(), fitted: fitted, fitEnd: fitEnd))
+            elapsed: Date().timeIntervalSince(started), updatedAt: Date(), fitted: fitted, fitEnd: fitEnd,
+            interrupted: interrupted ? true : nil, restEnd: rest?.end, restTotal: rest?.total))
     }
 
     // MARK: Finish early (#300)
@@ -663,7 +750,8 @@ struct WorkoutPlayerView: View {
             sessionTitle: session.displayTitle, exercise: state.exercise, setLabel: state.setLabel, detail: state.detail,
             restEnd: state.restEnd, next: state.next, tint: state.tint,
             effortPending: pause?.effortSet != nil && pause?.effort == nil,
-            action: mainLabel(step, sets: step.sets, done: setsDone[step.item.uid] ?? 0)))
+            action: mainLabel(step, sets: step.sets, done: setsDone[step.item.uid] ?? 0),
+            sessionId: sessionId, estMin: session.estMin, exercises: session.blocks.reduce(0) { $0 + $1.items.count }))
     }
 
     /// Remote control from the Watch while this player runs on the iPhone.
@@ -672,12 +760,18 @@ struct WorkoutPlayerView: View {
         let step = steps[index]
         switch c {
         case .main:
-            if pause != nil { closePause() } else { mainAction(step, sets: step.sets, done: setsDone[step.item.uid] ?? 0) }
+            if pause != nil { closePause() } else if autoNext != nil { advance(step) } else { mainAction(step, sets: step.sets, done: setsDone[step.item.uid] ?? 0) }
         case .skipRest: closePause()
         case .addRest: extendRest()
         case .effort0, .effort1, .effort2, .effort3, .effort4:
             let rir = [WCommand.effort0, .effort1, .effort2, .effort3, .effort4].firstIndex(of: c) ?? 2
-            pickEffort(Effort(rir: rir))
+            // Rating during rest, or (#357) the rating that completes the coming set.
+            let done = setsDone[step.item.uid] ?? 0
+            if pause == nil, step.loggable, done < step.sets {
+                completeSet(step, sets: step.sets, done: done, effort: Effort(rir: rir))
+            } else {
+                pickEffort(Effort(rir: rir))
+            }
         case .next: advance(step)
         case .previous: go(index - 1)
         }
@@ -703,13 +797,13 @@ private struct PauseOverlay: View {
                 Spacer(minLength: 0)
                 Text(doneLabel).eyebrow()
                 if pause.effortSet != nil {
-                    EffortPicker(selected: pause.effort, onPick: onEffort)
+                    EffortPicker(selected: pause.effort, optional: true, onPick: onEffort)
                 }
                 if pause.end != nil {
                     ZStack {
                         ProgressRing(progress: left / Double(max(1, pause.total)), lineWidth: 14, colors: [color, Theme.lime])
                         VStack(spacing: 0) {
-                            Text(left > 0 ? "Rest" : "Go!").eyebrow()
+                            Text(left > 3 ? "Rest" : "Get ready").eyebrow()
                             Text(Format.rest(Int(left.rounded(.up)))).font(Theme.display(54)).monospacedDigit()
                         }
                     }
@@ -724,7 +818,7 @@ private struct PauseOverlay: View {
                             .padding(.vertical, 14)
                             .background(Capsule().fill(Theme.cardStrong))
                     }
-                    Button(pause.end == nil ? "Continue" : left > 0 ? "Skip" : "Continue", action: onSkip)
+                    Button(pause.end == nil ? "Continue" : "Skip", action: onSkip)
                         .font(Theme.label(15))
                         .padding(.horizontal, 22)
                         .padding(.vertical, 14)
@@ -749,10 +843,20 @@ private struct PauseOverlay: View {
         .foregroundStyle(.white)
         .transition(.opacity)
         .task(id: pause.end) {
+            // 3-2-1 taps, then the rest closes by itself (#357): no Continue tap.
             guard let end = pause.end else { return }
+            for tick in [3.0, 2.0, 1.0] {
+                let wait = end.timeIntervalSinceNow - tick
+                guard wait > -0.5 else { continue }
+                if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+                guard !Task.isCancelled else { return }
+                UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+            }
             let wait = end.timeIntervalSinceNow
             if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
-            if !Task.isCancelled { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
+            guard !Task.isCancelled else { return }
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            onSkip()
         }
     }
 }

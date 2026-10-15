@@ -11,6 +11,16 @@ final class WatchStore: NSObject {
     /// iPhone player state while a workout runs on the phone.
     var live: WLive?
     var reachable = false
+    /// The iPhone started a workout and woke this Watch (#347): the start prompt shows.
+    var offered = false
+    /// Last store made by the app, for the app delegate the iPhone wakes (#347).
+    static weak var current: WatchStore?
+    /// Woken before the store existed.
+    static var pendingPhoneStart = false
+    private var workout: WorkoutManager { .shared }
+    /// Phone paused its workout while this Watch tracked it (#347).
+    private var pausedAt: Date?
+    private var finishing = false
     /// Game mode (#219): what the last workout finished on this Watch earned, for the Done screen.
     var reward: WReward?
     /// Home style picked on this Watch (#219) and when; the phone's pick in the snapshot wins when newer.
@@ -22,6 +32,7 @@ final class WatchStore: NSObject {
     override init() {
         snapshot = (try? Data(contentsOf: Self.url)).flatMap { try? JSONDecoder.watch.decode(WatchSnapshot.self, from: $0) } ?? WatchSnapshot()
         super.init()
+        Self.current = self
         #if DEBUG
         if Demo.on {
             snapshot = Demo.snapshot
@@ -35,6 +46,10 @@ final class WatchStore: NSObject {
         guard WCSession.isSupported() else { return }
         WCSession.default.delegate = self
         WCSession.default.activate()
+        if Self.pendingPhoneStart {
+            Self.pendingPhoneStart = false
+            phoneStarted()
+        }
     }
 
     var hasPlan: Bool { !snapshot.sessions.isEmpty || !snapshot.extras.isEmpty }
@@ -117,8 +132,106 @@ final class WatchStore: NSObject {
     }
 
     fileprivate func receive(message: [String: Any]) {
-        if message[WatchKeys.liveEnded] != nil { live = nil }
-        if let data = message[WatchKeys.live] as? Data, let l = try? JSONDecoder.watch.decode(WLive.self, from: data) { live = l }
+        if message[WatchKeys.liveEnded] != nil {
+            live = nil
+            phoneEnded(message[WatchKeys.outcome].flatMap { $0 as? String }.flatMap(WLiveOutcome.init),
+                       recordId: (message[WatchKeys.recordId] as? String).flatMap(UUID.init))
+        }
+        if let data = message[WatchKeys.live] as? Data, let l = try? JSONDecoder.watch.decode(WLive.self, from: data) {
+            live = l
+            if pausedAt != nil, workout.phoneSessionId != nil {
+                pausedAt = nil
+                workout.resume()
+            }
+        }
+    }
+
+    // MARK: iPhone workout on the Watch (#347)
+
+    /// Title of the iPhone workout, from its live state or the plan.
+    var phoneWorkout: (title: String, estMin: Int?, exercises: Int?, tint: UInt32) {
+        let s = live?.sessionId.flatMap(snapshot.session) ?? (live == nil ? next : nil)
+        return (live?.sessionTitle ?? s?.title ?? "Workout", live?.estMin ?? s?.estMin,
+                live?.exercises ?? s.map { $0.blocks.reduce(0) { $0 + $1.items.count } }, s?.tint ?? live?.tint ?? 0xCCFF3D)
+    }
+
+    /// The iPhone woke the Watch app for a workout it started.
+    func phoneStarted() {
+        guard workout.phoneSessionId == nil, !workout.running else { return }
+        if snapshot.watchStart == .always {
+            Task { await trackPhoneWorkout() }
+        } else {
+            offered = true
+            Task { await workout.prepare() }
+        }
+    }
+
+    /// Start prompt accepted (or start mode is automatic): track heart rate and energy while following the iPhone player.
+    func trackPhoneWorkout() async {
+        offered = false
+        let id = live?.sessionId ?? snapshot.nextSessionId ?? "phone"
+        await workout.start(title: phoneWorkout.title, phoneSessionId: id)
+        if workout.running { sendNow(.tracking(sessionId: id, on: true)) }
+    }
+
+    func declineOffer() {
+        offered = false
+        if !workout.running { workout.discard() }
+    }
+
+    /// Stops tracking without saving; the iPhone saves the Health workout itself.
+    func stopTracking() {
+        guard let id = workout.phoneSessionId else { return }
+        workout.discard()
+        pausedAt = nil
+        sendNow(.tracking(sessionId: id, on: false))
+    }
+
+    private func phoneEnded(_ outcome: WLiveOutcome?, recordId: UUID?) {
+        if offered, outcome != .paused, outcome != nil { declineOffer() }
+        guard let id = workout.phoneSessionId else { return }
+        switch outcome {
+        case .finished:
+            guard !finishing else { return }
+            finishing = true
+            Task {
+                defer { finishing = false }
+                let kcal = workout.activeKcal
+                let avg = workout.averageHeartRate
+                let max = workout.maxHeartRate
+                let saved = await workout.finish(sets: nil)
+                pausedAt = nil
+                if let recordId {
+                    send(.tracked(WTracked(recordId: recordId, avgHeartRate: avg, maxHeartRate: max,
+                                           kcal: saved ? kcal : nil, savedToHealth: saved)))
+                }
+            }
+        case .discarded:
+            stopTracking()
+        case .paused, nil:
+            guard !finishing else { return }
+            // Paused on the iPhone: keep the session; drop it if the workout doesn't resume within 30 minutes.
+            guard pausedAt == nil else { return }
+            let at = Date()
+            pausedAt = at
+            workout.pause()
+            Task {
+                try? await Task.sleep(for: .seconds(30 * 60))
+                if pausedAt == at, workout.phoneSessionId == id { stopTracking() }
+            }
+        }
+    }
+
+    /// Sent at once when the phone is reachable (it decides who saves the Health workout), queued otherwise.
+    private func sendNow(_ event: WatchEvent) {
+        guard WCSession.isSupported(), let data = try? JSONEncoder.watch.encode(event) else { return }
+        if WCSession.default.isReachable {
+            WCSession.default.sendMessage([WatchKeys.event: data], replyHandler: nil) { _ in
+                WCSession.default.transferUserInfo([WatchKeys.event: data])
+            }
+        } else {
+            WCSession.default.transferUserInfo([WatchKeys.event: data])
+        }
     }
 
     private func save() {
@@ -143,7 +256,8 @@ extension WatchStore: WCSessionDelegate {
         let reachable = session.isReachable
         Task { @MainActor in
             self.reachable = reachable
-            if !reachable { self.live = nil }
+            // While tracking an iPhone workout, keep showing its last state until it comes back (#347).
+            if !reachable, WorkoutManager.shared.phoneSessionId == nil { self.live = nil }
         }
     }
 
@@ -153,6 +267,11 @@ extension WatchStore: WCSessionDelegate {
 
     nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
         Task { @MainActor in self.receive(message: message) }
+    }
+
+    /// iPhone workout ended while this Watch was out of reach (#347).
+    nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        Task { @MainActor in self.receive(message: userInfo) }
     }
 }
 
