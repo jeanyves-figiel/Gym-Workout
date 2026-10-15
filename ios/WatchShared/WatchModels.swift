@@ -28,6 +28,8 @@ struct WatchSnapshot: Codable, Equatable {
     var game: WGame?
     /// What the Watch does when a workout starts on the iPhone (#347); nil (older phone app) = ask.
     var watchStart: WatchStartMode?
+    /// What an Apple Watch Ultra Action button press does during a workout (#349); nil (older phone app) = smart.
+    var actionButton: WatchActionMode?
 
     func session(_ id: String) -> WSession? { (sessions + extras).first { $0.id == id } }
 }
@@ -231,6 +233,28 @@ enum WatchStartMode: String, Codable, CaseIterable, Identifiable {
         case .ask: "Ask on Watch"
         case .always: "Start automatically"
         case .never: "Never"
+        }
+    }
+}
+
+/// What an Apple Watch Ultra Action button press does during a workout (#349).
+enum WatchActionMode: String, Codable, CaseIterable, Identifiable {
+    /// The obvious next step: log the set, skip rest, start/pause a timed set, next exercise, finish.
+    case smart
+    /// Always "I finished this set" (timed sets too); during rest, skip it.
+    case set
+    /// Start or end the rest countdown; timed sets start/pause. Sets are logged on screen.
+    case rest
+
+    static let `default` = WatchActionMode.smart
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .smart: "Smart next"
+        case .set: "Log set"
+        case .rest: "Rest timer"
         }
     }
 }

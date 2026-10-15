@@ -12,6 +12,8 @@ struct PlayerView: View {
     @State private var crown = 8.0
     @State private var saved = false
     @State private var sent = false
+    /// What the last Action button press did (#349), shown briefly.
+    @State private var actionLabel: String?
 
     var body: some View {
         Group {
@@ -35,6 +37,22 @@ struct PlayerView: View {
             send(player.completeSet())
         }
         .onChange(of: player.phase) { _, p in if p == .finished { finish() } }
+        .onChange(of: ActionButton.shared.presses) { actionPress() }
+        .overlay(alignment: .top) {
+            if let actionLabel {
+                Text(actionLabel).font(W.label(13)).foregroundStyle(W.ink).lineLimit(1).minimumScaleFactor(0.6)
+                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .background(Capsule().fill(W.lime).shadow(color: W.lime.opacity(0.5), radius: 6))
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .allowsHitTesting(false)
+            }
+        }
+        .task(id: actionLabel) {
+            guard actionLabel != nil else { return }
+            try? await Task.sleep(for: .seconds(1.2))
+            guard !Task.isCancelled else { return }
+            withAnimation { actionLabel = nil }
+        }
         .onChange(of: player.index) { syncCrown() }
         .onAppear { syncCrown() }
     }
@@ -131,6 +149,13 @@ struct PlayerView: View {
         } else {
             send(player.completeSet())
         }
+    }
+
+    /// Action button press (#349): the step the member's mode calls for (Settings → Apple Watch on the iPhone).
+    private func actionPress() {
+        guard let r = player.actionPress(store.snapshot.actionButton ?? .default) else { return }
+        send(r.events)
+        withAnimation { actionLabel = r.label }
     }
 
     private func syncCrown() {
@@ -245,7 +270,6 @@ private struct ControlsPage: View {
     let onDiscard: () -> Void
     let onBack: () -> Void
     @Environment(WorkoutManager.self) private var workout
-    @State private var paused = false
     @State private var confirmDiscard = false
     /// Set while the End countdown runs; a mistaken tap can still be cancelled (#133).
     @State private var endingAt: Date?
@@ -265,9 +289,8 @@ private struct ControlsPage: View {
                 .padding(.horizontal, 4)
                 Grid(horizontalSpacing: 5, verticalSpacing: 5) {
                     GridRow {
-                        tile(paused ? "play.fill" : "pause.fill", paused ? "Resume" : "Pause", 0xFFC23D, 0xFF7A3D, height: 62) {
-                            paused ? workout.resume() : workout.pause()
-                            paused.toggle()
+                        tile(workout.paused ? "play.fill" : "pause.fill", workout.paused ? "Resume" : "Pause", 0xFFC23D, 0xFF7A3D, height: 62) {
+                            workout.paused ? workout.resume() : workout.pause()
                         }
                         tile("stop.fill", "End", 0xFF3D5A, 0xB0105A, height: 62) {
                             endingAt = Date().addingTimeInterval(3)
