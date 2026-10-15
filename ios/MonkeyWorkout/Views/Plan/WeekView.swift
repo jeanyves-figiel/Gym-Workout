@@ -126,6 +126,7 @@ struct WeekView: View {
             model.syncProgramme()
             model.rollWeekIfNeeded()
             if demoEditing { arranging = true }
+            resumeInterruptedOnce()
             if let demoPick, let plan = model.plan {
                 let today = model.todayWeekday
                 let days = Set(plan.sessions.compactMap(\.weekday))
@@ -973,5 +974,17 @@ extension EnvironmentValues {
     var trainCompact: Bool {
         get { self[TrainCompactKey.self] }
         set { self[TrainCompactKey.self] = newValue }
+    }
+}
+
+extension WeekView {
+    @MainActor private static var checkedInterrupted = false
+
+    /// First Train screen after launch (#359): iOS closed the app during a workout, so reopen the player where it was;
+    /// otherwise clear a Live Activity such a run left on the lock screen.
+    private func resumeInterruptedOnce() {
+        guard !Self.checkedInterrupted, !model.demo else { return }
+        Self.checkedInterrupted = true
+        if let s = model.interruptedWorkout() { playing = s } else { LiveWorkout.endLeftovers() }
     }
 }

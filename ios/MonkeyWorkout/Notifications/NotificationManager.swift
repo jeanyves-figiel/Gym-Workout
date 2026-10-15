@@ -265,37 +265,45 @@ final class NotificationManager: NSObject {
 }
 
 extension NotificationManager: UNUserNotificationCenterDelegate {
+    // Completion-handler forms, answered on the main thread (#351). The `async` forms let Swift call UIKit's handler from
+    // a background thread; for a tapped notification that handler updates the app snapshot and UIKit aborts the app
+    // ("_performBlockAfterCATransactionCommitSynchronizes"), e.g. tapping the rest-over alert to get back to a workout.
     nonisolated func userNotificationCenter(
-        _ center: UNUserNotificationCenter, willPresent notification: UNNotification
-    ) async -> UNNotificationPresentationOptions {
-        [.banner, .list, .sound]
+        _ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        DispatchQueue.main.async { completionHandler([.banner, .list, .sound]) }
     }
 
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
         let info = response.notification.request.content.userInfo
-        let kind = info["kind"] as? String
-        let sessionId = info["sessionId"] as? String
-        let day = (info["day"] as? Double).map { Date(timeIntervalSince1970: $0) }
-        let action = response.actionIdentifier
-        let badgeId = info["badgeId"] as? String
-        let actorId = info["actorId"] as? String
-        let actorName = info["actorName"] as? String
-        await MainActor.run {
-            if kind == "follow_achievement", let actorId {
-                self.route = .member(userId: actorId, nickname: actorName ?? "")
-                return
+        let route = Self.route(kind: info["kind"] as? String, action: response.actionIdentifier,
+                               sessionId: info["sessionId"] as? String,
+                               day: (info["day"] as? Double).map { Date(timeIntervalSince1970: $0) },
+                               badgeId: info["badgeId"] as? String,
+                               actorId: info["actorId"] as? String, actorName: info["actorName"] as? String)
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                if let route { NotificationManager.shared.route = route }
             }
-            if kind == "badge", let badgeId {
-                self.route = .badge(badgeId)
-                return
-            }
-            guard let sessionId else { return }
-            switch (kind, action) {
-            case ("missed", Action.trainToday): self.route = .session(sessionId)
-            case ("missed", _): self.route = .reschedule(sessionId: sessionId, day: day ?? Date())
-            case ("upcoming", _): self.route = .session(sessionId)
-            default: break
-            }
+            completionHandler()
+        }
+    }
+
+    /// Where a tapped notification goes; nil = just open the app.
+    nonisolated static func route(kind: String?, action: String, sessionId: String?, day: Date?,
+                                  badgeId: String?, actorId: String?, actorName: String?) -> NotificationRoute? {
+        if kind == "follow_achievement", let actorId { return .member(userId: actorId, nickname: actorName ?? "") }
+        if kind == "badge", let badgeId { return .badge(badgeId) }
+        guard let sessionId else { return nil }
+        switch (kind, action) {
+        case ("missed", Action.trainToday): return .session(sessionId)
+        case ("missed", _): return .reschedule(sessionId: sessionId, day: day ?? Date())
+        case ("upcoming", _): return .session(sessionId)
+        default: return nil
         }
     }
 }

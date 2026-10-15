@@ -407,6 +407,15 @@ final class HealthManager {
         _ = try? await store.deleteObjects(of: HKObjectType.workoutType(), predicate: pred)
     }
 
+    /// Wakes the Watch app with a strength workout so it can offer to track the iPhone workout (#347).
+    func startWatchApp() {
+        guard available else { return }
+        let config = HKWorkoutConfiguration()
+        config.activityType = .functionalStrengthTraining
+        config.locationType = .indoor
+        store.startWatchApp(with: config) { _, _ in }
+    }
+
     /// Saves the session as an Apple Health workout; returns heart-rate stats measured during it (e.g. by a Watch).
     func save(_ record: WorkoutRecord) async -> (avg: Double?, max: Double?) {
         guard connected, available, writeWorkouts else { return (nil, nil) }

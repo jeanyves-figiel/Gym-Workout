@@ -48,11 +48,12 @@ struct ComingUpColumn: View {
     }
 }
 
-/// Rest countdown with a buzz at zero (the upright player shows it in its rest overlay).
+/// Rest countdown: 3-2-1 taps, then it closes by itself (#357), as the upright player's rest overlay does.
 struct RestRing: View {
     let end: Date
     let total: Int
     let color: Color
+    let onDone: () -> Void
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.2)) { ctx in
@@ -60,7 +61,7 @@ struct RestRing: View {
             ZStack {
                 ProgressRing(progress: left / Double(max(1, total)), lineWidth: 12, colors: [color, Theme.lime])
                 VStack(spacing: 0) {
-                    Text(left > 0 ? "Rest" : "Go!").eyebrow()
+                    Text(left > 3 ? "Rest" : "Get ready").eyebrow()
                     Text(Format.rest(Int(left.rounded(.up)))).font(Theme.display(40)).monospacedDigit()
                         .minimumScaleFactor(0.6).lineLimit(1)
                 }
@@ -71,9 +72,18 @@ struct RestRing: View {
         .aspectRatio(1, contentMode: .fit)
         .accessibilityElement(children: .combine)
         .task(id: end) {
+            for tick in [3.0, 2.0, 1.0] {
+                let wait = end.timeIntervalSinceNow - tick
+                guard wait > -0.5 else { continue }
+                if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+                guard !Task.isCancelled else { return }
+                UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+            }
             let wait = end.timeIntervalSinceNow
             if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
-            if !Task.isCancelled { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
+            guard !Task.isCancelled else { return }
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            onDone()
         }
     }
 }

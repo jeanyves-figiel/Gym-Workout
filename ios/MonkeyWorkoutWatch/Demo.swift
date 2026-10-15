@@ -2,7 +2,7 @@
 import SwiftUI
 
 /// DEBUG-only Watch demo data for CI screenshots (#219):
-/// `-demo [-homeStyle coach|deck|rings] [-watchScreen list|missed|detail|progress|summary|levelup|mirror|pro]`.
+/// `-demo [-homeStyle coach|deck|rings] [-watchScreen list|missed|detail|progress|summary|levelup|mirror|phone-start|pro]`.
 enum Demo {
     static let on = ProcessInfo.processInfo.arguments.contains("-demo")
 
@@ -42,6 +42,7 @@ enum Demo {
         case "list", "missed": NavigationStack { SessionListView(title: "This week", sessions: s.sessions) }
         case "detail": NavigationStack { SessionDetailView(session: s.sessions[1], onStart: { _ in }) }
         case "progress": NavigationStack { ProgressScreen() }
+        case "phone-start": PhoneStartView()
         case "levelup": LevelUpCelebration(level: 8, compact: true)
         case "summary": SummaryView(player: player(s.sessions[1]), kcal: 410, avgHR: 128, saved: true, onDone: {})
         case "mirror":

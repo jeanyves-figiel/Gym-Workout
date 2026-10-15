@@ -1,9 +1,21 @@
+import HealthKit
 import SwiftUI
+import WatchKit
+
+/// The iPhone wakes the Watch app with a workout configuration when a workout starts there (#347).
+final class WatchAppDelegate: NSObject, WKApplicationDelegate {
+    func handle(_ workoutConfiguration: HKWorkoutConfiguration) {
+        Task { @MainActor in
+            if let store = WatchStore.current { store.phoneStarted() } else { WatchStore.pendingPhoneStart = true }
+        }
+    }
+}
 
 @main
 struct MonkeyWorkoutWatchApp: App {
+    @WKApplicationDelegateAdaptor private var delegate: WatchAppDelegate
     @State private var store = WatchStore()
-    @State private var workout = WorkoutManager()
+    @State private var workout = WorkoutManager.shared
 
     var body: some Scene {
         WindowGroup {
@@ -83,7 +95,9 @@ struct WatchRootView: View {
     }
 
     @ViewBuilder private var main: some View {
-        if let live = store.live, player == nil {
+        if store.offered, player == nil {
+            PhoneStartView()
+        } else if let live = store.live, player == nil {
             MirrorView(live: live)
         } else if let player {
             PlayerView(player: player) { self.player = nil }

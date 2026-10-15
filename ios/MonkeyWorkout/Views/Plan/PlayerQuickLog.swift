@@ -33,13 +33,20 @@ enum Effort: Int, CaseIterable, Identifiable {
 /// "How hard?" row of five big buttons; tapping logs RIR for the set just done.
 struct EffortPicker: View {
     let selected: Effort?
+    /// Set already logged without a rating (#357): rating is a bonus, the rest closes by itself either way.
+    var optional = false
     /// Landscape player (#362): tiles only, no title or caption.
     var compact = false
     let onPick: (Effort) -> Void
 
     var body: some View {
         VStack(spacing: 8) {
-            if !compact { Text("How hard?").font(Theme.display(26)) }
+            if !compact {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("How hard?").font(Theme.display(26))
+                    if optional { Text("optional").font(Theme.label(11)).foregroundStyle(Theme.muted) }
+                }
+            }
             HStack(spacing: 6) {
                 ForEach(Effort.allCases) { e in
                     Button {
@@ -64,6 +71,120 @@ struct EffortPicker: View {
             if !compact { Text("Reps left in the tank").font(.caption).foregroundStyle(Theme.muted) }
         }
         .animation(.spring(duration: 0.25), value: selected)
+    }
+}
+
+/// Effort tiles in place of SET DONE (#357): one tap logs the coming set with its effort. "Done" without a rating
+/// stays one tap too (the rest screen then offers the optional picker).
+struct EffortDoneStrip<Leading: View, Trailing: View>: View {
+    let setNumber: Int
+    let onDone: (Effort?) -> Void
+    /// The player's previous / skip buttons beside the tiles.
+    @ViewBuilder let leading: () -> Leading
+    @ViewBuilder let trailing: () -> Trailing
+
+    var body: some View {
+        VStack(spacing: 6) {
+            HStack {
+                Text("Set \(setNumber) done · how hard?").font(Theme.label(11)).tracking(1).textCase(.uppercase)
+                    .foregroundStyle(Theme.muted)
+                Spacer()
+                Button { onDone(nil) } label: {
+                    Label("Done, no rating", systemImage: "checkmark").font(Theme.label(11))
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .background(Capsule().fill(Theme.cardStrong))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Set \(setNumber) done without effort rating")
+            }
+            HStack(spacing: 4) {
+                leading().padding(.trailing, 4)
+                ForEach(Effort.allCases) { e in
+                    Button {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        onDone(e)
+                    } label: {
+                        VStack(spacing: 0) {
+                            Text(e.title).font(Theme.display(22))
+                            Text(e.caption).font(Theme.label(8)).lineLimit(1).minimumScaleFactor(0.6)
+                        }
+                        .foregroundStyle(Theme.ink)
+                        .frame(maxWidth: .infinity, minHeight: 58)
+                        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(e.color))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Set \(setNumber) done, " + (e == .fail ? "failure" : e == .easy ? "easy, 4 or more reps left" : "\(e.rir) reps left"))
+                }
+                trailing().padding(.leading, 4)
+            }
+        }
+        .foregroundStyle(.white)
+    }
+}
+
+/// How the player moves on after an exercise's last set (#357), Settings → Workout flow. Seconds of the "Next in"
+/// countdown; 0 moves straight on, -1 waits for NEXT.
+enum AutoNextPref {
+    static let key = "player.autoNextSec"
+    static let fallback = 5
+    static let choices = [0, 3, 5, 10, -1]
+
+    static func title(_ sec: Int) -> String {
+        switch sec {
+        case 0: "Straight on"
+        case -1: "Wait for me"
+        default: "Countdown \(sec) s"
+        }
+    }
+}
+
+/// "Next in 5" bar after an exercise's last set (#357), in the Undo bar's look (#288): tap to go now, tap the ring to stay.
+struct AutoNextBar: View {
+    let title: String
+    let detail: String
+    let end: Date
+    let total: Int
+    let finishing: Bool
+    let onGo: () -> Void
+    let onHold: () -> Void
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 0.1)) { ctx in
+            let left = max(0, end.timeIntervalSince(ctx.date))
+            HStack(spacing: 12) {
+                Button(action: onGo) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(finishing ? "Last one done" : "Next: \(title)").font(Theme.display(16)).lineLimit(1).minimumScaleFactor(0.7)
+                        Text((detail.isEmpty ? "" : detail + " · ") + (finishing ? "finishing" : "moving") + " in \(Int(left.rounded(.up)))")
+                            .font(Theme.label(11)).opacity(0.9).lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(finishing ? "Finish now" : "Go to \(title) now")
+                Button(action: onHold) {
+                    ZStack {
+                        Circle().stroke(.black.opacity(0.3), lineWidth: 4)
+                        Circle().trim(from: 0, to: left / Double(max(1, total)))
+                            .stroke(Theme.lime, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        Image(systemName: "pause.fill").font(.system(size: 14, weight: .heavy)).foregroundStyle(Theme.lime)
+                    }
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(.black))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Stay on this exercise")
+            }
+            .foregroundStyle(.white)
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(LinearGradient(colors: [Color(red: 1, green: 0.48, blue: 0.27), Color(red: 0.91, green: 0.27, blue: 0.37),
+                                              Color(red: 0.76, green: 0.29, blue: 0.85)],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing)))
+            .shadow(color: Color(red: 0.91, green: 0.27, blue: 0.37).opacity(0.45), radius: 12, y: 6)
+        }
     }
 }
 
