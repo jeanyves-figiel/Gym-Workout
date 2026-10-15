@@ -134,6 +134,7 @@ private struct DemoScreen: View {
         case "player-rest": WorkoutPlayerView(sessionId: second, demoRest: true)
         case "player-timed": WorkoutPlayerView(sessionId: second, demoMode: "timed")
         case "player-logged": WorkoutPlayerView(sessionId: second, demoMode: "logged")
+        case "player-next": WorkoutPlayerView(sessionId: second, demoMode: "next")
         case "finish-early": WorkoutPlayerView(sessionId: second, demoMode: "finish")
         case "player-fitted": WorkoutPlayerView(sessionId: second, demoMode: "fitted")
         case "example": NavigationStack { SessionView(sessionId: WorkoutTemplate.all[1].sessionId) }

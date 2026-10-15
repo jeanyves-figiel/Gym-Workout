@@ -1,5 +1,6 @@
 import APIClient
 import SwiftUI
+import WorkoutEngine
 
 struct AccountView: View {
     @Environment(AppModel.self) private var model
@@ -15,6 +16,7 @@ struct AccountView: View {
     @State private var exportURL: URL?
     @State private var exportTask = FormTask()
     @State private var confirmSignOutAll = false
+    @AppStorage(AutoNextPref.key) private var autoNextSec = AutoNextPref.fallback
     @State private var signOutAllTask = FormTask()
     @State private var deviceCount: Int?
     @State private var gate: ProGate?
@@ -83,6 +85,20 @@ struct AccountView: View {
                         }
                         .buttonStyle(.plain)
                     }
+
+                    // Workout flow (#357): what happens after an exercise's last set.
+                    Menu {
+                        Picker("After the last set", selection: $autoNextSec) {
+                            ForEach(AutoNextPref.choices, id: \.self) { Text(AutoNextPref.title($0)).tag($0) }
+                        }
+                    } label: {
+                        AccountCard(symbol: "forward.fill", title: "Workout flow",
+                                    subtitle: "Next exercise: " + AutoNextPref.title(autoNextSec).lowercased(),
+                                    gradient: WorkoutEngine.Category.cardio.gradient) {
+                            AccountChevron()
+                        }
+                    }
+                    .buttonStyle(.plain)
 
                     NavigationLink { NotificationSettingsView() } label: {
                         AccountCard(symbol: "bell.badge.fill", title: "Reminders & alerts",
