@@ -1,17 +1,35 @@
 {
-  "id": "2026-10-15.2",
+  "id": "2026-10-15.3",
   "items": [
     {
-      "symbol": "play.circle.fill",
-      "tint": "cardio",
-      "title": "Start in one look",
-      "body": "Train is tidier: Coach Monkey, Ease In and Next up are slimmer, so Start workout is right there without scrolling."
+      "symbol": "hand.tap.fill",
+      "tint": "strength",
+      "title": "One tap per set",
+      "body": "Tap how hard the set felt and it's logged, effort included. Rest ends by itself with a 3-2-1 buzz, and after the last set you move on in 5 seconds (change it in Settings → Workout flow). If iPhone closes the app while it's locked, your workout reopens at the same set."
     },
     {
-      "symbol": "person.text.rectangle.fill",
+      "symbol": "list.bullet.rectangle.fill",
+      "tint": "cardio",
+      "title": "See what's left, any way up",
+      "body": "Swipe the Coming up strip or tap the progress dots for your workout map. Prop your phone sideways on a machine and the player turns into a landscape cockpit with a big rest ring."
+    },
+    {
+      "symbol": "applewatch.radiowaves.left.and.right",
+      "tint": "cardio",
+      "title": "Your Watch joins in",
+      "body": "Start on iPhone and your Apple Watch offers to track heart rate and calories. On Apple Watch Ultra, pick MonkeyWorkout for the Action button: each press does the next step."
+    },
+    {
+      "symbol": "gearshape.2.fill",
       "tint": "power",
-      "title": "Your name and @nickname, together",
-      "body": "The card at the top of Settings now shows your name and your Community @nickname, and you edit both right there. The You card is now Community profile, for your photo and about."
+      "title": "Your machine settings, saved",
+      "body": "Tap Setup on a machine in the player to keep seat, pin and pad positions, a note and a photo for this gym. They show on the exercise card next time."
+    },
+    {
+      "symbol": "arrow.left.arrow.right",
+      "tint": "power",
+      "title": "Make today's workout fit",
+      "body": "Change a workout's focus or swap days from its page, and split a superset when the machines are far apart. Skip on a missed workout now really lets it go."
     }
   ]
 }

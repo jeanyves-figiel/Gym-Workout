@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Release notes for the 2026-10-15 evening bundle** (What's new `2026-10-15.3`, 5 cards): one tap per set + workout reopens after iOS closes the app (#358, #360), Coming up strip / workout map / landscape player (#363, #364), Watch joins in + Ultra Action button (#348, #350), machine setup notes (#356), change focus / swap day / split superset / Skip fix (#344, #353, #341). `2026-10-15.2` moved to the history as build 36.
+
 ### Fixed
 - **Crash when coming back to the app from a notification** (#351): TestFlight build 36 aborted (`SIGABRT`, `-[UIApplication _performBlockAfterCATransactionCommitSynchronizes:]` on a Swift concurrency thread) when a member left a workout and returned by tapping a notification (e.g. rest over). The `async` `UNUserNotificationCenterDelegate` methods let Swift call UIKit's completion handler off the main thread; they are now the completion-handler forms, answered on the main thread. Also: the Face ID / Touch ID name is read once instead of a synchronous system call on every Settings render (it was blocking the main thread in the crash report); Watch and Home Screen widget snapshots no longer trap on a custom exercise not loaded yet mid-sync; a token refresh returns the new tokens instead of force-reading them back from the Keychain.
 - New **TestFlight crashes** workflow (crash reports testers share, exception + crashed thread) and **Symbolicate crash** workflow (rebuilds a commit unsigned and maps crash-report offsets to code with `atos`).
