@@ -31,10 +31,19 @@ public actor APIClient {
         return d
     }()
 
+    /// Default session: no HTTP cache, so personal responses (tokens, workouts, exports) never land in the
+    /// shared on-disk `URLCache`.
+    public static let uncachedSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: config)
+    }()
+
     public init(
         baseURL: URL,
         tokens: TokenStore,
-        session: URLSession = .shared,
+        session: URLSession = APIClient.uncachedSession,
         deviceName: String? = nil,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
@@ -244,6 +253,21 @@ public actor APIClient {
         }
     }
 
+    /// Climbing sessions (#312; app-defined; must encode `id`, `start`, `minutes`, `effort`, `kind`).
+    public func fetchClimbs<T: Decodable & Sendable>(_: T.Type) async throws -> [T] {
+        try await authorized("GET", "/v1/me/climbs", Empty?.none, as: ClimbsResponse<T>.self).climbs
+    }
+
+    public func pushClimbs<T: Encodable & Sendable>(_ climbs: [T]) async throws {
+        for chunk in stride(from: 0, to: climbs.count, by: 200).map({ Array(climbs[$0..<min($0 + 200, climbs.count)]) }) {
+            _ = try await authorizedRaw("POST", "/v1/me/climbs", ClimbsBody(climbs: chunk))
+        }
+    }
+
+    public func deleteClimb(_ id: UUID) async throws {
+        _ = try await authorizedRaw("DELETE", "/v1/me/climbs/\(id.uuidString)", Empty?.none)
+    }
+
     public func deleteLog(_ id: UUID) async throws {
         _ = try await authorizedRaw("DELETE", "/v1/me/logs/\(id.uuidString)", Empty?.none)
     }
@@ -331,6 +355,8 @@ public actor APIClient {
     struct ExercisesResponse<T: Decodable>: Decodable { var exercises: [T] }
     struct AttemptsBody<T: Encodable>: Encodable { var attempts: [T] }
     struct AttemptsResponse<T: Decodable>: Decodable { var attempts: [T] }
+    struct ClimbsBody<T: Encodable>: Encodable { var climbs: [T] }
+    struct ClimbsResponse<T: Decodable>: Decodable { var climbs: [T] }
     struct MeasurementsBody<T: Encodable>: Encodable { var measurements: [T] }
     struct MeasurementsResponse<T: Decodable>: Decodable { var measurements: [T] }
 

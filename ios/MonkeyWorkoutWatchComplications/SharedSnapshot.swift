@@ -18,6 +18,6 @@ enum SharedSnapshot {
 
     static func save(_ data: Data) {
         guard let url else { return }
-        try? data.write(to: url, options: .atomic)
+        try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 }

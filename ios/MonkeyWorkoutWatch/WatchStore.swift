@@ -123,7 +123,7 @@ final class WatchStore: NSObject {
 
     private func save() {
         guard let data = try? JSONEncoder.watch.encode(snapshot) else { return }
-        try? data.write(to: Self.url, options: .atomic)
+        try? data.write(to: Self.url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         SharedSnapshot.save(data)
         WidgetCenter.shared.reloadAllTimelines()
     }
