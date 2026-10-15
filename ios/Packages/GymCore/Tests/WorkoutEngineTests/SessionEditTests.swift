@@ -109,9 +109,9 @@ import Testing
         let b = [Block(kind: .strength, title: "Strength", targetMin: 20,
                        items: [a1, item("y", "A2"), drill, item("p", "B1"), item("q", "B2")])]
         var blocks = b
-        blocks.split("y")
+        blocks.split("x")
         #expect(blocks[0].items.map(\.uid) == ["x", "y", "d", "p", "q"])
-        #expect(blocks[0].items.map(\.group) == [nil, nil, nil, "A1", "A2"])
+        #expect(blocks[0].items.map(\.group) == [nil, nil, nil, "B1", "B2"])
         #expect(blocks[0].items[0].prescription.note == "Slow negatives")
         #expect(blocks[0].items[2].supersetWith == "y")
         // Straight sets rest between sets, so each takes longer than as a superset member.
