@@ -69,8 +69,12 @@ targets:
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
-        # iPhone (and the folded iPhone Duo) stay portrait; iPad needs every orientation for multitasking (#120).
-        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        # iPad needs every orientation for multitasking (#120). iPhone lists landscape for the workout player only (#362):
+        # `OrientationLock` keeps every other screen portrait.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown

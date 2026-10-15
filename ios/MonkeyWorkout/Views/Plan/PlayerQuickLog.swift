@@ -33,11 +33,13 @@ enum Effort: Int, CaseIterable, Identifiable {
 /// "How hard?" row of five big buttons; tapping logs RIR for the set just done.
 struct EffortPicker: View {
     let selected: Effort?
+    /// Landscape player (#362): tiles only, no title or caption.
+    var compact = false
     let onPick: (Effort) -> Void
 
     var body: some View {
         VStack(spacing: 8) {
-            Text("How hard?").font(Theme.display(26))
+            if !compact { Text("How hard?").font(Theme.display(26)) }
             HStack(spacing: 6) {
                 ForEach(Effort.allCases) { e in
                     Button {
@@ -45,12 +47,12 @@ struct EffortPicker: View {
                         onPick(e)
                     } label: {
                         VStack(spacing: 1) {
-                            Text(e.title).font(Theme.display(26))
-                            Text(e.caption).font(Theme.label(9))
+                            Text(e.title).font(Theme.display(compact ? 22 : 26))
+                            Text(e.caption).font(Theme.label(compact ? 7 : 9)).lineLimit(1).minimumScaleFactor(0.7)
                         }
                         .foregroundStyle(Theme.ink)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .padding(.vertical, compact ? 8 : 12)
                         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(e.color))
                         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white, lineWidth: selected == e ? 3 : 0))
                         .scaleEffect(selected == e ? 1.06 : 1)
@@ -59,7 +61,7 @@ struct EffortPicker: View {
                     .accessibilityLabel(e == .fail ? "Failure, no reps left" : e == .easy ? "Easy, 4 or more reps left" : "\(e.rir) reps left")
                 }
             }
-            Text("Reps left in the tank").font(.caption).foregroundStyle(Theme.muted)
+            if !compact { Text("Reps left in the tank").font(.caption).foregroundStyle(Theme.muted) }
         }
         .animation(.spring(duration: 0.25), value: selected)
     }

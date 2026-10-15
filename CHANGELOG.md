@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Workout player on its side** (#362): the iPhone app only worked upright, so a phone resting sideways on a machine or rack was unusable. The workout player now turns with the phone; every other screen stays upright (`OrientationLock`, app delegate orientation mask; iPad unchanged). Landscape uses design C "cockpit" from `landscape-player/proposals.png`: coming-up list on the left (tap a row for setup and technique), the exercise card (compact) and its one input in the middle, and on the right a ring (rest countdown while resting, else sets done and time on the current set) with effort tiles, +15 s / Skip, or the usual back / SET DONE / next buttons. No overlay covers the screen in landscape; values, rest and timers carry over when turning. New UI test `LandscapePlayerUITests`.
+
 ### Fixed
 - **Progress: Programmes card leads straight to picking one** (#345): with no programme running or finished, the **Start one** card on Progress scrolled down to the Programmes section, which only said to go to Explore → Programmes. The card now opens Explore → Programmes directly (`AppModel.openExploreProgrammes`, `exploreJump`), and the "No programme running" line in the section opens it too. With a programme running or finished, the card still scrolls to the section.
 
