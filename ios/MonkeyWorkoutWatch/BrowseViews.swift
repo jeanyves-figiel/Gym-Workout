@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Watch home (#219): the member's pick of Monkey coach (default), Crown deck or Charge & go,
-/// changed here (gear) or on the iPhone (Account → Style).
+/// changed here (gear) or on the iPhone (Settings → Style).
 struct HomeView: View {
     @Environment(WatchStore.self) private var store
     let onStart: (WSession) -> Void
@@ -93,7 +93,7 @@ struct HomeStyleSettings: View {
                     }
                     .buttonStyle(.plain)
                 }
-                Text("Also sets your iPhone look. Change it there in Account → Style.").font(.system(size: 10, weight: .semibold))
+                Text("Also sets your iPhone look. Change it there in Settings → Style.").font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary).multilineTextAlignment(.center).padding(.top, 2)
             }
         }

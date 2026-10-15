@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Account → MonkeyGrade (#48): connect with MonkeyGrade email + password, read-only import of climbing sessions.
+/// Settings → MonkeyGrade (#48): connect with MonkeyGrade email + password, read-only import of climbing sessions.
 struct MonkeyGradeView: View {
     @Environment(AppModel.self) private var model
     @State private var email = ""

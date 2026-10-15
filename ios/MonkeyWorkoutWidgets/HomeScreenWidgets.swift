@@ -3,14 +3,14 @@ import SwiftUI
 import WidgetKit
 
 // Home Screen and Lock Screen widgets (#297). The app writes `HomeWidgetSnapshot` to the App Group and picks the
-// default look and topic per size (Account → Home Screen widgets); Edit Widget can override both per widget.
+// default look and topic per size (Settings → Home Screen widgets); Edit Widget can override both per widget.
 
 enum TopicChoice: String, AppEnum, CaseIterable {
     case account, nextUp, week, streak, readiness, level, records, lastWorkout, volume, climbing, dashboard
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation { "Show" }
     static var caseDisplayRepresentations: [TopicChoice: DisplayRepresentation] {
-        [.account: "As set in Account", .nextUp: "Next up", .week: "This week", .streak: "Streak", .readiness: "Readiness",
+        [.account: "As set in Settings", .nextUp: "Next up", .week: "This week", .streak: "Streak", .readiness: "Readiness",
          .level: "Level + XP", .records: "Top lifts", .lastWorkout: "Last workout", .volume: "Volume", .climbing: "Climbing",
          .dashboard: "Week dashboard (large)"]
     }
@@ -23,7 +23,7 @@ enum LookChoice: String, AppEnum, CaseIterable {
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation { "Look" }
     static var caseDisplayRepresentations: [LookChoice: DisplayRepresentation] {
-        [.account: "As set in Account", .gradient: "Gradient cards", .coach: "Monkey coach", .data: "Data tiles"]
+        [.account: "As set in Settings", .gradient: "Gradient cards", .coach: "Monkey coach", .data: "Data tiles"]
     }
 
     var look: HomeWidgetLook? { HomeWidgetLook(rawValue: rawValue) }
@@ -31,7 +31,7 @@ enum LookChoice: String, AppEnum, CaseIterable {
 
 struct HomeWidgetIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource { "MonkeyWorkout" }
-    static var description: IntentDescription { "Pick what this widget shows, or follow Account → Home Screen widgets." }
+    static var description: IntentDescription { "Pick what this widget shows, or follow Settings → Home Screen widgets." }
 
     @Parameter(title: "Show", default: .account)
     var topic: TopicChoice
@@ -131,7 +131,7 @@ struct HomeScreenWidget: Widget {
             HomeWidgetEntryView(entry: $0)
         }
         .configurationDisplayName("MonkeyWorkout")
-        .description("Next up, your week, streak, level and more. Set the look in Account → Home Screen widgets.")
+        .description("Next up, your week, streak, level and more. Set the look in Settings → Home Screen widgets.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }

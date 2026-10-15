@@ -228,7 +228,7 @@ struct AccountView: View {
         }
         .readableWidth()
         .themedForm()
-        .navigationTitle("Account")
+        .navigationTitle("Settings")
         .onAppear { name = model.user?.name ?? "" }
         .onChange(of: model.user?.name) { _, new in name = new ?? "" }
         .task { deviceCount = try? await model.api.sessions().count }
@@ -300,6 +300,8 @@ struct AccountView: View {
                     if pro { chip("PRO", symbol: "crown.fill", highlighted: true) }
                 }
             }
+            // What the app learned from the member's choices (#299), moved here from Training profile (#305).
+            TasteProfileStrip()
         }
         .foregroundStyle(.white)
         .padding(18)
@@ -421,7 +423,7 @@ struct DevicesView: View {
                                 subtitle: "Signed in " + String(s.createdAt.prefix(10)), gradient: nil) { EmptyView() }
                 }
                 ErrorText(message: error)
-                AccountNote(text: "To sign out everywhere, use Sign out everywhere on Account.")
+                AccountNote(text: "To sign out everywhere, use Sign out everywhere in Settings.")
                     .padding(.top, 4)
             }
             .padding(16)

@@ -1,6 +1,6 @@
 import XCTest
 
-/// Account → Your gym (#271): items added to the gym list stay after SAVE, by ADD ALL or the Equipment page.
+/// Settings → Your gym (#271): items added to the gym list stay after SAVE, by ADD ALL or the Equipment page.
 /// Demo screen `gym-missing`: Fitnesspark Puls 5 with 48 of its items, the full app (tabs) around it.
 final class YourGymUITests: XCTestCase {
     private var app: XCUIApplication!
@@ -13,8 +13,8 @@ final class YourGymUITests: XCTestCase {
     }
 
     private func openYourGym() {
-        let tab = app.tabBars.buttons["Account"]
-        if tab.waitForExistence(timeout: 10) { tab.tap() } else { app.buttons["Account"].firstMatch.tap() }
+        let tab = app.tabBars.buttons["Settings"]
+        if tab.waitForExistence(timeout: 10) { tab.tap() } else { app.buttons["Settings"].firstMatch.tap() }
         let card = app.buttons.containing(NSPredicate(format: "label CONTAINS[c] %@", "Fitnesspark")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10), "Your gym card")
         card.tap()
@@ -25,7 +25,7 @@ final class YourGymUITests: XCTestCase {
 
     private func save() {
         app.buttons["SAVE"].tap()
-        XCTAssertTrue(app.tabBars.buttons["Account"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: 10))
     }
 
     func testAddAllSticksAfterSave() {
@@ -60,7 +60,7 @@ final class YourGymUITests: XCTestCase {
         sleep(2)
         XCTAssertTrue(count(49).exists, "count stays after Done")
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.tabBars.buttons["Account"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: 10))
         openYourGym()
         XCTAssertTrue(count(49).waitForExistence(timeout: 5), "saved list reopened")
     }
