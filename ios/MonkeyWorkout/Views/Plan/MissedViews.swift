@@ -224,12 +224,14 @@ struct WeekDayStrip: View {
                     let day = sessions.filter { $0.weekday == wd }
                     let dayMissed = missed.filter { $0.weekday == wd }
                     if !dayMissed.isEmpty {
-                        Button { catchUp = DayPick(id: wd) } label: {
-                            cell(wd, today: today, state: .missed(skipped: dayMissed.allSatisfy { skipped.contains($0.id) }))
+                        // A day whose missed sessions were all skipped (#340) is picked like any other day.
+                        let allSkipped = dayMissed.allSatisfy { skipped.contains($0.id) }
+                        Button { if allSkipped { onPick(wd) } else { catchUp = DayPick(id: wd) } } label: {
+                            cell(wd, today: today, state: .missed(skipped: allSkipped), picked: allSkipped && selected == wd)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("\(WeekSchedule.name(wd)): \(dayMissed.map(\.displayTitle).joined(separator: ", ")) missed")
-                        .accessibilityHint("Log it, mark it done, do it today or skip")
+                        .accessibilityLabel("\(WeekSchedule.name(wd)): \(dayMissed.map(\.displayTitle).joined(separator: ", ")) \(allSkipped ? "skipped" : "missed")")
+                        .accessibilityHint(allSkipped ? "" : "Log it, mark it done, do it today or skip")
                     } else if let s = day.first {
                         let allDone = day.allSatisfy { done.contains($0.id) }
                         Button { onPick(wd) } label: { cell(wd, today: today, state: allDone ? .done : .planned, picked: selected == wd) }
@@ -283,6 +285,7 @@ struct WeekDayStrip: View {
 }
 
 /// Catch-up sheet for a missed day: each missed session with Log it · Mark done · Do today · Skip.
+/// Skip takes a session off the sheet (#340); the sheet closes once nothing is left.
 struct MissedCatchUpSheet: View {
     let weekday: Int
     @Environment(AppModel.self) private var model
@@ -290,7 +293,7 @@ struct MissedCatchUpSheet: View {
     @State private var logging: Session?
 
     var body: some View {
-        let missed = model.missedSessions.filter { $0.weekday == weekday }
+        let missed = model.missedToHandle.filter { $0.weekday == weekday }
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -303,7 +306,7 @@ struct MissedCatchUpSheet: View {
                                     .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.25)))
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(s.displayTitle).font(Theme.display(22)).lineLimit(1).minimumScaleFactor(0.6)
-                                    Text("\(model.skippedIds.contains(s.id) ? "Skipped" : "Missed") · \(s.estMin) min planned")
+                                    Text("Missed · \(s.estMin) min planned")
                                         .font(.subheadline.weight(.semibold)).opacity(0.9)
                                 }
                                 Spacer(minLength: 0)
@@ -314,7 +317,7 @@ struct MissedCatchUpSheet: View {
                         .padding(16)
                         .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(MissedStyle.gradient))
                     }
-                    Text("Log it adds the workout on its day with what you did. Do today moves it next to today's session. Skip keeps it as missed.")
+                    Text("Log it adds the workout on its day with what you did. Do today moves it next to today's session. Skip lets it go: it stays missed but stops asking.")
                         .font(.footnote).foregroundStyle(Theme.muted)
                 }
                 .padding(16)
@@ -327,7 +330,7 @@ struct MissedCatchUpSheet: View {
         }
         .presentationDetents([.medium, .large])
         .preferredColorScheme(.dark)
-        .sheet(item: $logging, onDismiss: { if model.missedSessions.allSatisfy({ $0.weekday != weekday }) { dismiss() } }) { s in
+        .sheet(item: $logging, onDismiss: { if model.missedToHandle.allSatisfy({ $0.weekday != weekday }) { dismiss() } }) { s in
             MissedLogSheet(session: s)
         }
         .onChange(of: missed.map(\.id)) { _, ids in if ids.isEmpty && logging == nil { dismiss() } }
