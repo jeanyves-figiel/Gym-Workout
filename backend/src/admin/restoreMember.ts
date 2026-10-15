@@ -16,7 +16,7 @@ import type { DB } from '../db.ts';
  * Run via the "Fly backups" workflow (action member-restore); dry run unless `apply`.
  */
 
-const TABLES = ['workouts', 'workout_logs', 'pr_attempts', 'body_measurements', 'climbs', 'custom_workouts', 'custom_exercises'] as const;
+const TABLES = ['workouts', 'workout_logs', 'pr_attempts', 'body_measurements', 'climbs', 'machine_notes', 'machine_note_photos', 'custom_workouts', 'custom_exercises'] as const;
 
 export interface MemberRestoreInput {
   email: string;

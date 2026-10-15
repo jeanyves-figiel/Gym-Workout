@@ -36,5 +36,24 @@ export const ensureSchemaExtras = (db: DB): void => {
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS climbs_user_updated ON climbs(user_id, updated_at);
+    -- Machine setup notes (#355), private to the member (routes/machineNotes.ts).
+    CREATE TABLE IF NOT EXISTS machine_notes (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      gym_id TEXT NOT NULL,
+      exercise_id TEXT NOT NULL,
+      data TEXT NOT NULL,
+      photo_id TEXT,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS machine_notes_user_updated ON machine_notes(user_id, updated_at);
+    CREATE TABLE IF NOT EXISTS machine_note_photos (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      note_id TEXT NOT NULL,
+      data BLOB NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS machine_note_photos_note ON machine_note_photos(user_id, note_id);
   `);
 };

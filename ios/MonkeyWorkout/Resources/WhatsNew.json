@@ -1,17 +1,11 @@
 {
-  "id": "2026-10-15.2",
+  "id": "2026-10-15.3",
   "items": [
     {
-      "symbol": "play.circle.fill",
-      "tint": "cardio",
-      "title": "Start in one look",
-      "body": "Train is tidier: Coach Monkey, Ease In and Next up are slimmer, so Start workout is right there without scrolling."
-    },
-    {
-      "symbol": "person.text.rectangle.fill",
+      "symbol": "gearshape.2.fill",
       "tint": "power",
-      "title": "Your name and @nickname, together",
-      "body": "The card at the top of Settings now shows your name and your Community @nickname, and you edit both right there. The You card is now Community profile, for your photo and about."
+      "title": "Your machine settings, saved",
+      "body": "Tap Setup on a machine in the player to keep your seat, pin and pad positions, a note and a photo for this gym. They show on the exercise card next time, and on the exercise page you can copy them from another gym with the same machine."
     }
   ]
 }

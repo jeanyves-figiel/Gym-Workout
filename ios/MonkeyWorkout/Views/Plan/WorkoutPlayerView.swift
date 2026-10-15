@@ -33,6 +33,8 @@ struct WorkoutPlayerView: View {
     @State private var prFor: Exercise?
     /// "Not here?" (#162): the planned item whose equipment the gym lacks.
     @State private var notHereFor: PlannedExercise?
+    @State private var setupFor: MachineNoteTarget?
+    @State private var setupPhotoFor: MachineNote?
     @State private var gate: ProGate?
     @State private var log = SetLogState()
     /// Done set opened for a correction in the set card.
@@ -98,6 +100,12 @@ struct WorkoutPlayerView: View {
         .preferredColorScheme(.dark)
         .sheet(item: $formFor) { FormSheet(exercise: $0) }
         .sheet(item: $notHereFor) { NotHereSheet(exerciseId: $0.exerciseId, uid: $0.uid) }
+        .sheet(item: $setupFor) { MachineNoteSheet(exerciseId: $0.exerciseId, gym: $0.gym) }
+        .fullScreenCover(item: $setupPhotoFor) { n in
+            MachineNotePhotoViewer(note: n) {
+                setupFor = MachineNoteTarget(exerciseId: n.exerciseId, gym: GymRef(id: n.gymId, name: n.gymName, address: ""))
+            }
+        }
         .fullScreenCover(item: $prFor) { PRAttemptView(exerciseId: $0.id) }
         .proPaywall($gate)
         .sheet(isPresented: $finishingEarly) {
@@ -159,11 +167,17 @@ struct WorkoutPlayerView: View {
                     FinishEarlyBanner(text: fitBanner, onUndo: undoFinishEarly)
                 }
 
+                let setupGym = model.gymRef(forItem: step.item.uid)
+                let setupTarget = MachineNoteTarget(exerciseId: step.exercise.id, gym: setupGym)
+                let setup = model.machineNote(exerciseId: step.exercise.id, gymId: setupGym.id)
                 ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
                                  position: "\(index + 1)/\(steps.count)",
                                  onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
                                  onNotHere: !step.exercise.equipment.isEmpty && model.canSwap(uid: step.item.uid) && done == 0
-                                     ? { notHereFor = step.item } : nil) { formFor = step.exercise }
+                                     ? { notHereFor = step.item } : nil,
+                                 setup: setup,
+                                 onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
+                                 onSetupPhoto: { setupPhotoFor = setup }) { formFor = step.exercise }
                     .id(step.item.uid)
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
                     .layoutPriority(1)
@@ -546,6 +560,10 @@ struct WorkoutPlayerView: View {
             index = s
             reloadLog()
             if demoMode == "finish" { finishingEarly = true } else { finishEarly(minutes: 15) }
+        }
+        if demoMode == "setup", let s = steps.firstIndex(where: { $0.block.kind == .strength && !$0.exercise.equipment.isEmpty }) {
+            index = s
+            reloadLog()
         }
         if demoMode == "done" {
             reward = Demo.reward

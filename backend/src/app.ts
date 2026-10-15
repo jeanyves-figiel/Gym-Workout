@@ -19,6 +19,7 @@ import { customExerciseRoutes } from './routes/customExercises.ts';
 import { customWorkoutRoutes } from './routes/customWorkouts.ts';
 import { bodyMeasurementRoutes } from './routes/bodyMeasurements.ts';
 import { climbRoutes } from './routes/climbs.ts';
+import { machineNoteRoutes } from './routes/machineNotes.ts';
 import { prAttemptRoutes } from './routes/prAttempts.ts';
 import { dataRoutes } from './routes/data.ts';
 import { gymRoutes } from './routes/gyms.ts';
@@ -238,6 +239,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       customExerciseRoutes(r, deps.db, deps.now ?? (() => new Date()));
       prAttemptRoutes(r, deps.db, deps.now ?? (() => new Date()));
       climbRoutes(r, deps.db, deps.now ?? (() => new Date()));
+      machineNoteRoutes(r, deps.db, deps.now ?? (() => new Date()));
       bodyMeasurementRoutes(r, deps.db, deps.now ?? (() => new Date()));
       pushRoutes(r, push, deps.config.appleBundleIds, (id) => sharing(id)?.nickname ?? null);
       libraryRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
