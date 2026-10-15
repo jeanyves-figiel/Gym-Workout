@@ -1315,11 +1315,61 @@ def reverse_deck_poses():
     return out
 
 
+PD_REACH = 78  # shoulder → grip, elbows softly bent (the arm is 85 long straight)
+PD_DROP = 6  # grips just below shoulder height
+
+
+def pec_sweep(j, facing):
+    """0 = arms out to the sides, 1 = hands together in front of the chest, read from the pose's near grip."""
+    shn = fr_sh(PD_HIP)[0]
+    g = kit.grip(j)
+    wide, closed = shn[0] + 76, PD_HIP[0] + 5
+    return max(0.0, min(1.0, (wide - g[0]) / (wide - closed)))
+
+
+def pec_arms(j, facing):
+    """Arms as a 3D chain projected to the front / back view: each grip swings on a horizontal arc round its
+    shoulder (towards the camera in front view) with the elbow softly bent and pointing out and down, so the
+    arms foreshorten as they close instead of folding and crossing in the picture plane."""
+    from scenes_arms_core import _ik3
+    k = pec_sweep(j, facing)
+    shn, shf = fr_sh(PD_HIP)
+    r = math.sqrt(PD_REACH ** 2 - PD_DROP ** 2)
+    end = math.acos(max(-1.0, min(1.0, (SW - 5) / r)))
+    phi = math.radians(4) + (end - math.radians(4)) * k
+    toward = 1 if facing == "front" else -1  # +z = towards the camera
+    for s, sh in (("N", shn), ("F", shf)):
+        sx = 1 if s == "N" else -1
+        a = (sh[0], sh[1], 0.0)
+        g = (sh[0] + sx * r * math.cos(phi), sh[1] + PD_DROP, toward * r * math.sin(phi))
+        e = _ik3(a, g, UPPER, FORE + HAND / 2, (sx * 0.6, 1.0, -toward * 0.5))
+        d = art.norm((g[0] - e[0], g[1] - e[1])) if math.dist(g[:2], e[:2]) > 0.5 else (sx * 1.0, 0.0)
+        fl = math.dist(g, e)  # 3D forearm + half hand
+        flat = math.dist(g[:2], e[:2])
+        scale = flat / fl if fl else 1
+        j["elbow" + s] = (e[0], e[1])
+        j["wrist" + s] = art.add(g[:2], d, -HAND / 2 * scale)
+        j["hand" + s] = art.add(g[:2], d, HAND / 2 * scale)
+
+
+def pec_seat_legs(j):
+    """Seated, thighs pointing at the camera: short (foreshortened) thighs off the seat front, shins down."""
+    for s, sx in (("N", 1), ("F", -1)):
+        hp = j["hip" + s]
+        kn = (hp[0] + sx * 30, hp[1] + 12)
+        an = (kn[0] + sx * 2, GROUND - 4)
+        j["knee" + s] = kn
+        j["ankle" + s] = an
+        j["toe" + s] = (an[0] + sx * 5, an[1] + 3)
+
+
 def pec_machine(doc, j, layer, facing):
-    gn, gf = kit.grip(j), kit.grip(j, "F")
     shn, shf = fr_sh(PD_HIP)
     pivots = ((shn[0] + 6, PD_PIV_Y), (shf[0] - 6, PD_PIV_Y))
     if layer == "back":
+        pec_arms(j, facing)
+        pec_seat_legs(j)
+        gn, gf = kit.grip(j), kit.grip(j, "F")
         floor(doc, 200, 140)
         open_ = abs(gn[0] - gf[0])
         lift = max(0, (150 - open_) * 0.12) if facing == "front" else max(0, (open_ - 20) * 0.1)
@@ -1334,18 +1384,19 @@ def pec_machine(doc, j, layer, facing):
         art.tube(doc, (PD_HIP[0], PD_HIP[1] - 30), (PD_HIP[0], GROUND - 2), 10, "butt")
         doc.add(f'<rect x="{PD_HIP[0] - 22}" y="{shn[1] - 30:.1f}" width="44" height="{PD_HIP[1] - shn[1] + 22:.1f}" rx="8" '
                 f'fill="#23272C" stroke="#0A0B0D" stroke-width="0.9"/>')
-        art.tube(doc, (PD_HIP[0] - 30, PD_HIP[1] + 10), (PD_HIP[0] + 30, PD_HIP[1] + 10), 14)
+        # Seat under the hips: its front edge shows below the pelvis, the thighs come over it towards the camera.
+        art.tube(doc, (PD_HIP[0] - 22, PD_HIP[1] + 14), (PD_HIP[0] + 22, PD_HIP[1] + 14), 14)
+        doc.add(f'<rect x="{PD_HIP[0] - 48}" y="{PD_HIP[1] + 4}" width="96" height="14" rx="6" fill="#1E2227" '
+                f'stroke="#0A0B0D" stroke-width="0.8"/>')
         for p in pivots:
             art.tube(doc, (p[0], 30), p, 7)
             art.pulley(doc, p, 6)
     else:
+        gn, gf = kit.grip(j), kit.grip(j, "F")
         for p, g in zip(pivots, (gn, gf)):
             art.tube(doc, p, (g[0], g[1] - 12), 6)
             art.tube(doc, (g[0], g[1] - 12), (g[0], g[1] + 8), 6)
             doc.add(f'<rect x="{g[0] - 3.6:.1f}" y="{g[1] - 8:.1f}" width="7.2" height="16" rx="3.2" fill="#1B1D20"/>')
-        # Seat cushion in front of the hips.
-        doc.add(f'<rect x="{PD_HIP[0] - 30}" y="{PD_HIP[1] - 4}" width="60" height="16" rx="6" fill="#1E2227" '
-                f'stroke="#0A0B0D" stroke-width="0.8"/>')
 
 
 def pec_deck_scene(doc, j, layer):
