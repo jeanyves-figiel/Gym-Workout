@@ -462,7 +462,9 @@ private struct GradientDashboard: View {
                 .frame(width: 42 * k, height: 42 * k)
             }
             WeekStrip(s: s, now: now)
+            Spacer(minLength: 0)
             NextRow(s: s, fill: .white.opacity(0.2))
+            Spacer(minLength: 0)
             HStack(spacing: 6 * k) {
                 chip("Streak", "\(s.streakWeeks) wk", "flame.fill")
                 chip("Top lift", s.records.first.map { "\(HomeWidgetFormat.kg($0.kg)) kg" } ?? "–", "trophy.fill")

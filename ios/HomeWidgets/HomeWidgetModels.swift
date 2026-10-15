@@ -285,9 +285,10 @@ struct HomeWidgetSnapshot: Codable, Equatable, Sendable {
     var weekDone: Bool { target > 0 && done >= target }
     var toGoal: Int { max(0, target - done) }
 
-    /// Volume change of this week vs the average of the 3 before, in %; nil without data.
+    /// Volume change of this week vs the average of the 3 before, in %; nil without data or before the
+    /// first workout of the week (a fresh week isn't "-100%").
     var volumeTrend: Int? {
-        guard volumeWeeks.count == 4 else { return nil }
+        guard volumeWeeks.count == 4, volumeWeeks[3] > 0 else { return nil }
         let before = volumeWeeks.prefix(3).reduce(0, +) / 3
         guard before > 0 else { return nil }
         return Int(((volumeWeeks[3] - before) / before * 100).rounded())
