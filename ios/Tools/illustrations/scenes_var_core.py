@@ -395,16 +395,18 @@ add("db-side-bend", E(_side_bend_scene, [_side_bend(-90), _side_bend(-70), _side
 
 TGU_HIP = (196, MAT)
 TGU_POST0 = (TGU_HIP[0] + 4, MAT - MO.WRIST_UP)  # free hand on the floor beside the hip, lying
-TGU_POST1_X = 140  # post hand, planted from lying to the end of the bridge (x on screen)
-TGU_PLANT = (TGU_POST1_X, MAT - MO.WRIST_UP, -60.0)  # same hand in 3D: out to the side, z towards the camera
+TGU_POST1_X = 160  # post hand, planted from lying to the end of the bridge (x on screen)
+TGU_PLANT = (TGU_POST1_X, MAT - MO.WRIST_UP, -62.0)  # same hand in 3D: out to the side, z towards the camera
+TGU_ELBOW0 = (122.0, MAT - 7, -59.0)  # lying: elbow out to the side on the mat (|shoulder-elbow| = upper arm)
 
 
 def _post_arm(s):
     """Prop (drawn before the figure, may move joints): the far (post) arm as a 3D chain projected to the side view,
-    as pec_arms does in the front view. The hand stays planted out at ~45 deg to the side from lying through the
-    bridge; the far shoulder turns out towards it as the trunk sits up. Lying, the bent elbow rests out on the mat
-    and the arm foreshortens, instead of a flat 2D arm folding up off the floor or down through it; on the post
-    the elbow flexes back. After the bridge the hand lifts back to the plane of the 2D pose."""
+    as pec_arms does in the front view. The hand stays planted out to the side from lying through the bridge and the
+    far shoulder turns out towards it as the trunk sits up; lying, the elbow rests out on the mat (the arm points
+    away from the camera, so it foreshortens), then it swings back and the arm straightens onto the post, instead of
+    a flat 2D arm folding up off the floor or down through it. After the bridge the hand lifts back into the plane
+    of the 2D pose (the 2D arm is used from s = 0.84 on)."""
     from scenes_arms_core import _ik3
 
     def prop(doc, j):
@@ -412,11 +414,12 @@ def _post_arm(s):
             return
         sh2 = j["shoulder"]
         if s <= 0.5:
-            zs = -18 - 22 * s / 0.5
+            zs = -18 - 32 * s / 0.5
         elif s <= 0.73:
-            zs = -40.0
+            zs = -50.0
         else:
-            zs = -40 + 22 * (s - 0.73) / 0.11
+            zs = -50 + 32 * (s - 0.73) / 0.11
+        sh = (sh2[0], sh2[1], zs)
         hand = art.sub(j["handF"], j["wristF"])
         if s <= 0.73:
             w = TGU_PLANT
@@ -425,22 +428,12 @@ def _post_arm(s):
             k = (s - 0.73) / 0.11
             w2 = j["wristF"]
             w = (w2[0], w2[1], TGU_PLANT[2] + (zs - TGU_PLANT[2]) * k)
-        sh = (sh2[0], sh2[1], zs)
-        # The elbow can sit anywhere on its circle round the shoulder → wrist axis: take the point nearest the
-        # preferred side (out and down the body lying, back on the post) that stays on or above the mat and keeps
-        # enough upper arm in the picture plane to read.
-        px = 0.3 - 1.3 * min(1.0, s / 0.5)
-        pole = (px, 0.3, -0.6)
-        best = None
-        for i in range(72):
-            q = math.radians(5 * i)
-            e = _ik3(sh, w, F.UPPER_ARM, F.FOREARM, (math.cos(q), math.sin(q), -0.3))
-            d = [x - y for x, y in zip(e, sh)]
-            score = (e[1] <= MAT - 6, math.dist(e[:2], sh2) >= 22, sum(x * y for x, y in zip(d, pole)))
-            if best is None or score > best[0]:
-                best = (score, e)
-        e = best[1]
-        j["elbowF"] = (e[0], e[1])
+        # Elbow side: towards where it rests on the mat lying, turning to point back (flexed) on the post.
+        k = min(1.0, s / 0.5)
+        rest = [x - y for x, y in zip(TGU_ELBOW0, (124.0, 245.0, -18.0))]
+        pole = tuple(x + (y - x) * k for x, y in zip(rest, (-30.0, -6.0, -15.0)))
+        e = _ik3(sh, w, F.UPPER_ARM, F.FOREARM, pole)
+        j["elbowF"] = (e[0], min(e[1], MAT - 6))
         j["wristF"] = (w[0], w[1])
         j["handF"] = art.add(j["wristF"], hand)
     return prop
@@ -490,7 +483,7 @@ TGU_PATH = [
     (0.5, dict(hip=(196, 244.6), t=-132, h=-102, wr=(TGU_POST1_X, 257), hand=180, ank=(306, 245), foot=-86)),
     (0.57, dict(hip=(203, 220), t=-150, h=-122, wr=(TGU_POST1_X, 257), hand=180, ank=(262, 252), foot=-60)),
     (0.65, dict(hip=(202, 208), t=-160, h=-128, wr=(TGU_POST1_X, 257), hand=180, ank=(196, 252), foot=-30)),
-    (0.73, dict(hip=(198, 206), t=-158, h=-126, wr=(TGU_POST1_X, 257), hand=180, ank=(132, 262), foot=-6)),
+    (0.73, dict(hip=(198, 206), t=-164, h=-130, wr=(TGU_POST1_X, 257), hand=180, ank=(132, 262), foot=-6)),
     (0.84, dict(hip=(206, 208), t=-90, h=-90, wr=(209, 215), hand=92, ank=(150, 262), foot=0)),
     (0.92, dict(hip=(234, 168), t=-90, h=-90, wr=(235, 248), hand=91, ank=(214, 246), foot=-70)),  # far foot steps up
     (1, dict(hip=(TGU_FOOT[0], FOOT_Y - 110), t=-90, h=-90, wr=(TGU_FOOT[0] + 1, FOOT_Y - 30), hand=90,

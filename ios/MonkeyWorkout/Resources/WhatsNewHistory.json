@@ -1,6 +1,43 @@
 {
   "releases": [
     {
+      "id": "2026-10-14.2",
+      "build": 34,
+      "date": "2026-10-15",
+      "items": [
+        {
+          "symbol": "square.grid.2x2.fill",
+          "tint": "strength",
+          "title": "Widgets for your Home Screen",
+          "body": "Add MonkeyWorkout to your Home or Lock Screen in Small, Medium or Large. Pick Gradient cards, Monkey coach or Data tiles, and choose what each size shows in Account → Home Screen widgets."
+        },
+        {
+          "symbol": "brain.head.profile",
+          "tint": "power",
+          "title": "Monkey learns what you like",
+          "body": "Swap, remove or skip an exercise and next week leaves it out; picks you love come back more. Training profile → What Monkey learned lets you forget or block anything. Edit any workout before you start, warm-up and cool-down included."
+        },
+        {
+          "symbol": "timer",
+          "tint": "cardio",
+          "title": "Short on time?",
+          "body": "Tap the clock in the player (or pause → Finish early) and Coach Monkey fits the rest of your workout to the time you have: Express, Balanced, Wrap up now or your own minutes. Your main lift goes last, the cool-down stays, and Undo brings the full workout back."
+        },
+        {
+          "symbol": "hand.tap.fill",
+          "tint": "warmup",
+          "title": "Train does more, and Undo",
+          "body": "Coach Monkey chips and tips now lead somewhere, and in Next up you can tap any day or log a climb. Closed a screen by mistake? Tap Undo and it comes back with every value."
+        },
+        {
+          "symbol": "mappin.and.ellipse",
+          "tint": "mobility",
+          "title": "Clearer gym zones, programmes and Progress",
+          "body": "Equipment pictures show their zone, with a By zone view. Programme days take their phase colour and Pick a workout can build a new one. On Progress, the section bar follows you to the bottom."
+        }
+      ]
+    },
+    {
       "id": "2026-10-14.1",
       "build": 33,
       "date": "2026-10-14",
