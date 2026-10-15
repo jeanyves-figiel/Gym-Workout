@@ -204,7 +204,7 @@ jobs:
           xcrun simctl bootstatus "$WATCH" -b || true
           xcrun simctl install "$WATCH" "$APP" || { echo "::warning::Watch install failed"; exit 0; }
           for s in coach deck rings; do
-            for v in home list missed detail progress summary levelup mirror pro; do
+            for v in home list missed detail progress summary levelup mirror phone-start pro; do
               if [ "$v" = home ]; then EXTRA=""; else EXTRA="-watchScreen $v"; fi
               xcrun simctl launch --terminate-running-process "$WATCH" "$ID" -demo -homeStyle "$s" $EXTRA || continue
               sleep 5

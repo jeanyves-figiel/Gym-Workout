@@ -6,7 +6,12 @@ import Observation
 /// Apple Health workout when the session finishes (the phone then skips its own save).
 @MainActor @Observable
 final class WorkoutManager: NSObject {
+    /// One per app: the iPhone can wake the Watch with a workout configuration (#347).
+    static let shared = WorkoutManager()
+
     var heartRate: Double?
+    /// iPhone workout this session tracks (#347); nil for a workout run on the Watch.
+    private(set) var phoneSessionId: String?
     var activeKcal: Double = 0
     private(set) var running = false
 
@@ -26,46 +31,65 @@ final class WorkoutManager: NSObject {
         try? await store.requestAuthorization(toShare: share, read: read)
     }
 
-    func start(title: String) async {
+    /// Woken by the iPhone (#347): warm up the sensors while the member decides on the start prompt.
+    func prepare() async {
         guard HKHealthStore.isHealthDataAvailable(), session == nil else { return }
         await requestAuthorization()
-        let config = HKWorkoutConfiguration()
-        config.activityType = .functionalStrengthTraining
-        config.locationType = .indoor
+        guard session == nil, makeSession() else { return }
+        session?.prepare()
+    }
+
+    /// Starts the Health session; `phoneSessionId` marks it as tracking a workout run on the iPhone (#347).
+    func start(title: String, phoneSessionId: String? = nil) async {
+        guard HKHealthStore.isHealthDataAvailable(), !running else { return }
+        if session == nil {
+            await requestAuthorization()
+            guard session == nil, makeSession() else { return }
+        }
+        guard let s = session, let b = builder else { return }
+        self.phoneSessionId = phoneSessionId
+        heartRate = nil
+        activeKcal = 0
+        hrSum = 0
+        hrCount = 0
+        maxHeartRate = nil
+        let start = Date()
+        s.startActivity(with: start)
         do {
-            let s = try HKWorkoutSession(healthStore: store, configuration: config)
-            let b = s.associatedWorkoutBuilder()
-            b.dataSource = HKLiveWorkoutDataSource(healthStore: store, workoutConfiguration: config)
-            s.delegate = self
-            b.delegate = self
-            session = s
-            builder = b
-            heartRate = nil
-            activeKcal = 0
-            hrSum = 0
-            hrCount = 0
-            maxHeartRate = nil
-            let start = Date()
-            s.startActivity(with: start)
             try await b.beginCollection(at: start)
             try? await b.addMetadata(["MonkeyWorkoutTitle": title])
             running = true
         } catch {
-            session = nil
-            builder = nil
+            discard()
         }
+    }
+
+    private func makeSession() -> Bool {
+        let config = HKWorkoutConfiguration()
+        config.activityType = .functionalStrengthTraining
+        config.locationType = .indoor
+        guard let s = try? HKWorkoutSession(healthStore: store, configuration: config) else { return false }
+        let b = s.associatedWorkoutBuilder()
+        b.dataSource = HKLiveWorkoutDataSource(healthStore: store, workoutConfiguration: config)
+        s.delegate = self
+        b.delegate = self
+        session = s
+        builder = b
+        return true
     }
 
     func pause() { session?.pause() }
     func resume() { session?.resume() }
 
     /// Ends and saves the Health workout. Returns false when no session ran (the phone saves it then).
-    func finish(sets: Int) async -> Bool {
-        guard let session, let builder else { return false }
+    func finish(sets: Int?) async -> Bool {
+        guard let session, let builder, running else { discard(); return false }
         session.end()
-        defer { self.session = nil; self.builder = nil; running = false }
+        defer { self.session = nil; self.builder = nil; running = false; phoneSessionId = nil }
         do {
-            try? await builder.addMetadata([HKMetadataKeyIndoorWorkout: true, "MonkeyWorkoutSets": sets])
+            var meta: [String: Any] = [HKMetadataKeyIndoorWorkout: true]
+            if let sets { meta["MonkeyWorkoutSets"] = sets }
+            try? await builder.addMetadata(meta)
             try await builder.endCollection(at: Date())
             _ = try await builder.finishWorkout()
             return true
@@ -81,6 +105,7 @@ final class WorkoutManager: NSObject {
         session = nil
         builder = nil
         running = false
+        phoneSessionId = nil
     }
 
     fileprivate func update(_ stats: HKStatistics) {

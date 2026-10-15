@@ -296,7 +296,7 @@ private struct CuesSheet: View {
 }
 
 /// Full-bleed colour, black, or a dark glow behind a screen.
-private struct ThemeBackground: ViewModifier {
+struct ThemeBackground: ViewModifier {
     let theme: WTheme
     let colour: LinearGradient
     let glow: UInt32
@@ -695,6 +695,7 @@ struct MirrorView: View {
         let theme = store.theme
         ScrollView {
             VStack(alignment: .leading, spacing: 5) {
+                TrackingBar()
                 switch theme {
                 case .colour: colour
                 case .tiles: tiles
