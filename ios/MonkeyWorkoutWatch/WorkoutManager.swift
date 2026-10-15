@@ -14,6 +14,8 @@ final class WorkoutManager: NSObject {
     private(set) var phoneSessionId: String?
     var activeKcal: Double = 0
     private(set) var running = false
+    /// Paused from the controls or with Action + side button (#349).
+    private(set) var paused = false
 
     private let store = HKHealthStore()
     private var session: HKWorkoutSession?
@@ -59,6 +61,8 @@ final class WorkoutManager: NSObject {
             try await b.beginCollection(at: start)
             try? await b.addMetadata(["MonkeyWorkoutTitle": title])
             running = true
+            paused = false
+            ActionButton.sessionStarted()
         } catch {
             discard()
         }
@@ -78,14 +82,21 @@ final class WorkoutManager: NSObject {
         return true
     }
 
-    func pause() { session?.pause() }
-    func resume() { session?.resume() }
+    func pause() {
+        session?.pause()
+        paused = session != nil
+    }
+
+    func resume() {
+        session?.resume()
+        paused = false
+    }
 
     /// Ends and saves the Health workout. Returns false when no session ran (the phone saves it then).
     func finish(sets: Int?) async -> Bool {
         guard let session, let builder, running else { discard(); return false }
         session.end()
-        defer { self.session = nil; self.builder = nil; running = false; phoneSessionId = nil }
+        defer { self.session = nil; self.builder = nil; running = false; paused = false; phoneSessionId = nil }
         do {
             var meta: [String: Any] = [HKMetadataKeyIndoorWorkout: true]
             if let sets { meta["MonkeyWorkoutSets"] = sets }
@@ -105,6 +116,7 @@ final class WorkoutManager: NSObject {
         session = nil
         builder = nil
         running = false
+        paused = false
         phoneSessionId = nil
     }
 
