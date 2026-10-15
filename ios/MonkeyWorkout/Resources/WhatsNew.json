@@ -1,17 +1,11 @@
 {
-  "id": "2026-10-15.2",
+  "id": "2026-10-15.3",
   "items": [
     {
-      "symbol": "play.circle.fill",
-      "tint": "cardio",
-      "title": "Start in one look",
-      "body": "Train is tidier: Coach Monkey, Ease In and Next up are slimmer, so Start workout is right there without scrolling."
-    },
-    {
-      "symbol": "person.text.rectangle.fill",
+      "symbol": "arrow.left.arrow.right",
       "tint": "power",
-      "title": "Your name and @nickname, together",
-      "body": "The card at the top of Settings now shows your name and your Community @nickname, and you edit both right there. The You card is now Community profile, for your photo and about."
+      "title": "Change a workout's focus",
+      "body": "Not feeling legs today? On a workout's page, tap Change focus to train something else, this week only or every week, or Swap day to bring another workout of this week to today. Undo puts it back."
     }
   ]
 }

@@ -256,6 +256,8 @@ private struct DemoScreen: View {
                     .navigationBarTitleDisplayMode(.inline)
             }
         case "day-focus": DayFocusSheet(weekday: 4, index: 2, current: .legs) { _ in }
+        case "focus-sheet": if let s = model.session(second) { NavigationStack { FocusPickView(session: s) } }
+        case "swap-day": if let s = model.session(second) { SwapDaySheet(session: s) }
         case "profile-method": NavigationStack { ProfileSectionView(section: .method) }
         case "profile-flow": NavigationStack { ProfileSectionView(section: .flow) }
         case "flow-session": if let s = model.plan?.sessions.first { SessionFlowSheet(session: s) }
