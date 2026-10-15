@@ -272,7 +272,7 @@ final class WatchSync: NSObject {
                 WBlock(title: b.title, tint: b.kind.category.tintHex, tint2: b.kind.category.tintHex2,
                        items: b.items.map { item($0, block: b, sessionId: session.id, model: model) })
             },
-            missed: model.missedSessions.contains { $0.id == session.id })
+            missed: model.missedToHandle.contains { $0.id == session.id })
     }
 
     private static func item(_ it: PlannedExercise, block: Block, sessionId: String, model: AppModel) -> WItem {
