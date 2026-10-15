@@ -33,6 +33,8 @@ final class AppModel {
     var exploreJump: LibraryView.Mode?
     /// Workouts other members shared (#62), loaded on demand; not persisted.
     var sharedLibrary: [SharedWorkout] = []
+    /// Gym zones changed from the player (#352): the plan follows once the running workout is over; not persisted.
+    @ObservationIgnored var replanAfterWorkout = false
     /// Apple Health readings for first-time load estimates (#115); set at launch.
     @ObservationIgnored weak var health: HealthManager?
 
@@ -277,6 +279,8 @@ final class AppModel {
                                planInserts: state.synced?.planInserts?.filter { $0.week == week },
                                exerciseSwaps: state.synced?.exerciseSwaps, variation: variation, moves: state.synced?.moves,
                                sessionStyles: state.synced?.sessionStyles?.filter { $0.key.hasPrefix("w\(week)s") },
+                               // Per-workout session types (#342) belong to this week only.
+                               sessionFoci: newWeek ? nil : state.synced?.sessionFoci,
                                savedGyms: state.synced?.savedGyms, programme: state.synced?.programme,
                                programmeHistory: state.synced?.programmeHistory, trainLayout: state.synced?.trainLayout,
                                customProgrammes: state.synced?.customProgrammes,

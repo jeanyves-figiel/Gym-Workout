@@ -160,6 +160,8 @@ struct SessionView: View {
             VStack(alignment: .leading, spacing: 6) {
                 if s.weekday == nil, let context = model.libraryTitle(s) { Text(context).eyebrow() }
                 Text(s.displayTitle).font(Theme.display(38)).fixedSize(horizontal: false, vertical: true)
+                // Change the workout's focus or swap days (#342).
+                WorkoutFocusChips(session: s)
             }
             // What finishing it earns, in the member's game look (#227).
             if !s.blocks.allSatisfy({ $0.items.isEmpty }) { SessionGameBanner(session: s) }

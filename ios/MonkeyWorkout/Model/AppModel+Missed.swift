@@ -97,6 +97,7 @@ extension AppModel {
         state.synced?.planInserts = nil
         state.synced?.variation = nil
         state.synced?.sessionStyles = nil
+        state.synced?.sessionFoci = nil
         state.done = [:]
         state.ticked = [:]
         state.skipped = nil

@@ -68,6 +68,28 @@ extension [Block] {
         removeAll { $0.items.isEmpty }
     }
 
+    /// Splits the superset / circuit holding `uid` into straight sets (#352): `uid` moves to the group's first place
+    /// (with its rest-time drills) so its sets come first, the others follow in order; each keeps its sets and the
+    /// round's rest, and the time estimate becomes the straight-set one.
+    public mutating func split(_ uid: String) {
+        for b in indices {
+            let members = self[b].groupMembers(of: uid)
+            guard members.count > 1, members.contains(where: { $0.group != nil }) else { continue }
+            if let at = self[b].items.firstIndex(where: { $0.uid == members[0].uid }), members[0].uid != uid {
+                let moving = self[b].items.filter { $0.uid == uid || $0.supersetWith == uid }
+                self[b].items.removeAll { $0.uid == uid || $0.supersetWith == uid }
+                self[b].items.insert(contentsOf: moving, at: at)
+            }
+            let rounds = members.map(\.prescription.sets).max() ?? 1
+            let rest = members.map(\.prescription.restSec).max() ?? 0
+            let ids = Set(members.map(\.uid))
+            for i in self[b].items.indices where ids.contains(self[b].items[i].uid) {
+                self[b].items[i].ungroup(rounds: rounds, rest: rest, last: self[b].items[i].uid == members.last?.uid)
+            }
+            self[b].regroup()
+        }
+    }
+
     /// Moves exercises within a block (List `onMove`).
     public mutating func move(in kind: BlockKind, from: IndexSet, to: Int) {
         guard let b = firstIndex(where: { $0.kind == kind }) else { return }
@@ -123,10 +145,29 @@ extension Block {
             guard let l = items[i].group?.first else { continue }
             if counts[l, default: 0] < 2 {
                 items[i].group = nil
+                items[i].prescription.note = PlannedExercise.droppingGroupNote(items[i].prescription.note)
             } else {
                 seen[l, default: 0] += 1
                 items[i].group = "\(l)\(seen[l]!)"
             }
         }
+    }
+}
+
+extension PlannedExercise {
+    /// Back to straight sets: no group label or group note, and its own work + rest instead of the grouped estimate.
+    mutating func ungroup(rounds: Int, rest: Int, last: Bool) {
+        let p = prescription
+        let work = max(0, estSec - 15 * p.sets - (last ? max(0, rounds - 1) * rest : 0))
+        estSec = work + max(0, p.sets - 1) * p.restSec + Int(Generator.transitionSec)
+        group = nil
+        prescription.note = Self.droppingGroupNote(p.note)
+    }
+
+    /// The note without the generator's "Superset: …" / "Circuit: …" part; nil when nothing else is left.
+    static func droppingGroupNote(_ note: String?) -> String? {
+        guard let note else { return nil }
+        let parts = note.components(separatedBy: " · ").filter { !$0.hasPrefix("Superset: ") && !$0.hasPrefix("Circuit: ") }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }

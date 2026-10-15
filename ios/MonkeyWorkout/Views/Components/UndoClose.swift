@@ -20,6 +20,8 @@ struct UndoOffer {
     var fullScreen = false
     /// The screen rebuilt with the kept values. Captures values, never bindings or `@State`.
     var reopen: () -> AnyView
+    /// Undo that puts a change back instead of reopening a screen (#342); `reopen` is then unused.
+    var revert: (() -> Void)?
 
     static let warm = [Color(red: 1, green: 0.48, blue: 0.27), Color(red: 0.91, green: 0.27, blue: 0.37), Color(red: 0.76, green: 0.29, blue: 0.85)]
 }
@@ -111,6 +113,7 @@ final class UndoCloseCenter {
 
     func undo(_ offer: UndoOffer) {
         state.clear()
+        if let revert = offer.revert { return revert() }
         let host = UIHostingController(rootView: environment(offer.reopen()))
         host.modalPresentationStyle = offer.fullScreen ? .fullScreen : .pageSheet
         Self.topController()?.present(host, animated: true)
