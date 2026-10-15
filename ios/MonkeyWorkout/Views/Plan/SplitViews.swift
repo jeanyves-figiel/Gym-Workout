@@ -180,7 +180,7 @@ struct DayFocusSheet: View {
                                 onPick(f)
                                 dismiss()
                             } label: {
-                                tile(f)
+                                FocusTile(focus: f, selected: f == current)
                             }
                             .buttonStyle(.plain)
                             .accessibilityAddTraits(f == current ? .isSelected : [])
@@ -197,26 +197,37 @@ struct DayFocusSheet: View {
         }
         .presentationDetents([.large])
     }
+}
 
-    private func tile(_ f: Focus) -> some View {
+/// A session type tile (#200), shared by the goal screen's day sheet and a workout's focus sheet (#342).
+struct FocusTile: View {
+    let focus: Focus
+    var selected = false
+    /// Muscles it trains, under the name.
+    var detail: String?
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Image(systemName: f.symbol).font(.system(size: 18, weight: .bold))
+                Image(systemName: focus.symbol).font(.system(size: 18, weight: .bold))
                     .frame(width: 36, height: 36)
                     .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(.white.opacity(0.22)))
                 Spacer()
-                if f == current {
+                if selected {
                     Image(systemName: "checkmark.circle.fill").font(.system(size: 22)).foregroundStyle(Theme.ink, Theme.lime)
                 }
             }
             Spacer(minLength: 0)
-            Text(f.label).font(Theme.display(16)).lineLimit(2).minimumScaleFactor(0.8)
+            Text(focus.label).font(Theme.display(16)).lineLimit(2).minimumScaleFactor(0.8)
+            if let detail {
+                Text(detail).font(.system(size: 11, weight: .semibold, design: .rounded)).opacity(0.85).lineLimit(1)
+            }
         }
         .foregroundStyle(.white)
         .padding(12)
         .frame(maxWidth: .infinity, minHeight: 104, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(f.palette.gradient))
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(.white, lineWidth: f == current ? 3 : 0))
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(focus.palette.gradient))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(.white, lineWidth: selected ? 3 : 0))
     }
 }
 
