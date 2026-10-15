@@ -160,12 +160,13 @@ jobs:
               have=$(flyctl secrets list -a "$FLY_APP" --json | jq -r '.[] | (.Name // .name)')
               # offsite-rotate: new bucket keys (destroys the bucket and its copies; the next daily backup refills it).
               if [ "$ACTION" = offsite-rotate ] && echo "$have" | grep -qx BUCKET_NAME; then
-                flyctl storage destroy "$FLY_APP-backups" -y > /dev/null 2>&1 && echo "old bucket destroyed"
+                # destroy prints no keys; its output stays visible for troubleshooting.
+                flyctl storage destroy "$FLY_APP-backups" -y
                 have=""
               fi
               # `storage create` prints the new keys: never let its output reach the (public) log.
               if echo "$have" | grep -qx BUCKET_NAME; then echo "bucket exists"
-              else flyctl storage create -a "$FLY_APP" -n "$FLY_APP-backups" -y > /dev/null 2>&1 && echo "bucket created, keys set as app secrets" || { echo "::error::storage create failed (output hidden: it prints keys)"; exit 1; }; fi
+              else flyctl storage create -a "$FLY_APP" -n "$FLY_APP-backups" -y > "$RUNNER_TEMP/storage.log" 2>&1 && echo "bucket created, keys set as app secrets" || { grep -viE 'key|secret|tid_|tsec_' "$RUNNER_TEMP/storage.log"; echo "::error::storage create failed (key lines hidden)"; exit 1; }; rm -f "$RUNNER_TEMP/storage.log"; fi
               # Passphrase via stdin, never printed; setting it restarts the app with the off-site copy on.
               for i in 1 2 3; do printf '%s' "$BACKUP_KEY" | flyctl secrets set -a "$FLY_APP" BACKUP_KEY=- > /dev/null && break; sleep 15; done
               flyctl secrets list -a "$FLY_APP" ;;
