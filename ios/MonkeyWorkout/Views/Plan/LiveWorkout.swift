@@ -26,6 +26,13 @@ final class LiveWorkout {
             content: ActivityContent(state: state, staleDate: nil))
     }
 
+    /// Lock screen card left by a run iOS closed mid-workout, when that workout isn't reopened (#359).
+    static func endLeftovers() {
+        for a in Activity<WorkoutActivityAttributes>.activities {
+            Task { await a.end(nil, dismissalPolicy: .immediate) }
+        }
+    }
+
     func update(_ state: WorkoutActivityAttributes.ContentState) {
         scheduleRestEnd(state)
         guard let activity else { return }
