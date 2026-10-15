@@ -6,7 +6,7 @@ import type { Config } from '../config.ts';
  * Same URLs serve App Store Connect (Privacy Policy URL, Support URL, custom EULA) and the app's Account links.
  * Operator, address and contact come from env (`LEGAL_*`); unset values render as a visible placeholder.
  */
-export const LEGAL_UPDATED = '2026-10-12';
+export const LEGAL_UPDATED = '2026-10-15';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -81,7 +81,7 @@ const privacy = (l: Legal) => `
 <ul>
 <li>Training profile: goals, schedule, equipment, experience, training style, plan and calendar changes.</li>
 <li>Body metrics you enter: height, weight, birth year, optional sex and gender, body figure choice, and dated body measurements (girths such as chest, waist, arms and thighs, body weight, body fat).</li>
-<li>Sets you log (exercise, weight, reps, reps in reserve), completed sessions (exercises, duration, calories, average and maximum heart rate), personal-record attempts, your own workouts and exercises, including photos you take of machines.</li>
+<li>Sets you log (exercise, weight, reps, reps in reserve), completed sessions (exercises, duration, calories, average and maximum heart rate), personal-record attempts, climbing sessions you log (type, date, duration, effort, top grade, notes), your own workouts and exercises, including photos you take of machines.</li>
 </ul>
 <p>Why: to generate your plan, suggest loads, show progress and sync across devices. Body and heart-rate data are health data; we process them only to provide these features, based on your consent, which you can withdraw by deleting the data or your account.</p>
 
@@ -115,16 +115,27 @@ const privacy = (l: Legal) => `
 <h2>4. Service providers</h2>
 <p>We use a small number of providers that process data only on our behalf:</p>
 <ul>
-<li><b>Fly.io</b>: server hosting and database (Frankfurt, Germany).</li>
+<li><b>Fly.io</b>: server hosting, database and its backups (Frankfurt, Germany).</li>
+<li><b>Tigris Data</b> (object storage offered through Fly.io): encrypted copies of the daily database backup, encrypted on our server before upload with a key the provider does not have.</li>
 <li><b>Amazon Web Services (SES)</b>: sending account emails (Zurich, Switzerland).</li>
 <li><b>Apple</b>: Sign in with Apple, push notifications (APNs), App Store purchases, Apple Health on your device.</li>
 </ul>
-<p>Some providers are part of groups based in the United States; transfers are covered by the EU/Swiss adequacy frameworks or standard contractual clauses. Data is encrypted in transit (HTTPS) and passwords are stored only as salted hashes.</p>
+<p>Some providers are part of groups based in the United States; transfers are covered by the EU/Swiss adequacy frameworks or standard contractual clauses. </p>
 
-<h2>5. How long we keep data</h2>
-<p>Account and training data are kept until you delete them or your account. One-time codes and expired sign-in tokens are purged automatically. When you delete your account, all of its data on our server is deleted immediately (including community posts, photos and push tokens) and Sign in with Apple is revoked; residual copies in infrastructure backups are overwritten within 30 days. Moderation reports about other users may be kept as long as needed to handle them.</p>
+<h2>5. How we protect your data</h2>
+<ul>
+<li><b>In transit</b>: all traffic between the app and our server uses HTTPS (TLS).</li>
+<li><b>On our server</b>: the database is stored on an encrypted disk. Passwords are stored only as salted scrypt hashes; one-time codes and sign-in tokens only as hashes; 2-step secrets and Apple sign-in tokens are encrypted (AES-256-GCM).</li>
+<li><b>On your device</b>: your data is cached on your iPhone and Apple Watch so the app opens instantly and works offline, protected by iOS Data Protection; sign-in tokens are kept in the iOS Keychain on this device only. Changes made offline are kept and sent automatically when the connection is back. Signing out removes the cached data from the device.</li>
+<li><b>Account security</b>: optional 2-step verification and passkeys, a fresh sign-in for sensitive changes (email, password, deleting the account), limits on sign-in attempts, a check of new passwords against known data breaches, and a list of signed-in devices you can sign out.</li>
+<li><b>Access</b>: each account can reach only its own data. Only the operator can access the server, for maintenance, restoring backups and handling reports.</li>
+<li><b>Backups</b>: the database is backed up daily so it can be restored after a failure: daily copies on the server (kept 7 days), disk snapshots by our host (kept up to 14 days) and an encrypted copy with Tigris Data (kept 30 days).</li>
+</ul>
 
-<h2>6. Your rights</h2>
+<h2>6. How long we keep data</h2>
+<p>Account and training data are kept until you delete them or your account. One-time codes and expired sign-in tokens are purged automatically. When you delete your account, all of its data on our server is deleted immediately (including community posts, photos and push tokens) and Sign in with Apple is revoked; copies in backups (section 5) expire on their own and are all gone within 30 days. Moderation reports about other users may be kept as long as needed to handle them.</p>
+
+<h2>7. Your rights</h2>
 <ul>
 <li><b>Access and portability</b>: Account → Export my data downloads everything as JSON.</li>
 <li><b>Correction</b>: edit your data in the app at any time.</li>
@@ -133,13 +144,13 @@ const privacy = (l: Legal) => `
 <li><b>Complaint</b>: you can complain to the Swiss Federal Data Protection and Information Commissioner (FDPIC) or your local EU/EEA or UK data protection authority.</li>
 </ul>
 
-<h2>7. Children</h2>
+<h2>8. Children</h2>
 <p>${l.app} is not directed at children under 16 and we do not knowingly collect their data. If you believe a child has created an account, contact us and we will delete it.</p>
 
-<h2>8. Changes</h2>
+<h2>9. Changes</h2>
 <p>We will post updates on this page and change the date below. Significant changes will be announced in the app.</p>
 
-<h2>9. Contact</h2>
+<h2>10. Contact</h2>
 <p>${l.emailLink}</p>
 `;
 
@@ -213,7 +224,7 @@ const support = (l: Legal) => `
 <h3>How do I delete my account?</h3>
 <p>In the app: Account → Delete account. It permanently deletes your account and all its data from our server and revokes Sign in with Apple.</p>
 <h3>How do I get a copy of my data?</h3>
-<p>Account → Export my data creates a JSON file with your account, training profile, logs and history.</p>
+<p>Account → Export my data creates a JSON file with your account, training profile, logs, history, personal records, measurements and climbs.</p>
 <h3>I forgot my password.</h3>
 <p>On the sign-in screen tap "Forgot password?" and follow the code sent by email.</p>
 <h3>How do I cancel my subscription?</h3>

@@ -3,6 +3,7 @@ import { buildApp } from './app.ts';
 import { applyPendingRestore, startBackupJob } from './backup.ts';
 import { loadConfig } from './config.ts';
 import { openDb } from './db.ts';
+import { OffsiteStore } from './offsite.ts';
 import { createMailer } from './mailer.ts';
 import { startPurgeJob } from './purge.ts';
 
@@ -26,9 +27,22 @@ const app = buildApp({
 const stopPurge = startPurgeJob(db, { intervalMs: config.purgeIntervalMin * 60_000, log: (m) => app.log.info(m) });
 if (restored) app.log.warn(`restore: staged backup swapped in, previous database kept as backups/${restored}`);
 if (restoreError) app.log.error(`restore skipped: ${restoreError}`);
+const offsite = config.offsite && new OffsiteStore(config.offsite);
 const stopBackup = config.backup.dir
-  ? startBackupJob(db, { dir: config.backup.dir, keep: config.backup.keepDays, intervalMs: 3_600_000, log: (m) => app.log.info(m) })
+  ? startBackupJob(db, {
+      dir: config.backup.dir,
+      keep: config.backup.keepDays,
+      intervalMs: 3_600_000,
+      log: (m) => app.log.info(m),
+      after: offsite
+        ? async (path, day) => {
+            const r = await offsite.upload(path, day);
+            return `backup off-site: ${r.key} ${r.bytes} bytes, ${r.pruned} pruned`;
+          }
+        : undefined,
+    })
   : () => {};
+if (config.backup.dir && !offsite) app.log.warn('backup off-site copy off (needs Tigris bucket secrets + BACKUP_KEY)');
 
 const shutdown = async () => {
   stopPurge();

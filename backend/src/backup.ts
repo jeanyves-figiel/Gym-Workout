@@ -78,7 +78,15 @@ export const backupNow = (db: DB, dir: string, opts: { keep: number; now?: Date 
 /** Backs up whenever today's file is missing: at start, then every `intervalMs`. Returns a stop function. */
 export const startBackupJob = (
   db: DB,
-  opts: { dir: string; keep: number; intervalMs: number; now?: () => Date; log?: (msg: string) => void },
+  opts: {
+    dir: string;
+    keep: number;
+    intervalMs: number;
+    now?: () => Date;
+    log?: (msg: string) => void;
+    /** After a successful backup, e.g. the encrypted off-site upload (#313). Failures are logged only. */
+    after?: (path: string, day: string) => Promise<string>;
+  },
 ): (() => void) => {
   const run = () => {
     const now = opts.now?.() ?? new Date();
@@ -86,6 +94,10 @@ export const startBackupJob = (
     try {
       const b = backupNow(db, opts.dir, { keep: opts.keep, now });
       opts.log?.(`backup: ${b.file} ${b.bytes} bytes ${JSON.stringify(b.counts)}`);
+      opts.after?.(join(opts.dir, b.file), b.day).then(
+        (m) => opts.log?.(m),
+        (e: Error) => opts.log?.(`backup off-site failed: ${e.message}`),
+      );
     } catch (e) {
       opts.log?.(`backup failed: ${(e as Error).message}`);
     }
