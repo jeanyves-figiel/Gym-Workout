@@ -71,11 +71,13 @@ extension AppModel {
 
     // MARK: Swap days
 
-    /// Other workouts of this week that can trade days with `s`: planned on a day, not done or started.
+    /// Other workouts of this week that can trade days with `s`: from today on, not done or started. Past days stay
+    /// as they are (missed workouts have their own catch-up, #266), and a swap never starts anything.
     func swapDayTargets(_ s: Session) -> [Session] {
-        guard s.weekday != nil, state.done[s.id] != true, activeWorkout(s.id) == nil, let plan else { return [] }
+        guard let day = s.weekday, day >= todayWeekday, state.done[s.id] != true, activeWorkout(s.id) == nil, let plan else { return [] }
         return WeekProgress.ordered(plan).filter { o in
-            o.id != s.id && o.weekday != nil && o.weekday != s.weekday && state.done[o.id] != true && activeWorkout(o.id) == nil
+            guard let d = o.weekday else { return false }
+            return o.id != s.id && d >= todayWeekday && d != day && state.done[o.id] != true && activeWorkout(o.id) == nil
         }
     }
 
