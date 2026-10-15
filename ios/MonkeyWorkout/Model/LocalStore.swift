@@ -116,6 +116,11 @@ struct ActiveWorkout: Codable, Equatable {
     /// Finish early (#300): the workout re-fitted to the time left, and when the member has to be done.
     var fitted: [Block]? = nil
     var fitEnd: Date? = nil
+    /// Saved as the app went to the background with the player open (#359): iOS may close a suspended app, so the
+    /// next launch reopens the player, keeps counting the time and the rest still running.
+    var interrupted: Bool? = nil
+    var restEnd: Date? = nil
+    var restTotal: Int? = nil
 }
 
 /// JSON file in Application Support, encrypted at rest by iOS data protection.

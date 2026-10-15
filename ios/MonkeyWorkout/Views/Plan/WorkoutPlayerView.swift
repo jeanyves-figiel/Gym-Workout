@@ -140,7 +140,7 @@ struct WorkoutPlayerView: View {
         .onChange(of: setsDone) { saveProgress(); updateLive() }
         .onChange(of: pause) { updateLive() }
         .onChange(of: log.rows) { updateLive() }
-        .onChange(of: scenePhase) { _, p in if p != .active { saveProgress() } }
+        .onChange(of: scenePhase) { _, p in if p != .active { saveProgress(interrupted: p == .background) } }
         .onReceive(NotificationCenter.default.publisher(for: .workoutRestAdd15)) { _ in extendRest() }
         .onReceive(NotificationCenter.default.publisher(for: .workoutRestSkip)) { _ in closePause() }
         .onReceive(NotificationCenter.default.publisher(for: .watchCommand)) { n in
@@ -590,7 +590,15 @@ struct WorkoutPlayerView: View {
             setsDone = w.setsDone
             fitted = w.fitted
             fitEnd = w.fitEnd
-            started = Date().addingTimeInterval(-w.elapsed)
+            if w.interrupted == true, Date().timeIntervalSince(w.updatedAt) < AppModel.interruptedWindow {
+                // iOS closed the app mid-workout (#359): the time away was training, and a rest may still run.
+                started = w.updatedAt.addingTimeInterval(-w.elapsed)
+                if let end = w.restEnd, end > Date() {
+                    pause = Pause(start: end.addingTimeInterval(-TimeInterval(w.restTotal ?? 0)), end: end, total: w.restTotal ?? 0)
+                }
+            } else {
+                started = Date().addingTimeInterval(-w.elapsed)
+            }
         } else {
             model.beginWorkout(session)
             started = Date()
@@ -641,11 +649,14 @@ struct WorkoutPlayerView: View {
         log.load(item: steps[index].item, sessionId: sessionId, model: model)
     }
 
-    private func saveProgress() {
+    /// `interrupted`: the app is going to the background with the player open (#359), not a pause by the member.
+    private func saveProgress(interrupted: Bool = false) {
         guard ready, !finished, !discarded else { return }
+        let rest = interrupted ? pause.flatMap { p in p.end.map { (end: $0, total: p.total) } } : nil
         model.saveActiveWorkout(ActiveWorkout(
             sessionId: sessionId, index: index, setsDone: setsDone,
-            elapsed: Date().timeIntervalSince(started), updatedAt: Date(), fitted: fitted, fitEnd: fitEnd))
+            elapsed: Date().timeIntervalSince(started), updatedAt: Date(), fitted: fitted, fitEnd: fitEnd,
+            interrupted: interrupted ? true : nil, restEnd: rest?.end, restTotal: rest?.total))
     }
 
     // MARK: Finish early (#300)
