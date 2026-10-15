@@ -29,6 +29,8 @@ final class AppModel {
     var tab: MainTab = .train
     /// Progress section to scroll to when Progress opens from a Train widget (#260).
     var progressJump: ProgressSection?
+    /// Explore mode to show when Explore opens from elsewhere, e.g. Progress → Programmes with none started (#345).
+    var exploreJump: LibraryView.Mode?
     /// Workouts other members shared (#62), loaded on demand; not persisted.
     var sharedLibrary: [SharedWorkout] = []
     /// Gym zones changed from the player (#352): the plan follows once the running workout is over; not persisted.
