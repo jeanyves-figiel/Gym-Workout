@@ -85,23 +85,23 @@ struct ComingUpStrip: View {
         .foregroundStyle(.white)
     }
 
+    /// Compact (78 pt) so the strip fits the free space under the exercise card on most phones.
     private func tile(_ o: OverviewItem) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 3) {
             if ExerciseImage.hasMedia(o.exercise) {
-                ExerciseThumbnail(exercise: o.exercise, size: 40)
+                ExerciseThumbnail(exercise: o.exercise, size: 30)
             } else {
-                Image(systemName: o.category.symbol).font(.system(size: 17, weight: .heavy))
-                    .frame(width: 40, height: 40)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.22)))
+                Image(systemName: o.category.symbol).font(.system(size: 13, weight: .heavy))
+                    .frame(width: 30, height: 30)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(0.22)))
             }
             Spacer(minLength: 0)
-            Text(o.exercise.name).font(Theme.display(13)).lineLimit(2).minimumScaleFactor(0.8)
-                .fixedSize(horizontal: false, vertical: true)
+            Text(o.exercise.name).font(Theme.display(13)).lineLimit(1).minimumScaleFactor(0.7)
             Text(target(o.item.prescription)).font(Theme.label(10)).opacity(0.9).lineLimit(1)
         }
-        .padding(9)
-        .frame(width: 108, height: 116, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(o.category.gradient))
+        .padding(8)
+        .frame(width: 124, height: 78, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(o.category.gradient))
         .accessibilityElement(children: .combine)
         .accessibilityHint("Shows the exercise")
     }

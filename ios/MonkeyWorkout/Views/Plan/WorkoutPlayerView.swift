@@ -177,14 +177,17 @@ struct WorkoutPlayerView: View {
                     .layoutPriority(1)
 
                 // The free space under the card shows what's coming (#361), only when it fits whole: nothing is pushed off screen.
-                ViewThatFits(in: .vertical) {
-                    ComingUpStrip(items: OverviewItem.list(session.blocks, setsDone: setsDone, current: step.item.uid),
-                                  doneBy: OverviewItem.doneBy(session.blocks, setsDone: setsDone, current: step.item.uid),
-                                  onPeek: { formFor = $0 }, onMap: { mapOpen = true })
-                        .padding(.vertical, 4)
-                    Color.clear.frame(height: 0)
-                }
-                .frame(maxHeight: .infinity)
+                // An overlay on the free space takes no height of its own: the exercise picture keeps its full size.
+                Color.clear
+                    .frame(maxHeight: .infinity)
+                    .overlay {
+                        ViewThatFits(in: .vertical) {
+                            ComingUpStrip(items: OverviewItem.list(session.blocks, setsDone: setsDone, current: step.item.uid),
+                                          doneBy: OverviewItem.doneBy(session.blocks, setsDone: setsDone, current: step.item.uid),
+                                          onPeek: { formFor = $0 }, onMap: { mapOpen = true })
+                            Color.clear
+                        }
+                    }
                 setCard(step, sets: sets, done: done, colors: cat.colors)
                 if let next = upNext(after: step, done: done, sets: sets, includeSets: false) {
                     UpNextCard(title: next.title, eyebrow: next.eyebrow, detail: next.detail, exercise: next.exercise,
