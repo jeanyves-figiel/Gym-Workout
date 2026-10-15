@@ -72,22 +72,3 @@ for s in subs["data"]:
     open(os.path.join(out, f"{a.get('createdDate', s['id']).replace(':', '-')}.crash"), "w").write(text)
     print(excerpt(text)[:12000])
 
-# Xcode Organizer-style diagnostics (hangs, slow launches, disk writes) for the newest builds; crashes are not in the API.
-recent = get(f"/builds?filter[app]={app}&sort=-uploadedDate&limit=3&fields[builds]=version")
-for b in (recent or {}).get("data", []):
-    sigs = get(f"/builds/{b['id']}/diagnosticSignatures?limit=10")
-    rows = (sigs or {}).get("data", [])
-    print("=" * 80)
-    print(f"Build {b['attributes']['version']}: {len(rows)} diagnostic signature(s)")
-    for d in rows:
-        a = d["attributes"]
-        print(f"- {a.get('diagnosticType')} weight {a.get('weight')}: {a.get('signature')}")
-        logs = get(f"/diagnosticSignatures/{d['id']}/logs?limit=1")
-        for p in ((logs or {}).get("productData") or [])[:1]:
-            for dl in (p.get("diagnosticLogs") or [])[:1]:
-                for frame in (dl.get("callStackTree") or [{}])[0].get("callStacks", [{}])[0].get("callStackRootFrames", [])[:1]:
-                    depth = 0
-                    while frame and depth < 25:
-                        print(f"    {frame.get('binaryName')} {frame.get('symbol') or frame.get('address')}")
-                        frame = (frame.get("subFrames") or [None])[0]
-                        depth += 1
