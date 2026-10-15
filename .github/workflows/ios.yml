@@ -113,7 +113,7 @@ jobs:
           xcodebuild -version
       - run: brew install xcodegen
       - run: xcodegen generate --spec ios/project.yml
-      # Your gym edits stay after SAVE (#271).
+      # Your gym edits stay after SAVE (#271); Start workout fits on Train (#337).
       - name: Run UI tests
         run: |
           set -o pipefail

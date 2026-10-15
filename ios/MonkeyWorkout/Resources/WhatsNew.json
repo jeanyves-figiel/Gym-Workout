@@ -2,6 +2,12 @@
   "id": "2026-10-15.2",
   "items": [
     {
+      "symbol": "play.circle.fill",
+      "tint": "cardio",
+      "title": "Start in one look",
+      "body": "Train is tidier: Coach Monkey, Ease In and Next up are slimmer, so Start workout is right there without scrolling."
+    },
+    {
       "symbol": "person.text.rectangle.fill",
       "tint": "power",
       "title": "Your name and @nickname, together",
