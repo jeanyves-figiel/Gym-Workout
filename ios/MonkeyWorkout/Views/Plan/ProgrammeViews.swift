@@ -567,9 +567,14 @@ struct ProgrammeProgressSection: View {
                 .buttonStyle(.plain)
                 LiftsCompare(lifts: model.programmeLifts(p, start: a.start))
             } else {
-                Text("No programme running. Pick one in Explore → Programmes: phases, signature workouts and a PR test at the end.")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(Theme.muted)
+                Button { model.openExploreProgrammes() } label: {
+                    Text("No programme running. Pick one in Explore → Programmes: phases, signature workouts and a PR test at the end.")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(Theme.muted)
+                        .multilineTextAlignment(.leading)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens Explore → Programmes")
             }
             let done = model.programmeHistory.reversed()
             if !done.isEmpty {

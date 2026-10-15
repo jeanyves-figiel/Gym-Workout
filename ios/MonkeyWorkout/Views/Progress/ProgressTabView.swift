@@ -60,7 +60,14 @@ struct ProgressTabView: View {
                     StreakRow(current: s.currentStreakWeeks, best: s.bestStreakWeeks, thisWeek: s.thisWeek,
                               target: target, fresh: fresh)
                     // Page map (#243 B): what's on the page, one tap to each part.
-                    ProgressMap(h: top) { jump($0, proxy) }
+                    ProgressMap(h: top) { s in
+                        // Nothing to show yet (#345): the Programmes card goes straight to picking one.
+                        if s == .programmes && model.activeProgramme == nil && model.programmeHistory.isEmpty {
+                            model.openExploreProgrammes()
+                        } else {
+                            jump(s, proxy)
+                        }
+                    }
                     Section {
                         group(.training, trailing: nil) {
                             if fresh {
