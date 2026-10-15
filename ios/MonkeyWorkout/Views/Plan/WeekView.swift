@@ -22,6 +22,8 @@ struct WeekView: View {
     @State private var addingWidget = false
     @State private var customising = false
     @State private var showingCalendar = false
+    /// Height the Train screen shows between the safe areas: short phones get a tighter Next up (#337).
+    @State private var visibleHeight: CGFloat = 800
     /// CI screenshots: open in edit mode.
     var demoEditing = false
     /// Demo screens train-day-picked / train-rest-day (#277): a later planned day or a rest day picked in the strip.
@@ -31,7 +33,8 @@ struct WeekView: View {
     var body: some View {
         ScrollView {
             if let plan = model.plan, let profile = model.profile {
-                VStack(alignment: .leading, spacing: 18) {
+                // 14 pt between widgets (#337): Next up's Start workout stays above the tab bar.
+                VStack(alignment: .leading, spacing: 14) {
                     header
                     if arranging {
                         TrainEditBar(onAdd: { addingWidget = true }, onList: { customising = true })
@@ -81,6 +84,8 @@ struct WeekView: View {
                 ContentUnavailableView("No plan yet", systemImage: "calendar.badge.plus")
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height - $0.safeAreaInsets.top - $0.safeAreaInsets.bottom } action: { visibleHeight = $0 }
+        .environment(\.trainCompact, visibleHeight < 670)
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Train")
@@ -475,7 +480,7 @@ private struct WeekHero: View {
         let p = phase
         let readiness = Readiness.assess(health.snapshot)
         HStack(spacing: 12) {
-            DoneRing(done: done, total: plan.sessions.count)
+            DoneRing(done: done, total: plan.sessions.count, size: 48)
             VStack(alignment: .leading, spacing: 2) {
                 Button { explainingPhase = true } label: {
                     HStack(spacing: 4) {
@@ -494,11 +499,19 @@ private struct WeekHero: View {
                 .accessibilityHint("Explains this week's training phase")
                 if let assessed = readiness {
                     let r = assessed.0
+                    let markers = Text(model.readinessEased ? "Today's session eased: −1 RPE, 1 set less" : r.markers(health.snapshot))
+                        .font(.caption.weight(.semibold)).monospacedDigit().lineLimit(1)
                     Button { explainingReadiness = true } label: {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(r.title).font(Theme.display(21)).lineLimit(1).minimumScaleFactor(0.7)
-                            Text(model.readinessEased ? "Today's session eased: −1 RPE, 1 set less" : r.markers(health.snapshot))
-                                .font(.caption.weight(.semibold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.75)
+                        // Verdict and markers on one line when they fit (#337), else stacked.
+                        ViewThatFits(in: .horizontal) {
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text(r.title).font(Theme.display(19)).lineLimit(1)
+                                markers
+                            }
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(r.title).font(Theme.display(19)).lineLimit(1).minimumScaleFactor(0.7)
+                                markers.minimumScaleFactor(0.75)
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
@@ -510,7 +523,7 @@ private struct WeekHero: View {
                         ReadinessSheet(snapshot: health.snapshot, readiness: r, flags: assessed.1).presentationDetents([.large])
                     }
                 } else {
-                    Text(p.title).font(Theme.display(21)).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(p.title).font(Theme.display(19)).lineLimit(1).minimumScaleFactor(0.7)
                     if health.available, health.settled, !health.connected {
                         Button { Task { await health.connect() } } label: {
                             Label("Connect Health for readiness", systemImage: "heart.fill")
@@ -544,7 +557,7 @@ private struct WeekHero: View {
         .foregroundStyle(.white)
         .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
         .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
         .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(
             LinearGradient(colors: p.palette.colors + (readiness?.0.colors ?? []), startPoint: .leading, endPoint: .trailing)))
         .sheet(isPresented: $explainingPhase) { WeekPhaseSheet(week: plan.week).presentationDetents([.large]) }
@@ -555,6 +568,7 @@ private struct WeekHero: View {
 struct DoneRing: View {
     let done: Int
     let total: Int
+    var size: CGFloat = 54
 
     var body: some View {
         ZStack {
@@ -568,7 +582,7 @@ struct DoneRing: View {
                 Text("DONE").font(Theme.label(7)).tracking(1)
             }
         }
-        .frame(width: 54, height: 54)
+        .frame(width: size, height: size)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(done) of \(total) sessions done")
     }
@@ -582,6 +596,7 @@ private struct NextUpCard: View {
     var onBack: () -> Void = {}
     let onStart: () -> Void
     @Environment(AppModel.self) private var model
+    @Environment(\.trainCompact) private var compact
     @State private var logging: ClimbLog?
 
     /// Climbers get Log climb next to Start workout (#277, design A).
@@ -592,7 +607,7 @@ private struct NextUpCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             // The week at a glance (#266): missed days red (tap to catch up), today ringed; any other day shows here (#277).
             WeekDayStrip(selected: picked ?? session.weekday, onPick: onPick)
             // Tapping the card opens the session page, same as the list button (#150).
@@ -603,7 +618,7 @@ private struct NextUpCard: View {
             .accessibilityHint("Opens the session overview")
             actions
         }
-        .padding(20)
+        .padding(16)
         .background {
             RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .fill(LinearGradient(colors: [lead.colors[0].opacity(0.85), lead.colors[1].opacity(0.55), Theme.bg], startPoint: .topLeading, endPoint: .bottomTrailing))
@@ -612,12 +627,15 @@ private struct NextUpCard: View {
         .sheet(item: $logging) { LogClimbView(initial: $0) }
     }
 
+    /// Slim (#337, design A): muscle chips sit in the text column beside a smaller figure, so Start workout stays
+    /// above the tab bar. Short phones drop the figure, chips and block stripe.
     private var summary: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text(eyebrow).font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
-                    Text(session.displayTitle).font(Theme.display(30)).foregroundStyle(.white).fixedSize(horizontal: false, vertical: true)
+                    Text(session.displayTitle).font(Theme.display(compact ? 26 : 30)).foregroundStyle(.white)
+                        .lineLimit(2).minimumScaleFactor(0.8).fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 10) {
                         Label("\(session.estMin) min", systemImage: "clock.fill").font(Theme.label(14)).foregroundStyle(.white.opacity(0.9))
                         // XP it earns (#227).
@@ -625,17 +643,28 @@ private struct NextUpCard: View {
                             .padding(.horizontal, 9).padding(.vertical, 4)
                             .background(Capsule().fill(Theme.ink.opacity(0.85)))
                     }
+                    if !compact {
+                        // As many of the top muscles as fit on one line.
+                        ViewThatFits(in: .horizontal) {
+                            muscleChips(3)
+                            muscleChips(2)
+                            muscleChips(1)
+                        }
+                    }
                 }
                 Spacer(minLength: 8)
-                BodyMapView(side: .front, heat: session.muscleHeat, showLabel: false)
-                    .frame(width: 70, height: 140)
+                if !compact {
+                    BodyMapView(side: .front, heat: session.muscleHeat, showLabel: false)
+                        .frame(width: 55, height: 110)
+                }
             }
-            FlowLayout(spacing: 6) {
-                ForEach(session.topMuscles(4)) { MuscleChip(muscle: $0) }
-            }
-            BlockStripe(blocks: session.blocks)
+            if !compact { BlockStripe(blocks: session.blocks) }
         }
         .contentShape(Rectangle())
+    }
+
+    private func muscleChips(_ n: Int) -> some View {
+        HStack(spacing: 6) { ForEach(session.topMuscles(n)) { MuscleChip(muscle: $0) } }
     }
 
     private var done: Bool { model.doneIds.contains(session.id) }
@@ -920,5 +949,17 @@ private struct VariationUndoCard: View {
         .foregroundStyle(.white)
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(WorkoutEngine.Category.warmup.gradient))
+    }
+}
+
+private struct TrainCompactKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// Train on a short phone (#337): Next up drops its figure, muscle chips and block stripe.
+    var trainCompact: Bool {
+        get { self[TrainCompactKey.self] }
+        set { self[TrainCompactKey.self] = newValue }
     }
 }
