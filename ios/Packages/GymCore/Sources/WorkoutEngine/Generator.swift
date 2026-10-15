@@ -77,11 +77,10 @@ public enum Generator {
         let undulating = profile.trainingMethod == .undulating
         let rotation = profile.goal.config.cardio
         var sessions: [Session] = []
-        for (i, focus) in order.enumerated() {
-            let n = seen[focus, default: 0]
-            seen[focus] = n + 1
+        for (i, planned) in order.enumerated() {
+            let n = seen[planned, default: 0]
+            seen[planned] = n + 1
             // This workout only (#342): another session type, picked from the same state so the other days stay the same.
-            let planned = focus
             let focus = profile.sessionFoci?["w\(week)s\(i + 1)"] ?? planned
             let mode: CardioMode = focus == .conditioning ? .intervals : rotation[i % rotation.count]
             let weekday = slots?[i].weekday
