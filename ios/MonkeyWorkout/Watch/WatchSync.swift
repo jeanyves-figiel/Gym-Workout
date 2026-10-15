@@ -173,7 +173,7 @@ final class WatchSync: NSObject {
                        items: b.items.filter { Exercise.find($0.exerciseId) != nil }
                            .map { item($0, block: b, sessionId: session.id, model: model) })
             },
-            missed: model.missedSessions.contains { $0.id == session.id })
+            missed: model.missedToHandle.contains { $0.id == session.id })
     }
 
     private static func item(_ it: PlannedExercise, block: Block, sessionId: String, model: AppModel) -> WItem {

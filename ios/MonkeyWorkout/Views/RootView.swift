@@ -163,7 +163,7 @@ private struct DemoScreen: View {
         // Missed sessions (#266); train-missed is the Train tab.
         case "calendar-missed": NavigationStack { CalendarView() }
         case "missed-catchup":
-            if let wd = model.missedSessions.first?.weekday { MissedCatchUpSheet(weekday: wd) }
+            if let wd = model.missedToHandle.first?.weekday { MissedCatchUpSheet(weekday: wd) }
         case "missed-log":
             if let s = model.missedSessions.first { MissedLogSheet(session: s) }
         case "programme-finished":
