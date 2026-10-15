@@ -1,0 +1,48 @@
+name: Symbolicate crash
+
+# Rebuilds a commit (Staging, unsigned, same Xcode as TestFlight) and maps MonkeyWorkout image offsets from a crash report to code.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Commit the crashing build was archived from'
+        required: true
+      offsets:
+        description: 'Space-separated imageOffset values of the MonkeyWorkout image (decimal)'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  symbolicate:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      REF: ${{ inputs.ref }}
+      OFFSETS: ${{ inputs.offsets }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: git checkout "$REF"
+      - name: Select newest Xcode
+        run: |
+          XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+      - run: brew install xcodegen && xcodegen generate --spec ios/project.yml
+      - name: Archive (Staging, unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild archive -project ios/MonkeyWorkout.xcodeproj -scheme "MonkeyWorkout Staging" -configuration Staging \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/MW.xcarchive" -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= CURRENT_PROJECT_VERSION=36 | tail -n 30
+      - name: Symbolicate
+        run: |
+          D=$(find "$RUNNER_TEMP/MW.xcarchive/dSYMs" -name 'MonkeyWorkout.app.dSYM' | head -1)
+          BIN="$D/Contents/Resources/DWARF/MonkeyWorkout"
+          dwarfdump --uuid "$BIN"
+          ADDRS=$(for o in $OFFSETS; do printf '0x%x ' $((0x100000000 + o)); done)
+          echo "$OFFSETS"
+          atos -arch arm64 -o "$BIN" -l 0x100000000 -i $ADDRS

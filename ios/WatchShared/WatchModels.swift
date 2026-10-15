@@ -26,6 +26,8 @@ struct WatchSnapshot: Codable, Equatable {
     var homeStyleChangedAt: Date?
     /// Game mode rewards (#219); nil from older phone apps.
     var game: WGame?
+    /// What the Watch does when a workout starts on the iPhone (#347); nil (older phone app) = ask.
+    var watchStart: WatchStartMode?
 
     func session(_ id: String) -> WSession? { (sessions + extras).first { $0.id == id } }
 }
@@ -195,6 +197,47 @@ enum WatchEvent: Codable, Equatable {
     case finished(WFinished)
     /// Home style picked on the Watch (#219).
     case homeStyle(WatchHomeStyle, changedAt: Date)
+    /// The Watch tracks (or stopped tracking) heart rate for the iPhone workout of this session (#347).
+    case tracking(sessionId: String, on: Bool)
+    /// The Watch saved the Health workout for an iPhone workout it tracked (#347).
+    case tracked(WTracked)
+}
+
+/// Heart rate and energy the Watch measured for a workout run on the iPhone (#347).
+struct WTracked: Codable, Equatable {
+    var recordId: UUID
+    var avgHeartRate: Double?
+    var maxHeartRate: Double?
+    var kcal: Double?
+    /// The Watch saved the Apple Health workout; the phone must not save another.
+    var savedToHealth: Bool
+}
+
+/// What the Watch does when a workout starts on the iPhone (#347).
+enum WatchStartMode: String, Codable, CaseIterable, Identifiable {
+    /// Wake the Watch and ask.
+    case ask
+    /// Wake the Watch and start tracking without asking.
+    case always
+    /// Leave the Watch alone (it still mirrors when its app is open).
+    case never
+
+    static let `default` = WatchStartMode.ask
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .ask: "Ask on Watch"
+        case .always: "Start automatically"
+        case .never: "Never"
+        }
+    }
+}
+
+/// How an iPhone workout ended, sent with `WatchKeys.liveEnded` (#347).
+enum WLiveOutcome: String, Codable {
+    case finished, discarded, paused
 }
 
 struct WFinished: Codable, Equatable {
@@ -223,6 +266,10 @@ struct WLive: Codable, Equatable {
     var effortPending: Bool
     /// The lime button's label on the phone ("SET 2 DONE", "START 4:00", "NEXT").
     var action: String
+    /// Session the phone runs (#347); nil from older phone apps.
+    var sessionId: String?
+    var estMin: Int?
+    var exercises: Int?
 }
 
 /// Watch → phone remote control of the iPhone player.
@@ -236,6 +283,10 @@ enum WatchKeys {
     static let live = "live"
     static let liveEnded = "liveEnded"
     static let command = "command"
+    /// `WLiveOutcome` raw value, with `liveEnded` (#347).
+    static let outcome = "outcome"
+    /// Workout record the phone saved, with outcome `finished` (#347).
+    static let recordId = "recordId"
 }
 
 extension JSONEncoder {
