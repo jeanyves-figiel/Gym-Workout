@@ -125,7 +125,7 @@ struct WorkoutPlayerView: View {
             UIApplication.shared.isIdleTimerDisabled = false
             saveProgress()
             live.end()
-            WatchSync.shared.sendLive(nil)
+            if !finished, !discarded { WatchSync.shared.endLive(.paused, sessionId: sessionId) }
         }
         .onChange(of: index) { reloadLog(); saveProgress(); updateLive() }
         .onChange(of: setsDone) { saveProgress(); updateLive() }
@@ -447,14 +447,17 @@ struct WorkoutPlayerView: View {
                 bodyMassKg: health.snapshot.weightKg ?? model.body.weightKg)
             record = r
             reward = GameReward(before: before.game, after: model.game, badgesBefore: before.badges, badgesAfter: model.badges)
-            Task {
-                let hr = await health.save(r)
-                model.attachHeartRate(r.id, avg: hr.avg, max: hr.max)
+            // A Watch tracking this workout saves the Health workout with its heart rate (#347).
+            if !WatchSync.shared.watchTracks(sessionId) {
+                Task {
+                    let hr = await health.save(r)
+                    model.attachHeartRate(r.id, avg: hr.avg, max: hr.max)
+                }
             }
         }
         model.clearActiveWorkout(sessionId)
         live.end()
-        WatchSync.shared.sendLive(nil)
+        WatchSync.shared.endLive(.finished, sessionId: sessionId, record: record)
         pause = nil
         finished = true
     }
@@ -469,6 +472,7 @@ struct WorkoutPlayerView: View {
         model.clearActiveWorkout(sessionId)
         discarded = true
         live.end()
+        WatchSync.shared.endLive(.discarded, sessionId: sessionId)
         dismiss()
     }
 
@@ -529,6 +533,7 @@ struct WorkoutPlayerView: View {
         reloadLog()
         ready = true
         live.start(title: session.displayTitle, startedAt: started, state: liveState())
+        WatchSync.shared.offerStart(sessionId: sessionId)
         #if DEBUG
         if demoRest, steps.indices.contains(index) {
             let s = steps.firstIndex { $0.loggable } ?? index
@@ -645,7 +650,8 @@ struct WorkoutPlayerView: View {
             sessionTitle: session.displayTitle, exercise: state.exercise, setLabel: state.setLabel, detail: state.detail,
             restEnd: state.restEnd, next: state.next, tint: state.tint,
             effortPending: pause?.effortSet != nil && pause?.effort == nil,
-            action: mainLabel(step, sets: step.sets, done: setsDone[step.item.uid] ?? 0)))
+            action: mainLabel(step, sets: step.sets, done: setsDone[step.item.uid] ?? 0),
+            sessionId: sessionId, estMin: session.estMin, exercises: session.blocks.reduce(0) { $0 + $1.items.count }))
     }
 
     /// Remote control from the Watch while this player runs on the iPhone.

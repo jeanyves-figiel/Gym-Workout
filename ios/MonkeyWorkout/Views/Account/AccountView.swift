@@ -99,6 +99,18 @@ struct AccountView: View {
                     }
                     .buttonStyle(.plain)
 
+                    // iPhone workout → Watch (#347): what the Watch does when a workout starts on the iPhone.
+                    Menu {
+                        Picker("Start on Apple Watch", selection: Binding(get: { WatchStartPref.shared.mode }, set: { WatchStartPref.shared.set($0) })) {
+                            ForEach(WatchStartMode.allCases) { Text($0.title).tag($0) }
+                        }
+                    } label: {
+                        AccountCard(symbol: "applewatch.radiowaves.left.and.right", title: "Start on Apple Watch",
+                                    subtitle: "iPhone workout → \(WatchStartPref.shared.mode.title)",
+                                    gradient: LinearGradient(colors: [Color(hex: 0xFF3FA4), Color(hex: 0x8A3DFF)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    }
+                    .buttonStyle(.plain)
+
                     // Home Screen widgets (#297): presets, look and topic per size.
                     NavigationLink { HomeWidgetsView() } label: {
                         let w = HomeWidgetSync.shared.settings
