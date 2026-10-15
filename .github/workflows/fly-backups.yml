@@ -12,7 +12,7 @@ name: Fly backups
 #   retention     set volume snapshot retention to `days` (1-60)
 #   restore       put backup `file` back: stages it, restarts the machine, current DB kept as backups/pre-restore-*.db.
 #                 Needs `confirm` = the Fly app name. Production only with the owner's explicit OK.
-#   offsite-setup create the Tigris bucket <app>-backups (sets its secrets on the app) + BACKUP_KEY from the
+#   offsite-setup create the Tigris bucket <app>-backups-<time> (sets its secrets on the app) + BACKUP_KEY from the
 #                 GitHub secret BACKUP_KEY (#313). The API then uploads an encrypted copy after each daily backup.
 #   member-restore  one member's data back from backup `file` (support request, #315): `email`; dry run unless
 #                 `apply`; `overwrite` also replaces rows that changed since; `profile` puts back the training profile.
@@ -158,15 +158,22 @@ jobs:
               admin list ;;
             offsite-setup|offsite-rotate)
               have=$(flyctl secrets list -a "$FLY_APP" --json | jq -r '.[] | (.Name // .name)')
-              # offsite-rotate: new bucket keys (destroys the bucket and its copies; the next daily backup refills it).
-              if [ "$ACTION" = offsite-rotate ] && echo "$have" | grep -qx BUCKET_NAME; then
-                # destroy prints no keys; its output stays visible for troubleshooting.
-                flyctl storage destroy "$FLY_APP-backups" -y
+              buckets=$(flyctl storage list 2>/dev/null | grep -oE "$FLY_APP-backups[A-Za-z0-9-]*" | sort -u || true)
+              echo "buckets: ${buckets:-none}"
+              # offsite-rotate: new bucket keys. Destroys this app's backup buckets (copies refill from the next
+              # daily backup) and creates a new one under a fresh name (names stay reserved after a destroy).
+              if [ "$ACTION" = offsite-rotate ]; then
+                for b in $buckets; do flyctl storage destroy "$b" -y; done
                 have=""
               fi
-              # `storage create` prints the new keys: never let its output reach the (public) log.
-              if echo "$have" | grep -qx BUCKET_NAME; then echo "bucket exists"
-              else flyctl storage create -a "$FLY_APP" -n "$FLY_APP-backups" -y > "$RUNNER_TEMP/storage.log" 2>&1 && echo "bucket created, keys set as app secrets" || { grep -viE 'key|secret|tid_|tsec_' "$RUNNER_TEMP/storage.log"; echo "::error::storage create failed (key lines hidden)"; exit 1; }; rm -f "$RUNNER_TEMP/storage.log"; fi
+              # `storage create` prints the new keys: never let them reach the (public) log.
+              if echo "$have" | grep -qx BUCKET_NAME && [ -n "$buckets" ]; then echo "bucket exists"
+              else
+                name="$FLY_APP-backups-$(date -u +%Y%m%d%H%M)"
+                if flyctl storage create -a "$FLY_APP" -n "$name" -y > "$RUNNER_TEMP/storage.log" 2>&1; then echo "bucket $name created, keys set as app secrets"
+                else grep -vE 'tid_|tsec_|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY' "$RUNNER_TEMP/storage.log"; echo "::error::storage create failed (key lines hidden)"; rm -f "$RUNNER_TEMP/storage.log"; exit 1; fi
+                rm -f "$RUNNER_TEMP/storage.log"
+              fi
               # Passphrase via stdin, never printed; setting it restarts the app with the off-site copy on.
               for i in 1 2 3; do printf '%s' "$BACKUP_KEY" | flyctl secrets set -a "$FLY_APP" BACKUP_KEY=- > /dev/null && break; sleep 15; done
               flyctl secrets list -a "$FLY_APP" ;;
