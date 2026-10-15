@@ -601,6 +601,8 @@ private struct NextUpCard: View {
 
     /// Climbers get Log climb next to Start workout (#277, design A).
     private var climber: Bool { model.profile.map(Generator.isClimber) ?? false }
+    /// A later day picked in the strip (#343): nothing can be started or logged in advance.
+    private var ahead: Bool { picked.map { $0 > model.todayWeekday } ?? false }
 
     private var lead: WorkoutEngine.Category {
         session.blocks.first { $0.kind == .strength }?.kind.category ?? .strength
@@ -684,6 +686,10 @@ private struct NextUpCard: View {
                 if done {
                     NavigationLink(value: session.id) { Label("Done · see workout", systemImage: "checkmark.seal.fill") }
                         .buttonStyle(LimeButtonStyle())
+                } else if ahead {
+                    // A later day (#343): only its overview.
+                    NavigationLink(value: session.id) { Label("See workout", systemImage: "list.bullet") }
+                        .buttonStyle(LimeButtonStyle())
                 } else {
                     Button(action: onStart) {
                         Label(model.activeWorkout(session.id) == nil ? "Start workout" : "Resume workout", systemImage: "play.fill")
@@ -692,7 +698,9 @@ private struct NextUpCard: View {
                     .buttonStyle(LimeButtonStyle())
                 }
                 // The card itself opens the overview, so Log climb takes the list button's place for climbers.
-                if climber {
+                if ahead {
+                    EmptyView()
+                } else if climber {
                     LogClimbButton { logging = ClimbLog(start: Date().addingTimeInterval(-90 * 60)) }
                 } else {
                     overviewLink
@@ -756,6 +764,8 @@ private struct RestDayCard: View {
     private var climber: Bool { model.profile.map(Generator.isClimber) ?? false }
     /// One of the climber's planned climbing days.
     private var climbing: Bool { climber && (model.profile?.climbingDays.contains(weekday) ?? false) }
+    /// A later day (#343): a workout can be planned, a climb is only logged on or after its day.
+    private var ahead: Bool { weekday > model.todayWeekday }
 
     /// A climb logged from an earlier day this week is dated that day (18:00); otherwise it just ended.
     private func climbStart(now: Date = Date()) -> Date {
@@ -773,13 +783,14 @@ private struct RestDayCard: View {
             Text("\(WeekSchedule.name(weekday)) · \(climbing ? "climbing day" : "rest day")").font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
             VStack(spacing: 6) {
                 Text(climbing ? "Climbing day 🧗" : "Rest day 😴").font(Theme.display(26)).foregroundStyle(.white)
-                Text(climbing ? "No gym session planned. Log your climb, or add a workout."
+                Text(ahead ? (climbing ? "Climb planned. Log it on the day, or plan a workout." : "Nothing planned. Plan a workout?")
+                     : climbing ? "No gym session planned. Log your climb, or add a workout."
                      : climber ? "Nothing planned. Train or climb?" : "Nothing planned. Fancy a session?")
                     .font(.footnote).foregroundStyle(.white.opacity(0.8)).multilineTextAlignment(.center)
                 HStack(spacing: 10) {
                     Button(action: onAdd) { Label("Add workout", systemImage: "plus").lineLimit(1).minimumScaleFactor(0.75) }
                         .buttonStyle(LimeButtonStyle())
-                    if climber {
+                    if climber && !ahead {
                         LogClimbButton { logging = ClimbLog(start: climbStart()) }
                     }
                 }
