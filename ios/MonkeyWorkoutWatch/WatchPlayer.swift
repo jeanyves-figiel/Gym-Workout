@@ -138,6 +138,48 @@ final class WatchPlayer {
         }
     }
 
+    // MARK: Action button (#349)
+
+    /// One Action button press: does the step `mode` calls for and returns a short label saying what happened.
+    func actionPress(_ mode: WatchActionMode) -> (label: String, events: [WatchEvent])? {
+        guard phase != .finished, let step else { return nil }
+        if case .rest = phase {
+            let before = index
+            let events = skipRest()
+            WKInterfaceDevice.current().play(.click)
+            return (phase == .finished ? "Workout done" : index != before ? "Next: \(self.step?.name ?? "")" : "Rest skipped", events)
+        }
+        let timed = step.timedSec != nil && done < step.sets
+        switch mode {
+        case .set:
+            break
+        case .smart:
+            if timed { return toggleTimerPress() }
+        case .rest:
+            if timed { return toggleTimerPress() }
+            if done < step.sets {
+                let rest = (step.easySec ?? step.restSec) > 0 ? (step.easySec ?? step.restSec) : 60
+                phase = .rest(end: Date().addingTimeInterval(TimeInterval(rest)), total: rest, effortSet: nil)
+                WKInterfaceDevice.current().play(.start)
+                return ("Rest \(Self.clock(TimeInterval(rest)))", [])
+            }
+        }
+        if done >= step.sets {
+            let events = advance()
+            WKInterfaceDevice.current().play(.click)
+            return (phase == .finished ? "Workout done" : "Next: \(self.step?.name ?? "")", events)
+        }
+        let set = done + 1
+        let events = completeSet()
+        return (phase == .finished ? "Workout done" : "✓ Set \(set) logged", events)
+    }
+
+    private func toggleTimerPress() -> (label: String, events: [WatchEvent]) {
+        toggleTimer()
+        WKInterfaceDevice.current().play(timedEnd != nil ? .start : .stop)
+        return (timedEnd != nil ? "Timer started" : "Timer paused", [])
+    }
+
     func advance() -> [WatchEvent] {
         var events: [WatchEvent] = []
         if let step, done >= step.sets { events.append(.itemDone(uid: step.uid)) }

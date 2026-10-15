@@ -67,6 +67,25 @@ final class WatchStartPref {
     }
 }
 
+/// What an Apple Watch Ultra Action button press does during a workout (#349). Picked on the iPhone (Settings → Apple Watch).
+@MainActor @Observable
+final class WatchActionPref {
+    static let shared = WatchActionPref()
+    private static let key = "watchActionMode"
+
+    private(set) var mode: WatchActionMode
+
+    private init() {
+        mode = UserDefaults.standard.string(forKey: Self.key).flatMap(WatchActionMode.init) ?? .default
+    }
+
+    func set(_ new: WatchActionMode) {
+        mode = new
+        UserDefaults.standard.set(new.rawValue, forKey: Self.key)
+        WatchSync.shared.push()
+    }
+}
+
 /// iPhone side of the Watch companion (#56): sends plan/progress snapshots and the live player state,
 /// applies sets and workouts logged on the Watch, and forwards Watch remote-control commands to the player.
 @MainActor
@@ -227,6 +246,7 @@ final class WatchSync: NSObject {
         s.homeStyle = WatchHomePref.shared.style
         s.homeStyleChangedAt = WatchHomePref.shared.changedAt
         s.watchStart = WatchStartPref.shared.mode
+        s.actionButton = WatchActionPref.shared.mode
         let target = model.profile?.sessionsPerWeek ?? 3
         let stats = Progression.stats(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
         s.progress = WProgress(

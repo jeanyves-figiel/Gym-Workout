@@ -94,7 +94,22 @@ struct WatchRootView: View {
         #endif
     }
 
-    @ViewBuilder private var main: some View {
+    private var main: some View {
+        screens
+            .onAppear(perform: startFromActionButton)
+            .onChange(of: ActionButton.shared.startRequested) { _, on in if on { startFromActionButton() } }
+    }
+
+    /// First Action button press (#349): start Next up (Pro lock as on the home screen).
+    private func startFromActionButton() {
+        let action = ActionButton.shared
+        guard action.startRequested else { return }
+        action.startRequested = false
+        guard player == nil, store.live == nil, let s = store.next ?? store.snapshot.sessions.first(where: { !$0.done }) else { return }
+        if store.snapshot.pro == false { locked = true } else { player = WatchPlayer(session: s) }
+    }
+
+    @ViewBuilder private var screens: some View {
         if store.offered, player == nil {
             PhoneStartView()
         } else if let live = store.live, player == nil {
