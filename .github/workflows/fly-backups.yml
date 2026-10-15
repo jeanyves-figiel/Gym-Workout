@@ -19,6 +19,7 @@ name: Fly backups
 #                 Never touches other members; deleted accounts are not restored.
 #   member-delete delete a member's account on email request (#315): `email`; dry run lists their rows unless
 #                 `confirm` = the same email. Same as Account → Delete account (Apple revoked, email sent).
+#   offsite-rotate  new Tigris keys: destroys and recreates the bucket (copies refill from the next daily backup)
 #   offsite-list  list encrypted copies in the bucket
 #   offsite-fetch download + decrypt copy for `file` (a day, YYYY-MM-DD) into /data/backups, then use verify/restore
 on:
@@ -34,7 +35,7 @@ on:
       action:
         description: 'What to do'
         type: choice
-        options: [status, backup-now, snapshot-now, verify, retention, restore, member-restore, member-delete, offsite-setup, offsite-list, offsite-fetch]
+        options: [status, backup-now, snapshot-now, verify, retention, restore, member-restore, member-delete, offsite-setup, offsite-rotate, offsite-list, offsite-fetch]
         default: status
       file:
         description: 'verify / restore: backup file, e.g. app-2026-10-14.db'
@@ -119,7 +120,7 @@ jobs:
         run: |
           case "$ACTION" in
             offsite-fetch) echo "$FILE" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' || { echo "::error::file must be a day, YYYY-MM-DD"; exit 1; } ;;
-            offsite-setup) [ -n "$BACKUP_KEY" ] && [ ${#BACKUP_KEY} -ge 24 ] || { echo "::error::add GitHub secret BACKUP_KEY (24+ chars, also keep it in your password manager)"; exit 1; } ;;
+            offsite-setup|offsite-rotate) [ -n "$BACKUP_KEY" ] && [ ${#BACKUP_KEY} -ge 24 ] || { echo "::error::add GitHub secret BACKUP_KEY (24+ chars, also keep it in your password manager)"; exit 1; } ;;
             member-restore)
               echo "$FILE" | grep -Eq '^app-[0-9]{4}-[0-9]{2}-[0-9]{2}\.db$' || { echo "::error::file must look like app-YYYY-MM-DD.db"; exit 1; }
               echo "$EMAIL" | grep -Eq '^[^ @]+@[^ @]+$' || { echo "::error::email required"; exit 1; } ;;
@@ -134,7 +135,7 @@ jobs:
         id: vol
         run: echo "id=$(flyctl volumes list -a "$FLY_APP" --json | jq -r '.[0].id')" >> "$GITHUB_OUTPUT"
       - name: Wake machine
-        if: inputs.action != 'retention' && inputs.action != 'snapshot-now' && inputs.action != 'offsite-setup'
+        if: inputs.action != 'retention' && inputs.action != 'snapshot-now' && inputs.action != 'offsite-setup' && inputs.action != 'offsite-rotate'
         run: curl -fsS --retry 5 --retry-delay 3 "https://$HOST/healthz" >/dev/null
       - name: Run
         env:
@@ -155,12 +156,18 @@ jobs:
               flyctl machine restart -a "$FLY_APP" "$(flyctl machines list -a "$FLY_APP" --json | jq -r '.[0].id')"
               curl -fsS --retry 10 --retry-delay 3 "https://$HOST/healthz"
               admin list ;;
-            offsite-setup)
+            offsite-setup|offsite-rotate)
               have=$(flyctl secrets list -a "$FLY_APP" --json | jq -r '.[] | (.Name // .name)')
+              # offsite-rotate: new bucket keys (destroys the bucket and its copies; the next daily backup refills it).
+              if [ "$ACTION" = offsite-rotate ] && echo "$have" | grep -qx BUCKET_NAME; then
+                flyctl storage destroy "$FLY_APP-backups" -y > /dev/null 2>&1 && echo "old bucket destroyed"
+                have=""
+              fi
+              # `storage create` prints the new keys: never let its output reach the (public) log.
               if echo "$have" | grep -qx BUCKET_NAME; then echo "bucket exists"
-              else flyctl storage create -a "$FLY_APP" -n "$FLY_APP-backups" -y; fi
+              else flyctl storage create -a "$FLY_APP" -n "$FLY_APP-backups" -y > /dev/null 2>&1 && echo "bucket created, keys set as app secrets" || { echo "::error::storage create failed (output hidden: it prints keys)"; exit 1; }; fi
               # Passphrase via stdin, never printed; setting it restarts the app with the off-site copy on.
-              printf '%s' "$BACKUP_KEY" | flyctl secrets set -a "$FLY_APP" BACKUP_KEY=-
+              for i in 1 2 3; do printf '%s' "$BACKUP_KEY" | flyctl secrets set -a "$FLY_APP" BACKUP_KEY=- > /dev/null && break; sleep 15; done
               flyctl secrets list -a "$FLY_APP" ;;
             member-restore)
               args=$(jq -nc --arg email "$EMAIL" --argjson apply "$APPLY" --argjson overwrite "$OVERWRITE" --argjson profile "$PROFILE" \
