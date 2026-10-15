@@ -8,6 +8,10 @@ struct AccountView: View {
     @State private var name = ""
     @State private var nameTask = FormTask()
     @FocusState private var nameFocused: Bool
+    /// Community @handle, edited here next to the name (#335); same record as Community.
+    @State private var handle = ""
+    @State private var handleTask = FormTask()
+    @FocusState private var handleFocused: Bool
     @State private var exportURL: URL?
     @State private var exportTask = FormTask()
     @State private var confirmSignOutAll = false
@@ -21,7 +25,7 @@ struct AccountView: View {
             VStack(alignment: .leading, spacing: 10) {
                 if let user = model.user {
                     profileHero(user)
-                    ErrorText(message: nameTask.error)
+                    ErrorText(message: nameTask.error ?? handleTask.error)
 
                     if ProStore.shared.visible {
                         section("Membership")
@@ -38,10 +42,11 @@ struct AccountView: View {
                     }
 
                     // Other features add their Account rows here as AccountCard (Community profile, Notifications, Training calendar).
+                    // Name and @handle live on the header card (#335); this card is photo and about only.
                     section("You")
                     NavigationLink { PublicProfileView() } label: {
                         let me = Community.shared.me
-                        AccountCard(symbol: "person.crop.circle.fill", title: me.nickname.map { "@\($0)" } ?? "Profile",
+                        AccountCard(symbol: "person.2.fill", title: "Community profile",
                                     subtitle: profileSubtitle(me), gradient: AccountTint.publicProfile) {
                             if let url = model.api.resolve(me.avatarUrl) {
                                 AvatarView(url: url, nickname: me.nickname ?? "?", size: 44, ring: .white)
@@ -231,6 +236,8 @@ struct AccountView: View {
         .navigationTitle("Settings")
         .onAppear { name = model.user?.name ?? "" }
         .onChange(of: model.user?.name) { _, new in name = new ?? "" }
+        .onAppear { handle = Community.shared.me.nickname ?? "" }
+        .onChange(of: Community.shared.me.nickname) { _, new in if !handleFocused { handle = new ?? "" } }
         .task { deviceCount = try? await model.api.sessions().count }
         .proPaywall($gate)
         .sheet(item: $webPage) { SafariView(url: $0.url).ignoresSafeArea() }
@@ -289,6 +296,7 @@ struct AccountView: View {
                         }
                         sessionsPill
                     }
+                    handleRow
                     Text(user.email ?? "Hidden (Apple)").font(.footnote.weight(.medium)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.8)
                 }
             }
@@ -309,6 +317,27 @@ struct AccountView: View {
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(AccountTint.profile))
     }
 
+    /// Public @handle under the name (#335): one field, the same nickname shown in Community.
+    private var handleRow: some View {
+        HStack(spacing: 1) {
+            Text("@").font(Theme.label(15))
+            TextField("nickname", text: $handle, prompt: Text("add a nickname").foregroundStyle(Theme.lime.opacity(0.6)))
+                .font(Theme.label(15))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .textContentType(.username)
+                .submitLabel(.done)
+                .focused($handleFocused)
+                .onChange(of: handleFocused) { _, focused in if !focused { saveHandle() } }
+                .fixedSize()
+            if handleTask.busy { ProgressView().tint(Theme.lime).scaleEffect(0.7) } else if !handleFocused {
+                Image(systemName: "pencil").font(.caption2.weight(.bold)).opacity(0.8).padding(.leading, 4)
+            }
+        }
+        .foregroundStyle(Theme.lime)
+        .accessibilityLabel("Nickname")
+    }
+
     private var sessionsPill: some View {
         let count = model.history.count
         return Text("\(count) \(count == 1 ? "SESSION" : "SESSIONS")")
@@ -323,8 +352,8 @@ struct AccountView: View {
     }
 
     private func profileSubtitle(_ me: PublicProfile) -> String {
-        if me.nickname == nil { return "Nickname, photo, about you" }
-        if let bio = me.bio, !bio.isEmpty { return bio }
+        if let bio = me.bio, !bio.isEmpty { return "Photo, about · \(bio)" }
+        if me.nickname == nil { return "Photo, about you" }
         return me.member ? "Shown in Community" : "Ready for Community"
     }
 
@@ -350,6 +379,33 @@ struct AccountView: View {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard (trimmed.isEmpty ? nil : trimmed) != model.user?.name else { return }
         nameTask.run { model.user = try await model.api.updateName(trimmed.isEmpty ? nil : trimmed) }
+    }
+
+    private func saveHandle() {
+        let me = Community.shared.me
+        let t = handle.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "@"))
+        handle = t
+        guard t != (me.nickname ?? "") else { return }
+        if t.isEmpty && me.member {
+            handleTask.error = "Community members need a nickname."
+        } else if !t.isEmpty && t.range(of: "^[A-Za-z0-9_.]{3,20}$", options: .regularExpression) == nil {
+            handleTask.error = "Nickname: 3–20 letters, digits, _ or ."
+        } else {
+            let api = model.api
+            handleTask.run {
+                #if DEBUG
+                if model.demo { return }
+                #endif
+                do {
+                    Community.shared.setPublic(try await api.savePublicProfile(nickname: t, bio: me.bio ?? ""))
+                } catch {
+                    handle = me.nickname ?? ""
+                    throw error
+                }
+            }
+            return
+        }
+        handle = me.nickname ?? ""
     }
 
     private func export() {
