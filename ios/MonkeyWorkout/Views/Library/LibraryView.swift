@@ -52,6 +52,12 @@ struct LibraryView: View {
         .onAppear {
             if let scrollTo { DispatchQueue.main.async { proxy.scrollTo(scrollTo, anchor: .top) } }
         }
+        // Opened from another tab (#345): show the asked mode.
+        .task(id: model.exploreJump) {
+            guard let jump = model.exploreJump else { return }
+            mode = jump
+            model.exploreJump = nil
+        }
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
