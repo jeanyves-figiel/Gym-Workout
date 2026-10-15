@@ -5,7 +5,8 @@ import WorkoutEngine
 // Landscape workout player (#362, design C "cockpit" from landscape-player/proposals.png): the phone lies on its side
 // on a machine or rack. Left: what's coming; middle: the exercise and its one input; right: the rest/set ring and buttons.
 
-/// What's on now and next, top to bottom. Tap a row for that exercise's setup and technique.
+/// What's on now and next, top to bottom (the upright Coming up strip, #363, stood on end). Tap a row for that
+/// exercise's setup and technique; the header opens the Workout map.
 struct ComingUpColumn: View {
     struct Row: Identifiable {
         let id: String
@@ -14,17 +15,34 @@ struct ComingUpColumn: View {
     }
 
     let rows: [Row]
+    /// Exercises still to do and the estimated end, as in the strip's header.
+    let left: Int
+    let doneBy: Date
     /// Mobility drill paired with the exercise, shown while resting.
     var drill: Exercise?
-    let onTap: (Exercise) -> Void
+    let onPeek: (Exercise) -> Void
+    let onMap: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            Button(action: onMap) {
+                HStack(spacing: 4) {
+                    Text("\(left) left · ~\(doneBy.formatted(date: .omitted, time: .shortened))").lineLimit(1).minimumScaleFactor(0.7)
+                    Spacer(minLength: 2)
+                    Label("Map", systemImage: "list.bullet")
+                }
+                .font(Theme.label(11)).tracking(1).textCase(.uppercase)
+                .foregroundStyle(.white.opacity(0.8))
+                .frame(minHeight: 28)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(left) exercises left. Open workout map")
             if let drill {
                 row(UpNextCard(title: drill.name, eyebrow: "During rest", detail: "5–6 slow reps", exercise: drill,
                                colors: WorkoutEngine.Category.mobility.colors, compact: true), exercise: drill)
             }
-            ForEach(rows.prefix(drill == nil ? 5 : 4)) { r in
+            ForEach(rows.prefix(drill == nil ? 4 : 3)) { r in
                 row(UpNextCard(title: r.next.title, eyebrow: r.next.eyebrow, detail: r.next.detail, exercise: r.next.exercise,
                                colors: r.next.colors, compact: true)
                         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -39,7 +57,7 @@ struct ComingUpColumn: View {
     @ViewBuilder
     private func row(_ card: some View, exercise: Exercise?) -> some View {
         if let exercise {
-            Button { onTap(exercise) } label: { card }
+            Button { onPeek(exercise) } label: { card }
                 .buttonStyle(.plain)
                 .accessibilityHint("Shows setup and technique")
         } else {

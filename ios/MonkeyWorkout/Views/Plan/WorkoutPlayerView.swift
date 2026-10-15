@@ -293,8 +293,12 @@ struct WorkoutPlayerView: View {
             VStack(spacing: 10) {
                 topBar(session)
                 HStack(alignment: .top, spacing: 12) {
-                    ComingUpColumn(rows: comingUp(step, done: done, sets: sets),
-                                   drill: pause?.end != nil ? step.item.pairedWith.flatMap(Exercise.find) : nil) { formFor = $0 }
+                    ComingUpColumn(rows: comingUp(step, done: done, sets: sets, session: session),
+                                   left: OverviewItem.list(session.blocks, setsDone: setsDone, current: step.item.uid)
+                                       .filter { $0.state == .left }.count,
+                                   doneBy: OverviewItem.doneBy(session.blocks, setsDone: setsDone, current: step.item.uid),
+                                   drill: pause?.end != nil ? step.item.pairedWith.flatMap(Exercise.find) : nil,
+                                   onPeek: { formFor = $0 }, onMap: { mapOpen = true })
                         .frame(width: 190)
 
                     VStack(spacing: 10) {
@@ -398,8 +402,9 @@ struct WorkoutPlayerView: View {
         }
     }
 
-    /// Left column rows: the exercise on now, then what follows (the same "Up next" as upright, then the rest in order).
-    private func comingUp(_ step: Step, done: Int, sets: Int) -> [ComingUpColumn.Row] {
+    /// Left column rows: the exercise on now, the same "Up next" as upright (zone, superset), then what's left in the
+    /// Workout map's order (#363: skipped and finished-early items drop out).
+    private func comingUp(_ step: Step, done: Int, sets: Int, session: Session) -> [ComingUpColumn.Row] {
         var rows = [ComingUpColumn.Row(
             id: step.item.uid,
             next: UpNext(eyebrow: done >= sets ? "Now · done" : "Now · set \(min(done + 1, sets)) of \(sets)", title: step.exercise.name,
@@ -407,11 +412,11 @@ struct WorkoutPlayerView: View {
             current: true)]
         let first = upNext(after: step, done: done, sets: sets, includeSets: false)
         if let first { rows.append(.init(id: "next", next: first)) }
-        for s in steps.dropFirst(index + 1) where s.exercise.name != first?.title {
-            rows.append(.init(id: s.item.uid, next: UpNext(eyebrow: s.block.title.isEmpty ? s.category.rawValue.capitalized : s.block.title,
-                                                       title: s.exercise.name, detail: Format.prescription(s.item.prescription),
-                                                       exercise: s.exercise, colors: s.category.colors)))
-            if rows.count >= 5 { break }
+        for o in OverviewItem.list(session.blocks, setsDone: setsDone, current: step.item.uid)
+        where o.state == .left && o.exercise.id != first?.exercise?.id {
+            rows.append(.init(id: o.id, next: UpNext(eyebrow: o.block.title.isEmpty ? o.category.rawValue.capitalized : o.block.title,
+                                                     title: o.exercise.name, detail: Format.prescription(o.item.prescription),
+                                                     exercise: o.exercise, colors: o.category.colors)))
         }
         return rows
     }
