@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- **Account is now Settings; What Monkey learned moved to your profile** (#305): the fifth tab and its page are called **Settings** (gear icon), and every "Account → …" hint in the app, widgets, Watch and legal pages now says "Settings → …". **What Monkey learned** left Training profile: design B from `learned-settings/proposals.png` puts it as a strip inside the profile card at the top of Settings, with the top liked (lime ♥) and avoided (red ✕) moves and the count; tap it for the same page as before.
 - **Release notes for the 2026-10-14 evening release** (What's new `2026-10-14.2`, 5 cards): Home Screen widgets (#297); Monkey learns what you like (#299) with edit before starting (#295) and custom warm-up / cool-down (#293); finish a workout early (#300); Train does more: Coach Monkey chips (#278), tap any day + Log climb (#277), Close + Undo (#285); gym zones v2 (#289), programme look fixes (#280, #281, #282) and the Progress section bar fix (#286). `2026-10-14.1` moved to the history as build 33.
 
 ### Added

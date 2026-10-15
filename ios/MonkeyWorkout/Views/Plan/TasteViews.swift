@@ -2,46 +2,60 @@ import SwiftUI
 import WorkoutEngine
 
 /// What the app learned about the member's exercise likes and dislikes (#299), design A + C from
-/// `member-learning/proposals.png`: the What Monkey learned page (Training profile) and the coach's new-week card (Train).
+/// `member-learning/proposals.png`: the What Monkey learned page (Settings → profile card since #305) and the coach's new-week card (Train).
 
 private let likedColor = Theme.lime
 private let avoidColor = Color(red: 1, green: 0.24, blue: 0.35)
 
-/// Training profile → What Monkey learned.
-struct TasteProfileCard: View {
+/// Settings → profile card → What Monkey learned (#305, design B from `learned-settings/proposals.png`):
+/// a strip inside the member's profile card with the top liked / avoided moves.
+struct TasteProfileStrip: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         let t = model.memberTaste
-        let liked = t.liked(at: Date()).count
-        let avoided = t.disliked(at: Date()).count
+        let now = Date()
+        let liked = t.liked(at: now).compactMap { Exercise.find($0) }
+        let avoided = t.disliked(at: now).compactMap { Exercise.find($0) }
         NavigationLink { TasteView() } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 Image(systemName: "brain.head.profile")
-                    .font(.system(size: 22, weight: .bold))
-                    .frame(width: 52, height: 52)
-                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.22)))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("What Monkey learned").font(Theme.display(21)).lineLimit(1).minimumScaleFactor(0.6)
-                    Text(!model.learningOn ? "Learning off" : liked + avoided == 0 ? "Learning from your choices" : "\(liked) liked · \(avoided) avoided")
-                        .font(.footnote.weight(.semibold)).opacity(0.88).lineLimit(2)
+                    .font(.system(size: 18, weight: .bold))
+                    .frame(width: 40, height: 40)
+                    .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(.white.opacity(0.22)))
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("What Monkey learned").font(Theme.display(16)).lineLimit(1).minimumScaleFactor(0.7)
+                    if !model.learningOn || liked.isEmpty && avoided.isEmpty {
+                        Text(model.learningOn ? "Learning from your choices" : "Learning off")
+                            .font(.caption.weight(.semibold)).opacity(0.88).lineLimit(1)
+                    } else {
+                        // Two liked and one avoided fit one row on the smallest iPhone.
+                        HStack(spacing: 5) {
+                            ForEach(liked.prefix(avoided.isEmpty ? 3 : 2), id: \.id) { chip("♥ \($0.name)", fill: likedColor, ink: true) }
+                            ForEach(avoided.prefix(liked.isEmpty ? 3 : 1), id: \.id) { chip("✕ \($0.name)", fill: avoidColor, ink: false) }
+                        }
+                    }
                 }
                 .layoutPriority(1)
                 Spacer(minLength: 4)
-                VStack(alignment: .trailing, spacing: 0) {
-                    Text("\(liked + avoided)").font(Theme.display(26)).lineLimit(1)
-                    Text("LEARNED").font(Theme.label(9)).tracking(1.2).opacity(0.8).lineLimit(1)
-                }
-                .fixedSize()
+                Text("\(liked.count + avoided.count)").font(Theme.display(20)).fixedSize()
                 Image(systemName: "chevron.right").font(.footnote.bold()).opacity(0.7)
             }
             .foregroundStyle(.white)
-            .padding(16)
-            .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(WorkoutEngine.Category.mobility.gradient))
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.black.opacity(0.25)))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("What Monkey learned: \(liked) liked, \(avoided) avoided")
+        .accessibilityLabel("What Monkey learned: \(liked.count) liked, \(avoided.count) avoided")
+    }
+
+    private func chip(_ text: String, fill: Color, ink: Bool) -> some View {
+        Text(text)
+            .font(Theme.label(10)).lineLimit(1).truncationMode(.tail)
+            .foregroundStyle(ink ? Theme.ink : .white)
+            .padding(.horizontal, 7).padding(.vertical, 3)
+            .background(Capsule().fill(fill))
     }
 }
 
