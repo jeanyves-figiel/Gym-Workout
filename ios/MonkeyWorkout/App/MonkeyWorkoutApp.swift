@@ -26,6 +26,7 @@ struct MonkeyWorkoutApp: App {
                     }
                     await model.bootstrap()
                     WatchSync.shared.start(model: model, health: health)
+                    HomeWidgetSync.shared.start(model: model, health: health)
                     await AppleCredentialCheck.verify(model)
                 }
                 .task {
@@ -54,9 +55,13 @@ struct MonkeyWorkoutApp: App {
                 }
                 // Plan, completion, history or custom workouts changed: refresh the Watch.
                 .onChange(of: WatchSync.changeKey(model)) { WatchSync.shared.push() }
+                // Home Screen widget taps (#297).
+                .onOpenURL { HomeWidgetRouter.open($0, model: model) }
                 .onChange(of: scenePhase) { _, phase in
                     switch phase {
-                    case .background: lock.didEnterBackground()
+                    case .background:
+                        lock.didEnterBackground()
+                        HomeWidgetSync.shared.push()
                     case .active:
                         lock.didBecomeActive()
                         // A new programme week (#255), or a new calendar week for the plan (#266).
@@ -66,6 +71,7 @@ struct MonkeyWorkoutApp: App {
                             await AppleCredentialCheck.verify(model)
                             await model.sync()
                             await health.refresh()
+                            WatchSync.shared.push()
                         }
                     default: break
                     }

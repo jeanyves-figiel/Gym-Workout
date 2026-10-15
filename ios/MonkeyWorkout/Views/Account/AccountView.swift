@@ -93,6 +93,15 @@ struct AccountView: View {
                                     gradient: WatchHomePref.shared.style.gradient)
                     }
                     .buttonStyle(.plain)
+
+                    // Home Screen widgets (#297): presets, look and topic per size.
+                    NavigationLink { HomeWidgetsView() } label: {
+                        let w = HomeWidgetSync.shared.settings
+                        AccountCard(symbol: "square.grid.2x2.fill", title: "Home Screen widgets",
+                                    subtitle: "\(w.preset?.title ?? "Custom") · \(w.look.title)",
+                                    gradient: LinearGradient(colors: [Color(hex: 0x3B6CFF), Color(hex: 0xFF3CAC)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    }
+                    .buttonStyle(.plain)
                     section("Connected apps")
                     let mgConnected = MonkeyGradeLink.shared.isConnected(for: user.id)
                     if ProStore.shared.locked && !mgConnected {

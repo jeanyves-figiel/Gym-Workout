@@ -319,6 +319,12 @@ private struct DemoScreen: View {
         case "away": AwayEditorView(initial: AwayPeriod(kind: .travel, start: Demo.away()[1].start, end: Demo.away()[1].end, note: "Berlin", setup: .hotelGym), isNew: true) { _ in }
         case "notifications": NavigationStack { NotificationSettingsView() }
         case "watch-home": NavigationStack { WatchHomeView() }
+        // Home Screen widgets (#297): Account screens and every look × topic × size as the widgets draw them.
+        case "home-widgets": NavigationStack { HomeWidgetsView() }
+        case "home-widgets-custom": NavigationStack { HomeWidgetsCustomView() }
+        case "home-widgets-gradient": HomeWidgetGallery(look: .gradient)
+        case "home-widgets-coach": HomeWidgetGallery(look: .coach)
+        case "home-widgets-data": HomeWidgetGallery(look: .data)
         // Game looks (#227): game-{week|session|done|progress}-{coach|deck|rings}; week is the Train tab.
         case let g where g.hasPrefix("game-session"): NavigationStack { SessionView(sessionId: second) }
         case let g where g.hasPrefix("game-done"): WorkoutPlayerView(sessionId: second, demoMode: "done")
