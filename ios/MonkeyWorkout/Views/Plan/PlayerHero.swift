@@ -43,6 +43,10 @@ struct ExerciseHeroCard: View {
     var onAttemptPR: (() -> Void)?
     /// Set while the gym's equipment can still be reported missing (before the first set).
     var onNotHere: (() -> Void)?
+    /// Superset / circuit (#352): split it into straight sets in one tap.
+    var onSplit: (() -> Void)?
+    /// Superset / circuit (#352): the machines-not-next-to-each-other choices.
+    var onGroup: (() -> Void)?
     let onForm: () -> Void
 
     /// Colour and label of the item: a cardio, mobility or stretch move inside a strength block (custom and example
@@ -131,12 +135,46 @@ struct ExerciseHeroCard: View {
                     .padding(8)
                 }
             HeroMuscleChips(primary: exercise.primary, secondary: exercise.secondary)
-            if let n = item.prescription.note { Text(n).font(.caption.weight(.semibold)).opacity(0.85).lineLimit(1) }
+            if item.group != nil, onSplit != nil || onGroup != nil {
+                groupRow
+            } else if let n = item.prescription.note {
+                Text(n).font(.caption.weight(.semibold)).opacity(0.85).lineLimit(1)
+            }
         }
         .foregroundStyle(.white)
         .padding(16)
         .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(cat.gradient))
         .shadow(color: cat.color.opacity(0.35), radius: 18, y: 8)
+    }
+
+    /// "⛓ Superset A1 + A2" and a lime "✂ Split" in place of the generator's superset note (#352).
+    private var groupRow: some View {
+        let members = block.groupMembers(of: item.uid)
+        let kind = members.count == 2 ? "Superset" : "Circuit"
+        let labels = members.compactMap(\.group).joined(separator: " + ")
+        return HStack(spacing: 8) {
+            Button { onGroup?() } label: {
+                Label("\(kind) \(labels)", systemImage: "link")
+                    .font(Theme.label(12)).lineLimit(1).minimumScaleFactor(0.8)
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(Capsule().fill(.black.opacity(0.35)))
+            }
+            .buttonStyle(.plain)
+            .disabled(onGroup == nil)
+            .accessibilityLabel("\(kind) \(labels): options")
+            if let onSplit {
+                Button(action: onSplit) {
+                    Label("Split", systemImage: "scissors")
+                        .font(Theme.label(12))
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Capsule().fill(Theme.lime))
+                        .foregroundStyle(Theme.ink)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Split into straight sets")
+            }
+            Spacer(minLength: 0)
+        }
     }
 }
 

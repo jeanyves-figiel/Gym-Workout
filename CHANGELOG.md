@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Split a superset into straight sets** (#352): a superset whose machines aren't next to each other could not be separated. In the workout player the superset line is now a chip row, **Superset A1 + A2** and a lime **Split**: one tap turns the group into straight sets from the current exercise (its sets first, then the others; a member already done is passed over), with an Undo banner. Saved as this workout's edit, so the session page, history and the Watch follow, and a finish-early fit splits too. **Edit exercises** shows **Split** on a group's first exercise before starting. Removing an exercise from a pair also drops the stale "Superset: …" note from the one left.
+
 ### Changed
 - **Name and @nickname both on the Settings card** (#335): Settings showed two "nicknames": the header card edited the account name, the **You** card showed the Community nickname. Design B from `nickname-sync/proposals.png`: the header card shows the name with the **@nickname** under it, both edited in place (the nickname saves to the same record as Community, with the same rules; taken or invalid nicknames show an error and revert). The **You** card is now **Community profile** (photo and about) and its page no longer has a nickname field.
 - **Release notes for the next bundle** (What's new `2026-10-15.2`): Start in one look (#337) and name + @nickname (#335). New UI test `TrainFitUITests` checks Start workout sits above the tab bar on Train without scrolling. `2026-10-15.1` moved to the history as build 35.

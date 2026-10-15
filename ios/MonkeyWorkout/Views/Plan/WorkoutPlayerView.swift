@@ -44,6 +44,8 @@ struct WorkoutPlayerView: View {
     @State private var finishingEarly = false
     /// What the last fit changed, shown with Undo for a few seconds.
     @State private var fitBanner: String?
+    /// Superset split mid-workout (#352): what to put back on Undo, shown for a few seconds.
+    @State private var splitUndo: SplitUndo?
 
     /// Overlay after a set: optional rest countdown and the one-tap effort picker for that set.
     struct Pause: Equatable {
@@ -52,6 +54,13 @@ struct WorkoutPlayerView: View {
         var total = 0
         var effortSet: Int?
         var effort: Effort?
+    }
+
+    struct SplitUndo: Equatable {
+        var text: String
+        var uid: String
+        var edit: [Block]?
+        var fitted: [Block]?
     }
 
     private struct Step {
@@ -155,7 +164,9 @@ struct WorkoutPlayerView: View {
             // input for this item (set card or timer), up next and the controls are always fully on screen.
             VStack(alignment: .leading, spacing: 12) {
                 topBar(session)
-                if let fitBanner {
+                if let splitUndo {
+                    FinishEarlyBanner(text: splitUndo.text, symbol: "scissors", onUndo: undoSplit)
+                } else if let fitBanner {
                     FinishEarlyBanner(text: fitBanner, onUndo: undoFinishEarly)
                 }
 
@@ -163,7 +174,8 @@ struct WorkoutPlayerView: View {
                                  position: "\(index + 1)/\(steps.count)",
                                  onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
                                  onNotHere: !step.exercise.equipment.isEmpty && model.canSwap(uid: step.item.uid) && done == 0
-                                     ? { notHereFor = step.item } : nil) { formFor = step.exercise }
+                                     ? { notHereFor = step.item } : nil,
+                                 onSplit: canSplit(step) ? { split(step) } : nil) { formFor = step.exercise }
                     .id(step.item.uid)
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
                     .layoutPriority(1)
@@ -431,11 +443,9 @@ struct WorkoutPlayerView: View {
 
     private func advance(_ step: Step) {
         if (setsDone[step.item.uid] ?? 0) >= step.sets { model.setTicked(step.item.uid) }
-        if index >= steps.count - 1 {
-            finish()
-        } else {
-            go(index + 1)
-        }
+        // Next step with sets left: after a superset split mid-round (#352) a member done earlier is passed over.
+        let next = steps.indices.first { $0 > index && (setsDone[steps[$0].item.uid] ?? 0) < steps[$0].sets }
+        if let next { go(next) } else { finish() }
     }
 
     private func finish() {
@@ -510,6 +520,44 @@ struct WorkoutPlayerView: View {
             i > first && !uids.contains(steps[i].item.uid) && (sets[steps[i].item.uid] ?? 0) < steps[i].sets
         }
         return (open ?? steps.count, 0)
+    }
+
+    // MARK: Split a superset (#352)
+
+    /// Grouped item of a workout the member can edit: plan days, extras, quick sessions, library workouts.
+    private func canSplit(_ step: Step) -> Bool {
+        step.item.group != nil && step.block.groupMembers(of: step.item.uid).count > 1 && model.editableBlocks(sessionId) != nil
+    }
+
+    /// Straight sets from here: this exercise's sets first, then the others in list order. Saved as this workout's edit,
+    /// so the session page, history and the Watch follow; a finish-early fit splits too.
+    private func split(_ step: Step) {
+        guard var blocks = model.editableBlocks(sessionId) else { return }
+        let uid = step.item.uid
+        let others = step.block.groupMembers(of: uid).filter { $0.uid != uid }.map { Exercise.get($0.exerciseId).name }
+        let undo = SplitUndo(text: "Straight sets · \(others.joined(separator: ", ")) after", uid: uid,
+                             edit: model.isEdited(sessionId) ? blocks : nil, fitted: fitted)
+        blocks.split(uid)
+        model.saveSessionEdit(sessionId, blocks: blocks)
+        fitted?.split(uid)
+        pendingJump = nil
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        relocate(uid)
+        withAnimation(.spring(duration: 0.4)) { splitUndo = undo }
+        guard demoMode == nil else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(8))
+            if splitUndo == undo { withAnimation(.spring(duration: 0.4)) { splitUndo = nil } }
+        }
+    }
+
+    /// Back to the superset as it was, on the same exercise and set.
+    private func undoSplit() {
+        guard let u = splitUndo else { return }
+        if let edit = u.edit { model.saveSessionEdit(sessionId, blocks: edit) } else { model.resetSessionEdit(sessionId) }
+        fitted = u.fitted
+        withAnimation(.spring(duration: 0.4)) { splitUndo = nil }
+        relocate(u.uid)
     }
 
     // MARK: Progress + Live Activity
