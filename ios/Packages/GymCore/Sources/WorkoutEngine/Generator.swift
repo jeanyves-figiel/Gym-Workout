@@ -77,9 +77,11 @@ public enum Generator {
         let undulating = profile.trainingMethod == .undulating
         let rotation = profile.goal.config.cardio
         var sessions: [Session] = []
-        for (i, focus) in order.enumerated() {
-            let n = seen[focus, default: 0]
-            seen[focus] = n + 1
+        for (i, planned) in order.enumerated() {
+            let n = seen[planned, default: 0]
+            seen[planned] = n + 1
+            // This workout only (#342): another session type, picked from the same state so the other days stay the same.
+            let focus = profile.sessionFoci?["w\(week)s\(i + 1)"] ?? planned
             let mode: CardioMode = focus == .conditioning ? .intervals : rotation[i % rotation.count]
             let weekday = slots?[i].weekday
             let beforeClimb = weekday.map { profile.climbingDays.contains(WeekSchedule.next($0)) } ?? false
@@ -89,12 +91,14 @@ public enum Generator {
             // `.rotate`: A/B slot orders swap weekly too.
             let variant = (n + (rotate ? week - 1 : 0)) % 2
             // Daily undulating (#156): each repeat of a session type moves to the next rep zone.
-            ctx.zone = undulating ? DayZone.of(firstIndex: order.firstIndex(of: focus) ?? i, occurrence: n) : nil
+            ctx.zone = undulating ? DayZone.of(firstIndex: order.firstIndex(of: planned) ?? i, occurrence: n) : nil
             let start = ctx.snapshot()
-            var session = generateSession(ctx, focus: focus, variant: variant, index: i, minutes: minutes, cardio: mode)
-            // Per-workout training style (#106): regenerate this session from the same pick state with the override,
-            // then carry on from the default's state so the other sessions stay the same.
-            if let style = profile.sessionStyles?["w\(week)s\(i + 1)"], !style.isEmpty {
+            let plannedMode: CardioMode = planned == .conditioning ? .intervals : rotation[i % rotation.count]
+            var session = generateSession(ctx, focus: planned, variant: variant, index: i, minutes: minutes, cardio: plannedMode)
+            // Per-workout training style (#106) and session type (#342): regenerate this session from the same pick
+            // state with the override, then carry on from the default's state so the other sessions stay the same.
+            let style = profile.sessionStyles?["w\(week)s\(i + 1)"].flatMap { $0.isEmpty ? nil : $0 }
+            if style != nil || focus != planned {
                 let after = ctx.snapshot()
                 ctx.restore(start)
                 ctx.style = style

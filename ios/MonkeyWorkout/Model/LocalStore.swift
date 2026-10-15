@@ -21,6 +21,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var moves: [SessionMove]?
     /// Per-workout rest / grouping overrides (#106), keyed by session id ("w2s1"); dropped on a week change.
     var sessionStyles: [String: SessionStyle]?
+    /// This week's per-workout session types (#342), keyed by session id ("w2s1"); dropped on a week change.
+    var sessionFoci: [String: Focus]?
     /// Gyms the member set up, each with its own equipment (#162). Optional so older profiles still decode.
     var savedGyms: [SavedGym]?
     /// Training programme in progress (#255): replaces the plan while it runs. Optional so older profiles still decode.
@@ -56,6 +58,7 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var planProfile: Profile {
         var p = tasteProfile
         p.sessionStyles = sessionStyles?.filter { $0.key.hasPrefix("w\(week)s") }
+        p.sessionFoci = sessionFoci?.filter { $0.key.hasPrefix("w\(week)s") }
         return p
     }
 }

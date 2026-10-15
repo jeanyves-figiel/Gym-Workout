@@ -201,11 +201,12 @@ struct FinishEarlySheet: View {
 /// Over the player after a fit: what changed, with Undo, for a few seconds.
 struct FinishEarlyBanner: View {
     let text: String
+    var symbol = "timer"
     let onUndo: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "timer").font(.system(size: 14, weight: .heavy))
+            Image(systemName: symbol).font(.system(size: 14, weight: .heavy))
             Text(text).font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.7)
             Spacer(minLength: 0)
             Button("Undo", action: onUndo)

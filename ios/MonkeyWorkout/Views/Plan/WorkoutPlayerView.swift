@@ -46,6 +46,14 @@ struct WorkoutPlayerView: View {
     @State private var finishingEarly = false
     /// What the last fit changed, shown with Undo for a few seconds.
     @State private var fitBanner: String?
+    /// Superset split mid-workout (#352): what to put back on Undo, shown for a few seconds.
+    @State private var splitUndo: SplitUndo?
+    /// Superset chip (#352): the item whose "machines not next to each other?" sheet is open, and what was picked there.
+    @State private var groupFix: PlannedExercise?
+    @State private var groupChoice: SupersetFixSheet.Choice?
+    @State private var swapPartner: PlannedExercise?
+    @State private var zonesOpen = false
+    @State private var zoneDraft: (layout: GymLayout?, equipment: [Equipment]) = (nil, [])
     /// Workout map (#361): what's done and what's left, read-only.
     @State private var mapOpen = false
     /// "Next in 5" after an exercise's last set (#357); nil = not counting.
@@ -65,6 +73,13 @@ struct WorkoutPlayerView: View {
         var total = 0
         var effortSet: Int?
         var effort: Effort?
+    }
+
+    struct SplitUndo: Equatable {
+        var text: String
+        var uid: String
+        var edit: [Block]?
+        var fitted: [Block]?
     }
 
     private struct Step {
@@ -117,6 +132,28 @@ struct WorkoutPlayerView: View {
                 setupFor = MachineNoteTarget(exerciseId: n.exerciseId, gym: GymRef(id: n.gymId, name: n.gymName, address: ""))
             }
         }
+        .sheet(item: $groupFix, onDismiss: runGroupChoice) { item in
+            if let step = steps.first(where: { $0.item.uid == item.uid }) {
+                SupersetFixSheet(title: groupTitle(step), partner: swappablePartner(step).map { Exercise.get($0.exerciseId).name },
+                                 canZones: model.trip(forItem: item.uid) == nil, zonesSet: model.profile?.gymLayout != nil) {
+                    groupChoice = $0
+                }
+            }
+        }
+        .sheet(item: $swapPartner) { partner in
+            SwapExerciseSheet(exerciseId: partner.exerciseId, uid: partner.uid, onPick: { id in
+                let here = steps.indices.contains(index) ? steps[index].item.uid : partner.uid
+                model.swapInSession(sessionId, uid: partner.uid, to: id)
+                fitted?.swap(partner.uid, to: id)
+                relocate(here)
+            })
+        }
+        .sheet(isPresented: $zonesOpen, onDismiss: {
+            model.setGymLayoutDuringWorkout(zoneDraft.layout, equipment: zoneDraft.equipment)
+        }) {
+            EquipmentSheet(equipment: Binding(get: { zoneDraft.equipment }, set: { zoneDraft.equipment = $0 }),
+                           layout: Binding(get: { zoneDraft.layout }, set: { zoneDraft.layout = $0 }))
+        }
         .fullScreenCover(item: $prFor) { PRAttemptView(exerciseId: $0.id) }
         .proPaywall($gate)
         .sheet(isPresented: $finishingEarly) {
@@ -151,6 +188,7 @@ struct WorkoutPlayerView: View {
             saveProgress()
             live.end()
             if !finished, !discarded { WatchSync.shared.endLive(.paused, sessionId: sessionId) }
+            model.replanAfterWorkoutIfDone()
         }
         .onChange(of: index) { reloadLog(); saveProgress(); updateLive() }
         .onChange(of: setsDone) { saveProgress(); updateLive() }
@@ -180,7 +218,9 @@ struct WorkoutPlayerView: View {
             // input for this item (set card or timer), up next and the controls are always fully on screen.
             VStack(alignment: .leading, spacing: 12) {
                 topBar(session)
-                if let fitBanner {
+                if let splitUndo {
+                    FinishEarlyBanner(text: splitUndo.text, symbol: "scissors", onUndo: undoSplit)
+                } else if let fitBanner {
                     FinishEarlyBanner(text: fitBanner, onUndo: undoFinishEarly)
                 }
 
@@ -194,7 +234,9 @@ struct WorkoutPlayerView: View {
                                      ? { notHereFor = step.item } : nil,
                                  setup: setup,
                                  onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
-                                 onSetupPhoto: { setupPhotoFor = setup }) { formFor = step.exercise }
+                                 onSetupPhoto: { setupPhotoFor = setup },
+                                 onSplit: canSplit(step) ? { split(step) } : nil,
+                                 onGroup: canSplit(step) ? { groupFix = step.item } : nil) { formFor = step.exercise }
                     .id(step.item.uid)
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
                     .layoutPriority(1)
@@ -535,11 +577,9 @@ struct WorkoutPlayerView: View {
     private func advance(_ step: Step) {
         autoNext = nil
         if (setsDone[step.item.uid] ?? 0) >= step.sets { model.setTicked(step.item.uid) }
-        if index >= steps.count - 1 {
-            finish()
-        } else {
-            go(index + 1)
-        }
+        // Next step with sets left: after a superset split mid-round (#352) a member done earlier is passed over.
+        let next = steps.indices.first { $0 > index && (setsDone[steps[$0].item.uid] ?? 0) < steps[$0].sets }
+        if let next { go(next) } else { finish() }
     }
 
     private func finish() {
@@ -621,6 +661,73 @@ struct WorkoutPlayerView: View {
         return (open ?? steps.count, 0)
     }
 
+    // MARK: Split a superset (#352)
+
+    /// Grouped item of a workout the member can edit: plan days, extras, quick sessions, library workouts.
+    private func canSplit(_ step: Step) -> Bool {
+        step.item.group != nil && step.block.groupMembers(of: step.item.uid).count > 1 && model.editableBlocks(sessionId) != nil
+    }
+
+    /// Straight sets from here: this exercise's sets first, then the others in list order. Saved as this workout's edit,
+    /// so the session page, history and the Watch follow; a finish-early fit splits too.
+    private func split(_ step: Step) {
+        guard var blocks = model.editableBlocks(sessionId) else { return }
+        let uid = step.item.uid
+        let others = step.block.groupMembers(of: uid).filter { $0.uid != uid }.map { Exercise.get($0.exerciseId).name }
+        let undo = SplitUndo(text: "Straight sets · \(others.joined(separator: ", ")) after", uid: uid,
+                             edit: model.isEdited(sessionId) ? blocks : nil, fitted: fitted)
+        blocks.split(uid)
+        model.saveSessionEdit(sessionId, blocks: blocks)
+        fitted?.split(uid)
+        pendingJump = nil
+        autoNext = nil
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        relocate(uid)
+        withAnimation(.spring(duration: 0.4)) { splitUndo = undo }
+        guard demoMode == nil else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(8))
+            if splitUndo == undo { withAnimation(.spring(duration: 0.4)) { splitUndo = nil } }
+        }
+    }
+
+    /// "Superset A1 + A2" / "Circuit A1 + A2 + A3".
+    private func groupTitle(_ step: Step) -> String {
+        let members = step.block.groupMembers(of: step.item.uid)
+        return (members.count == 2 ? "Superset " : "Circuit ") + members.compactMap(\.group).joined(separator: " + ")
+    }
+
+    /// The next other member with no set done yet: it can still be swapped for an exercise nearby.
+    private func swappablePartner(_ step: Step) -> PlannedExercise? {
+        let members = step.block.groupMembers(of: step.item.uid)
+        guard let i = members.firstIndex(where: { $0.uid == step.item.uid }) else { return nil }
+        let order = members[(i + 1)...] + members[..<i]
+        return order.first { (setsDone[$0.uid] ?? 0) == 0 }
+    }
+
+    /// Runs the choice from the superset sheet once it has closed, so the next sheet can open.
+    private func runGroupChoice() {
+        guard let choice = groupChoice, steps.indices.contains(index) else { return }
+        groupChoice = nil
+        let step = steps[index]
+        switch choice {
+        case .split: split(step)
+        case .swap: swapPartner = swappablePartner(step)
+        case .zones:
+            zoneDraft = (model.profile?.gymLayout, model.profile?.equipment ?? [])
+            zonesOpen = true
+        }
+    }
+
+    /// Back to the superset as it was, on the same exercise and set.
+    private func undoSplit() {
+        guard let u = splitUndo else { return }
+        if let edit = u.edit { model.saveSessionEdit(sessionId, blocks: edit) } else { model.resetSessionEdit(sessionId) }
+        fitted = u.fitted
+        withAnimation(.spring(duration: 0.4)) { splitUndo = nil }
+        relocate(u.uid)
+    }
+
     // MARK: Progress + Live Activity
 
     private func resumeOrBegin() {
@@ -668,6 +775,13 @@ struct WorkoutPlayerView: View {
         if demoMode == "setup", let s = steps.firstIndex(where: { $0.block.kind == .strength && !$0.exercise.equipment.isEmpty }) {
             index = s
             reloadLog()
+        }
+        // Superset chip (#352): on the first grouped item; "superset-fix" opens its sheet, "superset-split" splits it.
+        if demoMode?.hasPrefix("superset") == true, let s = steps.firstIndex(where: { $0.item.group != nil }) {
+            index = s
+            reloadLog()
+            if demoMode == "superset-fix" { groupFix = steps[s].item }
+            if demoMode == "superset-split" { split(steps[s]) }
         }
         if demoMode == "map", let s = steps.indices.dropFirst(steps.count / 2).first {
             for p in steps[..<s] { setsDone[p.item.uid] = p.sets }
