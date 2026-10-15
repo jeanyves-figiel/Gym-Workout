@@ -157,6 +157,7 @@ struct MonkeyCoachCard: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.trainCompact) private var compact
     @State private var tip = 0
     @State private var hop = false
     @State private var bob = false
@@ -183,16 +184,18 @@ struct MonkeyCoachCard: View {
         let all = tips(mood: mood, next: next, stats: stats, target: target)
         let current = all[tip % all.count]
         let missed = model.missedSessions
-        VStack(alignment: .leading, spacing: 12) {
+        // Slim (#337, design A): smaller monkey, two-line tip, action as a pill beside the chips, so Next up's
+        // Start workout fits above the tab bar.
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 10) {
-                MonkeyFace(mood: mood, scale: 1.45, gear: model.rank.gear)
+                MonkeyFace(mood: mood, scale: 0.95, gear: model.rank.gear)
                     .scaleEffect(hop ? 1.12 : 1)
                     .rotationEffect(.degrees(hop ? -12 : 0))
                     .offset(y: hop ? -8 : (bob ? -2 : 0))
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Coach Monkey · \(mood.word)").font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.85)
                     Text(current.text)
-                        .font(Theme.display(21)).lineLimit(3).minimumScaleFactor(0.7)
+                        .font(Theme.display(20)).lineLimit(compact ? 1 : 2).minimumScaleFactor(0.7)
                         .fixedSize(horizontal: false, vertical: true)
                         .id(tip)
                         .transition(.scale(scale: 0.7, anchor: .leading).combined(with: .opacity))
@@ -208,24 +211,40 @@ struct MonkeyCoachCard: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { poke(by: 1, count: all.count) }
             // Stat chips stay inside the card (#303): full labels when they fit, shorter ones on narrow phones.
+            // The tip's action sits on the same row when it fits, else its own row under the chips.
             ViewThatFits(in: .horizontal) {
-                statChips(stats: stats, target: target, missed: missed, short: false)
-                statChips(stats: stats, target: target, missed: missed, short: true)
+                HStack(spacing: 6) {
+                    statChips(stats: stats, target: target, missed: missed, short: false)
+                    tipButton(current)
+                }
+                HStack(spacing: 6) {
+                    statChips(stats: stats, target: target, missed: missed, short: true)
+                    tipButton(current)
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    ViewThatFits(in: .horizontal) {
+                        statChips(stats: stats, target: target, missed: missed, short: false)
+                        statChips(stats: stats, target: target, missed: missed, short: true)
+                    }
+                    tipButton(current, wide: true)
+                }
             }
             .buttonStyle(.plain)
-            tipButton(current)
+        }
+        .foregroundStyle(.white)
+        .padding(14)
+        .padding(.bottom, all.count > 1 ? 6 : 0)
+        .overlay(alignment: .bottom) {
             if all.count > 1 {
-                HStack(spacing: 5) {
+                HStack(spacing: 4) {
                     ForEach(all.indices, id: \.self) { i in
-                        Circle().fill(.white.opacity(i == tip % all.count ? 1 : 0.4)).frame(width: 6, height: 6)
+                        Circle().fill(.white.opacity(i == tip % all.count ? 1 : 0.4)).frame(width: 5, height: 5)
                     }
                 }
-                .frame(maxWidth: .infinity)
+                .padding(.bottom, 6)
                 .accessibilityHidden(true)
             }
         }
-        .foregroundStyle(.white)
-        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous)
             .fill(LinearGradient(colors: [Color(hex: current.tint.0), Color(hex: current.tint.1)], startPoint: .topLeading, endPoint: .bottomTrailing)))
@@ -268,15 +287,18 @@ struct MonkeyCoachCard: View {
                 }
                 .accessibilityHint("Log it, mark it done, do it today or skip")
             }
-            Spacer(minLength: 0)
         }
+        .fixedSize()
     }
 
-    /// The current tip's action as a big lime button.
-    @ViewBuilder private func tipButton(_ t: Tip) -> some View {
-        let label = Text("\(t.cta) ›").font(Theme.label(15)).foregroundStyle(Theme.ink)
-            .frame(maxWidth: .infinity).padding(.vertical, 11)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(hex: 0xD6FF3D)))
+    /// The current tip's action as a lime pill: fills the rest of the chip row, or a full row when it has its own.
+    @ViewBuilder private func tipButton(_ t: Tip, wide: Bool = false) -> some View {
+        let label = Text("\(t.cta) ›").font(Theme.label(13)).foregroundStyle(Theme.ink).lineLimit(1)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .frame(maxWidth: .infinity)
+            .background(Capsule().fill(Color(hex: 0xD6FF3D)))
+            .fixedSize(horizontal: !wide, vertical: false)
+            .frame(maxWidth: .infinity, alignment: .leading)
         Group {
             switch t.action {
             case .calendar: NavigationLink { CalendarView() } label: { label }

@@ -25,6 +25,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Personal data kept out of HTTP caches** (#310, #311): authenticated API responses carry `Cache-Control: no-store`, and the app's API client uses its own session without a URL cache. Watch and widget snapshot files and the data export are written with file protection.
 
 ### Fixed
+- **Train: Start workout fits without scrolling** (#337): on iPhone 17 Pro the Next up card's **Start workout** sat behind the tab bar. Design A "Slim stack" from `train-fit/proposals.png`, same cards and order: Coach Monkey has a smaller monkey, a 2-line tip, the tip's action as a lime pill beside the chips (own row when it doesn't fit) and dots overlaid at the bottom; Ease In shows the readiness verdict and markers on one line with a smaller ring; Next up puts the top muscles beside a smaller figure and tightens its spacing; 14 pt between Train widgets. Short phones (SE) drop the figure, muscle chips and block stripe and keep the coach tip to one line.
 - **Coach Monkey chips stay inside the card** (#303): on build 34 the **next tip ↻** chip ran past the card's right edge (4 chips wider than the card, row drawn outside it). Design B from `coach-monkey-actions/overflow.png`: next tip is a round **↻** button in the card's top-right corner; the stat chips (streak, this week, missed) keep their full labels when they fit and switch to short ones (`🔥 0 ›`, `0/3 wk ›`) on narrow phones. Swipe and monkey tap still show the next tip.
 
 ### Changed
