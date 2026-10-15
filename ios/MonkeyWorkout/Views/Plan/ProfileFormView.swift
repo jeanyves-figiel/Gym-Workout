@@ -17,7 +17,7 @@ struct ProfileFormView: View {
     @State private var closeGuard = CloseGuard()
     @Environment(HealthManager.self) private var health
     @Environment(AppModel.self) private var model
-    /// Body figure for muscle maps, asked once in onboarding (#110); changed later in Account → Body & Health.
+    /// Body figure for muscle maps, asked once in onboarding (#110); changed later in Settings → Body & Health.
     @State private var figure: BodyFigure = .male
     private let isNew: Bool
     /// Section to scroll to on appear (demo screenshots).
@@ -102,7 +102,7 @@ struct ProfileFormView: View {
 
                         if isNew {
                             Text("Your body figure").eyebrow().padding(.top, 14).id("figure")
-                            Text("The figure drawn on your muscle maps. Change it any time in Account → Body & Health.")
+                            Text("The figure drawn on your muscle maps. Change it any time in Settings → Body & Health.")
                                 .font(.subheadline)
                                 .foregroundStyle(Theme.muted)
                             BodyFigurePicker(selection: $figure)

@@ -283,7 +283,7 @@ struct CommunityProfileForm: View {
                     if !bio.isEmpty {
                         Text(bio).font(.footnote.weight(.semibold)).opacity(0.88).lineLimit(2)
                     }
-                    Text("From your Account").font(Theme.label(10)).tracking(1).opacity(0.75)
+                    Text("From Settings").font(Theme.label(10)).tracking(1).opacity(0.75)
                 }
                 Spacer(minLength: 4)
                 Button("Edit") { withAnimation(.snappy) { prefilled = false } }
@@ -513,7 +513,7 @@ struct CommunityProfileView: View {
                     Text("Profile").eyebrow()
                     Group {
                         NavigationLink { editView(p) } label: {
-                            AccountCard(symbol: "pencil", title: "Nickname, photo, about", subtitle: "Also on your Account",
+                            AccountCard(symbol: "pencil", title: "Nickname, photo, about", subtitle: "Also in Settings",
                                         gradient: WorkoutEngine.Category.strength.gradient)
                         }
                         NavigationLink { editView(p) } label: {
@@ -902,7 +902,7 @@ struct PublicProfileView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 AccountHeader(symbol: "person.crop.circle.fill", title: "Profile",
-                              subtitle: "Set once, shown on Account and in Community.", gradient: AccountTint.publicProfile)
+                              subtitle: "Set once, shown in Settings and in Community.", gradient: AccountTint.publicProfile)
                 CommunityProfileForm(profile: Community.shared.profile, account: true, restoring: restoring) { dismiss() }
             }
             .padding(16)
