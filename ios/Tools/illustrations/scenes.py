@@ -82,8 +82,8 @@ def cable_row(doc, j, layer):
         art.tube(doc, (172, 216), (172, GROUND - 6), 7, "butt")
         art.pad(doc, (64, 228), (184, 228), 12)
         # Foot plate, angled.
-        art.tube(doc, (246, GROUND - 6), (246, 200), 6, "butt")
-        art.pad(doc, (236, 182), (252, 246), 9, stitch=False)
+        art.tube(doc, (240, GROUND - 6), (240, 200), 6, "butt")
+        art.pad(doc, (229, 182), (245, 246), 9, stitch=False)
         for p in (A, B, C, D):
             art.pulley(doc, p, 6)
         art.pulley(doc, (top[0], 44), 6)
@@ -173,8 +173,8 @@ SCENES = {
         P(t=-104, lN=(-2, 92, 0), lF=(2, 90, 0), aN=(97, -62), aF=(99, -60), pin=("hip", (150, 212))),
     ], (25, 14, 340)),
     "seated-cable-row": (cable_row, [
-        P(t=-70, h=-60, lN=(-14, 36, -74), lF=(-10, 40, -70), aN=(30, 22), aF=(32, 24), pin=("hip", (128, 202))),
-        P(t=-96, h=-90, lN=(-14, 36, -74), lF=(-10, 40, -70), aN=(122, -6), aF=(124, -4), pin=("hip", (128, 202))),
+        P(t=-70, h=-60, lN=(-12, 32, -98), lF=(-8, 36, -96), aN=(30, 22), aF=(32, 24), pin=("hip", (128, 202))),
+        P(t=-96, h=-90, lN=(-12, 32, -98), lF=(-8, 36, -96), aN=(122, -6), aF=(124, -4), pin=("hip", (128, 202))),
     ], (-14, 14, 376)),  # wide enough that the muscle-map inset (top left) clears the upright head
     "back-squat": (back_squat, [
         P(aN=(135, -60), aF=(130, -62), pin=("ankleN", (196, GROUND - 4))),

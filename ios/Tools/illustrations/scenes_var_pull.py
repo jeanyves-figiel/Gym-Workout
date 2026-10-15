@@ -13,6 +13,7 @@ import scenes_arms_core as A
 import scenes_upper as U
 from art import GROUND
 from poses import P
+from scenes_var_push import custom
 
 B, G, S, fit = U.B, U.G, U.S, U.fit
 lerp, deg, chest_pt, circle_x = U.lerp, U.deg, U.chest_pt, U.circle_x
@@ -87,15 +88,17 @@ def meadows_poses():
 
 def meadows_scene(doc, j, layer):
     g = kit.grip(j)
+    # The hand holds the thick end of the bar just inside the plate: the loaded end is beyond the hand, on the
+    # viewer's side (drawn in front), so the weight stays in sight as it rises past the trunk.
+    pc = art.add(g, art.norm(art.sub(g, MR_ANCHOR)), 6)
     if layer == "back":
         floor(doc, 170, 120)
-        pc = (g[0] - 6, g[1] - 2)
-        art.tube(doc, pc, MR_ANCHOR, 5)
+        art.tube(doc, g, MR_ANCHOR, 5)
         doc.add(f'<rect x="{MR_ANCHOR[0] - 10:.1f}" y="{GROUND - 8:.1f}" width="20" height="8" rx="2" fill="#2A2E34"/>')
-        art.plate(doc, pc, 17, hub=False)
-        art.tube(doc, g, pc, 6)
     else:
-        doc.add(f'<circle cx="{g[0]:.1f}" cy="{g[1]:.1f}" r="3" fill="{art.CHROME}" stroke="#5A616A" stroke-width="0.6"/>')
+        art.tube(doc, g, pc, 6)
+        art.plate(doc, pc, 17, hub=False)
+        doc.add(f'<circle cx="{pc[0]:.1f}" cy="{pc[1]:.1f}" r="3" fill="{art.CHROME}" stroke="#5A616A" stroke-width="0.6"/>')
 
 
 # Landmine T-bar row: straddling the bar, V-handle hooked under it just behind the plates.
@@ -186,14 +189,17 @@ def single_cable_row_scene(doc, j, layer):
 
 # ---- wide-grip seated row ------------------------------------------------------------------------
 
-def wide_row_scene(doc, j, layer):
-    if layer == "back":
-        S0.cable_row(doc, j, "back")
-    else:
-        g = kit.grip(j)
-        art.cable(doc, [g, (245, 204)])
-        doc.add(f'<circle cx="{g[0]:.1f}" cy="{g[1]:.1f}" r="5.2" fill="#2A2E34" stroke="#0A0B0D" stroke-width="0.9"/>'
-                f'<circle cx="{g[0]:.1f}" cy="{g[1]:.1f}" r="2.2" fill="{art.CHROME}"/>')
+def wide_row_scene(k):
+    def scene(doc, j, layer):
+        if layer == "back":
+            wide_row_arms(j, k)
+            S0.cable_row(doc, j, "back")
+        else:
+            g = kit.grip(j)
+            art.cable(doc, [g, (245, 204)])
+            doc.add(f'<circle cx="{g[0]:.1f}" cy="{g[1]:.1f}" r="5.2" fill="#2A2E34" stroke="#0A0B0D" stroke-width="0.9"/>'
+                    f'<circle cx="{g[0]:.1f}" cy="{g[1]:.1f}" r="2.2" fill="{art.CHROME}"/>')
+    return scene
 
 
 WR_HIP = (138, 202)  # far enough forward on the bench for the soles to reach the angled foot plate
@@ -216,6 +222,30 @@ def wide_row_poses():
     return [P(t=-72, h=-62, aN=(28, 18), aF=(30, 20), pin=("hip", WR_HIP), **WR_LEGS),
             P(t=-86, h=-80, aN=(84, -8), aF=(86, -6), pin=("hip", WR_HIP), **WR_LEGS),
             P(t=-92, h=-86, aN=(158, 0), aF=(160, 2), pin=("hip", WR_HIP), **WR_LEGS)]
+
+
+WR_START = art.F.place(wide_row_poses()[0])
+WR_G0 = kit.grip(WR_START)  # arms long towards the cable
+WR_G1 = chest_pt(WR_HIP, -92, 0.7, 22)  # bar at the lower chest
+WR_OUT = 10  # wide grip: each hand this far out from its shoulder (towards / away from the camera)
+
+
+def wide_row_arms(j, k):
+    """Arms as 3D chains projected to the side view: the bar travels from arm's length to the lower chest and
+    the elbows flare out and back (wide grip), the upper arms foreshortened, instead of folding flat in the
+    picture plane with the elbow far behind the back."""
+    sh = j["shoulder"]
+    for s, sz, off in (("N", 1, (0, 0)), ("F", -1, (-2, -1))):
+        a = (sh[0], sh[1], 0.0)
+        p = lerp(art.add(WR_G0, off), art.add(WR_G1, off), k)
+        g = (p[0], p[1], sz * WR_OUT)
+        e = A._ik3(a, g, UPPER, FORE + HAND / 2, (-0.8, -0.1, sz * 1.0))
+        d = art.norm((g[0] - e[0], g[1] - e[1])) if math.dist(g[:2], e[:2]) > 0.5 else (1.0, 0.0)
+        fl = math.dist(g, e)
+        scale = math.dist(g[:2], e[:2]) / fl if fl else 1
+        j["elbow" + s] = (e[0], e[1])
+        j["wrist" + s] = art.add(g[:2], d, -HAND / 2 * scale)
+        j["hand" + s] = art.add(g[:2], d, HAND / 2 * scale)
 
 
 # ---- renegade row --------------------------------------------------------------------------------
@@ -304,7 +334,7 @@ ROW_SCENES = {
                             lambda j: [(art.add(kit.grip(j), (24, -12)), 18)]),
     "single-arm-cable-row": S(single_cable_row_scene, single_cable_row_poses(), [tower_box(SC_TOWER)],
                               along(grip_n, SC_PULLEY)),
-    "wide-grip-cable-row": (wide_row_scene, wide_row_poses(), (20, 31, 340)),
+    "wide-grip-cable-row": custom(wide_row_scene, wide_row_poses(), (20, 31, 340), (0, 0.5, 1)),
     "renegade-row": S(renegade_scene, renegade_poses(), [(RG_DB[0] - 20, GROUND - 20, RG_DB[0] + 20, GROUND)],
                       held_at("N", 12)),
     "smith-inverted-row": S(smith_scene, smith_poses(), [(SM_GRIP[0] - 60, 10, SM_GRIP[0] + 52, GROUND)]),
@@ -536,7 +566,7 @@ PC_UA = 46  # upper-arm angle on the pad
 
 def preacher_poses():
     out = []
-    for fore in (36, -36, -104):
+    for fore in (36, -30, -88):  # top: forearm upright, the bar in front of the chin (not into the face)
         out.append(B(PC_HIP, PC_T, aN=(PC_UA, fore), aF=(PC_UA + 2, fore + 2), h=-70,
                      lN=G((PC_HIP[0] + 60, FLOOR_Y), -1, end=0), lF=G((PC_HIP[0] + 54, FLOOR_Y), -1, end=0)))
     return out
@@ -587,7 +617,9 @@ BY_PULLEY = (BY_TOWER + 12, GROUND - 24)
 
 def bayesian_poses():
     out = []
-    for fore in (124, 24, -64):
+    # Top: elbow flexed ~145 degrees, the hand by the front of the shoulder (further would fold the forearm
+    # through the upper arm).
+    for fore in (124, 24, -22):
         out.append(B(BY_HIP, -88, aN=(122, fore), aF=(92, 88), h=-90, lit_sides="N",
                      lN=G((BY_HIP[0] + 22, FLOOR_Y), -1, end=0), lF=G((BY_HIP[0] - 24, FLOOR_Y), -1, end=-6)))
     return out
@@ -668,17 +700,41 @@ def cross_body_poses():
     shn, shf = j["shoulderN"], j["shoulderF"]
     hang_n, hang_f = (shn[0] + 4, shn[1] + 80), (shf[0] - 15, shf[1] + 78)
     start = A.front_arms(base, hang_n, hang_f, 1, -1)
-    # The upper arm stays down at the side; the forearm sweeps across the waist and up to the opposite chest.
-    return [start] + [dict(start, aN=(upper, fore)) for upper, fore in ((100, -164), (100, -122))]
+    # The upper arm stays down at the side; the forearm is replaced per frame (cross_body_fore).
+    return [start] + [dict(start, aN=(95, 90)) for _ in range(2)]
 
 
-def cross_body_scene(doc, j, layer):
-    if layer == "back":
-        floor(doc, XB_X, 50)
-    else:
-        for s in "FN":
-            g = kit.grip(j, s)
-            art.db_end(doc, g, 9.5)
+XB_FLEX = (4, 80, 136)  # elbow flexion at the start / middle / top
+XB_PLANE = (12, 40)  # the curl plane, turned from straight ahead towards the opposite shoulder (start, top)
+
+
+def cross_body_fore(j, flex):
+    """Near forearm as a 3D chain projected to the front view: it curls forwards (towards the camera) and
+    across, so the hand travels diagonally in front of the body to the opposite chest, foreshortened, instead
+    of sweeping flat across the waist over the far arm."""
+    e = j["elbowN"]
+    sx = 1 if e[0] >= j["shoulder"][0] else -1
+    # The plane turns in as the hand rises: across the belly low down, to the opposite chest at the top.
+    f = math.radians(flex)
+    a = math.radians(XB_PLANE[0] + (XB_PLANE[1] - XB_PLANE[0]) * (flex / XB_FLEX[2]) ** 2)
+    d3 = (-sx * math.sin(f) * math.sin(a), math.cos(f), math.sin(f) * math.cos(a))
+    flat = math.hypot(d3[0], d3[1])
+    d = (d3[0] / flat, d3[1] / flat) if flat > 0.02 else (-sx * 1.0, 0.0)
+    g = art.add(e, d, (FORE + HAND / 2) * flat)
+    j["wristN"] = art.add(g, d, -HAND / 2 * flat)
+    j["handN"] = art.add(g, d, HAND / 2 * flat)
+
+
+def cross_body_scene(flex):
+    def scene(doc, j, layer):
+        if layer == "back":
+            cross_body_fore(j, flex)
+            floor(doc, XB_X, 50)
+        else:
+            for s in "FN":
+                g = kit.grip(j, s)
+                art.db_end(doc, g, 9.5)
+    return scene
 
 
 ARM_FRONT = (40, 22, 330)
@@ -692,7 +748,7 @@ CURL_SCENES = {
     "zottman-curl": (zottman_scene, zottman_poses(), ARM_FRONT),
     "band-curl": (band_curl_scene, A.curl_poses(), ARM_FRONT),
     "rope-hammer-curl": (rope_curl_scene, A.curl_poses(186), ARM_FRONT),
-    "cross-body-hammer-curl": (cross_body_scene, cross_body_poses(), ARM_FRONT),
+    "cross-body-hammer-curl": custom(cross_body_scene, cross_body_poses(), ARM_FRONT, XB_FLEX),
     "reverse-ez-curl": (A.curl_scene("bar", plate=16), A.curl_poses(hand0=86, hand1=-64), ARM_FRONT),
 }
 
@@ -795,18 +851,42 @@ def jm_poses():
     return out
 
 
+TP_TOP = (U.BP_SH[0] + 4, U.BP_SH[1] - 80)
+TP_BOTTOM = (U.BP_SH[0] + 24, U.BP_SH[1] - 22)
+TP_IN = U.SW - 4  # at the bottom the bells meet over the sternum: each hand this far in from its shoulder
+
+
 def tate_poses():
-    top = (U.BP_SH[0] + 4, U.BP_SH[1] - 80)
-    bottom = (U.BP_SH[0] + 24, U.BP_SH[1] - 22)
     out = []
     for k in (0, 0.6, 1):
-        g = lerp(top, bottom, k)
-        out.append(U.lying_bench(U.BP_HIP, 180, g, (g[0] - 4, g[1] - 2), -1, curl=-2))
+        g = lerp(TP_TOP, TP_BOTTOM, k)
+        out.append(U.lying_bench(U.BP_HIP, 180, g, (g[0] - 4, g[1] - 2), 1, curl=-2))
     return out
+
+
+def tate_arms(j):
+    """Elbows flared out to the sides: each arm is solved as a 3D chain (elbow pointing out, towards / away from
+    the camera) and projected, so the forearms fold in towards the chest foreshortened instead of folding
+    towards the feet in the picture plane (which reads as the elbow bending backwards)."""
+    g2 = kit.grip(j)
+    k = max(0.0, min(1.0, (g2[1] - TP_TOP[1]) / (TP_BOTTOM[1] - TP_TOP[1])))
+    sh = j["shoulder"]
+    for s, sz, off in (("N", 1, (0, 0)), ("F", -1, (-4, -2))):
+        top, bottom = art.add(TP_TOP, off), art.add(TP_BOTTOM, off)
+        a = (sh[0], sh[1], 0.0)
+        g = (top[0] + (bottom[0] - top[0]) * k, top[1] + (bottom[1] - top[1]) * k, -sz * TP_IN * k)
+        e = A._ik3(a, g, UPPER, FORE + HAND / 2, (0.25, -0.2, sz * 1.0))
+        d = art.norm((g[0] - e[0], g[1] - e[1])) if math.dist(g[:2], e[:2]) > 0.5 else (1.0, 0.0)
+        fl = math.dist(g, e)
+        scale = math.dist(g[:2], e[:2]) / fl if fl else 1
+        j["elbow" + s] = (e[0], e[1])
+        j["wrist" + s] = art.add(g[:2], d, -HAND / 2 * scale)
+        j["hand" + s] = art.add(g[:2], d, HAND / 2 * scale)
 
 
 def tate_scene(doc, j, layer):
     if layer == "back":
+        tate_arms(j)
         floor(doc, 200, 120)
         kit.flat_bench(doc, 104, 254, U.BENCH_TOP)
         art.db_end(doc, kit.grip(j, "F"), 9)

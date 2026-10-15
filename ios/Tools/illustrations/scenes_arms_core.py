@@ -56,10 +56,6 @@ def grounded(pose, x, toe_lift=2):
     return dict(pose, pin=("hip", (x, GROUND - 4 - low)))
 
 
-def stand(x=200, **kw):
-    return P(pin=("ankleN", (x, GROUND - 4)), **kw)
-
-
 def shoulder_of(pose):
     """Shoulder position of a pose (pin applied) — the base for arm IK."""
     return place(pose)["shoulder"]
@@ -220,26 +216,41 @@ def body_saw_scene(doc, j, layer):
 
 # ---- Pallof press ------------------------------------------------------------------------------
 
-PALLOF_X = 196
+# Front view, standing side-on to the column (left): the cable pulls sideways and the hands press straight out
+# towards the camera, resisting the turn. The side view showed the column behind the figure, the cable in line
+# with the press (a cable chest press), and the far knee bent backwards.
+PALLOF_X = 228
+PALLOF_TOWER = 100  # column; its pulley sits on the right face at chest height
+PALLOF_ELEV = 0.3  # camera slightly above: points towards the camera are drawn lower (y += k * z)
 
 
 def pallof_pose(reach):
-    base = stand(PALLOF_X, t=-90, lN=(78, 102, 0), lF=(100, 84, 0), inset="br")
-    s = shoulder_of(base)
-    tgt = (s[0] + 18 + reach, s[1] + 26 - reach * 0.12)
-    return arms_to(base, tgt, (tgt[0] - 2, tgt[1] + 1), bend=1, hand=0)
+    return front_stand(PALLOF_X, 8, t=-90, h=-90, curl=reach / CURL_CH, inset="br")
+
+
+def pallof_arms(j, k):
+    """Hands on the handle at the sternum (k = 0) pressed out to arm's length (k = 1), arms as 3D chains."""
+    y = j["shoulder"][1] + 24
+    for s, sx in (("N", 1), ("F", -1)):
+        sh = j["shoulder" + s]
+        arm3(j, s, (sh[0], sh[1], 0.0), (PALLOF_X + sx * 3, y, 16 + 64 * k), (sx * 1.0, 0.8, -0.4), PALLOF_ELEV)
 
 
 def pallof_scene(doc, j, layer):
-    g = kit.grip(j)
     if layer == "back":
-        floor_back(doc, 190, 120)
-        p = (172, 108)
-        lift = cable_lift(g, p, 46, 0.3)
-        tower(doc, 160, 108, lift, face="right")
-        art.cable(doc, [p, g])
+        j["_pk"] = channel(j)
+        pallof_arms(j, j["_pk"])
+        floor_back(doc, 170, 130)
+    g = kit.grip(j)
+    p = (PALLOF_TOWER + 12, j["shoulder"][1] + 24 + PALLOF_ELEV * 16)
+    if layer == "back":
+        tower(doc, PALLOF_TOWER, p[1], cable_lift(g, p, PALLOF_X - p[0], 0.3), face="right")
     else:
+        art.cable(doc, [p, g])
         kit.handle(doc, g)
+        for s in "NF":
+            h = kit.grip(j, s)
+            doc.add(f'<circle cx="{h[0]:.1f}" cy="{h[1]:.1f}" r="4.4" fill="#E2E6EB" stroke="{art.OUTLINE}" stroke-width="0.9"/>')
 
 
 # ---- side plank (front view) -------------------------------------------------------------------
@@ -282,19 +293,34 @@ def front_arms(pose, tn, tf, bend_n=-1, bend_f=1):
     return out
 
 
+LM_ELEV = 0.22  # camera slightly above (y += k * z)
+
+
 def landmine_pose(side, t=-90):
-    base = front_stand(LM_X, 6, t=t, h=t + side * 6)
-    if side == 0:
-        tgt = (LM_X, 66)
-        bends = (1, -1)
-    else:
-        tgt = (LM_X + side * 62, 156)
-        bends = (side, side)
-    return front_arms(base, (tgt[0] + 3, tgt[1]), (tgt[0] - 3, tgt[1]), *bends)
+    """side -1 .. 1: the bar end at the far hip, in front of the face, at the near hip (passed on to
+    landmine_arms through the curl channel)."""
+    return front_stand(LM_X, 6, t=t, h=t + side * 6, curl=side / CURL_CH)
+
+
+def landmine_arms(j, side):
+    """Arms long, both hands on the bar end, which sweeps an arc from hip to hip in front of the body and
+    peaks in front of the face; the shoulders turn with it. Solved as 3D chains and projected: the 2D arms
+    reached overhead at the top (elbows flared, hands above the head, the bar through the torso) and folded
+    across the face on the way."""
+    a = side * math.pi / 2
+    c = j["shoulder"]
+    sw = kit.dist(j["shoulderN"], c)
+    psi = side * math.radians(55)
+    g = (LM_X + 44 * math.sin(a), c[1] - 30 + 90 * (1 - math.cos(a)), 26 + 48 * math.cos(a))
+    for s, sx in (("N", 1), ("F", -1)):
+        sh = (c[0] + sx * sw * math.cos(psi), c[1], -sx * sw * math.sin(psi))
+        j["shoulder" + s] = (sh[0], sh[1])
+        arm3(j, s, sh, (g[0] + sx * 3, g[1], g[2]), (sx * 1.0, 1.0, -0.3), LM_ELEV)
 
 
 def landmine_rot_scene(doc, j, layer):
     if layer == "back":
+        landmine_arms(j, channel(j))
         floor_back(doc, LM_X, 90)
     else:
         g = ((j["wristN"][0] + j["wristF"][0]) / 2, (j["wristN"][1] + j["wristF"][1]) / 2)
@@ -744,6 +770,21 @@ def _ik3(a, t, l1, l2, pole):
     return _v3(a, _v3k(u, x), _v3k(_unit3(_v3(pole, _v3k(u, -pd))), h))
 
 
+def arm3(j, s, sh, g, pole, elev):
+    """Arm of side s as a 3D chain shoulder `sh` → grip `g` (x right, y down, z towards the camera), elbow
+    towards `pole`, drawn in a front view seen slightly from above (y += elev * z): it foreshortens when it
+    points at the camera instead of folding in the picture plane."""
+    F = art.F
+    e = _ik3(sh, g, F.UPPER_ARM, F.FOREARM + F.HAND / 2, pole)
+    e2, g2 = (e[0], e[1] + elev * e[2]), (g[0], g[1] + elev * g[2])
+    fl, flat = math.dist(g, e), math.dist(g2, e2)
+    d = art.norm(art.sub(g2, e2)) if flat > 0.5 else (0.0, 1.0)
+    k = F.HAND / 2 * (flat / fl if fl else 1)
+    j["elbow" + s] = e2
+    j["wrist" + s] = art.add(g2, d, -k)
+    j["hand" + s] = art.add(g2, d, k)
+
+
 class _Cam:
     """Orthographic camera: turned `yaw` degrees about the vertical, raised `elev` degrees."""
 
@@ -757,7 +798,7 @@ class _Cam:
         return (self.o[0] + x, self.o[1] - (y * self.c - z * self.s))
 
 
-BRF_CAM = _Cam(20, (200, GROUND - 4), 118)
+BRF_CAM = _Cam(20, (200, GROUND - 4), 150)  # mostly from behind: the arms open across the back (at 118 the near arm read as a front raise)
 BRF_A = math.radians(28)  # torso above horizontal: hinged at the hips
 BRF_D = (0, math.sin(BRF_A), math.cos(BRF_A))   # hip → shoulder
 BRF_N = (0, -math.cos(BRF_A), math.sin(BRF_A))  # out of the chest (towards the floor)
@@ -821,7 +862,7 @@ def bent_fly_entry():
     else:
         y0 -= (w * 0.75 - h) / 2
     view = (round(x0, 1), round(y0, 1), round(w, 1))
-    still = P(t=-90, front="back", pin=("hip", (200, 150)), inset="tr")
+    still = P(t=-90, front="back", pin=("hip", (200, 150)), inset="br")  # top right: the far hand rises there
 
     def render(ex):
         frames = art.frames([still] * 3)
@@ -833,6 +874,7 @@ def bent_fly_entry():
 # ---- plate-loaded crunch -----------------------------------------------------------------------
 
 CR_HIP = (150, 202)
+CR_SEAT = CR_HIP[1] + 15  # seat pad top: the pelvis sits on it (at 204 the hips sank 15 px into the pad)
 CR_PIVOT = (146, 204)  # lever pivot beside the seat, on the hip axis: the lever turns with the torso
 CR_GRIP0 = (131, 109)  # handles at the start pose (hands behind the head)
 CR_ELBOW0 = (110, 122)  # bend of the dog-leg lever behind the backrest at the start pose
@@ -865,9 +907,9 @@ def crunch_machine_scene(doc, j, layer):
         floor_back(doc, 170, 110)
         kit.feet(doc, 60, 270)
         # Seat post, seat, backrest column + pad, foot-roller post.
-        art.tube(doc, (150, 220), (150, GROUND - 2), 9, "butt")
+        art.tube(doc, (150, 232), (150, GROUND - 2), 9, "butt")
         art.tube(doc, (108, GROUND - 2), (112, 132), 10)
-        art.tube(doc, (112, 214), (150, 214), 7)
+        art.tube(doc, (112, 226), (150, 226), 7)
         art.pad(doc, (124, 214), (116, 140), 12)
         art.tube(doc, (150, 236), (238, 236), 7)
         art.tube(doc, (236, 236), (236, GROUND - 2), 7, "butt")
@@ -877,7 +919,7 @@ def crunch_machine_scene(doc, j, layer):
         art.tube(doc, CR_PIVOT, bend, 7)
         art.tube(doc, bend, art.add(g, art.norm(art.sub(g, bend)), -3), 6)
         doc.add(f'<circle cx="{bend[0]:.1f}" cy="{bend[1]:.1f}" r="3.6" fill="#2A2E34"/>')
-        art.pad(doc, (118, 216), (194, 216), 12)
+        art.pad(doc, (118, CR_SEAT + 12), (194, CR_SEAT + 12), 12)
         doc.add(f'<circle cx="{CR_PIVOT[0]}" cy="{CR_PIVOT[1]}" r="6" fill="#2A2E34" stroke="#0A0B0D" stroke-width="0.9"/>'
                 f'<circle cx="{CR_PIVOT[0]}" cy="{CR_PIVOT[1]}" r="2.2" fill="{art.CHROME}"/>')
     else:
@@ -1157,7 +1199,7 @@ SCENES = {
     ], (30, 50, 300)),
     "pallof-press": (pallof_scene, [
         pallof_pose(0),
-        pallof_pose(56),
+        pallof_pose(1),
     ], (50, 18, 340)),
     "side-plank": (mat_scene(50, 340), [
         side_plank_pose(False),

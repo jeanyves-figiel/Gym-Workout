@@ -77,6 +77,19 @@ def body(hip, t=-90, h=None, ankN=None, ankF=None, kN=-1, kF=-1, fN=0, fF=0,
     return P(**p)
 
 
+def replant(j, side, ank, k=-1):
+    """Keep a foot that is planted in every key pose planted in the in-betweens too: the angle interpolation of
+    the other joints lets it slide a few px, so re-solve that leg's knee from its hip onto the fixed ankle
+    (the foot keeps its interpolated angle)."""
+    hp = j.get("hip" + side, j["hip"])
+    a = j["ankle" + side]
+    t = j["toe" + side]
+    a1, _ = ik(hp, ank, TH, SH, k)
+    j["knee" + side] = pt(hp, a1, TH)
+    j["ankle" + side] = ank
+    j["toe" + side] = (t[0] + ank[0] - a[0], t[1] + ank[1] - a[1])
+
+
 def ins(poses, corner):
     """Put the muscle-map inset in `corner` on every frame."""
     for p in poses:
@@ -231,7 +244,7 @@ def bw_squat_scene(doc, j, layer):
 def bw_squat_pose(hip, t, reach):
     s = shoulder(hip, t)
     g = (s[0] + reach[0], s[1] + reach[1])
-    return body(hip, t, ankN=GS_ANK, ankF=(GS_ANK[0] - 4, ANK), gN=g, gF=(g[0] - 3, g[1] + 2), eN=-1, eF=-1)
+    return body(hip, t, ankN=GS_ANK, ankF=(GS_ANK[0] - 4, ANK), gN=g, gF=(g[0] - 3, g[1] + 2), eN=1, eF=1)
 
 
 # ==== hack squat ===================================================================================
@@ -334,10 +347,11 @@ def leg_press_scene(doc, j, layer):
 
 
 def leg_press_pose(k):
-    ank = art.add(LP_ANK, LP_RD, -44 * k)
+    ank = art.add(LP_ANK, LP_RD, -36 * k)  # bottom: knees about 90-100°, thighs short of the chest
     g = (LP_HIP[0] + 8, LP_HIP[1] + 4)
-    return body(LP_HIP, LP_T, h=LP_T + 40, ankN=ank, ankF=art.add(ank, LP_PD, 4), kN=1, kF=1,
-                fN=LP_R - 90, fF=LP_R - 90, gN=g, gF=(g[0] - 3, g[1]), eN=-1, eF=-1)
+    # Knees fold up towards the chest (above the hip-ankle line), never down below it.
+    return body(LP_HIP, LP_T, h=LP_T + 40, ankN=ank, ankF=art.add(ank, LP_PD, 4), kN=-1, kF=-1,
+                fN=LP_R - 90, fF=LP_R - 90, gN=g, gF=(g[0] - 3, g[1]), eN=1, eF=1)
 
 
 def calf_press_scene(doc, j, layer):
@@ -349,8 +363,8 @@ def calf_press_scene(doc, j, layer):
 def calf_press_pose(f):
     ank = art.add(LP_ANK, LP_RD, -6)
     g = (LP_HIP[0] + 8, LP_HIP[1] + 4)
-    p = body(LP_HIP, LP_T, h=LP_T + 40, ankN=ank, ankF=art.add(ank, LP_PD, 4), kN=1, kF=1, fN=f, fF=f,
-             gN=g, gF=(g[0] - 3, g[1]), eN=-1, eF=-1)
+    p = body(LP_HIP, LP_T, h=LP_T + 40, ankN=ank, ankF=art.add(ank, LP_PD, 4), kN=-1, kF=-1, fN=f, fF=f,
+             gN=g, gF=(g[0] - 3, g[1]), eN=1, eF=1)
     return p
 
 
@@ -369,7 +383,7 @@ def hinge_pose(bar, t, ank, dx=0, far=(-4, 1), h=None, **kw):
     """Both hands on a bar / dumbbells at `bar`, arms straight, feet at `ank`."""
     hip = hang_from(bar, t, dx)
     return body(hip, t, h=h, ankN=ank, ankF=(ank[0] + far[0], ank[1]), gN=bar, gF=(bar[0] + far[1], bar[1]),
-                eN=-1, eF=-1, **kw)
+                eN=1, eF=1, **kw)
 
 
 # -- conventional deadlift
@@ -460,7 +474,7 @@ def sl_rdl_pose(hip, t, legF, k=-1, **kw):
     """legF = (thigh, shin, foot) of the free leg; arms hang straight down."""
     s = shoulder(hip, t)
     g = (s[0] + 2, s[1] + ARM)
-    p = body(hip, t, ankN=SL_ANK, kN=k, gN=g, gF=(g[0] - 3, g[1]), eN=-1, eF=-1, lit_sides="N", **kw)
+    p = body(hip, t, ankN=SL_ANK, kN=k, gN=g, gF=(g[0] - 3, g[1]), eN=1, eF=1, lit_sides="N", **kw)
     p["lF"] = legF
     return p
 
@@ -580,7 +594,7 @@ def thrust_pose(t, ank=HT_ANK, bar=True, legF=None, edge=HT_EDGE, back=15, along
     td, n = tframe(t)
     if bar:
         b = art.add(hip, n, 20)
-        g = dict(gN=art.add(b, td, -2), gF=art.add(b, td, -6), eN=-1, eF=-1)
+        g = dict(gN=art.add(b, td, -2), gF=art.add(b, td, -6), eN=1, eF=1)
     else:
         s = shoulder(hip, t)
         g = dict(gN=(s[0] + 36, GROUND - 6), gF=(s[0] + 30, GROUND - 6), eN=1, eF=1, hN=0, hF=0)
@@ -657,12 +671,12 @@ def sofa(doc, x0, x1, top):
 
 
 def sl_thrust_pose(t, legF):
-    """Single-leg hip thrust: shoulder blades on the sofa edge the whole time, arms resting along the cushion
-    (not propped on the floor), free leg held up."""
+    """Single-leg hip thrust: shoulder blades on the sofa edge the whole time, arms reaching back near straight
+    over the cushion to hold the sofa arm (not propped on the floor, elbows never bent backwards), free leg held up."""
     hip = thrust_hip(t, SOFA_EDGE, **HT_REST)
     s = shoulder(hip, t)
-    g = (s[0] - 76, SOFA_EDGE[1] - 5)
-    p = body(hip, t, h=t + 18, ankN=HT_ANK, ankF=(HT_ANK[0] - 4, ANK), gN=g, gF=(g[0] + 5, g[1] - 1), eN=-1, eF=-1,
+    g = (s[0] - 80, s[1] + 10)
+    p = body(hip, t, h=t + 18, ankN=HT_ANK, ankF=(HT_ANK[0] - 4, ANK), gN=g, gF=(g[0] + 5, g[1] - 1), eN=1, eF=1,
              hN=180, hF=180, lit_sides="N")
     p["lF"] = legF
     return p
@@ -682,7 +696,7 @@ def arms_for(hip, t, arms):
     s = shoulder(hip, t)
     if arms == "db":
         g = (s[0] + 3, s[1] + ARM)
-        return dict(gN=g, gF=(g[0] - 4, g[1] - 1), eN=-1, eF=-1)
+        return dict(gN=g, gF=(g[0] - 4, g[1] - 1), eN=1, eF=1)
     if arms == "bar":
         g = art.add(back_bar(hip, t), n, 4)
         return dict(gN=g, gF=art.add(g, td, 2), eN=1, eF=1, hN=t - 20, hF=t - 20)
@@ -712,6 +726,18 @@ def split_frames(arms, view_inset="tr"):
         split_pose((190, 190), -86, SPLIT_F, SPLIT_R, 46, arms),
         split_pose((186, 212), -84, SPLIT_F, SPLIT_R, 48, arms),
     ], view_inset)
+
+
+def bw_split_scene(doc, j, layer):
+    if layer == "back":
+        replant(j, "F", SPLIT_R)
+    bw_scene(doc, j, layer)
+
+
+def bar_split_planted_scene(doc, j, layer):
+    if layer == "back":
+        replant(j, "F", SPLIT_R)
+    bar_split_scene(doc, j, layer)
 
 
 def bar_split_scene(doc, j, layer):
@@ -750,6 +776,7 @@ BSS_F = (252, ANK)
 
 def bss_scene(doc, j, layer):
     if layer == "back":
+        replant(j, "F", BSS_R)
         floor(doc, 190, 110)
         kit.flat_bench(doc, 50, 150, BSS_BENCH)
     dbs(doc, j, layer)
@@ -823,7 +850,7 @@ def leg_ext_pose(shin):
     ank = pt(knee, shin, SH)
     g = (LE_HIP[0] + 14, LE_HIP[1] + 10)
     return body(LE_HIP, LE_T, h=-86, ankN=ank, ankF=art.add(ank, (-3, 0)), fN=shin - 90, fF=shin - 90,
-                gN=g, gF=(g[0] - 3, g[1]), eN=-1, eF=-1)
+                gN=g, gF=(g[0] - 3, g[1]), eN=1, eF=1)
 
 
 # -- lying leg curl (plate-loaded lever)
@@ -863,9 +890,9 @@ def leg_curl_pose(shin):
     knee = pt(LC_HIP, 178, TH)
     ank = pt(knee, shin, SH)
     s = shoulder(LC_HIP, LC_T)
-    g = (s[0] + 36, s[1] + 34)
+    g = (s[0] + 40, s[1] + 40)  # handles under the front of the pad: upper arms down past it, forearms forward
     return body(LC_HIP, LC_T, h=6, lN=(178, shin, shin + 90), lF=(177, shin - 2, shin + 88),
-                gN=g, gF=(g[0] - 3, g[1]), eN=-1, eF=-1)
+                gN=g, gF=(g[0] - 3, g[1]), eN=1, eF=1)
 
 
 # -- seated calf raise (plate-loaded): toes on the block edge, knee pad on a lever pivoting at the front
@@ -907,7 +934,7 @@ def seated_calf_pose(f):
     k = j["kneeN"]
     g = (k[0] - 8, k[1] - 20)
     return body(SC_HIP, -92, ankN=ank, ankF=art.add(ank, (-3, 0)), fN=f, fF=f, kN=-1, kF=-1,
-                gN=g, gF=(g[0] - 3, g[1]), eN=-1, eF=-1, hN=0, hF=0)
+                gN=g, gF=(g[0] - 3, g[1]), eN=1, eF=1, hN=0, hF=0)
 
 
 # ==== calves / shins =================================================================================
@@ -946,7 +973,7 @@ def sl_calf_pose(f, db=True):
     s = shoulder(hip, -90)
     gF = (SLC_WALL - 4, s[1] + 30)
     gN = (s[0] + 3, s[1] + ARM) if db else (SLC_WALL - 4, s[1] + 36)
-    return body(hip, -90, ankN=ank, fN=f, gN=gN, gF=gF, eN=-1 if db else 1, eF=1, hF=-80,
+    return body(hip, -90, ankN=ank, fN=f, gN=gN, gF=gF, eN=1, eF=1, hF=-80,
                 hN=None if db else -80, lF=(100, 160, 70), lit_sides="N")
 
 
@@ -982,8 +1009,8 @@ def tib_pose(f):
     s_t = -93
     s = shoulder(hip, s_t)
     g = (s[0] + 10, s[1] + 82)
-    return body(hip, s_t, h=-90, ankN=TIB_ANK, ankF=(TIB_ANK[0] - 3, ANK), fN=f, fF=f, kN=1, kF=1,
-                gN=g, gF=(g[0] - 3, g[1]), eN=-1, eF=-1)
+    return body(hip, s_t, h=-90, ankN=TIB_ANK, ankF=(TIB_ANK[0] - 3, ANK), fN=f, fF=f, kN=-1, kF=-1,
+                gN=g, gF=(g[0] - 3, g[1]), eN=1, eF=1)
 
 
 # ==== Smith machine squat ============================================================================
@@ -1026,7 +1053,7 @@ def nordic_arms(hip, a):
     td, n = tframe(a)
     s = shoulder(hip, a)
     g = art.add(art.add(s, n, 30), td, -26)
-    return dict(gN=g, gF=art.add(g, td, 4), eN=-1, eF=-1, hN=a + 90, hF=a + 90)
+    return dict(gN=g, gF=art.add(g, td, 4), eN=1, eF=1, hN=a + 90, hF=a + 90)
 
 
 def nordic_scene(doc, j, layer):
@@ -1051,7 +1078,7 @@ RN_KNEE = (216, KNEE_Y)
 def rev_nordic_arms(hip, a):
     s = shoulder(hip, a)
     g = pt(s, a + 92, ARM - 2)
-    return dict(gN=g, gF=art.add(g, (-3, 2)), eN=-1, eF=-1)
+    return dict(gN=g, gF=art.add(g, (-3, 2)), eN=1, eF=1)
 
 
 def rev_nordic_scene(doc, j, layer):
@@ -1102,8 +1129,32 @@ def cossack_pose(hip, t, ankN, ankF, fF, front=True):
                 eN=1, eF=-1, hN=-90, hF=-90, front=front)
 
 
+def goblet_front_arms(j, fwd=24, down=22, gap=5):
+    """Front view of a goblet / horn hold: the hands meet in front of the chest (towards the camera) and the
+    elbows hang down under them. Solved as a 3D chain and projected, so the forearms point at the camera and
+    foreshorten instead of folding across the chest in the picture plane (each elbow stays on its own side)."""
+    from scenes_arms_core import _ik3
+    td, n = kit.torso_frame(j)
+    c = art.add(j["shoulder"], td, -down)
+    for s, sx in (("N", 1), ("F", -1)):
+        sh = j["shoulder" + s]
+        g2 = art.add(c, n, sx * gap)
+        g = (g2[0], g2[1], float(fwd))
+        out = art.sub(sh, j["shoulder"])
+        out = art.norm(out) if math.hypot(*out) > 0.5 else (sx * 1.0, 0.0)
+        pole = (-td[0] + 0.35 * out[0], -td[1] + 0.35 * out[1], 0.3)
+        e = _ik3((sh[0], sh[1], 0.0), g, UA, FA + HA / 2, pole)
+        d = art.norm((g[0] - e[0], g[1] - e[1])) if math.dist(g[:2], e[:2]) > 0.5 else (-sx * 1.0, 0.0)
+        fl = math.dist(g, e)  # 3D forearm + half hand
+        scale = math.dist(g[:2], e[:2]) / fl if fl else 1
+        j["elbow" + s] = (e[0], e[1])
+        j["wrist" + s] = art.add(g2, d, -HA / 2 * scale)
+        j["hand" + s] = art.add(g2, d, HA / 2 * scale)
+
+
 def cossack_scene(doc, j, layer):
     if layer == "back":
+        goblet_front_arms(j)
         floor(doc, 200, 110)
     else:
         g = ((j["handN"][0] + j["handF"][0]) / 2, (j["handN"][1] + j["handF"][1]) / 2 + 2)
@@ -1202,9 +1253,9 @@ SCENES = {
         goblet_pose((172, 218), -70),
     ], (44, 28, 332)),
     "bw-squat": (bw_squat_scene, [
-        bw_squat_pose((198, 152), -90, (8, 68)),
-        bw_squat_pose((182, 188), -78, (60, 20)),
-        bw_squat_pose((168, 218), -64, (78, 4)),
+        bw_squat_pose((198, 152), -90, (6, 82)),  # arms hang, then rise forward (near straight) for balance
+        bw_squat_pose((182, 188), -78, (70, 36)),
+        bw_squat_pose((168, 218), -64, (82, 8)),
     ], (50, 28, 332)),
     "hack-squat": (hack_scene, ins([hack_pose(0), hack_pose(0.5), hack_pose(1)], "tr"), (56, 32, 324)),
     "leg-press": (leg_press_scene, ins([leg_press_pose(0), leg_press_pose(0.5), leg_press_pose(1)], "tr"), (50, 44, 314)),
@@ -1270,8 +1321,8 @@ SCENES = {
         sl_thrust_pose(193, (-80, 0, -90)),
         sl_thrust_pose(180, (-90, -8, -98)),
     ], "tl"), (40, 70, 276)),
-    "bw-split-squat": (bw_scene, split_frames("hips"), (48, 28, 332)),
-    "barbell-split-squat": (bar_split_scene, split_frames("bar"), (40, 28, 332)),
+    "bw-split-squat": (bw_split_scene, split_frames("hips"), (48, 28, 332)),
+    "barbell-split-squat": (bar_split_planted_scene, split_frames("bar"), (40, 28, 332)),
     "reverse-lunge": (lunge_scene, reverse_lunge_frames("db"), (48, 28, 332)),
     "bw-reverse-lunge": (bw_scene, reverse_lunge_frames("hips"), (48, 28, 332)),
     "walking-lunge": (lunge_scene, walking_lunge_frames(), (48, 28, 332)),
@@ -1282,7 +1333,8 @@ SCENES = {
     ], "tr"), (40, 28, 332)),
     "step-up": (step_up_scene, ins([
         split_pose((198, 166), -72, (238, BOX_TOP - 4), (182, ANK), 0, h=-80),
-        split_pose((222, 130), -82, (240, BOX_TOP - 4), (204, GROUND - 26), 70),
+        # Trailing foot lifted above the box height before it travels over the edge (never through the box).
+        split_pose((230, 116), -86, (240, BOX_TOP - 4), (204, BOX_TOP - 26), 50),
         split_pose((238, 100), -90, (240, BOX_TOP - 4), (234, BOX_TOP - 4), 0),
     ], "tl"), (34, -26, 400)),
     "leg-extension": (leg_ext_scene, ins([leg_ext_pose(100), leg_ext_pose(52), leg_ext_pose(6)], "tr"), (30, 42, 310)),

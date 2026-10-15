@@ -261,9 +261,9 @@ SQJ = [
 
 # Lateral bound, seen from behind: push off the left (screen) leg, land on the right one.
 LAT = [
-    P(front="back", t=-84, h=-86, lF=(112, 96, 180), lN=(64, 122, 0), aN=(120, 100), aF=(150, 130),
+    P(front="back", t=-84, h=-86, lF=(112, 96, 180), lN=(64, 122, 0), aN=(100, 96), aF=(150, 130),
       pin=("ankleF", (132, FOOT_Y))),
-    P(front="back", t=-72, h=-76, lF=(128, 136, 200), lN=(52, 68, 0), aN=(-24, 20), aF=(36, 60),
+    P(front="back", t=-72, h=-76, lF=(128, 136, 200), lN=(52, 68, 0), aN=(-24, 20), aF=(82, 88),
       pin=("hip", (206, 136)), front_props=[arrow((150, 120), 0, 30)]),
     P(front="back", t=-98, h=-94, lN=(76, 94, 0), lF=(118, 52, 160), aN=(40, 70), aF=(150, 120),
       pin=("ankleN", (270, FOOT_Y))),
@@ -1022,8 +1022,24 @@ def levels_of(ex_id):
     return art.muscle_levels(_CAT[ex_id])
 
 
+def h90_feet(j):
+    """In-betweens: a shin swinging between its key directions dips the foot under the mat; swing it back up
+    round the knee (same side) so the foot slides along the mat as the knees windshield-wipe. A foot turning
+    between pointing out left and right shows foreshortened (towards the camera), not pointing into the floor."""
+    for s in "NF":
+        kn, an, to = j["knee" + s], j["ankle" + s], j["toe" + s]
+        a2 = an
+        if an[1] > FOOT_Y:
+            dy = FOOT_Y - kn[1]
+            dx = math.sqrt(max(0.0, SH * SH - dy * dy)) * (1 if an[0] >= kn[0] else -1)
+            a2 = (kn[0] + dx, FOOT_Y)
+        j["ankle" + s] = a2
+        j["toe" + s] = (a2[0] + to[0] - an[0], a2[1] + min(0.0, to[1] - an[1]))
+
+
 def hip_90_90(doc, j, layer):
     if layer == "back":
+        h90_feet(j)
         ground(doc, 200, 90)
         kit.mat(doc, 110, 290)
         return

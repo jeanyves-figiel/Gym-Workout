@@ -394,35 +394,103 @@ add("db-side-bend", E(_side_bend_scene, [_side_bend(-90), _side_bend(-70), _side
 # ---- Turkish get-up: bell locked out overhead from lying to tall sit to standing ---------------------------
 
 TGU_HIP = (196, MAT)
+TGU_POST0 = (TGU_HIP[0] + 4, MAT - MO.WRIST_UP)  # free hand on the floor beside the hip, lying
+TGU_POST1_X = 140  # post hand, planted from lying to the end of the bridge (x on screen)
+TGU_PLANT = (TGU_POST1_X, MAT - MO.WRIST_UP, -60.0)  # same hand in 3D: out to the side, z towards the camera
+
+
+def _post_arm(s):
+    """Prop (drawn before the figure, may move joints): the far (post) arm as a 3D chain projected to the side view,
+    as pec_arms does in the front view. The hand stays planted out at ~45 deg to the side from lying through the
+    bridge; the far shoulder turns out towards it as the trunk sits up. Lying, the bent elbow rests out on the mat
+    and the arm foreshortens, instead of a flat 2D arm folding up off the floor or down through it; on the post
+    the elbow flexes back. After the bridge the hand lifts back to the plane of the 2D pose."""
+    from scenes_arms_core import _ik3
+
+    def prop(doc, j):
+        if s >= 0.84:
+            return
+        sh2 = j["shoulder"]
+        if s <= 0.5:
+            zs = -18 - 22 * s / 0.5
+        elif s <= 0.73:
+            zs = -40.0
+        else:
+            zs = -40 + 22 * (s - 0.73) / 0.11
+        hand = art.sub(j["handF"], j["wristF"])
+        if s <= 0.73:
+            w = TGU_PLANT
+            hand = (-F.HAND * 0.8, 0.0)
+        else:
+            k = (s - 0.73) / 0.11
+            w2 = j["wristF"]
+            w = (w2[0], w2[1], TGU_PLANT[2] + (zs - TGU_PLANT[2]) * k)
+        sh = (sh2[0], sh2[1], zs)
+        # The elbow can sit anywhere on its circle round the shoulder → wrist axis: take the point nearest the
+        # preferred side (out and down the body lying, back on the post) that stays on or above the mat and keeps
+        # enough upper arm in the picture plane to read.
+        px = 0.3 - 1.3 * min(1.0, s / 0.5)
+        pole = (px, 0.3, -0.6)
+        best = None
+        for i in range(72):
+            q = math.radians(5 * i)
+            e = _ik3(sh, w, F.UPPER_ARM, F.FOREARM, (math.cos(q), math.sin(q), -0.3))
+            d = [x - y for x, y in zip(e, sh)]
+            score = (e[1] <= MAT - 6, math.dist(e[:2], sh2) >= 22, sum(x * y for x, y in zip(d, pole)))
+            if best is None or score > best[0]:
+                best = (score, e)
+        e = best[1]
+        j["elbowF"] = (e[0], e[1])
+        j["wristF"] = (w[0], w[1])
+        j["handF"] = art.add(j["wristF"], hand)
+    return prop
+
+
+def flexed(p, limb, target, end=None, floor=None):
+    """reach() with the elbow / knee bent the anatomical way (flexion), never past straight; with `floor`, a joint
+    that would sink below it takes the other bend instead (an arm lying on the mat, out to the side)."""
+    root = joints(p)["shoulder" if limb[0] == "a" else "hip"]
+
+    def flex(m):
+        u = MO._ang((m[0] - root[0], m[1] - root[1]))
+        f = MO._ang((target[0] - m[0], target[1] - m[1]))
+        bent = ((u - f + 180) % 360 - 180) * (1 if limb[0] == "a" else -1)
+        return bent - (1000 if floor is not None and m[1] > floor else 0)
+    return reach(p, limb, target, end=end, pick=flex)
 
 
 def _tgu(stage):
     up = (-90, -90, -90)
     if stage == 0:
-        p = P(t=180, h=180, lN=(-52, 54, 0), lF=(0, 0, -86), aN=up, aF=(170, 170, 170))
+        # Free arm on the floor out at ~45 deg, hand by the hip (it was laid out past the head, then windmilled
+        # up and over the body to the post).
+        p = P(t=180, h=180, lN=(-52, 54, 0), lF=(0, 0, -86), aN=up, aF=(4, 4, 0))
         p = rest(p, "hip", TGU_HIP[0], MAT, ("torso", "thighF", "shinF", "head"))
         p = reach(p, "lN", (TGU_HIP[0] + 66, FOOT_Y), end=0, pick=lambda m: -m[1])
-        return p
+        p = flexed(p, "aF", TGU_POST0, end=180, floor=MAT - 6)
+        return dict(p, props=[_post_arm(0)])
     if stage == 1:
         t = -132
         p = P(t=t, h=t + 30, lN=(-52, 54, 0), lF=(0, 0, -86), aN=up, aF=(120, 120, 0))
         p = rest(p, "hip", TGU_HIP[0], MAT, ("torso", "thighF", "shinF"))
         j = joints(p)
         p = reach(p, "lN", (j["hip"][0] + 66, FOOT_Y), end=0, pick=lambda m: -m[1])
-        p = reach(p, "aF", (j["shoulder"][0] - 22, MAT - MO.WRIST_UP), end=180, pick=lambda m: m[0])
-        return p
+        p = flexed(p, "aF", (TGU_POST1_X, MAT - MO.WRIST_UP), end=180)
+        return dict(p, props=[_post_arm(0.5)])
     return tgu_at(1)
 
 
 # Second half (tall sit → stand), solved at every frame with the near foot planted (tweens.EXTRA): bridge the hips
 # up on the post hand, sweep the far leg under into a kneel, lift the torso upright, stand. Straight interpolation
-# flipped the far leg through the floor. Hip, torso, far wrist / ankle targets, far foot angle relative to the shin.
+# flipped the far leg through the floor. The torso leans back over the straight post arm in the bridge so the hand
+# stays within reach of the floor (it lifted off mid-bridge). Hip, torso, far wrist / ankle targets, far foot angle
+# relative to the shin.
 TGU_FOOT = (TGU_HIP[0] + 66, FOOT_Y)
 TGU_PATH = [
-    (0.5, dict(hip=(196, 244.6), t=-132, h=-102, wr=(126, 257), hand=180, ank=(306, 245), foot=-86)),
-    (0.57, dict(hip=(203, 220), t=-146, h=-120, wr=(126, 257), hand=180, ank=(262, 252), foot=-60)),
-    (0.65, dict(hip=(202, 208), t=-144, h=-116, wr=(126, 257), hand=180, ank=(196, 252), foot=-30)),
-    (0.73, dict(hip=(198, 206), t=-134, h=-108, wr=(126, 257), hand=180, ank=(132, 262), foot=-6)),
+    (0.5, dict(hip=(196, 244.6), t=-132, h=-102, wr=(TGU_POST1_X, 257), hand=180, ank=(306, 245), foot=-86)),
+    (0.57, dict(hip=(203, 220), t=-150, h=-122, wr=(TGU_POST1_X, 257), hand=180, ank=(262, 252), foot=-60)),
+    (0.65, dict(hip=(202, 208), t=-160, h=-128, wr=(TGU_POST1_X, 257), hand=180, ank=(196, 252), foot=-30)),
+    (0.73, dict(hip=(198, 206), t=-158, h=-126, wr=(TGU_POST1_X, 257), hand=180, ank=(132, 262), foot=-6)),
     (0.84, dict(hip=(206, 208), t=-90, h=-90, wr=(209, 215), hand=92, ank=(150, 262), foot=0)),
     (0.92, dict(hip=(234, 168), t=-90, h=-90, wr=(235, 248), hand=91, ank=(214, 246), foot=-70)),  # far foot steps up
     (1, dict(hip=(TGU_FOOT[0], FOOT_Y - 110), t=-90, h=-90, wr=(TGU_FOOT[0] + 1, FOOT_Y - 30), hand=90,
@@ -436,13 +504,21 @@ def tgu_at(s):
     p = PW.B(v["hip"], v["t"], ankN=TGU_FOOT, ankF=v["ank"], wrF=v["wr"], handF=v["hand"], kneeN=1, kneeF=1, elbF=1,
              aN=(-90, -90, -90), h=v["h"])
     lF = p["lF"]
-    return dict(p, lF=(lF[0], lF[1], lF[1] + v["foot"]))
+    return dict(p, lF=(lF[0], lF[1], lF[1] + v["foot"]), props=[_post_arm(s)])
 
 
 def tgu_tweens(keys):
-    """tweens.EXTRA: every frame of the second half on TGU_PATH (the first half keeps its interpolation)."""
+    """tweens.EXTRA: every frame of the second half on TGU_PATH. First half: the free hand slides along the floor
+    from beside the hip to the post behind the shoulder as the torso rolls up (elbow bent up and back, as onto
+    the forearm), instead of the interpolated arm angles swinging it up over the body."""
     mid = art.FRAMES // 2
-    return {i: tgu_at(art.progress(i)) for i in range(mid + 1, art.FRAMES - 1)}
+    out = {i: tgu_at(art.progress(i)) for i in range(mid + 1, art.FRAMES - 1)}
+    for i in range(1, mid):
+        k = art.progress(i) * 2
+        p = art.lerp_pose(keys[0], keys[1], k)
+        w = (TGU_POST0[0] + (TGU_POST1_X - TGU_POST0[0]) * k, MAT - MO.WRIST_UP)
+        out[i] = dict(flexed(p, "aF", w, end=180, floor=MAT - 6), props=[_post_arm(art.progress(i))])
+    return out
 
 
 def _tgu_scene(doc, j, layer):
@@ -587,12 +663,44 @@ def _db_snatch_scene(doc, j, layer):
 DBS = [
     PW.B((150, 196), -18, ankN=(200, FOOT_Y), ankF=(196, FOOT_Y), wrN=(196, GROUND - 22), aF=(120, 110), h=-26,
          lit_sides="N"),
+    # Second pull: on the toes, bell pulled close in front of the chest, elbow flexed.
     PW.B((198, 146), -92, ankN=(202, GROUND - 10), ankF=(198, GROUND - 10), footN=34, footF=34,
-         aN=(-22, -96, -96), aF=(150, 110), h=-90, lit_sides="N"),
+         wrN=(210, 88), elbN=-1, aF=(150, 110), h=-90, lit_sides="N"),
     PW.B((198, 152), -90, ankN=(200, FOOT_Y), ankF=(196, FOOT_Y), aN=(-88, -88, -88), aF=(100, 92), h=-90,
          lit_sides="N"),
 ]
 add("db-snatch", (_db_snatch_scene, DBS, PW.fit(DBS, PW.ball_box(14, 0, 0, "N"))))
+
+# Bell path relative to the shoulder: up the thighs with a long arm, pulled close to the chest, then
+# the elbow turns under and punches up to lockout. The interpolated arm angles swung the bell out at arm's length
+# in front (a front raise), then folded it behind the head.
+SNATCH_PATH = [(0.25, dict(off=(8, 78))), (0.5, dict(off=(15, 14))), (0.75, dict(off=(10, -50))),
+               (1, dict(off=(3, -80)))]
+
+
+def snatch_tweens(keys):
+    """tweens.EXTRA (registered below): every in-between with the bell solved onto SNATCH_PATH."""
+    import scenes_gym_calis as C
+    j0 = PW.joints(keys[0])
+    path = [(0, dict(off=(j0["wristN"][0] - j0["shoulder"][0], j0["wristN"][1] - j0["shoulder"][1])))] + SNATCH_PATH
+    mid = art.FRAMES // 2
+    out = {}
+    for i in range(1, art.FRAMES - 1):
+        if i == mid:
+            continue
+        s = art.progress(i)
+        p = art.sample(keys, s, art.lerp_pose)
+        j = PW.joints(p)
+        off = C.along(path, s)["off"]
+        w = (j["shoulder"][0] + off[0], j["shoulder"][1] + off[1])
+        out[i] = flexed(p, "aN", w, end=None)
+        out[i]["aN"] = out[i]["aN"][:2] + (out[i]["aN"][1],)
+    return out
+
+
+import tweens  # noqa: E402
+
+tweens.EXTRA.setdefault("db-snatch", snatch_tweens)
 
 
 # ---- kettlebell clean: hike pass, zip it up close, soft landing in the rack --------------------------------
@@ -621,7 +729,7 @@ add("kb-clean", (_kb_clean_scene, KBC, PW.fit(KBC, PW.ball_box(18, 0, 6, "N"))))
 
 TUCK = [
     PW.B((182, 174), -60, ankN=(200, FOOT_Y), ankF=(196, FOOT_Y), aN=(140, 130), aF=(136, 128), h=-70),
-    PW.B((200, 112), -80, lN=(-42, 100, 40), lF=(-38, 104, 44), aN=(30, 50), aF=(34, 54), h=-84,
+    PW.B((200, 112), -80, lN=(-42, 100, 40), lF=(-38, 104, 44), aN=(46, 34), aF=(50, 38), h=-84,
          front_props=[PW.arrow((272, 140), -90)]),
     PW.B((186, 178), -66, ankN=(204, FOOT_Y), ankF=(200, FOOT_Y), aN=(20, 4), aF=(24, 8), h=-74),
 ]
@@ -762,7 +870,8 @@ def _roll_calves(u):
     a, b = 8, 2  # thigh, shin: legs long, near calf on the roller
     hx = FRC_X - F.THIGH * math.cos(math.radians(a)) - u * F.SHIN
     t = -132
-    p = P(t=t, h=t + 34, lN=(a, b, -70), lF=(a - 5, b - 14, -84), aN=(110, 110, 0), aF=(112, 112, 0),
+    # Far leg crossed over the near shin, its knee straight (a shin steeper than the thigh sagged it backwards).
+    p = P(t=t, h=t + 34, lN=(a, b, -70), lF=(a - 12, b - 8, -84), aN=(110, 110, 0), aF=(112, 112, 0),
           pin=("hip", (hx, 220)))
     p = settle_on(p, "shinN", FRC_X, GROUND - 2 * FR_R)
     j = joints(p)

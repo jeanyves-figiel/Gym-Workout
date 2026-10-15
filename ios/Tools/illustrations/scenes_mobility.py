@@ -456,19 +456,51 @@ def _quad(t, h=None, KX=170, thigh=90, **kw):
 
 def _thread(k):
     t = lerp(-20, 20, k)
-    p = _quad(t, h=lerp(-40, 34, k), aN=(lerp(-92, 178, k), lerp(-92, 182, k), lerp(-92, 182, k)), aF=(90, 90, 0))
+    p = _quad(t, h=lerp(-40, 34, k), aN=(-92, -92, -92), aF=(90, 90, 0))
     j = joints(p)
+    if k:
+        p = reach(p, "aN", (j["shoulder"][0] + 6, MAT - WRIST_UP), end=96)
     return reach(p, "aF", (j["hip"][0] + 76, MAT - WRIST_UP), end=0)
 
 
 def _thread_mid():
     p = _quad(0, h=8, aN=(96, 98, 100), aF=(90, 90, 0))
     j = joints(p)
-    p = reach(p, "aN", (j["shoulder"][0] - 22, MAT - WRIST_UP), end=180, pick=lambda m: -m[0])
+    p = reach(p, "aN", (j["shoulder"][0] + 6, MAT - WRIST_UP), end=96)
     return reach(p, "aF", (j["hip"][0] + 76, MAT - WRIST_UP), end=0)
 
 
-add("thread-needle", floor_entry([_thread(0), _thread_mid(), _thread(1)], mat=(70, 320)))
+def _thread_arm(doc, j):
+    """The threading arm as a 3D chain projected to the side view: it turns in the plane across the spine, from
+    the ceiling down past the camera (foreshortened, a little towards the head) to the mat, then the hand slides
+    under the chest to the far side (away from the camera) while the shoulder sinks. Interpolating the 2D angles
+    instead swung it back along the spine (shoulder hyperextension) and left the threaded hand floating."""
+    k = max(0.0, min(1.0, (j["_t"] + 20) / 40))
+    th = math.radians(180 * k / 0.5 if k <= 0.5 else 180 + 60 * (k - 0.5) / 0.5)
+    sh = j["shoulder"]
+    reach_ = F.UPPER_ARM + F.FOREARM - 2  # soft elbow
+    d = (0.35, -math.cos(th), math.sin(th))
+    n = math.sqrt(sum(c * c for c in d))
+    w = [sh[0] + reach_ * d[0] / n, sh[1] + reach_ * d[1] / n]
+    floor = MAT - WRIST_UP
+    if w[1] > floor:  # on the mat: the rest of the reach goes into depth (under the body)
+        w[1] = floor
+        w[0] = sh[0] + min(w[0] - sh[0], 6)
+    flat = dist(sh, w)
+    scale = flat / reach_
+    u = ((w[0] - sh[0]) / flat, (w[1] - sh[1]) / flat) if flat > 0.5 else (1.0, 0.0)
+    # Elbow a little off the line, to the head side (soft bend), shrinking with the arm.
+    e = (sh[0] + u[0] * flat * F.UPPER_ARM / (F.UPPER_ARM + F.FOREARM) - u[1] * 4 * scale,
+         sh[1] + u[1] * flat * F.UPPER_ARM / (F.UPPER_ARM + F.FOREARM) + u[0] * 4 * scale)
+    j["elbowN"] = e
+    j["wristN"] = tuple(w)
+    if w[1] >= floor:  # flat on the mat, fingers pointing away: a short hand
+        j["handN"] = (w[0] + 5, floor + 1)
+    else:
+        j["handN"] = (w[0] + u[0] * F.HAND * max(scale, 0.35), w[1] + u[1] * F.HAND * max(scale, 0.35))
+
+
+add("thread-needle", floor_entry([_thread(0), _thread_mid(), _thread(1)], mat=(70, 320), back=_thread_arm))
 
 
 # ---- foam roller T-spine extension ------------------------------------------------------------------------
@@ -582,30 +614,32 @@ add("jefferson-curl", floor_entry([
 
 # ---- doorway pec stretch ------------------------------------------------------------------------------------
 
-def _pec(k):
-    start = P(t=-90, aN=(180, -90, -90), aF=(94, 92), pin=("ankleN", (200, GROUND - 4)), lit_sides="N")
-    if k == 0:
-        return start
-    js = joints(start)
-    E = js["elbowN"]
-    AF = js["ankleF"]
-    AN = (js["ankleN"][0] + 58 * k, GROUND - 4)
-    t = lerp(-90, -80, k)
+PEC_E = (158, 80)  # elbow on the door jamb (forearm up along it)
 
-    def mk(a):
-        return P(t=t, h=t - 4 * k, aN=(a, -90, -90), aF=(94, 92), pin=("elbowN", E), lit_sides="N")
-    a = solve(lambda a: dist(joints(mk(a))["hip"], AF) - (108.5 - 3 * (1 - k)), 180, 215)
-    p = mk(a)
+
+def _pec(k):
+    """Doorway pec stretch: the near arm out at 90/90 against the jamb, the body steps through so the chest
+    moves forward of the fixed elbow. The arm points mostly at the camera at first; `_jamb` foreshortens it."""
+    sx = PEC_E[0] + lerp(28, 42, k)
+    t = lerp(-90, -82, k)
+    p = P(t=t, h=t - 4 * k, aN=(180, -90, -90), aF=(94, 92), pin=("shoulder", (sx, PEC_E[1] + 7 * k)),
+          lit_sides="N")
+    AF = (PEC_E[0] + 26, GROUND - 4)
+    AN = (AF[0] + lerp(1, 48, k), GROUND - 4)
     p = reach(p, "lN", AN, end=0)
     return reach(p, "lF", AF, end=0)
 
 
 def _jamb(doc, j):
-    x = joints(_pec(0))["elbowN"][0]
+    x = PEC_E[0]
     kit.wall(doc, x - 9, 14, 20)
+    # Upper arm out to the side: its picture length is the shoulder's distance from the jamb.
+    j["elbowN"] = PEC_E
+    j["wristN"] = (PEC_E[0], PEC_E[1] - F.FOREARM)
+    j["handN"] = (PEC_E[0], PEC_E[1] - F.FOREARM - F.HAND)
 
 
-_PEC_X = joints(_pec(0))["elbowN"][0]
+_PEC_X = PEC_E[0]
 add("pec-stretch", floor_entry(tween(_pec), back=_jamb, avoid=[(_PEC_X - 9, 20, _PEC_X + 5, GROUND)]))
 
 
@@ -768,36 +802,32 @@ add("triceps-stretch", floor_entry([_triceps((-94, -94, -94)), _triceps((-106, -
 
 # ---- biceps wall stretch -----------------------------------------------------------------------------------------
 
-def _biceps(k):
-    start = P(t=-90, aN=(178, 180, 92), aF=(94, 92), pin=("ankleN", (210, GROUND - 4)), lit_sides="N")
-    if k == 0:
-        return start
-    js = joints(start)
-    Wp = js["wristN"]
-    AF = js["ankleF"]
-    AN = (js["ankleN"][0] + 54 * k, GROUND - 4)
-    t = lerp(-90, -80, k)
+BIC_W = (130, 81)  # near wrist on the wall, palm flat (fingers down)
 
-    def mk(a):
-        p = P(t=t, h=t - 6 * k, aN=(a, a + 2), aF=(94, 92), lit_sides="N")
-        p["pin"] = ("hip", (0, 0))
-        j = joints(p)
-        off = (j["hip"][0] - j["wristN"][0], j["hip"][1] - j["wristN"][1])
-        p["pin"] = ("hip", (Wp[0] + off[0], Wp[1] + off[1]))
-        p["aN"] = (a, a + 2, 92)
-        return p
-    a = solve(lambda a: dist(joints(mk(a))["hip"], AF) - (108.5 - 3 * (1 - k)), 160, 200)
-    p = mk(a)
+
+def _biceps(k):
+    """Biceps wall stretch: the near arm straight out to the side at shoulder height, palm on the wall; the
+    body steps forward and turns away so the arm ends straight back. It points partly at the camera at first;
+    `_wall_left` foreshortens it (straight elbow, hand fixed on the wall)."""
+    sx = BIC_W[0] + lerp(62, 80, k)
+    t = lerp(-90, -82, k)
+    p = P(t=t, h=t - 6 * k, aN=(180, 180, 92), aF=(94, 92), pin=("shoulder", (sx, BIC_W[1] - 1 + 6 * k)),
+          lit_sides="N")
+    AF = (BIC_W[0] + 62, GROUND - 4)
+    AN = (AF[0] + lerp(1, 46, k), GROUND - 4)
     p = reach(p, "lN", AN, end=0)
     return reach(p, "lF", AF, end=0)
 
 
 def _wall_left(doc, j):
-    x = joints(_biceps(0))["wristN"][0]
-    kit.wall(doc, x - 22, 16, 40)
+    kit.wall(doc, BIC_W[0] - 22, 16, 40)
+    sh = j["shoulder"]
+    j["elbowN"] = lerp2(sh, BIC_W, F.UPPER_ARM / (F.UPPER_ARM + F.FOREARM))
+    j["wristN"] = BIC_W
+    j["handN"] = (BIC_W[0] - 0.3, BIC_W[1] + F.HAND)
 
 
-_BIC_X = joints(_biceps(0))["wristN"][0]
+_BIC_X = BIC_W[0]
 add("biceps-wall", floor_entry(tween(_biceps), back=_wall_left, avoid=[(_BIC_X - 22, 40, _BIC_X - 6, GROUND)]))
 
 
@@ -921,7 +951,17 @@ def _fig4(k):
     return reach(p, "aF", (tgt[0] - 2, tgt[1] + 6), end=_ang((kf[0] - j["hip"][0], kf[1] - j["hip"][1])) + 90, pick=lambda m: -m[1])
 
 
-add("figure-4", floor_entry(tween(_fig4), mat=(70, 300)))
+def _fig4_leg(doc, j):
+    """The crossed (near) leg is turned out towards the camera: thigh and shin both run largely in depth, so
+    draw them foreshortened, the knee hanging just below the ankle that rests on the far knee. The posed 2D leg
+    (thigh flat along the mat, shin folding back up) read as a knee bending backwards."""
+    hip, kf, an = j["hip"], j["kneeF"], j["ankleN"]
+    kn = (hip[0] + 0.55 * (kf[0] - hip[0]) + 6, an[1] + 14)
+    j["kneeN"] = kn
+    j["toeN"] = (an[0] - 2, an[1] - 6)
+
+
+add("figure-4", floor_entry(tween(_fig4), mat=(70, 300), back=_fig4_leg))
 
 
 
@@ -1078,12 +1118,15 @@ add("upper-trap", floor_entry(tween(_trap)))
 # ---- side-delt stretch behind the back (back view) --------------------------------------------------------------------------
 
 def _side_delt(k):
-    up = lerp(102, 122, k)
-    fore = lerp(150, 176, k)
-    p = P(front="back", t=-90, h=lerp(-90, -116, k), lN=(88, 90, 20), lF=(92, 90, 160), aN=(up, fore, fore),
+    """Back view: the near hand behind the lower back, the far hand holds its wrist and pulls it across to the far
+    hip (head tilting away). Both elbows point out to their own sides, so the arms never cross."""
+    p = P(front="back", t=-90, h=lerp(-90, -116, k), lN=(88, 90, 20), lF=(92, 90, 160), aN=(110, 160, 160),
           aF=(70, 20), pin=("ankleN", (214, GROUND - 4)), lit_sides="N")
     j = joints(p)
-    return reach(p, "aF", lerp2(j["wristN"], j["handN"], 0.1), end=20, pick=lambda m: m[1])
+    hip = j["hip"]
+    w = (hip[0] - lerp(0, 12, k), hip[1] - lerp(12, 16, k))
+    p = reach(p, "aN", w, end=lerp(170, 176, k), pick=lambda m: m[0])
+    return reach(p, "aF", (w[0] - 2, w[1] + 2), end=-10, pick=lambda m: -m[0])
 
 
 add("side-delt-stretch", floor_entry(tween(_side_delt)))
@@ -1098,15 +1141,27 @@ def _breath(k):
     p = P(t=180, h=lerp(180, 182, k), curl=lerp(-3, 2, k), lN=(-90, 0, -80), lF=(-88, 2, -78))
     p = rest(p, "hip", 200, MAT, ("torso", "head"))
     j = joints(p)
-    # Near hand on the belly, far hand on the chest.
+    # Near hand on the belly, far hand on the chest (posed; `_breath_arms` lays the elbows on the mat).
     tor = segments(p)["torso"]
-    belly = tor.at(0.35, 1.25)
-    chest = tor.at(0.78, 1.25)
-    p = reach(p, "aN", belly, end=0, pick=lambda m: -m[1])
-    return reach(p, "aF", chest, end=0, pick=lambda m: -m[1])
+    p = reach(p, "aN", tor.at(0.35, 1.25), end=0, pick=lambda m: -m[1])
+    return reach(p, "aF", tor.at(0.62, 1.25), end=0, pick=lambda m: -m[1])
+
+
+def _breath_arms(j):
+    """Elbows resting on the mat out to the sides, forearms up onto the belly: the upper arms run out sideways
+    (in depth), so they show short. Posed in the picture plane the elbows hung in the air above the chest."""
+    sh = j["shoulder"]
+    hip = j["hip"]
+    for s, ex, wx, lift in (("N", 0.36, 0.62, 0), ("F", 0.30, 0.50, 2)):
+        e = (lerp(sh[0], hip[0], ex), MAT - 7 - lift)
+        w = (lerp(sh[0], hip[0], wx), sh[1] - 18 - lift)
+        j["elbow" + s] = e
+        j["wrist" + s] = w
+        j["hand" + s] = (w[0] + 9, w[1] + 1)
 
 
 def _breath_bench(doc, j):
+    _breath_arms(j)
     y = joints(_breath(0))["ankleN"][1] + 7
     kit.flat_bench(doc, 236, 330, y)
 
