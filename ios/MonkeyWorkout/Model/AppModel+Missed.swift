@@ -27,9 +27,9 @@ extension AppModel {
         return wd == todayWeekday ? "Today" : wd == todayWeekday + 1 ? "Tomorrow" : s.dayLabel
     }
 
-    /// Coach monkey's "week done": target reached, or nothing left and nothing missed.
+    /// Coach monkey's "week done": target reached, or nothing left and no missed session waiting (skipped ones let go).
     func weekDone(thisWeek: Int, target: Int) -> Bool {
-        thisWeek >= target || (nextSession == nil && missedSessions.isEmpty)
+        thisWeek >= target || (nextSession == nil && missedToHandle.isEmpty)
     }
 
     /// The date of a session's day this week (today for an unscheduled one).
@@ -64,7 +64,7 @@ extension AppModel {
                       endedAt: start.addingTimeInterval(TimeInterval(max(1, minutes) * 60)), bodyMassKg: body.weightKg)
     }
 
-    /// Hides the catch-up prompt of a missed session; it stays missed.
+    /// Lets a missed session go (#340): no more catch-up prompts, chips or counts for it; it stays missed in history.
     func skipMissed(_ sessionId: String) {
         var s = state.skipped ?? [:]
         s[sessionId] = true

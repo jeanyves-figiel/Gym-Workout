@@ -363,7 +363,11 @@ struct DaySheet: View {
                     ForEach(sessions) { session in
                         let done = selection.current && model.doneIds.contains(session.id)
                         let missed = selection.current && model.missedSessions.contains { $0.id == session.id }
-                        if missed {
+                        if missed && model.skippedIds.contains(session.id) {
+                            // Skipped (#340): let go, no more catch-up actions.
+                            Label("Skipped", systemImage: "minus.circle.fill")
+                                .font(Theme.label(13)).foregroundStyle(Theme.muted)
+                        } else if missed {
                             // Missed (#266): log it, mark it done, do it today or skip.
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Missed").font(Theme.label(12)).tracking(1.4).textCase(.uppercase).foregroundStyle(.white.opacity(0.9))
