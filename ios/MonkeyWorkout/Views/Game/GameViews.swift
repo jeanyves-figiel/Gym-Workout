@@ -199,6 +199,7 @@ struct MonkeyCoachCard: View {
                 }
                 Spacer(minLength: 0)
             }
+            .padding(.trailing, 28)
             .contentShape(Rectangle())
             .onTapGesture { poke(by: 1, count: all.count) }
             .accessibilityElement(children: .combine)
@@ -206,23 +207,11 @@ struct MonkeyCoachCard: View {
             .accessibilityHint("Shows another tip")
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { poke(by: 1, count: all.count) }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    Button { open(.progress(.training)) } label: { gameChip("🔥 \(stats.currentStreakWeeks) wk ›") }
-                        .accessibilityLabel("\(stats.currentStreakWeeks)-week streak").accessibilityHint("Opens Training in Progress")
-                    NavigationLink { CalendarView() } label: { gameChip("\(stats.thisWeek)/\(target) this week ›") }
-                        .accessibilityLabel("\(stats.thisWeek) of \(target) this week").accessibilityHint("Opens the calendar")
-                    if let m = missed.first {
-                        Button { catchUp = .init(id: m.weekday ?? model.todayWeekday) } label: {
-                            gameChip("\(missed.count) missed ›", fill: Color(hex: 0xFFD23F), ink: Theme.ink)
-                        }
-                        .accessibilityHint("Log it, mark it done, do it today or skip")
-                    }
-                    Button { poke(by: 1, count: all.count) } label: { gameChip("next tip ↻", fill: .white.opacity(0.25)) }
-                        .accessibilityLabel("Next tip")
-                }
+            // Stat chips stay inside the card (#303): full labels when they fit, shorter ones on narrow phones.
+            ViewThatFits(in: .horizontal) {
+                statChips(stats: stats, target: target, missed: missed, short: false)
+                statChips(stats: stats, target: target, missed: missed, short: true)
             }
-            .scrollClipDisabled()
             .buttonStyle(.plain)
             tipButton(current)
             if all.count > 1 {
@@ -240,6 +229,17 @@ struct MonkeyCoachCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous)
             .fill(LinearGradient(colors: [Color(hex: current.tint.0), Color(hex: current.tint.1)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .overlay(alignment: .topTrailing) {
+            // Next tip (#303): round corner button instead of a chip that pushed the row past the card.
+            Button { poke(by: 1, count: all.count) } label: {
+                Image(systemName: "arrow.clockwise").font(.system(size: 15, weight: .heavy)).foregroundStyle(.white)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(.white.opacity(0.28)))
+            }
+            .buttonStyle(.plain)
+            .padding(12)
+            .accessibilityLabel("Next tip")
+        }
         .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
         .simultaneousGesture(DragGesture(minimumDistance: 24).onEnded { v in
             guard abs(v.translation.width) > abs(v.translation.height) * 1.5 else { return }
@@ -253,6 +253,22 @@ struct MonkeyCoachCard: View {
             guard !reduceMotion else { return }
             poke(by: 0, count: 0)
             withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { bob = true }
+        }
+    }
+
+    private func statChips(stats: ProgressStats, target: Int, missed: [Session], short: Bool) -> some View {
+        HStack(spacing: 6) {
+            Button { open(.progress(.training)) } label: { gameChip("🔥 \(stats.currentStreakWeeks)\(short ? "" : " wk") ›") }
+                .accessibilityLabel("\(stats.currentStreakWeeks)-week streak").accessibilityHint("Opens Training in Progress")
+            NavigationLink { CalendarView() } label: { gameChip("\(stats.thisWeek)/\(target) \(short ? "wk" : "this week") ›") }
+                .accessibilityLabel("\(stats.thisWeek) of \(target) this week").accessibilityHint("Opens the calendar")
+            if let m = missed.first {
+                Button { catchUp = .init(id: m.weekday ?? model.todayWeekday) } label: {
+                    gameChip("\(missed.count) missed ›", fill: Color(hex: 0xFFD23F), ink: Theme.ink)
+                }
+                .accessibilityHint("Log it, mark it done, do it today or skip")
+            }
+            Spacer(minLength: 0)
         }
     }
 

@@ -64,7 +64,7 @@ struct MainTabView: View {
                 .tabItem { Label("Community", systemImage: "person.3.fill") }
                 .tag(MainTab.community)
             NavigationStack { AccountView() }
-                .tabItem { Label("Account", systemImage: "person.crop.circle") }
+                .tabItem { Label("Settings", systemImage: "gearshape.fill") }
                 .tag(MainTab.account)
         }
         .toolbarBackground(Theme.bg, for: .tabBar)

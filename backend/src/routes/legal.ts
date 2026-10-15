@@ -137,9 +137,9 @@ const privacy = (l: Legal) => `
 
 <h2>7. Your rights</h2>
 <ul>
-<li><b>Access and portability</b>: Account → Export my data downloads everything as JSON.</li>
+<li><b>Access and portability</b>: Settings → Export my data downloads everything as JSON.</li>
 <li><b>Correction</b>: edit your data in the app at any time.</li>
-<li><b>Deletion</b>: Account → Delete account removes your account and data permanently. If you can't use the app, email ${l.emailLink} from your account's address and we delete it for you.</li>
+<li><b>Deletion</b>: Settings → Delete account removes your account and data permanently. If you can't use the app, email ${l.emailLink} from your account's address and we delete it for you.</li>
 <li><b>Restoring lost data</b>: if workouts or other data went missing, email ${l.emailLink} from your account's address within 30 days; we can put back your data from our daily backups without affecting anyone else. A deleted account cannot be restored.</li>
 <li><b>Withdraw consent / object / restrict</b>: contact ${l.emailLink}.</li>
 <li><b>Complaint</b>: you can complain to the Swiss Federal Data Protection and Information Commissioner (FDPIC) or your local EU/EEA or UK data protection authority.</li>
@@ -161,7 +161,7 @@ const terms = (l: Legal) => `
 <p>These terms are an agreement between you and ${l.operator} ("we", "us"), not Apple. By creating an account or using ${l.app} you accept them and our <a href="/privacy">Privacy Policy</a>.</p>
 
 <h2>1. Eligibility and account</h2>
-<p>You must be at least 16 years old. Keep your sign-in details secure; you are responsible for activity on your account. You can delete your account at any time in Account → Delete account.</p>
+<p>You must be at least 16 years old. Keep your sign-in details secure; you are responsible for activity on your account. You can delete your account at any time in Settings → Delete account.</p>
 
 <h2>2. Health and safety</h2>
 <p>${l.app} provides general fitness information and training plans. It is <b>not medical advice</b> and does not diagnose or treat any condition. Calorie, readiness and load estimates are approximations. Consult a doctor before starting a new training program, especially if you have a medical condition, injury or are pregnant. Stop exercising if you feel pain, dizziness or shortness of breath. You train at your own risk.</p>
@@ -223,11 +223,11 @@ const support = (l: Legal) => `
 
 <h2>Common questions</h2>
 <h3>How do I delete my account?</h3>
-<p>In the app: Account → Delete account. It permanently deletes your account and all its data from our server at once and revokes Sign in with Apple. Can't use the app? Email ${l.emailLink} from your account's email address and we delete it for you. Copies in our backups expire on their own within 30 days.</p>
+<p>In the app: Settings → Delete account. It permanently deletes your account and all its data from our server at once and revokes Sign in with Apple. Can't use the app? Email ${l.emailLink} from your account's email address and we delete it for you. Copies in our backups expire on their own within 30 days.</p>
 <h3>Some of my data is missing. Can you restore it?</h3>
 <p>Email ${l.emailLink} from your account's email address within 30 days, saying what is missing and roughly when you last saw it. We restore your data from our daily backups; nothing else in your account or anyone else's is changed. A deleted account cannot be restored.</p>
 <h3>How do I get a copy of my data?</h3>
-<p>Account → Export my data creates a JSON file with your account, training profile, logs, history, personal records, measurements and climbs.</p>
+<p>Settings → Export my data creates a JSON file with your account, training profile, logs, history, personal records, measurements and climbs.</p>
 <h3>I forgot my password.</h3>
 <p>On the sign-in screen tap "Forgot password?" and follow the code sent by email.</p>
 <h3>How do I cancel my subscription?</h3>

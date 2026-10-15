@@ -191,7 +191,7 @@ struct ReauthSheet: View {
                                 .disabled(task.busy)
                         }
                         if methods.isEmpty {
-                            AccountNote(text: "No way to confirm on this account. Contact support from Account → Support.")
+                            AccountNote(text: "No way to confirm on this account. Contact support from Settings → Support.")
                         }
                     }
                     ErrorText(message: task.error)

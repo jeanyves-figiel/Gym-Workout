@@ -722,10 +722,19 @@ private struct RestDayCard: View {
     @Environment(AppModel.self) private var model
     @State private var logging: ClimbLog?
 
-    /// A climbing day of a climber: Log climb next to Add workout.
-    private var climbing: Bool {
-        guard let p = model.profile, Generator.isClimber(p) else { return false }
-        return p.climbingDays.contains(weekday)
+    /// Climbers get Log climb next to Add workout on every rest day (#304).
+    private var climber: Bool { model.profile.map(Generator.isClimber) ?? false }
+    /// One of the climber's planned climbing days.
+    private var climbing: Bool { climber && (model.profile?.climbingDays.contains(weekday) ?? false) }
+
+    /// A climb logged from an earlier day this week is dated that day (18:00); otherwise it just ended.
+    private func climbStart(now: Date = Date()) -> Date {
+        let cal = model.planCalendar
+        guard weekday < model.todayWeekday,
+              let day = cal.date(byAdding: .day, value: weekday - 1, to: Progression.weekStart(now, cal)) else {
+            return now.addingTimeInterval(-90 * 60)
+        }
+        return cal.date(bySettingHour: 18, minute: 0, second: 0, of: day) ?? day
     }
 
     var body: some View {
@@ -734,13 +743,14 @@ private struct RestDayCard: View {
             Text("\(WeekSchedule.name(weekday)) · \(climbing ? "climbing day" : "rest day")").font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
             VStack(spacing: 6) {
                 Text(climbing ? "Climbing day 🧗" : "Rest day 😴").font(Theme.display(26)).foregroundStyle(.white)
-                Text(climbing ? "No gym session planned. Log your climb, or add a workout." : "Nothing planned. Fancy a session?")
+                Text(climbing ? "No gym session planned. Log your climb, or add a workout."
+                     : climber ? "Nothing planned. Train or climb?" : "Nothing planned. Fancy a session?")
                     .font(.footnote).foregroundStyle(.white.opacity(0.8)).multilineTextAlignment(.center)
                 HStack(spacing: 10) {
                     Button(action: onAdd) { Label("Add workout", systemImage: "plus").lineLimit(1).minimumScaleFactor(0.75) }
                         .buttonStyle(LimeButtonStyle())
-                    if climbing {
-                        LogClimbButton { logging = ClimbLog(start: Date().addingTimeInterval(-90 * 60)) }
+                    if climber {
+                        LogClimbButton { logging = ClimbLog(start: climbStart()) }
                     }
                 }
                 .padding(.top, 6)

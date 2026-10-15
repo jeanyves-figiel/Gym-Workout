@@ -105,7 +105,7 @@ struct PrivacyNoticeView: View {
                 Text("**Apple Health** data you allow stays on this iPhone, except each session's summary (duration, calories, average and max heart rate) saved with your history. Never used for ads, never shared.")
                 Text("• **Community** (optional) — nickname, photo, bio and the wins you choose to share, with the audience you pick.")
                 Text("No tracking, no ads, no third-party analytics. Data is stored on the app's own server and encrypted in transit.")
-                Text("You can export everything or permanently delete your account at any time from **Account**.")
+                Text("You can export everything or permanently delete your account at any time from **Settings**.")
                 Text(LegalLinks.acceptance("Full details:")).font(.footnote).tint(Theme.lime).padding(.top, 4)
             }
             .padding()
