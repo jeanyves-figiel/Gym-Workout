@@ -84,7 +84,7 @@ final class HomeWidgetSync {
                                       targetPerWeek: model.profile?.sessionsPerWeek ?? plan.sessions.count)
         s.streakWeeks = stats.currentStreakWeeks
         s.bestStreakWeeks = stats.bestStreakWeeks
-        s.records = stats.personalRecords.sorted { $0.kg > $1.kg }.prefix(5).map { .init(name: Exercise.get($0.exerciseId).name, kg: $0.kg) }
+        s.records = stats.personalRecords.sorted { $0.kg > $1.kg }.prefix(5).map { .init(name: Exercise.find($0.exerciseId)?.name ?? "Exercise", kg: $0.kg) }
         s.volumeWeeks = stats.weeks.suffix(4).map(\.volumeKg)
         if let r = model.history.first {
             s.last = .init(title: r.title, date: r.startedAt, minutes: r.durationSec / 60, sets: r.totalSets, volumeKg: r.volumeKg)
