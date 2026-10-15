@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Progress: Programmes card leads straight to picking one** (#345): with no programme running or finished, the **Start one** card on Progress scrolled down to the Programmes section, which only said to go to Explore → Programmes. The card now opens Explore → Programmes directly (`AppModel.openExploreProgrammes`, `exploreJump`), and the "No programme running" line in the section opens it too. With a programme running or finished, the card still scrolls to the section.
+
 ### Changed
 - **Name and @nickname both on the Settings card** (#335): Settings showed two "nicknames": the header card edited the account name, the **You** card showed the Community nickname. Design B from `nickname-sync/proposals.png`: the header card shows the name with the **@nickname** under it, both edited in place (the nickname saves to the same record as Community, with the same rules; taken or invalid nicknames show an error and revert). The **You** card is now **Community profile** (photo and about) and its page no longer has a nickname field.
 - **Release notes for the next bundle** (What's new `2026-10-15.2`): Start in one look (#337) and name + @nickname (#335). New UI test `TrainFitUITests` checks Start workout sits above the tab bar on Train without scrolling. `2026-10-15.1` moved to the history as build 35.
