@@ -140,6 +140,7 @@ private struct DemoScreen: View {
         case "player-superset": WorkoutPlayerView(sessionId: second, demoMode: "superset")
         case "player-superset-fix": WorkoutPlayerView(sessionId: second, demoMode: "superset-fix")
         case "player-split": WorkoutPlayerView(sessionId: second, demoMode: "superset-split")
+        case "player-map": WorkoutPlayerView(sessionId: second, demoMode: "map")
         case "example": NavigationStack { SessionView(sessionId: WorkoutTemplate.all[1].sessionId) }
         case "explore": NavigationStack { LibraryView() }
         case "explore-female": NavigationStack { LibraryView() }.environment(\.bodyFigure, .female)

@@ -127,6 +127,18 @@ struct AccountView: View {
                     }
                     .buttonStyle(.plain)
 
+                    // Apple Watch Ultra Action button (#349): what a press does during a workout.
+                    Menu {
+                        Picker("Action button", selection: Binding(get: { WatchActionPref.shared.mode }, set: { WatchActionPref.shared.set($0) })) {
+                            ForEach(WatchActionMode.allCases) { Text($0.title).tag($0) }
+                        }
+                    } label: {
+                        AccountCard(symbol: "button.horizontal.top.press.fill", title: "Action button",
+                                    subtitle: "Apple Watch Ultra → \(WatchActionPref.shared.mode.title)",
+                                    gradient: LinearGradient(colors: [Color(hex: 0xFF6A00), Color(hex: 0xFF3D6E)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    }
+                    .buttonStyle(.plain)
+
                     // Home Screen widgets (#297): presets, look and topic per size.
                     NavigationLink { HomeWidgetsView() } label: {
                         let w = HomeWidgetSync.shared.settings
