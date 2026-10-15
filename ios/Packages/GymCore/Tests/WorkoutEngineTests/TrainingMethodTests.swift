@@ -103,6 +103,17 @@ private let rx = Prescription(sets: 3, reps: "6–10", restSec: 120, intensity: 
         #expect(down?.action == .decrease && down?.kg == 95)
     }
 
+    @Test func autoregulatedUsesRatedSetsWhenSomeAreUnrated() {
+        // Rating is optional in the player (#357): two rated sets at 4 RIR, one logged without a rating.
+        var partial = logged(100, [8, 8, 8], rir: 4)
+        partial.sets[1].rir = nil
+        let up = LoadAdvisor.suggest(exercise: squat, prescription: rx, week: 2, deload: false, history: [partial], method: .autoregulated)
+        #expect(up?.action == .increase && up?.kg == 105)
+        // Nothing rated: the reps rules decide (8 of 6–10 → hold).
+        let unrated = [logged(100, [8, 8, 8], rir: nil)]
+        #expect(LoadAdvisor.suggest(exercise: squat, prescription: rx, week: 2, deload: false, history: unrated, method: .autoregulated)?.action == .hold)
+    }
+
     @Test func easesInAfterTwoWeeksOff() {
         let history = [logged(100, [10, 10, 10], rir: 2)]
         let back = LoadAdvisor.suggest(exercise: squat, prescription: rx, week: 2, deload: false, history: history,

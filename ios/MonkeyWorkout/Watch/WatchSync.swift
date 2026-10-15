@@ -47,6 +47,26 @@ final class WatchHomePref {
     }
 }
 
+/// What the Watch does when a workout starts on the iPhone (#347): ask, start automatically or stay quiet.
+/// Picked on the iPhone (Settings → Apple Watch).
+@MainActor @Observable
+final class WatchStartPref {
+    static let shared = WatchStartPref()
+    private static let key = "watchStartMode"
+
+    private(set) var mode: WatchStartMode
+
+    private init() {
+        mode = UserDefaults.standard.string(forKey: Self.key).flatMap(WatchStartMode.init) ?? .default
+    }
+
+    func set(_ new: WatchStartMode) {
+        mode = new
+        UserDefaults.standard.set(new.rawValue, forKey: Self.key)
+        WatchSync.shared.push()
+    }
+}
+
 /// iPhone side of the Watch companion (#56): sends plan/progress snapshots and the live player state,
 /// applies sets and workouts logged on the Watch, and forwards Watch remote-control commands to the player.
 @MainActor
@@ -57,6 +77,12 @@ final class WatchSync: NSObject {
     private weak var health: HealthManager?
     private var lastSnapshot: WatchSnapshot?
     private var handled: Set<UUID> = []
+    /// Session of the iPhone workout the Watch tracks heart rate for (#347).
+    private var trackedBy: String?
+    /// Last iPhone player state, re-sent when the Watch app comes up mid-workout (#347).
+    private var lastLive: WLive?
+    /// Workouts finished while the Watch tracked them: the Watch saves the Health workout; the phone only if it can't (#347).
+    private var awaitingWatch: [UUID: WorkoutRecord] = [:]
 
     private var session: WCSession? { WCSession.isSupported() ? WCSession.default : nil }
 
@@ -91,11 +117,59 @@ final class WatchSync: NSObject {
 
     /// Mirrors the iPhone player on the Watch (best effort, only while the Watch app is reachable).
     func sendLive(_ live: WLive?) {
+        lastLive = live
         guard let session, session.activationState == .activated, session.isReachable else { return }
         if let live, let data = try? JSONEncoder.watch.encode(live) {
             session.sendMessage([WatchKeys.live: data], replyHandler: nil, errorHandler: nil)
         } else {
             session.sendMessage([WatchKeys.liveEnded: true], replyHandler: nil, errorHandler: nil)
+        }
+    }
+
+    /// Wakes the Watch app when a workout starts on the iPhone so it can offer to track it (#347).
+    /// Needs a paired Watch with the app installed; `HKHealthStore.startWatchApp` only reaches a Watch on the wrist.
+    func offerStart(sessionId: String) {
+        guard WatchStartPref.shared.mode != .never, trackedBy != sessionId, let session, session.activationState == .activated,
+              session.isPaired, session.isWatchAppInstalled else { return }
+        health?.startWatchApp()
+    }
+
+    /// The Watch tracks heart rate for this iPhone workout, so the Watch saves its Health workout (#347).
+    func watchTracks(_ sessionId: String) -> Bool { trackedBy == sessionId }
+
+    /// Tells the Watch the iPhone workout ended and how; a tracked workout's Health save waits for the Watch (#347).
+    func endLive(_ outcome: WLiveOutcome, sessionId: String, record: WorkoutRecord? = nil) {
+        if let record, trackedBy == sessionId { waitForWatch(record) }
+        if outcome != .paused, trackedBy == sessionId { trackedBy = nil }
+        lastLive = nil
+        guard let session, session.activationState == .activated else { return }
+        var message: [String: Any] = [WatchKeys.liveEnded: true, WatchKeys.outcome: outcome.rawValue]
+        if let record { message[WatchKeys.recordId] = record.id.uuidString }
+        if session.isReachable {
+            session.sendMessage(message, replyHandler: nil) { _ in
+                // Missed: queue it so a tracking Watch still learns the workout ended.
+                if outcome != .paused { session.transferUserInfo(message) }
+            }
+        } else if outcome != .paused, session.isPaired, session.isWatchAppInstalled {
+            session.transferUserInfo(message)
+        }
+    }
+
+    private func waitForWatch(_ record: WorkoutRecord) {
+        awaitingWatch[record.id] = record
+        // The Watch never answered (dead battery, off the wrist): save the Health workout on the iPhone.
+        Task {
+            try? await Task.sleep(for: .seconds(180))
+            guard let r = awaitingWatch.removeValue(forKey: record.id) else { return }
+            saveOnPhone(r)
+        }
+    }
+
+    private func saveOnPhone(_ r: WorkoutRecord) {
+        guard let health, let model else { return }
+        Task {
+            let hr = await health.save(r)
+            model.attachHeartRate(r.id, avg: hr.avg, max: hr.max)
         }
     }
 
@@ -110,6 +184,12 @@ final class WatchSync: NSObject {
             model.setTicked(uid)
         case let .homeStyle(style, changedAt):
             WatchHomePref.shared.set(style, at: changedAt)
+        case let .tracking(sessionId, on):
+            if on { trackedBy = sessionId } else if trackedBy == sessionId { trackedBy = nil }
+            return
+        case let .tracked(t):
+            guard let r = awaitingWatch.removeValue(forKey: t.recordId) else { return }
+            if t.savedToHealth { model.attachHeartRate(r.id, avg: t.avgHeartRate, max: t.maxHeartRate) } else { saveOnPhone(r) }
         case let .finished(f):
             guard !handled.contains(f.id), let session = model.session(f.sessionId) else { return }
             handled.insert(f.id)
@@ -146,11 +226,12 @@ final class WatchSync: NSObject {
         s.pro = !ProStore.shared.locked
         s.homeStyle = WatchHomePref.shared.style
         s.homeStyleChangedAt = WatchHomePref.shared.changedAt
+        s.watchStart = WatchStartPref.shared.mode
         let target = model.profile?.sessionsPerWeek ?? 3
         let stats = Progression.stats(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
         s.progress = WProgress(
             streakWeeks: stats.currentStreakWeeks, bestStreakWeeks: stats.bestStreakWeeks, thisWeek: stats.thisWeek, target: target,
-            records: stats.personalRecords.prefix(5).map { WRecord(name: Exercise.get($0.exerciseId).name, kg: $0.kg) },
+            records: stats.personalRecords.prefix(5).map { WRecord(name: Exercise.find($0.exerciseId)?.name ?? "Exercise", kg: $0.kg) },
             recent: model.history.prefix(5).map { WRecent(title: $0.title, date: $0.startedAt, minutes: $0.durationSec / 60, sets: $0.totalSets) })
         // Game layer (#219, #227): same XP, level and badges as the iPhone.
         let game = model.game
@@ -169,7 +250,9 @@ final class WatchSync: NSObject {
             tint: (session.blocks.first { $0.kind == .strength } ?? session.blocks.first)?.kind.category.tintHex ?? 0xCCFF3D,
             blocks: session.blocks.map { b in
                 WBlock(title: b.title, tint: b.kind.category.tintHex, tint2: b.kind.category.tintHex2,
-                       items: b.items.map { item($0, block: b, sessionId: session.id, model: model) })
+                       // A custom exercise not loaded yet (mid-sync) is left out rather than trapping in Exercise.get (#351).
+                       items: b.items.filter { Exercise.find($0.exerciseId) != nil }
+                           .map { item($0, block: b, sessionId: session.id, model: model) })
             },
             missed: model.missedToHandle.contains { $0.id == session.id })
     }
@@ -209,12 +292,23 @@ extension WatchSync: WCSessionDelegate {
         }
     }
 
+    nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
+        guard session.isReachable else { return }
+        // The Watch app just came up (woken by `offerStart`): show it the running workout at once (#347).
+        Task { @MainActor in if let live = self.lastLive { self.sendLive(live) } }
+    }
+
     nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         guard let data = userInfo[WatchKeys.event] as? Data, let event = try? JSONDecoder.watch.decode(WatchEvent.self, from: data) else { return }
         Task { @MainActor in self.apply(event) }
     }
 
     nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        // Tracking state is sent live so the finish knows who saves the Health workout (#347).
+        if let data = message[WatchKeys.event] as? Data, let event = try? JSONDecoder.watch.decode(WatchEvent.self, from: data) {
+            Task { @MainActor in self.apply(event) }
+            return
+        }
         guard let raw = message[WatchKeys.command] as? String, let command = WCommand(rawValue: raw) else { return }
         Task { @MainActor in NotificationCenter.default.post(name: .watchCommand, object: command) }
     }

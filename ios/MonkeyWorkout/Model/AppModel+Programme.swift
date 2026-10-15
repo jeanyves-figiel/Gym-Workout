@@ -4,6 +4,12 @@ import WorkoutEngine
 /// Training programmes (#255): while one runs it replaces the plan (goal, split, method, focus and the week's
 /// signature workouts); the member's own plan is saved and comes back on pause, leave or finish.
 extension AppModel {
+    /// Explore → Programmes, from any tab (#345).
+    func openExploreProgrammes() {
+        exploreJump = .programmes
+        tab = .explore
+    }
+
     var activeProgramme: ActiveProgramme? { state.synced?.programme }
 
     /// The programme shaping the plan now; nil when none or paused.
