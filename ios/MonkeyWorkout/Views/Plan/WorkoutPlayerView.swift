@@ -44,6 +44,8 @@ struct WorkoutPlayerView: View {
     @State private var finishingEarly = false
     /// What the last fit changed, shown with Undo for a few seconds.
     @State private var fitBanner: String?
+    /// Workout map (#361): what's done and what's left, read-only.
+    @State private var mapOpen = false
 
     /// Overlay after a set: optional rest countdown and the one-tap effort picker for that set.
     struct Pause: Equatable {
@@ -106,7 +108,13 @@ struct WorkoutPlayerView: View {
                                  onFit: { finishEarly(minutes: $0) }, onUndo: undoFinishEarly)
             }
         }
+        .sheet(isPresented: $mapOpen) {
+            if let session, steps.indices.contains(index) {
+                WorkoutMapSheet(blocks: session.blocks, setsDone: setsDone, current: steps[index].item.uid)
+            }
+        }
         .confirmationDialog("Leave workout?", isPresented: $closing, titleVisibility: .visible) {
+            Button("See what's left") { mapOpen = true }
             Button("Pause · resume later") { pauseAndClose() }
             Button("Short on time? Finish early") { finishingEarly = true }
             Button("Finish & save now") { finish() }
@@ -168,7 +176,15 @@ struct WorkoutPlayerView: View {
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
                     .layoutPriority(1)
 
-                Spacer(minLength: 0)
+                // The free space under the card shows what's coming (#361), only when it fits whole: nothing is pushed off screen.
+                ViewThatFits(in: .vertical) {
+                    ComingUpStrip(items: OverviewItem.list(session.blocks, setsDone: setsDone, current: step.item.uid),
+                                  doneBy: OverviewItem.doneBy(session.blocks, setsDone: setsDone, current: step.item.uid),
+                                  onPeek: { formFor = $0 }, onMap: { mapOpen = true })
+                        .padding(.vertical, 4)
+                    Color.clear.frame(height: 0)
+                }
+                .frame(maxHeight: .infinity)
                 setCard(step, sets: sets, done: done, colors: cat.colors)
                 if let next = upNext(after: step, done: done, sets: sets, includeSets: false) {
                     UpNextCard(title: next.title, eyebrow: next.eyebrow, detail: next.detail, exercise: next.exercise,
@@ -266,13 +282,20 @@ struct WorkoutPlayerView: View {
                     .background(Circle().fill(Theme.cardStrong))
             }
             .accessibilityLabel("Pause or leave workout")
-            HStack(spacing: 3) {
-                ForEach(Array(steps.enumerated()), id: \.offset) { i, s in
-                    Capsule()
-                        .fill(i <= index ? AnyShapeStyle(s.block.kind.gradient) : AnyShapeStyle(Color.white.opacity(0.12)))
-                        .frame(height: 5)
+            // Tap the dots for the workout map (#361).
+            Button { mapOpen = true } label: {
+                HStack(spacing: 3) {
+                    ForEach(Array(steps.enumerated()), id: \.offset) { i, s in
+                        Capsule()
+                            .fill(i <= index ? AnyShapeStyle(s.block.kind.gradient) : AnyShapeStyle(Color.white.opacity(0.12)))
+                            .frame(height: 5)
+                    }
                 }
+                .frame(height: 40)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Exercise \(index + 1) of \(steps.count). Open workout map")
             // Tap the clock to finish early (#300); after a fit it counts down to the time to be done by.
             Button { finishingEarly = true } label: {
                 TimelineView(.periodic(from: started, by: 1)) { ctx in
@@ -546,6 +569,12 @@ struct WorkoutPlayerView: View {
             index = s
             reloadLog()
             if demoMode == "finish" { finishingEarly = true } else { finishEarly(minutes: 15) }
+        }
+        if demoMode == "map", let s = steps.indices.dropFirst(steps.count / 2).first {
+            for p in steps[..<s] { setsDone[p.item.uid] = p.sets }
+            index = s
+            reloadLog()
+            mapOpen = true
         }
         if demoMode == "done" {
             reward = Demo.reward
