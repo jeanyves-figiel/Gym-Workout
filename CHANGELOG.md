@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Security
+- **Fly backups: member emails masked in the log** (#333): `member-restore` / `member-delete` printed the member's email in the public Actions log (job env). Email and confirm are now read from the event file and masked before any step prints, as is the encoded restore request.
 - **Fly backups: Tigris keys kept out of the log** (#327): `offsite-setup` printed the new Tigris bucket keys (from `flyctl storage create`) into the public Actions log on its first staging run; the log was deleted within minutes. Its output is now hidden, a new `offsite-rotate` action destroys and recreates the bucket to issue new keys (run on staging), and setting `BACKUP_KEY` retries on Fly API errors. A failed bucket create shows its error with key lines removed; `backup-now` also uploads the encrypted off-site copy; rotate destroys every `<app>-backups*` bucket and creates one under a fresh name.
 
 ### Added
