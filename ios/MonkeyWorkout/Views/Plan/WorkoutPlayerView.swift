@@ -38,6 +38,12 @@ struct WorkoutPlayerView: View {
     /// Done set opened for a correction in the set card.
     @State private var editingSet: Int?
     @State private var live = LiveWorkout()
+    /// Finish early (#300): the remaining workout re-fitted to the time left, and the time to be done by.
+    @State private var fitted: [Block]?
+    @State private var fitEnd: Date?
+    @State private var finishingEarly = false
+    /// What the last fit changed, shown with Undo for a few seconds.
+    @State private var fitBanner: String?
 
     /// Overlay after a set: optional rest countdown and the one-tap effort picker for that set.
     struct Pause: Equatable {
@@ -64,7 +70,14 @@ struct WorkoutPlayerView: View {
         var timedSpec: TimedSpec? { TimedSpec(item.prescription, unit: exercise.unit) }
     }
 
-    private var session: Session? { model.session(sessionId) }
+    private var session: Session? {
+        guard let s = model.session(sessionId) else { return nil }
+        guard let fitted else { return s }
+        var out = s
+        out.blocks = fitted
+        out.estMin = max(1, s.estMin + Int((Double(fitted.estSec - s.blocks.estSec) / 60).rounded()))
+        return out
+    }
     private var steps: [Step] { session?.blocks.flatMap { b in b.items.map { Step(item: $0, block: b) } } ?? [] }
 
     var body: some View {
@@ -87,8 +100,15 @@ struct WorkoutPlayerView: View {
         .sheet(item: $notHereFor) { NotHereSheet(exerciseId: $0.exerciseId, uid: $0.uid) }
         .fullScreenCover(item: $prFor) { PRAttemptView(exerciseId: $0.id) }
         .proPaywall($gate)
+        .sheet(isPresented: $finishingEarly) {
+            if let base = model.session(sessionId), steps.indices.contains(index) {
+                FinishEarlySheet(blocks: base.blocks, setsDone: setsDone, current: steps[index].item.uid, fitted: fitted != nil,
+                                 onFit: { finishEarly(minutes: $0) }, onUndo: undoFinishEarly)
+            }
+        }
         .confirmationDialog("Leave workout?", isPresented: $closing, titleVisibility: .visible) {
             Button("Pause · resume later") { pauseAndClose() }
+            Button("Short on time? Finish early") { finishingEarly = true }
             Button("Finish & save now") { finish() }
             Button("Discard workout", role: .destructive) { discard() }
         } message: {
@@ -135,6 +155,9 @@ struct WorkoutPlayerView: View {
             // input for this item (set card or timer), up next and the controls are always fully on screen.
             VStack(alignment: .leading, spacing: 12) {
                 topBar(session)
+                if let fitBanner {
+                    FinishEarlyBanner(text: fitBanner, onUndo: undoFinishEarly)
+                }
 
                 ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
                                  position: "\(index + 1)/\(steps.count)",
@@ -250,9 +273,23 @@ struct WorkoutPlayerView: View {
                         .frame(height: 5)
                 }
             }
-            TimelineView(.periodic(from: started, by: 1)) { ctx in
-                Text(Format.elapsed(ctx.date.timeIntervalSince(started))).font(Theme.label(14)).monospacedDigit()
+            // Tap the clock to finish early (#300); after a fit it counts down to the time to be done by.
+            Button { finishingEarly = true } label: {
+                TimelineView(.periodic(from: started, by: 1)) { ctx in
+                    if let fitEnd {
+                        let left = fitEnd.timeIntervalSince(ctx.date)
+                        Text((left < 0 ? "+" : "−") + Format.elapsed(abs(left))).font(Theme.label(14)).monospacedDigit()
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(Capsule().fill(LinearGradient(colors: UndoOffer.warm, startPoint: .leading, endPoint: .trailing)))
+                    } else {
+                        Text(Format.elapsed(ctx.date.timeIntervalSince(started))).font(Theme.label(14)).monospacedDigit()
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(Capsule().stroke(Theme.stroke, lineWidth: 1.5))
+                    }
+                }
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(fitEnd == nil ? "Workout time. Finish early" : "Time left. Change or undo finish early")
         }
         .foregroundStyle(.white)
     }
@@ -482,6 +519,8 @@ struct WorkoutPlayerView: View {
         if let w = model.activeWorkout(sessionId) {
             index = min(max(0, w.index), max(0, steps.count - 1))
             setsDone = w.setsDone
+            fitted = w.fitted
+            fitEnd = w.fitEnd
             started = Date().addingTimeInterval(-w.elapsed)
         } else {
             model.beginWorkout(session)
@@ -502,6 +541,11 @@ struct WorkoutPlayerView: View {
             let spec = steps[s].timedSpec!
             timed = TimedRun(uid: steps[s].item.uid, total: spec.workSec, remaining: Double(spec.workSec),
                              end: Date().addingTimeInterval(Double(spec.workSec) - 83))
+        }
+        if demoMode == "finish" || demoMode == "fitted", let s = steps.firstIndex(where: { $0.block.kind == .strength }) {
+            index = s
+            reloadLog()
+            if demoMode == "finish" { finishingEarly = true } else { finishEarly(minutes: 15) }
         }
         if demoMode == "done" {
             reward = Demo.reward
@@ -525,7 +569,51 @@ struct WorkoutPlayerView: View {
         guard ready, !finished, !discarded else { return }
         model.saveActiveWorkout(ActiveWorkout(
             sessionId: sessionId, index: index, setsDone: setsDone,
-            elapsed: Date().timeIntervalSince(started), updatedAt: Date()))
+            elapsed: Date().timeIntervalSince(started), updatedAt: Date(), fitted: fitted, fitEnd: fitEnd))
+    }
+
+    // MARK: Finish early (#300)
+
+    /// Re-fits what is left to the minutes given; the player stays on the same exercise.
+    private func finishEarly(minutes: Int) {
+        guard let base = model.session(sessionId), steps.indices.contains(index) else { return }
+        let uid = steps[index].item.uid
+        let fit = FinishEarly.fit(base.blocks, setsDone: setsDone, current: uid, minutes: minutes)
+        fitted = fit.changed ? fit.blocks : nil
+        fitEnd = Date().addingTimeInterval(TimeInterval(max(minutes * 60, fit.leftSec)))
+        relocate(uid)
+        let parts = [fit.skipped > 0 ? "\(fit.skipped) skipped" : nil, fit.setsCut > 0 ? "\(fit.setsCut) sets less" : nil].compactMap { $0 }
+        showBanner("Done by \(fitEnd!.formatted(date: .omitted, time: .shortened))" + (parts.isEmpty ? "" : " · " + parts.joined(separator: " · ")))
+    }
+
+    private func showBanner(_ text: String?) {
+        withAnimation(.spring(duration: 0.4)) { fitBanner = text }
+        guard let text, demoMode == nil else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(8))
+            if fitBanner == text { withAnimation(.spring(duration: 0.4)) { fitBanner = nil } }
+        }
+    }
+
+    /// Back to the full workout.
+    private func undoFinishEarly() {
+        guard steps.indices.contains(index) else { return }
+        let uid = steps[index].item.uid
+        fitted = nil
+        fitEnd = nil
+        showBanner(nil)
+        relocate(uid)
+    }
+
+    /// Same item on screen after the step list changed.
+    private func relocate(_ uid: String) {
+        // A new index reloads the set log through onChange; the same index reloads it only when the item's sets changed.
+        let before = log.item?.prescription
+        let i = steps.firstIndex { $0.item.uid == uid } ?? min(index, max(0, steps.count - 1))
+        if i == index, steps.indices.contains(i), steps[i].item.prescription != before { reloadLog() }
+        index = i
+        saveProgress()
+        updateLive()
     }
 
     private func liveState() -> WorkoutActivityAttributes.ContentState {
