@@ -7,7 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 - **Name and @nickname both on the Settings card** (#335): Settings showed two "nicknames": the header card edited the account name, the **You** card showed the Community nickname. Design B from `nickname-sync/proposals.png`: the header card shows the name with the **@nickname** under it, both edited in place (the nickname saves to the same record as Community, with the same rules; taken or invalid nicknames show an error and revert). The **You** card is now **Community profile** (photo and about) and its page no longer has a nickname field.
-- **Release notes for the next bundle** (What's new `2026-10-15.2`): name + @nickname card (#335). `2026-10-15.1` moved to the history as build 35.
+- **Release notes for the next bundle** (What's new `2026-10-15.2`): Start in one look (#337) and name + @nickname (#335). New UI test `TrainFitUITests` checks Start workout sits above the tab bar on Train without scrolling. `2026-10-15.1` moved to the history as build 35.
 
 ### Security
 - **Fly backups: member emails masked in the log** (#333): `member-restore` / `member-delete` printed the member's email in the public Actions log (job env). Email and confirm are now read from the event file and masked before any step prints, as is the encoded restore request.
