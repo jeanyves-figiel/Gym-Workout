@@ -19,8 +19,11 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   else if (cmd === 'now') {
     const db = new DatabaseSync(path);
     db.exec('PRAGMA busy_timeout = 5000;');
-    out(backupNow(db, dir, { keep }));
+    const b = backupNow(db, dir, { keep });
     db.close();
+    // Same as the daily job: the encrypted off-site copy follows when configured (#313).
+    const c = loadConfig().offsite;
+    out({ ...b, offsite: c ? await new OffsiteStore(c).upload(join(dir, b.file), b.day) : 'not configured' });
   } else if (cmd === 'verify' && file) out({ file, ...inspectCopy(resolve(dir, file)) });
   else if (cmd === 'stage-restore' && file) {
     stageRestore(dir, file, path);

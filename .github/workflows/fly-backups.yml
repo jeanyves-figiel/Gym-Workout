@@ -6,7 +6,7 @@ name: Fly backups
 # Daily at 04:30 UTC (read only): fails if either app has no volume snapshot in the last 36 h.
 # Manual actions:
 #   status        list volume snapshots + app backups (read only)
-#   backup-now    write today's app backup now
+#   backup-now    write today's app backup now (and its encrypted off-site copy when configured)
 #   snapshot-now  take a volume snapshot now
 #   verify        open a backup copy read only: integrity check + row counts (restore drill, changes nothing)
 #   retention     set volume snapshot retention to `days` (1-60)
