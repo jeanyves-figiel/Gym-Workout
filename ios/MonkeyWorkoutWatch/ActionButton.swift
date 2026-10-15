@@ -33,8 +33,8 @@ final class ActionButton {
     /// Later presses: step the Watch player, or the iPhone player when the Watch tracks an iPhone workout.
     func press() {
         if WorkoutManager.shared.phoneSessionId != nil, let store = WatchStore.current {
-            let resting = store.live.map { $0.effortPending || ($0.restEnd ?? .distantPast) > Date() } ?? false
-            store.send(resting ? WCommand.skipRest : .main)
+            // The iPhone's main button: closes rest, advances, or completes the set.
+            store.send(WCommand.main)
             WKInterfaceDevice.current().play(.click)
             return
         }
