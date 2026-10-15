@@ -70,6 +70,8 @@ final class WatchSync: NSObject {
 
     /// Sends the current snapshot when it changed and a Watch app is installed.
     func push() {
+        // Home Screen widgets (#297) follow the same changes.
+        HomeWidgetSync.shared.push()
         guard let model, let session, session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
         var snap = Self.snapshot(model, readiness: health.flatMap { Readiness.assess($0.snapshot)?.0.title })
         snap.generatedAt = lastSnapshot?.generatedAt ?? snap.generatedAt
@@ -84,7 +86,7 @@ final class WatchSync: NSObject {
     static func changeKey(_ model: AppModel) -> String {
         let plan = model.plan.map { "\($0.seed)-\($0.week)-\($0.sessions.count)" } ?? "-"
         // Next up follows the day too (#266): a missed session stops being next.
-        return "\(plan)|\(model.nextSession?.id ?? "-")|\(model.state.done.count)|\(model.state.history.count)|\(model.customWorkouts.count)|\(model.state.logs.count)|\(ProStore.shared.locked)"
+        return "\(plan)|\(model.nextSession?.id ?? "-")|\(model.state.done.count)|\(model.state.history.count)|\(model.customWorkouts.count)|\(model.state.logs.count)|\(ProStore.shared.locked)|\(model.user?.id ?? "-")|\(model.climbLogs.count)"
     }
 
     /// Mirrors the iPhone player on the Watch (best effort, only while the Watch app is reachable).

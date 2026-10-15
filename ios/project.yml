@@ -35,6 +35,8 @@ targets:
         buildPhase: resources
       - path: Shared
       - path: WatchShared
+      # Home Screen widgets (#297): snapshot, settings and faces, shared with the widget extension.
+      - path: HomeWidgets
     dependencies:
       - target: MonkeyWorkoutWidgets
         embed: true
@@ -55,6 +57,8 @@ targets:
         com.apple.developer.healthkit.access: []
         # Remote push (#69). Archive/export for TestFlight/App Store switches it to production.
         aps-environment: development
+        # Home Screen widgets (#297) read the app's snapshot from this container.
+        com.apple.security.application-groups: [$(APP_GROUP)]
     info:
       path: MonkeyWorkout/Info.plist
       properties:
@@ -79,6 +83,11 @@ targets:
         NSHealthUpdateUsageDescription: Saves your gym sessions as workouts, and the weight, height, body fat, lean mass and waist you enter, to Apple Health.
         ITSAppUsesNonExemptEncryption: false
         NSSupportsLiveActivities: true
+        MWAppGroup: $(APP_GROUP)
+        # Home Screen widget taps (#297): monkeyworkout://session/<id>, monkeyworkout://progress, …
+        CFBundleURLTypes:
+          - CFBundleURLName: $(APP_BUNDLE_ID)
+            CFBundleURLSchemes: [monkeyworkout]
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
     settings:
@@ -99,13 +108,23 @@ targets:
     platform: iOS
     sources:
       - path: MonkeyWorkoutWidgets
+        excludes: [MonkeyWorkoutWidgets.entitlements]
       - path: Shared
+      # Home Screen widgets (#297); the Monkey coach look draws the Watch's monkey.
+      - path: HomeWidgets
+      - path: WatchShared/MonkeyFace.swift
+      - path: WatchShared/GameLadder.swift
+    entitlements:
+      path: MonkeyWorkoutWidgets/MonkeyWorkoutWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [$(APP_GROUP)]
     info:
       path: MonkeyWorkoutWidgets/Info.plist
       properties:
         CFBundleDisplayName: $(APP_DISPLAY_NAME)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        MWAppGroup: $(APP_GROUP)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:

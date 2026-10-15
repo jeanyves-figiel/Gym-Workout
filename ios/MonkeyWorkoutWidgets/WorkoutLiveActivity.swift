@@ -7,6 +7,7 @@ import WidgetKit
 struct MonkeyWorkoutWidgets: WidgetBundle {
     var body: some Widget {
         WorkoutLiveActivity()
+        HomeScreenWidget()
     }
 }
 
