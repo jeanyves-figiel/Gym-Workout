@@ -56,16 +56,12 @@ struct ClimbSection: View {
             if let hard = Climbs.recentHard(all) {
                 HardClimbNote(climb: hard)
             }
-            if model.profile?.climbDayAddon == true {
-                if ProStore.shared.locked {
-                    Button { gate = .climbing } label: { ClimbAddonCard(today: isClimbingDay) }
-                        .buttonStyle(.plain)
-                } else {
-                    NavigationLink(value: WorkoutTemplate.climbAddon.sessionId) {
-                        ClimbAddonCard(today: isClimbingDay)
-                    }
-                    .buttonStyle(.plain)
-                }
+            // Wall session (#366): on unless turned off in Around climbing days.
+            if model.profile?.climbDayAddon != false {
+                WallSessionCard(today: isClimbingDay, climbedToday: all.contains { Calendar.current.isDateInToday($0.start) },
+                                locked: ProStore.shared.locked, onGate: { gate = .climbing },
+                                onLogClimb: { logging = ClimbLog(start: Date().addingTimeInterval(-90 * 60)) })
+                    .padding(.top, 4)
             }
             Button { ProStore.shared.run(.climbing, $gate) { settings = true } } label: {
                 HStack(spacing: 6) {
@@ -419,35 +415,6 @@ extension ClimbSameDay {
     }
 }
 
-/// Optional short session on climbing days: antagonists, shoulders, finger extensors, core.
-private struct ClimbAddonCard: View {
-    let today: Bool
-
-    var body: some View {
-        let t = WorkoutTemplate.climbAddon
-        HStack(spacing: 16) {
-            Image(systemName: "plus.circle.fill")
-                .font(.system(size: 30, weight: .bold))
-                .frame(width: 60, height: 60)
-                .background(RoundedRectangle(cornerRadius: 18).fill(.white.opacity(0.2)))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(today ? "Climbing today · add-on" : "Climbing-day add-on").font(Theme.label(11)).tracking(1.2).opacity(0.85)
-                Text("Antagonist & shoulders").font(Theme.display(22))
-                Text("Push, shoulder health, finger extensors, core. No pulling or grip.")
-                    .font(.footnote.weight(.medium)).opacity(0.85).multilineTextAlignment(.leading)
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 0) {
-                Text("\(t.session.estMin)").font(Theme.display(30)).monospacedDigit()
-                Text("min").font(Theme.label(10)).opacity(0.8)
-            }
-        }
-        .foregroundStyle(.white)
-        .padding(18)
-        .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(ClimbKind.topRope.gradient))
-    }
-}
-
 /// How gym days around climbing are planned. Saving rebuilds this week's plan.
 struct ClimbSettingsView: View {
     @Environment(AppModel.self) private var model
@@ -478,8 +445,8 @@ struct ClimbSettingsView: View {
                     }
                     Toggle(isOn: $addon) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Climbing-day add-on").font(Theme.display(18))
-                            Text("Offer a short optional session (≈ \(WorkoutTemplate.climbAddon.session.estMin) min) on Train: push, shoulders, finger extensors, core.")
+                            Text("Wall session").font(Theme.display(18))
+                            Text("Show warm-up, hangboard and after-climb sessions for the climbing gym on Train.")
                                 .font(.footnote).foregroundStyle(Theme.muted)
                         }
                     }
@@ -509,7 +476,7 @@ struct ClimbSettingsView: View {
             before = p.climbPrefs.before
             after = p.climbPrefs.after
             sameDay = p.climbPrefs.sameDay
-            addon = p.climbDayAddon ?? false
+            addon = p.climbDayAddon ?? true
         }
     }
 
@@ -518,7 +485,8 @@ struct ClimbSettingsView: View {
         p.climbBefore = before == .light ? nil : before
         p.climbAfter = after == .light ? nil : after
         p.climbSameDay = sameDay == .avoid ? nil : sameDay
-        p.climbDayAddon = addon ? true : nil
+        // Wall session (#366) is on by default; only "off" is stored.
+        p.climbDayAddon = addon ? (p.climbDayAddon == true ? true : nil) : false
         if p != model.profile {
             model.updateProfile(p)
         }

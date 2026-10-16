@@ -14,6 +14,7 @@ extension GymArea {
         case .stations: "figure.climbing"
         case .functional: "figure.cross.training"
         case .cardio: "figure.run.treadmill"
+        case .climbing: "figure.climbing"
         }
     }
 
@@ -26,6 +27,7 @@ extension GymArea {
         case .stations: .power
         case .functional: .stretch
         case .cardio: .cardio
+        case .climbing: .power
         }
     }
 }

@@ -124,10 +124,13 @@ public struct WorkoutTemplate: Identifiable, Hashable, Sendable {
         return Session(id: sessionId, index: 0, focus: focus, title: name, targetMin: est, estMin: est, blocks: blocks)
     }
 
-    public static func find(sessionId: String) -> WorkoutTemplate? { (all + [climbAddon]).first { $0.sessionId == sessionId } }
+    public static func find(sessionId: String) -> WorkoutTemplate? {
+        (all + [climbAddon] + WallSession.templates).first { $0.sessionId == sessionId }
+    }
 
     /// Optional short session on climbing days (#47): push antagonists, shoulder health, finger extensors, core.
-    /// No pulling or grip, so it stacks with a climbing session. Offered on the Train tab, not listed with examples.
+    /// No pulling or grip, so it stacks with a climbing session. Replaced on Train by the Wall session (#366); kept so
+    /// sessions logged with it still resolve.
     public static let climbAddon = WorkoutTemplate(
         id: "climb-addon", name: "Climbing-day add-on", focus: .push, kcal: 90, activityPoints: 60,
         items: [

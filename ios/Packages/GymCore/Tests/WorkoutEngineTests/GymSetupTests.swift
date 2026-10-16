@@ -16,7 +16,7 @@ import Testing
         let (eq, unsure) = GymSetup.equipment(a)
         #expect(Set(unsure) == Set(GymArea.cables.items))
         #expect(Set(GymArea.cables.items).isSubset(of: Set(eq)))
-        #expect(GymKind.bigClub.equipment.count == Equipment.allCases.count)
+        #expect(GymKind.bigClub.equipment.count == Equipment.allCases.count - GymArea.climbing.items.count)
         #expect(GymSetup.answers(for: GymKind.budget.equipment) == GymKind.budget.guess)
     }
 

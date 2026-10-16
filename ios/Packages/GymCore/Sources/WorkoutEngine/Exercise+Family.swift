@@ -1,8 +1,8 @@
 /// Exercise families (#174): a base exercise and its variations (`Exercise.variationOf`), so long lists stay
 /// short — the base shows once with "+N variations" and the exercise page lists the rest.
 extension Exercise {
-    /// Ids of the library-only catalog extensions (#174, #182); never generated, only picked by members.
-    public static let libraryOnlyIds: Set<String> = Set((variationCatalog + gymAppCatalog).map(\.id))
+    /// Ids of the library-only catalog extensions (#174, #182, #366); never generated, only picked by members.
+    public static let libraryOnlyIds: Set<String> = Set((variationCatalog + gymAppCatalog + climbingCatalog).map(\.id))
 
     /// Base exercise id when this is a variation, else nil.
     public var baseId: String? { Exercise.variationOf[id] }
