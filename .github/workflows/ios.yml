@@ -19,7 +19,7 @@ jobs:
     name: GymCore tests
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: swift --version
       - run: swift test --package-path ios/Packages/GymCore
       - run: swift test --package-path ios/Packages/LiftSensor
@@ -29,7 +29,7 @@ jobs:
     # iOS 27 SDK / iPhone Duo + iPad simulators (#120).
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Select newest Xcode
         run: |
           XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
@@ -106,7 +106,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Select newest Xcode
         run: |
           XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
@@ -137,7 +137,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Select newest Xcode
         run: |
           XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)

@@ -23,7 +23,7 @@ jobs:
       LIMIT: ${{ inputs.limit || '5' }}
       OUT_DIR: ${{ github.workspace }}/crashes
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: pip install --quiet 'pyjwt[crypto]==2.9.0'
       - name: Fetch crash reports
         run: |
