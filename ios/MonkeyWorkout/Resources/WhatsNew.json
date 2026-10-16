@@ -2,16 +2,22 @@
   "id": "2026-10-16.1",
   "items": [
     {
-      "symbol": "lock.iphone",
-      "tint": "strength",
-      "title": "Log sets from the lock screen",
-      "body": "Tap how hard the set was right on the lock screen or in the Dynamic Island, adjust kg with − / +, and see your workout's progress and heart rate. When you finish, a summary card stays for 15 minutes."
+      "symbol": "bubble.left.and.text.bubble.right.fill",
+      "tint": "power",
+      "title": "Ask Coach",
+      "body": "Tell Coach Monkey what you feel like today and get a workout made for you, sore spots and busy machines included."
     },
     {
-      "symbol": "figure.strengthtraining.traditional",
-      "tint": "power",
-      "title": "Bigger moves, steady screen",
-      "body": "The movement picture is twice the size and everything in the player stays in the same place. Up next shows what follows; tap or swipe it up for the workout map."
+      "symbol": "megaphone.fill",
+      "tint": "cardio",
+      "title": "Coach Monkey in your workout",
+      "body": "Cheers you on out loud, calls your final set and celebrates new records. Pick Chill, Hype or Drill in Settings → Workout coach."
+    },
+    {
+      "symbol": "lock.iphone",
+      "tint": "strength",
+      "title": "Bigger moves, log from the lock screen",
+      "body": "The movement picture is twice the size and the player stays in place; Up next opens the workout map. Log sets, adjust kg and see heart rate on the lock screen or Dynamic Island, with a summary when you finish."
     },
     {
       "symbol": "flame.fill",
@@ -20,10 +26,10 @@
       "body": "5 minutes of easy cardio to get warm, a little longer before leg day, in the morning or from 50. Set your usual workout time in Training profile."
     },
     {
-      "symbol": "calendar.badge.checkmark",
-      "tint": "cardio",
-      "title": "Today means today",
-      "body": "On the Quest map, your next stage now says Today, Tomorrow or Next, instead of Today for any day."
+      "symbol": "applewatch",
+      "tint": "mobility",
+      "title": "Your Watch counts reps (beta)",
+      "body": "Auto rep count, bar speed per rep and a stop buzz when you slow down, plus machine mode for leg press and co."
     }
   ]
 }
