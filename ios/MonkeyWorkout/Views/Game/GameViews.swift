@@ -400,7 +400,8 @@ struct QuestMap<Menu: View>: View {
                     let day = s.weekday ?? days[s.id]
                     NavigationLink(value: s.id) {
                         QuestStage(session: s, number: i + 1, weekday: day, done: model.state.done[s.id] ?? false,
-                                   current: s.id == nextId, xp: model.xp(for: s), left: i.isMultiple(of: 2), width: w)
+                                   current: s.id == nextId, today: model.todayWeekday, xp: model.xp(for: s),
+                                   left: i.isMultiple(of: 2), width: w)
                     }
                     .buttonStyle(.plain)
                     .contextMenu { menu(s, day) }
@@ -445,6 +446,8 @@ private struct QuestStage: View {
     let weekday: Int?
     let done: Bool
     let current: Bool
+    /// Today, 1 = Monday … 7 = Sunday.
+    let today: Int
     let xp: Int
     /// Node on the left (label right) or on the right (label left).
     let left: Bool
@@ -485,11 +488,17 @@ private struct QuestStage: View {
         .scaleEffect(current && glow ? 1.05 : 1)
     }
 
+    /// The next stage is "Today" only on its own day (#369): an unscheduled one can be done today too.
+    private var when: String {
+        guard let weekday else { return "Today" }
+        return weekday == today ? "Today" : weekday == today + 1 ? "Tomorrow" : "Next"
+    }
+
     private func label(_ align: HorizontalAlignment) -> some View {
         VStack(alignment: align, spacing: 2) {
             Text(weekday.map { WeekSchedule.name($0) } ?? "Stage \(number)").font(Theme.label(11)).tracking(1).textCase(.uppercase)
                 .foregroundStyle(current ? Theme.lime : Theme.muted)
-            Text(current ? "Today · \(session.displayTitle)" : session.displayTitle)
+            Text(current ? "\(when) · \(session.displayTitle)" : session.displayTitle)
                 .font(.system(size: current ? 17 : 15, weight: .heavy, design: .rounded)).lineLimit(2)
                 .multilineTextAlignment(align == .leading ? .leading : .trailing)
             Text(done ? "Cleared · +\(xp) XP" : "\(session.blocks.reduce(0) { $0 + $1.items.count }) bosses · +\(xp) XP")
