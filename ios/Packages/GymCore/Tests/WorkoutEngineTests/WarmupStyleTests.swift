@@ -49,6 +49,17 @@ import Testing
         #expect(try block(session(base, focus: .legs), .warmup).items.first?.prescription.reps == "5 min")
     }
 
+    /// #377: morning workouts get one more minute; midday / evening / not set stay at 5.
+    @Test func morningWorkoutsGetOneMoreWarmupMinute() throws {
+        var p = base
+        p.workoutTime = 7 * 60
+        #expect(p.trainsInMorning)
+        #expect(try block(session(p, focus: .push, minutes: 75), .warmup).items.first?.prescription.reps == "6 min")
+        p.workoutTime = 18 * 60
+        #expect(!p.trainsInMorning)
+        #expect(try block(session(p, focus: .push, minutes: 75), .warmup).items.first?.prescription.reps == "5 min")
+    }
+
     @Test func easyCardioCooldownIsThreeToFiveMinutes() throws {
         var p = base
         p.cooldownStyle = .easyCardio

@@ -237,8 +237,11 @@ public enum Generator {
         case .auto:
             let lowerDay = [Focus.lower, .legs, .fullLower, .posterior].contains(focus)
             let older = (ctx.profile.age ?? 0) >= 50
+            // Morning workouts (#377): muscles start cooler.
+            let morning = ctx.profile.trainsInMorning
             // Never more than the block minus a minute: the drills still fit.
-            raiseMin = ctx.short ? 2 : minutes > 10 ? minutes - 5 : min(5 + (lowerDay ? 1 : 0) + (older ? 1 : 0), max(2, minutes - 1))
+            raiseMin = ctx.short ? 2 : minutes > 10 ? minutes - 5
+                : min(5 + (lowerDay ? 1 : 0) + (older ? 1 : 0) + (morning ? 1 : 0), max(2, minutes - 1))
         case .pulse: raiseMin = max(2, minutes - 2)
         case .dynamic: raiseMin = 0
         case .activation: raiseMin = ctx.short ? 1 : 2

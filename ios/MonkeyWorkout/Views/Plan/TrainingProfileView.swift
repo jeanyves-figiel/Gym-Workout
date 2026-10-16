@@ -3,7 +3,7 @@ import WorkoutEngine
 
 /// One part of the training profile, editable on its own screen (#99).
 enum ProfileSection: String, CaseIterable, Identifiable, Hashable {
-    case goal, week, variety, style, flow, method, gym
+    case goal, week, time, variety, style, flow, method, gym
     var id: String { rawValue }
 
     /// Set by a running training programme (#255); shown locked.
@@ -13,6 +13,7 @@ enum ProfileSection: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .goal: "Goal"
         case .week: "Your week"
+        case .time: "Workout time"
         case .variety: "Week to week"
         case .style: "Training style"
         case .flow: "Session flow"
@@ -112,6 +113,7 @@ struct ProfileSectionCard: View {
         switch section {
         case .goal: profile.goal.symbol
         case .week: "calendar"
+        case .time: WorkoutTimeOfDay(profile.workoutTime).symbol
         case .variety: profile.planVariety.symbol
         case .style: profile.rest.symbol
         case .flow: "rectangle.split.3x1.fill"
@@ -132,6 +134,7 @@ struct ProfileSectionCard: View {
              profile.maxSessionMinutes.map { "max \($0) min" },
              profile.climbs ? "climbing \(profile.climbingDays.isEmpty ? profile.climbingDaysPerWeek : profile.climbingDays.count)× / week" : nil] as [String?])
                 .compactMap { $0 }.joined(separator: " · ")
+        case .time: WorkoutTimeOfDay(profile.workoutTime).summary
         case .variety: profile.planVariety.title
         case .style: "\(profile.rest.label) · \(profile.group.label)"
         case .flow: (profile.sessionFlow ?? SessionFlow()).summary(profile)
@@ -144,6 +147,7 @@ struct ProfileSectionCard: View {
         switch section {
         case .goal: ("\(Generator.sessionMinutes(profile))′", "PER SESSION")
         case .week: (String(format: "%.1fh", Double(Generator.sessionMinutes(profile) * profile.sessionsPerWeek) / 60), "PER WEEK")
+        case .time: profile.workoutTime.map { (WorkoutTimeOfDay.clock($0), "USUALLY") } ?? ("–", "NOT SET")
         case .variety: profile.planVariety.count
         case .style: (profile.rest.range.value, profile.rest.range.unit)
         case .flow:
@@ -157,6 +161,7 @@ struct ProfileSectionCard: View {
         switch section {
         case .goal: profile.goal.gradient
         case .week: WorkoutEngine.Category.cardio.gradient
+        case .time: WorkoutTimeOfDay(profile.workoutTime).gradient
         case .variety: profile.planVariety.gradient
         case .style: profile.rest.gradient
         case .flow: WorkoutEngine.Category.warmup.gradient

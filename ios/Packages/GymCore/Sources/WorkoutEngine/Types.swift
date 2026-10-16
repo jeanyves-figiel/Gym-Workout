@@ -266,6 +266,12 @@ public struct Profile: Codable, Hashable, Sendable {
     /// nil = unknown (plans exactly as before).
     public var birthYear: Int?
 
+    /// Usual workout time (#377), minutes after midnight; nil = not set (plans as before).
+    public var workoutTime: Int?
+
+    /// Usually trains before 11:00: muscles start cooler, the warm-up gets one more minute of cardio (#377).
+    public var trainsInMorning: Bool { workoutTime.map { $0 < 11 * 60 } ?? false }
+
     /// Age this year, when the birth year is known.
     public var age: Int? { birthYear.map { Calendar.current.component(.year, from: Date()) - $0 } }
 
