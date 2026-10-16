@@ -137,6 +137,10 @@ private struct DemoScreen: View {
         case "player-next": WorkoutPlayerView(sessionId: second, demoMode: "next")
         case "finish-early": WorkoutPlayerView(sessionId: second, demoMode: "finish")
         case "player-fitted": WorkoutPlayerView(sessionId: second, demoMode: "fitted")
+        // Machine setups (#355).
+        case "player-setup": WorkoutPlayerView(sessionId: second, demoMode: "setup")
+        case "machine-setup": MachineNoteSheet(exerciseId: "leg-press", gym: model.homeGym.ref)
+        case "exercise-setups": NavigationStack { ExerciseDetailView(exerciseId: "leg-press") }
         case "player-superset": WorkoutPlayerView(sessionId: second, demoMode: "superset")
         case "player-superset-fix": WorkoutPlayerView(sessionId: second, demoMode: "superset-fix")
         case "player-split": WorkoutPlayerView(sessionId: second, demoMode: "superset-split")

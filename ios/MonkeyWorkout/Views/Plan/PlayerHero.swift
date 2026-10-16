@@ -43,6 +43,10 @@ struct ExerciseHeroCard: View {
     var onAttemptPR: (() -> Void)?
     /// Set while the gym's equipment can still be reported missing (before the first set).
     var onNotHere: (() -> Void)?
+    /// The member's setup for this exercise at this gym (#355); `onSetup` nil = no setups (bodyweight).
+    var setup: MachineNote?
+    var onSetup: (() -> Void)?
+    var onSetupPhoto: (() -> Void)?
     /// Superset / circuit (#352): split it into straight sets in one tap.
     var onSplit: (() -> Void)?
     /// Superset / circuit (#352): the machines-not-next-to-each-other choices.
@@ -103,6 +107,11 @@ struct ExerciseHeroCard: View {
                     .buttonStyle(.plain)
                 }
             }
+            // Setup strip (#355): takes its line from the picture, which shrinks, so the player still never scrolls.
+            if let setup, let onSetup {
+                MachineNoteStrip(note: setup, hasPhoto: setup.photoId != nil || MachineNotePhotos.load(setup.id) != nil,
+                                 onEdit: onSetup, onPhoto: onSetupPhoto ?? onSetup)
+            }
             // Plays the movement a few times when the exercise shows, then rests on the start; tap replays. Its "Play movement" tag sits
             // bottom-left, Form bottom-right, Not here? top-right. The picture takes the height left on screen (#206: the player
             // never scrolls), so it shrinks on small phones while the target, set card and buttons stay whole.
@@ -136,7 +145,15 @@ struct ExerciseHeroCard: View {
                     .accessibilityLabel("Setup and technique")
                     .padding(8)
                 }
-            if !compact { HeroMuscleChips(primary: exercise.primary, secondary: exercise.secondary) }
+            if !compact {
+                HStack(spacing: 6) {
+                    HeroMuscleChips(primary: exercise.primary, secondary: exercise.secondary)
+                    if setup == nil, let onSetup {
+                        Spacer(minLength: 0)
+                        MachineNoteAddChip(action: onSetup).layoutPriority(1)
+                    }
+                }
+            }
             if item.group != nil, onSplit != nil || onGroup != nil {
                 groupRow
             } else if !compact, let n = item.prescription.note {

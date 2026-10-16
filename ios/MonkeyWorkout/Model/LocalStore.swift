@@ -89,6 +89,12 @@ struct LocalState: Codable {
     var deletedClimbIds: Set<UUID>?
     /// Climbs logged before #312 lived only here: uploaded once, then this is true.
     var climbsUploaded: Bool?
+    // Machine setup notes (#355). Photos live in their own files (`MachineNotePhotos`).
+    var machineNotes: [MachineNote]?
+    var pendingMachineNoteIds: Set<UUID>?
+    var deletedMachineNoteIds: Set<UUID>?
+    /// Notes whose photo changed here (new or removed) and isn't on the server yet.
+    var pendingMachinePhotoIds: Set<UUID>?
     // Custom exercises (#52). Archived, never deleted.
     var customExerciseList: [CustomExercise]?
     var pendingCustomExerciseIds: Set<UUID>?
@@ -146,7 +152,10 @@ struct LocalStore {
         try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 
-    func wipe() { try? FileManager.default.removeItem(at: url) }
+    func wipe() {
+        try? FileManager.default.removeItem(at: url)
+        MachineNotePhotos.wipe()
+    }
 }
 
 extension LocalState {
@@ -174,6 +183,10 @@ extension LocalState {
         pendingClimbIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingClimbIds)
         deletedClimbIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedClimbIds)
         climbsUploaded = try? c.decodeIfPresent(Bool.self, forKey: .climbsUploaded)
+        machineNotes = try? c.decodeIfPresent([MachineNote].self, forKey: .machineNotes)
+        pendingMachineNoteIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingMachineNoteIds)
+        deletedMachineNoteIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedMachineNoteIds)
+        pendingMachinePhotoIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingMachinePhotoIds)
         activeWorkout = try? c.decodeIfPresent(ActiveWorkout.self, forKey: .activeWorkout)
         customExerciseList = try? c.decodeIfPresent([CustomExercise].self, forKey: .customExerciseList)
         pendingCustomExerciseIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingCustomExerciseIds)

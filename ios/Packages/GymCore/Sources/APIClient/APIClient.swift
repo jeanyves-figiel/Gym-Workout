@@ -268,6 +268,37 @@ public actor APIClient {
         _ = try await authorizedRaw("DELETE", "/v1/me/climbs/\(id.uuidString)", Empty?.none)
     }
 
+    /// Machine setup notes (#355; app-defined; must encode `id`, `gymId`, `gymName`, `exerciseId`, `fields`).
+    public func fetchMachineNotes<T: Decodable & Sendable>(_: T.Type) async throws -> [T] {
+        try await authorized("GET", "/v1/me/machine-notes", Empty?.none, as: MachineNotesResponse<T>.self).notes
+    }
+
+    public func pushMachineNotes<T: Encodable & Sendable>(_ notes: [T]) async throws {
+        for chunk in stride(from: 0, to: notes.count, by: 200).map({ Array(notes[$0..<min($0 + 200, notes.count)]) }) {
+            _ = try await authorizedRaw("POST", "/v1/me/machine-notes", MachineNotesBody(notes: chunk))
+        }
+    }
+
+    public func deleteMachineNote(_ id: UUID) async throws {
+        _ = try await authorizedRaw("DELETE", "/v1/me/machine-notes/\(id.uuidString)", Empty?.none)
+    }
+
+    /// JPEG ≤ 512 KB, 64–1024 px per side; the server strips metadata. Returns the new photo id.
+    public func uploadMachineNotePhoto(noteId: UUID, jpeg: Data) async throws -> String {
+        struct R: Decodable { var photoId: String }
+        let data = try await authorizedRaw("PUT", "/v1/me/machine-notes/\(noteId.uuidString)/photo", Empty?.none, raw: (jpeg, "image/jpeg"))
+        return try decode(R.self, data).photoId
+    }
+
+    public func deleteMachineNotePhoto(noteId: UUID) async throws {
+        _ = try await authorizedRaw("DELETE", "/v1/me/machine-notes/\(noteId.uuidString)/photo", Empty?.none)
+    }
+
+    /// The photo's JPEG bytes; only its owner can read it.
+    public func machineNotePhoto(_ photoId: String) async throws -> Data {
+        try await authorizedRaw("GET", "/v1/me/machine-notes/photos/\(photoId)", Empty?.none)
+    }
+
     public func deleteLog(_ id: UUID) async throws {
         _ = try await authorizedRaw("DELETE", "/v1/me/logs/\(id.uuidString)", Empty?.none)
     }
@@ -357,6 +388,8 @@ public actor APIClient {
     struct AttemptsResponse<T: Decodable>: Decodable { var attempts: [T] }
     struct ClimbsBody<T: Encodable>: Encodable { var climbs: [T] }
     struct ClimbsResponse<T: Decodable>: Decodable { var climbs: [T] }
+    struct MachineNotesBody<T: Encodable>: Encodable { var notes: [T] }
+    struct MachineNotesResponse<T: Decodable>: Decodable { var notes: [T] }
     struct MeasurementsBody<T: Encodable>: Encodable { var measurements: [T] }
     struct MeasurementsResponse<T: Decodable>: Decodable { var measurements: [T] }
 

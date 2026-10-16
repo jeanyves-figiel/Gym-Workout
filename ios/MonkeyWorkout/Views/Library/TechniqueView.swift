@@ -176,6 +176,7 @@ struct FormSheet: View {
                 VStack(alignment: .leading, spacing: 16) {
                     Text(exercise.name).font(Theme.display(30))
                     EquipmentSection(equipment: exercise.equipment)
+                    MySetupsSection(exercise: exercise)
                     TechniqueView(exercise: exercise)
                 }
                 .padding(16)
