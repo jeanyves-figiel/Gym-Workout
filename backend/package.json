@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
     "@fastify/rate-limit": "^11.2.0",
     "@simplewebauthn/server": "^13.3.3",
     "fastify": "^5.12.5",
