@@ -132,8 +132,14 @@ export const clean = (a: CoachAnswer, context: ChatContext): CoachAnswer => {
 };
 
 /** Claude Opus 5.5 with structured output; low effort keeps each message quick and cheap (~1–2 US¢). */
-export const claudeCoach = (apiKey: string): CoachModel => {
-  const client = new Anthropic({ apiKey, timeout: 45_000, maxRetries: 1 });
+/** `workspaceId`: needed when the API key is not scoped to a workspace (sent as anthropic-workspace-id). */
+export const claudeCoach = (apiKey: string, workspaceId?: string): CoachModel => {
+  const client = new Anthropic({
+    apiKey,
+    timeout: 45_000,
+    maxRetries: 1,
+    defaultHeaders: workspaceId ? { 'anthropic-workspace-id': workspaceId } : undefined,
+  });
   return async (turns, context) => {
     const about = describe(context);
     const messages: Anthropic.Beta.BetaMessageParam[] = turns.map((t) => ({ role: t.role === 'member' ? 'user' : 'assistant', content: t.text }));

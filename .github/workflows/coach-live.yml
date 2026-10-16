@@ -1,0 +1,33 @@
+name: Coach live check
+
+# Manual: one real Ask Coach call (Claude API) with the environment's ANTHROPIC_API_KEY. Prints the answer or the API error.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [staging, production]
+        default: staging
+
+permissions:
+  contents: read
+
+jobs:
+  call:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: node --disable-warning=ExperimentalWarning scripts/coach-live.ts
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_WORKSPACE_ID: ${{ secrets.ANTHROPIC_WORKSPACE_ID }}
