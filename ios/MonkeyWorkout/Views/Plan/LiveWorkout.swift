@@ -46,6 +46,17 @@ final class LiveWorkout {
         Task { await activity.end(nil, dismissalPolicy: .immediate) }
     }
 
+    /// Finished (#371): the card turns into the workout summary and stays on the lock screen for 15 minutes.
+    func finish(_ state: WorkoutActivityAttributes.ContentState) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [Self.restNotificationId])
+        guard let activity else { return }
+        self.activity = nil
+        Task {
+            await activity.end(ActivityContent(state: state, staleDate: nil),
+                               dismissalPolicy: .after(Date().addingTimeInterval(15 * 60)))
+        }
+    }
+
     /// Buzz when rest is over while the phone is locked or in a pocket (shown as a banner only in the background).
     private func scheduleRestEnd(_ state: WorkoutActivityAttributes.ContentState) {
         let center = UNUserNotificationCenter.current()
@@ -83,5 +94,21 @@ extension WorkoutEngine.Category {
         case .cardio: 0x2EC5FF
         case .stretch: 0xB6FF6B
         }
+    }
+}
+
+extension AppModel {
+    /// kg × reps logged in this workout, and how many exercises beat their heaviest weight from before it (#371).
+    func liveLifts(sessionId: String, since: Date) -> (volumeKg: Double, prs: Int) {
+        let logs = setLogs
+        let mine = logs.filter { $0.sessionId == sessionId && $0.date >= since }
+        let volume = mine.reduce(0) { $0 + $1.kg * Double($1.reps ?? 0) }
+        var prs = 0
+        for (id, sets) in Dictionary(grouping: mine, by: \.exerciseId) {
+            // A first log of an exercise is not a record.
+            let before = logs.filter { $0.exerciseId == id && $0.date < since }.map(\.kg).max()
+            if let before, let top = sets.map(\.kg).max(), top > before { prs += 1 }
+        }
+        return (volume, prs)
     }
 }
