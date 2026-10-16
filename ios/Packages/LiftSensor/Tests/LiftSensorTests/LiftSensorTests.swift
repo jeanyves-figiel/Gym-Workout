@@ -208,10 +208,11 @@ struct SetCase: Sendable, CustomTestStringConvertible {
     @Test func zones() {
         #expect(SpeedZone.of(0.4) == .maxStrength)
         #expect(SpeedZone.of(0.9) == .power)
-        #expect(LiftStats.velocityLoss([
+        let loss = LiftStats.velocityLoss([
             LiftRep(meanVelocity: 0.8, peakVelocity: 1, range: 0.4, concentricSec: 0.5, eccentricSec: nil, endIndex: 0),
             LiftRep(meanVelocity: 0.6, peakVelocity: 1, range: 0.4, concentricSec: 0.6, eccentricSec: nil, endIndex: 0),
-        ]) == 0.25)
+        ])
+        #expect(abs(loss - 0.25) < 1e-9)
     }
 }
 
