@@ -231,7 +231,19 @@ public enum Generator {
         let upper = [Focus.upper, .push, .pull, .fullUpper, .chestTri, .backBi, .shouldersArms, .chestBack].contains(focus)
         let raiseMin: Int
         switch style {
-        case .auto: raiseMin = ctx.short ? 2 : minutes > 10 ? minutes - 5 : minutes >= 9 ? 5 : 4
+        // #375: ~5 min of easy cardio is where most of the muscle-temperature gain is reached; 6 before a heavy
+        // lower-body day, one more from age 50 (muscles warm more slowly). Quick sessions keep a short raise; drills and
+        // ramp-up sets do the specific warm-up.
+        case .auto:
+            let lowerDay = [Focus.lower, .legs, .fullLower, .posterior].contains(focus)
+            let older = (ctx.profile.age ?? 0) >= 50
+            // Morning workouts (#377): muscles start cooler.
+            let morning = ctx.profile.trainsInMorning
+            // Conditioning days keep 4: their cardio block opens with its own easy build-up.
+            let base = focus == .conditioning ? 4 : 5
+            // Never more than the block minus a minute: the drills still fit.
+            raiseMin = ctx.short ? 2 : minutes > 10 ? minutes - 5
+                : min(base + (lowerDay ? 1 : 0) + (older ? 1 : 0) + (morning ? 1 : 0), max(2, minutes - 1))
         case .pulse: raiseMin = max(2, minutes - 2)
         case .dynamic: raiseMin = 0
         case .activation: raiseMin = ctx.short ? 1 : 2
@@ -249,7 +261,8 @@ public enum Generator {
         switch style {
         case .pulse: drills = ctx.short ? 1 : 2
         case .dynamic: drills = clamp(Int((Double(minutes) / 0.9).rounded()), 3, 8)
-        case .auto, .activation: drills = ctx.short ? 2 : clamp(Int((Double(minutes - raiseMin) / 0.9).rounded()), 3, 6)
+        // #375: a 5+ min raise leaves room for two drills in a short block (ramp-up sets follow).
+        case .auto, .activation: drills = ctx.short ? 2 : clamp(Int((Double(minutes - raiseMin) / 0.9).rounded()), raiseMin >= 5 ? 2 : 3, 6)
         }
         let prefer = style == .activation ? activationDrills : []
         for i in 0..<drills {
@@ -545,13 +558,17 @@ public enum Generator {
         switch style {
         case .auto:
             if let cardio = prior.first(where: { $0.kind == .cardio }), !cardio.title.contains("Zone 2"), let c = cardio.items.first {
+                // #375: 3 easy minutes when the cool-down has room for its stretches too.
+                let flush = minutes >= 8 ? 3 : 2
                 items.append(PlannedExercise(
                     uid: "\(uid)-flush", exerciseId: c.exerciseId, slot: .general,
-                    prescription: Prescription(sets: 1, reps: "2 min", restSec: 0, intensity: "Very easy · bring HR down"), estSec: 120))
-                used += 120
+                    prescription: Prescription(sets: 1, reps: "\(flush) min", restSec: 0, intensity: "Very easy · bring HR down"),
+                    estSec: flush * 60))
+                used += Double(flush * 60)
             }
         case .easyCardio:
-            let easyMin = max(3, minutes / 2)
+            // #375: 3–5 easy minutes bring the heart rate down; longer adds little for recovery.
+            let easyMin = min(5, max(3, minutes / 2))
             let machine = prior.first(where: { $0.kind == .cardio })?.items.first?.exerciseId
                 ?? Selector.candidates(level: ctx.level, equipment: ctx.equipment, Query(category: .cardio))
                     .first { raiseLower.contains($0.id) }?.id
