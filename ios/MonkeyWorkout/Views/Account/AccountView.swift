@@ -17,6 +17,13 @@ struct AccountView: View {
     @State private var exportTask = FormTask()
     @State private var confirmSignOutAll = false
     @AppStorage(AutoNextPref.key) private var autoNextSec = AutoNextPref.fallback
+    @AppStorage(CoachPref.onKey) private var coachOn = true
+    @AppStorage(CoachPref.styleKey) private var coachStyle = CoachStyle.hype.rawValue
+    @AppStorage(CoachPref.voiceKey) private var coachVoice = CoachVoiceLevel.keyMoments.rawValue
+    private var coachSummary: String {
+        _ = (coachOn, coachStyle, coachVoice)  // re-render when any of them changes
+        return CoachPref.summary
+    }
     @State private var signOutAllTask = FormTask()
     @State private var deviceCount: Int?
     @State private var gate: ProGate?
@@ -99,6 +106,16 @@ struct AccountView: View {
                         }
                     }
                     .buttonStyle(.plain)
+
+                    // Workout coach (#379): Coach Monkey's voice and big moments in the player.
+                    NavigationLink { CoachSettingsView() } label: {
+                        AccountCard(symbol: "megaphone.fill", title: "Workout coach", subtitle: coachSummary,
+                                    gradient: LinearGradient(colors: [Color(hex: 0xFF4D8A), Color(hex: 0x8A3DF0)], startPoint: .topLeading, endPoint: .bottomTrailing)) {
+                            AccountChevron()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("settings.coach")
 
                     NavigationLink { NotificationSettingsView() } label: {
                         AccountCard(symbol: "bell.badge.fill", title: "Reminders & alerts",
