@@ -363,11 +363,17 @@ struct WorkoutPlayerView: View {
                         } else if let fitBanner {
                             FinishEarlyBanner(text: fitBanner, onUndo: undoFinishEarly)
                         }
+                        let setupGym = model.gymRef(forItem: step.item.uid)
+                        let setupTarget = MachineNoteTarget(exerciseId: step.exercise.id, gym: setupGym)
+                        let setup = model.machineNote(exerciseId: step.exercise.id, gymId: setupGym.id)
                         ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
                                          position: "\(index + 1)/\(steps.count)",
                                          onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
                                          onNotHere: !step.exercise.equipment.isEmpty && model.canSwap(uid: step.item.uid) && done == 0
                                              ? { notHereFor = step.item } : nil,
+                                         setup: setup,
+                                         onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
+                                         onSetupPhoto: { setupPhotoFor = setup },
                                          onSplit: canSplit(step) ? { split(step) } : nil,
                                          onGroup: canSplit(step) ? { groupFix = step.item } : nil,
                                          compact: true) { formFor = step.exercise }

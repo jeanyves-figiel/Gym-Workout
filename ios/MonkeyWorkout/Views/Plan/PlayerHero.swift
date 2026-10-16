@@ -145,9 +145,10 @@ struct ExerciseHeroCard: View {
                     .accessibilityLabel("Setup and technique")
                     .padding(8)
                 }
-            if !compact {
+            // Landscape (#362) keeps only the add-setup chip: muscles are on the upright card.
+            if !compact || (setup == nil && onSetup != nil) {
                 HStack(spacing: 6) {
-                    HeroMuscleChips(primary: exercise.primary, secondary: exercise.secondary)
+                    if !compact { HeroMuscleChips(primary: exercise.primary, secondary: exercise.secondary) }
                     if setup == nil, let onSetup {
                         Spacer(minLength: 0)
                         MachineNoteAddChip(action: onSetup).layoutPriority(1)
