@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- **Ask Coach still failed after the API key was replaced** (#387): Fly setup only staged the new `ANTHROPIC_API_KEY`; the running staging machine kept the old key after a redeploy, so the chat still answered "Coach is catching breath". Fly setup now applies staged secrets to running machines (`flyctl secrets deploy`) right away.
 - **Ask Coach chat failed on every message** (#385): the chat always answered "Coach is catching breath". The Claude API refused the call (400): the API key isn't scoped to a workspace, so each request must name one. New optional `ANTHROPIC_WORKSPACE_ID` secret, sent as the `anthropic-workspace-id` header and staged by **Fly setup** (alternative: replace `ANTHROPIC_API_KEY` with a workspace-scoped key). New manual **Coach live check** workflow makes one real call with the environment's key and prints the answer or the API error.
 
 ### Added
