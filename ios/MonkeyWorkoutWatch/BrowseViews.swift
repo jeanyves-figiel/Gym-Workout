@@ -14,6 +14,7 @@ struct HomeView: View {
                         Eyebrow(text: "MonkeyWorkout", color: W.lime)
                         Text("Open MonkeyWorkout on your iPhone to sync your plan.").font(.footnote)
                     }
+                    .watchMargins()
                 }
             } else {
                 switch store.homeStyle {
@@ -24,11 +25,6 @@ struct HomeView: View {
             }
         }
         .navigationDestination(for: WSession.self) { SessionDetailView(session: $0, onStart: onStart) }
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                NavigationLink { HomeStyleSettings() } label: { Image(systemName: "gearshape.fill") }
-            }
-        }
     }
 }
 
@@ -60,6 +56,11 @@ struct HomeStatRows: View {
                         value: p.records.isEmpty ? "›" : "\(p.records.count) PR", tint: (0x3D5AFF, 0x7B3DFF))
             }
             .buttonStyle(.plain)
+            // Home style (#389): moved here from the gear next to the clock.
+            NavigationLink { HomeStyleSettings() } label: {
+                HomeRow(symbol: "paintpalette.fill", title: "Home style", value: "›", tint: (0x5A5F73, 0x2C2F3A))
+            }
+            .buttonStyle(.plain)
         }
     }
 }
@@ -71,6 +72,7 @@ struct HomeStyleSettings: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 6) {
+                ScreenTitle(text: "Home style")
                 ForEach(WatchHomeStyle.allCases) { style in
                     let on = store.homeStyle == style
                     Button { store.setHomeStyle(style) } label: {
@@ -96,9 +98,9 @@ struct HomeStyleSettings: View {
                 Text("Also sets your iPhone look. Change it there in Settings → Style.").font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary).multilineTextAlignment(.center).padding(.top, 2)
             }
+            .watchMargins()
         }
         .sensoryFeedback(.selection, trigger: store.homeStyle)
-        .navigationTitle("Home style")
     }
 }
 
@@ -114,7 +116,7 @@ struct HomeRow: View {
             Image(systemName: symbol).font(.system(size: 12, weight: .bold))
                 .frame(width: 26, height: 26)
                 .background(RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.25)))
-            Text(title).font(W.label(11)).lineLimit(1)
+            Text(title).font(W.label(12)).lineLimit(1).minimumScaleFactor(0.8)
             Spacer(minLength: 2)
             Text(value).font(W.display(19)).lineLimit(1).minimumScaleFactor(0.7)
         }
