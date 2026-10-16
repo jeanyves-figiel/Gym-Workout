@@ -67,6 +67,7 @@ struct ExerciseDetailView: View {
                 PRCard(exerciseId: e.id)
 
                 EquipmentSection(equipment: e.equipment)
+                MySetupsSection(exercise: e, plannedUid: plannedUid)
                 TechniqueView(exercise: e)
 
                 alternativesSection

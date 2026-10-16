@@ -211,6 +211,23 @@ enum Demo {
     }
 
     /// Gyms set up before (#162): a hotel used on a trip and a day-pass gym.
+    /// Machine setups (#355): the first equipment exercise of the demo player's session and the leg press, at the
+    /// home gym; the leg press also at the hotel gym (to copy).
+    static func machineNotes(plan: WeekPlan?, home: GymRef) -> [MachineNote] {
+        let first = plan?.sessions.dropFirst().first?.blocks.filter { $0.kind == .strength }.flatMap(\.items)
+            .first { !Exercise.get($0.exerciseId).equipment.isEmpty }?.exerciseId
+        var notes: [MachineNote] = []
+        for id in Set([first, "leg-press"].compactMap { $0 }) {
+            notes.append(MachineNote(gymId: home.id, gymName: home.name, exerciseId: id,
+                                     equipment: Exercise.get(id).equipment.first?.rawValue,
+                                     fields: [.init(label: "Seat", value: "4"), .init(label: "Pad", value: "2"), .init(label: "ROM", value: "off")],
+                                     text: "Pad just above the heels."))
+        }
+        notes.append(MachineNote(gymId: "custom:demo-adlon", gymName: "Hotel Adlon gym", exerciseId: "leg-press", equipment: "leg-press",
+                                 fields: [.init(label: "Seat", value: "6"), .init(label: "Foot plate", value: "high")]))
+        return notes
+    }
+
     static let savedGyms: [SavedGym] = [
         SavedGym(ref: GymRef(id: "custom:demo-adlon", name: "Hotel Adlon gym", address: ""), kind: .hotel,
                  equipment: GymKind.hotel.equipment, updated: Date().addingTimeInterval(-20 * 86_400)),
