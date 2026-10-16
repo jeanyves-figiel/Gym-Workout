@@ -30,287 +30,94 @@ struct AccountView: View {
     @State private var climbSettings = false
     @State private var webPage: WebPage?
 
+    // Settings layout (#394, design B + C): search, sticky chapter bar, one gradient card per chapter.
+    @State private var query = ""
+    @State private var chapter: SettingsChapter? = .you
+    @FocusState private var searchFocused: Bool
+    private var search: SettingsSearch { SettingsSearch(query: query) }
+
+    // Row search texts: title first, then the words a member might type.
+    private enum Find {
+        static let pro = "MonkeyWorkout Pro membership subscription trial lifetime"
+        static let profile = "Community profile photo about nickname avatar"
+        static let gym = "Your gym equipment trip travel"
+        static let body = "Body & Health height weight apple health"
+        static let method = "Training method block dup rir volume minimal"
+        static let flow = "After last set workout flow next exercise countdown auto"
+        static let coach = "Workout coach voice monkey hype chill drill haptics"
+        static let reminders = "Reminders alerts notifications quiet hours check-in achievements"
+        static let climbing = "Around climbing days climbing wall session before after"
+        static let watchStart = "Start from iPhone apple watch ask auto"
+        static let action = "Action button apple watch ultra"
+        static let lift = "Lift sensor beta apple watch reps bar speed velocity"
+        static let style = "Style look theme monkey coach watch face home"
+        static let widgets = "Home Screen widgets"
+        static let monkeyGrade = "MonkeyGrade climbing connected apps"
+        static let password = "Password sign in"
+        static let email = "Email sign in"
+        static let security = "Security 2-step two factor passkeys mfa"
+        static let devices = "Signed-in devices sessions"
+        static let lock = "Lock face id touch id biometric"
+        static let export = "Export my data json download"
+        static let signOut = "Sign out everywhere session"
+        static let delete = "Delete account"
+        static let whatsNew = "What's new updates release notes"
+        static let privacy = "Privacy policy legal"
+        static let terms = "Terms of use legal eula"
+        static let support = "Support help contact"
+
+        static let you = [pro, profile, gym, body]
+        static let training = [method, flow, coach, reminders, climbing]
+        static let watch = [watchStart, action, lift]
+        static let look = [style, widgets, monkeyGrade]
+        static let account = [password, email, security, devices, lock, export, signOut, delete]
+        static let help = [whatsNew, privacy, terms, support]
+        static let all = you + training + watch + look + account + help
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                if let user = model.user {
-                    profileHero(user)
-                    ErrorText(message: nameTask.error ?? handleTask.error)
-
-                    if ProStore.shared.visible {
-                        section("Membership")
-                        NavigationLink { ProView() } label: {
-                            let e = ProStore.shared.entitlement
-                            AccountCard(symbol: "crown.fill", title: "MonkeyWorkout Pro",
-                                        subtitle: e.pro ? (e.lifetime == true ? "Lifetime · all updates included" : e.source == .grant ? "Free access" : e.trial == true ? "Free week running" : "Active")
-                                            : ProStore.shared.testing ? "Staging test · \(ProStore.shared.testEffect)" : "1 week free, then from CHF 2 / week",
-                                        gradient: AccountTint.pro, ink: true) {
-                                Text(e.pro ? "PRO" : "TRY").font(Theme.label(12)).tracking(1)
-                            }
-                        }
-                        .buttonStyle(.plain)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 10, pinnedViews: [.sectionHeaders]) {
+                    if let user = model.user {
+                        profileHero(user).padding(.horizontal, 16).padding(.top, 16)
+                        ErrorText(message: nameTask.error ?? handleTask.error).padding(.horizontal, 16)
                     }
-
-                    // Other features add their Account rows here as AccountCard (Community profile, Notifications, Training calendar).
-                    // Name and @handle live on the header card (#335); this card is photo and about only.
-                    section("You")
-                    NavigationLink { PublicProfileView() } label: {
-                        let me = Community.shared.me
-                        AccountCard(symbol: "person.2.fill", title: "Community profile",
-                                    subtitle: profileSubtitle(me), gradient: AccountTint.publicProfile) {
-                            if let url = model.api.resolve(me.avatarUrl) {
-                                AvatarView(url: url, nickname: me.nickname ?? "?", size: 44, ring: .white)
+                    Section {
+                        VStack(alignment: .leading, spacing: 10) {
+                            if let user = model.user {
+                                groups(user)
                             } else {
-                                AccountChevron()
+                                ProgressView().frame(maxWidth: .infinity).padding(40).task { await model.refreshUser() }
                             }
-                        }
-                    }
-                    .buttonStyle(.plain)
-
-                    // Current gym (#160): home gym, or the trip's while away.
-                    YourGymCard()
-
-                    NavigationLink { BodyHealthView() } label: {
-                        AccountCard(symbol: "heart.text.square.fill", title: "Body & Health",
-                                    subtitle: health.connected ? "Apple Health connected" : "Height, weight, Apple Health",
-                                    gradient: AccountTint.body) {
-                            if let kg = health.snapshot.weightKg ?? model.body.weightKg {
-                                AccountValue(value: Format.kg((kg * 10).rounded() / 10), unit: "kg")
-                            } else {
-                                AccountChevron()
+                            helpGroup
+                            if search.active && !search.any(Find.all) {
+                                Text("No setting matches “\(query)”.")
+                                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
+                                    .frame(maxWidth: .infinity).padding(.vertical, 30)
                             }
+                            Text("MonkeyWorkout · Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")")
+                                .font(.caption).foregroundStyle(Theme.muted)
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 6)
                         }
-                    }
-                    .buttonStyle(.plain)
-
-                    if let method = model.profile?.trainingMethod {
-                        // Training method (#156): same editor as Training profile → Training method.
-                        NavigationLink { ProfileSectionView(section: .method) } label: {
-                            AccountCard(symbol: method.symbol, title: "Training method", subtitle: method.label,
-                                        gradient: method.gradient) {
-                                AccountChevron()
-                            }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 24)
+                    } header: {
+                        searchHeader { c in
+                            searchFocused = false
+                            withAnimation { proxy.scrollTo(c, anchor: .top) }
                         }
-                        .buttonStyle(.plain)
-                    }
-
-                    // Workout flow (#357): what happens after an exercise's last set.
-                    Menu {
-                        Picker("After the last set", selection: $autoNextSec) {
-                            ForEach(AutoNextPref.choices, id: \.self) { Text(AutoNextPref.title($0)).tag($0) }
-                        }
-                    } label: {
-                        AccountCard(symbol: "forward.fill", title: "Workout flow",
-                                    subtitle: "Next exercise: " + AutoNextPref.title(autoNextSec).lowercased(),
-                                    gradient: WorkoutEngine.Category.cardio.gradient) {
-                            AccountChevron()
-                        }
-                    }
-                    .buttonStyle(.plain)
-
-                    // Workout coach (#379): Coach Monkey's voice and big moments in the player.
-                    NavigationLink { CoachSettingsView() } label: {
-                        AccountCard(symbol: "megaphone.fill", title: "Workout coach", subtitle: coachSummary,
-                                    gradient: LinearGradient(colors: [Color(hex: 0xFF4D8A), Color(hex: 0x8A3DF0)], startPoint: .topLeading, endPoint: .bottomTrailing)) {
-                            AccountChevron()
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("settings.coach")
-
-                    NavigationLink { NotificationSettingsView() } label: {
-                        AccountCard(symbol: "bell.badge.fill", title: "Reminders & alerts",
-                                    subtitle: "Session reminders, check-ins, cheers",
-                                    gradient: AccountTint.notifications)
-                    }
-                    .buttonStyle(.plain)
-
-                    // App style (#219, #227): one pick for the iPhone game look and the Watch.
-                    NavigationLink { WatchHomeView() } label: {
-                        AccountCard(symbol: WatchHomePref.shared.style.phoneSymbol, title: "Style",
-                                    subtitle: "\(WatchHomePref.shared.style.phoneTitle) on iPhone · \(WatchHomePref.shared.style.title) on Watch",
-                                    gradient: WatchHomePref.shared.style.gradient)
-                    }
-                    .buttonStyle(.plain)
-
-                    // iPhone workout → Watch (#347): what the Watch does when a workout starts on the iPhone.
-                    Menu {
-                        Picker("Start on Apple Watch", selection: Binding(get: { WatchStartPref.shared.mode }, set: { WatchStartPref.shared.set($0) })) {
-                            ForEach(WatchStartMode.allCases) { Text($0.title).tag($0) }
-                        }
-                    } label: {
-                        AccountCard(symbol: "applewatch.radiowaves.left.and.right", title: "Start on Apple Watch",
-                                    subtitle: "iPhone workout → \(WatchStartPref.shared.mode.title)",
-                                    gradient: LinearGradient(colors: [Color(hex: 0xFF3FA4), Color(hex: 0x8A3DFF)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    }
-                    .buttonStyle(.plain)
-
-                    // Apple Watch Ultra Action button (#349): what a press does during a workout.
-                    Menu {
-                        Picker("Action button", selection: Binding(get: { WatchActionPref.shared.mode }, set: { WatchActionPref.shared.set($0) })) {
-                            ForEach(WatchActionMode.allCases) { Text($0.title).tag($0) }
-                        }
-                    } label: {
-                        AccountCard(symbol: "button.horizontal.top.press.fill", title: "Action button",
-                                    subtitle: "Apple Watch Ultra → \(WatchActionPref.shared.mode.title)",
-                                    gradient: LinearGradient(colors: [Color(hex: 0xFF6A00), Color(hex: 0xFF3D6E)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    }
-                    .buttonStyle(.plain)
-
-                    // Lift sensor (#383): reps and bar speed from the Watch, velocity-loss stop buzz.
-                    Menu {
-                        Picker("Lift sensor", selection: Binding(get: { WatchLiftPref.shared.mode }, set: { WatchLiftPref.shared.set($0) })) {
-                            ForEach(WatchLiftMode.allCases) { Text($0.title).tag($0) }
-                        }
-                    } label: {
-                        AccountCard(symbol: "applewatch.radiowaves.left.and.right", title: "Lift sensor (beta)",
-                                    subtitle: "Apple Watch counts reps, bar speed → \(WatchLiftPref.shared.mode.short)",
-                                    gradient: LinearGradient(colors: [Color(hex: 0x7B2FF7), Color(hex: 0x00C6FF)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    }
-                    .buttonStyle(.plain)
-
-                    // Home Screen widgets (#297): presets, look and topic per size.
-                    NavigationLink { HomeWidgetsView() } label: {
-                        let w = HomeWidgetSync.shared.settings
-                        AccountCard(symbol: "square.grid.2x2.fill", title: "Home Screen widgets",
-                                    subtitle: "\(w.preset?.title ?? "Custom") · \(w.look.title)",
-                                    gradient: LinearGradient(colors: [Color(hex: 0x3B6CFF), Color(hex: 0xFF3CAC)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    }
-                    .buttonStyle(.plain)
-                    section("Connected apps")
-                    let mgConnected = MonkeyGradeLink.shared.isConnected(for: user.id)
-                    if ProStore.shared.locked && !mgConnected {
-                        Button { gate = .monkeyGrade } label: {
-                            AccountCard(symbol: "figure.climbing", title: "MonkeyGrade", subtitle: "Connect your climbing app",
-                                        gradient: ClimbKind.lead.gradient) { ProBadge() }
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                    NavigationLink { MonkeyGradeView() } label: {
-                        let link = MonkeyGradeLink.shared
-                        let connected = link.isConnected(for: user.id)
-                        AccountCard(symbol: "figure.climbing", title: "MonkeyGrade",
-                                    subtitle: connected ? "Climbing sessions, read-only" : "Connect your climbing app",
-                                    gradient: ClimbKind.lead.gradient) {
-                            if connected && !link.sessions.isEmpty {
-                                AccountValue(value: "\(link.sessions.count)", unit: "sessions")
-                            } else {
-                                Text(connected ? "ON" : "CONNECT").font(Theme.label(12)).tracking(1)
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    }
-                    // Around climbing days, also linked under Train → Climbing.
-                    if model.profile.map(Generator.isClimber) ?? false {
-                        Button { ProStore.shared.run(.climbing, $gate) { climbSettings = true } } label: {
-                            AccountCard(symbol: "slider.horizontal.3", title: "Around climbing days",
-                                        subtitle: "Gym days before and after climbing",
-                                        gradient: ClimbKind.boulder.gradient) {
-                                if ProStore.shared.locked { ProBadge() } else { AccountChevron() }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    section("Security")
-                    NavigationLink { ChangePasswordView(hasPassword: user.hasPassword) } label: {
-                        AccountCard(symbol: "key.fill", title: user.hasPassword ? "Password" : "Set a password",
-                                    subtitle: user.hasPassword ? "Change your password" : "Also sign in with email",
-                                    gradient: AccountTint.password)
-                    }
-                    .buttonStyle(.plain)
-                    NavigationLink { ChangeEmailView(currentEmail: user.email) } label: {
-                        AccountCard(symbol: "envelope.fill", title: user.email == nil ? "Add email" : "Email",
-                                    subtitle: user.email == nil ? "Sign in without Apple" : "Change sign-in email",
-                                    gradient: AccountTint.email)
-                    }
-                    .buttonStyle(.plain)
-                    // 2-step sign-in, recovery codes, passkeys (#257).
-                    NavigationLink { SecurityView() } label: {
-                        AccountCard(symbol: "lock.shield.fill", title: "Security", subtitle: "2-step sign-in and passkeys",
-                                    gradient: SecurityTint.confirm)
-                    }
-                    .buttonStyle(.plain)
-                    NavigationLink { DevicesView() } label: {
-                        AccountCard(symbol: "iphone.gen3", title: "Signed-in devices", subtitle: "Where you're signed in",
-                                    gradient: AccountTint.devices) {
-                            if let deviceCount { AccountValue(value: "\(deviceCount)", unit: "active") } else { AccountChevron() }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    AccountCard(symbol: lock.biometryName == "Touch ID" ? "touchid" : "faceid",
-                                title: "Lock with \(lock.biometryName)", subtitle: "Ask when the app opens", gradient: nil) {
-                        Toggle("Lock with \(lock.biometryName)", isOn: Binding(
-                            get: { lock.enabled },
-                            set: { on in Task { await lock.setEnabled(on) } }))
-                            .labelsHidden()
-                            .tint(Theme.lime)
-                    }
-                } else {
-                    ProgressView().frame(maxWidth: .infinity).padding(40).task { await model.refreshUser() }
-                }
-
-                section("Your data")
-                Button { export() } label: {
-                    AccountCard(symbol: "square.and.arrow.down.fill", title: "Export my data",
-                                subtitle: "Account, training profile and all logged weights", gradient: AccountTint.export, ink: true) {
-                        if exportTask.busy { ProgressView().tint(Theme.ink) } else { Text("JSON").font(Theme.display(18)) }
                     }
                 }
-                .buttonStyle(.plain)
-                .disabled(exportTask.busy)
-                if let exportURL {
-                    ShareLink(item: exportURL) {
-                        Label("Share export", systemImage: "square.and.arrow.up")
-                    }
-                    .buttonStyle(LimeButtonStyle())
-                }
-                ErrorText(message: exportTask.error)
-
-                section("Legal & support")
-                if WhatsNew.current != nil || !WhatsNew.history.isEmpty {
-                    // Every update, newest first (#245).
-                    NavigationLink { WhatsNewHistoryView(latest: WhatsNew.current, history: WhatsNew.history) } label: {
-                        AccountCard(symbol: "sparkles", title: "What's new", subtitle: "Every update, newest first",
-                                    gradient: AccountTint.whatsNew) {
-                            AccountValue(value: "\(WhatsNew.history.count + (WhatsNew.current == nil ? 0 : 1))", unit: "updates")
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-                legalCard(symbol: "hand.raised.fill", title: "Privacy policy",
-                          subtitle: "What's stored, why, your rights", url: AppConfig.privacyURL, gradient: AccountTint.privacy)
-                legalCard(symbol: "doc.text.fill", title: "Terms of use",
-                          subtitle: "EULA, subscriptions, community rules", url: AppConfig.termsURL, gradient: AccountTint.terms)
-                legalCard(symbol: "questionmark.bubble.fill", title: "Support",
-                          subtitle: "Contact and common questions", url: AppConfig.supportURL, gradient: AccountTint.support)
-
-                section("Session")
-                HStack(spacing: 10) {
-                    AccountPillButton(title: "Sign out") { Task { await model.signOut() } }
-                    AccountPillButton(title: "Sign out everywhere") { confirmSignOutAll = true }
-                }
-                ErrorText(message: signOutAllTask.error)
-
-                NavigationLink {
-                    DeleteAccountView()
-                } label: {
-                    AccountCard(symbol: "trash.fill", title: "Delete account", subtitle: "Permanent. Export your data first.", gradient: nil, textColor: .red) {
-                        AccountChevron()
-                    }
-                    .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(Color.red.opacity(0.45)))
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 8)
-
-                Text("MonkeyWorkout · Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")")
-                    .font(.caption).foregroundStyle(Theme.muted)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 6)
             }
-            .padding(16)
-            .padding(.bottom, 24)
+            .coordinateSpace(name: "settings")
+            .onPreferenceChange(ChapterTopKey.self) { tops in
+                // The chapter whose card reaches under the sticky bar is the current one.
+                guard !search.active else { return }
+                let passed = SettingsChapter.allCases.filter { (tops[$0] ?? .infinity) < 170 }
+                chapter = passed.last ?? .you
+            }
         }
         .readableWidth()
         .themedForm()
@@ -332,9 +139,283 @@ struct AccountView: View {
         }
     }
 
-    private func legalCard(symbol: String, title: String, subtitle: String, url: URL, gradient: LinearGradient) -> some View {
+    private func searchHeader(jump: @escaping (SettingsChapter) -> Void) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").font(.subheadline.weight(.bold)).foregroundStyle(Theme.muted)
+                TextField("Search settings", text: $query, prompt: Text("Search settings").foregroundStyle(Theme.muted))
+                    .font(.body.weight(.semibold))
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .submitLabel(.search)
+                    .focused($searchFocused)
+                    .accessibilityIdentifier("settings.search")
+                if !query.isEmpty {
+                    Button { query = "" } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.09)))
+            .padding(.horizontal, 16).padding(.top, 8)
+            if !search.active {
+                SettingsChapterBar(chapters: SettingsChapter.allCases, current: chapter, jump: jump)
+            } else {
+                Color.clear.frame(height: 8)
+            }
+        }
+        .background(Theme.bg.opacity(0.96))
+    }
+
+    @ViewBuilder
+    private func groups(_ user: User) -> some View {
+        if search.any(Find.you) {
+            SettingsGroup(chapter: .you) {
+                if ProStore.shared.visible && search.matches(Find.pro) {
+                    NavigationLink { ProView() } label: {
+                        let e = ProStore.shared.entitlement
+                        SettingsRow(symbol: "crown.fill", title: "MonkeyWorkout Pro",
+                                    value: e.pro ? (e.lifetime == true ? "Lifetime" : e.source == .grant ? "Free access" : e.trial == true ? "Free week" : "Active")
+                                        : ProStore.shared.testing ? "Test · \(ProStore.shared.testEffect)" : "1 week free") {
+                            Text(e.pro ? "PRO" : "TRY").font(Theme.label(11)).tracking(1)
+                                .foregroundStyle(Theme.ink)
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(Capsule().fill(Theme.lime))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                // Name and @handle live on the header card (#335); this row is photo and about only.
+                if search.matches(Find.profile) {
+                    NavigationLink { PublicProfileView() } label: {
+                        let me = Community.shared.me
+                        SettingsRow(symbol: "person.2.fill", title: "Community profile", value: profileValue(me)) {
+                            if let url = model.api.resolve(me.avatarUrl) {
+                                AvatarView(url: url, nickname: me.nickname ?? "?", size: 30, ring: .white)
+                            } else {
+                                AccountChevron()
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                // Current gym (#160): home gym, or the trip's while away.
+                if search.matches(Find.gym) { YourGymCard(compact: true) }
+                if search.matches(Find.body) {
+                    NavigationLink { BodyHealthView() } label: {
+                        let kg = health.snapshot.weightKg ?? model.body.weightKg
+                        SettingsRow(symbol: "heart.text.square.fill", title: "Body & Health",
+                                    value: kg.map { Format.kg(($0 * 10).rounded() / 10) + " kg" } ?? (health.connected ? "Health on" : nil))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+
+        if search.any(Find.training) {
+            SettingsGroup(chapter: .training) {
+                if let method = model.profile?.trainingMethod, search.matches(Find.method) {
+                    // Training method (#156): same editor as Training profile → Training method.
+                    NavigationLink { ProfileSectionView(section: .method) } label: {
+                        SettingsRow(symbol: method.symbol, title: "Training method", value: method.label)
+                    }
+                    .buttonStyle(.plain)
+                }
+                // Workout flow (#357): what happens after an exercise's last set.
+                if search.matches(Find.flow) {
+                    NavigationLink { WorkoutFlowView() } label: {
+                        SettingsRow(symbol: "forward.fill", title: "After last set", value: AutoNextPref.short(autoNextSec))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("settings.flow")
+                }
+                // Workout coach (#379): Coach Monkey's voice and big moments in the player.
+                if search.matches(Find.coach) {
+                    NavigationLink { CoachSettingsView() } label: {
+                        SettingsRow(symbol: "megaphone.fill", title: "Workout coach", value: coachSummary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("settings.coach")
+                }
+                if search.matches(Find.reminders) {
+                    NavigationLink { NotificationSettingsView() } label: {
+                        SettingsRow(symbol: "bell.badge.fill", title: "Reminders & alerts")
+                    }
+                    .buttonStyle(.plain)
+                }
+                // Around climbing days (#390): also linked under Train → Climbing. Climbers only.
+                if model.profile.map(Generator.isClimber) ?? false, search.matches(Find.climbing) {
+                    Button { ProStore.shared.run(.climbing, $gate) { climbSettings = true } } label: {
+                        SettingsRow(symbol: "figure.climbing", title: "Around climbing days") {
+                            if ProStore.shared.locked { ProBadge() } else { AccountChevron() }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+
+        // Apple Watch (#347, #349, #383): every option on one page, each row opens it at its card.
+        if search.any(Find.watch) {
+            SettingsGroup(chapter: .watch) {
+                if search.matches(Find.watchStart) {
+                    NavigationLink { WatchOptionsView(focus: .start) } label: {
+                        SettingsRow(symbol: "applewatch.radiowaves.left.and.right", title: "Start from iPhone", value: WatchStartPref.shared.mode.short)
+                    }
+                    .buttonStyle(.plain)
+                }
+                if search.matches(Find.action) {
+                    NavigationLink { WatchOptionsView(focus: .action) } label: {
+                        SettingsRow(symbol: "button.horizontal.top.press.fill", title: "Action button", value: WatchActionPref.shared.mode.title)
+                    }
+                    .buttonStyle(.plain)
+                }
+                if search.matches(Find.lift) {
+                    NavigationLink { WatchOptionsView(focus: .lift) } label: {
+                        SettingsRow(symbol: "waveform.path.ecg", title: "Lift sensor β", value: WatchLiftPref.shared.mode.short)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+
+        if search.any(Find.look) {
+            SettingsGroup(chapter: .look) {
+                // App style (#219, #227): one pick for the iPhone game look and the Watch.
+                if search.matches(Find.style) {
+                    NavigationLink { WatchHomeView() } label: {
+                        SettingsRow(symbol: WatchHomePref.shared.style.phoneSymbol, title: "Style", value: WatchHomePref.shared.style.phoneTitle)
+                    }
+                    .buttonStyle(.plain)
+                }
+                // Home Screen widgets (#297): presets, look and topic per size.
+                if search.matches(Find.widgets) {
+                    NavigationLink { HomeWidgetsView() } label: {
+                        let w = HomeWidgetSync.shared.settings
+                        SettingsRow(symbol: "square.grid.2x2.fill", title: "Widgets", value: "\(w.preset?.title ?? "Custom") · \(w.look.title)")
+                    }
+                    .buttonStyle(.plain)
+                }
+                if search.matches(Find.monkeyGrade) { monkeyGradeRow(user) }
+            }
+        }
+
+        if search.any(Find.account) {
+            SettingsGroup(chapter: .account) {
+                if search.matches(Find.password) {
+                    NavigationLink { ChangePasswordView(hasPassword: user.hasPassword) } label: {
+                        SettingsRow(symbol: "key.fill", title: "Password", value: user.hasPassword ? "Set" : "Add")
+                    }
+                    .buttonStyle(.plain)
+                }
+                if search.matches(Find.email) {
+                    NavigationLink { ChangeEmailView(currentEmail: user.email) } label: {
+                        SettingsRow(symbol: "envelope.fill", title: "Email", value: user.email == nil ? "Add" : "Change")
+                    }
+                    .buttonStyle(.plain)
+                }
+                // 2-step sign-in, recovery codes, passkeys (#257).
+                if search.matches(Find.security) {
+                    NavigationLink { SecurityView() } label: {
+                        SettingsRow(symbol: "lock.shield.fill", title: "2-step & passkeys")
+                    }
+                    .buttonStyle(.plain)
+                }
+                if search.matches(Find.devices) {
+                    NavigationLink { DevicesView() } label: {
+                        SettingsRow(symbol: "iphone.gen3", title: "Signed-in devices", value: deviceCount.map { "\($0)" })
+                    }
+                    .buttonStyle(.plain)
+                }
+                if search.matches(Find.lock) {
+                    SettingsRow(symbol: lock.biometryName == "Touch ID" ? "touchid" : "faceid", title: "Lock with \(lock.biometryName)") {
+                        Toggle("Lock with \(lock.biometryName)", isOn: Binding(
+                            get: { lock.enabled },
+                            set: { on in Task { await lock.setEnabled(on) } }))
+                            .labelsHidden()
+                            .tint(Theme.lime)
+                    }
+                }
+                if search.matches(Find.export) {
+                    Button { export() } label: {
+                        SettingsRow(symbol: "square.and.arrow.down.fill", title: "Export my data") {
+                            if exportTask.busy { ProgressView().tint(.white) } else { Text("JSON").font(Theme.label(13)) }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(exportTask.busy)
+                    if let exportURL {
+                        ShareLink(item: exportURL) {
+                            Label("Share export", systemImage: "square.and.arrow.up")
+                        }
+                        .buttonStyle(LimeButtonStyle())
+                    }
+                    ErrorText(message: exportTask.error)
+                }
+                if search.matches(Find.signOut) {
+                    HStack(spacing: 6) {
+                        AccountPillButton(title: "Sign out") { Task { await model.signOut() } }
+                        AccountPillButton(title: "Sign out everywhere") { confirmSignOutAll = true }
+                    }
+                    ErrorText(message: signOutAllTask.error)
+                }
+            }
+            if search.matches(Find.delete) {
+                NavigationLink { DeleteAccountView() } label: {
+                    AccountCard(symbol: "trash.fill", title: "Delete account", subtitle: "Permanent. Export your data first.", gradient: nil, textColor: .red) {
+                        AccountChevron()
+                    }
+                    .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(Color.red.opacity(0.45)))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var helpGroup: some View {
+        if search.any(Find.help) {
+            SettingsGroup(chapter: .help) {
+                if (WhatsNew.current != nil || !WhatsNew.history.isEmpty) && search.matches(Find.whatsNew) {
+                    // Every update, newest first (#245).
+                    NavigationLink { WhatsNewHistoryView(latest: WhatsNew.current, history: WhatsNew.history) } label: {
+                        SettingsRow(symbol: "sparkles", title: "What's new",
+                                    value: "\(WhatsNew.history.count + (WhatsNew.current == nil ? 0 : 1)) updates")
+                    }
+                    .buttonStyle(.plain)
+                }
+                if search.matches(Find.privacy) { legalRow(symbol: "hand.raised.fill", title: "Privacy policy", url: AppConfig.privacyURL) }
+                if search.matches(Find.terms) { legalRow(symbol: "doc.text.fill", title: "Terms of use", url: AppConfig.termsURL) }
+                if search.matches(Find.support) { legalRow(symbol: "questionmark.bubble.fill", title: "Support", url: AppConfig.supportURL) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func monkeyGradeRow(_ user: User) -> some View {
+        let link = MonkeyGradeLink.shared
+        let connected = link.isConnected(for: user.id)
+        if ProStore.shared.locked && !connected {
+            Button { gate = .monkeyGrade } label: {
+                SettingsRow(symbol: "figure.climbing", title: "MonkeyGrade") { ProBadge() }
+            }
+            .buttonStyle(.plain)
+        } else {
+            NavigationLink { MonkeyGradeView() } label: {
+                SettingsRow(symbol: "figure.climbing", title: "MonkeyGrade",
+                            value: connected ? (link.sessions.isEmpty ? "On" : "\(link.sessions.count) sessions") : "Connect")
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func legalRow(symbol: String, title: String, url: URL) -> some View {
         Button { webPage = WebPage(url: url) } label: {
-            AccountCard(symbol: symbol, title: title, subtitle: subtitle, gradient: gradient) {
+            SettingsRow(symbol: symbol, title: title) {
                 Image(systemName: "arrow.up.right").font(.footnote.weight(.heavy)).opacity(0.8)
             }
         }
@@ -342,8 +423,9 @@ struct AccountView: View {
         .accessibilityHint("Opens \(title.lowercased())")
     }
 
-    private func section(_ title: String) -> some View {
-        Text(title).eyebrow().padding(.leading, 4).padding(.top, 12)
+    private func profileValue(_ me: PublicProfile) -> String? {
+        if me.nickname == nil { return "Set up" }
+        return me.member ? "Shown" : "Ready"
     }
 
     private func profileHero(_ user: User) -> some View {
@@ -431,12 +513,6 @@ struct AccountView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .background(Capsule().fill(Theme.lime))
-    }
-
-    private func profileSubtitle(_ me: PublicProfile) -> String {
-        if let bio = me.bio, !bio.isEmpty { return "Photo, about · \(bio)" }
-        if me.nickname == nil { return "Photo, about you" }
-        return me.member ? "Shown in Community" : "Ready for Community"
     }
 
     private func chip(_ title: String, symbol: String, highlighted: Bool = false) -> some View {
@@ -623,5 +699,13 @@ struct DeleteAccountView: View {
         .navigationTitle("Delete account")
         .toolbarTitleDisplayMode(.inline)
         .reauthSheet(gate)
+    }
+}
+
+/// Top of each Settings chapter in the scroll view, for the sticky chapter bar (#394).
+struct ChapterTopKey: PreferenceKey {
+    static let defaultValue: [SettingsChapter: CGFloat] = [:]
+    static func reduce(value: inout [SettingsChapter: CGFloat], nextValue: () -> [SettingsChapter: CGFloat]) {
+        value.merge(nextValue()) { $1 }
     }
 }
