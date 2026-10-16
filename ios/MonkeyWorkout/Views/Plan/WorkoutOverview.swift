@@ -1,8 +1,8 @@
 import SwiftUI
 import WorkoutEngine
 
-// What's left in the workout without leaving the player (#361, designs A + C from `workout-overview/proposals.png`):
-// a "Coming up" strip in the player's free space and a read-only Workout map behind the progress dots. Nothing here edits.
+// What's left in the workout without leaving the player (#361): a read-only Workout map behind the progress dots and,
+// since #373, the smart Up next bar (the Coming up strip it replaces moved with the free space). Nothing here edits.
 
 /// One item of the workout as the overview shows it.
 struct OverviewItem: Identifiable {
@@ -48,62 +48,94 @@ private func blockLabel(_ b: Block) -> String {
 
 private func target(_ p: Prescription) -> String { p.sets > 1 ? "\(p.sets) × \(p.reps)" : p.reps }
 
-/// Design C: the exercises still to do as bold tiles in the block's colours. Swipe sideways; a tap shows the exercise.
-struct ComingUpStrip: View {
-    let items: [OverviewItem]
+/// Up next, always in the same place above the controls (#373, design C from `player-layout/portrait.png`): the next
+/// set or exercise, the two after it, and what's left with the end time. Tap or swipe up for the Workout map.
+struct SmartUpNextBar: View {
+    /// nil on the last item: the workout finishes next.
+    let next: WorkoutPlayerView.UpNext?
+    /// The next exercises after `next`, in the map's order (two are shown).
+    let then: [OverviewItem]
+    let left: Int
     let doneBy: Date
-    let onPeek: (Exercise) -> Void
+    let fallback: [Color]
     let onMap: () -> Void
 
     var body: some View {
-        let left = items.filter { $0.state == .left }
-        VStack(alignment: .leading, spacing: 8) {
-            Button(action: onMap) {
-                HStack(spacing: 6) {
-                    Text("Coming up · \(left.count) left · done ~\(doneBy.formatted(date: .omitted, time: .shortened))")
-                        .lineLimit(1).minimumScaleFactor(0.8)
-                    Spacer(minLength: 4)
-                    Label("Map", systemImage: "list.bullet").labelStyle(.titleAndIcon)
-                }
-                .font(Theme.label(11)).tracking(1).textCase(.uppercase)
-                .foregroundStyle(.white.opacity(0.8))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(left.count) exercises left. Open workout map")
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(left) { o in
-                        Button { onPeek(o.exercise) } label: { tile(o) }
-                            .buttonStyle(.plain)
+        Button(action: onMap) {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 10) {
+                    thumb(next?.exercise, symbol: next == nil ? "flag.checkered" : "arrow.right", size: 34)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(next?.eyebrow ?? "Up next").font(Theme.label(10)).tracking(1.2).textCase(.uppercase)
+                            .opacity(0.85).lineLimit(1)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(next?.title ?? "Finish workout").font(Theme.display(15)).lineLimit(1).minimumScaleFactor(0.7)
+                            if let d = next?.detail, !d.isEmpty {
+                                Text(d).font(Theme.label(11)).opacity(0.9).lineLimit(1).layoutPriority(-1)
+                            }
+                        }
                     }
+                    Spacer(minLength: 0)
+                }
+                HStack(spacing: 5) {
+                    if !then.isEmpty {
+                        Text("then").font(Theme.label(10)).opacity(0.8)
+                        ForEach(then.prefix(2)) { o in
+                            HStack(spacing: 3) {
+                                thumb(o.exercise, symbol: o.category.symbol, size: 16)
+                                Text(o.exercise.name).font(Theme.label(10)).lineLimit(1)
+                            }
+                            .layoutPriority(-1)
+                        }
+                    }
+                    Spacer(minLength: 4)
+                    Label(left == 0 ? "done ~\(time)" : "\(left) left · ~\(time)", systemImage: "chevron.up")
+                        .labelStyle(TrailingIcon())
+                        .font(Theme.label(10)).monospacedDigit()
+                        .lineLimit(1).fixedSize()
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(Capsule().fill(.black.opacity(0.28)))
                 }
             }
-            .scrollClipDisabled()
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(LinearGradient(colors: next?.colors ?? fallback, startPoint: .topLeading, endPoint: .bottomTrailing)))
+            .contentShape(Rectangle())
         }
-        .foregroundStyle(.white)
+        .buttonStyle(.plain)
+        .simultaneousGesture(DragGesture(minimumDistance: 20).onEnded { v in
+            if v.translation.height < -30 { onMap() }
+        })
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(next.map { "\($0.eyebrow): \($0.title)" } ?? "Finish workout next"). \(left) exercises left. Open workout map")
+        .accessibilityIdentifier("player.upNext")
     }
 
-    /// Compact (78 pt) so the strip fits the free space under the exercise card on most phones.
-    private func tile(_ o: OverviewItem) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            if ExerciseImage.hasMedia(o.exercise) {
-                ExerciseThumbnail(exercise: o.exercise, size: 30)
-            } else {
-                Image(systemName: o.category.symbol).font(.system(size: 13, weight: .heavy))
-                    .frame(width: 30, height: 30)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(0.22)))
-            }
-            Spacer(minLength: 0)
-            Text(o.exercise.name).font(Theme.display(13)).lineLimit(1).minimumScaleFactor(0.7)
-            Text(target(o.item.prescription)).font(Theme.label(10)).opacity(0.9).lineLimit(1)
+    private var time: String { doneBy.formatted(date: .omitted, time: .shortened) }
+
+    @ViewBuilder
+    private func thumb(_ exercise: Exercise?, symbol: String, size: CGFloat) -> some View {
+        if let exercise, ExerciseImage.hasMedia(exercise) {
+            ExerciseThumbnail(exercise: exercise, size: size)
+        } else {
+            Image(systemName: exercise?.category.symbol ?? symbol)
+                .font(.system(size: size * 0.42, weight: .heavy))
+                .frame(width: size, height: size)
+                .background(RoundedRectangle(cornerRadius: size * 0.27, style: .continuous).fill(.white.opacity(0.2)))
         }
-        .padding(8)
-        .frame(width: 124, height: 78, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(o.category.gradient))
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Shows the exercise")
+    }
+
+    /// The items after `next` that are still to do (skipped and finished-early ones are left out).
+    static func after(_ items: [OverviewItem], current: String, next: Exercise?) -> [OverviewItem] {
+        Array(items.filter { $0.state == .left && $0.id != current && $0.exercise.id != next?.id }.prefix(2))
+    }
+}
+
+/// "14 left · ~7:30 ⌃": title first, icon after.
+private struct TrailingIcon: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 3) { configuration.title; configuration.icon.imageScale(.small) }
     }
 }
 
