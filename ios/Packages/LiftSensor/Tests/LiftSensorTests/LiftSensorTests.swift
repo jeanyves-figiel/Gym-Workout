@@ -212,3 +212,23 @@ struct SetCase: Sendable, CustomTestStringConvertible {
         ]) == 0.25)
     }
 }
+
+@Suite struct MachineTests {
+    @Test func spots() {
+        #expect(MachineSpot.for(name: "Leg Extension")?.place == "the shin pad")
+        #expect(MachineSpot.for(name: "Seated Calf Raise")?.place == "the knee pad")
+        #expect(MachineSpot.for(name: "Leg Press")?.family == .squat)
+        #expect(MachineSpot.for(name: "Plank") == nil)
+        #expect(MachineSpot.for(name: "Bench Press") == nil)
+    }
+
+    @Test func fixedAxisCountsPushes() {
+        let s = synthSet(startUp: true)
+        let t = SetTracker(profile: LiftProfile(direction: .axis, family: .other), lossLimit: nil)
+        t.fixAxis(Vec3(-1, 0, 0))
+        for a in s.accel {
+            _ = t.append(MotionSample(userAcceleration: Vec3(-a, 0, 0), gravity: Vec3(0, 0, -1)))
+        }
+        #expect(t.finish().count == 8)
+    }
+}

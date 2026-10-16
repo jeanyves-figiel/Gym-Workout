@@ -5,6 +5,8 @@ import WorkoutEngine
 extension Notification.Name {
     /// A `WCommand` from the Watch for the iPhone workout player (object: WCommand).
     static let watchCommand = Notification.Name("watchCommand")
+    /// Live lift sensor state from the Watch for the iPhone player (object: WLiftLive, #383).
+    static let watchLift = Notification.Name("watchLift")
 }
 
 /// App style (#219, #227): one pick for the Watch home and screens and the iPhone's game look (Monkey coach,
@@ -80,6 +82,25 @@ final class WatchActionPref {
     }
 
     func set(_ new: WatchActionMode) {
+        mode = new
+        UserDefaults.standard.set(new.rawValue, forKey: Self.key)
+        WatchSync.shared.push()
+    }
+}
+
+/// Lift sensor on the Watch (#383): off, or on with the velocity-loss stop buzz.
+@MainActor @Observable
+final class WatchLiftPref {
+    static let shared = WatchLiftPref()
+    private static let key = "watchLiftMode"
+
+    private(set) var mode: WatchLiftMode
+
+    private init() {
+        mode = UserDefaults.standard.string(forKey: Self.key).flatMap(WatchLiftMode.init) ?? .default
+    }
+
+    func set(_ new: WatchLiftMode) {
         mode = new
         UserDefaults.standard.set(new.rawValue, forKey: Self.key)
         WatchSync.shared.push()
@@ -206,6 +227,9 @@ final class WatchSync: NSObject {
         case let .tracking(sessionId, on):
             if on { trackedBy = sessionId } else if trackedBy == sessionId { trackedBy = nil }
             return
+        case let .liftSet(set):
+            LiftSets.shared.add(set)
+            return
         case let .tracked(t):
             guard let r = awaitingWatch.removeValue(forKey: t.recordId) else { return }
             if t.savedToHealth { model.attachHeartRate(r.id, avg: t.avgHeartRate, max: t.maxHeartRate) } else { saveOnPhone(r) }
@@ -247,6 +271,7 @@ final class WatchSync: NSObject {
         s.homeStyleChangedAt = WatchHomePref.shared.changedAt
         s.watchStart = WatchStartPref.shared.mode
         s.actionButton = WatchActionPref.shared.mode
+        s.liftSensor = WatchLiftPref.shared.mode
         let target = model.profile?.sessionsPerWeek ?? 3
         let stats = Progression.stats(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
         s.progress = WProgress(
@@ -327,6 +352,10 @@ extension WatchSync: WCSessionDelegate {
         // Tracking state is sent live so the finish knows who saves the Health workout (#347).
         if let data = message[WatchKeys.event] as? Data, let event = try? JSONDecoder.watch.decode(WatchEvent.self, from: data) {
             Task { @MainActor in self.apply(event) }
+            return
+        }
+        if let data = message[WatchKeys.lift] as? Data, let lift = try? JSONDecoder.watch.decode(WLiftLive.self, from: data) {
+            Task { @MainActor in NotificationCenter.default.post(name: .watchLift, object: lift) }
             return
         }
         guard let raw = message[WatchKeys.command] as? String, let command = WCommand(rawValue: raw) else { return }

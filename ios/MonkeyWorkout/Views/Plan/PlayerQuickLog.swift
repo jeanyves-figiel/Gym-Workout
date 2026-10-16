@@ -198,6 +198,8 @@ struct CurrentSetCard: View {
     let color: Color
     /// Done set being corrected; nil = the coming set.
     @Binding var editing: Int?
+    /// Reps and bar speed the Watch measures for this set (#383).
+    var watchLift: WLiftLive? = nil
     let onSave: (Int) -> Void
 
     var body: some View {
@@ -219,6 +221,8 @@ struct CurrentSetCard: View {
                             .background(Capsule().fill(Theme.lime))
                     }
                     .buttonStyle(.plain)
+                } else if let w = watchLift, !allDone {
+                    WatchLiftPill(lift: w)
                 } else if let s = state.suggestion, !allDone {
                     // Where the prefill comes from; values stay editable with the steppers.
                     Label(s.source == .history ? "From last time" : "Estimate",

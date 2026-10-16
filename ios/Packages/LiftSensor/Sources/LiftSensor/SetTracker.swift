@@ -26,6 +26,8 @@ public final class SetTracker {
 
     private var samples: [MotionSample] = []
     private var axis: Vec3?
+    /// Machine mode: axis learned from a test rep, pointing in the push direction.
+    private var fixedAxis: Vec3?
     public private(set) var reps: [LiftRep] = []
     private var lossSent = false
     private var endSent = false
@@ -53,6 +55,11 @@ public final class SetTracker {
         return analyse()
     }
 
+    /// Uses a known axis (machine mode test rep) whose positive direction is the lifting part.
+    public func fixAxis(_ axis: Vec3) {
+        fixedAxis = axis.unit
+    }
+
     /// The member said the set isn't over (Undo): wait for more reps before ending again.
     public func resume() {
         endSent = false
@@ -72,6 +79,7 @@ public final class SetTracker {
         case .down: return samples.map { -$0.verticalUp }
         case .axis:
             let ua = samples.map(\.userAcceleration)
+            if let fixedAxis { return ua.map { $0.dot(fixedAxis) } }
             if let a = SetAnalyzer.principalAxis(ua, previous: axis) { axis = a }
             guard let axis else { return [Double](repeating: 0, count: samples.count) }
             return ua.map { $0.dot(axis) }
@@ -80,7 +88,7 @@ public final class SetTracker {
 
     private func compute(closed: Bool) -> [LiftRep] {
         let phases = SetAnalyzer.phases(axisSeries(), rotation: samples.map(\.rotationRate), config: config, closed: closed)
-        let sign = SetAnalyzer.concentricSign(phases, given: profile.direction == .axis ? nil : 1)
+        let sign = SetAnalyzer.concentricSign(phases, given: profile.direction == .axis && fixedAxis == nil ? nil : 1)
         return SetAnalyzer.reps(phases, concentricSign: sign, sampleRate: config.sampleRate)
     }
 

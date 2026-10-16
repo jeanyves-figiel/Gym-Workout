@@ -41,6 +41,8 @@ struct WorkoutPlayerView: View {
     @State private var log = SetLogState()
     /// Done set opened for a correction in the set card.
     @State private var editingSet: Int?
+    /// Reps and bar speed the Watch measures for the current set (#383).
+    @State private var watchLift: WLiftLive?
     @State private var live = LiveWorkout()
     /// Finish early (#300): the remaining workout re-fitted to the time left, and the time to be done by.
     @State private var fitted: [Block]?
@@ -208,6 +210,11 @@ struct WorkoutPlayerView: View {
         .onReceive(NotificationCenter.default.publisher(for: .watchCommand)) { n in
             if let c = n.object as? WCommand { handle(c) }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .watchLift)) { n in
+            if let l = n.object as? WLiftLive { applyWatchLift(l) }
+        }
+        .onChange(of: setsDone) { watchLift = nil }
+        .onChange(of: index) { watchLift = nil }
     }
 
     // MARK: Player
@@ -549,7 +556,8 @@ struct WorkoutPlayerView: View {
     private func setCard(_ step: Step, sets: Int, done: Int, colors: [Color]) -> some View {
         if step.loggable {
             if log.item?.uid == step.item.uid {
-                CurrentSetCard(state: log, done: done, color: colors[0], editing: $editingSet) { i in
+                CurrentSetCard(state: log, done: done, color: colors[0], editing: $editingSet,
+                               watchLift: watchLift.flatMap { $0.exerciseId == step.item.exerciseId && $0.setIndex == done ? $0 : nil }) { i in
                     _ = log.log(i, model: model)
                 }
             }
@@ -1034,7 +1042,21 @@ struct WorkoutPlayerView: View {
             restEnd: state.restEnd, next: state.next, tint: state.tint,
             effortPending: pause?.effortSet != nil && pause?.effort == nil,
             action: mainLabel(step, sets: step.sets, done: setsDone[step.item.uid] ?? 0),
-            sessionId: sessionId, estMin: session.estMin, exercises: session.blocks.reduce(0) { $0 + $1.items.count }))
+            sessionId: sessionId, estMin: session.estMin, exercises: session.blocks.reduce(0) { $0 + $1.items.count },
+            exerciseId: step.item.exerciseId, setIndex: setsDone[step.item.uid] ?? 0, loggable: step.loggable && step.timedSpec == nil,
+            kg: log.item?.uid == step.item.uid ? log.values(min(setsDone[step.item.uid] ?? 0, max(0, log.rows.count - 1)))?.kg : nil))
+    }
+
+    /// Reps counted by the Watch fill the coming set's reps (#383); the member still confirms with an effort tile.
+    private func applyWatchLift(_ l: WLiftLive) {
+        guard ready, !finished, steps.indices.contains(index), l.sessionId == sessionId else { return }
+        let step = steps[index]
+        let done = setsDone[step.item.uid] ?? 0
+        guard l.exerciseId == step.item.exerciseId, l.setIndex == done, pause == nil else { return }
+        watchLift = l
+        if l.reps > 0, editingSet == nil, log.item?.uid == step.item.uid, log.rows.indices.contains(done) {
+            log.rows[done].reps = String(l.reps)
+        }
     }
 
     /// Remote control from the Watch while this player runs on the iPhone.

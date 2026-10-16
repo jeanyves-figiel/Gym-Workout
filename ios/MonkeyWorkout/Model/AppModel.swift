@@ -207,6 +207,7 @@ final class AppModel {
         stopAutoSync()
         ProStore.shared.reset()
         store.wipe()
+        LiftSets.shared.wipe()
         state = LocalState()
         user = nil
         phase = .signedOut
