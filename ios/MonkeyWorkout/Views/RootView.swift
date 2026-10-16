@@ -135,6 +135,9 @@ private struct DemoScreen: View {
         case "player-timed": WorkoutPlayerView(sessionId: second, demoMode: "timed")
         case "player-logged": WorkoutPlayerView(sessionId: second, demoMode: "logged")
         case "player-next": WorkoutPlayerView(sessionId: second, demoMode: "next")
+        case "player-coach": WorkoutPlayerView(sessionId: second, demoMode: "coach")
+        case "player-record": WorkoutPlayerView(sessionId: second, demoMode: "coach-record")
+        case "coach-settings": NavigationStack { CoachSettingsView() }
         case "finish-early": WorkoutPlayerView(sessionId: second, demoMode: "finish")
         case "player-fitted": WorkoutPlayerView(sessionId: second, demoMode: "fitted")
         // Machine setups (#355).
@@ -260,6 +263,9 @@ private struct DemoScreen: View {
         case "generated":
             let options = MuscleWorkoutOptions(groups: [.chest, .back], minutes: 60, rest: .short, grouping: .supersets)
             CustomWorkoutEditor(initial: CustomWorkout.generate(options, profile: model.profile ?? Profile(), seed: 7), generated: options)
+        case "coach-chat", "coach-chat-empty":
+            CoachChatView()
+                .onAppear { if Demo.screen == "coach-chat" { Demo.fillCoachChat(profile: model.profile ?? Profile()) } }
         case "onboarding", "onboarding-climbing":
             NavigationStack {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }

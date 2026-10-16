@@ -262,6 +262,18 @@ public struct Profile: Codable, Hashable, Sendable {
     /// Learned exercise affinities (#299), frozen when the week's plan was made. Set by the app when generating;
     /// not part of the profile form. nil = nothing learned (plans exactly as before).
     public var learnedTaste: [String: Double]?
+    /// Birth year from Body & Health (#375). Set by the app when generating; not part of the profile form.
+    /// nil = unknown (plans exactly as before).
+    public var birthYear: Int?
+
+    /// Usual workout time (#377), minutes after midnight; nil = not set (plans as before).
+    public var workoutTime: Int?
+
+    /// Usually trains before 11:00: muscles start cooler, the warm-up gets one more minute of cardio (#377).
+    public var trainsInMorning: Bool { workoutTime.map { $0 < 11 * 60 } ?? false }
+
+    /// Age this year, when the birth year is known.
+    public var age: Int? { birthYear.map { Calendar.current.component(.year, from: Date()) - $0 } }
 
     public init(
         goal: Goal = .balanced, sessionsPerWeek: Int = 3, experience: Experience = .intermediate,

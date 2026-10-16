@@ -163,6 +163,9 @@ struct MonkeyCoachCard: View {
     @State private var bob = false
     @State private var catchUp: WeekDayStrip.DayPick?
     @State private var levels = false
+    /// Workout chat (#381).
+    @State private var chatting = false
+    @State private var gate: ProGate?
 
     private enum Action {
         case start(Session), catchUp(Int), progress(ProgressSection), exercise(String), levels, calendar
@@ -202,7 +205,7 @@ struct MonkeyCoachCard: View {
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.trailing, 28)
+            .padding(.trailing, compact ? 72 : 28)
             .contentShape(Rectangle())
             .onTapGesture { poke(by: 1, count: all.count) }
             .accessibilityElement(children: .combine)
@@ -230,6 +233,10 @@ struct MonkeyCoachCard: View {
                 }
             }
             .buttonStyle(.plain)
+            // Workout chat (#381, design A): short phones skip the bar so Start workout stays on screen (#337).
+            if !compact {
+                AskCoachBar { ProStore.shared.run(.generateWorkout, $gate) { chatting = true } }
+            }
         }
         .foregroundStyle(.white)
         .padding(14)
@@ -249,15 +256,28 @@ struct MonkeyCoachCard: View {
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous)
             .fill(LinearGradient(colors: [Color(hex: current.tint.0), Color(hex: current.tint.1)], startPoint: .topLeading, endPoint: .bottomTrailing)))
         .overlay(alignment: .topTrailing) {
-            // Next tip (#303): round corner button instead of a chip that pushed the row past the card.
-            Button { poke(by: 1, count: all.count) } label: {
-                Image(systemName: "arrow.clockwise").font(.system(size: 15, weight: .heavy)).foregroundStyle(.white)
-                    .frame(width: 36, height: 36)
-                    .background(Circle().fill(.white.opacity(0.28)))
+            HStack(spacing: 8) {
+                // Short phones (#337): the workout chat (#381) opens from a corner button instead of the bar.
+                if compact {
+                    Button { ProStore.shared.run(.generateWorkout, $gate) { chatting = true } } label: {
+                        Image(systemName: "bubble.left.and.text.bubble.right.fill").font(.system(size: 14, weight: .heavy))
+                            .foregroundStyle(Theme.ink)
+                            .frame(width: 36, height: 36)
+                            .background(Circle().fill(Theme.lime))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Ask Coach for today's workout")
+                }
+                // Next tip (#303): round corner button instead of a chip that pushed the row past the card.
+                Button { poke(by: 1, count: all.count) } label: {
+                    Image(systemName: "arrow.clockwise").font(.system(size: 15, weight: .heavy)).foregroundStyle(.white)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(.white.opacity(0.28)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Next tip")
             }
-            .buttonStyle(.plain)
             .padding(12)
-            .accessibilityLabel("Next tip")
         }
         .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
         .simultaneousGesture(DragGesture(minimumDistance: 24).onEnded { v in
@@ -268,6 +288,8 @@ struct MonkeyCoachCard: View {
         .sensoryFeedback(.impact(weight: .light), trigger: tip)
         .sheet(item: $catchUp) { MissedCatchUpSheet(weekday: $0.id) }
         .sheet(isPresented: $levels) { LevelLadderSheet() }
+        .fullScreenCover(isPresented: $chatting) { CoachChatView() }
+        .proPaywall($gate)
         .onAppear {
             guard !reduceMotion else { return }
             poke(by: 0, count: 0)

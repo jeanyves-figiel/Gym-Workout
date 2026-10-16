@@ -173,6 +173,8 @@ struct ProfileFormView: View {
         case .week:
             summary
             week
+        case .time:
+            WorkoutTimeSection(profile: $p)
         case .variety:
             variety
         case .style:

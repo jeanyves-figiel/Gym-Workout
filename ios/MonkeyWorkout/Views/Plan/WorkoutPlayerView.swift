@@ -63,6 +63,10 @@ struct WorkoutPlayerView: View {
     /// "Next in 5" after an exercise's last set (#357); nil = not counting.
     @State private var autoNext: AutoNext?
     @AppStorage(AutoNextPref.key) private var autoNextSec = AutoNextPref.fallback
+    /// Coach Monkey in the player (#379): voice, subtitle bubble, record burst, Final set badge.
+    @State private var coach = WorkoutCoach()
+    /// Items that already had their record burst this workout.
+    @State private var coachRecorded: Set<String> = []
 
     struct AutoNext: Equatable {
         let uid: String
@@ -193,18 +197,36 @@ struct WorkoutPlayerView: View {
             OrientationLock.allowLandscape(false)
             saveProgress()
             live.end()
+            coach.stop()
             if !finished, !discarded { WatchSync.shared.endLive(.paused, sessionId: sessionId) }
             model.replanAfterWorkoutIfDone()
         }
         .onChange(of: index) { reloadLog(); saveProgress(); updateLive() }
         .onChange(of: setsDone) { saveProgress(); updateLive() }
         .onChange(of: pause) { updateLive() }
-        .onChange(of: pause == nil) { _, free in if free { setStart = Date() } }
+        .onChange(of: pause == nil) { _, free in
+            if free {
+                setStart = Date()
+                coachFinalSetIfDue()
+            }
+        }
+        .onChange(of: index) { coachHalfwayIfDue() }
+        .onChange(of: coach.watchLine) { updateLive() }
         .onChange(of: index) { setStart = Date() }
         .onChange(of: log.rows) { updateLive() }
         .onChange(of: scenePhase) { _, p in if p != .active { saveProgress(interrupted: p == .background) } }
         .onReceive(NotificationCenter.default.publisher(for: .workoutRestAdd15)) { _ in extendRest() }
         .onReceive(NotificationCenter.default.publisher(for: .workoutRestSkip)) { _ in closePause() }
+        // Lock screen / Dynamic Island (#371): effort tile logs the set, − / + kg, lime button.
+        .onReceive(NotificationCenter.default.publisher(for: .workoutLogSet)) { n in
+            let efforts: [WCommand] = [.effort0, .effort1, .effort2, .effort3, .effort4]
+            handle(efforts[min(4, max(0, n.object as? Int ?? 2))])
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .workoutStepKg)) { n in stepKgFromLockScreen(n.object as? Int ?? 0) }
+        .onReceive(NotificationCenter.default.publisher(for: .workoutMain)) { _ in handle(.main) }
+        .onReceive(NotificationCenter.default.publisher(for: .watchHeartRate)) { _ in updateLive() }
+        .onChange(of: timed) { updateLive() }
+        .onChange(of: autoNext) { updateLive() }
         .onReceive(NotificationCenter.default.publisher(for: .watchCommand)) { n in
             if let c = n.object as? WCommand { handle(c) }
         }
@@ -229,6 +251,15 @@ struct WorkoutPlayerView: View {
             if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
             guard !Task.isCancelled, autoNext == a else { return }
             advance(step)
+        }
+        .task(id: pause?.end) {
+            // Coach, every-set voice (#379): 10 s before a rest of 30 s or more ends.
+            guard let p = pause, let end = p.end, p.total >= 30 else { return }
+            let wait = end.timeIntervalSinceNow - 10
+            guard wait > 0 else { return }
+            try? await Task.sleep(for: .seconds(wait))
+            guard !Task.isCancelled, pause?.end == end else { return }
+            coach.say(.restEnding(seconds: 10), once: "rest-\(p.start.timeIntervalSince1970)")
         }
         .task(id: timed?.end) {
             // Timed set over: count it and buzz.
@@ -318,7 +349,22 @@ struct WorkoutPlayerView: View {
                     closePause()
                 }
             }
+
+            // Coach (#379): over the picture, never in the layout, so nothing moves.
+            if let r = coach.record {
+                CoachRecordBurst(record: r) { withAnimation(.spring(duration: 0.3)) { coach.record = nil } }
+                    .frame(maxHeight: 340)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 66)
+                    .readableColumn()
+            } else if let b = coach.bubble {
+                CoachBubble(call: b)
+                    .padding(.horizontal, 36)
+                    .padding(.top, 150)
+            }
         }
+        .animation(.spring(duration: 0.35), value: coach.bubble)
+        .animation(.spring(duration: 0.35), value: coach.record)
     }
 
     // MARK: Landscape (#362)
@@ -354,6 +400,16 @@ struct WorkoutPlayerView: View {
                         .id(step.item.uid)
                         .transition(.opacity)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .overlay {
+                            // Coach (#379) over the exercise card only.
+                            if let r = coach.record {
+                                CoachRecordBurst(record: r) { withAnimation(.spring(duration: 0.3)) { coach.record = nil } }
+                            } else if let b = coach.bubble {
+                                CoachBubble(call: b).padding(12)
+                            }
+                        }
+                        .animation(.spring(duration: 0.35), value: coach.bubble)
+                        .animation(.spring(duration: 0.35), value: coach.record)
 
                     VStack(spacing: 8) {
                         if let splitUndo {
@@ -522,6 +578,8 @@ struct WorkoutPlayerView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Exercise \(index + 1) of \(steps.count). Open workout map")
+            // Coach voice (#379): glows while talking, tap mutes it for this workout.
+            if coach.hasVoice { CoachPill(coach: coach) }
             // Tap the clock to finish early (#300); after a fit it counts down to the time to be done by.
             Button { finishingEarly = true } label: {
                 TimelineView(.periodic(from: started, by: 1)) { ctx in
@@ -549,7 +607,8 @@ struct WorkoutPlayerView: View {
     private func setCard(_ step: Step, sets: Int, done: Int, colors: [Color]) -> some View {
         if step.loggable {
             if log.item?.uid == step.item.uid {
-                CurrentSetCard(state: log, done: done, color: colors[0], editing: $editingSet) { i in
+                CurrentSetCard(state: log, done: done, color: colors[0], editing: $editingSet,
+                               finalSet: coach.enabled && sets > 1 && done == sets - 1) { i in
                     _ = log.log(i, model: model)
                 }
             }
@@ -653,6 +712,7 @@ struct WorkoutPlayerView: View {
         if onScreen, let tapped, log.rows.indices.contains(done) { log.rows[done].rir = String(tapped.rir) }
         let logged = onScreen && log.log(done, model: model)
         setsDone[step.item.uid] = now
+        if logged { coachSet(step, index: done, of: sets) }
         if now >= sets { model.setTicked(step.item.uid) }
         // Superset/circuit: on to the next member without rest, rest after the round (#78).
         let jump = groupJump(step, done: now)
@@ -661,7 +721,7 @@ struct WorkoutPlayerView: View {
         // No rest: the next group member at once, or after the last set the "Next in" countdown (#357).
         guard rest > 0 else {
             if let target { return moveTo(target) }
-            if now >= sets { nextExercise(step) }
+            if now >= sets { nextExercise(step) } else { coachFinalSetIfDue() }
             return
         }
         pendingJump = target
@@ -727,6 +787,7 @@ struct WorkoutPlayerView: View {
                 session: session, setsDone: setsDone, startedAt: started, endedAt: Date(),
                 bodyMassKg: health.snapshot.weightKg ?? model.body.weightKg)
             record = r
+            coach.say(.finish(sets: r.totalSets, volumeKg: r.volumeKg, minutes: max(1, r.durationSec / 60)), once: "finish")
             reward = GameReward(before: before.game, after: model.game, badgesBefore: before.badges, badgesAfter: model.badges)
             // A Watch tracking this workout saves the Health workout with its heart rate (#347).
             if !WatchSync.shared.watchTracks(sessionId) {
@@ -737,7 +798,7 @@ struct WorkoutPlayerView: View {
             }
         }
         model.clearActiveWorkout(sessionId)
-        live.end()
+        live.finish(finishedState())
         WatchSync.shared.endLive(.finished, sessionId: sessionId, record: record)
         pause = nil
         finished = true
@@ -886,8 +947,10 @@ struct WorkoutPlayerView: View {
         } else {
             model.beginWorkout(session)
             started = Date()
+            coach.say(.start(exercises: steps.count), once: "start")
         }
         reloadLog()
+        if steps.filter({ (setsDone[$0.item.uid] ?? 0) >= $0.sets }).count * 2 >= steps.count { coach.markSaid("half") }
         ready = true
         live.start(title: session.displayTitle, startedAt: started, state: liveState())
         WatchSync.shared.offerStart(sessionId: sessionId)
@@ -936,6 +999,19 @@ struct WorkoutPlayerView: View {
             setsDone[steps[s].item.uid] = steps[s].sets
             autoNext = AutoNext(uid: steps[s].item.uid, end: Date().addingTimeInterval(64), total: 80)
         }
+        // Coach (#379): "coach" = final set coming with the subtitle bubble; "coach-record" = the record burst.
+        if demoMode?.hasPrefix("coach") == true, let s = steps.firstIndex(where: { $0.loggable && $0.sets > 1 }) {
+            index = s
+            reloadLog()
+            coach.hold = true
+            setsDone[steps[s].item.uid] = steps[s].sets - 1
+            let name = steps[s].exercise.name
+            if demoMode == "coach-record" {
+                coach.say(.record(exercise: name, kg: 62.5, reps: 8, heavierBy: 2.5))
+            } else {
+                coach.say(.finalSet(exercise: name))
+            }
+        }
         if demoMode == "logged", let s = steps.firstIndex(where: { $0.loggable && $0.sets > 2 }) {
             index = s
             reloadLog()
@@ -943,6 +1019,40 @@ struct WorkoutPlayerView: View {
             setsDone[steps[s].item.uid] = 1
         }
         #endif
+    }
+
+    // MARK: Coach (#379)
+
+    /// After a logged set: a record (once per exercise) or, at the every-set voice level, how it compares with last time.
+    private func coachSet(_ step: Step, index i: Int, of sets: Int) {
+        guard coach.enabled, let v = log.values(i) else { return }
+        let id = step.exercise.id
+        let earlier = model.exerciseSessions(id).filter {
+            !($0.sessionId == sessionId && Calendar.current.isDateInToday($0.date)) && !PRPlanner.isPRSession($0.sessionId)
+        }
+        let best = CoachLines.record(kg: v.kg, reps: v.reps, history: earlier.flatMap(\.sets))
+        if best.isRecord, !coachRecorded.contains(step.item.uid) {
+            coachRecorded.insert(step.item.uid)
+            return coach.say(.record(exercise: step.exercise.name, kg: v.kg, reps: v.reps, heavierBy: best.heavierBy))
+        }
+        let last = earlier.last?.sets.first { $0.setIndex == i }
+        coach.say(.setLogged(set: i + 1, of: sets, kg: v.kg, reps: v.reps, lastKg: last?.kg, lastReps: last?.reps))
+    }
+
+    /// The final set of an exercise with several sets is next (said once per exercise).
+    private func coachFinalSetIfDue() {
+        guard steps.indices.contains(index), pause == nil else { return }
+        let step = steps[index]
+        guard step.sets > 1, (setsDone[step.item.uid] ?? 0) == step.sets - 1 else { return }
+        coach.say(.finalSet(exercise: step.exercise.name), once: "final-\(step.item.uid)")
+    }
+
+    /// Half the exercises done (workouts of 4 or more).
+    private func coachHalfwayIfDue() {
+        guard steps.count >= 4 else { return }
+        let done = steps.filter { (setsDone[$0.item.uid] ?? 0) >= $0.sets }.count
+        guard done * 2 >= steps.count, done < steps.count else { return }
+        coach.say(.halfway(left: steps.count - done), once: "half")
     }
 
     private func reloadLog() {
@@ -1013,7 +1123,10 @@ struct WorkoutPlayerView: View {
         let current = min(done, step.sets - 1)
         let next = upNext(after: step, done: done, sets: step.sets, includeSets: true)
         let detail = step.loggable ? log.values(current).map { "\(LoadAdvisor.formatKg($0.kg)) × \($0.reps)" } ?? "" : ""
-        return .init(
+        // The coming set can be logged from the lock screen (#371): kg × reps known, no rest or countdown running.
+        let logging = step.loggable && done < step.sets && pause == nil && autoNext == nil && log.item?.uid == step.item.uid
+            && log.values(done) != nil
+        var state = WorkoutActivityAttributes.ContentState(
             exercise: step.exercise.name,
             setLabel: step.sets > 1 ? "Set \(current + 1) of \(step.sets)" : Format.prescription(step.item.prescription),
             detail: detail,
@@ -1021,6 +1134,48 @@ struct WorkoutPlayerView: View {
             restEnd: pause?.end,
             next: next.map { $0.detail.isEmpty ? $0.title : "\($0.title) · \($0.detail)" } ?? "Finish",
             tint: step.block.kind.category.tintHex)
+        state.loggable = logging
+        if !logging, pause == nil {
+            state.action = autoNext != nil ? (index == steps.count - 1 ? "FINISH" : "NEXT") : mainLabel(step, sets: step.sets, done: done)
+        }
+        state.workEnd = timed.flatMap { $0.uid == step.item.uid ? $0.end : nil }
+        state.autoNextEnd = autoNext?.end
+        state.position = index + 1
+        state.count = steps.count
+        if steps.count <= 30 {
+            state.segments = steps.map { s in
+                WorkoutActivityAttributes.Segment(tint: s.block.kind.category.tintHex, done: Double(min(setsDone[s.item.uid] ?? 0, s.sets)) / Double(s.sets))
+            }
+        }
+        if let session {
+            let by = fitEnd ?? started.addingTimeInterval(TimeInterval(session.estMin * 60))
+            state.doneBy = by > Date() ? by : nil
+        }
+        state.heartRate = WatchSync.shared.liveHeartRate
+        state.volumeKg = model.liveLifts(sessionId: sessionId, since: started).volumeKg
+        return state
+    }
+
+    /// Lock-screen card once the workout is saved (#371).
+    private func finishedState() -> WorkoutActivityAttributes.ContentState {
+        var state = liveState()
+        let lifts = model.liveLifts(sessionId: sessionId, since: started)
+        state.restStart = nil
+        state.restEnd = nil
+        state.summary = .init(
+            minutes: max(1, Int((Date().timeIntervalSince(started) / 60).rounded())),
+            exercises: steps.filter { (setsDone[$0.item.uid] ?? 0) > 0 }.count, of: steps.count,
+            sets: setsDone.values.reduce(0, +), volumeKg: lifts.volumeKg, prs: lifts.prs)
+        return state
+    }
+
+    /// − / + on the lock screen: the coming set's weight, by the stepper's step.
+    private func stepKgFromLockScreen(_ sign: Int) {
+        guard ready, !finished, sign != 0, steps.indices.contains(index) else { return }
+        let step = steps[index]
+        let done = setsDone[step.item.uid] ?? 0
+        guard step.loggable, done < step.sets, log.item?.uid == step.item.uid else { return }
+        log.stepKg(done, by: Double(sign))
     }
 
     private func updateLive() {
@@ -1034,7 +1189,8 @@ struct WorkoutPlayerView: View {
             restEnd: state.restEnd, next: state.next, tint: state.tint,
             effortPending: pause?.effortSet != nil && pause?.effort == nil,
             action: mainLabel(step, sets: step.sets, done: setsDone[step.item.uid] ?? 0),
-            sessionId: sessionId, estMin: session.estMin, exercises: session.blocks.reduce(0) { $0 + $1.items.count }))
+            sessionId: sessionId, estMin: session.estMin, exercises: session.blocks.reduce(0) { $0 + $1.items.count },
+            coach: coach.watchLine?.text, coachAt: coach.watchLine?.at))
     }
 
     /// Remote control from the Watch while this player runs on the iPhone.

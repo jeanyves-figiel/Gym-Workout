@@ -8,12 +8,26 @@ public struct MuscleWorkoutOptions: Hashable, Sendable {
     public var minutes: Int
     public var rest: RestStyle
     public var grouping: Grouping
+    /// Workout chat (#381): skip exercises that load these groups (primary or secondary), e.g. a sore shoulder.
+    public var avoidGroups: Set<MuscleGroup> = []
+    /// Equipment not wanted today (busy rack, no barbell).
+    public var avoidEquipment: Set<Equipment> = []
+    /// Lowercase words of exercise names to skip ("lunge").
+    public var avoidKeywords: [String] = []
 
     public init(groups: Set<MuscleGroup> = [], minutes: Int = 45, rest: RestStyle = .standard, grouping: Grouping = .straight) {
         self.groups = groups
         self.minutes = minutes
         self.rest = rest
         self.grouping = grouping
+    }
+
+    /// Whether `e` stays out of this workout (avoided groups, equipment or name words).
+    func avoids(_ e: Exercise) -> Bool {
+        if !avoidGroups.isEmpty, (e.primary + e.secondary).contains(where: { avoidGroups.contains($0.group) }) { return true }
+        if e.equipment.contains(where: { avoidEquipment.contains($0) }) { return true }
+        let name = e.name.lowercased()
+        return avoidKeywords.contains { !$0.isEmpty && (name.contains($0) || e.id.contains($0)) }
     }
 
     /// Defaults from the profile: its rest and grouping (the goal's unless overridden) and about three quarters
@@ -73,6 +87,7 @@ extension CustomWorkout {
                 e.category == .strength && e.level <= level && Selector.isAvailable(e, equipment)
                     && !Exercise.libraryOnlyIds.contains(e.id)
                     && e.primary.contains { $0.group == g }
+                    && !options.avoids(e)
             })
         })
 

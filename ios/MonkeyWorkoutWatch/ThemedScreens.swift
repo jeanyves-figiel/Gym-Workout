@@ -702,10 +702,21 @@ struct MirrorView: View {
                 case .game: game
                 }
                 controls(theme)
-                Text("Next: \(live.next)").font(W.label(9)).lineLimit(1)
-                    .padding(.horizontal, 8).padding(.vertical, 4)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Capsule().fill(.white.opacity(theme == .colour ? 0.2 : 0.1)))
+                // Coach line from the phone (#379) for 6 s, in the Next line's place.
+                TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                    if let line = live.coach, let at = live.coachAt, ctx.date.timeIntervalSince(at) < 6 {
+                        Text("🐵 \(line)").font(W.label(9)).lineLimit(2).minimumScaleFactor(0.8)
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Capsule().fill(Color(red: 0.80, green: 1.0, blue: 0.24)))
+                    } else {
+                        Text("Next: \(live.next)").font(W.label(9)).lineLimit(1)
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Capsule().fill(.white.opacity(theme == .colour ? 0.2 : 0.1)))
+                    }
+                }
             }
             .foregroundStyle(.white)
         }

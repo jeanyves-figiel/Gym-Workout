@@ -1,6 +1,7 @@
 import Foundation
 import HealthKit
 import Observation
+import WatchConnectivity
 
 /// HealthKit workout session on the Watch: live heart rate and active calories, saved as one
 /// Apple Health workout when the session finishes (the phone then skips its own save).
@@ -23,6 +24,8 @@ final class WorkoutManager: NSObject {
     private var hrSum = 0.0
     private var hrCount = 0
     private(set) var maxHeartRate: Double?
+    /// Last heart rate sent to the iPhone for its Live Activity (#371).
+    private var hrSentAt = Date.distantPast
 
     var averageHeartRate: Double? { hrCount > 0 ? hrSum / Double(hrCount) : nil }
 
@@ -129,6 +132,11 @@ final class WorkoutManager: NSObject {
             hrSum += v
             hrCount += 1
             maxHeartRate = max(maxHeartRate ?? 0, v)
+            // iPhone workout (#371): its lock screen shows the heart rate, every 10 s at most.
+            if phoneSessionId != nil, Date().timeIntervalSince(hrSentAt) >= 10, WCSession.default.isReachable {
+                hrSentAt = Date()
+                WCSession.default.sendMessage([WatchKeys.heartRate: Int(v.rounded())], replyHandler: nil, errorHandler: nil)
+            }
         case HKQuantityType(.activeEnergyBurned):
             activeKcal = stats.sumQuantity()?.doubleValue(for: .kilocalorie()) ?? activeKcal
         default:
