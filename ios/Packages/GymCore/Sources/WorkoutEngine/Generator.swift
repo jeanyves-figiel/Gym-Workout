@@ -229,7 +229,7 @@ public enum Generator {
         ctx.begin(uid)
         let style = ctx.profile.warmupStyle ?? .auto
         let upper = [Focus.upper, .push, .pull, .fullUpper, .chestTri, .backBi, .shouldersArms, .chestBack].contains(focus)
-        let raiseMin: Int
+        var raiseMin: Int
         switch style {
         // #375: ~5 min of easy cardio is where most of the muscle-temperature gain is reached; 6 before a heavy
         // lower-body day. Quick sessions keep a short raise; drills and ramp-up sets do the specific warm-up.
@@ -238,6 +238,8 @@ public enum Generator {
         case .dynamic: raiseMin = 0
         case .activation: raiseMin = ctx.short ? 1 : 2
         }
+        // #375: muscles warm more slowly with age: one more minute of cardio from 50.
+        if style == .auto, !ctx.short, (ctx.profile.age ?? 0) >= 50 { raiseMin += 1 }
         var items: [PlannedExercise] = []
         if raiseMin > 0, let raise = Selector.select(ctx, Query(category: .cardio, prefer: upper ? raiseUpper : raiseLower)) {
             items.append(PlannedExercise(

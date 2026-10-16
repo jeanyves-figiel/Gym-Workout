@@ -39,6 +39,15 @@ import Testing
         #expect(quick.items.first.map { $0.estSec <= 120 } ?? true)
     }
 
+    @Test func olderMembersGetOneMoreWarmupMinute() throws {
+        var p = base
+        p.birthYear = Calendar.current.component(.year, from: Date()) - 55
+        let wu = try block(session(p, focus: .push), .warmup)
+        #expect(wu.items.first?.prescription.reps == "6 min")
+        p.birthYear = Calendar.current.component(.year, from: Date()) - 30
+        #expect(try block(session(p, focus: .push), .warmup).items.first?.prescription.reps == "5 min")
+    }
+
     @Test func easyCardioCooldownIsThreeToFiveMinutes() throws {
         var p = base
         p.cooldownStyle = .easyCardio
