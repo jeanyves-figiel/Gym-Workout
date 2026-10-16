@@ -149,11 +149,13 @@ struct SetCase: Sendable, CustomTestStringConvertible {
     @Test func undoWaitsForMoreReps() {
         let s = synthSet(reps: 3, post: 6)
         let t = SetTracker(profile: LiftProfile(direction: .up, family: .bench), lossLimit: nil)
-        #expect(feed(s.accel, into: t).contains(where: \.ended))
+        let first = feed(s.accel, into: t).contains { $0.ended }
+        #expect(first)
         t.resume()
         let more = synthSet(reps: 2, pre: 0.5, post: 6, seed: 7)
         let updates = feed(more.accel, into: t)
-        #expect(updates.contains(where: \.ended))
+        let endedAgain = updates.contains { $0.ended }
+        #expect(endedAgain)
         #expect(t.finish().count == 5)
     }
 
