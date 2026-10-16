@@ -126,8 +126,8 @@ struct PlayerView: View {
         let measured = takeLift()
         let before = player.totalSets
         send(player.completeSet())
-        if let measured, player.totalSets > before {
-            store.send(.liftSet(measured))
+        if player.totalSets > before {
+            if let measured { store.send(.liftSet(measured)) }
             lastLift = measured
         }
         syncLift(liftKey)
@@ -287,8 +287,8 @@ struct PlayerView: View {
         let before = player.totalSets
         guard let r = player.actionPress(store.snapshot.actionButton ?? .default) else { return syncLift(liftKey) }
         send(r.events)
-        if let measured, player.totalSets > before {
-            store.send(.liftSet(measured))
+        if player.totalSets > before {
+            if let measured { store.send(.liftSet(measured)) }
             lastLift = measured
         }
         syncLift(liftKey)
