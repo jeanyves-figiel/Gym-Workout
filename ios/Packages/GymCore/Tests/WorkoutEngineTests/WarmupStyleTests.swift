@@ -24,6 +24,30 @@ import Testing
         #expect(base.applying(nil) == base)
     }
 
+    /// #375: about 5 min of easy cardio (6 before a lower-body day), the drills still fit in the block.
+    @Test func autoWarmupRaiseIsAtLeastFiveMinutes() throws {
+        for (focus, expected) in [(Focus.push, 5), (.legs, 6)] {
+            let wu = try block(session(base, focus: focus), .warmup)
+            let first = try #require(wu.items.first)
+            #expect(cardioIds.contains(first.exerciseId))
+            #expect(first.prescription.reps == "\(expected) min", "\(focus)")
+            #expect(wu.targetMin >= 8)
+            #expect(wu.items.count >= 3)
+        }
+        // Quick sessions keep a short raise.
+        let quick = try block(session(base, minutes: 20), .warmup)
+        #expect(quick.items.first.map { $0.estSec <= 120 } ?? true)
+    }
+
+    @Test func easyCardioCooldownIsThreeToFiveMinutes() throws {
+        var p = base
+        p.cooldownStyle = .easyCardio
+        for minutes in [30, 45, 90] {
+            let first = try #require(block(session(p, minutes: minutes), .cooldown).items.first)
+            #expect((180...300).contains(first.estSec), "\(minutes)")
+        }
+    }
+
     @Test func pulseWarmupIsMostlyAMachine() throws {
         var p = base
         p.warmupStyle = .pulse

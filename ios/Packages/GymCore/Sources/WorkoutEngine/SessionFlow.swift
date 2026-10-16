@@ -163,7 +163,8 @@ extension Generator {
     static func autoSplit(_ p: Profile, _ focus: Focus, _ minutes: Int) -> [BlockKind: Int] {
         // Short quick sessions (#178, under 25 min) keep a 3-min warm-up / cool-down so most of the time is work.
         let lo = minutes < 25 ? 3 : 6
-        let warm = clamp(Int((Double(minutes) * 0.12).rounded()), lo, 10)
+        // #375: room for a 5–6 min cardio raise plus drills.
+        let warm = clamp(Int((Double(minutes) * 0.12).rounded()), minutes < 25 ? 3 : 8, 10)
         let cool = clamp(Int((Double(minutes) * 0.11).rounded()), lo, 10)
         let work = Double(minutes - warm - cool)
         let mix = sessionMix(p, focus)

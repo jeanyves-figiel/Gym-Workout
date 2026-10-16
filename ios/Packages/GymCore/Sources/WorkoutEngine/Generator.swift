@@ -231,7 +231,9 @@ public enum Generator {
         let upper = [Focus.upper, .push, .pull, .fullUpper, .chestTri, .backBi, .shouldersArms, .chestBack].contains(focus)
         let raiseMin: Int
         switch style {
-        case .auto: raiseMin = ctx.short ? 2 : minutes > 10 ? minutes - 5 : minutes >= 9 ? 5 : 4
+        // #375: ~5 min of easy cardio is where most of the muscle-temperature gain is reached; 6 before a heavy
+        // lower-body day. Quick sessions keep a short raise; drills and ramp-up sets do the specific warm-up.
+        case .auto: raiseMin = ctx.short ? 2 : minutes > 10 ? minutes - 5 : [.lower, .legs, .fullLower, .posterior].contains(focus) ? 6 : 5
         case .pulse: raiseMin = max(2, minutes - 2)
         case .dynamic: raiseMin = 0
         case .activation: raiseMin = ctx.short ? 1 : 2
@@ -547,11 +549,12 @@ public enum Generator {
             if let cardio = prior.first(where: { $0.kind == .cardio }), !cardio.title.contains("Zone 2"), let c = cardio.items.first {
                 items.append(PlannedExercise(
                     uid: "\(uid)-flush", exerciseId: c.exerciseId, slot: .general,
-                    prescription: Prescription(sets: 1, reps: "2 min", restSec: 0, intensity: "Very easy · bring HR down"), estSec: 120))
-                used += 120
+                    prescription: Prescription(sets: 1, reps: "3 min", restSec: 0, intensity: "Very easy · bring HR down"), estSec: 180))
+                used += 180
             }
         case .easyCardio:
-            let easyMin = max(3, minutes / 2)
+            // #375: 3–5 easy minutes bring the heart rate down; longer adds little for recovery.
+            let easyMin = min(5, max(3, minutes / 2))
             let machine = prior.first(where: { $0.kind == .cardio })?.items.first?.exerciseId
                 ?? Selector.candidates(level: ctx.level, equipment: ctx.equipment, Query(category: .cardio))
                     .first { raiseLower.contains($0.id) }?.id
