@@ -5,6 +5,8 @@ import WorkoutEngine
 extension Notification.Name {
     /// A `WCommand` from the Watch for the iPhone workout player (object: WCommand).
     static let watchCommand = Notification.Name("watchCommand")
+    /// Live heart rate from the Watch tracking the iPhone workout (#371).
+    static let watchHeartRate = Notification.Name("watchHeartRate")
 }
 
 /// App style (#219, #227): one pick for the Watch home and screens and the iPhone's game look (Monkey coach,
@@ -102,6 +104,14 @@ final class WatchSync: NSObject {
     private var lastLive: WLive?
     /// Workouts finished while the Watch tracked them: the Watch saves the Health workout; the phone only if it can't (#347).
     private var awaitingWatch: [UUID: WorkoutRecord] = [:]
+    /// Latest heart rate the Watch sent for the iPhone workout (#371).
+    private var heartRate: (bpm: Int, at: Date)?
+
+    /// Heart rate for the Live Activity: only while fresh (the Watch sends it every 10 s while tracking).
+    var liveHeartRate: Int? {
+        guard let h = heartRate, Date().timeIntervalSince(h.at) < 60 else { return nil }
+        return h.bpm
+    }
 
     private var session: WCSession? { WCSession.isSupported() ? WCSession.default : nil }
 
@@ -327,6 +337,13 @@ extension WatchSync: WCSessionDelegate {
         // Tracking state is sent live so the finish knows who saves the Health workout (#347).
         if let data = message[WatchKeys.event] as? Data, let event = try? JSONDecoder.watch.decode(WatchEvent.self, from: data) {
             Task { @MainActor in self.apply(event) }
+            return
+        }
+        if let bpm = message[WatchKeys.heartRate] as? Int {
+            Task { @MainActor in
+                self.heartRate = (bpm, Date())
+                NotificationCenter.default.post(name: .watchHeartRate, object: nil)
+            }
             return
         }
         guard let raw = message[WatchKeys.command] as? String, let command = WCommand(rawValue: raw) else { return }
