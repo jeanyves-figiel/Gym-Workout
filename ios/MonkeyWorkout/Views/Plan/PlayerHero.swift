@@ -51,6 +51,8 @@ struct ExerciseHeroCard: View {
     var onSplit: (() -> Void)?
     /// Superset / circuit (#352): the machines-not-next-to-each-other choices.
     var onGroup: (() -> Void)?
+    /// Landscape player (#362): smaller type, the picture takes all the height left, no muscle chips or note.
+    var compact = false
     let onForm: () -> Void
 
     /// Colour and label of the item: a cardio, mobility or stretch move inside a strength block (custom and example
@@ -69,7 +71,7 @@ struct ExerciseHeroCard: View {
 
     var body: some View {
         let cat = Self.category(exercise, in: block)
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: compact ? 6 : 10) {
             HStack {
                 Label(label.uppercased(), systemImage: cat.symbol).font(Theme.label(11)).tracking(1.2)
                 Spacer()
@@ -77,12 +79,12 @@ struct ExerciseHeroCard: View {
             }
             .opacity(0.9)
             Text(exercise.name)
-                .font(Theme.display(30))
+                .font(Theme.display(compact ? 22 : 30))
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(item.prescription.sets > 1 ? "\(item.prescription.sets)×\(item.prescription.reps)" : item.prescription.reps)
-                    .font(Theme.display(40))
+                    .font(Theme.display(compact ? 26 : 40))
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                 VStack(alignment: .leading, spacing: 0) {
@@ -115,7 +117,7 @@ struct ExerciseHeroCard: View {
             // never scrolls), so it shrinks on small phones while the target, set card and buttons stay whole.
             ExerciseMotionView(exercise: exercise)
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: 56, maxHeight: 180)
+                .frame(minHeight: compact ? 40 : 56, maxHeight: compact ? .infinity : 180)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .overlay(alignment: .topTrailing) {
                     if let onNotHere {
@@ -143,21 +145,24 @@ struct ExerciseHeroCard: View {
                     .accessibilityLabel("Setup and technique")
                     .padding(8)
                 }
-            HStack(spacing: 6) {
-                HeroMuscleChips(primary: exercise.primary, secondary: exercise.secondary)
-                if setup == nil, let onSetup {
-                    Spacer(minLength: 0)
-                    MachineNoteAddChip(action: onSetup).layoutPriority(1)
+            // Landscape (#362) keeps only the add-setup chip: muscles are on the upright card.
+            if !compact || (setup == nil && onSetup != nil) {
+                HStack(spacing: 6) {
+                    if !compact { HeroMuscleChips(primary: exercise.primary, secondary: exercise.secondary) }
+                    if setup == nil, let onSetup {
+                        Spacer(minLength: 0)
+                        MachineNoteAddChip(action: onSetup).layoutPriority(1)
+                    }
                 }
             }
             if item.group != nil, onSplit != nil || onGroup != nil {
                 groupRow
-            } else if let n = item.prescription.note {
+            } else if !compact, let n = item.prescription.note {
                 Text(n).font(.caption.weight(.semibold)).opacity(0.85).lineLimit(1)
             }
         }
         .foregroundStyle(.white)
-        .padding(16)
+        .padding(compact ? 12 : 16)
         .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(cat.gradient))
         .shadow(color: cat.color.opacity(0.35), radius: 18, y: 8)
     }
