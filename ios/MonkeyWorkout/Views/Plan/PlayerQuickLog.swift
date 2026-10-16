@@ -261,10 +261,11 @@ struct CurrentSetCard: View {
         HStack(spacing: 0) {
             stepButton("minus", label: "Less \(unit)", action: minus)
             VStack(spacing: 0) {
-                Text(value.isEmpty ? "–" : value).font(Theme.display(28)).monospacedDigit().minimumScaleFactor(0.6).lineLimit(1)
-                Text(unit).font(Theme.label(10)).opacity(0.8)
+                // #373: the value shrinks rather than turning into "…", and the unit never wraps ("re ps").
+                Text(value.isEmpty ? "–" : value).font(Theme.display(28)).monospacedDigit().minimumScaleFactor(0.4).lineLimit(1)
+                Text(unit).font(Theme.label(10)).opacity(0.8).lineLimit(1).fixedSize()
             }
-            .frame(maxWidth: .infinity)
+            .frame(minWidth: 52, maxWidth: .infinity)
             stepButton("plus", label: "More \(unit)", action: plus)
         }
         .padding(4)
