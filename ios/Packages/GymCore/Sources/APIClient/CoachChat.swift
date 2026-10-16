@@ -45,6 +45,11 @@ public struct CoachChatAnswer<W: Decodable & Sendable>: Decodable, Sendable {
 public struct CoachChatStatus: Decodable, Sendable, Equatable {
     public var available: Bool
     public var remainingToday: Int
+
+    public init(available: Bool, remainingToday: Int) {
+        self.available = available
+        self.remainingToday = remainingToday
+    }
 }
 
 extension APIClient {
