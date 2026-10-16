@@ -1,6 +1,43 @@
 {
   "releases": [
     {
+      "id": "2026-10-15.3",
+      "build": 38,
+      "date": "2026-10-16",
+      "items": [
+        {
+          "symbol": "hand.tap.fill",
+          "tint": "strength",
+          "title": "One tap per set",
+          "body": "Tap how hard the set felt and it's logged, effort included. Rest ends by itself with a 3-2-1 buzz, and after the last set you move on in 5 seconds (change it in Settings → Workout flow). If iPhone closes the app while it's locked, your workout reopens at the same set."
+        },
+        {
+          "symbol": "list.bullet.rectangle.fill",
+          "tint": "cardio",
+          "title": "See what's left, any way up",
+          "body": "Swipe the Coming up strip or tap the progress dots for your workout map. Prop your phone sideways on a machine and the player turns into a landscape cockpit with a big rest ring."
+        },
+        {
+          "symbol": "applewatch.radiowaves.left.and.right",
+          "tint": "cardio",
+          "title": "Your Watch joins in",
+          "body": "Start on iPhone and your Apple Watch offers to track heart rate and calories. On Apple Watch Ultra, pick MonkeyWorkout for the Action button: each press does the next step."
+        },
+        {
+          "symbol": "gearshape.2.fill",
+          "tint": "power",
+          "title": "Your gym, your day",
+          "body": "Tap Setup on a machine to save seat, pin and pad positions and a photo for this gym. Change a workout's focus or swap days from its page, split a superset when machines are far apart, and Skip on a missed workout really lets it go."
+        },
+        {
+          "symbol": "figure.climbing",
+          "tint": "warmup",
+          "title": "Climbing gym days",
+          "body": "Pick Bouldering, Hangboard, Rope or Rest on climbing days and get a warm-up and cool-down for the wall. New Explore → Climbing with 25 drills, named as in MonkeyGrade."
+        }
+      ]
+    },
+    {
       "id": "2026-10-15.2",
       "build": 36,
       "date": "2026-10-15",
