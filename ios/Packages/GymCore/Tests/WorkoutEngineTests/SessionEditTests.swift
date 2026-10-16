@@ -96,6 +96,61 @@ import Testing
         #expect(!blocks.contains { $0.kind == first.kind })
     }
 
+    @Test func splitTurnsASupersetIntoStraightSets() {
+        func item(_ uid: String, _ group: String?, note: String? = nil) -> PlannedExercise {
+            var p = PlannedExercise(uid: uid, exerciseId: "bench-press", slot: .hPush,
+                                    prescription: Prescription(sets: 4, reps: "10-15", restSec: 60, note: note), estSec: 300)
+            p.group = group
+            return p
+        }
+        var drill = item("d", nil)
+        drill.supersetWith = "y"
+        let a1 = item("x", "A1", note: "Superset: 2 exercises back to back, rest after the round · Slow negatives")
+        let b = [Block(kind: .strength, title: "Strength", targetMin: 20,
+                       items: [a1, item("y", "A2"), drill, item("p", "B1"), item("q", "B2")])]
+        var blocks = b
+        blocks.split("x")
+        #expect(blocks[0].items.map(\.uid) == ["x", "y", "d", "p", "q"])
+        #expect(blocks[0].items.map(\.group) == [nil, nil, nil, "B1", "B2"])
+        #expect(blocks[0].items[0].prescription.note == "Slow negatives")
+        #expect(blocks[0].items[2].supersetWith == "y")
+        // Straight sets rest between sets, so each takes longer than as a superset member.
+        #expect(blocks[0].items[0].estSec > a1.estSec)
+        // Split from the second member: its sets come first.
+        var fromA2 = b
+        fromA2.split("q")
+        #expect(fromA2[0].items.map(\.uid) == ["x", "y", "d", "q", "p"])
+        #expect(fromA2[0].items.map(\.group) == ["A1", "A2", nil, nil, nil])
+        // Straight exercise: nothing to split.
+        var straight = blocks
+        straight.split("x")
+        #expect(straight == blocks)
+    }
+
+    @Test func splitPlannedSuperset() throws {
+        let p = Profile(goal: .build, sessionsPerWeek: 3, experience: .intermediate, climbingDaysPerWeek: 0, grouping: .supersets)
+        let s = try #require(Generator.generateWeek(p, seed: 42).sessions.first { strength($0.blocks).contains { $0.group != nil } })
+        let grouped = try #require(strength(s.blocks).first { $0.group != nil })
+        var blocks = s.blocks
+        blocks.split(grouped.uid)
+        let after = try #require(strength(blocks).first { $0.uid == grouped.uid })
+        #expect(after.group == nil && after.prescription.note?.hasPrefix("Superset") != true)
+        #expect(blocks.flatMap(\.items).map(\.uid) == s.blocks.flatMap(\.items).map(\.uid))
+    }
+
+    @Test func removingFromAPairDropsTheSupersetNote() {
+        var a = PlannedExercise(uid: "a", exerciseId: "bench-press", slot: .hPush,
+                                prescription: Prescription(sets: 3, reps: "8", restSec: 90,
+                                                           note: "Superset: 2 exercises back to back, rest after the round"),
+                                estSec: 300)
+        a.group = "A1"
+        var b = a
+        b.uid = "b"; b.group = "A2"; b.prescription.note = nil
+        var blocks = [Block(kind: .strength, title: "Strength", targetMin: 20, items: [a, b])]
+        blocks.remove("b")
+        #expect(blocks[0].items[0].group == nil && blocks[0].items[0].prescription.note == nil)
+    }
+
     @Test func editRoundTrips() throws {
         let s = plan.sessions[0]
         let edit = SessionEdit(sessionId: s.id, week: 2, base: s.editBase, blocks: s.blocks)

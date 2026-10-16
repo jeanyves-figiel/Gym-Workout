@@ -240,6 +240,9 @@ public struct Profile: Codable, Hashable, Sendable {
     /// Per-workout overrides (#106) keyed by session id ("w2s1"). Set by the app from the synced overrides when
     /// generating; not part of the profile form.
     public var sessionStyles: [String: SessionStyle]?
+    /// This week's session-type changes (#342) keyed by session id ("w2s1"): one workout trains another focus.
+    /// Set by the app from the synced overrides when generating; not part of the profile form.
+    public var sessionFoci: [String: Focus]?
     /// How the week alternates muscle groups (#200); nil = `.auto` (the goal's own split).
     public var split: SplitStyle?
     /// Per-day session types in week order (#200), set by tapping a day; overrides `split` when it has one entry

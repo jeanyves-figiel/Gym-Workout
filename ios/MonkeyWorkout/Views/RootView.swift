@@ -137,6 +137,14 @@ private struct DemoScreen: View {
         case "player-next": WorkoutPlayerView(sessionId: second, demoMode: "next")
         case "finish-early": WorkoutPlayerView(sessionId: second, demoMode: "finish")
         case "player-fitted": WorkoutPlayerView(sessionId: second, demoMode: "fitted")
+        // Machine setups (#355).
+        case "player-setup": WorkoutPlayerView(sessionId: second, demoMode: "setup")
+        case "machine-setup": MachineNoteSheet(exerciseId: "leg-press", gym: model.homeGym.ref)
+        case "exercise-setups": NavigationStack { ExerciseDetailView(exerciseId: "leg-press") }
+        case "player-superset": WorkoutPlayerView(sessionId: second, demoMode: "superset")
+        case "player-superset-fix": WorkoutPlayerView(sessionId: second, demoMode: "superset-fix")
+        case "player-split": WorkoutPlayerView(sessionId: second, demoMode: "superset-split")
+        case "player-map": WorkoutPlayerView(sessionId: second, demoMode: "map")
         case "example": NavigationStack { SessionView(sessionId: WorkoutTemplate.all[1].sessionId) }
         case "explore": NavigationStack { LibraryView() }
         case "explore-female": NavigationStack { LibraryView() }.environment(\.bodyFigure, .female)
@@ -257,6 +265,8 @@ private struct DemoScreen: View {
                     .navigationBarTitleDisplayMode(.inline)
             }
         case "day-focus": DayFocusSheet(weekday: 4, index: 2, current: .legs) { _ in }
+        case "focus-sheet": if let s = model.session(second) { NavigationStack { FocusPickView(session: s) } }
+        case "swap-day": if let s = model.session(second) { SwapDaySheet(session: s) }
         case "profile-method": NavigationStack { ProfileSectionView(section: .method) }
         case "profile-flow": NavigationStack { ProfileSectionView(section: .flow) }
         case "flow-session": if let s = model.plan?.sessions.first { SessionFlowSheet(session: s) }

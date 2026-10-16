@@ -43,6 +43,16 @@ struct ExerciseHeroCard: View {
     var onAttemptPR: (() -> Void)?
     /// Set while the gym's equipment can still be reported missing (before the first set).
     var onNotHere: (() -> Void)?
+    /// The member's setup for this exercise at this gym (#355); `onSetup` nil = no setups (bodyweight).
+    var setup: MachineNote?
+    var onSetup: (() -> Void)?
+    var onSetupPhoto: (() -> Void)?
+    /// Superset / circuit (#352): split it into straight sets in one tap.
+    var onSplit: (() -> Void)?
+    /// Superset / circuit (#352): the machines-not-next-to-each-other choices.
+    var onGroup: (() -> Void)?
+    /// Landscape player (#362): smaller type, the picture takes all the height left, no muscle chips or note.
+    var compact = false
     let onForm: () -> Void
 
     /// Colour and label of the item: a cardio, mobility or stretch move inside a strength block (custom and example
@@ -61,7 +71,7 @@ struct ExerciseHeroCard: View {
 
     var body: some View {
         let cat = Self.category(exercise, in: block)
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: compact ? 6 : 10) {
             HStack {
                 Label(label.uppercased(), systemImage: cat.symbol).font(Theme.label(11)).tracking(1.2)
                 Spacer()
@@ -69,12 +79,12 @@ struct ExerciseHeroCard: View {
             }
             .opacity(0.9)
             Text(exercise.name)
-                .font(Theme.display(30))
+                .font(Theme.display(compact ? 22 : 30))
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(item.prescription.sets > 1 ? "\(item.prescription.sets)×\(item.prescription.reps)" : item.prescription.reps)
-                    .font(Theme.display(40))
+                    .font(Theme.display(compact ? 26 : 40))
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                 VStack(alignment: .leading, spacing: 0) {
@@ -97,12 +107,17 @@ struct ExerciseHeroCard: View {
                     .buttonStyle(.plain)
                 }
             }
+            // Setup strip (#355): takes its line from the picture, which shrinks, so the player still never scrolls.
+            if let setup, let onSetup {
+                MachineNoteStrip(note: setup, hasPhoto: setup.photoId != nil || MachineNotePhotos.load(setup.id) != nil,
+                                 onEdit: onSetup, onPhoto: onSetupPhoto ?? onSetup)
+            }
             // Plays the movement a few times when the exercise shows, then rests on the start; tap replays. Its "Play movement" tag sits
             // bottom-left, Form bottom-right, Not here? top-right. The picture takes the height left on screen (#206: the player
             // never scrolls), so it shrinks on small phones while the target, set card and buttons stay whole.
             ExerciseMotionView(exercise: exercise)
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: 56, maxHeight: 180)
+                .frame(minHeight: compact ? 40 : 56, maxHeight: compact ? .infinity : 180)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .overlay(alignment: .topTrailing) {
                     if let onNotHere {
@@ -130,13 +145,56 @@ struct ExerciseHeroCard: View {
                     .accessibilityLabel("Setup and technique")
                     .padding(8)
                 }
-            HeroMuscleChips(primary: exercise.primary, secondary: exercise.secondary)
-            if let n = item.prescription.note { Text(n).font(.caption.weight(.semibold)).opacity(0.85).lineLimit(1) }
+            // Landscape (#362) keeps only the add-setup chip: muscles are on the upright card.
+            if !compact || (setup == nil && onSetup != nil) {
+                HStack(spacing: 6) {
+                    if !compact { HeroMuscleChips(primary: exercise.primary, secondary: exercise.secondary) }
+                    if setup == nil, let onSetup {
+                        Spacer(minLength: 0)
+                        MachineNoteAddChip(action: onSetup).layoutPriority(1)
+                    }
+                }
+            }
+            if item.group != nil, onSplit != nil || onGroup != nil {
+                groupRow
+            } else if !compact, let n = item.prescription.note {
+                Text(n).font(.caption.weight(.semibold)).opacity(0.85).lineLimit(1)
+            }
         }
         .foregroundStyle(.white)
-        .padding(16)
+        .padding(compact ? 12 : 16)
         .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(cat.gradient))
         .shadow(color: cat.color.opacity(0.35), radius: 18, y: 8)
+    }
+
+    /// "⛓ Superset A1 + A2" and a lime "✂ Split" in place of the generator's superset note (#352).
+    private var groupRow: some View {
+        let members = block.groupMembers(of: item.uid)
+        let kind = members.count == 2 ? "Superset" : "Circuit"
+        let labels = members.compactMap(\.group).joined(separator: " + ")
+        return HStack(spacing: 8) {
+            Button { onGroup?() } label: {
+                Label("\(kind) \(labels)", systemImage: "link")
+                    .font(Theme.label(12)).lineLimit(1).minimumScaleFactor(0.8)
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(Capsule().fill(.black.opacity(0.35)))
+            }
+            .buttonStyle(.plain)
+            .disabled(onGroup == nil)
+            .accessibilityLabel("\(kind) \(labels): options")
+            if let onSplit {
+                Button(action: onSplit) {
+                    Label("Split", systemImage: "scissors")
+                        .font(Theme.label(12))
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Capsule().fill(Theme.lime))
+                        .foregroundStyle(Theme.ink)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Split into straight sets")
+            }
+            Spacer(minLength: 0)
+        }
     }
 }
 

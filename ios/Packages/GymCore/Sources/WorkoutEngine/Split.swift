@@ -128,3 +128,43 @@ extension Pattern {
         }
     }
 }
+
+// MARK: Change one workout's focus (#342)
+
+extension Generator {
+    /// The week's session types in plan order (session index), as `generateWeek` places them.
+    public static func weekOrder(_ profile: Profile, week: Int) -> [Focus] {
+        var p = profile
+        p.syncClimbingDays()
+        let base = Rules.split(p)
+        let fixed = p.customSplit
+        let split = p.planVariety == .rotate && !fixed ? Rules.rotatedSplit(base, week: min(mesocycleWeeks, max(1, week))) : base
+        let slots = WeekSchedule.assign(split, climbing: p.climbingDays, gym: p.gymDays, prefs: p.climbPrefs, keepOrder: fixed)
+        return slots?.map(\.focus) ?? split
+    }
+}
+
+extension Profile {
+    /// Every week (#342): the `index`-th session of the week in plan order trains `focus`; the other sessions keep
+    /// their type and order. Becomes per-day picks (#200), as tapping a day on the goal screen does.
+    public mutating func setPlanDay(_ index: Int, to focus: Focus, week: Int) {
+        var days = Generator.weekOrder(self, week: week)
+        guard days.indices.contains(index) else { return }
+        days[index] = focus
+        splitDays = days
+    }
+}
+
+extension WeekSchedule {
+    /// Why a session type is a poor fit on `weekday` next to climbing days (#342), nil when it fits.
+    public static func climbWarning(_ f: Focus, on weekday: Int, climbing: [Int], prefs: ClimbPrefs) -> String? {
+        let climb = Set(normalized(climbing))
+        if climb.contains(next(weekday)), prefs.before != .any, pullLoad(f) >= 2 {
+            return "Climbing the next day: heavy pulling tires fingers and lats"
+        }
+        if climb.contains(previous(weekday)), prefs.after != .any, pullLoad(f) >= 2 {
+            return "Climbed the day before: fingers and lats still tired"
+        }
+        return nil
+    }
+}

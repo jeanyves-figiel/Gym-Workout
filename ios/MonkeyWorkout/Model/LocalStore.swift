@@ -21,6 +21,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var moves: [SessionMove]?
     /// Per-workout rest / grouping overrides (#106), keyed by session id ("w2s1"); dropped on a week change.
     var sessionStyles: [String: SessionStyle]?
+    /// This week's per-workout session types (#342), keyed by session id ("w2s1"); dropped on a week change.
+    var sessionFoci: [String: Focus]?
     /// Gyms the member set up, each with its own equipment (#162). Optional so older profiles still decode.
     var savedGyms: [SavedGym]?
     /// Training programme in progress (#255): replaces the plan while it runs. Optional so older profiles still decode.
@@ -56,6 +58,7 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var planProfile: Profile {
         var p = tasteProfile
         p.sessionStyles = sessionStyles?.filter { $0.key.hasPrefix("w\(week)s") }
+        p.sessionFoci = sessionFoci?.filter { $0.key.hasPrefix("w\(week)s") }
         return p
     }
 }
@@ -86,6 +89,12 @@ struct LocalState: Codable {
     var deletedClimbIds: Set<UUID>?
     /// Climbs logged before #312 lived only here: uploaded once, then this is true.
     var climbsUploaded: Bool?
+    // Machine setup notes (#355). Photos live in their own files (`MachineNotePhotos`).
+    var machineNotes: [MachineNote]?
+    var pendingMachineNoteIds: Set<UUID>?
+    var deletedMachineNoteIds: Set<UUID>?
+    /// Notes whose photo changed here (new or removed) and isn't on the server yet.
+    var pendingMachinePhotoIds: Set<UUID>?
     // Custom exercises (#52). Archived, never deleted.
     var customExerciseList: [CustomExercise]?
     var pendingCustomExerciseIds: Set<UUID>?
@@ -143,7 +152,10 @@ struct LocalStore {
         try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 
-    func wipe() { try? FileManager.default.removeItem(at: url) }
+    func wipe() {
+        try? FileManager.default.removeItem(at: url)
+        MachineNotePhotos.wipe()
+    }
 }
 
 extension LocalState {
@@ -171,6 +183,10 @@ extension LocalState {
         pendingClimbIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingClimbIds)
         deletedClimbIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedClimbIds)
         climbsUploaded = try? c.decodeIfPresent(Bool.self, forKey: .climbsUploaded)
+        machineNotes = try? c.decodeIfPresent([MachineNote].self, forKey: .machineNotes)
+        pendingMachineNoteIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingMachineNoteIds)
+        deletedMachineNoteIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedMachineNoteIds)
+        pendingMachinePhotoIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingMachinePhotoIds)
         activeWorkout = try? c.decodeIfPresent(ActiveWorkout.self, forKey: .activeWorkout)
         customExerciseList = try? c.decodeIfPresent([CustomExercise].self, forKey: .customExerciseList)
         pendingCustomExerciseIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingCustomExerciseIds)

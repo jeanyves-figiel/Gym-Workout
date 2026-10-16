@@ -81,7 +81,7 @@ const privacy = (l: Legal) => `
 <ul>
 <li>Training profile: goals, schedule, equipment, experience, training style, plan and calendar changes.</li>
 <li>Body metrics you enter: height, weight, birth year, optional sex and gender, body figure choice, and dated body measurements (girths such as chest, waist, arms and thighs, body weight, body fat).</li>
-<li>Sets you log (exercise, weight, reps, reps in reserve), completed sessions (exercises, duration, calories, average and maximum heart rate), personal-record attempts, climbing sessions you log (type, date, duration, effort, top grade, notes), your own workouts and exercises, including photos you take of machines.</li>
+<li>Sets you log (exercise, weight, reps, reps in reserve), completed sessions (exercises, duration, calories, average and maximum heart rate), personal-record attempts, climbing sessions you log (type, date, duration, effort, top grade, notes), your own workouts and exercises, including photos you take of machines, and machine setup notes per gym (settings, text and an optional photo, visible only to you).</li>
 </ul>
 <p>Why: to generate your plan, suggest loads, show progress and sync across devices. Body and heart-rate data are health data; we process them only to provide these features, based on your consent, which you can withdraw by deleting the data or your account.</p>
 
@@ -227,7 +227,7 @@ const support = (l: Legal) => `
 <h3>Some of my data is missing. Can you restore it?</h3>
 <p>Email ${l.emailLink} from your account's email address within 30 days, saying what is missing and roughly when you last saw it. We restore your data from our daily backups; nothing else in your account or anyone else's is changed. A deleted account cannot be restored.</p>
 <h3>How do I get a copy of my data?</h3>
-<p>Settings → Export my data creates a JSON file with your account, training profile, logs, history, personal records, measurements and climbs.</p>
+<p>Settings → Export my data creates a JSON file with your account, training profile, logs, history, personal records, measurements, climbs and machine setup notes (with their photos).</p>
 <h3>I forgot my password.</h3>
 <p>On the sign-in screen tap "Forgot password?" and follow the code sent by email.</p>
 <h3>How do I cancel my subscription?</h3>

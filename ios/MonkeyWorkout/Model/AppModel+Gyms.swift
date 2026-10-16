@@ -61,6 +61,17 @@ extension AppModel {
         rememberHomeGym()
     }
 
+    /// Zones (and ticks) set from the player (#352): saved now, re-planned when the workout ends so the running one
+    /// keeps its exercise list.
+    func setGymLayoutDuringWorkout(_ layout: GymLayout?, equipment: [Equipment]) {
+        guard var p = profile, p.gymLayout != layout || p.equipment != equipment else { return }
+        p.gymLayout = layout
+        p.equipment = equipment
+        state.synced?.profile = p
+        rememberHomeGym()
+        replanAfterWorkout = true
+    }
+
     /// Zone of the home gym an exercise is done in (#274); nil without zones, or anywhere (bodyweight, mat…).
     func gymZone(_ exerciseId: String) -> GymLayout.Zone? {
         guard let layout = profile?.gymLayout, let e = Exercise.find(exerciseId) else { return nil }

@@ -33,6 +33,8 @@ final class AppModel {
     var exploreJump: LibraryView.Mode?
     /// Workouts other members shared (#62), loaded on demand; not persisted.
     var sharedLibrary: [SharedWorkout] = []
+    /// Gym zones changed from the player (#352): the plan follows once the running workout is over; not persisted.
+    @ObservationIgnored var replanAfterWorkout = false
     /// Apple Health readings for first-time load estimates (#115); set at launch.
     @ObservationIgnored weak var health: HealthManager?
 
@@ -94,6 +96,8 @@ final class AppModel {
             state.customExerciseList = [Demo.customExercise]
             state.synced?.away = Demo.away()
             state.synced?.savedGyms = Demo.savedGyms
+            // Machine setups (#355).
+            state.machineNotes = Demo.machineNotes(plan: state.plan, home: Demo.profile.gym ?? Gym.puls5.ref)
             // Your gym UI test (#271): 48 of the full inventory, 20 off.
             if Demo.screen == "gym-missing" { state.synced?.profile.equipment = Array(Gym.puls5.equipment.prefix(48)) }
             // Customised Train screens (#260).
@@ -277,6 +281,8 @@ final class AppModel {
                                planInserts: state.synced?.planInserts?.filter { $0.week == week },
                                exerciseSwaps: state.synced?.exerciseSwaps, variation: variation, moves: state.synced?.moves,
                                sessionStyles: state.synced?.sessionStyles?.filter { $0.key.hasPrefix("w\(week)s") },
+                               // Per-workout session types (#342) belong to this week only.
+                               sessionFoci: newWeek ? nil : state.synced?.sessionFoci,
                                savedGyms: state.synced?.savedGyms, programme: state.synced?.programme,
                                programmeHistory: state.synced?.programmeHistory, trainLayout: state.synced?.trainLayout,
                                customProgrammes: state.synced?.customProgrammes,
@@ -619,6 +625,8 @@ final class AppModel {
             || !(state.pendingPRAttemptIds ?? []).isEmpty || !(state.deletedPRAttemptIds ?? []).isEmpty
             || !(state.pendingMeasurementIds ?? []).isEmpty || !(state.deletedMeasurementIds ?? []).isEmpty
             || !(state.pendingClimbIds ?? []).isEmpty || !(state.deletedClimbIds ?? []).isEmpty
+            || !(state.pendingMachineNoteIds ?? []).isEmpty || !(state.deletedMachineNoteIds ?? []).isEmpty
+            || !(state.pendingMachinePhotoIds ?? []).isEmpty
     }
 
     func sync() async {
@@ -648,7 +656,8 @@ final class AppModel {
               await runSyncStep(&firstError, { try await self.syncCustomWorkouts() }),
               await runSyncStep(&firstError, { try await self.syncPRAttempts() }),
               await runSyncStep(&firstError, { try await self.syncMeasurements() }),
-              await runSyncStep(&firstError, { try await self.syncClimbs() })
+              await runSyncStep(&firstError, { try await self.syncClimbs() }),
+              await runSyncStep(&firstError, { try await self.syncMachineNotes() })
         else { return sessionExpired() }
         persist()
         if let firstError {
