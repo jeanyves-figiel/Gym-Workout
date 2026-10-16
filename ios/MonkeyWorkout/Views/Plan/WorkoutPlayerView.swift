@@ -253,7 +253,8 @@ struct WorkoutPlayerView: View {
                 .ignoresSafeArea()
 
             // One screen, no scrolling (#206): the exercise card's picture takes whatever height is left, so the target, the one
-            // input for this item (set card or timer), up next and the controls are always fully on screen.
+            // input for this item (set card or timer), up next and the controls are always fully on screen (#373: and always
+            // in the same place).
             VStack(alignment: .leading, spacing: 12) {
                 topBar(session)
                 if let splitUndo {
@@ -279,23 +280,10 @@ struct WorkoutPlayerView: View {
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
                     .layoutPriority(1)
 
-                // The free space under the card shows what's coming (#361), only when it fits whole: nothing is pushed off screen.
-                // An overlay on the free space takes no height of its own: the exercise picture keeps its full size.
-                Color.clear
-                    .frame(maxHeight: .infinity)
-                    .overlay {
-                        ViewThatFits(in: .vertical) {
-                            ComingUpStrip(items: OverviewItem.list(session.blocks, setsDone: setsDone, current: step.item.uid),
-                                          doneBy: OverviewItem.doneBy(session.blocks, setsDone: setsDone, current: step.item.uid),
-                                          onPeek: { formFor = $0 }, onMap: { mapOpen = true })
-                            Color.clear
-                        }
-                    }
+                // #373: no free space left over: the card's picture takes it. Set card, Up next and the controls keep their
+                // places at the bottom whatever the exercise shows.
                 setCard(step, sets: sets, done: done, colors: cat.colors)
-                if let next = upNext(after: step, done: done, sets: sets, includeSets: false) {
-                    UpNextCard(title: next.title, eyebrow: next.eyebrow, detail: next.detail, exercise: next.exercise,
-                               colors: next.colors, compact: true)
-                }
+                upNextBar(step, done: done, sets: sets, session: session)
                 controls(step, sets: sets, done: done)
                     .overlay(alignment: .bottom) {
                         if let a = autoNext, a.uid == step.item.uid {
@@ -335,8 +323,8 @@ struct WorkoutPlayerView: View {
 
     // MARK: Landscape (#362)
 
-    /// Design C "cockpit": coming up on the left, the exercise and its one input in the middle, the rest/set ring with
-    /// effort and buttons on the right. The rest overlay's content sits in the right column so nothing is covered.
+    /// #373 (A + C mix from `player-layout/landscape-mix.png`): the exercise card at full height on the left; on the right
+    /// the one input and the controls (or the rest ring in their place), and the smart Up next bar at the bottom.
     private func cockpit(_ step: Step, session: Session) -> some View {
         let cat = step.category
         let sets = step.sets
@@ -349,43 +337,50 @@ struct WorkoutPlayerView: View {
             VStack(spacing: 10) {
                 topBar(session)
                 HStack(alignment: .top, spacing: 12) {
-                    ComingUpColumn(rows: comingUp(step, done: done, sets: sets, session: session),
-                                   left: OverviewItem.list(session.blocks, setsDone: setsDone, current: step.item.uid)
-                                       .filter { $0.state == .left }.count,
-                                   doneBy: OverviewItem.doneBy(session.blocks, setsDone: setsDone, current: step.item.uid),
-                                   drill: pause?.end != nil ? step.item.pairedWith.flatMap(Exercise.find) : nil,
-                                   onPeek: { formFor = $0 }, onMap: { mapOpen = true })
-                        .frame(width: 190)
+                    let setupGym = model.gymRef(forItem: step.item.uid)
+                    let setupTarget = MachineNoteTarget(exerciseId: step.exercise.id, gym: setupGym)
+                    let setup = model.machineNote(exerciseId: step.exercise.id, gymId: setupGym.id)
+                    ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
+                                     position: "\(index + 1)/\(steps.count)",
+                                     onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
+                                     onNotHere: !step.exercise.equipment.isEmpty && model.canSwap(uid: step.item.uid) && done == 0
+                                         ? { notHereFor = step.item } : nil,
+                                     setup: setup,
+                                     onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
+                                     onSetupPhoto: { setupPhotoFor = setup },
+                                     onSplit: canSplit(step) ? { split(step) } : nil,
+                                     onGroup: canSplit(step) ? { groupFix = step.item } : nil,
+                                     compact: true) { formFor = step.exercise }
+                        .id(step.item.uid)
+                        .transition(.opacity)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                    VStack(spacing: 10) {
+                    VStack(spacing: 8) {
                         if let splitUndo {
                             FinishEarlyBanner(text: splitUndo.text, symbol: "scissors", onUndo: undoSplit)
                         } else if let fitBanner {
                             FinishEarlyBanner(text: fitBanner, onUndo: undoFinishEarly)
                         }
-                        let setupGym = model.gymRef(forItem: step.item.uid)
-                        let setupTarget = MachineNoteTarget(exerciseId: step.exercise.id, gym: setupGym)
-                        let setup = model.machineNote(exerciseId: step.exercise.id, gymId: setupGym.id)
-                        ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
-                                         position: "\(index + 1)/\(steps.count)",
-                                         onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
-                                         onNotHere: !step.exercise.equipment.isEmpty && model.canSwap(uid: step.item.uid) && done == 0
-                                             ? { notHereFor = step.item } : nil,
-                                         setup: setup,
-                                         onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
-                                         onSetupPhoto: { setupPhotoFor = setup },
-                                         onSplit: canSplit(step) ? { split(step) } : nil,
-                                         onGroup: canSplit(step) ? { groupFix = step.item } : nil,
-                                         compact: true) { formFor = step.exercise }
-                            .id(step.item.uid)
-                            .transition(.opacity)
-                        setCard(step, sets: sets, done: done, colors: cat.colors)
+                        if let p = pause {
+                            cockpitRest(p, step: step, sets: sets, done: done, color: cat.colors[0])
+                        } else {
+                            setCard(step, sets: sets, done: done, colors: cat.colors)
+                            Spacer(minLength: 0)
+                            controls(step, sets: sets, done: done)
+                                .overlay(alignment: .bottom) {
+                                    if let a = autoNext, a.uid == step.item.uid {
+                                        let next = upNext(after: step, done: done, sets: sets, includeSets: false)
+                                        AutoNextBar(title: next?.title ?? "", detail: next?.detail ?? "", end: a.end, total: a.total,
+                                                    finishing: index >= steps.count - 1,
+                                                    onGo: { advance(step) }, onHold: { autoNext = nil })
+                                            .padding(.bottom, 8)
+                                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                                    }
+                                }
+                        }
+                        upNextBar(step, done: done, sets: sets, session: session)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-
-                    cockpitControls(step, sets: sets, done: done, color: cat.colors[0])
-                        .frame(width: 270)
-                        .frame(maxHeight: .infinity)
                 }
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("player.cockpit")
@@ -396,95 +391,63 @@ struct WorkoutPlayerView: View {
         }
     }
 
-    /// Right column: while resting the rest ring (closes by itself), the optional effort tiles, +15 s and Skip; otherwise
-    /// the set ring between back / skip, and the effort tiles as SET DONE (#357) or the lime button for other work.
-    @ViewBuilder
-    private func cockpitControls(_ step: Step, sets: Int, done: Int, color: Color) -> some View {
-        VStack(spacing: 10) {
-            if let p = pause {
+    /// Landscape rest: the ring (closes by itself) takes the set card and controls' place only; the picture and Up next stay.
+    /// Beside it what was logged, the optional effort, the mobility drill paired with the exercise, +15 s and Skip.
+    private func cockpitRest(_ p: Pause, step: Step, sets: Int, done: Int, color: Color) -> some View {
+        HStack(spacing: 12) {
+            Group {
                 if let end = p.end {
                     RestRing(end: end, total: p.total, color: color) { closePause() }
                 } else {
                     SetRing(since: setStart, done: done, sets: sets, color: color)
                 }
+            }
+            .frame(maxHeight: .infinity)
+            VStack(alignment: .leading, spacing: 8) {
                 if let i = p.effortSet {
-                    Text(log.values(i).map { "Set \(i + 1) · \(LoadAdvisor.formatKg($0.kg)) × \($0.reps) · how hard? (optional)" } ?? "How hard? (optional)")
+                    Text(log.values(i).map { "Set \(i + 1) · \(LoadAdvisor.formatKg($0.kg)) × \($0.reps) · how hard?" } ?? "How hard? (optional)")
                         .font(Theme.label(11)).foregroundStyle(Theme.muted).lineLimit(1).minimumScaleFactor(0.7)
                     EffortPicker(selected: p.effort, optional: true, compact: true) { pickEffort($0) }
                 }
+                if p.end != nil, let drill = step.item.pairedWith.flatMap(Exercise.find) {
+                    Button { formFor = drill } label: {
+                        Label("During rest: \(drill.name)", systemImage: "figure.flexibility")
+                            .font(Theme.label(11)).lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                    .buttonStyle(.plain)
+                }
                 Spacer(minLength: 0)
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     if p.end != nil {
                         Button("+15 s") { extendRest() }
                             .font(Theme.label(15))
-                            .frame(maxWidth: .infinity, minHeight: 50)
+                            .frame(maxWidth: .infinity, minHeight: 46)
                             .background(Capsule().fill(Theme.cardStrong))
                     }
                     Button(p.end == nil ? "Continue" : "Skip") { closePause() }
                         .font(Theme.label(15))
-                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .frame(maxWidth: .infinity, minHeight: 46)
                         .background(Capsule().fill(Theme.lime))
                         .foregroundStyle(Theme.ink)
                 }
-                .foregroundStyle(.white)
-            } else {
-                HStack(spacing: 8) {
-                    previousButton(size: 44)
-                    SetRing(since: setStart, done: done, sets: sets, color: color)
-                    skipButton(step, size: 44)
-                }
-                .foregroundStyle(.white)
-                Spacer(minLength: 0)
-                Group {
-                    if step.loggable && done < sets {
-                        EffortDoneStrip(setNumber: (editingSet ?? done) + 1) { e in
-                            completeSet(step, sets: sets, done: done, effort: e)
-                        } leading: {
-                            EmptyView()
-                        } trailing: {
-                            EmptyView()
-                        }
-                    } else {
-                        Button {
-                            mainAction(step, sets: sets, done: done)
-                        } label: {
-                            Text(mainLabel(step, sets: sets, done: done))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                        }
-                        .buttonStyle(LimeButtonStyle())
-                    }
-                }
-                .overlay(alignment: .bottom) {
-                    if let a = autoNext, a.uid == step.item.uid {
-                        let next = upNext(after: step, done: done, sets: sets, includeSets: false)
-                        AutoNextBar(title: next?.title ?? "", detail: next?.detail ?? "", end: a.end, total: a.total,
-                                    finishing: index >= steps.count - 1,
-                                    onGo: { advance(step) }, onHold: { autoNext = nil })
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
-                }
             }
         }
+        .foregroundStyle(.white)
+        .padding(12)
+        .frame(maxHeight: .infinity)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.card))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Theme.stroke))
     }
 
-    /// Left column rows: the exercise on now, the same "Up next" as upright (zone, superset), then what's left in the
-    /// Workout map's order (#363: skipped and finished-early items drop out).
-    private func comingUp(_ step: Step, done: Int, sets: Int, session: Session) -> [ComingUpColumn.Row] {
-        var rows = [ComingUpColumn.Row(
-            id: step.item.uid,
-            next: UpNext(eyebrow: done >= sets ? "Now · done" : "Now · set \(min(done + 1, sets)) of \(sets)", title: step.exercise.name,
-                         detail: Format.prescription(step.item.prescription), exercise: step.exercise, colors: step.category.colors),
-            current: true)]
-        let first = upNext(after: step, done: done, sets: sets, includeSets: false)
-        if let first { rows.append(.init(id: "next", next: first)) }
-        for o in OverviewItem.list(session.blocks, setsDone: setsDone, current: step.item.uid)
-        where o.state == .left && o.exercise.id != first?.exercise?.id {
-            rows.append(.init(id: o.id, next: UpNext(eyebrow: o.block.title.isEmpty ? o.category.rawValue.capitalized : o.block.title,
-                                                     title: o.exercise.name, detail: Format.prescription(o.item.prescription),
-                                                     exercise: o.exercise, colors: o.category.colors)))
-        }
-        return rows
+    /// The smart Up next bar (#373), same in both orientations: the next set or exercise, the two after it, what's left.
+    private func upNextBar(_ step: Step, done: Int, sets: Int, session: Session) -> some View {
+        let next = upNext(after: step, done: done, sets: sets, includeSets: false)
+        let items = OverviewItem.list(session.blocks, setsDone: setsDone, current: step.item.uid)
+        return SmartUpNextBar(next: next,
+                              then: SmartUpNextBar.after(items, current: step.item.uid, next: next?.exercise),
+                              left: items.filter { $0.state == .left }.count,
+                              doneBy: OverviewItem.doneBy(session.blocks, setsDone: setsDone, current: step.item.uid),
+                              fallback: step.category.colors) { mapOpen = true }
     }
 
     struct UpNext {

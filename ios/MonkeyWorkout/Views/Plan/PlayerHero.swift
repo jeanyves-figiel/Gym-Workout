@@ -51,7 +51,8 @@ struct ExerciseHeroCard: View {
     var onSplit: (() -> Void)?
     /// Superset / circuit (#352): the machines-not-next-to-each-other choices.
     var onGroup: (() -> Void)?
-    /// Landscape player (#362): smaller type, the picture takes all the height left, no muscle chips or note.
+    /// Landscape player (#362, #373 design A): smaller type, the picture takes all the height left with Form /
+    /// Not here? / Setup stacked beside it, no note.
     var compact = false
     let onForm: () -> Void
 
@@ -71,7 +72,7 @@ struct ExerciseHeroCard: View {
 
     var body: some View {
         let cat = Self.category(exercise, in: block)
-        VStack(alignment: .leading, spacing: compact ? 6 : 10) {
+        VStack(alignment: .leading, spacing: compact ? 6 : 8) {
             HStack {
                 Label(label.uppercased(), systemImage: cat.symbol).font(Theme.label(11)).tracking(1.2)
                 Spacer()
@@ -79,32 +80,35 @@ struct ExerciseHeroCard: View {
             }
             .opacity(0.9)
             Text(exercise.name)
-                .font(Theme.display(compact ? 22 : 30))
+                .font(Theme.display(compact ? 22 : 28))
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(item.prescription.sets > 1 ? "\(item.prescription.sets)×\(item.prescription.reps)" : item.prescription.reps)
-                    .font(Theme.display(compact ? 26 : 40))
+                    .font(Theme.display(compact ? 26 : 34))
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                 VStack(alignment: .leading, spacing: 0) {
-                    if let i = item.prescription.intensity { Text(i) }
-                    if item.prescription.restSec > 0 { Text("rest \(Format.rest(item.prescription.restSec))") }
+                    if let i = item.prescription.intensity { Text(i).lineLimit(1) }
+                    if item.prescription.restSec > 0 { Text("rest \(Format.rest(item.prescription.restSec))").lineLimit(1) }
                 }
                 .font(Theme.label(11))
                 .opacity(0.85)
+                .minimumScaleFactor(0.7)
                 Spacer(minLength: 4)
-                // Beside the target, so nothing sits over the picture's muscle map (top-left) or "Play movement" tag.
                 if let onAttemptPR {
                     Button(action: onAttemptPR) {
                         Label("Attempt PR", systemImage: "trophy.fill")
                             .font(Theme.label(12))
+                            .lineLimit(1)
+                            .fixedSize()
                             .foregroundStyle(Theme.ink)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
                             .background(Capsule().fill(Theme.lime))
                     }
                     .buttonStyle(.plain)
+                    .layoutPriority(1)
                 }
             }
             // Setup strip (#355): takes its line from the picture, which shrinks, so the player still never scrolls.
@@ -112,47 +116,29 @@ struct ExerciseHeroCard: View {
                 MachineNoteStrip(note: setup, hasPhoto: setup.photoId != nil || MachineNotePhotos.load(setup.id) != nil,
                                  onEdit: onSetup, onPhoto: onSetupPhoto ?? onSetup)
             }
-            // Plays the movement a few times when the exercise shows, then rests on the start; tap replays. Its "Play movement" tag sits
-            // bottom-left, Form bottom-right, Not here? top-right. The picture takes the height left on screen (#206: the player
-            // never scrolls), so it shrinks on small phones while the target, set card and buttons stay whole.
-            ExerciseMotionView(exercise: exercise)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: compact ? 40 : 56, maxHeight: compact ? .infinity : 180)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay(alignment: .topTrailing) {
-                    if let onNotHere {
-                        Button(action: onNotHere) {
-                            Label("Not here?", systemImage: "questionmark.circle")
-                                .font(Theme.label(12))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Capsule().fill(.black.opacity(0.55)))
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Not at this gym?")
-                        .padding(8)
+            // #373: the picture takes all the height left on screen (the player never scrolls, #206), and nothing sits on
+            // it but its own "Play movement" / tempo chip: Form, Not here? and Setup have their own places, so they never
+            // overlap each other or the rep counter.
+            if compact {
+                HStack(alignment: .top, spacing: 8) {
+                    picture
+                    VStack(alignment: .trailing, spacing: 8) {
+                        actionButtons
                     }
+                    .fixedSize()
                 }
-                .overlay(alignment: .bottomTrailing) {
-                    Button(action: onForm) {
-                        Label("Form", systemImage: "info.circle.fill")
-                            .font(Theme.label(12))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Capsule().fill(.black.opacity(0.55)))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Setup and technique")
-                    .padding(8)
-                }
-            // Landscape (#362) keeps only the add-setup chip: muscles are on the upright card.
-            if !compact || (setup == nil && onSetup != nil) {
                 HStack(spacing: 6) {
-                    if !compact { HeroMuscleChips(primary: exercise.primary, secondary: exercise.secondary) }
-                    if setup == nil, let onSetup {
-                        Spacer(minLength: 0)
-                        MachineNoteAddChip(action: onSetup).layoutPriority(1)
-                    }
+                    Spacer(minLength: 0)
+                    HeroMuscleChips(primary: exercise.primary, secondary: exercise.secondary)
+                }
+            } else {
+                picture
+                HStack(spacing: 6) {
+                    HeroMuscleChips(primary: exercise.primary, secondary: exercise.secondary)
+                    Spacer(minLength: 0)
+                    HStack(spacing: 6) { actionButtons }
+                        .fixedSize()
+                        .layoutPriority(1)
                 }
             }
             if item.group != nil, onSplit != nil || onGroup != nil {
@@ -163,8 +149,36 @@ struct ExerciseHeroCard: View {
         }
         .foregroundStyle(.white)
         .padding(compact ? 12 : 16)
+        .frame(maxHeight: .infinity, alignment: .top)
         .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(cat.gradient))
         .shadow(color: cat.color.opacity(0.35), radius: 18, y: 8)
+    }
+
+    /// Plays the movement a few times when the exercise shows, then rests on the start; tap replays.
+    private var picture: some View {
+        ExerciseMotionView(exercise: exercise)
+            .frame(maxWidth: .infinity, minHeight: compact ? 40 : 56, maxHeight: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    /// Form, Not here? (before the first set) and the add-setup chip, each in its own slot.
+    @ViewBuilder
+    private var actionButtons: some View {
+        Button(action: onForm) {
+            Label("Form", systemImage: "info.circle.fill").heroChip()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Setup and technique")
+        if let onNotHere {
+            Button(action: onNotHere) {
+                Label("Not here?", systemImage: "questionmark.circle").heroChip()
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Not at this gym?")
+        }
+        if setup == nil, let onSetup {
+            MachineNoteAddChip(action: onSetup)
+        }
     }
 
     /// "⛓ Superset A1 + A2" and a lime "✂ Split" in place of the generator's superset note (#352).
@@ -198,6 +212,18 @@ struct ExerciseHeroCard: View {
     }
 }
 
+private extension View {
+    /// Dark capsule for the card's own buttons (Form, Not here?).
+    func heroChip() -> some View {
+        font(Theme.label(11))
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(.black.opacity(0.45)))
+    }
+}
+
 /// Muscle chips readable on a gradient: primary dark with lime text, secondary translucent.
 private struct HeroMuscleChips: View {
     let primary: [Muscle]
@@ -209,12 +235,14 @@ private struct HeroMuscleChips: View {
             row(secondaryCount: 3)
             row(secondaryCount: 1)
             row(secondaryCount: 0)
+            row(secondaryCount: 0, primaryCount: 1)
+            Color.clear.frame(width: 0, height: 0)
         }
     }
 
-    private func row(secondaryCount: Int) -> some View {
+    private func row(secondaryCount: Int, primaryCount: Int = 3) -> some View {
         HStack(spacing: 6) {
-            ForEach(primary.prefix(3)) { chip($0.name, primary: true) }
+            ForEach(primary.prefix(primaryCount)) { chip($0.name, primary: true) }
             ForEach(secondary.filter { !primary.contains($0) }.prefix(secondaryCount)) { chip($0.name, primary: false) }
         }
     }
