@@ -5,6 +5,8 @@ import WorkoutEngine
 /// place and equipment and opens the calendar; otherwise the home gym, opening Training profile → Your gym.
 struct YourGymCard: View {
     @Environment(AppModel.self) private var model
+    /// Row inside the Settings "You" card (#394) instead of a full card.
+    var compact = false
     /// Saved gym picked in the quick switch (#180), waiting for confirmation.
     @State private var switching: SavedGym?
 
@@ -49,9 +51,14 @@ struct YourGymCard: View {
         return NavigationLink {
             if trip != nil { CalendarView() } else { ProfileSectionView(section: .gym) }
         } label: {
-            AccountCard(symbol: trip == nil ? "building.2.fill" : "airplane", title: trip?.title ?? model.gymName,
-                        subtitle: subtitle(trip), gradient: WorkoutEngine.Category.strength.gradient) {
-                AccountValue(value: "\(trip?.travelEquipment.count ?? model.profile?.equipment.count ?? 0)", unit: "items")
+            let items = trip?.travelEquipment.count ?? model.profile?.equipment.count ?? 0
+            if compact {
+                SettingsRow(symbol: trip == nil ? "building.2.fill" : "airplane", title: trip?.title ?? model.gymName, value: "\(items) items")
+            } else {
+                AccountCard(symbol: trip == nil ? "building.2.fill" : "airplane", title: trip?.title ?? model.gymName,
+                            subtitle: subtitle(trip), gradient: WorkoutEngine.Category.strength.gradient) {
+                    AccountValue(value: "\(items)", unit: "items")
+                }
             }
         }
         .buttonStyle(.plain)
