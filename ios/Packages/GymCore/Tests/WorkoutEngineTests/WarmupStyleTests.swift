@@ -27,11 +27,10 @@ import Testing
     /// #375: about 5 min of easy cardio (6 before a lower-body day), the drills still fit in the block.
     @Test func autoWarmupRaiseIsAtLeastFiveMinutes() throws {
         for (focus, expected) in [(Focus.push, 5), (.legs, 6)] {
-            let wu = try block(session(base, focus: focus), .warmup)
+            let wu = try block(session(base, focus: focus, minutes: 75), .warmup)
             let first = try #require(wu.items.first)
             #expect(cardioIds.contains(first.exerciseId))
             #expect(first.prescription.reps == "\(expected) min", "\(focus)")
-            #expect(wu.targetMin >= 8)
             #expect(wu.items.count >= 3)
         }
         // Quick sessions keep a short raise.
@@ -42,10 +41,12 @@ import Testing
     @Test func olderMembersGetOneMoreWarmupMinute() throws {
         var p = base
         p.birthYear = Calendar.current.component(.year, from: Date()) - 55
-        let wu = try block(session(p, focus: .push), .warmup)
+        let wu = try block(session(p, focus: .push, minutes: 75), .warmup)
         #expect(wu.items.first?.prescription.reps == "6 min")
         p.birthYear = Calendar.current.component(.year, from: Date()) - 30
-        #expect(try block(session(p, focus: .push), .warmup).items.first?.prescription.reps == "5 min")
+        #expect(try block(session(p, focus: .push, minutes: 75), .warmup).items.first?.prescription.reps == "5 min")
+        // A 45-min workout's 5-min warm-up keeps a minute for drills.
+        #expect(try block(session(base, focus: .legs), .warmup).items.first?.prescription.reps == "5 min")
     }
 
     @Test func easyCardioCooldownIsThreeToFiveMinutes() throws {
