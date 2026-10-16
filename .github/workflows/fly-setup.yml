@@ -87,6 +87,14 @@ jobs:
             flyctl secrets set --stage -a "$FLY_APP" ANTHROPIC_WORKSPACE_ID="$ANTHROPIC_WORKSPACE_ID"
           fi
           flyctl secrets list -a "$FLY_APP"
+      # Apply staged secrets to running machines now; a later image deploy alone left the old Claude key live (#387).
+      - name: Apply secrets
+        run: |
+          if [ "$(flyctl machines list -a "$FLY_APP" --json | jq length)" -gt 0 ]; then
+            flyctl secrets deploy -a "$FLY_APP"
+          else
+            echo "No machines yet: the first deploy picks the secrets up."
+          fi
       - name: TLS certificate
         run: |
           flyctl certs show "$HOSTNAME" -a "$FLY_APP" >/dev/null 2>&1 || flyctl certs add "$HOSTNAME" -a "$FLY_APP"
