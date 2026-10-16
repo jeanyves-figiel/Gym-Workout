@@ -258,6 +258,7 @@ struct ProgressScreen: View {
         .frame(maxWidth: .infinity, minHeight: 66, maxHeight: 66, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(tint))
     }
+}
 
 /// Level progress bar with XP to the next level.
 struct XPBar: View {
