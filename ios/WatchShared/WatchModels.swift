@@ -411,6 +411,8 @@ enum WatchKeys {
     static let recordId = "recordId"
     /// `WLiftLive` from the Watch while it measures a set of the iPhone workout (#383).
     static let lift = "lift"
+    /// Live heart rate (Int bpm) of an iPhone workout the Watch tracks, for the Live Activity (#371).
+    static let heartRate = "heartRate"
 }
 
 extension JSONEncoder {
