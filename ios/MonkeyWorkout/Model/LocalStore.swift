@@ -51,6 +51,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var tasteProfile: Profile {
         var p = profile
         p.learnedTaste = weekTaste
+        // Longer warm-up cardio from 50 (#375).
+        p.birthYear = body?.birthYear
         return p
     }
 
