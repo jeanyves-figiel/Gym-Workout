@@ -1,7 +1,7 @@
 name: Fly setup
 
 # Manual, idempotent, one-time bootstrap of a Fly.io app (#3) — no local CLI needed.
-# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Email: secrets SES_ACCESS_KEY_ID + SES_SECRET_ACCESS_KEY (IAM user, ses:SendRawEmail; sent via the SES HTTPS API) or SMTP_URL → real email, else console. Optional APPLE_KEY_ID + APPLE_PRIVATE_KEY (Sign in with Apple .p8) → Apple token revocation. Optional APNS_KEY_ID + APNS_PRIVATE_KEY (APNs .p8) → remote push.
+# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Email: secrets SES_ACCESS_KEY_ID + SES_SECRET_ACCESS_KEY (IAM user, ses:SendRawEmail; sent via the SES HTTPS API) or SMTP_URL → real email, else console. Optional APPLE_KEY_ID + APPLE_PRIVATE_KEY (Sign in with Apple .p8) → Apple token revocation. Optional APNS_KEY_ID + APNS_PRIVATE_KEY (APNs .p8) → remote push. Optional ANTHROPIC_API_KEY → workout chat (#381).
 on:
   workflow_dispatch:
     inputs:
@@ -32,6 +32,7 @@ jobs:
       APPLE_PRIVATE_KEY: ${{ secrets.APPLE_PRIVATE_KEY }}
       APNS_KEY_ID: ${{ secrets.APNS_KEY_ID }}
       APNS_PRIVATE_KEY: ${{ secrets.APNS_PRIVATE_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       FLY_APP: ${{ inputs.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
       REGION: fra
       HOSTNAME: ${{ inputs.environment == 'production' && 'workout.monkeygrade.cloud' || 'workout-staging.monkeygrade.cloud' }}
@@ -75,6 +76,10 @@ jobs:
           if [ -n "$APNS_KEY_ID" ] && [ -n "$APNS_PRIVATE_KEY" ]; then
             printf '%s\n' "$APNS_PRIVATE_KEY" | flyctl secrets set --stage -a "$FLY_APP" APNS_PRIVATE_KEY=-
             flyctl secrets set --stage -a "$FLY_APP" APNS_KEY_ID="$APNS_KEY_ID"
+          fi
+          # Workout chat (#381): Claude API key. Unset → the chat says it isn't switched on.
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            printf '%s' "$ANTHROPIC_API_KEY" | flyctl secrets set --stage -a "$FLY_APP" ANTHROPIC_API_KEY=-
           fi
           flyctl secrets list -a "$FLY_APP"
       - name: TLS certificate

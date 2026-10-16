@@ -15,6 +15,8 @@ import { PushService } from './push/service.ts';
 import { accountRoutes } from './routes/account.ts';
 import { followerIds } from './community/moderation.ts';
 import { communityPublicRoutes, communityRoutes } from './routes/community.ts';
+import { type CoachModel, claudeCoach } from './coach/chat.ts';
+import { coachChatRoutes } from './routes/coachChat.ts';
 import { customExerciseRoutes } from './routes/customExercises.ts';
 import { customWorkoutRoutes } from './routes/customWorkouts.ts';
 import { bodyMeasurementRoutes } from './routes/bodyMeasurements.ts';
@@ -57,6 +59,8 @@ export interface AppDeps {
   appStore?: AppStoreDecoder;
   /** WebAuthn verification (#257); injectable for tests. */
   webauthn?: WebAuthnVerifier;
+  /** Workout chat model (#381); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
+  coach?: CoachModel;
 }
 
 const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
@@ -245,6 +249,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       libraryRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
       subscriptionRoutes(r, subscriptions);
       gymRoutes(r, deps.db, now);
+      const coach = deps.coach ?? (deps.config.coachChat.apiKey ? claudeCoach(deps.config.coachChat.apiKey) : undefined);
+      coachChatRoutes(r, deps.db, now, coach, deps.config.coachChat.dailyLimit, (id) => subscriptions.entitlement(id).access);
     },
     { prefix: '/v1' },
   );
