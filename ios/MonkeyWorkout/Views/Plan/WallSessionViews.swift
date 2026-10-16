@@ -69,7 +69,37 @@ struct MonkeyGradeTag: View {
     }
 }
 
-/// Train → Climbing: pick the day type, then start each part.
+/// Train → Climbing → Wall session: day types, parts and start on their own page.
+struct WallSessionPage: View {
+    let today: Bool
+    let climbedToday: Bool
+
+    @Environment(AppModel.self) private var model
+    @State private var logging: ClimbLog?
+    @State private var settings = false
+    @State private var gate: ProGate?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Wall session").font(Theme.display(34))
+                WallSessionCard(today: today, climbedToday: climbedToday,
+                                locked: ProStore.shared.locked, onGate: { gate = .climbing },
+                                onLogClimb: { logging = ClimbLog(start: Date().addingTimeInterval(-90 * 60)) })
+                AroundClimbingLink { ProStore.shared.run(.climbing, $gate) { settings = true } }
+            }
+            .padding(16)
+        }
+        .readableWidth()
+        .background(Theme.bg.ignoresSafeArea())
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $logging) { LogClimbView(initial: $0) }
+        .sheet(isPresented: $settings) { ClimbSettingsView() }
+        .proPaywall($gate)
+    }
+}
+
+/// Wall session page: pick the day type, then start each part.
 struct WallSessionCard: View {
     /// Today is one of the member's climbing days.
     let today: Bool
@@ -88,7 +118,7 @@ struct WallSessionCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(today ? "Climbing day · wall session" : "Wall session").eyebrow()
+            if today { Text("Today · climbing day").eyebrow() }
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
                 ForEach(WallDay.allCases) { d in tile(d) }
             }

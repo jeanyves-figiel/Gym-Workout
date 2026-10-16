@@ -27,6 +27,7 @@ struct AccountView: View {
     @State private var signOutAllTask = FormTask()
     @State private var deviceCount: Int?
     @State private var gate: ProGate?
+    @State private var climbSettings = false
     @State private var webPage: WebPage?
 
     var body: some View {
@@ -200,6 +201,17 @@ struct AccountView: View {
                     }
                     .buttonStyle(.plain)
                     }
+                    // Around climbing days, also linked under Train → Climbing.
+                    if model.profile.map(Generator.isClimber) ?? false {
+                        Button { ProStore.shared.run(.climbing, $gate) { climbSettings = true } } label: {
+                            AccountCard(symbol: "slider.horizontal.3", title: "Around climbing days",
+                                        subtitle: "Gym days before and after climbing",
+                                        gradient: ClimbKind.boulder.gradient) {
+                                if ProStore.shared.locked { ProBadge() } else { AccountChevron() }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
 
                     section("Security")
                     NavigationLink { ChangePasswordView(hasPassword: user.hasPassword) } label: {
@@ -309,6 +321,7 @@ struct AccountView: View {
         .onChange(of: Community.shared.me.nickname) { _, new in if !handleFocused { handle = new ?? "" } }
         .task { deviceCount = try? await model.api.sessions().count }
         .proPaywall($gate)
+        .sheet(isPresented: $climbSettings) { ClimbSettingsView() }
         .sheet(item: $webPage) { SafariView(url: $0.url).ignoresSafeArea() }
         .confirmationDialog("Sign out everywhere?", isPresented: $confirmSignOutAll, titleVisibility: .visible) {
             Button("Sign out all devices", role: .destructive) {

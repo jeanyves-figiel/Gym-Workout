@@ -185,9 +185,7 @@ private struct DemoScreen: View {
         // Climbing gym (#366): Wall session card, Explore → Climbing, the hangboard session, a hangboard drill.
         case "wall-session":
             NavigationStack {
-                ScrollView { ClimbSection().padding(16) }
-                    .readableWidth()
-                    .background(Theme.bg.ignoresSafeArea())
+                WallSessionPage(today: true, climbedToday: false)
                     .navigationDestination(for: String.self) { SessionView(sessionId: $0) }
             }
         case "explore-climbing": NavigationStack { ClimbingCategoryView() }
