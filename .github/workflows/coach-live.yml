@@ -8,9 +8,6 @@ on:
         type: choice
         options: [staging, production]
         default: staging
-  push:
-    branches: [claude/workout-chat-21cul2]
-    paths: [.github/workflows/coach-live.yml, backend/src/coach/**, backend/scripts/coach-live.ts]
 
 permissions:
   contents: read
@@ -18,7 +15,7 @@ permissions:
 jobs:
   call:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment || 'staging' }}
+    environment: ${{ inputs.environment }}
     defaults:
       run:
         working-directory: backend
@@ -33,3 +30,4 @@ jobs:
       - run: node --disable-warning=ExperimentalWarning scripts/coach-live.ts
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_WORKSPACE_ID: ${{ secrets.ANTHROPIC_WORKSPACE_ID }}

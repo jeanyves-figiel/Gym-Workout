@@ -31,7 +31,7 @@ export interface Config {
   /** APNs token auth (.p8 with Apple Push Notifications service enabled). Unset → remote push skipped (#69). */
   apns: { teamId?: string; keyId?: string; privateKey?: string };
   /** Workout chat (#381): ANTHROPIC_API_KEY unset → the chat answers 503 and the app hides it. COACH_CHAT_DAILY_LIMIT messages per member per day. */
-  coachChat: { apiKey?: string; dailyLimit: number };
+  coachChat: { apiKey?: string; workspaceId?: string; dailyLimit: number };
   /** In-app subscriptions (#126). SUBSCRIPTIONS=off|preview|enforced (default off: nothing shown or locked). */
   subscriptions: {
     mode: 'off' | 'preview' | 'enforced';
@@ -115,7 +115,11 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
       keyId: env.APNS_KEY_ID || undefined,
       privateKey: env.APNS_PRIVATE_KEY ? env.APNS_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined,
     },
-    coachChat: { apiKey: env.ANTHROPIC_API_KEY || undefined, dailyLimit: Number(env.COACH_CHAT_DAILY_LIMIT ?? 20) },
+    coachChat: {
+      apiKey: env.ANTHROPIC_API_KEY || undefined,
+      workspaceId: env.ANTHROPIC_WORKSPACE_ID || undefined,
+      dailyLimit: Number(env.COACH_CHAT_DAILY_LIMIT ?? 20),
+    },
     subscriptions: {
       mode: subscriptionMode(env.SUBSCRIPTIONS),
       productIds: (env.SUBSCRIPTION_PRODUCT_IDS ?? 'monkeyworkout.pro.weekly,monkeyworkout.pro.monthly,monkeyworkout.pro.yearly,monkeyworkout.pro.lifetime')

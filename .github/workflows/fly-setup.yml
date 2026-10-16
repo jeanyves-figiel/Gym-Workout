@@ -1,7 +1,7 @@
 name: Fly setup
 
 # Manual, idempotent, one-time bootstrap of a Fly.io app (#3) — no local CLI needed.
-# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Email: secrets SES_ACCESS_KEY_ID + SES_SECRET_ACCESS_KEY (IAM user, ses:SendRawEmail; sent via the SES HTTPS API) or SMTP_URL → real email, else console. Optional APPLE_KEY_ID + APPLE_PRIVATE_KEY (Sign in with Apple .p8) → Apple token revocation. Optional APNS_KEY_ID + APNS_PRIVATE_KEY (APNs .p8) → remote push. Optional ANTHROPIC_API_KEY → workout chat (#381).
+# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Email: secrets SES_ACCESS_KEY_ID + SES_SECRET_ACCESS_KEY (IAM user, ses:SendRawEmail; sent via the SES HTTPS API) or SMTP_URL → real email, else console. Optional APPLE_KEY_ID + APPLE_PRIVATE_KEY (Sign in with Apple .p8) → Apple token revocation. Optional APNS_KEY_ID + APNS_PRIVATE_KEY (APNs .p8) → remote push. Optional ANTHROPIC_API_KEY → workout chat (#381); ANTHROPIC_WORKSPACE_ID only when that key isn't scoped to a workspace.
 on:
   workflow_dispatch:
     inputs:
@@ -33,6 +33,7 @@ jobs:
       APNS_KEY_ID: ${{ secrets.APNS_KEY_ID }}
       APNS_PRIVATE_KEY: ${{ secrets.APNS_PRIVATE_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ANTHROPIC_WORKSPACE_ID: ${{ secrets.ANTHROPIC_WORKSPACE_ID }}
       FLY_APP: ${{ inputs.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
       REGION: fra
       HOSTNAME: ${{ inputs.environment == 'production' && 'workout.monkeygrade.cloud' || 'workout-staging.monkeygrade.cloud' }}
@@ -80,6 +81,10 @@ jobs:
           # Workout chat (#381): Claude API key. Unset → the chat says it isn't switched on.
           if [ -n "$ANTHROPIC_API_KEY" ]; then
             printf '%s' "$ANTHROPIC_API_KEY" | flyctl secrets set --stage -a "$FLY_APP" ANTHROPIC_API_KEY=-
+          fi
+          # Key not scoped to a workspace → the API needs the workspace id (#386).
+          if [ -n "$ANTHROPIC_WORKSPACE_ID" ]; then
+            flyctl secrets set --stage -a "$FLY_APP" ANTHROPIC_WORKSPACE_ID="$ANTHROPIC_WORKSPACE_ID"
           fi
           flyctl secrets list -a "$FLY_APP"
       - name: TLS certificate

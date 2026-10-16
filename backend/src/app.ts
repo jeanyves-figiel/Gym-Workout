@@ -249,7 +249,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       libraryRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
       subscriptionRoutes(r, subscriptions);
       gymRoutes(r, deps.db, now);
-      const coach = deps.coach ?? (deps.config.coachChat.apiKey ? claudeCoach(deps.config.coachChat.apiKey) : undefined);
+      const coach = deps.coach ?? (deps.config.coachChat.apiKey ? claudeCoach(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
       coachChatRoutes(r, deps.db, now, coach, deps.config.coachChat.dailyLimit, (id) => subscriptions.entitlement(id).access);
     },
     { prefix: '/v1' },

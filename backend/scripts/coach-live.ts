@@ -1,4 +1,4 @@
-// One live Ask Coach call with ANTHROPIC_API_KEY; prints the answer or the API error (diagnostics).
+// One live Ask Coach call with ANTHROPIC_API_KEY; prints the answer or the API error (#385).
 import { claudeCoach } from '../src/coach/chat.ts';
 
 const key = process.env.ANTHROPIC_API_KEY;
@@ -7,7 +7,7 @@ if (!key) {
   process.exit(1);
 }
 try {
-  const answer = await claudeCoach(key)(
+  const answer = await claudeCoach(key, process.env.ANTHROPIC_WORKSPACE_ID || undefined)(
     [{ role: 'member', text: 'Quick 30 min upper body, no barbell please' }],
     { goal: 'strength', level: 'intermediate', sessionMinutes: 45, equipment: ['dumbbell', 'cable'], readiness: 'good', method: 'block' },
   );
