@@ -179,6 +179,17 @@ private struct DemoScreen: View {
             if let r = model.programmeHistory.last { ProgrammeFinishedSheet(record: r) }
         case "monkeygrade": NavigationStack { MonkeyGradeView() }
         case "climb-settings": ClimbSettingsView()
+        // Climbing gym (#366): Wall session card, Explore → Climbing, the hangboard session, a hangboard drill.
+        case "wall-session":
+            NavigationStack {
+                ScrollView { ClimbSection().padding(16) }
+                    .readableWidth()
+                    .background(Theme.bg.ignoresSafeArea())
+                    .navigationDestination(for: String.self) { SessionView(sessionId: $0) }
+            }
+        case "explore-climbing": NavigationStack { ClimbingCategoryView() }
+        case "wall-hangboard": NavigationStack { SessionView(sessionId: WallSession.templates[3].sessionId) }
+        case "exercise-climbing": NavigationStack { ExerciseDetailView(exerciseId: "hang-ramp") }
         case "climb": LogClimbView(initial: ClimbLog(start: Date().addingTimeInterval(-90 * 60), effort: 8, topGrade: "6C"))
         case "muscle": NavigationStack { MuscleDetailView(muscle: .lats) }
         case "muscle-female": NavigationStack { MuscleDetailView(muscle: .glutes) }.environment(\.bodyFigure, .female)

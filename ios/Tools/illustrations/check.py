@@ -39,6 +39,7 @@ ALLOWED = {
     "rotational-throw": FAST,
     "squat-jump": FAST,
     "squat-to-stand": FAST,
+    "band-external-rotation": VIEWED,
     "cable-external-rotation": VIEWED,
     "cable-low-high-chop": VIEWED,
     "cable-rear-delt-fly": VIEWED,

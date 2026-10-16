@@ -245,3 +245,108 @@ def on_back(j, back=14, up=3):
 
 def dist(a, b):
     return math.hypot(a[0] - b[0], a[1] - b[1])
+
+
+# ---- climbing (#366) -------------------------------------------------------------------------------------------
+
+WOOD = ("#D6A86C", "#B7854C", "#8A6236")
+HB_D, HB_H = 38, 34  # hangboard depth (out from the wall) and height, side view
+
+
+def hangboard_holds(wx, top):
+    """Fingertip points of the hangboard drawn by `hangboard(doc, wx, top)`: 'jug' = the rounded top,
+    'edge' = the ledge of the slot cut into its front face."""
+    return {"jug": (wx - HB_D + 8, top + 0.5), "edge": (wx - HB_D + 7, top + 19)}
+
+
+def hangboard(doc, wx, top):
+    """Wooden hangboard seen from the side, screwed to a backing plank on the wall at x = `wx` (the climber
+    hangs to its left, facing it): rounded jug on top, a slot (the edge) in the front face."""
+    x0 = wx - HB_D
+    wall(doc, wx, 16, -400)
+    plank = doc.box_grad([(0, WOOD[1]), (1, WOOD[2])], vertical=False)
+    doc.add(f'<rect x="{wx - 7:.1f}" y="{top - 30:.1f}" width="7" height="{HB_H + 64:.1f}" rx="1.5" fill="{plank}" '
+            f'stroke="#3A2A1A" stroke-width="0.8"/>')
+    for y in (top - 20, top + HB_H + 22):
+        doc.add(f'<circle cx="{wx - 3.5:.1f}" cy="{y:.1f}" r="1.6" fill="#3A3F46"/>')
+    body = doc.lin((x0, top), (wx, top + HB_H), [(0, WOOD[0]), (0.6, WOOD[1]), (1, WOOD[2])])
+    e = top + 13  # slot top
+    pts = [(wx - 8, top), (x0 + 8, top), (x0 + 1, top + 3), (x0, top + 8), (x0 + 1, e - 1), (x0 + 16, e),
+           (x0 + 16, e + 6), (x0 + 1.5, e + 6.5), (x0, e + 9), (x0 + 2, top + HB_H), (wx - 8, top + HB_H)]
+    d = "M" + " L".join(f"{x:.1f},{y:.1f}" for x, y in pts) + " Z"
+    doc.add(f'<path d="{d}" fill="{body}" stroke="#3A2A1A" stroke-width="0.9" stroke-linejoin="round"/>')
+    doc.add(f'<rect x="{x0 + 1.5:.1f}" y="{e + 0.5:.1f}" width="14" height="5.5" fill="#2A1D12" fill-opacity="0.85"/>')
+    for k in (0.3, 0.55, 0.8):  # grain
+        y = top + HB_H * k + 3
+        doc.add(f'<path d="M{x0 + 18:.1f},{y:.1f} q{(HB_D - 26) / 2:.1f},-2 {HB_D - 26:.1f},0" fill="none" '
+                f'stroke="#6E4E2C" stroke-opacity="0.45" stroke-width="0.7"/>')
+    doc.add(f'<path d="M{x0 + 7:.1f},{top + 1:.1f} L{wx - 9:.1f},{top + 1:.1f}" stroke="#F2D3A6" '
+            f'stroke-opacity="0.6" stroke-width="1"/>')
+
+
+def hold(doc, c, r, color, seed=0):
+    """Climbing hold seen face-on: a lumpy resin blob with a bolt."""
+    pts = []
+    for i in range(7):
+        a = math.radians(i * 360 / 7 + seed * 37)
+        k = 1 + 0.22 * math.sin(i * 2.3 + seed)
+        pts.append((c[0] + r * k * math.cos(a) * 1.25, c[1] + r * k * math.sin(a) * 0.9))
+    g = doc.lin((c[0] - r, c[1] - r), (c[0] + r, c[1] + r), [(0, color), (1, "#000")])
+    doc.add(f'<path d="{art.smooth(pts, k=0.2)}" fill="{color}" stroke="#0A0B0D" stroke-width="0.8"/>'
+            f'<path d="{art.smooth(pts, k=0.2)}" fill="{g}" fill-opacity="0.35"/>'
+            f'<circle cx="{c[0]:.1f}" cy="{c[1]:.1f}" r="1.4" fill="#2A2E34"/>')
+
+
+def climbing_wall(doc, x0, x1, top, holds):
+    """Vertical climbing wall seen face-on (plywood panels, T-nut grid) with `holds` [(centre, r, colour)]."""
+    g = doc.box_grad([(0, "#E9DCC6"), (1, "#C9B79A")])
+    doc.add(f'<rect x="{x0:.1f}" y="{top:.1f}" width="{x1 - x0:.1f}" height="{GROUND - top:.1f}" fill="{g}" '
+            f'stroke="#5A4A36" stroke-width="0.9"/>')
+    for x in range(int(x0) + 80, int(x1), 80):
+        doc.add(f'<line x1="{x}" y1="{top:.1f}" x2="{x}" y2="{GROUND}" stroke="#8C7A5E" stroke-width="0.8"/>')
+    for y in range(int(top) + 100, GROUND, 100):
+        doc.add(f'<line x1="{x0:.1f}" y1="{y}" x2="{x1:.1f}" y2="{y}" stroke="#8C7A5E" stroke-width="0.8"/>')
+    dots = []
+    for y in range(int(top) + 10, GROUND - 4, 20):
+        for x in range(int(x0) + 10, int(x1), 20):
+            dots.append(f'<circle cx="{x}" cy="{y}" r="0.9"/>')
+    doc.add('<g fill="#6E5D45" fill-opacity="0.5">' + "".join(dots) + "</g>")
+    for i, (c, r, col) in enumerate(holds):
+        hold(doc, c, r, col, i)
+
+
+def crash_pad(doc, x0, x1, h=12):
+    g = doc.box_grad([(0, "#3A4A5E"), (1, "#222B36")])
+    doc.add(f'<rect x="{x0:.1f}" y="{GROUND - h:.1f}" width="{x1 - x0:.1f}" height="{h + 2}" rx="4" fill="{g}" '
+            f'stroke="#0A0B0D" stroke-width="0.8"/>'
+            f'<line x1="{x0 + 4:.1f}" y1="{GROUND - h + 3:.1f}" x2="{x1 - 4:.1f}" y2="{GROUND - h + 3:.1f}" '
+            f'stroke="#fff" stroke-opacity="0.15" stroke-width="1"/>')
+
+
+def lift_block(doc, j, side="N", pinch=False, weight="kb"):
+    """Lift block in the hand: an edge block (fingertips over its top edge) or a pinch block (thumb on the near
+    face), a loading pin through it and the weight hanging below. Draw in the front layer: the hand is redrawn
+    over the block."""
+    w, h = j["wrist" + side], j["hand" + side]
+    wood = doc.box_grad([(0, WOOD[0]), (1, WOOD[2])], vertical=False)
+    if pinch:
+        c = ((w[0] + h[0]) / 2, (w[1] + h[1]) / 2 + 2)
+        bx0, by0, bw, bh = c[0] - 4.5, c[1] - 12, 9, 26
+    else:
+        bx0, by0, bw, bh = h[0] - 11, h[1] - 4, 22, 11
+    pin_top = (bx0 + bw / 2, by0 + bh)
+    pin_end = (pin_top[0], pin_top[1] + 16)
+    tube_ = f'<line x1="{pin_top[0]:.1f}" y1="{pin_top[1] - 2:.1f}" x2="{pin_end[0]:.1f}" y2="{pin_end[1]:.1f}" '
+    doc.add(tube_ + 'stroke="#0A0B0D" stroke-width="3.6" stroke-linecap="round"/>' + tube_ + f'stroke="{CHROME}" '
+            'stroke-width="2" stroke-linecap="round"/>')
+    if weight == "kb":
+        kettlebell(doc, (pin_end[0], pin_end[1] + 5), r=10)
+    else:
+        art.plate(doc, (pin_end[0], pin_end[1] + 12), 13)
+    doc.add(f'<circle cx="{pin_end[0]:.1f}" cy="{pin_end[1]:.1f}" r="3.2" fill="none" stroke="#1A1D21" '
+            f'stroke-width="1.6"/>')
+    doc.add(f'<rect x="{bx0:.1f}" y="{by0:.1f}" width="{bw}" height="{bh}" rx="2" fill="{wood}" stroke="#3A2A1A" '
+            f'stroke-width="0.8"/>')
+    seg = art.Seg(w, h, art.PROFILES["hand"])
+    art.draw_segment(doc, seg, art.SKIN_NEAR if side == "N" else art.SKIN_FAR, 0.75)
+    return pin_end

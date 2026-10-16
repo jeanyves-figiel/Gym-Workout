@@ -51,6 +51,7 @@ public struct Technique: Hashable, Sendable {
         .merging(gymProps) { a, _ in a }
         .merging(gymCalis) { a, _ in a }
         .merging(gymMobility) { a, _ in a }
+        .merging(climbing) { a, _ in a }
 }
 
 extension Exercise {

@@ -42,6 +42,12 @@ struct ExerciseDetailView: View {
                         }
                         .buttonStyle(.plain)
                     }
+                    // Climbing (#366): same drill and name as in MonkeyGrade's session planner.
+                    if e.monkeyGradeSlug != nil {
+                        Label("Same drill in MonkeyGrade", systemImage: "figure.climbing")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(MonkeyGradeTag.color)
+                    }
                 }
                 if let uid = plannedUid, model.canSwap(uid: uid) {
                     Button { swapping = true } label: {

@@ -23,7 +23,7 @@ extension Equipment {
              .assistedMachine, .reverseHyper, .curlMachine, .tricepsMachine, .rowMachine, .backExtensionMachine, .squatMachine,
              .beltSquat, .gluteMachine, .multiHip, .pulloverMachine: .machines
         case .kettlebells, .rings, .trx, .plyoBox, .medBall, .slamBall, .sled, .battleRope, .abWheel, .bands, .stabilityBall, .jumpRope, .dipBelt,
-             .sandbag, .sliders, .balanceTrainer, .stallBars: .functional
+             .sandbag, .sliders, .balanceTrainer, .stallBars, .hangboard, .climbingWall, .liftBlock: .functional
         case .treadmill, .bike, .airBike, .rower, .skiErg, .stairClimber, .elliptical: .cardio
         case .foamRoller, .mat, .massageBall: .stretch
         }
@@ -100,6 +100,9 @@ extension Equipment {
         case .balanceTrainer: "Dome up for balance work, flat side up for push-ups and squats; centre the feet or hands."
         case .massageBall: "Firm ball against the floor or a wall; let body weight set the pressure."
         case .stallBars: "Grip a rung or the pole at shoulder width; top hand pulls, bottom hand pushes."
+        case .hangboard: "Warm up first; a chair or foot loop under the board takes weight off until you can hang it all."
+        case .climbingWall: "Stay on the easy holds and keep clear of the landing zone under other climbers."
+        case .liftBlock: "Clip plates or a kettlebell to the pin; start light, the edge depth sets the difficulty."
         }
     }
 }

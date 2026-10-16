@@ -9,6 +9,8 @@ import Foundation
 /// An area of a gym; answering one card adds or removes all its items.
 public enum GymArea: String, Codable, CaseIterable, Sendable, Identifiable {
     case barbells, dumbbells, cables, machines, stations, functional, cardio
+    /// Climbing gym (#366): wall, hangboard, lifting blocks.
+    case climbing
     public var id: String { rawValue }
 
     public var question: String {
@@ -20,6 +22,7 @@ public enum GymArea: String, Codable, CaseIterable, Sendable, Identifiable {
         case .stations: "Pull-up & dip bars?"
         case .functional: "Functional zone?"
         case .cardio: "Cardio machines?"
+        case .climbing: "Climbing wall & hangboard?"
         }
     }
 
@@ -32,6 +35,7 @@ public enum GymArea: String, Codable, CaseIterable, Sendable, Identifiable {
         case .stations: "Bars & rings"
         case .functional: "Functional"
         case .cardio: "Cardio"
+        case .climbing: "Climbing"
         }
     }
 
@@ -48,6 +52,7 @@ public enum GymArea: String, Codable, CaseIterable, Sendable, Identifiable {
         case .functional: [.kettlebells, .plyoBox, .medBall, .slamBall, .sled, .battleRope, .abWheel, .bands, .stabilityBall, .jumpRope, .dipBelt,
                            .sandbag, .sliders, .balanceTrainer, .massageBall]
         case .cardio: [.treadmill, .bike, .airBike, .rower, .skiErg, .stairClimber, .elliptical]
+        case .climbing: [.climbingWall, .hangboard, .liftBlock]
         }
     }
 
@@ -100,7 +105,7 @@ public enum GymKind: String, Codable, CaseIterable, Sendable, Identifiable {
         case .hotel: [.dumbbells, .cardio]
         case .home: [.dumbbells]
         case .budget: [.barbells, .dumbbells, .cables, .machines, .stations, .cardio]
-        case .bigClub: Set(GymArea.allCases)
+        case .bigClub: Set(GymArea.allCases).subtracting([.climbing])
         case .box: [.barbells, .dumbbells, .stations, .functional, .cardio]
         case .park: [.stations]
         }
@@ -290,6 +295,9 @@ extension Equipment {
         case .balanceTrainer: "bosu-squat"
         case .massageBall: "massage-ball-glute"
         case .stallBars: "human-flag"
+        case .hangboard: "max-hangs"
+        case .climbingWall: "easy-traverse"
+        case .liftBlock: "block-lift"
         }
     }
 
@@ -339,6 +347,9 @@ extension Equipment {
         case .balanceTrainer: ["bosu", "balance pad", "airex", "wobble board"]
         case .massageBall: ["lacrosse ball", "foam ball", "trigger point ball"]
         case .stallBars: ["swedish ladder", "wall bars", "pole"]
+        case .hangboard: ["fingerboard", "beastmaker", "edges"]
+        case .climbingWall: ["bouldering wall", "climbing", "bouldering"]
+        case .liftBlock: ["tension block", "no-hang", "pinch block", "lifting edge"]
         default: []
         }
     }

@@ -100,6 +100,10 @@ public enum Equipment: String, Codable, CaseIterable, Sendable, Identifiable {
     case balanceTrainer = "balance-trainer"
     case massageBall = "massage-ball"
     case stallBars = "stall-bars"
+    // Climbing gym (#366).
+    case hangboard
+    case climbingWall = "climbing-wall"
+    case liftBlock = "lift-block"
     public var id: String { rawValue }
 }
 
@@ -221,7 +225,7 @@ public struct Profile: Codable, Hashable, Sendable {
     public var climbAfter: ClimbNeighbour?
     /// Gym sessions on climbing days (#47); nil = `.avoid`.
     public var climbSameDay: ClimbSameDay?
-    /// Offer a short optional add-on workout on climbing days (#47); nil = off.
+    /// Show the Wall session on Train (#366; was the climbing-day add-on, #47); nil = on, false = off.
     public var climbDayAddon: Bool?
     /// Week-to-week variety (#64); nil = `.fresh`. Optional so older profiles decode.
     public var variety: PlanVariety?

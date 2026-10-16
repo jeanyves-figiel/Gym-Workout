@@ -11,7 +11,8 @@ public struct Gym: Sendable, Identifiable {
         id: "fitnesspark-puls5",
         name: "Fitnesspark Puls 5",
         location: "Giessereistrasse 18, 8005 Zürich",
-        equipment: Equipment.allCases,
+        // No climbing wall or hangboard there (#366).
+        equipment: Equipment.allCases.filter { !GymArea.climbing.items.contains($0) },
         amenities: ["Sauna ×2", "Steam bath", "Whirlpool", "Group classes"],
         note: "Large full-service club: free weights, machine circuits, functional zone, full cardio floor. Inventory assumed — untick anything missing."
     )
