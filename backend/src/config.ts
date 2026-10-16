@@ -32,6 +32,11 @@ export interface Config {
   apns: { teamId?: string; keyId?: string; privateKey?: string };
   /** Workout chat (#381): ANTHROPIC_API_KEY unset → the chat answers 503 and the app hides it. COACH_CHAT_DAILY_LIMIT messages per member per day. */
   coachChat: { apiKey?: string; workspaceId?: string; dailyLimit: number };
+  /**
+   * Studio coach voices (#395): Amazon Polly neural. POLLY_ACCESS_KEY_ID/POLLY_SECRET_ACCESS_KEY, else the SES keys (the
+   * IAM user needs polly:SynthesizeSpeech); POLLY_REGION (default eu-central-1). Recordings cached in `cacheDir`.
+   */
+  coachVoices: { polly?: { region: string; accessKeyId: string; secretAccessKey: string }; cacheDir?: string };
   /** In-app subscriptions (#126). SUBSCRIPTIONS=off|preview|enforced (default off: nothing shown or locked). */
   subscriptions: {
     mode: 'off' | 'preview' | 'enforced';
@@ -69,6 +74,13 @@ const backupDir = (env: NodeJS.ProcessEnv, prod: boolean, dbPath: string): strin
   if (v && ['off', '0', 'false', 'no'].includes(v.toLowerCase())) return undefined;
   if (v) return v;
   return prod && dbPath !== ':memory:' ? join(dirname(dbPath), 'backups') : undefined;
+};
+
+const pollyCreds = (env: NodeJS.ProcessEnv) => {
+  if (['off', '0', 'false', 'no'].includes((env.POLLY ?? '').toLowerCase())) return undefined;
+  const accessKeyId = env.POLLY_ACCESS_KEY_ID || env.SES_ACCESS_KEY_ID;
+  const secretAccessKey = env.POLLY_SECRET_ACCESS_KEY || env.SES_SECRET_ACCESS_KEY;
+  return accessKeyId && secretAccessKey ? { region: env.POLLY_REGION ?? 'eu-central-1', accessKeyId, secretAccessKey } : undefined;
 };
 
 export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
@@ -114,6 +126,10 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
       teamId: env.APNS_TEAM_ID || env.APPLE_TEAM_ID || undefined,
       keyId: env.APNS_KEY_ID || undefined,
       privateKey: env.APNS_PRIVATE_KEY ? env.APNS_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined,
+    },
+    coachVoices: {
+      polly: pollyCreds(env),
+      cacheDir: env.COACH_VOICE_DIR || (prod && (env.DB_PATH ?? '/data/app.db') !== ':memory:' ? join(dirname(env.DB_PATH ?? '/data/app.db'), 'coach-voices') : undefined),
     },
     coachChat: {
       apiKey: env.ANTHROPIC_API_KEY || undefined,

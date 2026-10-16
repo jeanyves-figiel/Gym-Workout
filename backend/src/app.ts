@@ -17,6 +17,8 @@ import { followerIds } from './community/moderation.ts';
 import { communityPublicRoutes, communityRoutes } from './routes/community.ts';
 import { type CoachModel, claudeCoach } from './coach/chat.ts';
 import { coachChatRoutes } from './routes/coachChat.ts';
+import { coachVoiceRoutes } from './routes/coachVoices.ts';
+import { pollySynthesizer, type Synthesize } from './coach/polly.ts';
 import { customExerciseRoutes } from './routes/customExercises.ts';
 import { customWorkoutRoutes } from './routes/customWorkouts.ts';
 import { bodyMeasurementRoutes } from './routes/bodyMeasurements.ts';
@@ -61,6 +63,8 @@ export interface AppDeps {
   webauthn?: WebAuthnVerifier;
   /** Workout chat model (#381); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
   coach?: CoachModel;
+  /** Studio coach voices (#395); defaults to Polly when credentials are configured. Injectable for tests. */
+  synth?: Synthesize;
 }
 
 const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
@@ -251,6 +255,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       gymRoutes(r, deps.db, now);
       const coach = deps.coach ?? (deps.config.coachChat.apiKey ? claudeCoach(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
       coachChatRoutes(r, deps.db, now, coach, deps.config.coachChat.dailyLimit, (id) => subscriptions.entitlement(id).access);
+      const voices = deps.config.coachVoices;
+      coachVoiceRoutes(r, deps.synth ?? (voices.polly ? pollySynthesizer(voices.polly, outbound, now) : undefined), voices.cacheDir);
     },
     { prefix: '/v1' },
   );
