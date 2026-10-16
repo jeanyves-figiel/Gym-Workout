@@ -30,6 +30,8 @@ struct WatchSnapshot: Codable, Equatable {
     var watchStart: WatchStartMode?
     /// What an Apple Watch Ultra Action button press does during a workout (#349); nil (older phone app) = smart.
     var actionButton: WatchActionMode?
+    /// Lift sensor (#383): reps and bar speed from the Watch's motion sensors; nil (older phone app) = default.
+    var liftSensor: WatchLiftMode?
 
     func session(_ id: String) -> WSession? { (sessions + extras).first { $0.id == id } }
 }
@@ -203,6 +205,97 @@ enum WatchEvent: Codable, Equatable {
     case tracking(sessionId: String, on: Bool)
     /// The Watch saved the Health workout for an iPhone workout it tracked (#347).
     case tracked(WTracked)
+    /// Reps and bar speed the Watch measured for a set (#383).
+    case liftSet(WLiftSet)
+}
+
+/// Reps and bar speed the Watch measured for one set (#383). Speeds in m/s, ranges in m, times in s.
+struct WLiftSet: Codable, Equatable, Hashable, Identifiable {
+    var id = UUID()
+    var sessionId: String
+    var exerciseId: String
+    var setIndex: Int
+    var date: Date
+    var kg: Double
+    /// Mean speed of each rep's lifting part.
+    var velocities: [Double]
+    var peaks: [Double]
+    var ranges: [Double]
+    var concentric: [Double]
+    /// Lowering time per rep; 0 = not found.
+    var eccentric: [Double]
+    /// Measured with the Watch strapped on the machine (#383 machine mode), not on the wrist.
+    var machine: Bool
+
+    var reps: Int { velocities.count }
+    var best: Double? { velocities.max() }
+    var mean: Double? { velocities.isEmpty ? nil : velocities.reduce(0, +) / Double(velocities.count) }
+    /// Drop of the last rep against the fastest (0…1).
+    var velocityLoss: Double {
+        guard let best, best > 0, let last = velocities.last else { return 0 }
+        return max(0, 1 - last / best)
+    }
+    var meanRange: Double? { ranges.isEmpty ? nil : ranges.reduce(0, +) / Double(ranges.count) }
+    /// Mean power of the lifting parts, W.
+    var power: Double? { mean.flatMap { kg > 0 ? kg * 9.80665 * $0 : nil } }
+}
+
+/// Live lift sensor state for the set the iPhone player shows (#383), sent while the Watch tracks it.
+struct WLiftLive: Codable, Equatable {
+    var sessionId: String
+    var exerciseId: String
+    var setIndex: Int
+    var reps: Int
+    /// Mean speed of the last rep, m/s.
+    var lastVelocity: Double?
+    var velocityLoss: Double
+    /// The Watch is on the machine (machine mode).
+    var machine: Bool
+    /// The bar is racked: the set looks done.
+    var ended: Bool
+    /// Machine mode: where to strap the Watch, while the Watch waits for it.
+    var strapHint: String?
+}
+
+/// Lift sensor setting (#383): off, or on with the velocity-loss stop cue (or no cue).
+enum WatchLiftMode: String, Codable, CaseIterable, Identifiable {
+    case off, noCue, loss10, loss20, loss30
+
+    static let `default` = WatchLiftMode.loss20
+
+    var id: String { rawValue }
+
+    var on: Bool { self != .off }
+
+    /// Velocity loss (0…1) that triggers the "Rack it" buzz.
+    var lossLimit: Double? {
+        switch self {
+        case .loss10: 0.10
+        case .loss20: 0.20
+        case .loss30: 0.30
+        case .off, .noCue: nil
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .off: "Off"
+        case .noCue: "On, no stop buzz"
+        case .loss10: "Buzz at 10 % slower (power)"
+        case .loss20: "Buzz at 20 % slower (strength)"
+        case .loss30: "Buzz at 30 % slower (muscle)"
+        }
+    }
+
+    var short: String {
+        switch self {
+        case .off: "Off"
+        case .noCue: "On"
+        case .loss10: "Stop at −10 %"
+        case .loss20: "Stop at −20 %"
+        case .loss30: "Stop at −30 %"
+        }
+    }
 }
 
 /// Heart rate and energy the Watch measured for a workout run on the iPhone (#347).
@@ -294,6 +387,11 @@ struct WLive: Codable, Equatable {
     var sessionId: String?
     var estMin: Int?
     var exercises: Int?
+    /// Current set, so the Watch can measure it (#383); nil from older phone apps.
+    var exerciseId: String?
+    var setIndex: Int?
+    var loggable: Bool?
+    var kg: Double?
     /// Coach line just said on the phone (#379) and when; the Watch shows it a few seconds with a tap.
     var coach: String? = nil
     var coachAt: Date? = nil
@@ -314,6 +412,8 @@ enum WatchKeys {
     static let outcome = "outcome"
     /// Workout record the phone saved, with outcome `finished` (#347).
     static let recordId = "recordId"
+    /// `WLiftLive` from the Watch while it measures a set of the iPhone workout (#383).
+    static let lift = "lift"
     /// Live heart rate (Int bpm) of an iPhone workout the Watch tracks, for the Live Activity (#371).
     static let heartRate = "heartRate"
 }

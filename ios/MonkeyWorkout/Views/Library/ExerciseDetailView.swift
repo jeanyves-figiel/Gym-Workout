@@ -71,6 +71,7 @@ struct ExerciseDetailView: View {
                 }
                 ExerciseProgressCard(exerciseId: e.id, plannedUid: plannedUid)
                 PRCard(exerciseId: e.id)
+                BarSpeedSection(exercise: e)
 
                 EquipmentSection(equipment: e.equipment)
                 MySetupsSection(exercise: e, plannedUid: plannedUid)

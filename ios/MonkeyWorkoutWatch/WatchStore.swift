@@ -90,6 +90,12 @@ final class WatchStore: NSObject {
         WCSession.default.sendMessage([WatchKeys.command: command.rawValue], replyHandler: nil, errorHandler: nil)
     }
 
+    /// Live lift sensor state for the iPhone player (#383), best effort.
+    func send(_ lift: WLiftLive) {
+        guard WCSession.isSupported(), WCSession.default.isReachable, let data = try? JSONEncoder.watch.encode(lift) else { return }
+        WCSession.default.sendMessage([WatchKeys.lift: data], replyHandler: nil, errorHandler: nil)
+    }
+
     private func markDone(_ f: WFinished) {
         let i = snapshot.sessions.firstIndex { $0.id == f.sessionId }
         if let i { snapshot.sessions[i].done = true }

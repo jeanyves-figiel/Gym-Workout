@@ -198,6 +198,8 @@ struct CurrentSetCard: View {
     let color: Color
     /// Done set being corrected; nil = the coming set.
     @Binding var editing: Int?
+    /// Reps and bar speed the Watch measures for this set (#383).
+    var watchLift: WLiftLive? = nil
     /// Coach (#379): the coming set is the exercise's last; the badge takes the source chip's place.
     var finalSet = false
     let onSave: (Int) -> Void
@@ -221,6 +223,8 @@ struct CurrentSetCard: View {
                             .background(Capsule().fill(Theme.lime))
                     }
                     .buttonStyle(.plain)
+                } else if let w = watchLift, !allDone {
+                    WatchLiftPill(lift: w)
                 } else if finalSet, !allDone {
                     Text("🔥 Final set").font(Theme.label(11)).foregroundStyle(Theme.ink)
                         .padding(.horizontal, 8)

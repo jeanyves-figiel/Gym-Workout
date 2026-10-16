@@ -156,6 +156,18 @@ struct AccountView: View {
                     }
                     .buttonStyle(.plain)
 
+                    // Lift sensor (#383): reps and bar speed from the Watch, velocity-loss stop buzz.
+                    Menu {
+                        Picker("Lift sensor", selection: Binding(get: { WatchLiftPref.shared.mode }, set: { WatchLiftPref.shared.set($0) })) {
+                            ForEach(WatchLiftMode.allCases) { Text($0.title).tag($0) }
+                        }
+                    } label: {
+                        AccountCard(symbol: "applewatch.radiowaves.left.and.right", title: "Lift sensor (beta)",
+                                    subtitle: "Apple Watch counts reps, bar speed → \(WatchLiftPref.shared.mode.short)",
+                                    gradient: LinearGradient(colors: [Color(hex: 0x7B2FF7), Color(hex: 0x00C6FF)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    }
+                    .buttonStyle(.plain)
+
                     // Home Screen widgets (#297): presets, look and topic per size.
                     NavigationLink { HomeWidgetsView() } label: {
                         let w = HomeWidgetSync.shared.settings

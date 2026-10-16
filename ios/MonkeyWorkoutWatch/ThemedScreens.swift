@@ -1,3 +1,4 @@
+import LiftSensor
 import SwiftUI
 import WatchKit
 
@@ -688,8 +689,54 @@ struct SummaryView: View {
 struct MirrorView: View {
     let live: WLive
     @Environment(WatchStore.self) private var store
+    @Environment(WorkoutManager.self) private var workout
+    /// Lift sensor (#383): measures the iPhone player's set while the Watch tracks the workout.
+    @State private var lift = LiftTracker()
+    @State private var tracked: WLive?
+    @State private var autoLogAt: Date?
+    @State private var byHand: Set<String> = []
 
     private var resting: Bool { live.restEnd.map { $0 > .now } ?? false }
+
+    private var liftMode: WatchLiftMode { store.snapshot.liftSensor ?? .default }
+
+    /// The iPhone set to measure: loaded, being done, while the Watch runs the workout session (keeps it awake).
+    private var liftKey: String? {
+        guard liftMode.on, LiftTracker.available, workout.running, live.loggable == true, !resting, !live.effortPending,
+              let ex = live.exerciseId, let i = live.setIndex, !byHand.contains(ex) else { return nil }
+        return "\(live.sessionId ?? "")#\(ex)#\(i)"
+    }
+
+    private func syncLift(_ key: String?) {
+        // Moving on (set done on the iPhone): the measured reps of the set before go to the iPhone.
+        if let t = tracked, lift.mode == .tracking, let ex = t.exerciseId, let i = t.setIndex {
+            let machine = lift.machine
+            if let set = makeLiftSet(lift.stop(), sessionId: t.sessionId ?? "", exerciseId: ex, setIndex: i, kg: t.kg ?? 0, machine: machine) {
+                store.send(.liftSet(set))
+            }
+        }
+        autoLogAt = nil
+        tracked = key == nil ? nil : live
+        guard let key, let ex = live.exerciseId else {
+            if lift.mode != .idle { lift.stop() }
+            return
+        }
+        if let profile = LiftProfile.for(name: live.exercise, exerciseId: ex) {
+            lift.track(key: key, profile: profile, lossLimit: liftMode.lossLimit)
+        } else if let spot = MachineSpot.for(name: live.exercise, exerciseId: ex) {
+            lift.trackMachine(key: key, exercise: ex, family: spot.family, lossLimit: liftMode.lossLimit)
+        } else if lift.mode != .idle {
+            lift.stop()
+        }
+        sendLift()
+    }
+
+    private func sendLift() {
+        guard let t = tracked, let ex = t.exerciseId, let i = t.setIndex else { return }
+        let hint = lift.mode == .strap || lift.mode == .testRep ? MachineSpot.for(name: t.exercise, exerciseId: ex).map { "Strap the Watch on \($0.place)" } : nil
+        store.send(WLiftLive(sessionId: t.sessionId ?? "", exerciseId: ex, setIndex: i, reps: lift.count, lastVelocity: lift.lastVelocity,
+                             velocityLoss: lift.velocityLoss, machine: lift.machine, ended: autoLogAt != nil, strapHint: hint))
+    }
 
     var body: some View {
         let theme = store.theme
@@ -701,7 +748,20 @@ struct MirrorView: View {
                 case .tiles: tiles
                 case .game: game
                 }
-                controls(theme)
+                if lift.mode == .tracking, lift.count > 0 {
+                    LiftPanel(lift: lift, reps: lift.count, tint: live.tint)
+                } else if lift.mode == .tracking {
+                    SensingChip(machine: lift.machine)
+                }
+                if let autoLogAt {
+                    AutoLogBanner(title: "\(lift.count) reps logging", end: autoLogAt) {
+                        self.autoLogAt = nil
+                        lift.resume()
+                        sendLift()
+                    }
+                } else {
+                    controls(theme)
+                }
                 // Coach line from the phone (#379) for 6 s, in the Next line's place.
                 TimelineView(.periodic(from: .now, by: 1)) { ctx in
                     if let line = live.coach, let at = live.coachAt, ctx.date.timeIntervalSince(at) < 6 {
@@ -721,6 +781,48 @@ struct MirrorView: View {
             .foregroundStyle(.white)
         }
         .modifier(ThemeBackground(theme: theme, colour: W.gradient(live.tint, 0xFF3D5A), glow: live.tint))
+        .overlay { mirrorLiftOverlay }
+        .onChange(of: liftKey, initial: true) { _, key in syncLift(key) }
+        .onChange(of: live) { old, new in
+            // Same set, new load on the iPhone.
+            if old.exerciseId == new.exerciseId, old.setIndex == new.setIndex, tracked != nil { tracked?.kg = new.kg }
+        }
+        .onChange(of: lift.count) { sendLift() }
+        .onChange(of: lift.mode) { sendLift() }
+        .onChange(of: lift.endedAt) { _, at in
+            guard at != nil, autoLogAt == nil, lift.count > 0 else { return }
+            autoLogAt = Date().addingTimeInterval(4)
+            sendLift()
+        }
+        .task(id: autoLogAt) {
+            // Racked: the set completes on the iPhone (its reps were sent with the live state).
+            guard let at = autoLogAt else { return }
+            try? await Task.sleep(for: .seconds(max(0, at.timeIntervalSinceNow)))
+            guard !Task.isCancelled, autoLogAt == at else { return }
+            autoLogAt = nil
+            WKInterfaceDevice.current().play(.success)
+            store.send(WCommand.main)
+        }
+        .onDisappear { syncLift(nil) }
+    }
+
+    @ViewBuilder private var mirrorLiftOverlay: some View {
+        if let ex = live.exerciseId, let spot = MachineSpot.for(name: live.exercise, exerciseId: ex) {
+            if lift.mode == .strap {
+                StrapPrompt(exercise: live.exercise, spot: spot) {
+                    lift.strapped(exercise: ex, family: spot.family, lossLimit: liftMode.lossLimit)
+                } onSkip: {
+                    byHand.insert(ex)
+                }
+            } else if lift.mode == .testRep || lift.calibratedAt != nil {
+                TestRepView(calibrated: lift.mode == .tracking) { byHand.insert(ex) }
+                    .task(id: lift.calibratedAt) {
+                        guard lift.calibratedAt != nil else { return }
+                        try? await Task.sleep(for: .seconds(1.6))
+                        lift.clearCalibrated()
+                    }
+            }
+        }
     }
 
     private var eyebrow: String { "📱 \(live.sessionTitle)" }

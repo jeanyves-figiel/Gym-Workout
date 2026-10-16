@@ -1,3 +1,4 @@
+import LiftSensor
 import SwiftUI
 import WatchKit
 
@@ -14,6 +15,14 @@ struct PlayerView: View {
     @State private var sent = false
     /// What the last Action button press did (#349), shown briefly.
     @State private var actionLabel: String?
+    /// Lift sensor (#383): reps and bar speed of the current set.
+    @State private var lift = LiftTracker()
+    /// The bar is racked: the set logs itself at this time unless undone.
+    @State private var autoLogAt: Date?
+    /// Exercises the member chose to log by hand instead of machine mode.
+    @State private var byHand: Set<String> = []
+    /// Last measured set, shown during the rest.
+    @State private var lastLift: WLiftSet?
 
     var body: some View {
         Group {
@@ -55,6 +64,112 @@ struct PlayerView: View {
         }
         .onChange(of: player.index) { syncCrown() }
         .onAppear { syncCrown() }
+        .onChange(of: liftKey, initial: true) { _, key in syncLift(key) }
+        .onChange(of: lift.count) { _, n in
+            guard lift.mode == .tracking, n > 0 else { return }
+            player.setReps(n)
+            crown = Double(n)
+        }
+        .onChange(of: lift.endedAt) { _, at in
+            guard at != nil, autoLogAt == nil, lift.count > 0 else { return }
+            autoLogAt = Date().addingTimeInterval(4)
+        }
+        .task(id: autoLogAt) {
+            guard let at = autoLogAt else { return }
+            try? await Task.sleep(for: .seconds(max(0, at.timeIntervalSinceNow)))
+            guard !Task.isCancelled, autoLogAt == at else { return }
+            autoLogAt = nil
+            complete()
+        }
+        .onDisappear { lift.stop() }
+    }
+
+    // MARK: Lift sensor (#383)
+
+    private var liftMode: WatchLiftMode { store.snapshot.liftSensor ?? .default }
+
+    /// The set the sensor should measure now: a loaded, untimed set being done.
+    private var liftKey: String? {
+        guard liftMode.on, LiftTracker.available, player.phase == .work, let step = player.step, step.loggable,
+              step.timedSec == nil, player.done < step.sets, !byHand.contains(step.uid) else { return nil }
+        return "\(step.uid)#\(player.done)"
+    }
+
+    private func syncLift(_ key: String?) {
+        autoLogAt = nil
+        guard let key, let step = player.step else {
+            if lift.mode != .idle { lift.stop() }
+            return
+        }
+        if let profile = LiftProfile.for(name: step.name, exerciseId: step.exerciseId) {
+            lift.track(key: key, profile: profile, lossLimit: liftMode.lossLimit)
+        } else if let spot = MachineSpot.for(name: step.name, exerciseId: step.exerciseId) {
+            lift.trackMachine(key: key, exercise: step.exerciseId, family: spot.family, lossLimit: liftMode.lossLimit)
+        } else if lift.mode != .idle {
+            lift.stop()
+        }
+    }
+
+    /// Measured reps of the set being completed, sent to the phone after the set's own event.
+    private func takeLift() -> WLiftSet? {
+        guard lift.mode == .tracking, let step = player.step, let row = player.currentRow else {
+            if lift.mode != .idle { lift.stop() }
+            return nil
+        }
+        let machine = lift.machine
+        return makeLiftSet(lift.stop(), sessionId: player.session.id, exerciseId: step.exerciseId, setIndex: player.done,
+                           kg: row.kg, machine: machine)
+    }
+
+    /// Completes the current set (SET DONE, automatic log), with its measured reps.
+    private func complete() {
+        let measured = takeLift()
+        let before = player.totalSets
+        send(player.completeSet())
+        if player.totalSets > before {
+            if let measured { store.send(.liftSet(measured)) }
+            lastLift = measured
+        }
+        syncLift(liftKey)
+    }
+
+    private func undoAutoLog() {
+        autoLogAt = nil
+        lift.resume()
+        WKInterfaceDevice.current().play(.click)
+    }
+
+    private var restNote: String? {
+        var lines: [String] = []
+        if let lastLift { lines.append(liftLine(lastLift)) }
+        // Machine mode just ended and the next lift is measured on the wrist.
+        if lastLift?.machine == true, let next = player.done >= (player.step?.sets ?? 0) ? player.nextStep : player.step,
+           LiftProfile.for(name: next.name, exerciseId: next.exerciseId) != nil {
+            lines.append("⌚ Back on your wrist")
+        }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+
+    @ViewBuilder private var liftOverlay: some View {
+        if let step = player.step, player.phase == .work {
+            if lift.mode == .strap, let spot = MachineSpot.for(name: step.name, exerciseId: step.exerciseId) {
+                StrapPrompt(exercise: step.name, spot: spot) {
+                    lift.strapped(exercise: step.exerciseId, family: spot.family, lossLimit: liftMode.lossLimit)
+                } onSkip: {
+                    byHand.insert(step.uid)
+                }
+            } else if lift.mode == .testRep || lift.calibratedAt != nil {
+                TestRepView(calibrated: lift.mode == .tracking) {
+                    byHand.insert(step.uid)
+                }
+                .task(id: lift.calibratedAt) {
+                    // Show "Got it" briefly, then the set.
+                    guard lift.calibratedAt != nil else { return }
+                    try? await Task.sleep(for: .seconds(1.6))
+                    lift.clearCalibrated()
+                }
+            }
+        }
     }
 
     private var workoutPage: some View {
@@ -74,7 +189,13 @@ struct PlayerView: View {
             }
             if let step = player.step {
                 Text(step.name).font(W.display(18)).lineLimit(1).minimumScaleFactor(0.6)
-                if step.loggable, let row = player.currentRow, player.done < step.sets {
+                if step.loggable, let row = player.currentRow, player.done < step.sets, lift.mode == .tracking, lift.count > 0 {
+                    Text("\(WatchPlayer.kg(row.kg)) kg · set \(player.done + 1) of \(step.sets)").font(W.label(10)).opacity(0.85)
+                    LiftPanel(lift: lift, reps: row.reps, tint: block?.tint ?? 0x7B2FF7)
+                        .focusable()
+                        .digitalCrownRotation($crown, from: 0, through: 50, by: 1, sensitivity: .medium, isContinuous: false, isHapticFeedbackEnabled: true)
+                        .onChange(of: crown) { _, v in player.setReps(Int(v)) }
+                } else if step.loggable, let row = player.currentRow, player.done < step.sets {
                     HStack(alignment: .center, spacing: 5) {
                         RoundIcon(symbol: "minus") { player.adjustKg(-1) }
                         HStack(alignment: .firstTextBaseline, spacing: 2) {
@@ -91,6 +212,7 @@ struct PlayerView: View {
                             .digitalCrownRotation($crown, from: 0, through: 50, by: 1, sensitivity: .medium, isContinuous: false, isHapticFeedbackEnabled: true)
                             .onChange(of: crown) { _, v in player.setReps(Int(v)) }
                         Spacer(minLength: 0)
+                        if lift.mode == .tracking { SensingChip(machine: lift.machine) }
                         SetDots(done: player.done, total: step.sets)
                     }
                 } else if step.timedSec != nil {
@@ -107,7 +229,11 @@ struct PlayerView: View {
                     Text(step.sets > 1 ? "\(step.sets) × \(step.reps)" : step.reps).font(W.display(24)).minimumScaleFactor(0.6)
                     if let i = step.intensity { Text(i).font(.system(size: 10, weight: .semibold)).opacity(0.8) }
                 }
-                LimeButton(title: player.mainLabel) { main() }
+                if let autoLogAt, let row = player.currentRow {
+                    AutoLogBanner(title: "\(WatchPlayer.kg(row.kg)) × \(row.reps) logging", end: autoLogAt, onUndo: undoAutoLog)
+                } else {
+                    LimeButton(title: player.mainLabel) { main() }
+                }
                 HStack(spacing: 5) {
                     Text("NEXT").font(W.label(8)).tracking(1).foregroundStyle(.secondary)
                     Text(player.upNext).font(W.label(10)).lineLimit(1)
@@ -126,7 +252,8 @@ struct PlayerView: View {
         .overlay {
             if case let .rest(end, total, effortSet) = player.phase {
                 RestOverlay(end: end, total: total, effort: effortSet != nil, next: player.upNext,
-                            tint: block?.tint ?? 0xCCFF3D, tint2: block?.tint2 ?? 0x7B3DFF) { rir in
+                            tint: block?.tint ?? 0xCCFF3D, tint2: block?.tint2 ?? 0x7B3DFF,
+                            note: restNote, heartRate: workout.heartRate) { rir in
                     send(player.effort(rir))
                 } onAdd: {
                     player.addRest()
@@ -135,6 +262,7 @@ struct PlayerView: View {
                 }
             }
         }
+        .overlay { liftOverlay }
     }
 
     private func blockOf(_ it: WItem) -> WBlock? {
@@ -147,14 +275,23 @@ struct PlayerView: View {
             player.toggleTimer()
             WKInterfaceDevice.current().play(.click)
         } else {
-            send(player.completeSet())
+            autoLogAt = nil
+            complete()
         }
     }
 
     /// Action button press (#349): the step the member's mode calls for (Settings → Apple Watch on the iPhone).
     private func actionPress() {
-        guard let r = player.actionPress(store.snapshot.actionButton ?? .default) else { return }
+        autoLogAt = nil
+        let measured = takeLift()
+        let before = player.totalSets
+        guard let r = player.actionPress(store.snapshot.actionButton ?? .default) else { return syncLift(liftKey) }
         send(r.events)
+        if player.totalSets > before {
+            if let measured { store.send(.liftSet(measured)) }
+            lastLift = measured
+        }
+        syncLift(liftKey)
         withAnimation { actionLabel = r.label }
     }
 
@@ -386,6 +523,9 @@ struct RestOverlay: View {
     let next: String
     let tint: UInt32
     var tint2: UInt32 = 0x7B3DFF
+    /// Lift sensor (#383): the set just measured, machine → wrist reminder.
+    var note: String?
+    var heartRate: Double?
     let onEffort: (Int) -> Void
     let onAdd: () -> Void
     let onSkip: () -> Void
@@ -419,6 +559,13 @@ struct RestOverlay: View {
                     }
                 } else {
                     pill("Continue", fill: W.lime, text: W.ink, action: onSkip)
+                }
+                if note != nil || heartRate != nil {
+                    VStack(spacing: 1) {
+                        if let note { Text(note).font(W.label(10)).multilineTextAlignment(.center).lineLimit(3) }
+                        if let heartRate { Text("♥ \(Int(heartRate))").font(W.label(10)).foregroundStyle(W.color(0xFF5A75)).monospacedDigit() }
+                    }
+                    .frame(maxWidth: .infinity)
                 }
                 VStack(alignment: .leading, spacing: 1) {
                     Text("NEXT").font(W.label(8)).tracking(1).opacity(0.85)

@@ -16,6 +16,8 @@ configFiles:
 packages:
   GymCore:
     path: Packages/GymCore
+  LiftSensor:
+    path: Packages/LiftSensor
 settings:
   base:
     SWIFT_VERSION: "5.0"
@@ -45,6 +47,7 @@ targets:
         product: WorkoutEngine
       - package: GymCore
         product: APIClient
+      - package: LiftSensor
     entitlements:
       path: MonkeyWorkout/MonkeyWorkout.entitlements
       properties:
@@ -150,6 +153,7 @@ targets:
     dependencies:
       - target: MonkeyWorkoutWatchComplications
         embed: true
+      - package: LiftSensor
     entitlements:
       path: MonkeyWorkoutWatch/MonkeyWorkoutWatch.entitlements
       properties:
@@ -168,6 +172,7 @@ targets:
         MWAppGroup: $(APP_GROUP)
         NSHealthShareUsageDescription: Reads heart rate and active energy during your workouts.
         NSHealthUpdateUsageDescription: Saves your gym sessions as workouts to Apple Health.
+        NSMotionUsageDescription: Counts your reps and measures bar speed during workouts.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).watchkitapp
