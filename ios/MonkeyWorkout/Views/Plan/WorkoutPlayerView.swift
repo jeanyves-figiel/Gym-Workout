@@ -217,6 +217,16 @@ struct WorkoutPlayerView: View {
         .onChange(of: scenePhase) { _, p in if p != .active { saveProgress(interrupted: p == .background) } }
         .onReceive(NotificationCenter.default.publisher(for: .workoutRestAdd15)) { _ in extendRest() }
         .onReceive(NotificationCenter.default.publisher(for: .workoutRestSkip)) { _ in closePause() }
+        // Lock screen / Dynamic Island (#371): effort tile logs the set, − / + kg, lime button.
+        .onReceive(NotificationCenter.default.publisher(for: .workoutLogSet)) { n in
+            let efforts: [WCommand] = [.effort0, .effort1, .effort2, .effort3, .effort4]
+            handle(efforts[min(4, max(0, n.object as? Int ?? 2))])
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .workoutStepKg)) { n in stepKgFromLockScreen(n.object as? Int ?? 0) }
+        .onReceive(NotificationCenter.default.publisher(for: .workoutMain)) { _ in handle(.main) }
+        .onReceive(NotificationCenter.default.publisher(for: .watchHeartRate)) { _ in updateLive() }
+        .onChange(of: timed) { updateLive() }
+        .onChange(of: autoNext) { updateLive() }
         .onReceive(NotificationCenter.default.publisher(for: .watchCommand)) { n in
             if let c = n.object as? WCommand { handle(c) }
         }
@@ -788,7 +798,7 @@ struct WorkoutPlayerView: View {
             }
         }
         model.clearActiveWorkout(sessionId)
-        live.end()
+        live.finish(finishedState())
         WatchSync.shared.endLive(.finished, sessionId: sessionId, record: record)
         pause = nil
         finished = true
@@ -1113,7 +1123,10 @@ struct WorkoutPlayerView: View {
         let current = min(done, step.sets - 1)
         let next = upNext(after: step, done: done, sets: step.sets, includeSets: true)
         let detail = step.loggable ? log.values(current).map { "\(LoadAdvisor.formatKg($0.kg)) × \($0.reps)" } ?? "" : ""
-        return .init(
+        // The coming set can be logged from the lock screen (#371): kg × reps known, no rest or countdown running.
+        let logging = step.loggable && done < step.sets && pause == nil && autoNext == nil && log.item?.uid == step.item.uid
+            && log.values(done) != nil
+        var state = WorkoutActivityAttributes.ContentState(
             exercise: step.exercise.name,
             setLabel: step.sets > 1 ? "Set \(current + 1) of \(step.sets)" : Format.prescription(step.item.prescription),
             detail: detail,
@@ -1121,6 +1134,48 @@ struct WorkoutPlayerView: View {
             restEnd: pause?.end,
             next: next.map { $0.detail.isEmpty ? $0.title : "\($0.title) · \($0.detail)" } ?? "Finish",
             tint: step.block.kind.category.tintHex)
+        state.loggable = logging
+        if !logging, pause == nil {
+            state.action = autoNext != nil ? (index == steps.count - 1 ? "FINISH" : "NEXT") : mainLabel(step, sets: step.sets, done: done)
+        }
+        state.workEnd = timed.flatMap { $0.uid == step.item.uid ? $0.end : nil }
+        state.autoNextEnd = autoNext?.end
+        state.position = index + 1
+        state.count = steps.count
+        if steps.count <= 30 {
+            state.segments = steps.map { s in
+                WorkoutActivityAttributes.Segment(tint: s.block.kind.category.tintHex, done: Double(min(setsDone[s.item.uid] ?? 0, s.sets)) / Double(s.sets))
+            }
+        }
+        if let session {
+            let by = fitEnd ?? started.addingTimeInterval(TimeInterval(session.estMin * 60))
+            state.doneBy = by > Date() ? by : nil
+        }
+        state.heartRate = WatchSync.shared.liveHeartRate
+        state.volumeKg = model.liveLifts(sessionId: sessionId, since: started).volumeKg
+        return state
+    }
+
+    /// Lock-screen card once the workout is saved (#371).
+    private func finishedState() -> WorkoutActivityAttributes.ContentState {
+        var state = liveState()
+        let lifts = model.liveLifts(sessionId: sessionId, since: started)
+        state.restStart = nil
+        state.restEnd = nil
+        state.summary = .init(
+            minutes: max(1, Int((Date().timeIntervalSince(started) / 60).rounded())),
+            exercises: steps.filter { (setsDone[$0.item.uid] ?? 0) > 0 }.count, of: steps.count,
+            sets: setsDone.values.reduce(0, +), volumeKg: lifts.volumeKg, prs: lifts.prs)
+        return state
+    }
+
+    /// − / + on the lock screen: the coming set's weight, by the stepper's step.
+    private func stepKgFromLockScreen(_ sign: Int) {
+        guard ready, !finished, sign != 0, steps.indices.contains(index) else { return }
+        let step = steps[index]
+        let done = setsDone[step.item.uid] ?? 0
+        guard step.loggable, done < step.sets, log.item?.uid == step.item.uid else { return }
+        log.stepKg(done, by: Double(sign))
     }
 
     private func updateLive() {

@@ -314,6 +314,8 @@ enum WatchKeys {
     static let outcome = "outcome"
     /// Workout record the phone saved, with outcome `finished` (#347).
     static let recordId = "recordId"
+    /// Live heart rate (Int bpm) of an iPhone workout the Watch tracks, for the Live Activity (#371).
+    static let heartRate = "heartRate"
 }
 
 extension JSONEncoder {
