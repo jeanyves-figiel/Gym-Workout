@@ -22,14 +22,14 @@
     {
       "symbol": "gearshape.2.fill",
       "tint": "power",
-      "title": "Your machine settings, saved",
-      "body": "Tap Setup on a machine in the player to keep seat, pin and pad positions, a note and a photo for this gym. They show on the exercise card next time."
+      "title": "Your gym, your day",
+      "body": "Tap Setup on a machine to save seat, pin and pad positions and a photo for this gym. Change a workout's focus or swap days from its page, split a superset when machines are far apart, and Skip on a missed workout really lets it go."
     },
     {
-      "symbol": "arrow.left.arrow.right",
-      "tint": "power",
-      "title": "Make today's workout fit",
-      "body": "Change a workout's focus or swap days from its page, and split a superset when the machines are far apart. Skip on a missed workout now really lets it go."
+      "symbol": "figure.climbing",
+      "tint": "warmup",
+      "title": "Climbing gym days",
+      "body": "A Wall session with a warm-up before and recovery after, hangboard workouts, and 25 climbing exercises named as in MonkeyGrade. Find them in Explore → Climbing."
     }
   ]
 }
