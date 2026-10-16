@@ -5,7 +5,7 @@ own art (#170): a shaded anatomical figure in 17 to 49 frames (start to end of t
 worked muscles in the app's load colours (primary red, secondary amber), the machine or equipment drawn
 in the scene, and a small front/back muscle map. No third-party images or video.
 
-Illustrations: 422 · Total: 422
+Illustrations: 434 · Total: 434
 
 | Id | Exercise | Media | Source | License |
 |---|---|---|---|---|
@@ -431,3 +431,15 @@ Illustrations: 422 · Total: 422
 | `brettzel` | Brettzel stretch | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `adductor-rock-back` | Adductor rock-back | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `boat-pose` | Boat pose | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `finger-ramp` | Finger & forearm ramp | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `forearm-waves` | Forearm wrist waves | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `band-external-rotation` | Band external rotation | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `hang-ramp` | Hangboard ramp | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `recruitment-pulls` | Recruitment pulls | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `easy-traverse` | Easy traversing | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `max-hangs` | Max hangs | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `repeaters` | Repeaters 7/3 | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `open-hand-hang` | Open-hand hang | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `block-lift` | No-hang block lift | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `pinch-block-lift` | Pinch block lift | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `wrist-flexor-floor` | Wrist flexor floor stretch | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |

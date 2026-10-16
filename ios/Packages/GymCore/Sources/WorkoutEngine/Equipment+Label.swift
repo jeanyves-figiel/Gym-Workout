@@ -71,6 +71,9 @@ extension Equipment {
         case .balanceTrainer: "BOSU / balance pad"
         case .massageBall: "Massage ball"
         case .stallBars: "Stall bars / vertical pole"
+        case .hangboard: "Hangboard"
+        case .climbingWall: "Climbing wall"
+        case .liftBlock: "Lifting block / pinch block"
         }
     }
 }

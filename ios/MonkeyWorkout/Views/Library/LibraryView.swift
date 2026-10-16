@@ -31,7 +31,7 @@ struct LibraryView: View {
                     SegmentItem(value: .muscles, title: "Muscles", symbol: "figure.strengthtraining.traditional",
                                 detail: "\(Muscle.allCases.count) muscles"),
                     SegmentItem(value: .categories, title: "Categories", symbol: "square.grid.2x2.fill",
-                                detail: "\(WorkoutEngine.Category.allCases.count) types"),
+                                detail: "\(WorkoutEngine.Category.allCases.count + 1) types"),
                     SegmentItem(value: .workouts, title: "Workouts", symbol: "list.bullet.rectangle.fill",
                                 detail: "\(model.myLibrary.count + model.builtInLibrary.count) workouts"),
                     // Training programmes (#255).
@@ -65,6 +65,7 @@ struct LibraryView: View {
         .toolbarTitleDisplayMode(.inlineLarge)
         .navigationDestination(for: Muscle.self) { MuscleDetailView(muscle: $0) }
         .navigationDestination(for: WorkoutEngine.Category.self) { CategoryDetailView(category: $0) }
+        .navigationDestination(for: ClimbingRoute.self) { _ in ClimbingCategoryView() }
         .navigationDestination(for: String.self) { SessionView(sessionId: $0) }
         .navigationDestination(for: ProgrammeRoute.self) { r in model.findProgramme(r.id).map { ProgrammeDetailView(programme: $0) } }
         .navigationDestination(item: $tapped) { MuscleDetailView(muscle: $0) }
@@ -103,6 +104,9 @@ struct LibraryView: View {
                 NavigationLink(value: c) { CategoryCard(category: c, count: Exercise.inCategory(c).count) }
                     .buttonStyle(.plain)
             }
+            // Climbing gym exercises (#366).
+            NavigationLink(value: ClimbingRoute()) { ClimbingCategoryCard() }
+                .buttonStyle(.plain)
             NewExerciseButton()
         }
     }

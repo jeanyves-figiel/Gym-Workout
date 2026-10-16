@@ -20,6 +20,7 @@ band-chest-press                   strength  handN    PUSH/PULL effort PUSH path
 band-clamshell                     strength  kneeN      UP/DOWN effort UP   path yes
 band-curl                          strength  handN      UP/DOWN effort UP   path yes
 band-dislocates                    warmup    handN      IN/OUT  effort OUT  path yes
+band-external-rotation             warmup    handN     OUT/IN   effort OUT  path yes
 band-good-morning                  strength  handN    DOWN/UP   effort UP   path yes
 band-iron-cross                    strength  handN     OUT/IN   effort OUT  path yes
 band-lateral-raise                 strength  handN      UP/DOWN effort UP   path yes
@@ -51,6 +52,7 @@ biceps-wall                        stretch   toeN     PUSH/PULL effort PUSH path
 bicycle-crunch                     strength  kneeN    DOWN/UP   effort UP   path yes
 bike                               cardio    toeF     PUSH/PULL effort PUSH path yes
 bird-dog                           strength  handN      UP/DOWN effort UP   path yes
+block-lift                         strength  handN      UP/DOWN effort UP   path no 
 boat-pose                          strength  toeF       UP/DOWN effort UP   path yes
 bosu-push-up                       strength  head     DOWN/UP   effort UP   path yes
 bosu-squat                         strength  handN    PUSH/PULL effort PUSH path yes
@@ -142,6 +144,7 @@ donkey-kick                        strength  toeN       UP/DOWN effort UP   path
 downward-dog                       stretch   head     PULL/PUSH effort PUSH path yes
 drag-curl                          strength  handN      UP/DOWN effort UP   path yes
 dragon-flag                        strength  toeN     DOWN/UP   effort UP   path yes
+easy-traverse                      warmup    handN     OUT/IN   effort OUT  path yes
 elliptical                         cardio    handN      UP/DOWN effort UP   path no 
 explosive-pull-up                  power     head       UP/DOWN effort UP   path yes
 ez-bar-curl                        strength  handN      UP/DOWN effort UP   path yes
@@ -153,6 +156,7 @@ farmer-carry                       strength  toeF     PUSH/PULL effort PUSH path
 ffe-split-squat                    strength  handN    DOWN/UP   effort UP   path yes
 figure-4                           stretch   toeF       UP/DOWN effort UP   path yes
 finger-extensions                  strength             UP/DOWN effort UP   path no 
+finger-ramp                        warmup    handN      UP/DOWN effort UP   path no 
 foam-roll-adductors                mobility  handN    DOWN/UP   effort UP   path yes
 foam-roll-calves                   mobility  handN    PUSH/PULL effort PUSH path yes
 foam-roll-glutes                   mobility  handN    PUSH/PULL effort PUSH path yes
@@ -162,6 +166,7 @@ foam-roll-quads                    mobility  handN    PUSH/PULL effort PUSH path
 foam-roll-upper-back               mobility  handN    PUSH/PULL effort PUSH path yes
 forearm-extensor                   stretch   handN    DOWN/UP   effort UP   path no 
 forearm-flexor                     stretch   handN      UP/DOWN effort UP   path no 
+forearm-waves                      warmup    handN    DOWN/UP   effort UP   path yes
 forward-lunge                      strength  handN    DOWN/UP   effort UP   path yes
 freestanding-hspu                  strength  head     DOWN/UP   effort UP   path yes
 frog-pump                          strength  hip        UP/DOWN effort UP   path yes
@@ -180,6 +185,7 @@ half-kneeling-hf                   stretch   handN      UP/DOWN effort UP   path
 hammer-curl                        strength  handN      UP/DOWN effort UP   path yes
 hamstring-stretch                  stretch   toeN     PULL/PUSH effort PUSH path yes
 hang-power-clean                   power     handN      UP/DOWN effort UP   path yes
+hang-ramp                          warmup    kneeN    PUSH/PULL effort PUSH path yes
 hanging-knee-raise                 strength  toeN       UP/DOWN effort UP   path yes
 hanging-leg-raise                  strength  toeN       UP/DOWN effort UP   path yes
 hanging-shoulder-circles           mobility  head       UP/DOWN effort UP   path yes
@@ -255,6 +261,7 @@ man-maker                          power     handN      UP/DOWN effort UP   path
 massage-ball-chest                 mobility  handN      UP/DOWN effort UP   path yes
 massage-ball-foot                  mobility  toeN     PULL/PUSH effort PUSH path no 
 massage-ball-glute                 mobility  toeN       UP/DOWN effort UP   path yes
+max-hangs                          strength  head     PULL/PUSH effort PUSH path no 
 meadows-row                        strength  handN      UP/DOWN effort UP   path yes
 med-ball-chest-pass                power     handN    PUSH/PULL effort PUSH path yes
 med-ball-scoop-toss                power     handN      UP/DOWN effort UP   path yes
@@ -272,6 +279,7 @@ one-arm-db-row                     strength  handN      UP/DOWN effort UP   path
 one-arm-pull-up                    strength  handF      UP/DOWN effort UP   path yes
 one-arm-push-up                    strength  handF    DOWN/UP   effort UP   path yes
 open-book                          mobility  head       UP/DOWN effort UP   path no 
+open-hand-hang                     strength  head     PULL/PUSH effort PUSH path no 
 overhead-back-throw                power     handN      UP/DOWN effort UP   path yes
 overhead-carry                     strength  toeF     PUSH/PULL effort PUSH path yes
 overhead-squat                     strength  handN    DOWN/UP   effort UP   path yes
@@ -284,6 +292,7 @@ pendlay-row                        strength  handN      UP/DOWN effort UP   path
 pendulum-squat                     strength  handN    DOWN/UP   effort UP   path yes
 pigeon                             stretch   handN    PUSH/PULL effort PUSH path yes
 pike-push-up                       strength  hip      PUSH/PULL effort PUSH path yes
+pinch-block-lift                   strength  handN      UP/DOWN effort UP   path yes
 pistol-squat                       strength  handN    DOWN/UP   effort UP   path yes
 plank                              strength  toeN     DOWN/UP   effort UP   path yes
 plyo-push-up                       power     handN      UP/DOWN effort UP   path yes
@@ -297,7 +306,9 @@ push-up                            strength  head     DOWN/UP   effort UP   path
 push-up-plus                       strength  head       UP/DOWN effort UP   path yes
 rack-pull                          strength  handN      UP/DOWN effort UP   path yes
 rdl                                strength  handN    DOWN/UP   effort UP   path yes
+recruitment-pulls                  warmup    head       UP/DOWN effort UP   path yes
 renegade-row                       strength  handN      UP/DOWN effort UP   path yes
+repeaters                          strength  handN    DOWN/UP   effort UP   path yes
 reverse-crunch                     strength  toeF       UP/DOWN effort UP   path yes
 reverse-curl                       strength  handN      UP/DOWN effort UP   path yes
 reverse-ez-curl                    strength  handN      UP/DOWN effort UP   path yes
@@ -415,6 +426,7 @@ windshield-wipers                  mobility  kneeN      IN/OUT  effort OUT  path
 worlds-greatest                    warmup    handN      UP/DOWN effort UP   path yes
 wrist-car                          mobility  handN    DOWN/UP   effort UP   path yes
 wrist-curl                         strength  handN      UP/DOWN effort UP   path yes
+wrist-flexor-floor                 stretch   hip      PULL/PUSH effort PUSH path yes
 wrist-prep                         warmup    hip      PUSH/PULL effort PUSH path yes
 yates-row                          strength  handN      UP/DOWN effort UP   path yes
 z-press                            strength  handN      UP/DOWN effort UP   path yes

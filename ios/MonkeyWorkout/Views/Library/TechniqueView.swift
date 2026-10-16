@@ -12,7 +12,8 @@ extension Equipment {
              .hipThrustMachine, .backExtension, .seatedCalf, .hipAdAbductor, .abCrunch, .torsoRotation, .shoulderPress, .standingCalf,
              .tBarRow, .ghd, .reverseHyper, .curlMachine, .tricepsMachine, .rowMachine, .backExtensionMachine, .squatMachine,
              .beltSquat, .gluteMachine, .multiHip, .pulloverMachine: "gearshape.fill"
-        case .pullupBar, .dipStation, .assistedMachine, .stallBars: "figure.climbing"
+        case .pullupBar, .dipStation, .assistedMachine, .stallBars, .hangboard, .climbingWall: "figure.climbing"
+        case .liftBlock: "hand.raised.fill"
         case .rings: "circle.circle"
         case .trx: "figure.strengthtraining.functional"
         case .plyoBox: "shippingbox.fill"
