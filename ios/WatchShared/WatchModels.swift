@@ -392,6 +392,9 @@ struct WLive: Codable, Equatable {
     var setIndex: Int?
     var loggable: Bool?
     var kg: Double?
+    /// Coach line just said on the phone (#379) and when; the Watch shows it a few seconds with a tap.
+    var coach: String? = nil
+    var coachAt: Date? = nil
 }
 
 /// Watch → phone remote control of the iPhone player.

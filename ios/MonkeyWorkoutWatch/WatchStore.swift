@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import WatchConnectivity
+import WatchKit
 import WidgetKit
 
 /// Watch side of the phone link (#56): keeps the last snapshot on disk (works with the phone away),
@@ -144,6 +145,8 @@ final class WatchStore: NSObject {
                        recordId: (message[WatchKeys.recordId] as? String).flatMap(UUID.init))
         }
         if let data = message[WatchKeys.live] as? Data, let l = try? JSONDecoder.watch.decode(WLive.self, from: data) {
+            // A new coach line (#379): tap on the wrist.
+            if let at = l.coachAt, at != live?.coachAt, Date().timeIntervalSince(at) < 6 { WKInterfaceDevice.current().play(.notification) }
             live = l
             if pausedAt != nil, workout.phoneSessionId != nil {
                 pausedAt = nil

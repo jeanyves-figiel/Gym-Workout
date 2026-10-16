@@ -200,6 +200,8 @@ struct CurrentSetCard: View {
     @Binding var editing: Int?
     /// Reps and bar speed the Watch measures for this set (#383).
     var watchLift: WLiftLive? = nil
+    /// Coach (#379): the coming set is the exercise's last; the badge takes the source chip's place.
+    var finalSet = false
     let onSave: (Int) -> Void
 
     var body: some View {
@@ -223,6 +225,12 @@ struct CurrentSetCard: View {
                     .buttonStyle(.plain)
                 } else if let w = watchLift, !allDone {
                     WatchLiftPill(lift: w)
+                } else if finalSet, !allDone {
+                    Text("🔥 Final set").font(Theme.label(11)).foregroundStyle(Theme.ink)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Theme.lime))
+                        .accessibilityIdentifier("player.finalSet")
                 } else if let s = state.suggestion, !allDone {
                     // Where the prefill comes from; values stay editable with the steppers.
                     Label(s.source == .history ? "From last time" : "Estimate",
