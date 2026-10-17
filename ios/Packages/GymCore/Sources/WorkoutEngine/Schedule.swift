@@ -27,11 +27,14 @@ public struct ClimbPrefs: Hashable, Sendable {
     public var before: ClimbNeighbour
     public var after: ClimbNeighbour
     public var sameDay: ClimbSameDay
+    /// The member's other sports this week (#416), planned around like climbing days.
+    public var sports: [SportDay]
 
-    public init(before: ClimbNeighbour = .light, after: ClimbNeighbour = .light, sameDay: ClimbSameDay = .avoid) {
+    public init(before: ClimbNeighbour = .light, after: ClimbNeighbour = .light, sameDay: ClimbSameDay = .avoid, sports: [SportDay] = []) {
         self.before = before
         self.after = after
         self.sameDay = sameDay
+        self.sports = sports
     }
 }
 
@@ -77,7 +80,7 @@ public enum WeekSchedule {
     public static func assign(_ split: [Focus], climbing: [Int], gym: [Int], prefs: ClimbPrefs = ClimbPrefs(), keepOrder: Bool = false) -> [Slot]? {
         let climb = Set(normalized(climbing))
         let preferred = Set(normalized(gym))
-        guard !climb.isEmpty || !preferred.isEmpty, !split.isEmpty, split.count <= 7 else { return nil }
+        guard !climb.isEmpty || !preferred.isEmpty || !prefs.sports.isEmpty, !split.isEmpty, split.count <= 7 else { return nil }
         let orders = keepOrder ? [split] : distinctPermutations(split)
         var best: [Slot]?
         var bestScore = Double.infinity
@@ -127,6 +130,7 @@ public enum WeekSchedule {
             }
             // Antagonist push and leg days fit next to climbing days.
             s -= antagonist * antagonistBonus(f)
+            if !prefs.sports.isEmpty { s += sportScore(day: d, focus: f, sports: prefs.sports) }
             // Spread sessions out; never stack similar sessions back to back.
             if let g = byDay[next(d)] {
                 s += 1
@@ -246,7 +250,7 @@ public enum WeekSchedule {
             }
         }
         if climb.contains(previous(weekday)) { return "Day after climbing" }
-        return nil
+        return sportNote(weekday: weekday, sports: prefs.sports)
     }
 }
 
@@ -258,7 +262,7 @@ extension Profile {
 
     /// Scheduling choices around climbing days (#47).
     public var climbPrefs: ClimbPrefs {
-        ClimbPrefs(before: climbBefore ?? .light, after: climbAfter ?? .light, sameDay: climbSameDay ?? .avoid)
+        ClimbPrefs(before: climbBefore ?? .light, after: climbAfter ?? .light, sameDay: climbSameDay ?? .avoid, sports: sportDays())
     }
 
     /// Keeps `climbingDaysPerWeek` equal to the number of picked climbing weekdays, when any are picked.

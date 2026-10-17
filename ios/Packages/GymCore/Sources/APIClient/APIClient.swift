@@ -268,6 +268,21 @@ public actor APIClient {
         _ = try await authorizedRaw("DELETE", "/v1/me/climbs/\(id.uuidString)", Empty?.none)
     }
 
+    /// Other sport sessions (#416; app-defined; must encode `id`, `start`, `minutes`, `effort`, `sport`).
+    public func fetchSports<T: Decodable & Sendable>(_: T.Type) async throws -> [T] {
+        try await authorized("GET", "/v1/me/sports", Empty?.none, as: SportsResponse<T>.self).sports
+    }
+
+    public func pushSports<T: Encodable & Sendable>(_ sports: [T]) async throws {
+        for chunk in stride(from: 0, to: sports.count, by: 200).map({ Array(sports[$0..<min($0 + 200, sports.count)]) }) {
+            _ = try await authorizedRaw("POST", "/v1/me/sports", SportsBody(sports: chunk))
+        }
+    }
+
+    public func deleteSport(_ id: UUID) async throws {
+        _ = try await authorizedRaw("DELETE", "/v1/me/sports/\(id.uuidString)", Empty?.none)
+    }
+
     /// Machine setup notes (#355; app-defined; must encode `id`, `gymId`, `gymName`, `exerciseId`, `fields`).
     public func fetchMachineNotes<T: Decodable & Sendable>(_: T.Type) async throws -> [T] {
         try await authorized("GET", "/v1/me/machine-notes", Empty?.none, as: MachineNotesResponse<T>.self).notes
@@ -388,6 +403,8 @@ public actor APIClient {
     struct AttemptsResponse<T: Decodable>: Decodable { var attempts: [T] }
     struct ClimbsBody<T: Encodable>: Encodable { var climbs: [T] }
     struct ClimbsResponse<T: Decodable>: Decodable { var climbs: [T] }
+    struct SportsBody<T: Encodable>: Encodable { var sports: [T] }
+    struct SportsResponse<T: Decodable>: Decodable { var sports: [T] }
     struct MachineNotesBody<T: Encodable>: Encodable { var notes: [T] }
     struct MachineNotesResponse<T: Decodable>: Decodable { var notes: [T] }
     struct MeasurementsBody<T: Encodable>: Encodable { var measurements: [T] }

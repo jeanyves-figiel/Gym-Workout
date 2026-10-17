@@ -219,6 +219,8 @@ struct WeekDayStrip: View {
             let today = model.todayWeekday
             // Climbing days of a climber show orange (#277).
             let climbDays = model.profile.map { Generator.isClimber($0) ? $0.climbingDays : [] } ?? []
+            // Other sports' days (#416) show their icon.
+            let sportDays = model.profile?.sportDays() ?? []
             HStack(spacing: 5) {
                 ForEach(WeekSchedule.weekdays, id: \.self) { wd in
                     let day = sessions.filter { $0.weekday == wd }
@@ -240,9 +242,12 @@ struct WeekDayStrip: View {
                             .accessibilityAddTraits(selected == wd ? .isSelected : [])
                     } else {
                         let climb = climbDays.contains(wd)
-                        Button { onPick(wd) } label: { cell(wd, today: today, state: climb ? .climb : .rest, picked: selected == wd) }
+                        let sport = climb ? nil : sportDays.first { $0.weekday == wd }?.sport
+                        Button { onPick(wd) } label: {
+                            cell(wd, today: today, state: climb ? .climb : sport.map { DayState.sport($0) } ?? .rest, picked: selected == wd)
+                        }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("\(WeekSchedule.name(wd)): \(climb ? "climbing day" : "rest day")")
+                            .accessibilityLabel("\(WeekSchedule.name(wd)): \(climb ? "climbing day" : sport.map { "\($0.label) day" } ?? "rest day")")
                             .accessibilityHint("Add a workout")
                             .accessibilityAddTraits(selected == wd ? .isSelected : [])
                     }
@@ -252,7 +257,7 @@ struct WeekDayStrip: View {
         }
     }
 
-    private enum DayState: Equatable { case missed(skipped: Bool), done, planned, rest, climb }
+    private enum DayState: Equatable { case missed(skipped: Bool), done, planned, rest, climb, sport(Sport) }
 
     private func cell(_ wd: Int, today: Int, state: DayState, picked: Bool = false) -> some View {
         let isToday = wd == today
@@ -262,6 +267,7 @@ struct WeekDayStrip: View {
         case .planned: AnyShapeStyle(Color.white.opacity(0.2))
         case .rest: AnyShapeStyle(Color.black.opacity(0.25))
         case .climb: AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xFF7A3C), Color(hex: 0xFFB347)], startPoint: .topLeading, endPoint: .bottomTrailing))
+        case .sport(let sp): AnyShapeStyle(sp.gradient)
         }
         let fill = picked ? AnyShapeStyle(Color.white) : base
         let ink: Color = picked ? Color(hex: 0x2A1D6E) : state == .done ? Theme.ink : state == .rest ? .white.opacity(0.55) : .white
@@ -271,6 +277,7 @@ struct WeekDayStrip: View {
         case .planned: "circle.fill"
         case .rest: "moon.fill"
         case .climb: "figure.climbing"
+        case .sport(let sp): sp.symbol
         }
         return VStack(spacing: 4) {
             Text(WeekSchedule.shortName(wd).uppercased()).font(Theme.label(9)).tracking(0.5)

@@ -166,9 +166,11 @@ struct MonkeyCoachCard: View {
     /// Workout chat (#381).
     @State private var chatting = false
     @State private var gate: ProGate?
+    /// Spotted in Health (#416): a sport session to rate, with a swap for today when it clashes.
+    @State private var sportSession: SportEntry?
 
     private enum Action {
-        case start(Session), catchUp(Int), progress(ProgressSection), exercise(String), levels, calendar
+        case start(Session), catchUp(Int), progress(ProgressSection), exercise(String), levels, calendar, sport(SportEntry)
     }
 
     private struct Tip {
@@ -288,6 +290,7 @@ struct MonkeyCoachCard: View {
         .sensoryFeedback(.impact(weight: .light), trigger: tip)
         .sheet(item: $catchUp) { MissedCatchUpSheet(weekday: $0.id) }
         .sheet(isPresented: $levels) { LevelLadderSheet() }
+        .sheet(item: $sportSession) { SportSessionSheet(entry: $0) }
         .fullScreenCover(isPresented: $chatting) { CoachChatView() }
         .proPaywall($gate)
         .onAppear {
@@ -340,6 +343,7 @@ struct MonkeyCoachCard: View {
             model.progressJump = section
             model.tab = .progress
         case .levels: levels = true
+        case .sport(let e): sportSession = e
         case .exercise, .calendar: break // NavigationLinks
         }
     }
@@ -370,6 +374,18 @@ struct MonkeyCoachCard: View {
             case .fired: [Tip(text: "Let's crush \(title)! 💥", tint: (0xB23DFF, 0xFF3DA8), cta: cta, action: go)]
             case .happy: [Tip(text: "Ready for \(title)? 💪", tint: (0xFFC23D, 0xFF7A3D), cta: cta, action: go)]
             }
+        }
+        // Other sports (#416, design C): a Health session to rate comes first; a hard one that clashes with today
+        // offers the swap. Nothing new on Train: it's a tip like the others.
+        let sports = Sports.merged(local: model.sportLogs, health: health.snapshot.recentSports)
+        if let e = Sports.spotted(sports, rated: Set(model.sportLogs.map(\.id))).first {
+            let when = Calendar.current.isDateInToday(e.start) ? "today" : "yesterday"
+            out.insert(Tip(text: "Spotted: \(e.sport.short) \(e.durationText) \(when). How was it? \(e.sport == .scubaDiving ? "🤿" : "👀")",
+                           tint: (0x7D4DFF, 0xE040FB), cta: "Rate it", action: .sport(e)), at: 0)
+        } else if let e = Sports.recentHard(sports), let n = next, n.weekday == model.todayWeekday,
+                  let to = Sports.swap(for: n.focus, after: e.sport), model.canChangeFocus(n) {
+            out.insert(Tip(text: "\(e.sport.loadLabel.capitalized) loaded by \(e.sport.short). \(n.focus.dayLabel) → \(to.dayLabel)?",
+                           tint: (0x00B86B, 0x1EC8A5), cta: "Swap today", action: .sport(e)), at: 0)
         }
         if stats.currentStreakWeeks > 0 {
             let best = stats.currentStreakWeeks >= stats.bestStreakWeeks && stats.currentStreakWeeks > 1

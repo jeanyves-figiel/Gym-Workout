@@ -81,13 +81,13 @@ const privacy = (l: Legal) => `
 <ul>
 <li>Training profile: goals, schedule, equipment, experience, training style, plan and calendar changes.</li>
 <li>Body metrics you enter: height, weight, birth year, optional sex and gender, pronouns and what the coach calls you, body figure choice, and dated body measurements (girths such as chest, waist, arms and thighs, body weight, body fat).</li>
-<li>Sets you log (exercise, weight, reps, reps in reserve), completed sessions (exercises, duration, calories, average and maximum heart rate), personal-record attempts, climbing sessions you log (type, date, duration, effort, top grade, notes), your own workouts and exercises, including photos you take of machines, and machine setup notes per gym (settings, text and an optional photo, visible only to you).</li>
+<li>Sets you log (exercise, weight, reps, reps in reserve), completed sessions (exercises, duration, calories, average and maximum heart rate), personal-record attempts, climbing sessions you log (type, date, duration, effort, top grade, notes), other sport sessions you log or rate (sport, date, duration, effort, distance, notes), your own workouts and exercises, including photos you take of machines, and machine setup notes per gym (settings, text and an optional photo, visible only to you).</li>
 <li>Gym maps: your floor plan of a gym and the times you tap "Taken?" on a zone. Other members at the same gym see only the plan most members agree with and counts of busy taps, never who made them.</li>
 </ul>
 <p>Why: to generate your plan, suggest loads, show progress and sync across devices. Body and heart-rate data are health data; we process them only to provide these features, based on your consent, which you can withdraw by deleting the data or your account.</p>
 
 <h3>Apple Health</h3>
-<p>With your permission the app reads from Apple Health (weight, height, body fat, lean body mass, waist circumference, age, sex, resting heart rate, heart rate variability, VO2 max, sleep, heart rate and energy during workouts, climbing workouts) and writes your gym sessions, weight, height and, if you choose, body fat and waist circumference to it. Health data is also used to suggest first-time loads. Health data is used only to estimate calories, show readiness and track progress. Most of it stays on your iPhone; only the session summary above (duration, calories, average and maximum heart rate) is synced to our server with your training history. Apple Health data is never used for advertising, never sold, never shared with third parties for their own purposes and never stored in iCloud by us. You can change Health permissions at any time in the iOS Settings or the Health app.</p>
+<p>With your permission the app reads from Apple Health (weight, height, body fat, lean body mass, waist circumference, age, sex, resting heart rate, heart rate variability, VO2 max, sleep, heart rate and energy during workouts, climbing and other sport workouts with their distance, ascent and route; routes stay on your iPhone) and writes your gym sessions, weight, height and, if you choose, body fat and waist circumference to it. Health data is also used to suggest first-time loads. Health data is used only to estimate calories, show readiness and track progress. Most of it stays on your iPhone; only the session summary above (duration, calories, average and maximum heart rate) and the sport sessions you rate (sport, date, duration, your effort, distance) are synced to our server with your training history. Apple Health data is never used for advertising, never sold, never shared with third parties for their own purposes and never stored in iCloud by us. You can change Health permissions at any time in the iOS Settings or the Health app.</p>
 
 <h3>Community (optional)</h3>
 <ul>
@@ -233,7 +233,7 @@ const support = (l: Legal) => `
 <h3>Some of my data is missing. Can you restore it?</h3>
 <p>Email ${l.emailLink} from your account's email address within 30 days, saying what is missing and roughly when you last saw it. We restore your data from our daily backups; nothing else in your account or anyone else's is changed. A deleted account cannot be restored.</p>
 <h3>How do I get a copy of my data?</h3>
-<p>Settings → Export my data creates a JSON file with your account, training profile, logs, history, personal records, measurements, climbs and machine setup notes (with their photos).</p>
+<p>Settings → Export my data creates a JSON file with your account, training profile, logs, history, personal records, measurements, climbs, other sport sessions and machine setup notes (with their photos).</p>
 <h3>I forgot my password.</h3>
 <p>On the sign-in screen tap "Forgot password?" and follow the code sent by email.</p>
 <h3>How do I cancel my subscription?</h3>
