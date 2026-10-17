@@ -184,6 +184,112 @@ def hanging(J, held):
     return any(h is not None and h[0] == "rod" and J["hand" + d][1] > J["shoulder"][1] + 10 for d, h in held.items())
 
 
+SIDE_FIX = ("prone-ytw", "supine-twist", "archer-push-up", "open-book")
+
+
+def nrm3(v):
+    return v / max(np.linalg.norm(v), 1e-9)
+
+
+def _rot90(v):
+    """Scene drawn lying across the screen but exported as a front/back view: turn it so the body lies along x."""
+    return [round(float(v[2]), 1), round(float(v[1]), 1), round(-float(v[0]), 1)]
+
+
+def lying_scenes(ex, e):
+    """Four lying exercises were drawn from the side but exported as front/back views with no depth: every joint sat
+    on x = 0 and the body lay along z. Turn them onto the x axis, give near/far limbs their width, and author what
+    the drawing could not say (the archer push-up on the floor, the prone YTW's bench and arms, the supine twist's
+    legs, the open book's top arm)."""
+    if ex not in SIDE_FIX:
+        return
+    e["v"] = "s"
+    for k in e["k"]:
+        J = k["j"]
+        for n, v in list(J.items()):
+            if not n.startswith("_"):
+                J[n] = _rot90(v)
+        for p in k["p"]:
+            for a in ("a", "b", "c"):
+                if a in p:
+                    p[a] = _rot90(p[a])
+            if "lo" in p:
+                lo, hi = _rot90(p["lo"]), _rot90(p["hi"])
+                p["lo"] = [min(x, y) for x, y in zip(lo, hi)]; p["hi"] = [max(x, y) for x, y in zip(lo, hi)]
+            if "n" in p and abs(p["n"][0]) > 1e-6:
+                p["n"] = [0.0, p["n"][1] if abs(p["n"][1]) > 1e-6 else 8.0]
+        # near / far limbs get the body's width (the figure's near side is +z); lying on the side (open book) the
+        # far side is on top instead
+        if ex == "open-book":
+            for jn in ("shoulder", "elbow", "wrist", "hand"):
+                J[jn + "F"] = [J[jn + "N"][0], round(J[jn + "N"][1] + 34, 1), J[jn + "N"][2]]
+            for jn in ("hip", "knee", "ankle", "toe"):
+                J[jn + "F"] = [J[jn + "N"][0], round(J[jn + "N"][1] + 18, 1), J[jn + "N"][2]]
+            J["shoulder"] = [J["shoulderN"][0], round(J["shoulderN"][1] + 17, 1), J["shoulderN"][2]]
+            J["hip"] = [J["hipN"][0], round(J["hipN"][1] + 9, 1), J["hipN"][2]]
+            continue
+        for chain, w in ((("shoulder", "elbow", "wrist", "hand"), 17.0), (("hip", "knee", "ankle", "toe"), 9.0)):
+            if abs(J[chain[0] + "N"][2] - J[chain[0] + "F"][2]) < 2:
+                for jn in chain:
+                    J[jn + "N"][2] = round(J[jn + "N"][2] + w, 1); J[jn + "F"][2] = round(J[jn + "F"][2] - w, 1)
+    if ex == "archer-push-up":
+        # a push-up with one arm straight out to the side: the standard push-up keys, near arm reaching sideways
+        src = json.loads(zlib.decompress(RAW.read_bytes(), -15))["push-up"]
+        e["v"] = src.get("v", "s")
+        for k, sk in zip(e["k"], src["k"]):
+            k["j"] = json.loads(json.dumps(sk["j"])); k["p"] = json.loads(json.dumps(sk["p"]))
+            J = k["j"]
+            sh = J["shoulderN"]
+            J["handN"] = [round(sh[0] + 6, 1), 4.0, round(sh[2] + 62, 1)]
+            J["wristN"] = [round(sh[0] + 4, 1), 5.0, round(sh[2] + 54, 1)]
+            J["elbowN"] = [round(sh[0] + 2, 1), round(sh[1] * 0.55 + 4, 1), round(sh[2] + 30, 1)]
+    if ex == "prone-ytw":
+        # face down on a high bench (top under the belly), head toward +x; arms make the Y, T and W
+        arms = (((0.8, -0.25, 0.55), (0.85, -0.1, 0.5)), ((0.0, -0.15, 1.0), (0.0, 0.0, 1.0)), ((-0.45, -0.3, 0.85), (0.7, 0.3, 0.6)))
+        for (ue, fe), k in zip(arms, e["k"]):
+            J = k["j"]; hip, sh = J["hip"], J["shoulder"]
+            for d, sgn in (("N", 1.0), ("F", -1.0)):
+                S = np.asarray(J["shoulder" + d], float)
+                u = nrm3(np.array([ue[0], ue[1], ue[2] * sgn])); f = nrm3(np.array([fe[0], fe[1], fe[2] * sgn]))
+                E = S + 42 * u; W = E + 38 * f; H = W + 10 * f
+                J["elbow" + d], J["wrist" + d], J["hand" + d] = [[float(x) for x in np.round(v, 1)] for v in (E, W, H)]
+            top = min(hip[1], sh[1]) - 9
+            k["p"] = [p for p in k["p"] if p["k"] not in ("rod", "db")]
+            k["p"].append(dict(k="pad", a=[round(hip[0] - 30, 1), top - 4, 0.0], b=[round(sh[0] + 10, 1), top - 4, 0.0], n=[0.0, 8.0], w=16))
+            for x in (hip[0] - 22, sh[0] + 2):
+                for z in (-12.0, 12.0):
+                    k["p"].append(dict(k="rod", a=[round(x, 1), 0.0, z], b=[round(x, 1), top - 8, z], r=2.0))
+    if ex == "supine-twist":
+        # on the back, head toward +x, arms out on the floor; bent knees drop to the near side
+        for i, k in enumerate(e["k"]):
+            J = k["j"]
+            hx = J["hip"][0]; sx = J["shoulder"][0]
+            J["hip"] = [hx, 10.0, 0.0]; J["shoulder"] = [sx, 14.0, 0.0]
+            J["neck"] = [round(sx + 10, 1), 14.0, 0.0]; J["head"] = [round(sx + 28, 1), 15.0, 0.0]
+            a = (0.0, 0.5, 1.0)[i] * np.pi / 2
+
+            def drop(v):          # rotate a leg offset about the x axis toward +z (the near side)
+                return np.array([v[0], v[1] * np.cos(a) - v[2] * np.sin(a), v[1] * np.sin(a) + v[2] * np.cos(a)])
+            for d, sgn in (("N", 1.0), ("F", -1.0)):
+                J["shoulder" + d] = [sx, 14.0, 17.0 * sgn]; J["hip" + d] = [hx, 10.0, 9.0 * sgn]
+                J["elbow" + d] = [sx, 7.0, 59.0 * sgn]; J["wrist" + d] = [sx, 5.0, 97.0 * sgn]; J["hand" + d] = [sx, 4.0, 107.0 * sgn]
+                hp = np.array([hx, 10.0, 9.0 * sgn])
+                K = hp + drop(np.array([-40.0, 40.0, 0.0]))
+                A = K + drop(np.array([-36.0, -40.0, 0.0]))
+                T = A + drop(np.array([14.0, 6.0, 0.0]))
+                J["knee" + d], J["ankle" + d], J["toe" + d] = [[float(x) for x in np.round(v, 1)] for v in (K, A, T)]
+            k["p"] = [p for p in k["p"] if p["k"] == "mat"]
+    if ex == "open-book":
+        # lying on the side, knees bent; the top arm sweeps from the under arm over to the floor behind
+        for i, k in enumerate(e["k"]):
+            J = k["j"]; sh = J["shoulderF"]
+            ang = (0.0, 0.5, 1.0)[i] * np.pi
+            J["elbowF"] = [round(sh[0], 1), round(sh[1] - 20 * np.cos(ang) + 18 * np.sin(ang), 1), round(sh[2] + 8 + 20 * np.sin(ang), 1)]
+            J["wristF"] = [round(sh[0], 1), round(sh[1] - 40 * np.cos(ang) + 30 * np.sin(ang), 1), round(sh[2] + 12 + 40 * np.sin(ang), 1)]
+            J["handF"] = [round(sh[0] + 2, 1), round(sh[1] - 48 * np.cos(ang) + 34 * np.sin(ang), 1), round(sh[2] + 14 + 48 * np.sin(ang), 1)]
+            J["head"] = [round(J["neck"][0] - 8 - 6 * np.sin(ang), 1), round(J["neck"][1] + 3, 1), round(J["neck"][2] + 10 * np.sin(ang), 1)]
+
+
 def complete(ex, keys):
     """Equipment the 2D scenes drew in shorthand gets its real kind: a short bar in a dumbbell exercise is the
     dumbbell, a ball in a kettlebell exercise is the kettlebell, the ball crunch gets its ball."""
@@ -265,6 +371,7 @@ def run(ids=None):
     for ex in (ids or sorted(d)):
         e = d[ex]
         keys = e["k"]
+        lying_scenes(ex, e)
         complete(ex, keys)
         # every key must list the same static props; shifts are decided per exercise
         poses = []
