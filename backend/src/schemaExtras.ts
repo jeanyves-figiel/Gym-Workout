@@ -36,6 +36,15 @@ export const ensureSchemaExtras = (db: DB): void => {
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS climbs_user_updated ON climbs(user_id, updated_at);
+    -- Other sport sessions (#416), synced from the app (routes/sports.ts).
+    CREATE TABLE IF NOT EXISTS sports (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      start TEXT NOT NULL,
+      data TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS sports_user_updated ON sports(user_id, updated_at);
     -- Workout chat (#381): messages per member per UTC day, for the daily cap (routes/coachChat.ts).
     CREATE TABLE IF NOT EXISTS coach_chat_usage (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

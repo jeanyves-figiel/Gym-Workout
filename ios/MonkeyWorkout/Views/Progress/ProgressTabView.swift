@@ -79,6 +79,9 @@ struct ProgressTabView: View {
                             weeklyChart(s)
                             strengthTrend
                             if !climbList.isEmpty { ClimbingCard(climbs: climbList) }
+                            // Other sports (#416): logged here or from Apple Health.
+                            let sports = Sports.merged(local: model.sportLogs, health: health.snapshot.recentSports)
+                            if !sports.isEmpty { SportsCard(entries: sports) }
                         }
                         // Training programmes (#255): the running one, lifts start vs now, finished ones.
                         group(.programmes, trailing: model.programmeHistory.isEmpty ? nil : "\(model.programmeHistory.filter(\.finished).count) finished") {

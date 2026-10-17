@@ -598,10 +598,7 @@ private struct NextUpCard: View {
     let onStart: () -> Void
     @Environment(AppModel.self) private var model
     @Environment(\.trainCompact) private var compact
-    @State private var logging: ClimbLog?
-
-    /// Climbers get Log climb next to Start workout (#277, design A).
-    private var climber: Bool { model.profile.map(Generator.isClimber) ?? false }
+    @State private var logging: SportLog?
     /// A later day picked in the strip (#343): nothing can be started or logged in advance.
     private var ahead: Bool { picked.map { $0 > model.todayWeekday } ?? false }
 
@@ -627,7 +624,7 @@ private struct NextUpCard: View {
                 .fill(LinearGradient(colors: [lead.colors[0].opacity(0.85), lead.colors[1].opacity(0.55), Theme.bg], startPoint: .topLeading, endPoint: .bottomTrailing))
         }
         .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Color.white.opacity(0.15)))
-        .sheet(item: $logging) { LogClimbView(initial: $0) }
+        .sheet(item: $logging) { LogSportView(initial: $0) }
     }
 
     /// Slim (#337, design A): muscle chips sit in the text column beside a smaller figure, so Start workout stays
@@ -698,13 +695,9 @@ private struct NextUpCard: View {
                     }
                     .buttonStyle(LimeButtonStyle())
                 }
-                // The card itself opens the overview, so Log climb takes the list button's place for climbers.
-                if ahead {
-                    EmptyView()
-                } else if climber {
-                    LogClimbButton { logging = ClimbLog(start: Date().addingTimeInterval(-90 * 60)) }
-                } else {
-                    overviewLink
+                // The card itself opens the overview, so Log sport (#416, was Log climb) takes the list button's place.
+                if !ahead {
+                    LogSportButton { logging = SportLog(start: Date().addingTimeInterval(-120 * 60)) }
                 }
             }
             if picked != nil && !isNext, let next = model.nextSession {
@@ -712,19 +705,6 @@ private struct NextUpCard: View {
             } else if picked != nil && !isNext {
                 BackToNextUpButton(label: "Back to this week", action: onBack)
             }
-        }
-    }
-
-    private var overviewLink: some View {
-        HStack(spacing: 10) {
-            NavigationLink(value: session.id) {
-                Image(systemName: "list.bullet")
-                    .font(.system(size: 18, weight: .heavy))
-                    .foregroundStyle(.white)
-                    .frame(width: 56, height: 56)
-                    .background(Circle().fill(Color.white.opacity(0.15)))
-            }
-            .accessibilityLabel("Session overview")
         }
     }
 }
@@ -760,6 +740,7 @@ private struct RestDayCard: View {
     let onAdd: () -> Void
     @Environment(AppModel.self) private var model
     @State private var logging: ClimbLog?
+    @State private var loggingSport: SportLog?
 
     /// Climbers get Log climb next to Add workout on every rest day (#304).
     private var climber: Bool { model.profile.map(Generator.isClimber) ?? false }
@@ -791,8 +772,11 @@ private struct RestDayCard: View {
                 HStack(spacing: 10) {
                     Button(action: onAdd) { Label("Add workout", systemImage: "plus").lineLimit(1).minimumScaleFactor(0.75) }
                         .buttonStyle(LimeButtonStyle())
-                    if climber && !ahead {
+                    if climbing && !ahead {
                         LogClimbButton { logging = ClimbLog(start: climbStart()) }
+                    } else if !ahead {
+                        // Any other sport (#416), dated like a climb.
+                        LogSportButton { loggingSport = SportLog(start: climbStart()) }
                     }
                 }
                 .padding(.top, 6)
@@ -814,6 +798,7 @@ private struct RestDayCard: View {
         }
         .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Color.white.opacity(0.15)))
         .sheet(item: $logging) { LogClimbView(initial: $0) }
+        .sheet(item: $loggingSport) { LogSportView(initial: $0) }
     }
 }
 

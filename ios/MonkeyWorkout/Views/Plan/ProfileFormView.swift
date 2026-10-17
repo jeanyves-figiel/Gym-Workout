@@ -272,6 +272,9 @@ struct ProfileFormView: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
+            // Other sports (#416, design B): planned around like climbing days.
+            MySportsEditor(sports: $p.sports)
+
             VStack(alignment: .leading, spacing: 8) {
                 fieldLabel("Gym days", symbol: "dumbbell.fill", optional: true)
                 DayTiles(days: gymDays, symbol: "dumbbell.fill", fill: AnyShapeStyle(WorkoutEngine.Category.strength.gradient), ink: .white)
@@ -625,7 +628,7 @@ private struct Chip: View {
 }
 
 /// Seven tall Monday-first day tiles; picked days are filled and show an icon.
-private struct DayTiles: View {
+struct DayTiles: View {
     @Binding var days: [Int]
     let symbol: String
     let fill: AnyShapeStyle

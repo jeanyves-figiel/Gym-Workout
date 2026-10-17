@@ -662,6 +662,7 @@ final class AppModel {
               await runSyncStep(&firstError, { try await self.syncPRAttempts() }),
               await runSyncStep(&firstError, { try await self.syncMeasurements() }),
               await runSyncStep(&firstError, { try await self.syncClimbs() }),
+              await runSyncStep(&firstError, { try await self.syncSports() }),
               await runSyncStep(&firstError, { try await self.syncMachineNotes() })
         else { return sessionExpired() }
         persist()
