@@ -6,6 +6,17 @@ import WatchKit
 final class WatchAppDelegate: NSObject, WKApplicationDelegate {
     func handle(_ workoutConfiguration: HKWorkoutConfiguration) {
         Task { @MainActor in
+            // "Start race on Watch" in the iPhone's Hyrox hub (#426) uses cross training.
+            // The snapshot with the format may land just after the wake-up: wait a few seconds for it.
+            if workoutConfiguration.activityType == .crossTraining {
+                for _ in 0..<10 {
+                    if let h = WatchStore.current?.snapshot.hyrox, let format = h.start, let at = h.startAt, Date().timeIntervalSince(at) < 300 {
+                        await HyroxTracker.shared.start(format, settings: h)
+                        return
+                    }
+                    try? await Task.sleep(for: .milliseconds(500))
+                }
+            }
             if let store = WatchStore.current { store.phoneStarted() } else { WatchStore.pendingPhoneStart = true }
         }
     }
@@ -122,6 +133,7 @@ struct WatchRootView: View {
     @State private var locked = false
     /// Sport tracking (#418) takes the whole screen while it runs, then shows its summary.
     @State private var sports = SportTracker.shared
+    @State private var hyrox = HyroxTracker.shared
 
     var body: some View {
         #if DEBUG
@@ -147,7 +159,11 @@ struct WatchRootView: View {
     }
 
     @ViewBuilder private var screens: some View {
-        if sports.running, player == nil {
+        if hyrox.running, player == nil {
+            HyroxRaceView()
+        } else if let race = hyrox.result, player == nil {
+            HyroxFinishView(race: race, pb: hyrox.pb)
+        } else if sports.running, player == nil {
             SportTrackView()
         } else if let summary = sports.summary, player == nil {
             SportSummaryView(summary: summary)

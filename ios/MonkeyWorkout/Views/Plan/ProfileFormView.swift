@@ -273,7 +273,7 @@ struct ProfileFormView: View {
             }
 
             // Other sports (#416, design B): planned around like climbing days.
-            MySportsEditor(sports: $p.sports)
+            MySportsEditor(sports: $p.sports, programmeLink: !isNew)
 
             VStack(alignment: .leading, spacing: 8) {
                 fieldLabel("Gym days", symbol: "dumbbell.fill", optional: true)

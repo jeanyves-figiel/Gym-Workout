@@ -190,6 +190,7 @@ private struct DemoScreen: View {
             NavigationStack { ProgrammeDetailView(programme: Programme.all[0], demoGrid: true) }
         case "programme-mine": NavigationStack { ProgrammeDetailView(programme: Programme.all[0], demoEdit: true) }
         case "programme-builder", "programme-builder-week": ProgrammeBuilderView()
+        case "snow-ready": NavigationStack { ProgrammeDetailView(programme: Programme.snowReady(.snowboard)) }
         case "progress-programmes": NavigationStack { ProgressTabView(demoSection: .programmes) }
         case "profile-programme": NavigationStack { TrainingProfileView().navigationTitle("Training profile") }
         case "calendar-programme": NavigationStack { CalendarView() }

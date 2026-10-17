@@ -45,6 +45,12 @@ export const ensureSchemaExtras = (db: DB): void => {
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS sports_user_updated ON sports(user_id, updated_at);
+    -- Upload-only key of the member's Apple Watch (#426), hashed (routes/sports.ts).
+    CREATE TABLE IF NOT EXISTS watch_keys (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      key_hash TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL
+    );
     -- Workout chat (#381): messages per member per UTC day, for the daily cap (routes/coachChat.ts).
     CREATE TABLE IF NOT EXISTS coach_chat_usage (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

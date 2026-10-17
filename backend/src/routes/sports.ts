@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { randomToken, sha256 } from '../crypto.ts';
 import { type DB, tx } from '../db.ts';
+import { ApiError } from '../errors.ts';
 
 /** Other sport sessions (#416): snowboard, MTB, Hyrox… Synced like climbs (upsert by client id). */
 const sport = z
@@ -13,6 +15,21 @@ const sport = z
     notes: z.string().max(2000).nullish(),
   })
   .catchall(z.unknown());
+
+const upsert = (db: DB, userId: string, sports: z.infer<typeof sport>[], ts: string) => {
+  const up = db.prepare(
+    `INSERT INTO sports (id, user_id, start, data, updated_at) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET start = excluded.start, data = excluded.data, updated_at = excluded.updated_at
+     WHERE sports.user_id = excluded.user_id`,
+  );
+  tx(db, () => {
+    for (const c of sports) {
+      const json = JSON.stringify(c);
+      if (json.length > 10_000) throw Object.assign(new Error('Sport session too large'), { statusCode: 413 });
+      up.run(c.id, userId, c.start, json, ts);
+    }
+  });
+};
 
 export const listSports = (db: DB, userId: string, since?: string) =>
   (
@@ -33,24 +50,40 @@ export const sportRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.post('/me/sports', async (req) => {
     const b = z.object({ sports: z.array(sport).max(200) }).parse(req.body);
     const ts = now().toISOString();
-    const up = db.prepare(
-      `INSERT INTO sports (id, user_id, start, data, updated_at) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET start = excluded.start, data = excluded.data, updated_at = excluded.updated_at
-       WHERE sports.user_id = excluded.user_id`,
-    );
-    tx(db, () => {
-      for (const c of b.sports) {
-        const json = JSON.stringify(c);
-        if (json.length > 10_000) throw Object.assign(new Error('Sport session too large'), { statusCode: 413 });
-        up.run(c.id, req.userId!, c.start, json, ts);
-      }
-    });
+    upsert(db, req.userId!, b.sports, ts);
     return { saved: b.sports.length, serverTime: ts };
+  });
+
+  // Upload-only key for the member's Apple Watch (#426): a Hyrox race goes straight to the server when the Watch has
+  // Wi-Fi or cellular. One per account; a new one replaces the old. Only `POST /v1/watch/sports` accepts it.
+  r.post('/me/watch-key', async (req) => {
+    const key = randomToken(32);
+    db.prepare(
+      `INSERT INTO watch_keys (user_id, key_hash, created_at) VALUES (?, ?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET key_hash = excluded.key_hash, created_at = excluded.created_at`,
+    ).run(req.userId!, sha256(key), now().toISOString());
+    return { key };
   });
 
   r.delete('/me/sports/:id', async (req, reply) => {
     const { id } = z.object({ id: z.uuid() }).parse(req.params);
     db.prepare('DELETE FROM sports WHERE id = ? AND user_id = ?').run(id, req.userId!);
     return reply.status(204).send();
+  });
+};
+
+/** The Watch's direct upload (#426): `X-Watch-Key` instead of a bearer token, sport sessions only, rate limited. */
+export const watchSportRoutes = (app: FastifyInstance, db: DB, now: () => Date) => {
+  app.post('/v1/watch/sports', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req) => {
+    const key = req.headers['x-watch-key'];
+    const row =
+      typeof key === 'string' && key.length >= 20
+        ? (db.prepare('SELECT user_id FROM watch_keys WHERE key_hash = ?').get(sha256(key)) as { user_id: string } | undefined)
+        : undefined;
+    if (!row) throw new ApiError(401, 'invalid_token', 'Unknown Watch key.');
+    const b = z.object({ sports: z.array(sport).max(10) }).parse(req.body);
+    const ts = now().toISOString();
+    upsert(db, row.user_id, b.sports, ts);
+    return { saved: b.sports.length, serverTime: ts };
   });
 };

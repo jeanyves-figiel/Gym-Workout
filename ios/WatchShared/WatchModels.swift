@@ -1,4 +1,5 @@
 import Foundation
+import LiftSensor
 
 // Data exchanged between the iPhone app and the Watch app over WatchConnectivity (#56).
 // Compiled into both targets; the Watch has no access to the workout engine, so the phone flattens
@@ -37,6 +38,8 @@ struct WatchSnapshot: Codable, Equatable {
     var liftLogging: WatchLiftLogging?
     /// Counting level each exercise learned from corrections (#410): exercise id → -1.5…1.5.
     var liftLearned: [String: Double]?
+    /// Hyrox (#426): division, goal, last race, and how to upload a race straight from the Watch; nil when unset.
+    var hyrox: WHyrox?
 
     func session(_ id: String) -> WSession? { (sessions + extras).first { $0.id == id } }
 }
@@ -212,6 +215,8 @@ enum WatchEvent: Codable, Equatable {
     case tracked(WTracked)
     /// Reps and bar speed the Watch measured for a set (#383).
     case liftSet(WLiftSet)
+    /// A Hyrox race or sim recorded on the Watch (#426); its id is the Health workout's.
+    case hyroxRace(HyroxRace)
 }
 
 /// Reps and bar speed the Watch measured for one set (#383). Speeds in m/s, ranges in m, times in s.
@@ -515,4 +520,22 @@ extension JSONDecoder {
         d.dateDecodingStrategy = .secondsSince1970
         return d
     }()
+}
+
+/// Hyrox settings for the Watch (#426), from the iPhone's Hyrox hub.
+struct WHyrox: Codable, Equatable {
+    var division = HyroxDivision()
+    /// Goal for a full race, seconds.
+    var goalSeconds: Double?
+    var raceName: String?
+    var raceDate: Date?
+    /// Last full race, for the PB on the finish screen.
+    var lastRace: HyroxRace?
+    /// Upload-only key for `POST /v1/watch/sports` and the API base URL, so a Watch with a network sends the race
+    /// at once; nil until the iPhone fetched one.
+    var uploadKey: String?
+    var apiBase: String?
+    /// "Start race on Watch" on the iPhone: the format and when it was asked (used for a few minutes).
+    var start: HyroxFormat?
+    var startAt: Date?
 }

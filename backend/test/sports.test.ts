@@ -87,4 +87,23 @@ describe('sport sessions sync (#416)', () => {
     for (const c of [{ ...sample(), id: 'x' }, { ...sample(), effort: 0 }, { ...sample(), sport: '' }, { ...sample(), minutes: -5 }])
       expect((await post('/v1/me/sports', { sports: [c] }, t)).statusCode).toBe(400);
   });
+
+  it('takes a Hyrox race straight from the Watch with its upload key (#426)', async () => {
+    const t = await signUp('racer@example.com');
+    const key1 = (await post('/v1/me/watch-key', {}, t)).json().key as string;
+    const key = (await post('/v1/me/watch-key', {}, t)).json().key as string;
+    expect(key).not.toBe(key1);
+    const race = { ...sample(), sport: 'hyrox', minutes: 79, effort: 9, hyrox: { splits: [{ seconds: 239 }] } };
+    const send = (k: string | undefined, payload: object = { sports: [race] }) =>
+      app.inject({ method: 'POST', url: '/v1/watch/sports', payload, headers: k ? { 'x-watch-key': k } : {} });
+    expect((await send(undefined)).statusCode).toBe(401);
+    expect((await send(key1)).statusCode).toBe(401);
+    expect((await send(key)).json().saved).toBe(1);
+    expect((await get('/v1/me/sports', t)).json().sports[0]).toMatchObject({ id: race.id, sport: 'hyrox', hyrox: { splits: [{ seconds: 239 }] } });
+    // The key only uploads sport sessions; it is no bearer token.
+    expect((await app.inject({ method: 'GET', url: '/v1/me/sports', headers: { authorization: `Bearer ${key}` } })).statusCode).toBe(401);
+    expect((await send(key, { sports: [{ ...race, effort: 0 }] })).statusCode).toBe(400);
+    db.prepare('DELETE FROM users').run();
+    expect(db.prepare('SELECT COUNT(*) AS n FROM watch_keys').get()).toEqual({ n: 0 });
+  });
 });
