@@ -70,7 +70,7 @@ final class LiftTracker {
     func practice(level: Double) {
         reset(key: "practice", machine: false)
         practicing = true
-        begin(SetTracker(profile: LiftProfile(direction: .up, family: .other), lossLimit: nil, strictness: level))
+        begin(SetTracker(profile: LiftProfile(direction: .up, family: .bench), lossLimit: nil, strictness: level))
     }
 
     /// Practice mode: the same movements counted at another level.
@@ -277,9 +277,8 @@ enum MachineCalibration {
 extension SetTracker {
     /// Machine mode tracker: fixed axis and push direction from the test rep.
     convenience init(machineAxis: Vec3, sign: Int, family: LiftProfile.Family, lossLimit: Double?, strictness: Double = 0) {
-        var config = SetAnalyzer.Config()
-        config.minRange = 0.05
-        self.init(profile: LiftProfile(direction: .axis, family: family), lossLimit: lossLimit, config: config, strictness: strictness)
+        // Floor of the machine's family (#424): leg press 15 cm, hip thrust 12 cm, calf raise and the rest 6 cm.
+        self.init(profile: LiftProfile(direction: .axis, family: family), lossLimit: lossLimit, strictness: strictness)
         fixAxis(sign > 0 ? machineAxis : machineAxis * -1)
     }
 }

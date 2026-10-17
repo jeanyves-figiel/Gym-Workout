@@ -37,8 +37,18 @@ public struct LiftProfile: Equatable, Sendable {
         }
     }
 
-    /// Smallest movement (m) that counts as a rep.
-    public var minRange: Double { family == .hinge ? 0.06 : 0.08 }
+    /// Smallest movement (m) that counts as a rep at the normal counting level (#424): about a third of the
+    /// shortest usual range of the family (bench 30–45 cm, squat and presses 40–70 cm, rows 25–45 cm, curls and
+    /// raises 30–50 cm), so partials still count while wrist wobble, unracking and bar settling don't.
+    /// `other` (shrugs, calf raises and short machine moves) keeps a low floor.
+    public var minRange: Double {
+        switch family {
+        case .squat, .overhead: 0.15
+        case .hinge, .bench, .row: 0.12
+        case .arm: 0.10
+        case .other: 0.06
+        }
+    }
 
     /// Profile for an exercise, from its name (and id); nil when the wrist doesn't move with the load
     /// (leg press, leg extension and curl, calf raises, hip thrust, pull-ups, dips, core, cardio).
@@ -54,7 +64,10 @@ public struct LiftProfile: Equatable, Sendable {
             return nil
         }
         let family: Family
-        if has("deadlift", "rdl", "romanian", "good morning", "rack pull", "clean", "snatch", "swing", "shrug") {
+        if has("shrug") {
+            // A 5–10 cm lift: short-range floor, no 1RM from speed.
+            family = .other
+        } else if has("deadlift", "rdl", "romanian", "good morning", "rack pull", "clean", "snatch", "swing") {
             family = .hinge
         } else if has("squat", "lunge", "step up", "thruster", "split") {
             family = .squat
