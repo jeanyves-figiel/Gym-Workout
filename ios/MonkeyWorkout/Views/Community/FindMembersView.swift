@@ -253,6 +253,7 @@ private struct MemberRow: View {
                         HStack(spacing: 6) {
                             Text(member.nickname).font(Theme.display(20)).lineLimit(1).minimumScaleFactor(0.7)
                             RankTitleChip(level: member.level, compact: true)
+                            PronounsChip(pronouns: member.pronouns)
                         }
                         if let gym = member.gym {
                             Label(gym, systemImage: "building.2.fill").font(Theme.label(11)).lineLimit(1).opacity(0.95)

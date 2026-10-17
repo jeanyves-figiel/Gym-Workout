@@ -485,6 +485,23 @@ final class AppModel {
     /// Figure on every body map (#110): the user's pick, else suggested from sex.
     var bodyFigure: BodyMapLayout.Figure { body.figure ?? BodyMetrics.suggestedFigure(sex: body.sex) }
 
+    /// Name the coach can call you (#415): account first name, else Community nickname.
+    var callableName: String? {
+        let n = (user?.name ?? "").trimmingCharacters(in: .whitespaces)
+        return n.isEmpty ? Community.shared.me.nickname : n
+    }
+
+    /// What the coach says before big moments ("Alex!"), nil = no call (#415).
+    var coachCallName: String? {
+        let b = body
+        return CoachCall.text(b.coachCall ?? CoachCall.suggested(hasName: callableName != nil), name: callableName, pronouns: b.effectivePronouns)
+    }
+
+    /// The coach calls you by your name (not a term like Champ).
+    var coachCallIsName: Bool {
+        coachCallName != nil && (body.coachCall ?? CoachCall.suggested(hasName: callableName != nil)) == .name
+    }
+
     func setBodyFigure(_ figure: BodyMapLayout.Figure) {
         var b = body
         b.figure = figure
@@ -497,7 +514,11 @@ final class AppModel {
         state.profileDirty = true
         persist()
         Task { await sync() }
+        Task { await CoachVoiceStore.shared.fetchCall(model: self) }
     }
+
+    /// Pronouns shown next to your nickname (#415): only when turned on in How we talk to you.
+    var communityPronouns: String? { body.showPronouns == true ? body.pronounsText : nil }
 
     var history: [WorkoutRecord] { state.history.sorted { $0.startedAt > $1.startedAt } }
 

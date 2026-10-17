@@ -71,3 +71,36 @@ private func set(_ kg: Double, _ reps: Int, day: Int = 0) -> SetLog {
         #expect(CoachLines.record(kg: 55, reps: 9, history: history).isRecord == false)
     }
 }
+
+@Suite struct MemberAddressTests {
+    @Test func pronounsArePrefilledFromGender() {
+        #expect(Pronouns.suggested(gender: "woman") == .she)
+        #expect(Pronouns.suggested(gender: "man") == .he)
+        #expect(Pronouns.suggested(gender: "nonBinary") == .they)
+        #expect(Pronouns.suggested(gender: "selfDescribe") == .they)
+        #expect(Pronouns.suggested(gender: "preferNotToSay") == nil)
+        #expect(Pronouns.suggested(gender: nil) == nil)
+        #expect(Pronouns.text(.they, custom: nil) == "they/them")
+        #expect(Pronouns.text(.custom, custom: "  xe/xem ") == "xe/xem")
+        #expect(Pronouns.text(.custom, custom: " ") == nil)
+    }
+
+    @Test func callChoicesFollowPronouns() {
+        #expect(CoachCall.options(for: .she).contains(.queen))
+        #expect(!CoachCall.options(for: .she).contains(.king))
+        #expect(CoachCall.options(for: .he).contains(.king))
+        #expect(!CoachCall.options(for: .they).contains(.queen) && !CoachCall.options(for: nil).contains(.king))
+        #expect(CoachCall.text(.queen, name: nil, pronouns: .she) == "Queen")
+        #expect(CoachCall.text(.queen, name: nil, pronouns: .they) == nil)
+        #expect(CoachCall.text(.name, name: "Jean-Yves Figiel", pronouns: nil) == "Jean-Yves")
+        #expect(CoachCall.text(.name, name: "", pronouns: nil) == nil)
+        #expect(CoachCall.text(.none, name: "Alex", pronouns: .he) == nil)
+    }
+
+    @Test func callGoesBeforeBigMomentsOnly() {
+        #expect(CoachLines.called("Halfway!", moment: .halfway(left: 3), style: .hype, call: "Alex") == "Alex! Halfway!")
+        #expect(CoachLines.called("Half done.", moment: .halfway(left: 3), style: .chill, call: "Alex") == "Alex. Half done.")
+        #expect(CoachLines.called("Boom!", moment: .restEnding(seconds: 10), style: .hype, call: "Alex") == "Boom!")
+        #expect(CoachLines.called("Done!", moment: .finish(sets: 1, volumeKg: 0, minutes: 1), style: .hype, call: nil) == "Done!")
+    }
+}

@@ -26,9 +26,16 @@ public struct CoachChatContext: Codable, Sendable, Equatable {
     public var screen: String?
     /// What that screen shows: an exercise, a chart and its numbers, a calendar day.
     public var focus: String?
+    /// Pronouns (#415), e.g. "she/her"; nil = neutral wording.
+    public var pronouns: String?
+    /// What the member likes to be called (#415).
+    public var callName: String?
 
     public init(goal: String? = nil, level: String? = nil, sessionMinutes: Int? = nil, equipment: [String]? = nil,
-                readiness: String? = nil, todayPlanned: String? = nil, method: String? = nil, screen: String? = nil, focus: String? = nil) {
+                readiness: String? = nil, todayPlanned: String? = nil, method: String? = nil, screen: String? = nil, focus: String? = nil,
+                pronouns: String? = nil, callName: String? = nil) {
+        self.pronouns = pronouns
+        self.callName = callName
         self.goal = goal
         self.level = level
         self.sessionMinutes = sessionMinutes

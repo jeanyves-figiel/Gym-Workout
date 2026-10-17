@@ -84,6 +84,15 @@ final class Community {
         } catch {}
     }
 
+    /// Pronouns next to the nickname (#415); nil hides them. Members only.
+    func setPronouns(_ pronouns: String?, api: APIClient) async {
+        guard !demo, let p = profile, p.pronouns != pronouns else { return }
+        do {
+            try await api.setCommunityPronouns(pronouns)
+            profile?.pronouns = pronouns
+        } catch {}
+    }
+
     func loadMore(_ scope: CommunityFeedScope, api: APIClient) async {
         guard let before = next[scope], !loading else { return }
         loading = true

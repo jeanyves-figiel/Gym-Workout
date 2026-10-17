@@ -39,6 +39,8 @@ public struct CommunityProfile: Codable, Sendable, Equatable {
     public var following: Int
     /// Game level reported by the app (#242); nil before the first report or from older servers.
     public var level: Int?
+    /// Pronouns shown next to the nickname (#415), only when the member turned it on.
+    public var pronouns: String?
 
     public init(
         userId: String, nickname: String, bio: String? = nil, avatarUrl: String? = nil, defaultVisibility: CommunityVisibility = .onlyMe,
@@ -93,6 +95,8 @@ public struct CommunityMember: Codable, Sendable, Equatable {
     public var gym: String?
     /// Game level reported by the app (#242); nil before the first report or from older servers.
     public var level: Int?
+    /// Pronouns shown next to the nickname (#415), only when the member turned it on.
+    public var pronouns: String?
 
     public init(
         userId: String, nickname: String, bio: String?, avatarUrl: String?, sharedPosts: Int, cheersReceived: Int, followers: Int = 0, following: Int = 0,
@@ -117,9 +121,12 @@ public struct CommunityAuthor: Codable, Sendable, Equatable, Hashable {
     public var avatarUrl: String?
     /// Game level reported by the app (#242); nil before the first report or from older servers.
     public var level: Int?
+    /// Pronouns shown next to the nickname (#415), only when the member turned it on.
+    public var pronouns: String?
 
-    public init(userId: String, nickname: String, avatarUrl: String? = nil, level: Int? = nil) {
+    public init(userId: String, nickname: String, avatarUrl: String? = nil, level: Int? = nil, pronouns: String? = nil) {
         self.level = level
+        self.pronouns = pronouns
         self.userId = userId
         self.nickname = nickname
         self.avatarUrl = avatarUrl
@@ -242,8 +249,10 @@ public struct CommunityMemberSummary: Decodable, Sendable, Identifiable, Equatab
     public var followedByMe: Bool
     /// Game level reported by the app (#242); nil before the first report or from older servers.
     public var level: Int?
+    /// Pronouns shown next to the nickname (#415), only when the member turned it on.
+    public var pronouns: String?
     public var id: String { userId }
-    public var author: CommunityAuthor { CommunityAuthor(userId: userId, nickname: nickname, avatarUrl: avatarUrl, level: level) }
+    public var author: CommunityAuthor { CommunityAuthor(userId: userId, nickname: nickname, avatarUrl: avatarUrl, level: level, pronouns: pronouns) }
 
     public init(
         userId: String, nickname: String, bio: String? = nil, avatarUrl: String? = nil, gym: String? = nil, sharedPosts: Int = 0, followers: Int = 0,
@@ -407,6 +416,19 @@ extension APIClient {
     public func setCommunityLevel(_ level: Int) async throws {
         struct Body: Encodable { var level: Int }
         _ = try await authorizedRaw("PUT", "/v1/community/me/level", Body(level: level))
+    }
+
+    /// Pronouns next to your nickname (#415); nil hides them.
+    public func setCommunityPronouns(_ pronouns: String?) async throws {
+        struct Body: Encodable {
+            var pronouns: String?
+            enum CodingKeys: String, CodingKey { case pronouns }
+            func encode(to encoder: Encoder) throws {
+                var c = encoder.container(keyedBy: CodingKeys.self)
+                try c.encode(pronouns, forKey: .pronouns)  // explicit null clears
+            }
+        }
+        _ = try await authorizedRaw("PUT", "/v1/community/me/pronouns", Body(pronouns: pronouns))
     }
 
     /// Members you follow, by nickname.

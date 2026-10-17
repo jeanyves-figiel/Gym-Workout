@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
-import { type ChatContext, type ChatTurn, type CoachAnswer, type CoachModel, clean } from '../src/coach/chat.ts';
+import { type ChatContext, type ChatTurn, type CoachAnswer, type CoachModel, clean, describeMember } from '../src/coach/chat.ts';
 import { loadConfig } from '../src/config.ts';
 import { openDb } from '../src/db.ts';
 import { ConsoleMailer } from '../src/mailer.ts';
@@ -192,5 +192,31 @@ describe('ask from any screen (#412)', () => {
       exercise: null,
       label: 'See progress',
     });
+  });
+});
+
+describe('pronouns and call name (#415)', () => {
+  it('passes them to the coach and into the prompt', async () => {
+    start();
+    const t = await signUp('p@example.com');
+    const res = await chat(t, { turns: [{ role: 'member', text: 'How am I doing?' }], context: { pronouns: 'she/her', callName: 'Queen' } });
+    expect(res.statusCode).toBe(200);
+    expect(calls[0]!.context).toEqual({ pronouns: 'she/her', callName: 'Queen' });
+    const about = describeMember({ pronouns: 'she/her', callName: 'Queen' });
+    expect(about).toContain('Pronouns: she/her');
+    expect(about).toContain('Likes to be called: Queen');
+    expect(describeMember({ callName: '{name}' })).toContain('write {name} where you use it');
+  });
+
+  it('asks for neutral wording when pronouns are not set', () => {
+    expect(describeMember({})).toContain('use neutral wording');
+    expect(describeMember({}).includes('Likes to be called')).toBe(false);
+  });
+
+  it('rejects overlong values', async () => {
+    start();
+    const t = await signUp('q@example.com');
+    const res = await chat(t, { turns: [{ role: 'member', text: 'Hi' }], context: { pronouns: 'x'.repeat(31) } });
+    expect(res.statusCode).toBe(400);
   });
 });

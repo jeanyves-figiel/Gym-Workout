@@ -79,6 +79,9 @@ struct MainTabView: View {
         // Coach voice (#402, C): the best matching studio voice, downloaded once in the background.
         .task(id: model.user?.id) { await CoachVoiceStore.shared.prepare(model: model) }
         .task(id: "\(Community.shared.profile?.userId ?? "")-\(model.game.level)") { await Community.shared.reportLevel(model.game.level, api: model.api) }
+        .task(id: "\(Community.shared.profile?.userId ?? "")-\(model.communityPronouns ?? "")") {
+            await Community.shared.setPronouns(model.communityPronouns, api: model.api)
+        }
         .modifier(NotificationsHost())
         .fullScreenCover(isPresented: Binding(get: { model.offerPro }, set: { model.offerPro = $0 })) {
             NavigationStack { ProView(context: .onboarding) { model.offerPro = false } }
@@ -222,6 +225,7 @@ private struct DemoScreen: View {
         case "progress-records": NavigationStack { ProgressTabView(demoSection: .records) }
         case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
         case "body": NavigationStack { BodyHealthView() }
+        case "body-talk": NavigationStack { TalkToYouDemo() }
         case "measurements": NavigationStack { MeasurementsView() }
         case "measurement-log": MeasurementLogSheet(initial: model.measurements.last ?? BodyMeasurement(date: Date()), isNew: false)
         // Close + Undo bar (#285) over Train, as after closing a half-filled measurements sheet.
@@ -415,6 +419,29 @@ private struct DemoPushedHistory: View {
 
     var body: some View {
         NavigationStack(path: $path) { ProgressTabView() }
+    }
+}
+#endif
+
+#if DEBUG
+/// Demo screen for How we talk to you (#415).
+private struct TalkToYouDemo: View {
+    @State private var gender: BodyMetrics.Gender? = .nonBinary
+    @State private var pronouns: Pronouns?
+    @State private var custom = ""
+    @State private var call: CoachCall? = .name
+    @State private var show = true
+
+    var body: some View {
+        ScrollView {
+            TalkToYouCard(gender: $gender, pronouns: $pronouns, pronounsCustom: $custom, call: $call, showPronouns: $show,
+                          name: "Alex", nickname: "alex_lifts", avatar: nil)
+                .padding(16)
+        }
+        .readableWidth()
+        .themedForm()
+        .navigationTitle("Body & Health")
+        .toolbarTitleDisplayMode(.inline)
     }
 }
 #endif

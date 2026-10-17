@@ -217,6 +217,8 @@ struct WorkoutPlayerView: View {
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
             OrientationLock.allowLandscape(true)
+            coach.call = model.coachCallName
+            Task { await CoachVoiceStore.shared.fetchCall(model: model) }
             resumeOrBegin()
             askCoachVoice()
         }

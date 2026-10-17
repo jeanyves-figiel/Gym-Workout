@@ -122,3 +122,30 @@ describe('studio coach voices (#395)', () => {
     expect((seen!.init.headers as Record<string, string>).authorization).toMatch(/^AWS4-HMAC-SHA256 Credential=AKID\/20261016\/eu-central-1\/polly\/aws4_request/);
   });
 });
+
+describe('coach calls the member by name (#415)', () => {
+  it('records the call once per voice, style and name', async () => {
+    start();
+    const t = await signUp('c@example.com');
+    const res = await get(t, '/v1/me/coach-voices/Joanna/call/hype.mp3?name=Queen');
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toBe('audio/mpeg');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.ssml).toContain('Queen!');
+    expect((await get(t, '/v1/me/coach-voices/Joanna/call/hype.mp3?name=Queen')).statusCode).toBe(200);
+    expect(calls).toHaveLength(1);
+    expect((await get(t, '/v1/me/coach-voices/Joanna/call/chill.mp3?name=Zoë')).statusCode).toBe(200);
+    expect(calls[1]!.ssml).toContain('Zoë.');
+  });
+
+  it('rejects names that are not a name, unknown voices and styles', async () => {
+    start();
+    const t = await signUp('d@example.com');
+    expect((await get(t, '/v1/me/coach-voices/Joanna/call/hype.mp3?name=%3Cbreak%2F%3E')).statusCode).toBe(400);
+    expect((await get(t, `/v1/me/coach-voices/Joanna/call/hype.mp3?name=${'a'.repeat(25)}`)).statusCode).toBe(400);
+    expect((await get(t, '/v1/me/coach-voices/Joanna/call/hype.mp3')).statusCode).toBe(400);
+    expect((await get(t, '/v1/me/coach-voices/Nobody/call/hype.mp3?name=Alex')).statusCode).toBe(404);
+    expect((await get(t, '/v1/me/coach-voices/Joanna/call/loud.mp3?name=Alex')).statusCode).toBe(404);
+    expect(calls).toHaveLength(0);
+  });
+});

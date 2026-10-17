@@ -50,11 +50,23 @@ struct BodyMetrics: Codable, Equatable, Sendable {
     var genderDescription: String?
     /// Body figure drawn on muscle maps (#110). Display only; nil = suggested from `sex`.
     var figure: BodyMapLayout.Figure?
+    /// How we talk to you (#415). Picked pronouns; nil = prefilled from `gender` (see `effectivePronouns`).
+    var pronouns: Pronouns?
+    /// Own words when `pronouns == .custom`.
+    var pronounsCustom: String?
+    /// What the coach calls you; nil = your name when there is one.
+    var coachCall: CoachCall?
+    /// Pronouns next to your nickname in Community.
+    var showPronouns: Bool?
 
     var isEmpty: Bool {
         heightCm == nil && weightKg == nil && birthYear == nil && sex == nil && gender == nil && genderDescription == nil
-            && figure == nil
+            && figure == nil && pronouns == nil && pronounsCustom == nil && coachCall == nil && showPronouns == nil
     }
+
+    var effectivePronouns: Pronouns? { pronouns ?? Pronouns.suggested(gender: gender?.rawValue) }
+    /// "she/her", custom words, or nil (neutral).
+    var pronounsText: String? { Pronouns.text(effectivePronouns, custom: pronounsCustom) }
 
     /// Figure prefilled when none was picked: F for female sex, M otherwise.
     static func suggestedFigure(sex: Sex?) -> BodyMapLayout.Figure { sex == .female ? .female : .male }

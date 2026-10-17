@@ -201,6 +201,7 @@ struct PostCard: View {
                     AvatarView(url: model.api.resolve(post.author.avatarUrl), nickname: post.author.nickname, size: 28)
                     Text(post.author.nickname).font(Theme.label(13)).lineLimit(1).layoutPriority(1)
                     RankTitleChip(level: post.author.level, compact: true)
+                    PronounsChip(pronouns: post.author.pronouns)
                 }
             }
             .buttonStyle(.plain)
@@ -392,6 +393,24 @@ struct VisibilityPicker: View {
                 }
             }
             Text(selection.blurb).font(.footnote).foregroundStyle(Theme.muted)
+        }
+    }
+}
+
+/// Pronouns next to a nickname (#415), when the member shows them.
+struct PronounsChip: View {
+    let pronouns: String?
+
+    var body: some View {
+        if let pronouns, !pronouns.isEmpty {
+            Text(pronouns)
+                .font(Theme.label(10))
+                .lineLimit(1)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(Theme.lime))
+                .foregroundStyle(Theme.ink)
+                .accessibilityLabel("Pronouns \(pronouns)")
         }
     }
 }

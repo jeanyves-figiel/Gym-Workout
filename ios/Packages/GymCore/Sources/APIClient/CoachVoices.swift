@@ -54,4 +54,10 @@ extension APIClient {
     public func coachVoiceLine(voice: String, line: String) async throws -> Data {
         try await authorizedRaw("GET", "/v1/me/coach-voices/\(voice)/\(line).mp3", Empty?.none)
     }
+
+    /// MP3 of the short call said before key lines (#415): "Alex!" (hype) or "Alex." (chill, drill).
+    public func coachVoiceCall(voice: String, style: String, name: String) async throws -> Data {
+        let q = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&+=?#"))) ?? ""
+        return try await authorizedRaw("GET", "/v1/me/coach-voices/\(voice)/call/\(style).mp3?name=\(q)", Empty?.none)
+    }
 }
