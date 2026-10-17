@@ -27,6 +27,7 @@ struct ExerciseDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 ExerciseImageHeader(exercise: e)
+                PositionGuideLink(exercise: e)
                 VStack(alignment: .leading, spacing: 10) {
                     CategoryPill(category: e.category)
                     Text(e.name).font(Theme.display(34)).fixedSize(horizontal: false, vertical: true)

@@ -146,6 +146,12 @@ private struct DemoScreen: View {
         case "player-setup": WorkoutPlayerView(sessionId: second, demoMode: "setup")
         case "machine-setup": MachineNoteSheet(exerciseId: "leg-press", gym: model.homeGym.ref)
         case "exercise-setups": NavigationStack { ExerciseDetailView(exerciseId: "leg-press") }
+        // Position guide (#399).
+        case "position", "position-mistake", "position-press":
+            let e = Exercise.get(Demo.screen == "position-press" ? "bench-press" : "back-squat")
+            if let p = e.position {
+                NavigationStack { PositionGuideView(exercise: e, position: p, demoMistake: Demo.screen == "position-mistake") }
+            }
         case "player-superset": WorkoutPlayerView(sessionId: second, demoMode: "superset")
         case "player-superset-fix": WorkoutPlayerView(sessionId: second, demoMode: "superset-fix")
         case "player-split": WorkoutPlayerView(sessionId: second, demoMode: "superset-split")
