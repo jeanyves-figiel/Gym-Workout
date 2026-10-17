@@ -16,6 +16,8 @@ const body = z.object({
       readiness: z.string().max(60).optional(),
       todayPlanned: z.string().max(80).optional(),
       method: z.string().max(40).optional(),
+      screen: z.string().max(40).optional(),
+      focus: z.string().max(300).optional(),
     })
     .default({}),
 });

@@ -22,9 +22,13 @@ public struct CoachChatContext: Codable, Sendable, Equatable {
     public var readiness: String?
     public var todayPlanned: String?
     public var method: String?
+    /// Where the member asks from (#412): "train", "exercise", "progress", "calendar", "player", …
+    public var screen: String?
+    /// What that screen shows: an exercise, a chart and its numbers, a calendar day.
+    public var focus: String?
 
     public init(goal: String? = nil, level: String? = nil, sessionMinutes: Int? = nil, equipment: [String]? = nil,
-                readiness: String? = nil, todayPlanned: String? = nil, method: String? = nil) {
+                readiness: String? = nil, todayPlanned: String? = nil, method: String? = nil, screen: String? = nil, focus: String? = nil) {
         self.goal = goal
         self.level = level
         self.sessionMinutes = sessionMinutes
@@ -32,6 +36,8 @@ public struct CoachChatContext: Codable, Sendable, Equatable {
         self.readiness = readiness
         self.todayPlanned = todayPlanned
         self.method = method
+        self.screen = screen
+        self.focus = focus
     }
 }
 
@@ -40,6 +46,23 @@ public struct CoachChatAnswer<W: Decodable & Sendable>: Decodable, Sendable {
     public var reply: String
     public var workout: W?
     public var remainingToday: Int
+    /// A button that opens a screen (#412).
+    public var action: CoachChatAction?
+    /// Follow-up questions to tap (#412).
+    public var suggestions: [String]?
+}
+
+/// Coach's "open this" button (#412): target progress / calendar / explore / settings / exercise (+ name).
+public struct CoachChatAction: Codable, Sendable, Equatable {
+    public var target: String
+    public var exercise: String?
+    public var label: String
+
+    public init(target: String, exercise: String? = nil, label: String) {
+        self.target = target
+        self.exercise = exercise
+        self.label = label
+    }
 }
 
 public struct CoachChatStatus: Decodable, Sendable, Equatable {

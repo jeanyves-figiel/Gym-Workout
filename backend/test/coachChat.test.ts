@@ -158,8 +158,39 @@ describe('clean', () => {
     );
     expect(a).toEqual({
       reply: 'Go!',
+      action: null,
+      suggestions: [],
       workout: { name: 'Coach workout', minutes: 120, groups: ['legs'], rest: 'standard', grouping: 'straight', avoidGroups: ['shoulders'], avoidEquipment: ['rack'], avoidKeywords: ['lunge'] },
     });
     expect(clean({ reply: 'Which muscles?', workout: { ...a.workout!, groups: [] } }, {}).workout).toBeNull();
+  });
+});
+
+describe('ask from any screen (#412)', () => {
+  it('passes the screen and what the member looks at to the coach', async () => {
+    start();
+    const t = await signUp('s@example.com');
+    const res = await chat(t, {
+      turns: [{ role: 'member', text: 'My shoulder clicks on this one' }],
+      context: { screen: 'exercise', focus: 'Bench press · chest, triceps' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(calls[0]!.context).toEqual({ screen: 'exercise', focus: 'Bench press · chest, triceps' });
+  });
+
+  it('keeps a valid open button and follow-ups, drops bad ones', () => {
+    const ok = clean(
+      { reply: 'Try neutral grip.', workout: null, action: { target: 'exercise', exercise: ' Dumbbell bench press ', label: 'Open DB press' }, suggestions: ['Form cues?', 'Form cues?', 'Lighter?', 'x', 'y'] },
+      {},
+    );
+    expect(ok.action).toEqual({ target: 'exercise', exercise: 'Dumbbell bench press', label: 'Open DB press' });
+    expect(ok.suggestions).toEqual(['Form cues?', 'Lighter?', 'x']);
+    expect(clean({ reply: 'a', workout: null, action: { target: 'exercise', exercise: null, label: 'Open' } }, {}).action).toBeNull();
+    expect(clean({ reply: 'a', workout: null, action: { target: 'moon' as 'progress', exercise: null, label: 'Go' } }, {}).action).toBeNull();
+    expect(clean({ reply: 'a', workout: null, action: { target: 'progress', exercise: 'x', label: 'See progress' } }, {}).action).toEqual({
+      target: 'progress',
+      exercise: null,
+      label: 'See progress',
+    });
   });
 });

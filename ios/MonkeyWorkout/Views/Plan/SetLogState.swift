@@ -85,6 +85,17 @@ final class SetLogState {
         rows[i].kg = LoadAdvisor.formatKg(LoadAdvisor.round(max(0, now + sign * step), to: step))
     }
 
+    /// Weight said to the player mic (#412).
+    func setKg(_ i: Int, _ kg: Double) {
+        guard rows.indices.contains(i) else { return }
+        rows[i].kg = LoadAdvisor.formatKg(min(1000, max(0, kg)))
+    }
+
+    func setReps(_ i: Int, _ reps: Int) {
+        guard rows.indices.contains(i) else { return }
+        rows[i].reps = String(min(1000, max(0, reps)))
+    }
+
     func stepReps(_ i: Int, by delta: Int) {
         guard rows.indices.contains(i) else { return }
         rows[i].reps = String(min(1000, max(0, (Int(rows[i].reps) ?? 0) + delta)))

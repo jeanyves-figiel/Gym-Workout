@@ -107,7 +107,7 @@ const privacy = (l: Legal) => `
 <ul>
 <li>Location for "Gyms near you": used only for the search with Apple Maps, never sent to our server.</li>
 <li>Gym scan photos: sent once to Anthropic to spot the equipment, never stored on our server (only a count of scans per day).</li>
-<li>Workout chat: the conversation stays on this device. Our server passes each message to Anthropic and keeps only a count of messages per day (for the daily limit).</li>
+<li>Ask Coach: the conversation stays on this device. Our server passes each message to Anthropic and keeps only a count of messages per day (for the daily limit). When you talk to Coach, Apple speech recognition turns your voice into text, on your iPhone when it supports it (otherwise by Apple); no audio is sent to us or to Anthropic, only the words.</li>
 <li>Face ID / Touch ID app lock: handled by iOS; we never receive biometric data.</li>
 <li>MonkeyGrade link (optional): your MonkeyGrade sign-in token stays in this device's Keychain; the app reads your climbing sessions directly from MonkeyGrade.</li>
 </ul>
@@ -121,7 +121,7 @@ const privacy = (l: Legal) => `
 <li><b>Fly.io</b>: server hosting, database and its backups (Frankfurt, Germany).</li>
 <li><b>Tigris Data</b> (object storage offered through Fly.io): encrypted copies of the daily database backup, encrypted on our server before upload with a key the provider does not have.</li>
 <li><b>Amazon Web Services (SES)</b>: sending account emails (Zurich, Switzerland).</li>
-<li><b>Anthropic</b> (Claude): answers the workout chat and reads gym scan photos. Only your chat messages and training settings (goal, level, session length, equipment, readiness) or the scan photo are sent, never your name, email or account id; they are not used to train models.</li>
+<li><b>Anthropic</b> (Claude): answers Ask Coach and reads gym scan photos. Only your chat messages, training settings (goal, level, session length, equipment, readiness), what the screen you ask from shows (an exercise, a chart, a day) or the scan photo are sent, never your name, email or account id; they are not used to train models.</li>
 <li><b>Apple</b>: Sign in with Apple, push notifications (APNs), App Store purchases, Apple Health on your device.</li>
 </ul>
 <p>Some providers are part of groups based in the United States; transfers are covered by the EU/Swiss adequacy frameworks or standard contractual clauses. </p>

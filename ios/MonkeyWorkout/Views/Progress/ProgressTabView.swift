@@ -317,6 +317,11 @@ struct ProgressTabView: View {
                 }
                 .chartYAxis { AxisMarks(position: .leading) }
                 .frame(height: 150)
+                // Ask Coach about the bars (#412 C).
+                CoachSpark(question: "How's my consistency?", focus: CoachFocus(
+                    screen: "progress", title: "Sessions per week",
+                    detail: "goal \(target) a week; last weeks oldest first: " + s.weeks.suffix(8).map { String($0.workouts) }.joined(separator: ", ")
+                        + "; streak \(s.currentStreakWeeks) weeks"))
             }
         }
         .card()

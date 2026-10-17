@@ -91,6 +91,9 @@ final class WorkoutCoach {
 
     func stop() { voice.stop() }
 
+    /// Short answer to the player mic (#412): bubble + voice, even between key moments.
+    func reply(_ text: String) { deliver(text, key: false, clip: nil) }
+
     /// A resumed workout: what was already said before (e.g. "half") stays unsaid.
     func markSaid(_ key: String) { said.insert(key) }
 
@@ -388,8 +391,12 @@ struct CoachSettingsView: View {
             .background(
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
                     .fill(LinearGradient(colors: [Color(hex: 0xFF4D8A), Color(hex: 0x8A3DF0)], startPoint: .topLeading, endPoint: .bottomTrailing)))
-            .padding(20)
+            .padding(.horizontal, 20).padding(.top, 20)
             .readableWidth()
+            // Ask Coach everywhere (#412): bubble, player mic, spoken answers.
+            AskCoachSettingsCard()
+                .padding(.horizontal, 20).padding(.vertical, 14)
+                .readableWidth()
         }
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Workout coach")

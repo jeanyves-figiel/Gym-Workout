@@ -44,7 +44,7 @@ struct AccountView: View {
         static let body = "Body & Health height weight apple health"
         static let method = "Training method block dup rir volume minimal"
         static let flow = "After last set workout flow next exercise countdown auto"
-        static let coach = "Workout coach voice monkey hype chill drill haptics"
+        static let coach = "Workout coach voice monkey hype chill drill haptics ask coach bubble microphone talk mic hands-free"
         static let reminders = "Reminders alerts notifications quiet hours check-in achievements"
         static let climbing = "Around climbing days climbing wall session before after"
         static let watchStart = "Start from iPhone apple watch ask auto"
@@ -236,7 +236,7 @@ struct AccountView: View {
                 // Workout coach (#379): Coach Monkey's voice and big moments in the player.
                 if search.matches(Find.coach) {
                     NavigationLink { CoachSettingsView() } label: {
-                        SettingsRow(symbol: "megaphone.fill", title: "Workout coach", value: coachSummary)
+                        SettingsRow(symbol: "megaphone.fill", title: "Coach & Ask Coach", value: coachSummary)
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("settings.coach")
