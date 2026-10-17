@@ -256,8 +256,16 @@ enum Demo {
                      GymLayout.Rect(x: 0, y: 0.45, w: 0.5, h: 0.2), GymLayout.Rect(x: 0, y: 0.75, w: 1, h: 0.25),
                      GymLayout.Rect(x: 0.55, y: 0.65, w: 0.45, h: 0.1)]
         for i in l.zones.indices { l.zones[i].rect = rects[i] }
+        l.door = GymLayout.Point(x: 1, y: 0.7) // Gym Map (#406)
         return l
     }()
+
+    /// Gym Map (#406): the plan 14 members at the home gym agree on, and a busy rack corner right now.
+    static let sharedGymMap = SharedGymMap(layout: layout, members: 14, agreement: 94)
+    static let gymCrowd = GymCrowd(
+        now: [.init(zone: "rack corner", reports: 3)],
+        forecast: [.init(zone: "rack corner", hours: (0..<24).map { [17, 18, 19].contains($0) ? 6 : $0 > 7 && $0 < 22 ? 1 : 0 })]
+    )
 
     static let knownGym = KnownGym(
         place: GymTally(members: 7, votes: [:], equipment: GymKind.bigClub.equipment.filter { $0 != .sled && $0 != .skiErg }.map(\.rawValue)),

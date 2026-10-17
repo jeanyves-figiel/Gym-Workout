@@ -114,6 +114,8 @@ struct LocalState: Codable {
     var deletedLogIds: Set<UUID>?
     /// Workout paused in the player, resumed at the same point (#57). Local only.
     var activeWorkout: ActiveWorkout?
+    /// "Taken?" taps in the player (#406): learns when each gym zone is busy. Local only.
+    var busyTaps: [BusyTap]?
 }
 
 /// Where the player stopped: exercise index, sets done per item and active time so far.

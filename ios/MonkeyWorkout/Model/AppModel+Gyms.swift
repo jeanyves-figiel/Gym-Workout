@@ -59,6 +59,7 @@ extension AppModel {
         p.gymLayout = layout
         updateProfile(p)
         rememberHomeGym()
+        shareGymMap(layout)
     }
 
     /// Zones (and ticks) set from the player (#352): saved now, re-planned when the workout ends so the running one
@@ -70,9 +71,98 @@ extension AppModel {
         state.synced?.profile = p
         rememberHomeGym()
         replanAfterWorkout = true
+        shareGymMap(layout)
+    }
+
+    // MARK: Gym Map (#406)
+
+    /// The home gym as the server matches it; nil for a custom gym.
+    var homePlace: GymPlace? {
+        let g = homeGym
+        guard g.isPlace else { return nil }
+        return GymPlace(id: g.ref.id, name: g.ref.name, latitude: g.ref.latitude, longitude: g.ref.longitude)
+    }
+
+    /// Shares a drawn plan with members at the same gym (counts and the plan only, never who).
+    private func shareGymMap(_ layout: GymLayout?) {
+        guard let layout, layout.hasPlan, let place = homePlace else { return }
+        #if DEBUG
+        if demo { return }
+        #endif
+        let api = api
+        Task { try? await api.shareGymMap(place, layout: layout) }
+    }
+
+    /// Other members' plan for the home gym (shown as "Map ready" when the member has none yet).
+    func loadSharedGymMap() async {
+        #if DEBUG
+        if demo { sharedGymMap = Demo.sharedGymMap; return }
+        #endif
+        guard let place = homePlace else { sharedGymMap = nil; return }
+        sharedGymMap = (try? await api.sharedGymMap(place, as: GymLayout.self)) ?? nil
+    }
+
+    /// Live crowd at the home gym (members' "Taken?" taps in the last 20 minutes, rush hours today).
+    func refreshGymCrowd() async {
+        #if DEBUG
+        if demo { gymCrowd = Demo.gymCrowd; return }
+        #endif
+        guard let place = homePlace else { gymCrowd = nil; return }
+        let offset = TimeZone.current.secondsFromGMT() / 60
+        if let c = try? await api.gymCrowd(gymId: place.id, utcOffsetMinutes: offset) { gymCrowd = c }
+    }
+
+    /// Members who found `zone` busy in the last 20 minutes.
+    func busyNow(_ zone: GymLayout.Zone) -> Int { gymCrowd?.reports(zone.name) ?? 0 }
+
+    /// Busy now (members' taps) or usually busy at this time (your own taps).
+    func zoneBusy(_ zone: GymLayout.Zone) -> Bool { busyNow(zone) > 0 || usuallyBusy(zone.id) }
+
+    /// Hour today (from now on) with the fewest busy taps across zones, when members' taps give a rush-hour picture.
+    func quietestHour(after date: Date = Date()) -> Int? {
+        guard let f = gymCrowd?.forecast, f.contains(where: { $0.hours.contains { $0 > 0 } }) else { return nil }
+        let from = Calendar.current.component(.hour, from: date)
+        let hours = Array(from..<min(24, from + 6))
+        return hours.min { a, b in f.reduce(0) { $0 + $1.hours[a] } < f.reduce(0) { $0 + $1.hours[b] } }
+    }
+
+    /// Equipment seen on a photo of one area of the gym (Gym scan).
+    func scanGym(jpeg: Data) async throws -> [Equipment] {
+        #if DEBUG
+        if demo { return [.rack, .bench, .dumbbells, .barbell] }
+        #endif
+        let catalog = Equipment.allCases.map { GymScanItem(id: $0.rawValue, label: $0.label) }
+        return try await api.gymScan(jpeg: jpeg, catalog: catalog).items.compactMap(Equipment.init(rawValue:))
     }
 
     /// Zone of the home gym an exercise is done in (#274); nil without zones, or anywhere (bodyweight, mat…).
+    /// Route of a session through the home gym (#406); nil without zones or with fewer than one stop.
+    func gymRoute(_ session: Session) -> GymRoute? {
+        guard let layout = profile?.gymLayout else { return nil }
+        let r = layout.route(session.blocks.flatMap { $0.items.map(\.exerciseId) })
+        return r.stops.isEmpty ? nil : r
+    }
+
+    /// "Taken?" in the player (#406): remembers the zone was busy now (last 8 weeks kept) and tells members at the
+    /// same gym (live crowd).
+    func logBusy(_ zone: GymLayout.Zone, at date: Date = Date()) {
+        var taps = (state.busyTaps ?? []).filter { date.timeIntervalSince($0.at) <= GymBusy.window }
+        taps.append(BusyTap(zoneId: zone.id, at: date))
+        state.busyTaps = Array(taps.suffix(300))
+        persist()
+        #if DEBUG
+        if demo { return }
+        #endif
+        guard let place = homePlace else { return }
+        let api = api
+        Task { try? await api.reportBusy(gymId: place.id, zone: zone.name) }
+    }
+
+    /// Zone usually busy around this time of day (from the member's own "Taken?" taps).
+    func usuallyBusy(_ zoneId: String, at date: Date = Date()) -> Bool {
+        GymBusy.usuallyBusy(state.busyTaps ?? [], zone: zoneId, at: date)
+    }
+
     func gymZone(_ exerciseId: String) -> GymLayout.Zone? {
         guard let layout = profile?.gymLayout, let e = Exercise.find(exerciseId) else { return nil }
         return layout.zone(of: e)

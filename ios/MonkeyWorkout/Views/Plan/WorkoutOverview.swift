@@ -50,6 +50,13 @@ private func target(_ p: Prescription) -> String { p.sets > 1 ? "\(p.sets) × \(
 
 /// Up next, always in the same place above the controls (#373, design C from `player-layout/portrait.png`): the next
 /// set or exercise, the two after it, and what's left with the end time. Tap or swipe up for the Workout map.
+/// Walk between two zones of the home gym's floor plan (#406).
+struct GymWalk {
+    let layout: GymLayout
+    let from: String?
+    let to: String
+}
+
 struct SmartUpNextBar: View {
     /// nil on the last item: the workout finishes next.
     let next: WorkoutPlayerView.UpNext?
@@ -58,6 +65,8 @@ struct SmartUpNextBar: View {
     let left: Int
     let doneBy: Date
     let fallback: [Color]
+    /// Walk to the next zone (#406): a mini floor plan on the right.
+    var walk: GymWalk? = nil
     let onMap: () -> Void
 
     var body: some View {
@@ -76,6 +85,9 @@ struct SmartUpNextBar: View {
                         }
                     }
                     Spacer(minLength: 0)
+                    if let walk {
+                        GymMiniMap(layout: walk.layout, from: walk.from, to: walk.to).frame(height: 34)
+                    }
                 }
                 HStack(spacing: 5) {
                     if !then.isEmpty {
