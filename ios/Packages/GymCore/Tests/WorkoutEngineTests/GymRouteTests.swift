@@ -48,3 +48,46 @@ import Testing
         #expect(!GymBusy.usuallyBusy(taps, zone: "m", at: now, calendar: cal))
     }
 }
+
+@Suite struct GymMapEditTests {
+    private func plan() -> GymLayout {
+        var l = GymLayout.starter
+        let rects = [GymLayout.Rect(x: 0, y: 0, w: 0.45, h: 0.3), .init(x: 0.55, y: 0, w: 0.45, h: 0.3),
+                     .init(x: 0, y: 0.35, w: 0.45, h: 0.3), .init(x: 0.55, y: 0.35, w: 0.45, h: 0.3),
+                     .init(x: 0, y: 0.7, w: 0.45, h: 0.2)]
+        for i in l.zones.indices { l.zones[i].rect = rects[i] }
+        return l
+    }
+
+    private func noOverlaps(_ l: GymLayout) -> Bool {
+        let r = l.zones.compactMap(\.rect)
+        return !r.indices.contains { i in r.indices.contains { j in i < j && r[i].overlaps(r[j]) } }
+    }
+
+    @Test func growingPushesNeighboursAside() {
+        var l = plan()
+        l.zones[2].rect?.w = 0.7 // functional grows into cardio
+        #expect(!noOverlaps(l))
+        l.settle(l.zones[2].id)
+        #expect(noOverlaps(l))
+        #expect(l.zones[2].rect?.w == 0.7)
+    }
+
+    @Test func blocksKeepTheEntranceClear() {
+        var l = plan()
+        l.door = .init(x: 0.3, y: 1)
+        l.zones[4].rect = .init(x: 0, y: 0.75, w: 0.45, h: 0.25) // stretch over the door
+        l.settle(l.zones[4].id)
+        #expect(!(l.zones[4].rect!.overlaps(l.doorClearance)))
+        #expect(noOverlaps(l))
+    }
+
+    @Test func swapTradesSpotsAndFindsBlocks() {
+        var l = plan()
+        let a = l.zones[0], b = l.zones[3]
+        #expect(l.zone(at: .init(x: 0.7, y: 0.5))?.id == b.id)
+        l.swapPlaces(a.id, b.id)
+        #expect(l.zones[0].rect == b.rect)
+        #expect(l.zones[3].rect == a.rect)
+    }
+}
