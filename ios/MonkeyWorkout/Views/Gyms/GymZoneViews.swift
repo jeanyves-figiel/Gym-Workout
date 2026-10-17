@@ -329,7 +329,7 @@ struct FloorPlanSheet: View {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(alignment: .top) {
                         Text(tilted ? "Your gym in 3D. Switch back to 2D to edit."
-                             : "Drag each zone to where it is, pull the corner to resize, drag the door to your entrance.")
+                             : "Drag a zone to move it, drop it on another to swap, tap it to resize. Drag the door to your entrance.")
                             .font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted)
                         Spacer(minLength: 8)
                         Picker("View", selection: $tilted) {
@@ -467,69 +467,68 @@ struct FloorPlanSheet: View {
             .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .named("plan")).onChanged { g in
                 let p = GymLayout.Point(x: Double(g.location.x / size.width), y: Double(g.location.y / size.height))
                 layout.door = p.onWall
+            }.onEnded { _ in
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.72)) {
+                    for z in layout.zones where z.rect != nil { layout.settle(z.id) }
+                }
             })
             .accessibilityLabel("Entrance")
     }
 
-    private func block(_ z: GymLayout.Zone, _ r: GymLayout.Rect, _ size: CGSize) -> some View {
+    /// One zone block. Design A (#422): it follows the finger 1:1, then springs onto the grid with a tick; it pushes
+    /// the blocks it lands on aside and keeps the entrance clear. Dropped with its centre on another block, the two
+    /// swap places. The resize handle only shows on the selected block; the label is the name and how much is there.
+    private func block(_ z: GymLayout.Zone, _ stored: GymLayout.Rect, _ size: CGSize) -> some View {
         let on = selected == z.id
+        let lifted = liveId == z.id
+        let r = lifted ? (liveRect ?? stored) : stored
         let items = z.items.filter { equipment.contains($0) }
         let w = CGFloat(r.w) * size.width - 6, h = CGFloat(r.h) * size.height - 6
-        return RoundedRectangle(cornerRadius: 10, style: .continuous)
+        let swapTarget = moving && liveId != nil && liveId != z.id && liveRect.flatMap { layout.zone(at: $0.centre, except: liveId) }?.id == z.id
+        return RoundedRectangle(cornerRadius: 12, style: .continuous)
             .fill(z.gradient)
-            .opacity(0.9)
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(.white.opacity(0.45), lineWidth: 1.5))
+            .opacity(lifted ? 1 : 0.92)
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white.opacity(0.4), lineWidth: 1.5))
             .overlay(alignment: .topLeading) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
-                        Text(z.name).font(Theme.label(12)).lineLimit(1).minimumScaleFactor(0.7)
-                        Text("\(items.count)").font(Theme.label(10)).opacity(0.8)
-                    }
-                    // Equipment icons: the plan shows what sits where.
-                    let fit = max(0, Int((w - 12) / 18) * max(0, Int((h - 34) / 18)))
-                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(14), spacing: 4), count: max(1, Int((w - 12) / 18))),
-                              alignment: .leading, spacing: 4) {
-                        ForEach(Array(Set(items.map(\.symbol))).sorted().prefix(fit), id: \.self) { s in
-                            Image(systemName: s).font(.system(size: 11, weight: .bold)).opacity(0.85)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(z.name).font(Theme.label(13)).lineLimit(2).minimumScaleFactor(0.7)
+                    Spacer(minLength: 0)
+                    if h > 44 {
+                        HStack(alignment: .firstTextBaseline, spacing: 3) {
+                            Text("\(items.count)").font(Theme.display(22))
+                            Text(items.count == 1 ? "piece" : "pieces").font(Theme.label(10)).opacity(0.8)
                         }
                     }
                 }
                 .foregroundStyle(.white)
-                .padding(6)
+                .padding(8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
             .overlay(alignment: .bottomTrailing) {
-                Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    .font(.system(size: 10, weight: .heavy))
-                    .foregroundStyle(.white)
-                    .frame(width: 24, height: 24)
-                    .background(Circle().fill(.black.opacity(0.3)))
-                    .padding(2)
-                    .highPriorityGesture(DragGesture(minimumDistance: 1).onChanged { g in
-                        if dragBase == nil { dragBase = r }
-                        let b = dragBase ?? r
-                        var n = b
-                        let dx = Double(g.translation.width / size.width), dy = Double(g.translation.height / size.height)
-                        n.w = snap(max(0.15, min(1 - b.x, b.w + dx)))
-                        n.h = snap(max(0.1, min(1 - b.y, b.h + dy)))
-                        setRect(z.id, n)
-                    }.onEnded { _ in dragBase = nil })
-                    .accessibilityLabel("Resize \(z.name)")
+                if on { resizeHandle(z, stored, size) }
             }
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(dropTarget == z.id ? Theme.lime : .white, lineWidth: on || dropTarget == z.id ? 3 : 0))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(swapTarget || dropTarget == z.id ? Theme.lime : .white,
+                              style: StrokeStyle(lineWidth: on || swapTarget || dropTarget == z.id ? 3 : 0, dash: swapTarget ? [8, 5] : [])))
+            .overlay {
+                if swapTarget {
+                    Label("Swap", systemImage: "arrow.left.arrow.right").font(Theme.label(11)).foregroundStyle(Theme.ink)
+                        .padding(.horizontal, 8).padding(.vertical, 4).background(Capsule().fill(Theme.lime))
+                }
+            }
             .frame(width: w, height: h)
+            .scaleEffect(lifted && moving ? 1.04 : 1)
+            .shadow(color: .black.opacity(lifted ? 0.45 : 0), radius: lifted ? 12 : 0, y: lifted ? 8 : 0)
             .offset(x: CGFloat(r.x) * size.width + 3, y: CGFloat(r.y) * size.height + 3)
-            .onTapGesture { selected = on ? nil : z.id }
+            .zIndex(lifted ? 2 : on ? 1 : 0)
+            .onTapGesture { withAnimation(.snappy) { selected = on ? nil : z.id } }
             .gesture(DragGesture(minimumDistance: 4).onChanged { g in
-                if dragBase == nil { dragBase = r }
-                let b = dragBase ?? r
+                let b = begin(z.id, stored, moving: true)
                 var n = b
-                let dx = Double(g.translation.width / size.width), dy = Double(g.translation.height / size.height)
-                n.x = snap(max(0, min(1 - b.w, b.x + dx)))
-                n.y = snap(max(0, min(1 - b.h, b.y + dy)))
-                setRect(z.id, n)
-                selected = z.id
-            }.onEnded { _ in dragBase = nil })
+                n.x = max(0, min(1 - b.w, b.x + Double(g.translation.width / size.width)))
+                n.y = max(0, min(1 - b.h, b.y + Double(g.translation.height / size.height)))
+                track(n)
+            }.onEnded { _ in commit() })
             .dropDestination(for: String.self) { ids, _ in
                 let moved = ids.compactMap(Equipment.init(rawValue:))
                 for e in moved { layout.move(e, to: z.id) }
@@ -539,7 +538,80 @@ struct FloorPlanSheet: View {
             .accessibilityLabel("\(z.name) on the floor plan, \(items.count) items")
     }
 
+    /// Big corner handle on the selected block: pull to resize.
+    private func resizeHandle(_ z: GymLayout.Zone, _ stored: GymLayout.Rect, _ size: CGSize) -> some View {
+        Image(systemName: "arrow.up.left.and.arrow.down.right")
+            .font(.system(size: 13, weight: .heavy))
+            .foregroundStyle(Theme.ink)
+            .frame(width: 32, height: 32)
+            .background(Circle().fill(Theme.lime))
+            .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
+            .padding(3)
+            .highPriorityGesture(DragGesture(minimumDistance: 1).onChanged { g in
+                let b = begin(z.id, stored, moving: false)
+                var n = b
+                n.w = max(0.15, min(1 - b.x, b.w + Double(g.translation.width / size.width)))
+                n.h = max(0.1, min(1 - b.y, b.h + Double(g.translation.height / size.height)))
+                track(n)
+            }.onEnded { _ in commit() })
+            .accessibilityLabel("Resize \(z.name)")
+    }
+
     @State private var dragBase: GymLayout.Rect?
+    @State private var liveId: String?
+    @State private var liveRect: GymLayout.Rect?
+    @State private var moving = false
+    @State private var lastCell: GymLayout.Rect?
+
+    /// Start of a drag: remembers where the block was.
+    private func begin(_ id: String, _ r: GymLayout.Rect, moving m: Bool) -> GymLayout.Rect {
+        if let b = dragBase, liveId == id { return b }
+        dragBase = r
+        liveId = id
+        liveRect = r
+        lastCell = snapped(r)
+        moving = m
+        selected = id
+        return r
+    }
+
+    /// Live, unsnapped position; a tick each time it crosses into another grid cell.
+    private func track(_ n: GymLayout.Rect) {
+        liveRect = n
+        let cell = snapped(n)
+        if cell != lastCell {
+            lastCell = cell
+            UISelectionFeedbackGenerator().selectionChanged()
+        }
+    }
+
+    /// Release: swap with the block under the centre, else spring onto the grid and push neighbours aside.
+    private func commit() {
+        guard let id = liveId, let n = liveRect else { dragBase = nil; return }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.72)) {
+            if moving, let other = layout.zone(at: n.centre, except: id) {
+                layout.swapPlaces(id, other.id)
+            } else {
+                setRect(id, snapped(n))
+                layout.settle(id)
+            }
+            liveId = nil
+            liveRect = nil
+            moving = false
+        }
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        dragBase = nil
+        lastCell = nil
+    }
+
+    private func snapped(_ r: GymLayout.Rect) -> GymLayout.Rect {
+        var s = r
+        s.w = max(0.15, min(1, snap(r.w)))
+        s.h = max(0.1, min(1, snap(r.h)))
+        s.x = max(0, min(1 - s.w, snap(r.x)))
+        s.y = max(0, min(1 - s.h, snap(r.y)))
+        return s
+    }
 
     private func snap(_ v: Double) -> Double { (v / Self.grid).rounded() * Self.grid }
 
