@@ -46,7 +46,7 @@ extension GymLayout {
                 stops.append(GymRoute.Stop(zone: z, exerciseIds: stops.isEmpty ? loose + [id] : [id]))
             }
         }
-        var metres: Int?
+        var walked: Int?
         if hasPlan {
             var at = entrance
             var sum = 0.0
@@ -55,9 +55,9 @@ extension GymLayout {
                 sum += metres(at, c)
                 at = c
             }
-            metres = Int(sum.rounded())
+            walked = Int(sum.rounded())
         }
-        return GymRoute(stops: stops, metres: metres)
+        return GymRoute(stops: stops, metres: walked)
     }
 }
 
