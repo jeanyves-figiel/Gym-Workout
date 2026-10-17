@@ -66,7 +66,8 @@ final class HyroxTracker: NSObject {
     private var cadence: Double = 0
     private var meters: Double = 0
     private var runStartMeters: Double = 0
-    private var hrSum = 0.0, hrCount = 0
+    private var hrSum = 0.0
+    private var hrCount = 0
     private var maxHR: Double?
     private var lastRace: HyroxRace?
 
