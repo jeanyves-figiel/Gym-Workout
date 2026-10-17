@@ -70,6 +70,9 @@ struct WorkoutPlayerView: View {
     @AppStorage(AutoNextPref.key) private var autoNextSec = AutoNextPref.fallback
     /// Coach Monkey in the player (#379): voice, subtitle bubble, record burst, Final set badge.
     @State private var coach = WorkoutCoach()
+    /// #402: the coach voice setup sheet (A) and the toast after an automatic pick (C).
+    @State private var voiceSetup = false
+    @State private var voiceToast: String?
     /// Items that already had their record burst this workout.
     @State private var coachRecorded: Set<String> = []
 
@@ -183,6 +186,7 @@ struct WorkoutPlayerView: View {
                                  onFit: { finishEarly(minutes: $0) }, onUndo: undoFinishEarly)
             }
         }
+        .sheet(isPresented: $voiceSetup) { CoachVoiceSetupSheet() }
         .sheet(isPresented: $mapOpen) {
             if let session, steps.indices.contains(index) {
                 WorkoutMapSheet(blocks: session.blocks, setsDone: setsDone, current: steps[index].item.uid)
@@ -204,6 +208,7 @@ struct WorkoutPlayerView: View {
             UIApplication.shared.isIdleTimerDisabled = true
             OrientationLock.allowLandscape(true)
             resumeOrBegin()
+            askCoachVoice()
         }
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
@@ -379,9 +384,34 @@ struct WorkoutPlayerView: View {
                     .padding(.horizontal, 36)
                     .padding(.top, 150)
             }
+            if let v = voiceToast {
+                CoachVoiceToast(name: v) {
+                    voiceToast = nil
+                    voiceSetup = true
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 66)
+            }
         }
+        .animation(.spring(duration: 0.35), value: voiceToast)
         .animation(.spring(duration: 0.35), value: coach.bubble)
         .animation(.spring(duration: 0.35), value: coach.record)
+    }
+
+    /// #402: no studio voice on the device yet → ask (A); a voice the app picked on its own → say so once (C).
+    private func askCoachVoice() {
+        guard demoMode == nil, !model.demo else { return }
+        let store = CoachVoiceStore.shared
+        if store.shouldAsk {
+            voiceSetup = true
+        } else if let v = UserDefaults.standard.string(forKey: CoachVoicePref.announceKey) {
+            UserDefaults.standard.removeObject(forKey: CoachVoicePref.announceKey)
+            voiceToast = store.catalog?.voices.first(where: { $0.id == v })?.name ?? v
+            Task {
+                try? await Task.sleep(for: .seconds(5))
+                voiceToast = nil
+            }
+        }
     }
 
     // MARK: Landscape (#362)

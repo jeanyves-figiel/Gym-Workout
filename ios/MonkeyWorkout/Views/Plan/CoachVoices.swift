@@ -11,8 +11,20 @@ enum CoachVoicePref {
     static let studioKey = "coach.studioVoice"
 
     static var gender: String { UserDefaults.standard.string(forKey: genderKey) ?? "female" }
-    static var accent: String { UserDefaults.standard.string(forKey: accentKey) ?? "us" }
+    static var accent: String { UserDefaults.standard.string(forKey: accentKey) ?? localeAccent }
     static var studio: String { UserDefaults.standard.string(forKey: studioKey) ?? "" }
+    /// The member picked a voice (studio or iPhone) at least once; until then the app may pick one for them (#402).
+    static var chosen: Bool { UserDefaults.standard.object(forKey: studioKey) != nil }
+    /// "Not now" on the setup sheet (#402): asked once.
+    static let askedKey = "coach.voiceSetupAsked"
+    /// A studio voice the app picked and downloaded on its own; the player says so once (#402, C).
+    static let announceKey = "coach.voiceAnnounce"
+
+    /// The accent of the phone's region, else American.
+    static var localeAccent: String {
+        let region = (Locale.current.region?.identifier ?? "US").lowercased()
+        return accents.contains { $0.id == region } ? region : "us"
+    }
 
     static let accents: [(id: String, flag: String, title: String, language: String)] = [
         ("us", "🇺🇸", "American", "en-US"), ("gb", "🇬🇧", "British", "en-GB"), ("au", "🇦🇺", "Australian", "en-AU"),
@@ -137,6 +149,39 @@ final class CoachVoiceStore {
         return false
     }
 
+    /// Best studio voices for the member's pick: accent and gender first, then accent, then gender.
+    func suggestions(gender: String = CoachVoicePref.gender, accent: String = CoachVoicePref.accent, count: Int = 3) -> [CoachVoiceCatalog.Voice] {
+        guard catalog?.available == true, let voices = catalog?.voices else { return [] }
+        func score(_ v: CoachVoiceCatalog.Voice) -> Int { (v.accent == accent ? 2 : 0) + (v.gender == gender ? 1 : 0) }
+        return Array(voices.enumerated().sorted { (score($0.element), -$0.offset) > (score($1.element), -$1.offset) }.map(\.element).prefix(count))
+    }
+
+    /// The player asks (A) when the voice is on and no studio voice is on the device yet, once.
+    var shouldAsk: Bool {
+        CoachPref.on && CoachPref.voice != .off && catalog?.available == true && !ready.contains(CoachVoicePref.studio)
+            && !UserDefaults.standard.bool(forKey: CoachVoicePref.askedKey)
+            && !(CoachVoicePref.chosen && CoachVoicePref.studio.isEmpty)  // picked the iPhone voice on purpose
+    }
+
+    /// C (#402): with the voice on and no voice ever picked, download the best matching studio voice and use it.
+    func prepare(model: AppModel) async {
+        guard !model.demo else { return }
+        await refresh(model: model)
+        guard CoachPref.on, CoachPref.voice != .off, !CoachVoicePref.chosen, let v = suggestions(count: 1).first else { return }
+        if await download(v.id, model: model), !CoachVoicePref.chosen {
+            UserDefaults.standard.set(v.id, forKey: CoachVoicePref.studioKey)
+            UserDefaults.standard.set(v.id, forKey: CoachVoicePref.announceKey)
+        }
+    }
+
+    /// One line to hear a voice before downloading it.
+    func sample(_ voice: String, style: CoachStyle, model: AppModel) async -> URL? {
+        if let c = clip(style: style, kind: "final", seed: 0, voice: voice) { return c.url }
+        guard let data = try? await model.api.coachVoiceLine(voice: voice, line: "\(style.rawValue)-final-0"), !data.isEmpty else { return nil }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("coach-sample-\(voice).mp3")
+        return (try? data.write(to: url, options: .atomic)) != nil ? url : nil
+    }
+
     func remove(_ voice: String) {
         try? FileManager.default.removeItem(at: Self.dir.appendingPathComponent(voice, isDirectory: true))
         ready.remove(voice)
@@ -164,7 +209,7 @@ struct CoachVoicePicker: View {
     let sample: CoachVoice
     @Environment(AppModel.self) private var model
     @AppStorage(CoachVoicePref.genderKey) private var gender = "female"
-    @AppStorage(CoachVoicePref.accentKey) private var accent = "us"
+    @AppStorage(CoachVoicePref.accentKey) private var accent = CoachVoicePref.localeAccent
     @AppStorage(CoachVoicePref.studioKey) private var studio = ""
     @State private var tries = 0
     private var store: CoachVoiceStore { .shared }
@@ -297,5 +342,123 @@ struct CoachVoicePicker: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(picked ? .isSelected : [])
+    }
+}
+
+// MARK: - Setup (#402, C + A from `workout-coach/setup.png`)
+
+/// A: at the start of a workout, when no studio voice is on the device yet. Three voices for the member's pick, ▶ to
+/// hear one, Use downloads it in the background (the iPhone voice speaks until it's ready).
+struct CoachVoiceSetupSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var picked: String?
+    @State private var loading: String?
+    @State private var sample = CoachVoice()
+    private var store: CoachVoiceStore { .shared }
+
+    var body: some View {
+        let voices = store.suggestions()
+        let chosenId = picked ?? voices.first?.id
+        let chosenName = voices.first(where: { $0.id == chosenId })?.name ?? "this voice"
+        VStack(alignment: .leading, spacing: 8) {
+            Text("🐵 Pick your coach's voice").font(Theme.label(22))
+            Text("Studio voice, works offline after a 2 MB download.").font(.subheadline).opacity(0.9)
+            ForEach(voices) { v in row(v) }
+            Button {
+                guard let id = chosenId else { return }
+                UserDefaults.standard.set(id, forKey: CoachVoicePref.studioKey)
+                UserDefaults.standard.set(true, forKey: CoachVoicePref.askedKey)
+                let model = model
+                Task { _ = await CoachVoiceStore.shared.download(id, model: model) }
+                dismiss()
+            } label: {
+                Text("Use \(chosenName)")
+                    .font(Theme.label(17)).foregroundStyle(Theme.ink)
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.lime))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("coach.setup.use")
+            Button {
+                UserDefaults.standard.set(true, forKey: CoachVoicePref.askedKey)
+                dismiss()
+            } label: {
+                Text("Not now · more voices in Settings → Workout coach").font(Theme.label(12)).opacity(0.9)
+                    .frame(maxWidth: .infinity, minHeight: 30)
+            }
+            .buttonStyle(.plain)
+        }
+        .foregroundStyle(.white)
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(LinearGradient(colors: [Color(red: 1, green: 0.3, blue: 0.54), Color(red: 0.54, green: 0.24, blue: 0.94)], startPoint: .topLeading, endPoint: .bottomTrailing).ignoresSafeArea())
+        .presentationDetents([.height(440)])
+        .onDisappear { sample.stop() }
+    }
+
+    private func row(_ v: CoachVoiceCatalog.Voice) -> some View {
+        let on = (picked ?? store.suggestions().first?.id) == v.id
+        return HStack(spacing: 10) {
+            Image(systemName: "waveform").font(.system(size: 15, weight: .heavy))
+                .frame(width: 34, height: 34).background(Circle().fill(.white.opacity(0.25)))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(v.name).font(Theme.label(15))
+                Text("\(v.label) · \(v.gender)").font(.caption).opacity(0.85)
+            }
+            Spacer(minLength: 0)
+            Button {
+                picked = v.id
+                loading = v.id
+                Task {
+                    if let url = await store.sample(v.id, style: CoachPref.style, model: model) { sample.play(url) }
+                    loading = nil
+                }
+            } label: {
+                Group {
+                    if loading == v.id { ProgressView().tint(Theme.ink) } else { Image(systemName: "play.fill").font(.system(size: 13, weight: .heavy)) }
+                }
+                .foregroundStyle(Theme.ink).frame(width: 34, height: 34).background(Circle().fill(Theme.lime))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Hear \(v.name)")
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.black.opacity(0.25)))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(on ? Theme.lime : .clear, lineWidth: 2))
+        .contentShape(Rectangle())
+        .onTapGesture { picked = v.id }
+        .accessibilityIdentifier("coach.setup.\(v.id)")
+    }
+}
+
+/// C: once, in the first workout after the app picked a voice on its own. Change opens the setup sheet.
+struct CoachVoiceToast: View {
+    let name: String
+    let change: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "waveform").font(.system(size: 13, weight: .heavy))
+                .frame(width: 30, height: 30).background(Circle().fill(.white.opacity(0.25)))
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Coach voice: \(name)").font(Theme.label(14))
+                Text("studio, downloaded").font(.caption).opacity(0.85)
+            }
+            Spacer(minLength: 0)
+            Button(action: change) {
+                Text("Change").font(Theme.label(12)).foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 10).frame(height: 28).background(Capsule().fill(Theme.lime))
+            }
+            .buttonStyle(.plain)
+        }
+        .foregroundStyle(.white)
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(LinearGradient(colors: [Color(red: 0.23, green: 0.36, blue: 1), Color(red: 0.54, green: 0.24, blue: 0.94)], startPoint: .leading, endPoint: .trailing)))
+        .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+        .frame(maxWidth: 360)
+        .accessibilityIdentifier("player.coachVoiceToast")
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 }
