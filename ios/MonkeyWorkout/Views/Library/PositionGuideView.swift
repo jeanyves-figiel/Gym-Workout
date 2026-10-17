@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 import WorkoutEngine
 
-/// Position guide (#399, design A+B): the exercise's start, middle and end positions on a 3D clay figure the
+/// Position guide (#402, design A+B): the exercise's start, middle and end positions on a 3D clay figure the
 /// member turns (Side · ¾ · Front · Back snaps or drag). Numbered pins mark the technique checkpoints (cue cards
 /// below), arcs measure the two joints that move most with the range that counts as right, and a red ghost
 /// shows the exercise's most common mistake. Poses come from the same key poses the animation is drawn from.

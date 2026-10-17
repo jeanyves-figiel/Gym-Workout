@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""3D key positions of every exercise for the position guide (#399).
+"""3D key positions of every exercise for the position guide (#402).
 
     python3 ios/Tools/illustrations/positions.py          # write ExercisePositions.json.z
     python3 ios/Tools/illustrations/positions.py --check  # range-of-motion check only (exit 1 on a flag)
@@ -36,7 +36,7 @@ HIP = 9.0
 SIDES = {"N": 1, "F": -1}
 LIMB = ("elbow", "wrist", "hand", "knee", "ankle", "toe")
 
-# Reviewed in the 3D preview (#399): deep tucks and crossed legs the quarter-turn rule misreads.
+# Reviewed in the 3D preview (#402): deep tucks and crossed legs the quarter-turn rule misreads.
 ALLOWED = {
     "figure-4": "ankle crossed over the other knee: the far shin is drawn across the thigh",
     "front-lever": "tuck to straight lever, knees pulled to the chest",

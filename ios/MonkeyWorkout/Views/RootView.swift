@@ -71,6 +71,8 @@ struct MainTabView: View {
         .sidebarAdaptableTabs()
         // Community profile early so auto-share works for the first workout of the session.
         .task(id: model.user?.id) { await Community.shared.load(api: model.api, userId: model.user?.id) }
+        // Coach voice (#402, C): the best matching studio voice, downloaded once in the background.
+        .task(id: model.user?.id) { await CoachVoiceStore.shared.prepare(model: model) }
         .task(id: "\(Community.shared.profile?.userId ?? "")-\(model.game.level)") { await Community.shared.reportLevel(model.game.level, api: model.api) }
         .modifier(NotificationsHost())
         .fullScreenCover(isPresented: Binding(get: { model.offerPro }, set: { model.offerPro = $0 })) {
@@ -146,7 +148,7 @@ private struct DemoScreen: View {
         case "player-setup": WorkoutPlayerView(sessionId: second, demoMode: "setup")
         case "machine-setup": MachineNoteSheet(exerciseId: "leg-press", gym: model.homeGym.ref)
         case "exercise-setups": NavigationStack { ExerciseDetailView(exerciseId: "leg-press") }
-        // Position guide (#399).
+        // Position guide (#402).
         case "position", "position-mistake", "position-press":
             let e = Exercise.get(Demo.screen == "position-press" ? "bench-press" : "back-squat")
             if let p = e.position {
