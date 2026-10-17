@@ -272,6 +272,9 @@ public struct Profile: Codable, Hashable, Sendable {
     /// Other sports with their days (#416); nil = none. Climbing stays in the climbing fields above.
     public var sports: [SportPlan]?
 
+    /// Hyrox hub (#426): division and goal; nil = not set. The race date is the Hyrox sport's event date.
+    public var hyrox: HyroxProfile?
+
     /// Usually trains before 11:00: muscles start cooler, the warm-up gets one more minute of cardio (#377).
     public var trainsInMorning: Bool { workoutTime.map { $0 < 11 * 60 } ?? false }
 

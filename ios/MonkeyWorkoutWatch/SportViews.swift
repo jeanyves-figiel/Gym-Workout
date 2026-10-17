@@ -12,6 +12,11 @@ struct SportPickerView: View {
         ScrollView {
             VStack(spacing: 6) {
                 Eyebrow(text: "Track a sport", color: W.lime)
+                // Hyrox race mode (#426): runs and stations recorded by themselves.
+                NavigationLink { HyroxSetupView() } label: {
+                    HomeRow(symbol: "figure.cross.training", title: "Hyrox", value: "›", tint: HyroxLook.station)
+                }
+                .buttonStyle(.plain)
                 ForEach(TrackedSport.allCases) { s in
                     Button { picked = s } label: {
                         HomeRow(symbol: s.symbol, title: s.label, value: "›", tint: s.tint)
@@ -83,9 +88,7 @@ struct SportTrackView: View {
             let elapsed = Self.clock(now.timeIntervalSince(tracker.started ?? now))
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(header(sport)) · \(elapsed)").font(W.label(11)).foregroundStyle(W.lime).lineLimit(1)
-                if sport == .hyrox {
-                    hyrox(now: now)
-                } else if sport.downhill {
+                if sport.downhill {
                     big("\(Int(tracker.speed.rounded()))", "km/h · top \(Int(tracker.topSpeed.rounded()))", sport)
                     pair(("VERT", "\(Int(tracker.down.rounded()))"), ("HR", hr))
                 } else if [TrackedSport.hike, .mountaineering, .trailRun].contains(sport) {
@@ -98,7 +101,7 @@ struct SportTrackView: View {
                     big(hr, "bpm", sport)
                     pair(("KCAL", "\(Int(tracker.kcal.rounded()))"), ("TIME", elapsed))
                 }
-                if sport.laps && sport != .hyrox && !dimmed {
+                if sport.laps && !dimmed {
                     Button { tracker.markLap() } label: { Text("LAP \(tracker.lap + 1) ›").font(W.label(12)).foregroundStyle(W.ink).frame(maxWidth: .infinity) }
                         .buttonStyle(.borderedProminent).tint(W.lime).buttonBorderShape(.capsule)
                 }
@@ -130,21 +133,6 @@ struct SportTrackView: View {
             VStack(alignment: .leading, spacing: 0) { Text(a.0).font(W.label(9)).opacity(0.75); Text(a.1).font(W.label(15)) }
             Spacer()
             VStack(alignment: .trailing, spacing: 0) { Text(b.0).font(W.label(9)).opacity(0.75); Text(b.1).font(W.label(15)) }
-        }
-    }
-
-    /// Hyrox: the current run or station, its time, the last split, and a big LAP button.
-    private func hyrox(now: Date) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("\(tracker.lap / 2 + 1) · \(tracker.hyroxStep)").font(W.label(13)).lineLimit(1).minimumScaleFactor(0.7)
-            Text(Self.clock(now.timeIntervalSince(tracker.lapStart ?? now))).font(W.display(36)).monospacedDigit()
-            if let last = tracker.lastLapMinutes {
-                Text("last \(Self.clock(last * 60)) · ♥ \(hr)").font(W.label(10)).opacity(0.8)
-            }
-            if !dimmed {
-                Button { tracker.markLap() } label: { Text("LAP ›").font(W.label(14)).foregroundStyle(W.ink).frame(maxWidth: .infinity) }
-                    .buttonStyle(.borderedProminent).tint(W.lime).buttonBorderShape(.capsule)
-            }
         }
     }
 

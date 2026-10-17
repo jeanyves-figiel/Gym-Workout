@@ -32,6 +32,11 @@ final class ActionButton {
 
     /// Later presses: step the Watch player, or the iPhone player when the Watch tracks an iPhone workout.
     func press() {
+        // Hyrox race (#426): the press moves on to the next step.
+        if HyroxTracker.shared.started != nil {
+            HyroxTracker.shared.advance()
+            return
+        }
         if WorkoutManager.shared.phoneSessionId != nil, let store = WatchStore.current {
             // The iPhone's main button: closes rest, advances, or completes the set.
             store.send(WCommand.main)

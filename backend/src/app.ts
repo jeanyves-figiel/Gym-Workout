@@ -25,7 +25,7 @@ import { customExerciseRoutes } from './routes/customExercises.ts';
 import { customWorkoutRoutes } from './routes/customWorkouts.ts';
 import { bodyMeasurementRoutes } from './routes/bodyMeasurements.ts';
 import { climbRoutes } from './routes/climbs.ts';
-import { sportRoutes } from './routes/sports.ts';
+import { sportRoutes, watchSportRoutes } from './routes/sports.ts';
 import { machineNoteRoutes } from './routes/machineNotes.ts';
 import { prAttemptRoutes } from './routes/prAttempts.ts';
 import { dataRoutes } from './routes/data.ts';
@@ -142,6 +142,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   appStoreNotificationRoutes(app, subscriptions);
   legalRoutes(app, deps.config);
   securityPublicRoutes(app, security, deps.config.authRateLimitPerMin);
+  watchSportRoutes(app, deps.db, deps.now ?? (() => new Date()));
 
   const authenticate = async (req: FastifyRequest) => {
     const h = req.headers.authorization;

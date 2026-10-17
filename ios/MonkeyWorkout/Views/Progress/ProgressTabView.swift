@@ -81,6 +81,8 @@ struct ProgressTabView: View {
                             if !climbList.isEmpty { ClimbingCard(climbs: climbList) }
                             // Other sports (#416): logged here or from Apple Health.
                             let sports = Sports.merged(local: model.sportLogs, health: health.snapshot.recentSports)
+                            // Hyrox hub (#426): division, goal, sims, races.
+                            if model.doesHyrox { HyroxHubCard() }
                             if !sports.isEmpty { SportsCard(entries: sports) }
                         }
                         // Training programmes (#255): the running one, lifts start vs now, finished ones.

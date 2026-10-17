@@ -599,10 +599,11 @@ final class HealthManager {
     }
 
     /// Wakes the Watch app with a strength workout so it can offer to track the iPhone workout (#347).
-    func startWatchApp() {
+    /// `activity`: cross training starts the Hyrox race mode (#426).
+    func startWatchApp(activity: HKWorkoutActivityType = .functionalStrengthTraining) {
         guard available else { return }
         let config = HKWorkoutConfiguration()
-        config.activityType = .functionalStrengthTraining
+        config.activityType = activity
         config.locationType = .indoor
         store.startWatchApp(with: config) { _, _ in }
     }

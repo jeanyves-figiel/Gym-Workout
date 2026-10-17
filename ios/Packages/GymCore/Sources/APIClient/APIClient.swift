@@ -283,6 +283,13 @@ public actor APIClient {
         _ = try await authorizedRaw("DELETE", "/v1/me/sports/\(id.uuidString)", Empty?.none)
     }
 
+    /// Upload-only key for the Watch (#426): lets it post a Hyrox race to `/v1/watch/sports` on its own network.
+    /// A new key replaces the previous one.
+    public func watchUploadKey() async throws -> String {
+        struct Response: Decodable { var key: String }
+        return try await authorized("POST", "/v1/me/watch-key", Empty(), as: Response.self).key
+    }
+
     /// Machine setup notes (#355; app-defined; must encode `id`, `gymId`, `gymName`, `exerciseId`, `fields`).
     public func fetchMachineNotes<T: Decodable & Sendable>(_: T.Type) async throws -> [T] {
         try await authorized("GET", "/v1/me/machine-notes", Empty?.none, as: MachineNotesResponse<T>.self).notes
