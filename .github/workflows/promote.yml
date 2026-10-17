@@ -48,7 +48,7 @@ jobs:
           docker buildx imagetools create -t "$IMAGE:prod" "$IMAGE@$DIGEST"
           echo "ref=$IMAGE@$DIGEST" >> "$GITHUB_OUTPUT"
           echo "Promoted \`$SRC\` → \`prod\` ($DIGEST)" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check Fly token
         id: gate
         run: |
