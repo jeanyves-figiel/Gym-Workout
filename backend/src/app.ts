@@ -262,7 +262,9 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       const gymScan = deps.gymScan ?? (deps.config.coachChat.apiKey ? claudeGymScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
       gymScanRoutes(r, deps.db, now, gymScan, 30, (id) => subscriptions.entitlement(id).access);
       const voices = deps.config.coachVoices;
-      coachVoiceRoutes(r, deps.synth ?? (voices.polly ? pollySynthesizer(voices.polly, outbound, now) : undefined), voices.cacheDir);
+      coachVoiceRoutes(r, deps.synth ?? (voices.polly ? pollySynthesizer(voices.polly, outbound, now) : undefined), voices.cacheDir, {
+        warm: deps.config.env === 'production',
+      });
     },
     { prefix: '/v1' },
   );

@@ -1,6 +1,6 @@
 import Foundation
 
-/// 3D key positions of a catalog exercise for the position guide (#399): start, middle and end, lifted from the
+/// 3D key positions of a catalog exercise for the position guide (#402): start, middle and end, lifted from the
 /// same key poses the animation is drawn from (ios/Tools/illustrations/positions.py → ExercisePositions.json.z).
 /// The figure faces +x, y is up, the floor is y = 0; units are px of the 400×300 drawing (~190 tall standing).
 public struct ExercisePosition: Sendable, Hashable {

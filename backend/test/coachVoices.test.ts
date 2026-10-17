@@ -78,6 +78,30 @@ describe('studio coach voices (#395)', () => {
     expect((await get(t, '/v1/me/coach-voices/Nobody/hype-final-0')).statusCode).toBe(404);
   });
 
+  it('records two at a time and retries when Polly throttles (#402)', async () => {
+    let running = 0;
+    let peak = 0;
+    const tried = new Set<string>();
+    start({
+      synth: async (ssml, voice) => {
+        running += 1;
+        peak = Math.max(peak, running);
+        await new Promise((r) => setTimeout(r, 5));
+        running -= 1;
+        if (!tried.has(ssml)) {
+          tried.add(ssml);
+          throw new Error('Polly SynthesizeSpeech failed: HTTP 400 {"message":"Rate exceeded"}');
+        }
+        return Buffer.from(`mp3:${voice}`);
+      },
+    });
+    const t = await signUp('d@example.com');
+    const ids = ['hype-start-0', 'hype-start-1', 'hype-set-0', 'hype-set-1', 'chill-rest-0', 'drill-finish-0'];
+    const res = await Promise.all(ids.map((id) => get(t, `/v1/me/coach-voices/Stephen/${id}.mp3`)));
+    expect(res.map((r) => r.statusCode)).toEqual(ids.map(() => 200));
+    expect(peak).toBeLessThanOrEqual(2);
+  });
+
   it('answers 503 without Polly', async () => {
     start({ synth: null });
     const t = await signUp('c@example.com');

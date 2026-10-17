@@ -14,7 +14,7 @@ const note = z
     id: z.uuid(),
     gymId: z.string().min(1).max(200),
     gymName: z.string().max(120),
-    exerciseId: z.string().min(1).max(64),
+    exerciseId: z.string().min(1).max(128),
     equipment: z.string().max(40).nullish(),
     fields: z.array(z.object({ label: z.string().min(1).max(24), value: z.string().max(24) })).max(8),
     text: z.string().max(1000).nullish(),

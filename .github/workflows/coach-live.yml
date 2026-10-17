@@ -1,6 +1,7 @@
 name: Coach live check
 
-# Manual: one real Ask Coach call (Claude API) with the environment's ANTHROPIC_API_KEY. Prints the answer or the API error.
+# Manual: one real Ask Coach call (Claude API) with the environment's ANTHROPIC_API_KEY, or (check: voice) one real
+# studio-voice recording with Amazon Polly (#395). Prints the answer or the API error.
 on:
   workflow_dispatch:
     inputs:
@@ -8,6 +9,10 @@ on:
         type: choice
         options: [staging, production]
         default: staging
+      check:
+        type: choice
+        options: [chat, voice]
+        default: chat
 
 permissions:
   contents: read
@@ -27,7 +32,13 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
-      - run: node --disable-warning=ExperimentalWarning scripts/coach-live.ts
+      - if: inputs.check != 'voice'
+        run: node --disable-warning=ExperimentalWarning scripts/coach-live.ts
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_WORKSPACE_ID: ${{ secrets.ANTHROPIC_WORKSPACE_ID }}
+      - if: inputs.check == 'voice'
+        run: node --disable-warning=ExperimentalWarning scripts/voice-live.ts
+        env:
+          SES_ACCESS_KEY_ID: ${{ secrets.SES_ACCESS_KEY_ID }}
+          SES_SECRET_ACCESS_KEY: ${{ secrets.SES_SECRET_ACCESS_KEY }}

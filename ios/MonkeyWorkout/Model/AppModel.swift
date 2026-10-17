@@ -665,13 +665,22 @@ final class AppModel {
         else { return sessionExpired() }
         persist()
         if let firstError {
-            syncError = firstError.localizedDescription
+            syncError = Self.syncMessage(firstError)
             scheduleRetry()
         } else {
             syncError = nil
             retryAttempt = 0
             retryTask?.cancel()
             retryTask = nil
+        }
+    }
+
+    /// Member-facing sync status: never raw server validation text (#404).
+    static func syncMessage(_ error: Error) -> String {
+        switch error as? APIError {
+        case .network?: "Offline. Changes will sync when you're back online."
+        case .signedOut?: APIError.signedOut.localizedDescription
+        default: "Some changes haven't synced yet. We'll keep trying."
         }
     }
 

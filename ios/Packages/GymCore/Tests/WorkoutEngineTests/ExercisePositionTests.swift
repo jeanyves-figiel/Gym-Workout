@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import WorkoutEngine
 
-/// Position guide data (#399): 3D key positions lifted from the animation's key poses.
+/// Position guide data (#402): 3D key positions lifted from the animation's key poses.
 @Suite struct ExercisePositionTests {
     @Test func everyIllustratedExerciseHasThreeKeyPositions() {
         #expect(!ExercisePosition.ids.isEmpty)
