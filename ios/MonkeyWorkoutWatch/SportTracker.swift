@@ -4,11 +4,11 @@ import HealthKit
 import Observation
 import WatchKit
 
-/// Sports the Watch tracks (#418, design B + C). Raw values match the iPhone's `Sport`, so the session page and the
+/// Sports the Watch tracks (#418, design B + C); Hyrox has its own race mode (`HyroxTracker`, #426). Raw values match the iPhone's `Sport`, so the session page and the
 /// plan read the exact sport from the workout's metadata. Diving is left to dive apps (user, 2026-10-17).
 enum TrackedSport: String, CaseIterable, Identifiable {
     case snowboard, ski, crossCountrySki, mountainBike, roadBike, run, trailRun, hike, mountaineering
-    case hyrox, crossfit, rowing, football, tennis, padel, surf, skate, other
+    case crossfit, rowing, football, tennis, padel, surf, skate, other
 
     var id: String { rawValue }
 
@@ -23,7 +23,6 @@ enum TrackedSport: String, CaseIterable, Identifiable {
         case .trailRun: "Trail run"
         case .hike: "Hike"
         case .mountaineering: "Mountaineering"
-        case .hyrox: "Hyrox"
         case .crossfit: "CrossFit"
         case .rowing: "Rowing"
         case .football: "Football"
@@ -45,7 +44,6 @@ enum TrackedSport: String, CaseIterable, Identifiable {
         case .run, .trailRun: "figure.run"
         case .hike: "figure.hiking"
         case .mountaineering: "mountain.2.fill"
-        case .hyrox: "figure.cross.training"
         case .crossfit: "figure.highintensity.intervaltraining"
         case .rowing: "figure.rower"
         case .football: "figure.soccer"
@@ -61,7 +59,7 @@ enum TrackedSport: String, CaseIterable, Identifiable {
         switch self {
         case .snowboard, .ski, .crossCountrySki: (0x00A3C4, 0x7DF9FF)
         case .mountainBike, .hike, .trailRun, .mountaineering: (0x00B86B, 0x7DFFB0)
-        case .hyrox, .crossfit: (0xFF3D8B, 0xFF9A5E)
+        case .crossfit: (0xFF3D8B, 0xFF9A5E)
         case .roadBike, .run, .rowing: (0x3D59FF, 0x00C7FF)
         default: (0x7D4DFF, 0xE040FB)
         }
@@ -75,7 +73,7 @@ enum TrackedSport: String, CaseIterable, Identifiable {
         case .mountainBike, .roadBike: .cycling
         case .run, .trailRun: .running
         case .hike, .mountaineering: .hiking
-        case .hyrox, .crossfit: .crossTraining
+        case .crossfit: .crossTraining
         case .rowing: .rowing
         case .football: .soccer
         case .tennis: .tennis
@@ -87,11 +85,11 @@ enum TrackedSport: String, CaseIterable, Identifiable {
     }
 
     /// GPS is worth its battery: outdoor sports that move.
-    var usesGPS: Bool { ![TrackedSport.hyrox, .crossfit, .rowing, .tennis, .padel, .football].contains(self) }
+    var usesGPS: Bool { ![TrackedSport.crossfit, .rowing, .tennis, .padel, .football].contains(self) }
     /// Downhill: runs split at lifts, vertical counted down.
     var downhill: Bool { self == .snowboard || self == .ski }
     /// Laps or stations with a big LAP button.
-    var laps: Bool { [TrackedSport.hyrox, .crossfit, .run, .rowing].contains(self) }
+    var laps: Bool { [TrackedSport.crossfit, .run, .rowing].contains(self) }
 
     var locationActivity: CLActivityType {
         switch self {
@@ -101,8 +99,6 @@ enum TrackedSport: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Hyrox: 8 × 1 km run, each followed by a station.
-    static let hyroxStations = ["SkiErg", "Sled push", "Sled pull", "Burpee broad jumps", "Rowing", "Farmers carry", "Sandbag lunges", "Wall balls"]
 }
 
 /// Battery mode picked before the start (design C).
@@ -173,7 +169,7 @@ final class SportTracker: NSObject {
     private var saverTimer: Timer?
 
     func start(_ sport: TrackedSport, power: TrackPower) async {
-        guard HKHealthStore.isHealthDataAvailable(), !running, !WorkoutManager.shared.running else { return }
+        guard HKHealthStore.isHealthDataAvailable(), !running, !WorkoutManager.shared.running, !HyroxTracker.shared.running else { return }
         let share: Set<HKSampleType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute(), HKQuantityType(.activeEnergyBurned),
                                         HKQuantityType(.heartRate)]
         let read: Set<HKObjectType> = [HKQuantityType(.heartRate), HKQuantityType(.activeEnergyBurned), HKObjectType.workoutType()]
@@ -280,12 +276,6 @@ final class SportTracker: NSObject {
         WKInterfaceDevice.current().play(.click)
     }
 
-    /// Current Hyrox step: "Run 3" or the station after it.
-    var hyroxStep: String {
-        let i = lap
-        guard i < 16 else { return "Finish" }
-        return i % 2 == 0 ? "Run \(i / 2 + 1)" : TrackedSport.hyroxStations[i / 2]
-    }
 
     func finish() async {
         guard let session, let builder, let sport else { discard(); return }

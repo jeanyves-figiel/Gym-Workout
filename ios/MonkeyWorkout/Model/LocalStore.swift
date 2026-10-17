@@ -95,6 +95,8 @@ struct LocalState: Codable {
     var sportLogs: [SportLog]?
     var pendingSportIds: Set<UUID>?
     var deletedSportIds: Set<UUID>?
+    /// Upload-only key the Watch uses to send a Hyrox race straight to the server (#426).
+    var watchUploadKey: String?
     // Machine setup notes (#355). Photos live in their own files (`MachineNotePhotos`).
     var machineNotes: [MachineNote]?
     var pendingMachineNoteIds: Set<UUID>?
@@ -192,6 +194,7 @@ extension LocalState {
         deletedClimbIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedClimbIds)
         climbsUploaded = try? c.decodeIfPresent(Bool.self, forKey: .climbsUploaded)
         sportLogs = try? c.decodeIfPresent([SportLog].self, forKey: .sportLogs)
+        watchUploadKey = try? c.decodeIfPresent(String.self, forKey: .watchUploadKey)
         pendingSportIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingSportIds)
         deletedSportIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedSportIds)
         machineNotes = try? c.decodeIfPresent([MachineNote].self, forKey: .machineNotes)

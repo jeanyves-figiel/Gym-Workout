@@ -1,4 +1,5 @@
 import Foundation
+import LiftSensor
 import WorkoutEngine
 
 /// A sport session other than climbing (#416): logged here, or a Health workout the member rated (Spotted).
@@ -14,6 +15,8 @@ struct SportLog: Codable, Identifiable, Equatable, Sendable {
     var notes: String?
     /// Rated from an Apple Health workout (Spotted, #416): `id` is that workout's id; never written back to Health.
     var fromHealth: Bool?
+    /// Hyrox race or sim recorded on the Watch (#426): splits, Roxzone, division and goal.
+    var hyrox: HyroxRace?
 
     var end: Date { start.addingTimeInterval(Double(minutes) * 60) }
 }

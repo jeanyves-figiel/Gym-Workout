@@ -316,3 +316,22 @@ extension Profile {
     /// Picked sports other than climbing.
     public var otherSports: [SportPlan] { (sports ?? []).filter { $0.sport != .climbing } }
 }
+
+/// Hyrox settings (#426), kept with the profile so every device and the Watch share them. Plain values: the race
+/// model itself lives in the LiftSensor package, shared with the Watch.
+public struct HyroxProfile: Codable, Hashable, Sendable {
+    /// "open", "pro", "doubles", "relay".
+    public var category: String
+    /// "men", "women", "mixed".
+    public var group: String
+    /// Goal time for a full race, minutes.
+    public var goalMinutes: Int?
+    public var raceName: String?
+
+    public init(category: String = "open", group: String = "men", goalMinutes: Int? = nil, raceName: String? = nil) {
+        self.category = category
+        self.group = group
+        self.goalMinutes = goalMinutes
+        self.raceName = raceName
+    }
+}

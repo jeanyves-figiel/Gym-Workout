@@ -1,4 +1,5 @@
 import Charts
+import LiftSensor
 import MapKit
 import SwiftUI
 import WorkoutEngine
@@ -325,7 +326,10 @@ struct SportSessionSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    if let track, track.points.count >= 2 {
+                    if let race = model.sportLogs.first(where: { $0.id == entry.id })?.hyrox {
+                        // Hyrox race recorded on the Watch (#426): the race report.
+                        HyroxReportView(race: race)
+                    } else if let track, track.points.count >= 2 {
                         SportRouteMap(track: track, sport: entry.sport, source: entry.source, minutes: entry.minutes, scrub: scrub)
                         SportStatTiles(entry: entry, track: track)
                         SportElevationChart(track: track, scrub: $scrub)
@@ -884,7 +888,7 @@ struct SportPlanEditor: View {
     }
 }
 
-private struct SportChip: View {
+struct SportChip: View {
     let title: String
     let selected: Bool
     let action: () -> Void

@@ -191,6 +191,9 @@ targets:
       - path: MonkeyWorkoutWatchComplications
         excludes: [MonkeyWorkoutWatchComplications.entitlements]
       - path: WatchShared
+    dependencies:
+      # WatchShared carries Hyrox races (#426).
+      - package: LiftSensor
     entitlements:
       path: MonkeyWorkoutWatchComplications/MonkeyWorkoutWatchComplications.entitlements
       properties:

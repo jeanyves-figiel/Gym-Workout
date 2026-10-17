@@ -1,4 +1,5 @@
 import Foundation
+import LiftSensor
 import WatchConnectivity
 import WorkoutEngine
 
@@ -145,6 +146,8 @@ final class WatchSync: NSObject {
     static let shared = WatchSync()
 
     private weak var model: AppModel?
+    /// Last "Start race on Watch" (#426), sent with the snapshot.
+    private(set) var hyroxStart: (format: HyroxFormat, at: Date)?
     private weak var health: HealthManager?
     private var lastSnapshot: WatchSnapshot?
     private var handled: Set<UUID> = []
@@ -191,7 +194,7 @@ final class WatchSync: NSObject {
     static func changeKey(_ model: AppModel) -> String {
         let plan = model.plan.map { "\($0.seed)-\($0.week)-\($0.sessions.count)" } ?? "-"
         // Next up follows the day too (#266): a missed session stops being next.
-        return "\(plan)|\(model.nextSession?.id ?? "-")|\(model.state.done.count)|\(model.state.history.count)|\(model.customWorkouts.count)|\(model.state.logs.count)|\(ProStore.shared.locked)|\(model.user?.id ?? "-")|\(model.climbLogs.count)"
+        return "\(plan)|\(model.nextSession?.id ?? "-")|\(model.state.done.count)|\(model.state.history.count)|\(model.customWorkouts.count)|\(model.state.logs.count)|\(ProStore.shared.locked)|\(model.user?.id ?? "-")|\(model.climbLogs.count)|\(model.sportLogs.count)|\(model.profile?.hyrox?.goalMinutes ?? 0)|\(model.state.watchUploadKey != nil)"
     }
 
     /// Mirrors the iPhone player on the Watch (best effort, only while the Watch app is reachable).
@@ -224,6 +227,13 @@ final class WatchSync: NSObject {
         guard WatchStartPref.shared.mode != .never, trackedBy != sessionId, let session, session.activationState == .activated,
               session.isPaired, session.isWatchAppInstalled else { return }
         health?.startWatchApp()
+    }
+
+    /// "Start race on Watch" (#426): the format goes with the snapshot, then the Watch app is woken for cross training.
+    func startHyrox(_ format: HyroxFormat) {
+        hyroxStart = (format, Date())
+        push()
+        health?.startWatchApp(activity: .crossTraining)
     }
 
     /// The Watch tracks heart rate for this iPhone workout, so the Watch saves its Health workout (#347).
@@ -279,6 +289,8 @@ final class WatchSync: NSObject {
         case let .tracking(sessionId, on):
             if on { trackedBy = sessionId } else if trackedBy == sessionId { trackedBy = nil }
             return
+        case let .hyroxRace(race):
+            model.saveHyroxRace(race)
         case let .liftSet(set):
             LiftSets.shared.add(set)
             // A correction changes what the Watch learned (pushed by LiftLearning).
@@ -328,6 +340,7 @@ final class WatchSync: NSObject {
         s.liftCounting = WatchLiftPref.shared.counting
         s.liftLogging = WatchLiftPref.shared.logging
         s.liftLearned = LiftLearning.shared.levels
+        s.hyrox = model.watchHyrox(start: WatchSync.shared.hyroxStart)
         let target = model.profile?.sessionsPerWeek ?? 3
         let stats = Progression.stats(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
         s.progress = WProgress(
