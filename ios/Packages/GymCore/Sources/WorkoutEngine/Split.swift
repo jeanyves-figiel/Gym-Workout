@@ -165,6 +165,6 @@ extension WeekSchedule {
         if climb.contains(previous(weekday)), prefs.after != .any, pullLoad(f) >= 2 {
             return "Climbed the day before: fingers and lats still tired"
         }
-        return nil
+        return sportWarning(f, on: weekday, sports: prefs.sports)
     }
 }

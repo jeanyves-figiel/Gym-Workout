@@ -128,7 +128,8 @@ final class NotificationManager: NSObject {
             let req = UNNotificationRequest(identifier: r.id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false))
             try? await center.add(req)
         }
-        pendingCount = reminders.count
+        let nudges = await scheduleSportNudges(model.profile, today: today, now: now, calendar: cal)
+        pendingCount = reminders.count + nudges
         // A check-in already on screen for a session that is now done or moved is stale.
         let open = Set(reminders.map(\.id))
         let delivered = await center.deliveredNotifications().map(\.request.identifier).filter { $0.hasPrefix("missed|") && !open.contains($0) }
@@ -137,7 +138,29 @@ final class NotificationManager: NSObject {
         center.removeDeliveredNotifications(withIdentifiers: delivered.filter { !stillMissed.contains($0) })
     }
 
-    private static func isOurs(_ id: String) -> Bool { id.hasPrefix("upcoming|") || id.hasPrefix("missed|") }
+    /// Sport-day start nudge (#418, design C): 08:00 on planned sport days, mirrored to the Watch. Dives are left to dive apps.
+    private func scheduleSportNudges(_ profile: Profile?, today: Date, now: Date, calendar cal: Calendar) async -> Int {
+        guard let profile, prefs.sessionReminders else { return 0 }
+        var count = 0
+        for offset in 0..<8 {
+            guard let day = cal.date(byAdding: .day, value: offset, to: today),
+                  let fire = cal.date(bySettingHour: 8, minute: 0, second: 0, of: day), fire > now else { continue }
+            let wd = WeekSchedule.fromCalendar(cal.component(.weekday, from: day))
+            guard let sport = profile.sportDays(on: day).first(where: { $0.weekday == wd && $0.sport != .scubaDiving })?.sport else { continue }
+            let content = UNMutableNotificationContent()
+            content.title = "\(sport.label) today?"
+            content.body = "Start it on your Apple Watch: route, speed and HR, with a battery saver mode."
+            content.sound = .default
+            content.threadIdentifier = "sport"
+            let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: fire)
+            let id = "sport|\(sport.rawValue)|\(ReminderPlanner.dayKey(day, calendar: cal))"
+            try? await center.add(UNNotificationRequest(identifier: id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)))
+            count += 1
+        }
+        return count
+    }
+
+    private static func isOurs(_ id: String) -> Bool { id.hasPrefix("upcoming|") || id.hasPrefix("missed|") || id.hasPrefix("sport|") }
 
     /// Test notification in 5 s (Settings).
     func sendLocalTest() async {

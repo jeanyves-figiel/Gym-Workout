@@ -269,6 +269,9 @@ public struct Profile: Codable, Hashable, Sendable {
     /// Usual workout time (#377), minutes after midnight; nil = not set (plans as before).
     public var workoutTime: Int?
 
+    /// Other sports with their days (#416); nil = none. Climbing stays in the climbing fields above.
+    public var sports: [SportPlan]?
+
     /// Usually trains before 11:00: muscles start cooler, the warm-up gets one more minute of cardio (#377).
     public var trainsInMorning: Bool { workoutTime.map { $0 < 11 * 60 } ?? false }
 

@@ -173,8 +173,9 @@ targets:
         WKBackgroundModes: [workout-processing]
         MWAppGroup: $(APP_GROUP)
         NSHealthShareUsageDescription: Reads heart rate and active energy during your workouts.
-        NSHealthUpdateUsageDescription: Saves your gym sessions as workouts to Apple Health.
+        NSHealthUpdateUsageDescription: Saves your gym sessions and the sports you track (with their route) as workouts to Apple Health.
         NSMotionUsageDescription: Counts your reps and measures bar speed during workouts.
+        NSLocationWhenInUseUsageDescription: Records the route, speed and elevation of the sports you track. The route is saved to Apple Health only.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).watchkitapp
