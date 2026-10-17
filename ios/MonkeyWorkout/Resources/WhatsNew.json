@@ -1,35 +1,35 @@
 {
-  "id": "2026-10-17.1",
+  "id": "2026-10-17.2",
   "items": [
     {
-      "symbol": "applewatch",
+      "symbol": "bubble.left.and.text.bubble.right.fill",
+      "tint": "power",
+      "title": "Ask Coach everywhere",
+      "body": "Tap the 🐵 on any screen or just talk. Say “done” or “80 kg” mid-set."
+    },
+    {
+      "symbol": "figure.strengthtraining.traditional",
+      "tint": "strength",
+      "title": "Anatomy in the position guide",
+      "body": "Start, middle and end of every exercise on a muscle-by-muscle figure, worked muscles in red, real grips and full-size machines."
+    },
+    {
+      "symbol": "map.fill",
       "tint": "mobility",
-      "title": "A cleaner Apple Watch",
-      "body": "Bigger text, buttons always in reach and the same bold cards on every screen, whichever home style you picked."
+      "title": "Gym Map",
+      "body": "Scan your gym with the camera, use the map members already made, see your route and what's busy right now."
+    },
+    {
+      "symbol": "applewatch",
+      "tint": "cardio",
+      "title": "Lift sensor, your way",
+      "body": "Pick how strict it counts, tap ✓ to log or let it log itself, and try it live with a graph. It learns from your Crown fixes."
     },
     {
       "symbol": "waveform",
-      "tint": "cardio",
-      "title": "Pick your coach's voice",
-      "body": "Studio voices, female or male, with American, British, Australian, Irish, Indian, South African or New Zealand accents. Settings → Workout coach."
-    },
-    {
-      "symbol": "rotate.3d",
-      "tint": "strength",
-      "title": "See it in 3D",
-      "body": "Every exercise's right position from any side, with the angles to hit and the mistake to avoid."
-    },
-    {
-      "symbol": "arrow.triangle.2.circlepath",
-      "tint": "power",
-      "title": "Change on the fly",
-      "body": "Swap or remove an exercise mid-workout, or remove it from your plan with a long press."
-    },
-    {
-      "symbol": "slider.horizontal.3",
       "tint": "stretch",
-      "title": "Settings, sorted",
-      "body": "Search any setting, jump by chapter, every option one tap. Climbers: Log climb and Wall session now sit side by side, and the wall session has its own page."
+      "title": "Coach voice fixed",
+      "body": "Quiet in silent mode, studio voices download, and your coach picks a natural voice for you. Change it in Settings → Workout coach."
     }
   ]
 }
