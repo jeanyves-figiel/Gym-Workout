@@ -208,6 +208,7 @@ final class AppModel {
         ProStore.shared.reset()
         store.wipe()
         LiftSets.shared.wipe()
+        LiftLearning.shared.wipe()
         state = LocalState()
         user = nil
         phase = .signedOut

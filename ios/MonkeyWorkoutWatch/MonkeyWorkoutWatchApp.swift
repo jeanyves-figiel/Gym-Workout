@@ -149,6 +149,8 @@ struct WatchRootView: View {
             PhoneStartView()
         } else if let live = store.live, player == nil {
             MirrorView(live: live)
+        } else if let level = store.practice, player == nil {
+            PracticeView(level: level)
         } else if let player {
             PlayerView(player: player) { self.player = nil }
         } else {

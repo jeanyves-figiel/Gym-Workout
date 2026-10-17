@@ -757,6 +757,11 @@ struct WorkoutPlayerView: View {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         let onScreen = step.loggable && log.item?.uid == step.item.uid
         if onScreen, let tapped, log.rows.indices.contains(done) { log.rows[done].rir = String(tapped.rir) }
+        // Watch counted this set and the member changed the reps (#410): the exercise learns to count stricter or looser.
+        if onScreen, let w = watchLift, w.exerciseId == step.item.exerciseId, w.setIndex == done, w.reps > 0,
+           log.rows.indices.contains(done), let reps = Int(log.rows[done].reps) {
+            LiftLearning.shared.correct(w.exerciseId, counted: w.reps, logged: reps)
+        }
         let logged = onScreen && log.log(done, model: model)
         setsDone[step.item.uid] = now
         if logged { coachSet(step, index: done, of: sets) }

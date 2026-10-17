@@ -31,6 +31,8 @@ final class LiftTracker {
     private(set) var endedAt: Date?
     /// Machine mode: the test rep found the push (shown briefly).
     private(set) var calibratedAt: Date?
+    /// Practice mode (#410): counting for the iPhone's Try it screen, not a set.
+    private(set) var practicing = false
 
     var lastVelocity: Double? { reps.last?.meanVelocity }
     var best: Double? { reps.map(\.meanVelocity).max() }
@@ -57,25 +59,56 @@ final class LiftTracker {
     nonisolated static let available = CMMotionManager().isDeviceMotionAvailable
 
     /// Starts measuring a set on the wrist (no-op when this set is already measured).
-    func track(key: String, profile: LiftProfile, lossLimit: Double?) {
+    /// `strictness`: counting level (#410), see `Strictness`.
+    func track(key: String, profile: LiftProfile, lossLimit: Double?, strictness: Double = 0) {
         guard key != self.key || mode == .idle else { return }
         reset(key: key, machine: false)
-        begin(SetTracker(profile: profile, lossLimit: lossLimit))
+        begin(SetTracker(profile: profile, lossLimit: lossLimit, strictness: strictness))
+    }
+
+    /// Practice mode (#410): counts any lift on the wrist at `level` until stopped; `recount` changes the level.
+    func practice(level: Double) {
+        reset(key: "practice", machine: false)
+        practicing = true
+        begin(SetTracker(profile: LiftProfile(direction: .up, family: .other), lossLimit: nil, strictness: level))
+    }
+
+    /// Practice mode: the same movements counted at another level.
+    func recount(level: Double) {
+        box.lock.lock()
+        let update = box.tracker?.setStrictness(level)
+        box.lock.unlock()
+        if let update { apply(update) }
+    }
+
+    /// Practice mode: what the iPhone shows (trace at 20 values a second, reps placed on it).
+    func practiceState() -> WLiftPracticeState? {
+        box.lock.lock()
+        defer { box.lock.unlock() }
+        guard practicing, let t = box.tracker else { return nil }
+        let trace = t.trace(seconds: 6, every: 5)
+        let reps = t.reps
+        let marks = reps.compactMap { r -> Int? in
+            let i = (r.endIndex - trace.start) / 5
+            return i >= 0 && i < trace.values.count ? i : nil
+        }
+        return WLiftPracticeState(level: t.strictness, reps: reps.count, velocities: reps.map(\.meanVelocity), ranges: reps.map(\.range),
+                                  trace: trace.values, marks: marks)
     }
 
     /// Machine mode for a lift the wrist can't measure: ask to strap the Watch on, then a test rep (once per exercise).
-    func trackMachine(key: String, exercise: String, family: LiftProfile.Family, lossLimit: Double?) {
+    func trackMachine(key: String, exercise: String, family: LiftProfile.Family, lossLimit: Double?, strictness: Double = 0) {
         guard key != self.key || mode == .idle else { return }
         reset(key: key, machine: true)
         if let known = machineAxis[exercise] {
-            begin(SetTracker(machineAxis: known.axis, sign: known.sign, family: family, lossLimit: lossLimit))
+            begin(SetTracker(machineAxis: known.axis, sign: known.sign, family: family, lossLimit: lossLimit, strictness: strictness))
         } else {
             mode = .strap
         }
     }
 
     /// The member strapped the Watch on: learn the axis from one slow push.
-    func strapped(exercise: String, family: LiftProfile.Family, lossLimit: Double?) {
+    func strapped(exercise: String, family: LiftProfile.Family, lossLimit: Double?, strictness: Double = 0) {
         guard mode == .strap else { return }
         mode = .testRep
         box.lock.lock()
@@ -91,11 +124,13 @@ final class LiftTracker {
             box.lock.unlock()
             // Try every 0.25 s.
             guard samples.count % 25 == 0, let found = MachineCalibration.find(samples) else { return }
-            Task { @MainActor [weak self] in self?.calibrated(found, exercise: exercise, family: family, lossLimit: lossLimit) }
+            Task { @MainActor [weak self] in
+                self?.calibrated(found, exercise: exercise, family: family, lossLimit: lossLimit, strictness: strictness)
+            }
         }
     }
 
-    private func calibrated(_ found: (axis: Vec3, sign: Int), exercise: String, family: LiftProfile.Family, lossLimit: Double?) {
+    private func calibrated(_ found: (axis: Vec3, sign: Int), exercise: String, family: LiftProfile.Family, lossLimit: Double?, strictness: Double) {
         guard mode == .testRep else { return }
         machineAxis[exercise] = found
         calibratedAt = Date()
@@ -104,7 +139,7 @@ final class LiftTracker {
         box.lock.lock()
         box.calibration = nil
         box.lock.unlock()
-        begin(SetTracker(machineAxis: found.axis, sign: found.sign, family: family, lossLimit: lossLimit))
+        begin(SetTracker(machineAxis: found.axis, sign: found.sign, family: family, lossLimit: lossLimit, strictness: strictness))
     }
 
     #if DEBUG
@@ -139,6 +174,7 @@ final class LiftTracker {
         let out = final.count >= reps.count ? final : reps
         mode = .idle
         key = nil
+        practicing = false
         return out
     }
 
@@ -158,6 +194,7 @@ final class LiftTracker {
         box.lock.unlock()
         self.key = key
         self.machine = machine
+        practicing = false
         reps = []
         velocityLoss = 0
         lossReached = false
@@ -239,10 +276,10 @@ enum MachineCalibration {
 
 extension SetTracker {
     /// Machine mode tracker: fixed axis and push direction from the test rep.
-    convenience init(machineAxis: Vec3, sign: Int, family: LiftProfile.Family, lossLimit: Double?) {
+    convenience init(machineAxis: Vec3, sign: Int, family: LiftProfile.Family, lossLimit: Double?, strictness: Double = 0) {
         var config = SetAnalyzer.Config()
         config.minRange = 0.05
-        self.init(profile: LiftProfile(direction: .axis, family: family), lossLimit: lossLimit, config: config)
+        self.init(profile: LiftProfile(direction: .axis, family: family), lossLimit: lossLimit, config: config, strictness: strictness)
         fixAxis(sign > 0 ? machineAxis : machineAxis * -1)
     }
 }

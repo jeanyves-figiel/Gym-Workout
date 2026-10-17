@@ -46,6 +46,7 @@ struct BarSpeedSection: View {
                     if let best = day.compactMap(\.best).max() { chip(String(format: "Best %.2f m/s", best)) }
                     if let p = day.compactMap(\.power).max() { chip("Power \(Int(p.rounded())) W") }
                 }
+                countingRow
                 ForEach(day) { set in
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
@@ -68,6 +69,32 @@ struct BarSpeedSection: View {
                 }
                 Text("Measured by your Apple Watch (beta). Speeds are best compared with your own sets.")
                     .font(.caption).opacity(0.8)
+            }
+        }
+    }
+
+    /// How strict the Watch counts this exercise (#410): the setting plus what corrections taught it; pick or reset.
+    private var countingRow: some View {
+        let entry = LiftLearning.shared.entry(exercise.id)
+        let level = Strictness.level(setting: WatchLiftPref.shared.counting.level, learned: entry?.level ?? 0)
+        let name = WatchLiftCounting.name(level)
+        let note = entry.map { $0.corrections > 0 ? "learned from \($0.corrections) correction\($0.corrections == 1 ? "" : "s")" : "set for this exercise" }
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text("Counting: \(name)").font(Theme.label(14))
+                if let note { Text("· \(note)").font(.caption.weight(.semibold)).opacity(0.85) }
+            }
+            HStack(spacing: 6) {
+                ForEach(WatchLiftCounting.allCases) { c in
+                    Button { LiftLearning.shared.set(exercise.id, to: c) } label: {
+                        chip(c.title).overlay(Capsule().stroke(.white, lineWidth: c.title == name && entry != nil ? 1.5 : 0))
+                    }
+                    .buttonStyle(.plain)
+                }
+                if entry != nil {
+                    Button { LiftLearning.shared.reset(exercise.id) } label: { chip("Reset") }
+                        .buttonStyle(.plain)
+                }
             }
         }
     }

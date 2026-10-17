@@ -12,6 +12,8 @@ final class WatchStore: NSObject {
     /// iPhone player state while a workout runs on the phone.
     var live: WLive?
     var reachable = false
+    /// Practice mode level the iPhone asked for (#410); nil = no practice.
+    var practice: Double?
     /// The iPhone started a workout and woke this Watch (#347): the start prompt shows.
     var offered = false
     /// Last store made by the app, for the app delegate the iPhone wakes (#347).
@@ -96,6 +98,12 @@ final class WatchStore: NSObject {
         WCSession.default.sendMessage([WatchKeys.lift: data], replyHandler: nil, errorHandler: nil)
     }
 
+    /// Practice mode state for the iPhone's Try it screen (#410), best effort.
+    func send(_ practice: WLiftPracticeState) {
+        guard WCSession.isSupported(), WCSession.default.isReachable, let data = try? JSONEncoder.watch.encode(practice) else { return }
+        WCSession.default.sendMessage([WatchKeys.practiceState: data], replyHandler: nil, errorHandler: nil)
+    }
+
     private func markDone(_ f: WFinished) {
         let i = snapshot.sessions.firstIndex { $0.id == f.sessionId }
         if let i { snapshot.sessions[i].done = true }
@@ -139,6 +147,10 @@ final class WatchStore: NSObject {
     }
 
     fileprivate func receive(message: [String: Any]) {
+        if let data = message[WatchKeys.practice] as? Data, let c = try? JSONDecoder.watch.decode(WLiftPracticeCommand.self, from: data) {
+            practice = c.level
+            return
+        }
         if message[WatchKeys.liveEnded] != nil {
             live = nil
             phoneEnded(message[WatchKeys.outcome].flatMap { $0 as? String }.flatMap(WLiveOutcome.init),

@@ -141,6 +141,12 @@ private struct DemoScreen: View {
         case "player-record": WorkoutPlayerView(sessionId: second, demoMode: "coach-record")
         case "coach-settings": NavigationStack { CoachSettingsView() }
         case "watch-options": NavigationStack { WatchOptionsView() }
+        case "watch-lift": NavigationStack { WatchOptionsView(focus: .lift) }
+        case "lift-practice":
+            LiftPracticeView(demo: WLiftPracticeState(
+                level: 0, reps: 3, velocities: [0.62, 0.6, 0.64], ranges: [0.43, 0.42, 0.44],
+                trace: (0..<120).map { i in i < 20 || i > 100 ? 0.004 * sin(Double(i)) : 0.32 * sin(Double(i - 20) * .pi / 13.3) },
+                marks: [27, 53, 80]))
         case "workout-flow": NavigationStack { WorkoutFlowView() }
         case "finish-early": WorkoutPlayerView(sessionId: second, demoMode: "finish")
         case "player-fitted": WorkoutPlayerView(sessionId: second, demoMode: "fitted")
