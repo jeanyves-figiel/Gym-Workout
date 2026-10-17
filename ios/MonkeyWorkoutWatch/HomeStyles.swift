@@ -93,10 +93,10 @@ struct CoachHome: View {
                 }
                 HomeStatRows().padding(.top, 6)
             }
+            .watchMargins()
         }
         .containerBackground(W.gradient(current.tint.0, current.tint.1), for: .navigation)
         .animation(.easeInOut(duration: 0.35), value: tip)
-        .navigationTitle("Today")
         .onAppear {
             guard !reduceMotion else { return }
             poke(count: 0)
@@ -172,12 +172,12 @@ struct DeckHome: View {
                     QuestChest()
                     HomeStatRows()
                 }
+                .watchMargins()
             }
             .tag("stats")
             .containerBackground(W.ink.gradient, for: .tabView)
         }
         .tabViewStyle(.verticalPage)
-        .navigationTitle("Week \(snap.week)")
         .sensoryFeedback(.selection, trigger: page)
         .onAppear { if page.isEmpty { page = store.next?.id ?? snap.sessions.first?.id ?? "stats" } }
     }
@@ -239,6 +239,7 @@ private struct DayCard: View {
                 .accessibilityLabel("Start \(session.title)")
             }
         }
+        .watchMargins()
         .onAppear {
             guard session.done else { return }
             withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.5).delay(0.15)) { stamped = true }
@@ -299,8 +300,8 @@ struct RingsHome: View {
                 }
                 HomeStatRows().padding(.top, 6)
             }
+            .watchMargins()
         }
-        .navigationTitle("Today")
         .onAppear {
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.9)) { shown = true }
             if values[0] >= 1, !reduceMotion {

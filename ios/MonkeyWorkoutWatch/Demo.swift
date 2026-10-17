@@ -75,6 +75,7 @@ enum Demo {
                 }
             }
             .foregroundStyle(.white)
+            .watchMargins()
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(LinearGradient(colors: [W.color(0x7B2FF7).opacity(0.85), .black], startPoint: .top, endPoint: .bottom).ignoresSafeArea())
             .onAppear {

@@ -242,6 +242,7 @@ struct PlayerView: View {
                 .background(Capsule().fill(.white.opacity(0.1)))
             }
         }
+        .watchMargins()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         // Colour wash of the block, like the phone player.
         .background(alignment: .top) {
@@ -445,6 +446,7 @@ private struct ControlsPage: View {
                 .buttonStyle(.plain)
                 .padding(.top, 2)
             }
+            .watchMargins()
         }
         .background(RadialGradient(colors: [W.color(0x3A1030), .black], center: .top, startRadius: 0, endRadius: 170).ignoresSafeArea())
         .overlay {
@@ -576,6 +578,7 @@ struct RestOverlay: View {
                 .padding(.horizontal, 8).padding(.vertical, 5)
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(W.gradient(tint, tint2)))
             }
+            .watchMargins()
         }
         .background(RadialGradient(colors: [W.color(effort ? 0x24301A : 0x1D3A10), .black], center: UnitPoint(x: 0.5, y: 0.35),
                                    startRadius: 0, endRadius: 160).ignoresSafeArea())

@@ -30,6 +30,8 @@ enum W {
     static let lime = Color(red: 0.80, green: 1.0, blue: 0.24)
     static let ink = Color(red: 0.04, green: 0.05, blue: 0.06)
     static let card = Color.white.opacity(0.10)
+    /// Side margin of every screen (#389): keeps text off the rounded display edge.
+    static let edge: CGFloat = 8
 
     static func color(_ v: UInt32) -> Color {
         Color(red: Double((v >> 16) & 0xFF) / 255, green: Double((v >> 8) & 0xFF) / 255, blue: Double(v & 0xFF) / 255)
@@ -62,6 +64,39 @@ struct Eyebrow: View {
 
     var body: some View {
         Text(text.uppercased()).font(W.label(10)).tracking(1).foregroundStyle(color).lineLimit(1)
+    }
+}
+
+/// Bold white screen title (#389), in place of the grey system navigation title.
+struct ScreenTitle: View {
+    let text: String
+
+    var body: some View {
+        Text(text).font(W.display(18)).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+extension View {
+    /// Screen side margins (#389).
+    func watchMargins() -> some View { padding(.horizontal, W.edge) }
+
+    /// Main button pinned at the bottom (#389): always visible, the list scrolls under it.
+    func pinnedButton(_ title: String, action: @escaping () -> Void) -> some View {
+        safeAreaInset(edge: .bottom, spacing: 4) {
+            // Compact capsule (the system prominent button is ~45 pt tall and covered two rows).
+            Button(action: action) {
+                Text(title).font(W.label(14)).foregroundStyle(W.ink)
+                    .frame(maxWidth: .infinity, minHeight: 34)
+                    .background(Capsule().fill(W.lime).shadow(color: W.lime.opacity(0.45), radius: 6))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, W.edge + 6)
+            .padding(.top, 8)
+                // Rows fade out under the button instead of showing around it.
+                .background(LinearGradient(colors: [.black.opacity(0), .black.opacity(0.9), .black], startPoint: .top, endPoint: .bottom)
+                    .ignoresSafeArea(edges: .bottom))
+        }
     }
 }
 

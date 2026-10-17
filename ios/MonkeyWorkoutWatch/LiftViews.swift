@@ -143,7 +143,7 @@ struct StrapPrompt: View {
                 Button("Log by hand", action: onSkip).font(W.label(11)).buttonStyle(.plain).frame(maxWidth: .infinity)
             }
             .foregroundStyle(.white)
-            .padding(.horizontal, 4)
+            .watchMargins()
         }
         .background(W.gradient(0xFF3D6E, 0xFF8A00).ignoresSafeArea())
     }

@@ -31,6 +31,7 @@ struct PhoneStartView: View {
                 .buttonStyle(.plain)
             }
             .foregroundStyle(.white)
+            .watchMargins()
         }
         .modifier(ThemeBackground(theme: theme, colour: W.gradient(w.tint, 0x8A3DFF), glow: theme == .game ? 0x8A3DFF : w.tint))
         .task {
