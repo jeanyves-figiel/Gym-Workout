@@ -70,7 +70,7 @@ struct HyroxTests {
             }
         }
         #expect(d.splits.count == 16)
-        #expect(d.splits.allSatisfy(\.auto))
+        #expect(d.splits.allSatisfy { $0.auto })
         #expect(d.splits[0].seconds == 239)
         #expect(d.splits[1].step == .station(.skiErg))
         #expect(d.splits[1].seconds == 179)
