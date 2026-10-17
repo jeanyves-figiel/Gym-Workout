@@ -203,6 +203,16 @@ def mirror_legs(ex, j):
     return True
 
 
+HANG = ("pull-up", "chin-up", "hang", "muscle-up", "toes-to-bar", "static-hold", "repeaters", "recruitment-pulls",
+        "monkey-bar", "max-hangs")
+NOT_HANG = ("assisted", "lever", "flag", "l-sit", "dip-bar", "archer", "clean", "snatch")
+
+
+def hangs(ex):
+    """Exercises whose body hangs from the hands with the legs free (not kneeling on an assist pad)."""
+    return any(w in ex for w in HANG) and not any(w in ex for w in NOT_HANG)
+
+
 def hang_legs(j, J):
     """Legs trailing under a bar hang: feet together, toes pointed. The 2D scenes drew them as a kneeling
     silhouette with the feet on the floor. Nearly straight 2D legs stay straight (slightly behind the hip);
@@ -211,6 +221,8 @@ def hang_legs(j, J):
     th, sn = J["kneeN"] - J["hipN"], J["ankleN"] - J["kneeN"]
     if th[1] > -0.4 * LEG[0] or sn[1] > 0.3 * LEG[1]:
         return False          # knees up, legs forward: a raise or lever, authored by the scene
+    if not (J["ankleN"][1] > 15 or abs(sn[0]) > 0.4 * abs(sn[1])):
+        return False          # feet planted under the knees: a standing lockout
     straight = np.degrees(np.arccos(np.clip(nrm3(th) @ nrm3(sn), -1, 1))) < 25
     if straight and hip[1] - LEG[0] - LEG[1] + 4 > 12:
         kn = hip + np.array([-2.0, -LEG[0], 0])
@@ -424,7 +436,7 @@ def run(ids=None):
             mirror_legs(ex, k["j"])
             J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
             V = R.pose(k["j"], k["p"])
-            if hanging(J, R.held) and hang_legs(k["j"], J):
+            if hangs(ex) and hanging(J, R.held) and hang_legs(k["j"], J):
                 J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
                 V = R.pose(k["j"], k["p"])
             poses.append((J, V, dict(R.held), dict(R.grip)))
