@@ -18,6 +18,8 @@ const body = z.object({
       method: z.string().max(40).optional(),
       screen: z.string().max(40).optional(),
       focus: z.string().max(300).optional(),
+      pronouns: z.string().trim().max(30).optional(),
+      callName: z.string().trim().max(30).optional(),
     })
     .default({}),
 });

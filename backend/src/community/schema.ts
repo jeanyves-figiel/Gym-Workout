@@ -83,4 +83,6 @@ export const ensureCommunitySchema = (db: DB): void => {
   if (!cols.some((c) => c.name === 'show_gym')) db.exec('ALTER TABLE community_profiles ADD COLUMN show_gym INTEGER NOT NULL DEFAULT 0');
   // Game level (#242): the app reports it so members see each other's rank title (Regular+) and Legend badge.
   if (!cols.some((c) => c.name === 'level')) db.exec('ALTER TABLE community_profiles ADD COLUMN level INTEGER');
+  // Pronouns (#415): shown next to the nickname only when the member turns it on in the app.
+  if (!cols.some((c) => c.name === 'pronouns')) db.exec('ALTER TABLE community_profiles ADD COLUMN pronouns TEXT');
 };

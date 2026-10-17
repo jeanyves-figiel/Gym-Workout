@@ -30,6 +30,10 @@ export interface ChatContext {
   screen?: string;
   /** What that screen shows: an exercise name, a chart and its numbers, a calendar day. */
   focus?: string;
+  /** The member's pronouns (#415), e.g. "she/her"; unset = neutral wording. */
+  pronouns?: string;
+  /** What the member likes to be called (#415): a first name, "Champ", "Queen"… */
+  callName?: string;
 }
 
 export interface CoachAction {
@@ -62,6 +66,9 @@ export interface CoachAnswer {
 }
 
 export type CoachModel = (turns: ChatTurn[], context: ChatContext) => Promise<CoachAnswer>;
+
+/** Stands for the member's first name, which stays on the device (#415). */
+export const NAME_SLOT = '{name}';
 
 export const COACH_MODEL_ID = 'claude-opus-5-5';
 
@@ -136,7 +143,7 @@ const schema = {
   additionalProperties: false,
 } as const;
 
-const describe = (c: ChatContext) =>
+export const describeMember = (c: ChatContext) =>
   [
     c.goal && `Goal: ${c.goal}`,
     c.level && `Level: ${c.level}`,
@@ -147,6 +154,10 @@ const describe = (c: ChatContext) =>
     c.equipment?.length && `Equipment ids: ${c.equipment.join(', ')}`,
     c.screen && `Screen: ${c.screen}`,
     c.focus && `Looking at: ${c.focus}`,
+    c.pronouns && `Pronouns: ${c.pronouns} (when you refer to the member, use these; talk to them as "you")`,
+    !c.pronouns && 'Pronouns: not set (use neutral wording; never guess a gender)',
+    c.callName === NAME_SLOT && `Likes to be called by first name: write ${NAME_SLOT} where you use it, the app fills it in (now and then, not in every reply)`,
+    c.callName && c.callName !== NAME_SLOT && `Likes to be called: ${c.callName} (use it now and then, not in every reply)`,
   ]
     .filter(Boolean)
     .join('\n');
@@ -197,7 +208,7 @@ export const claudeCoach = (apiKey: string, workspaceId?: string): CoachModel =>
     defaultHeaders: workspaceId ? { 'anthropic-workspace-id': workspaceId } : undefined,
   });
   return async (turns, context) => {
-    const about = describe(context);
+    const about = describeMember(context);
     const messages: Anthropic.Beta.BetaMessageParam[] = turns.map((t) => ({ role: t.role === 'member' ? 'user' : 'assistant', content: t.text }));
     const res = await client.beta.messages.create({
       model: COACH_MODEL_ID,

@@ -1,3 +1,4 @@
+import CryptoKit
 import APIClient
 import AVFoundation
 import Observation
@@ -167,11 +168,12 @@ final class CoachVoiceStore {
     func prepare(model: AppModel) async {
         guard !model.demo else { return }
         await refresh(model: model)
-        guard CoachPref.on, CoachPref.voice != .off, !CoachVoicePref.chosen, let v = suggestions(count: 1).first else { return }
-        if await download(v.id, model: model), !CoachVoicePref.chosen {
+        if CoachPref.on, CoachPref.voice != .off, !CoachVoicePref.chosen, let v = suggestions(count: 1).first,
+           await download(v.id, model: model), !CoachVoicePref.chosen {
             UserDefaults.standard.set(v.id, forKey: CoachVoicePref.studioKey)
             UserDefaults.standard.set(v.id, forKey: CoachVoicePref.announceKey)
         }
+        await fetchCall(model: model)
     }
 
     /// One line to hear a voice before downloading it.
@@ -197,6 +199,30 @@ final class CoachVoiceStore {
         let line = options[abs(seed) % options.count]
         let url = file(voice, line)
         return FileManager.default.fileExists(atPath: url.path) ? (line.text, url) : nil
+    }
+
+    // MARK: Call (#415)
+
+    private func callFile(_ voice: String, style: CoachStyle, name: String) -> URL {
+        let key = SHA256.hash(data: Data(name.lowercased().utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
+        return Self.dir.appendingPathComponent(voice, isDirectory: true).appendingPathComponent("call-\(style.rawValue)-\(key).mp3")
+    }
+
+    /// The studio recording of "Alex!" for the voice in use, when on the device.
+    func callClip(_ name: String, style: CoachStyle, voice: String = CoachVoicePref.studio) -> URL? {
+        guard !voice.isEmpty, ready.contains(voice) else { return nil }
+        let url = callFile(voice, style: style, name: name)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    /// Downloads the call for the studio voice in use, every style (three short clips, once per name).
+    func fetchCall(model: AppModel) async {
+        let voice = CoachVoicePref.studio
+        guard !model.demo, !voice.isEmpty, ready.contains(voice), let name = model.coachCallName else { return }
+        for style in CoachStyle.allCases where callClip(name, style: style, voice: voice) == nil {
+            guard let data = try? await model.api.coachVoiceCall(voice: voice, style: style.rawValue, name: name), !data.isEmpty else { continue }
+            try? data.write(to: callFile(voice, style: style, name: name), options: .atomic)
+        }
     }
 }
 

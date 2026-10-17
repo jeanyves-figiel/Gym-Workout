@@ -19,6 +19,10 @@ struct BodyHealthView: View {
         var genderText: String
         var figure: BodyFigure?
         var writeToHealth: Bool
+        var pronouns: Pronouns? = nil
+        var pronounsCustom = ""
+        var coachCall: CoachCall? = nil
+        var showPronouns = false
     }
 
     @State private var height = ""
@@ -27,6 +31,11 @@ struct BodyHealthView: View {
     @State private var sex: BodyMetrics.Sex?
     @State private var gender: BodyMetrics.Gender?
     @State private var genderText = ""
+    /// How we talk to you (#415).
+    @State private var pronouns: Pronouns?
+    @State private var pronounsCustom = ""
+    @State private var coachCall: CoachCall?
+    @State private var showPronouns = false
     /// Picked body figure (#110); nil = suggested from sex until the user picks.
     @State private var figure: BodyFigure?
     @State private var writeToHealth = true
@@ -115,23 +124,17 @@ struct BodyHealthView: View {
                 AccountNote(text: "Girths, body weight and body fat over time. Logged values also fine-tune first suggested weights.")
 
                 section("About you (optional)")
-                Menu {
-                    Picker("Gender", selection: $gender) {
-                        Text("Not set").tag(BodyMetrics.Gender?.none)
-                        ForEach(BodyMetrics.Gender.allCases) { Text($0.label).tag(BodyMetrics.Gender?.some($0)) }
-                    }
-                } label: {
-                    AccountCard(symbol: "person.fill", title: "Gender", subtitle: gender?.label ?? "Not set", gradient: AccountTint.profile) {
-                        menuChevron
-                    }
-                }
+                TalkToYouCard(gender: $gender, pronouns: $pronouns, pronounsCustom: $pronounsCustom, call: $coachCall,
+                              showPronouns: $showPronouns, name: model.callableName,
+                              nickname: Community.shared.me.nickname ?? model.callableName ?? "You",
+                              avatar: model.api.resolve(Community.shared.me.avatarUrl))
                 if gender == .selfDescribe {
                     AccountField(label: "In your words") {
                         TextField("How do you describe your gender?", text: $genderText)
                             .textInputAutocapitalization(.never)
                     }
                 }
-                AccountNote(text: "Only for you — never used in calculations or shared.")
+                AccountNote(text: "Gender stays on your device and account, never in calculations. Pronouns are used by the coach and Ask Coach, and shown in Community only if you turn it on.")
 
                 section("For estimates (optional)")
                 if let healthSex = snap.sex {
@@ -175,7 +178,8 @@ struct BodyHealthView: View {
 
     private var draft: Draft {
         Draft(height: height, weight: weight, birthYear: birthYear, sex: sex, gender: gender, genderText: genderText,
-              figure: figure, writeToHealth: writeToHealth)
+              figure: figure, writeToHealth: writeToHealth, pronouns: pronouns, pronounsCustom: pronounsCustom,
+              coachCall: coachCall, showPronouns: showPronouns)
     }
 
     /// Undo bar when something was changed since the screen opened (#285).
@@ -240,6 +244,10 @@ struct BodyHealthView: View {
         gender = b.gender
         genderText = b.genderDescription ?? ""
         figure = b.figure
+        pronouns = b.pronouns
+        pronounsCustom = b.pronounsCustom ?? ""
+        coachCall = b.coachCall
+        showPronouns = b.showPronouns ?? false
         start = draft
         if let restoring {
             height = restoring.height
@@ -250,6 +258,10 @@ struct BodyHealthView: View {
             genderText = restoring.genderText
             figure = restoring.figure
             writeToHealth = restoring.writeToHealth
+            pronouns = restoring.pronouns
+            pronounsCustom = restoring.pronounsCustom
+            coachCall = restoring.coachCall
+            showPronouns = restoring.showPronouns
         }
     }
 
@@ -265,6 +277,11 @@ struct BodyHealthView: View {
         let described = genderText.trimmingCharacters(in: .whitespacesAndNewlines)
         b.genderDescription = gender == .selfDescribe && !described.isEmpty ? String(described.prefix(60)) : nil
         b.figure = figure
+        b.pronouns = pronouns
+        let custom = pronounsCustom.trimmingCharacters(in: .whitespacesAndNewlines)
+        b.pronounsCustom = pronouns == .custom && !custom.isEmpty ? String(custom.prefix(24)) : nil
+        b.coachCall = coachCall
+        b.showPronouns = showPronouns ? true : nil
         model.saveBody(b)
         if health.connected && writeToHealth {
             var toHealth = BodyMetrics()
