@@ -99,8 +99,8 @@ struct PositionGuideView: View {
             GeometryReader { geo in
                 let camera = PositionCamera(position: position, size: geo.size)
                 ZStack {
-                    PositionFigureView(position: position, key: key, ghost: ghost, highlight: exercise.primary,
-                                       yaw: y, camera: camera)
+                    PositionFigureView(exerciseId: exercise.id, position: position, key: key, ghost: ghost,
+                                       highlight: exercise.primary, yaw: y, camera: camera)
                     overlay(camera: camera, yaw: y)
                 }
             }
@@ -346,7 +346,7 @@ struct PositionCamera: Equatable {
         let horizontal = max(ext.x, ext.z, 120)
         let height = max(ext.y, 120)
         let aspect = max(0.3, Double(size.width / max(size.height, 1)))
-        let need = max(height, horizontal / aspect) * 0.5 + 34
+        let need = max(height, horizontal / aspect) * 0.5 + 44
         distance = need / tan(Self.fov * .pi / 360) + max(ext.x, ext.z) * 0.5
         self.size = size
     }
@@ -367,8 +367,11 @@ struct PositionCamera: Equatable {
     }
 }
 
-/// The posed clay figure (headband head, worked muscles tinted), the equipment and the red mistake ghost.
+/// The posed body (grey anatomy figure, worked muscles in orange-red tissue), the equipment and the red
+/// mistake ghost. Poses are skinned off the main thread and kept per exercise / key / ghost; the clay mannequin
+/// stands in while a pose is being built or when the body resource is missing.
 struct PositionFigureView: UIViewRepresentable {
+    let exerciseId: String
     let position: ExercisePosition
     let key: Int
     let ghost: ExercisePosition.Key?
@@ -389,8 +392,8 @@ struct PositionFigureView: UIViewRepresentable {
     }
 
     func updateUIView(_ view: SCNView, context: Context) {
-        context.coordinator.update(position: position, key: key, ghost: ghost, highlight: highlight, yaw: yaw,
-                                   camera: camera)
+        context.coordinator.update(exerciseId: exerciseId, position: position, key: key, ghost: ghost,
+                                   highlight: highlight, yaw: yaw, camera: camera)
     }
 
     @MainActor final class Coordinator {
@@ -398,7 +401,10 @@ struct PositionFigureView: UIViewRepresentable {
         private let turntable = SCNNode()
         private let cameraNode = SCNNode()
         private var built: String?
+        private var building: Task<Void, Never>?
         private weak var view: SCNView?
+        /// Skinned poses by exercise | key | ghost | worked muscles (a pose is ~50 ms to build).
+        private static var poses: [String: BodyStage.Mesh] = [:]
 
         func setUp(_ view: SCNView) {
             self.view = view
@@ -411,34 +417,46 @@ struct PositionFigureView: UIViewRepresentable {
             scene.rootNode.addChildNode(cameraNode)
             scene.rootNode.addChildNode(turntable)
             view.pointOfView = cameraNode
-            for (type, color, intensity, pos) in [
-                (SCNLight.LightType.ambient, UIColor.white, CGFloat(450), SCNVector3Zero),
-                (.directional, .white, 1250, SCNVector3(-300, 500, 500)),
-                (.directional, UIColor(red: 1, green: 0.55, blue: 0.85, alpha: 1), 550, SCNVector3(400, 150, -400)),
-            ] {
-                let l = SCNLight()
-                l.type = type
-                l.color = color
-                l.intensity = intensity
-                let n = SCNNode()
-                n.light = l
-                n.position = pos
-                n.look(at: SCNVector3Zero)
-                scene.rootNode.addChildNode(n)
-            }
+            for n in BodyStage.lights() { scene.rootNode.addChildNode(n) }
         }
 
-        func update(position: ExercisePosition, key: Int, ghost: ExercisePosition.Key?, highlight: [Muscle], yaw: Double,
-                    camera: PositionCamera) {
-            let id = "\(key)|\(ghost.map { "\($0.joints.count)\($0.joints["hip"] ?? .zero)\($0.joints["kneeN"] ?? .zero)" } ?? "")"
+        func update(exerciseId: String, position: ExercisePosition, key: Int, ghost: ExercisePosition.Key?,
+                    highlight: [Muscle], yaw: Double, camera: PositionCamera) {
+            let worked = highlight.map(\.rawValue).sorted().joined(separator: ",")
+            let ghostSig = ghost.map { "\($0.joints.count)\($0.joints["hip"] ?? .zero)\($0.joints["kneeN"] ?? .zero)" } ?? ""
+            let id = "\(exerciseId)|\(key)|\(ghostSig)|\(worked)"
             if id != built {
                 built = id
-                turntable.childNodes.forEach { $0.removeFromParentNode() }
+                building?.cancel()
                 let k = position.keys[key]
+                turntable.childNodes.forEach { $0.removeFromParentNode() }
                 turntable.addChildNode(Mannequin.floor(around: k))
                 turntable.addChildNode(Mannequin.props(k.props))
-                turntable.addChildNode(Mannequin.figure(k, highlight: Mannequin.tinted(highlight), ghost: false))
-                if let ghost { turntable.addChildNode(Mannequin.figure(ghost, highlight: [], ghost: true)) }
+                if let mesh = Self.poses[id] {
+                    turntable.addChildNode(BodyStage.node(mesh))
+                } else if let rig = BodyRig.shared {
+                    // clay stands in until the skinned pose is ready
+                    let stand = Mannequin.figure(k, highlight: Mannequin.tinted(highlight), ghost: false)
+                    turntable.addChildNode(stand)
+                    if let ghost { turntable.addChildNode(Mannequin.figure(ghost, highlight: [], ghost: true)) }
+                    let muscles = highlight
+                    building = Task { [weak self] in
+                        let mesh = await Task.detached(priority: .userInitiated) {
+                            BodyStage.build(rig, key: k, ghost: ghost, worked: muscles)
+                        }.value
+                        guard let self, !Task.isCancelled, self.built == id else { return }
+                        Self.poses[id] = mesh
+                        if Self.poses.count > 24 { Self.poses.removeValue(forKey: Self.poses.keys.first!) }
+                        self.turntable.childNodes.forEach { $0.removeFromParentNode() }
+                        self.turntable.addChildNode(Mannequin.floor(around: k))
+                        self.turntable.addChildNode(Mannequin.props(k.props))
+                        self.turntable.addChildNode(BodyStage.node(mesh))
+                        self.view?.setNeedsDisplay()
+                    }
+                } else {
+                    turntable.addChildNode(Mannequin.figure(k, highlight: Mannequin.tinted(highlight), ghost: false))
+                    if let ghost { turntable.addChildNode(Mannequin.figure(ghost, highlight: [], ghost: true)) }
+                }
             }
             // the turntable turns around the framing centre
             turntable.simdTransform = Self.turn(yaw, around: camera.center)
@@ -456,6 +474,152 @@ struct PositionFigureView: UIViewRepresentable {
             t2.columns.3 = SIMD4(cf.x, cf.y, cf.z, 1)
             return t2 * r * t1
         }
+    }
+}
+
+/// The skinned body on stage (look B, anatomy): a grey sculpted figure with dark grooves between muscles and fibres on
+/// every muscle, the worked muscles in orange-red tissue, black shorts, studio key light with shadows. Built from `BodyRig`.
+enum BodyStage {
+    /// A posed body ready to turn into geometry: vertex attributes packed for the shader.
+    struct Mesh: Sendable {
+        var positions: [SIMD3<Float>]
+        var normals: [SIMD3<Float>]
+        /// (cavity −1…1, fibre phase 0…2π)
+        var tex0: [SIMD2<Float>]
+        /// (worked-muscle weight 0…1, shorts 0/1)
+        var tex1: [SIMD2<Float>]
+        var triangles: [UInt16]
+        /// The mistake ghost, posed on the same body.
+        var ghost: [SIMD3<Float>]?
+        var ghostNormals: [SIMD3<Float>]?
+    }
+
+    static func build(_ rig: BodyRig, key: ExercisePosition.Key, ghost: ExercisePosition.Key?, worked: [Muscle]) -> Mesh {
+        let pose = rig.pose(key)
+        let work = rig.work(worked)
+        var tex0 = [SIMD2<Float>](), tex1 = [SIMD2<Float>]()
+        tex0.reserveCapacity(rig.vertexCount); tex1.reserveCapacity(rig.vertexCount)
+        for i in 0..<rig.vertexCount {
+            tex0.append(SIMD2(rig.cavity[i], rig.phase[i]))
+            // y: 0 plain skin (head, hands, feet), 0.5 muscle, 1 shorts
+            tex1.append(SIMD2(work[i], rig.shorts[i] ? 1 : (rig.muscle[i] > 0 ? 0.5 : 0)))
+        }
+        let g = ghost.map { rig.pose($0, mush: 4) }
+        return Mesh(positions: pose.positions, normals: pose.normals, tex0: tex0, tex1: tex1, triangles: rig.triangles,
+                    ghost: g?.positions, ghostNormals: g?.normals)
+    }
+
+    static func source<T>(_ a: [T], _ semantic: SCNGeometrySource.Semantic, components: Int) -> SCNGeometrySource {
+        let data = a.withUnsafeBufferPointer { Data(buffer: $0) }
+        return SCNGeometrySource(data: data, semantic: semantic, vectorCount: a.count, usesFloatComponents: true,
+                                 componentsPerVector: components, bytesPerComponent: MemoryLayout<Float>.size,
+                                 dataOffset: 0, dataStride: MemoryLayout<T>.stride)
+    }
+
+    static func geometry(_ positions: [SIMD3<Float>], _ normals: [SIMD3<Float>], tex0: [SIMD2<Float>]?,
+                         tex1: [SIMD2<Float>]?, triangles: [UInt16]) -> SCNGeometry {
+        var sources = [source(positions, .vertex, components: 3), source(normals, .normal, components: 3)]
+        if let tex0 { sources.append(source(tex0, .texcoord, components: 2)) }
+        if let tex1 { sources.append(source(tex1, .texcoord, components: 2)) }
+        let element = SCNGeometryElement(data: triangles.withUnsafeBufferPointer { Data(buffer: $0) },
+                                         primitiveType: .triangles, primitiveCount: triangles.count / 3,
+                                         bytesPerIndex: MemoryLayout<UInt16>.size)
+        return SCNGeometry(sources: sources, elements: [element])
+    }
+
+    /// Body (and ghost) nodes for a built pose.
+    static func node(_ m: Mesh) -> SCNNode {
+        let root = SCNNode()
+        let body = SCNNode(geometry: geometry(m.positions, m.normals, tex0: m.tex0, tex1: m.tex1, triangles: m.triangles))
+        body.geometry?.firstMaterial = skin()
+        body.castsShadow = true
+        root.addChildNode(body)
+        if let g = m.ghost, let gn = m.ghostNormals {
+            let ghost = SCNNode(geometry: geometry(g, gn, tex0: nil, tex1: nil, triangles: m.triangles))
+            ghost.geometry?.firstMaterial = Mannequin.material(Mannequin.ghostRed, ghost: true)
+            ghost.castsShadow = false
+            ghost.renderingOrder = 10
+            root.addChildNode(ghost)
+        }
+        return root
+    }
+
+    /// Anatomy material (look B, #408): grey sculpted figure, dark grooves between muscles, fine fibres on every
+    /// muscle, worked muscles in orange-red tissue, black shorts. Colours in the shader are linear.
+    static func skin() -> SCNMaterial {
+        let m = SCNMaterial()
+        m.lightingModel = .physicallyBased
+        m.diffuse.contents = UIColor(red: 0.71, green: 0.72, blue: 0.75, alpha: 1)
+        m.roughness.contents = 0.62
+        m.metalness.contents = 0.0
+        m.isDoubleSided = false
+        m.shaderModifiers = [.geometry: geometryModifier, .surface: surfaceModifier]
+        return m
+    }
+
+    static let geometryModifier = """
+    #pragma varyings
+    float4 vAtt;
+    #pragma body
+    out.vAtt = float4(_geometry.texcoords[0].x, _geometry.texcoords[0].y, _geometry.texcoords[1].x, _geometry.texcoords[1].y);
+    """
+
+    static let surfaceModifier = """
+    #pragma body
+    float cav = in.vAtt.x;
+    float ph = in.vAtt.y;
+    float w = in.vAtt.z;
+    float sh = step(0.75, in.vAtt.w);
+    float mu = step(0.25, in.vAtt.w) * (1.0 - sh);
+    float cv = smoothstep(-0.95, 0.4, cav);
+    // grey sculpt: grooves and muscle borders go dark (borders are baked into the cavity)
+    float3 col = float3(0.456, 0.474, 0.52) * mix(float3(0.22, 0.22, 0.25), float3(1.0), pow(cv, 0.8));
+    // fine fibres on every muscle; the phase wraps at 2 pi, so only whole multiples of it stay seamless
+    float f1 = pow(0.5 + 0.5 * sin(ph * 3.0), 4.0);
+    col *= 1.0 - 0.13 * f1 * mu * smoothstep(0.0, 0.5, cv);
+    // worked muscles: orange-red tissue with the same fibres
+    float wq = smoothstep(0.1, 0.8, w);
+    float3 tissue = mix(float3(0.62, 0.10, 0.05), float3(1.0, 0.40, 0.18), pow(0.5 + 0.5 * sin(ph * 3.0), 1.2));
+    tissue *= mix(0.55, 1.0, cv);
+    col = mix(col, tissue, wq * 0.95 * (1.0 - sh));
+    float3 shorts = float3(0.07, 0.07, 0.08) * mix(0.6, 1.0, cv);
+    col = mix(col, shorts, sh);
+    _surface.diffuse.rgb = col;
+    _surface.roughness = mix(0.62, 0.85, sh);
+    _surface.emission.rgb += float3(0.55, 0.08, 0.03) * wq * 0.10 * (1.0 - sh);
+    """
+
+    /// Studio lighting: warm key with soft shadows, cool fill, two rims to carve the muscles, a little ambient.
+    static func lights() -> [SCNNode] {
+        var out = [SCNNode]()
+        func add(_ type: SCNLight.LightType, _ color: UIColor, _ intensity: CGFloat, _ pos: SCNVector3) -> SCNLight {
+            let l = SCNLight()
+            l.type = type
+            l.color = color
+            l.intensity = intensity
+            let n = SCNNode()
+            n.light = l
+            n.position = pos
+            n.look(at: SCNVector3(0, 90, 0))
+            out.append(n)
+            return l
+        }
+        let key = add(.spot, UIColor(red: 1, green: 0.94, blue: 0.86, alpha: 1), 2600, SCNVector3(-260, 470, 260))
+        key.spotInnerAngle = 25
+        key.spotOuterAngle = 70
+        key.castsShadow = true
+        key.shadowMode = .forward
+        key.shadowMapSize = CGSize(width: 1024, height: 1024)
+        key.shadowSampleCount = 8
+        key.shadowRadius = 3
+        key.shadowColor = UIColor(white: 0, alpha: 0.55)
+        key.zNear = 50
+        key.zFar = 1500
+        _ = add(.directional, UIColor(red: 0.62, green: 0.71, blue: 1, alpha: 1), 180, SCNVector3(420, 120, 180))
+        _ = add(.directional, UIColor(red: 1, green: 0.84, blue: 0.72, alpha: 1), 1100, SCNVector3(180, 300, -420))
+        _ = add(.directional, UIColor(red: 0.87, green: 0.91, blue: 1, alpha: 1), 650, SCNVector3(-420, 220, -260))
+        _ = add(.ambient, UIColor(red: 1, green: 0.93, blue: 0.9, alpha: 1), 160, SCNVector3Zero)
+        return out
     }
 }
 
@@ -567,14 +731,14 @@ enum Mannequin {
     static func floor(around k: ExercisePosition.Key) -> SCNNode {
         let xs = k.joints.values.map(\.x), zs = k.joints.values.map(\.z)
         let cx = ((xs.min() ?? 0) + (xs.max() ?? 0)) / 2, cz = ((zs.min() ?? 0) + (zs.max() ?? 0)) / 2
+        // studio disc: dark, matte, catches the key light's shadow
         let g = SCNCylinder(radius: 150, height: 1)
-        let m = SCNMaterial()
-        m.diffuse.contents = UIColor(white: 0, alpha: 0.22)
-        m.lightingModel = .constant
-        m.writesToDepthBuffer = false
+        let m = material(UIColor(red: 0.16, green: 0.17, blue: 0.2, alpha: 1), ghost: false)
+        m.roughness.contents = 0.95
         g.firstMaterial = m
         let n = SCNNode(geometry: g)
-        n.simdPosition = SIMD3(Float(cx), -1, Float(cz))
+        n.simdPosition = SIMD3(Float(cx), -0.6, Float(cz))
+        n.castsShadow = false
         return n
     }
 
@@ -589,7 +753,7 @@ enum Mannequin {
         let mat = material(UIColor(red: 0.18, green: 0.43, blue: 0.56, alpha: 1), ghost: false)
         for p in props {
             switch p {
-            case let .rod(a, b, r):
+            case let .rod(a, b, r, _):
                 root.addChildNode(cylinder(a, b, r: max(r, 1.6), steel))
             case let .pad(a, b, normal, halfWidth):
                 let along = v(b) - v(a)
@@ -625,13 +789,30 @@ enum Mannequin {
                 node.simdPosition = v(c)
                 node.simdOrientation = simd_quatf(from: SIMD3(0, 1, 0), to: alongX ? SIMD3(1, 0, 0) : SIMD3(0, 0, 1))
                 root.addChildNode(node)
-            case let .weight(kind, c, r):
+            case let .weight(kind, c, r0, axis, _):
+                let r = r0 > 0 ? min(r0, 9) : 8
                 if kind == "db" {
+                    // knurled handle along the grip axis, a head at each end
+                    let ax = axis.map(simd_normalize) ?? SIMD3(0, 0, 1)
+                    let hw = r * 1.15, hr = r * 0.62, hl = r * 0.6
+                    root.addChildNode(cylinder(c - ax * hw, c + ax * hw, r: 1.6, steel))
                     for s in [-1.0, 1.0] {
-                        let a = c + SIMD3(0, 0, s * 9), b = c + SIMD3(0, 0, s * 15)
-                        root.addChildNode(cylinder(a, b, r: r, iron))
+                        let mid = c + ax * (s * (hw - hl / 2))
+                        root.addChildNode(cylinder(mid - ax * (hl / 2), mid + ax * (hl / 2), r: hr, iron))
                     }
-                    root.addChildNode(cylinder(c - SIMD3(0, 0, 10), c + SIMD3(0, 0, 10), r: 2, steel))
+                } else if kind == "kb" {
+                    // bell below the hand, half-torus handle through it
+                    let rb = r * 0.8
+                    let ball = SCNNode(geometry: SCNSphere(radius: CGFloat(rb)))
+                    ball.geometry?.firstMaterial = iron
+                    ball.simdPosition = v(c) + SIMD3(0, Float(-rb * 0.9), 0)
+                    root.addChildNode(ball)
+                    let handle = SCNTorus(ringRadius: CGFloat(rb * 0.75), pipeRadius: 1.5)
+                    handle.firstMaterial = steel
+                    let h = SCNNode(geometry: handle)
+                    h.simdPosition = v(c) + SIMD3(0, Float(-rb * 0.1), 0)
+                    h.simdOrientation = simd_quatf(angle: .pi / 2, axis: SIMD3(1, 0, 0))
+                    root.addChildNode(h)
                 } else {
                     let g = SCNSphere(radius: CGFloat(r))
                     g.firstMaterial = kind == "ball"

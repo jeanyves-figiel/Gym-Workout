@@ -10,10 +10,14 @@ public struct ExercisePosition: Sendable, Hashable {
     public struct Key: Sendable, Hashable {
         public let joints: [String: SIMD3<Double>]
         public let props: [Prop]
+        /// Vertical shift of the skinned body so it rests on its support (contact.py "dy"); the joints and the
+        /// equipment stay where they are.
+        public let dy: Double
 
-        public init(joints: [String: SIMD3<Double>], props: [Prop]) {
+        public init(joints: [String: SIMD3<Double>], props: [Prop], dy: Double = 0) {
             self.joints = joints
             self.props = props
+            self.dy = dy
         }
 
         public subscript(_ name: String) -> SIMD3<Double>? { joints[name] }
@@ -24,12 +28,13 @@ public struct ExercisePosition: Sendable, Hashable {
         case pad(a: SIMD3<Double>, b: SIMD3<Double>, normal: SIMD2<Double>, halfWidth: Double)
         /// Box between two corners (stack, plyo box, mat).
         case box(lo: SIMD3<Double>, hi: SIMD3<Double>, mat: Bool)
-        /// Bar, tube or frame between a and b.
-        case rod(a: SIMD3<Double>, b: SIMD3<Double>, radius: Double)
+        /// Bar, tube or frame between a and b; `palmsUp` = held with an underhand grip (curls).
+        case rod(a: SIMD3<Double>, b: SIMD3<Double>, radius: Double, palmsUp: Bool)
         /// Weight plate; axis across the body (z) unless `alongX`.
         case disc(center: SIMD3<Double>, radius: Double, alongX: Bool)
-        /// Dumbbell, kettlebell or ball held or resting at `center`.
-        case weight(kind: String, center: SIMD3<Double>, radius: Double)
+        /// Dumbbell, kettlebell or ball held or resting at `center`; `axis` = a dumbbell's handle direction,
+        /// `palmsUp` = held with an underhand grip (curls).
+        case weight(kind: String, center: SIMD3<Double>, radius: Double, axis: SIMD3<Double>?, palmsUp: Bool)
     }
 
     /// The view the animation is drawn in (the guide opens on it).
@@ -248,7 +253,7 @@ public struct PositionMistake: Sendable, Hashable {
                 j[n] = s + (p - s) * 0.5
             }
         }
-        return ExercisePosition.Key(joints: j, props: [])
+        return ExercisePosition.Key(joints: j, props: [], dy: key.dy)
     }
 }
 
@@ -276,7 +281,7 @@ extension ExercisePosition {
                 var joints: [String: SIMD3<Double>] = [:]
                 for (n, p) in k["j"] as? [String: [Double]] ?? [:] { joints[n] = vec(p) }
                 let props = (k["p"] as? [[String: Any]] ?? []).compactMap(prop)
-                return Key(joints: joints, props: props)
+                return Key(joints: joints, props: props, dy: k["dy"] as? Double ?? 0)
             }
             out[id] = ExercisePosition(view: v, keys: keys)
         }
@@ -296,9 +301,11 @@ extension ExercisePosition {
             return .pad(a: vec(d["a"]), b: vec(d["b"]), normal: SIMD2(n[0], n[1]), halfWidth: d["w"] as? Double ?? 0)
         case "block": return .box(lo: vec(d["lo"]), hi: vec(d["hi"]), mat: false)
         case "mat": return .box(lo: vec(d["lo"]), hi: vec(d["hi"]), mat: true)
-        case "rod": return .rod(a: vec(d["a"]), b: vec(d["b"]), radius: r)
+        case "rod": return .rod(a: vec(d["a"]), b: vec(d["b"]), radius: r, palmsUp: d["pm"] as? String == "sup")
         case "disc": return .disc(center: vec(d["c"]), radius: r, alongX: d["ax"] as? String == "x")
-        case let kind?: return .weight(kind: kind, center: vec(d["c"]), radius: r)
+        case let kind?:
+            let axis = (d["ax"] as? [Double]).map(vec)
+            return .weight(kind: kind, center: vec(d["c"]), radius: r, axis: axis, palmsUp: d["pm"] as? String == "sup")
         default: return nil
         }
     }
