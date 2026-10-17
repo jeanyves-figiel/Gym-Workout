@@ -48,6 +48,8 @@ enum MainTab: Hashable { case train, explore, progress, community, account }
 struct MainTabView: View {
     @Environment(AppModel.self) private var model
     @State private var whatsNew = WhatsNew.pending
+    @State private var ask = CoachAsk.shared
+    @AppStorage(AskCoachPref.bubbleKey) private var coachBubble = true
 
     var body: some View {
         TabView(selection: Bindable(model).tab) {
@@ -69,6 +71,9 @@ struct MainTabView: View {
         }
         .toolbarBackground(Theme.bg, for: .tabBar)
         .sidebarAdaptableTabs()
+        // Ask Coach everywhere (#412 A): the floating 🐵 and its chat, which knows the screen on top.
+        .overlay { if coachBubble { AskCoachBubble() } }
+        .sheet(item: $ask.request) { r in CoachChatView(ask: r) }
         // Community profile early so auto-share works for the first workout of the session.
         .task(id: model.user?.id) { await Community.shared.load(api: model.api, userId: model.user?.id) }
         // Coach voice (#402, C): the best matching studio voice, downloaded once in the background.
@@ -274,6 +279,11 @@ private struct DemoScreen: View {
         case "coach-chat", "coach-chat-empty":
             CoachChatView()
                 .onAppear { if Demo.screen == "coach-chat" { Demo.fillCoachChat(profile: model.profile ?? Profile()) } }
+        case "ask-coach":
+            CoachChatView(ask: AskCoachRequest(focus: CoachFocus(screen: "exercise", title: "Barbell bench press"),
+                                               question: "My shoulder clicks on this one"))
+        case "ask-coach-bubble":
+            NavigationStack { ExerciseDetailView(exerciseId: "bench-press") }.overlay { AskCoachBubble() }
         case "onboarding", "onboarding-climbing":
             NavigationStack {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }

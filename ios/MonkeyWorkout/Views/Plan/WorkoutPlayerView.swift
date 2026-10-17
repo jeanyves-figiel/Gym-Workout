@@ -70,6 +70,9 @@ struct WorkoutPlayerView: View {
     @AppStorage(AutoNextPref.key) private var autoNextSec = AutoNextPref.fallback
     /// Coach Monkey in the player (#379): voice, subtitle bubble, record burst, Final set badge.
     @State private var coach = WorkoutCoach()
+    /// Hands-free mic (#412 C) and a question for Coach about this exercise.
+    @State private var listener = CoachListener()
+    @State private var asking: AskCoachRequest?
     /// #402: the coach voice setup sheet (A) and the toast after an automatic pick (C).
     @State private var voiceSetup = false
     @State private var voiceToast: String?
@@ -187,6 +190,8 @@ struct WorkoutPlayerView: View {
             }
         }
         .sheet(isPresented: $voiceSetup) { CoachVoiceSetupSheet() }
+        .sheet(item: $asking) { CoachChatView(ask: $0) }
+        .overlay(alignment: .top) { if listener.listening || listener.problem != nil { heardPill.padding(.top, 60) } }
         .sheet(isPresented: $mapOpen) {
             if let session, steps.indices.contains(index) {
                 WorkoutMapSheet(blocks: session.blocks, setsDone: setsDone, current: steps[index].item.uid)
@@ -216,6 +221,7 @@ struct WorkoutPlayerView: View {
             saveProgress()
             live.end()
             coach.stop()
+            listener.cancel()
             if !finished, !discarded { WatchSync.shared.endLive(.paused, sessionId: sessionId) }
             model.replanAfterWorkoutIfDone()
         }
@@ -626,6 +632,8 @@ struct WorkoutPlayerView: View {
             .accessibilityLabel("Exercise \(index + 1) of \(steps.count). Open workout map")
             // Coach voice (#379): glows while talking, tap mutes it for this workout.
             if coach.hasVoice { CoachPill(coach: coach) }
+            // Hands-free (#412 C): say a command, or ask Coach about this exercise.
+            if AskCoachPref.playerMic { micButton }
             // Tap the clock to finish early (#300); after a fit it counts down to the time to be done by.
             Button { finishingEarly = true } label: {
                 TimelineView(.periodic(from: started, by: 1)) { ctx in
@@ -645,6 +653,84 @@ struct WorkoutPlayerView: View {
             .accessibilityLabel(fitEnd == nil ? "Workout time. Finish early" : "Time left. Change or undo finish early")
         }
         .foregroundStyle(.white)
+    }
+
+    // MARK: Hands-free (#412 C)
+
+    private var micButton: some View {
+        Button { listener.listening ? listener.finish() : listenForCommand() } label: {
+            Image(systemName: listener.listening ? "waveform" : "mic.fill").font(.system(size: 15, weight: .heavy))
+                .foregroundStyle(listener.listening ? Theme.ink : .white)
+                .frame(width: 40, height: 40)
+                .background(Circle().fill(listener.listening ? Theme.lime : Theme.cardStrong))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(listener.listening ? "Stop listening" : "Talk to Coach")
+        .accessibilityHint("Say done, a weight, reps, skip rest, next, or ask a question")
+        .accessibilityIdentifier("player.mic")
+    }
+
+    /// What the mic hears, under the top bar.
+    private var heardPill: some View {
+        HStack(spacing: 8) {
+            if listener.listening { ListeningBars() }
+            Text(listener.problem ?? (listener.text.isEmpty ? "Say \"done\", \"80 kg\", \"skip rest\" or ask…" : listener.text))
+                .font(.subheadline.weight(.semibold)).lineLimit(2)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .background(Capsule().fill(Color.black.opacity(0.85)))
+        .overlay(Capsule().stroke(Theme.lime, lineWidth: 1.5))
+        .padding(.horizontal, 16)
+        .onTapGesture { listener.problem = nil }
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
+    private func listenForCommand() {
+        coach.stop()
+        listener.start { said in runVoice(said) }
+    }
+
+    /// Runs what the member said: set done (with effort), weight, reps, rest, next / previous; anything else is a question.
+    private func runVoice(_ said: String) {
+        guard ready, !finished, steps.indices.contains(index), let command = VoiceCommand.parse(said) else { return }
+        let step = steps[index]
+        let done = setsDone[step.item.uid] ?? 0
+        let onCard = step.loggable && log.item?.uid == step.item.uid && !log.rows.isEmpty
+        let row = min(done, max(0, log.rows.count - 1))
+        let efforts: [WCommand] = [.effort0, .effort1, .effort2, .effort3, .effort4]
+        switch command {
+        case let .done(rir):
+            handle(rir.map { efforts[min(4, max(0, $0))] } ?? .main)
+        case let .kg(kg):
+            guard onCard else { return coach.reply("No weight on this one.") }
+            log.setKg(row, kg)
+            coach.reply("\(log.rows[row].kg) kilos.")
+        case let .kgBy(delta):
+            guard onCard else { return coach.reply("No weight on this one.") }
+            log.setKg(row, (SetLogState.parseKg(log.rows[row].kg) ?? 0) + delta)
+            coach.reply("\(log.rows[row].kg) kilos.")
+        case let .kgStep(sign):
+            guard onCard else { return coach.reply("No weight on this one.") }
+            log.stepKg(row, by: Double(sign))
+            coach.reply("\(log.rows[row].kg) kilos.")
+        case let .reps(n):
+            guard onCard else { return coach.reply("No reps to log on this one.") }
+            log.setReps(row, n)
+            coach.reply("\(log.rows[row].reps) reps.")
+        case .skipRest: handle(.skipRest)
+        case .addRest:
+            handle(.addRest)
+            coach.reply("Fifteen more seconds.")
+        case .next: handle(.next)
+        case .previous: handle(.previous)
+        case let .ask(q):
+            let detail = onCard ? "set \(row + 1) of \(step.sets), \(log.rows[row].kg) kg × \(log.rows[row].reps)" : "set \(done + 1) of \(step.sets)"
+            ProStore.shared.run(.generateWorkout, $gate) {
+                asking = AskCoachRequest(focus: CoachFocus(screen: "player", title: step.exercise.name, detail: "during the workout, " + detail),
+                                         question: q, spoken: true)
+            }
+        }
     }
 
     /// The input that fits the item: kg × reps steppers for loaded strength, the countdown for timed work,

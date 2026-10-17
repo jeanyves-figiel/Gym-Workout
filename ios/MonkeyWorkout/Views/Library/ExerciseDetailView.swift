@@ -23,6 +23,15 @@ struct ExerciseDetailView: View {
         return CustomExercise.isCustom(exerciseId) ? CustomExercises.shared.record(exerciseId) : nil
     }
 
+    /// What the floating coach knows about this page (#412).
+    private var coachFocus: CoachFocus {
+        let muscles = (e.primary + e.secondary).map(\.name).joined(separator: ", ")
+        let gear = e.equipment.map(\.label).joined(separator: ", ")
+        return CoachFocus(screen: "exercise", title: e.name,
+                          detail: "muscles: \(muscles)" + (gear.isEmpty ? "" : "; equipment: \(gear)"),
+                          starters: ["Form cues?", "Easier alternative?", "How heavy should I go?"])
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
@@ -35,6 +44,8 @@ struct ExerciseDetailView: View {
                         Label(machine, systemImage: "gearshape.2.fill").font(.subheadline.weight(.semibold))
                     }
                     Text(e.category.blurb).font(.subheadline).foregroundStyle(Theme.muted)
+                    // Ask Coach about this exercise (#412 C).
+                    CoachSpark(question: "Is this right for me?", focus: coachFocus)
                     if let base = e.baseId.flatMap(Exercise.find) {
                         NavigationLink { ExerciseDetailView(exerciseId: base.id) } label: {
                             Label("Variation of \(base.name)", systemImage: "square.stack.3d.down.right.fill")
@@ -84,6 +95,7 @@ struct ExerciseDetailView: View {
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
+        .coachFocus(coachFocus)
         .navigationTitle("Exercise")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $swapping, onDismiss: {
