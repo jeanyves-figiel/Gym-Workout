@@ -470,7 +470,7 @@ struct CoachChatView: View {
     /// Reads the answer aloud (#412): after a spoken question, or always / never per Settings.
     private func speak(_ text: String) {
         let mode = AskCoachPref.speak
-        guard mode == .always || (mode == .whenTalking && spoken), !text.isEmpty, !Demo.enabled else { return }
+        guard mode == .always || (mode == .whenTalking && spoken), !text.isEmpty, !model.demo else { return }
         voice.speak(text, style: CoachPref.style)
     }
 
