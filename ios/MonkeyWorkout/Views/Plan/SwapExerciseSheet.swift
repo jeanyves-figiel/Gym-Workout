@@ -8,6 +8,8 @@ struct SwapExerciseSheet: View {
     let uid: String
     /// Called after a swap or a kept swap removed, before the sheet closes.
     var onDone: (() -> Void)? = nil
+    /// "Taken?" (#406): this zone is busy, so only exercises done elsewhere (or anywhere) are offered, quiet zones first.
+    var busyZone: GymLayout.Zone? = nil
     /// Picks for a workout's own exercise list (#295) instead of swapping in the plan: no keep, no gym change.
     var onPick: ((String) -> Void)? = nil
     @Environment(AppModel.self) private var model
@@ -31,14 +33,26 @@ struct SwapExerciseSheet: View {
     /// Same exercise, another variation (#174): offered first, then the best matches.
     private var variations: [Exercise] {
         guard let profile = model.profile else { return [] }
-        return exercise.variationOptions(for: profile)
+        return exercise.variationOptions(for: profile).filter(freeZone)
     }
 
     private var options: [Exercise] {
         guard let profile = model.profile else { return [] }
-        let list = Array(exercise.swapOptions(for: profile, excluding: Set(variations.map(\.id))).prefix(12))
+        let all = exercise.swapOptions(for: profile, excluding: Set(variations.map(\.id)))
+        let list = Array((busyZone == nil ? all : all.filter(freeZone)).prefix(12))
+        if busyZone != nil {
+            // Quiet zones first: ones not usually busy around now.
+            let quiet = { (e: Exercise) in model.gymZone(e.id).map { !model.zoneBusy($0) } ?? true }
+            return list.filter(quiet) + list.filter { !quiet($0) }
+        }
         // Gym zones (#274): moves done near the rest of its superset / circuit first.
         return list.filter { nearHere($0) != false } + list.filter { nearHere($0) == false }
+    }
+
+    /// Not in the busy zone ("Taken?", #406); always true otherwise.
+    private func freeZone(_ e: Exercise) -> Bool {
+        guard let busyZone else { return true }
+        return model.gymZone(e.id)?.id != busyZone.id
     }
 
     /// The rest of its superset / circuit.
@@ -121,7 +135,7 @@ struct SwapExerciseSheet: View {
             }
             .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle("Swap exercise")
+            .navigationTitle(busyZone == nil ? "Swap exercise" : "Free zone swap")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 CloseToolbarItem { dismiss() }
@@ -147,7 +161,7 @@ struct SwapExerciseSheet: View {
         HStack(spacing: 14) {
             ExerciseThumbnail(exercise: exercise, size: 64)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Replacing").font(Theme.label(12)).opacity(0.8)
+                Text(busyZone.map { "\($0.name) taken · same muscles, free zone" } ?? "Replacing").font(Theme.label(12)).opacity(0.8)
                 Text(exercise.name).font(Theme.display(24)).lineLimit(2).minimumScaleFactor(0.8)
                 Text(exercise.primary.map(\.name).joined(separator: " · ")).font(.caption.weight(.semibold)).opacity(0.85)
             }

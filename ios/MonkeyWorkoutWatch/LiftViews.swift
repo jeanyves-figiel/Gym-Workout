@@ -11,13 +11,16 @@ struct LiftPanel: View {
     let lift: LiftTracker
     let reps: Int
     let tint: UInt32
+    /// Racked and waiting for the member's tap (Tap ✓ logging, #410).
+    var waiting = false
 
     var body: some View {
         let stop = lift.lossReached
         HStack(alignment: .center, spacing: 6) {
             VStack(alignment: .leading, spacing: 0) {
                 Text("\(reps)").font(W.display(40)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
-                Text(stop ? "RACK IT" : lift.machine ? "REPS · MACHINE" : "REPS · AUTO").font(W.label(8)).tracking(0.5).lineLimit(1)
+                Text(waiting ? "TAP ✓ TO LOG" : stop ? "RACK IT" : lift.machine ? "REPS · MACHINE" : "REPS · AUTO")
+                    .font(W.label(8)).tracking(0.5).lineLimit(1)
             }
             Spacer(minLength: 0)
             VStack(alignment: .trailing, spacing: 2) {
@@ -34,7 +37,7 @@ struct LiftPanel: View {
         }
         .padding(.horizontal, 8).padding(.vertical, 5)
         .overlay(alignment: .bottomLeading) {
-            RepDots(velocities: lift.reps.map(\.meanVelocity)).padding(.leading, 8).padding(.bottom, -5)
+            RepBars(ranges: lift.reps.map(\.range)).padding(.leading, 8).padding(.bottom, -4)
         }
         .padding(.bottom, 6)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -58,19 +61,22 @@ struct ZoneBar: View {
     }
 }
 
-/// One dot per rep: lime while fast, yellow from 10 % slower, orange from 20 %.
-struct RepDots: View {
-    let velocities: [Double]
+/// One bar per rep, its height the rep's range (#410): a short yellow bar is probably not a full rep
+/// (turn the Crown to fix the count; the Watch learns from it).
+struct RepBars: View {
+    let ranges: [Double]
 
     var body: some View {
-        let best = velocities.max() ?? 1
-        HStack(spacing: 2) {
-            ForEach(Array(velocities.suffix(12).enumerated()), id: \.offset) { _, v in
-                let loss = best > 0 ? 1 - v / best : 0
-                Circle().fill(loss >= 0.2 ? W.color(0xFF7A3D) : loss >= 0.1 ? W.color(0xFFE14D) : W.lime)
-                    .frame(width: 6, height: 6)
+        let sorted = ranges.sorted()
+        let median = sorted.isEmpty ? 1 : max(0.01, sorted[sorted.count / 2])
+        HStack(alignment: .bottom, spacing: 2) {
+            ForEach(Array(ranges.suffix(12).enumerated()), id: \.offset) { _, r in
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(r < 0.6 * median ? W.color(0xFFE14D) : .white)
+                    .frame(width: 4, height: max(2, min(10, 8 * r / median)))
             }
         }
+        .frame(height: 10, alignment: .bottom)
     }
 }
 
@@ -87,25 +93,32 @@ struct SensingChip: View {
     }
 }
 
-/// The bar is racked: the set logs itself when the ring runs out. Undo = the set goes on.
+/// The bar is racked: the set logs itself when the ring runs out ("8 reps · in 5 s"). Undo = the set goes on.
 struct AutoLogBanner: View {
     let title: String
     let end: Date
+    var total = WatchLiftLogging.countdown
     let onUndo: () -> Void
 
     var body: some View {
         HStack(spacing: 6) {
             TimelineView(.periodic(from: .now, by: 0.1)) { ctx in
                 let left = max(0, end.timeIntervalSince(ctx.date))
-                ZStack {
-                    Circle().stroke(W.ink.opacity(0.2), lineWidth: 3)
-                    Circle().trim(from: 0, to: left / 4).stroke(W.ink, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    Image(systemName: "checkmark").font(.system(size: 9, weight: .black))
+                HStack(spacing: 6) {
+                    ZStack {
+                        Circle().stroke(W.ink.opacity(0.2), lineWidth: 3)
+                        Circle().trim(from: 0, to: left / total).stroke(W.ink, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        Image(systemName: "checkmark").font(.system(size: 9, weight: .black))
+                    }
+                    .frame(width: 20, height: 20)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Logs in \(Int(left.rounded(.up))) s").font(W.label(12)).monospacedDigit()
+                        Text(title).font(W.label(9)).opacity(0.8)
+                    }
+                    .lineLimit(1).minimumScaleFactor(0.6)
                 }
-                .frame(width: 20, height: 20)
             }
-            Text(title).font(W.label(12)).lineLimit(1).minimumScaleFactor(0.6)
             Spacer(minLength: 0)
             Button(action: onUndo) {
                 Text("Undo").font(W.label(11)).foregroundStyle(.white)
@@ -170,6 +183,54 @@ struct TestRepView: View {
         .foregroundStyle(calibrated ? W.ink : .white)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background((calibrated ? W.gradient(0x00B46E, 0x9CFF3D) : W.gradient(0x7B2FF7, 0x00C6FF)).ignoresSafeArea())
+    }
+}
+
+/// After a Crown correction (#410): "Counted 5, you said 4 · stricter next time".
+func correctionLine(_ set: WLiftSet) -> String? {
+    guard let logged = set.logged, logged != set.reps else { return nil }
+    return "Counted \(set.reps), you said \(logged) · \(set.reps > logged ? "stricter" : "looser") next time"
+}
+
+/// Practice mode (#410): the iPhone's Try it screen counts here; the graph and the level are on the iPhone.
+struct PracticeView: View {
+    let level: Double
+    /// CI screenshots: reps shown without sensors.
+    var demo: [Double]? = nil
+    @Environment(WatchStore.self) private var store
+    @State private var lift = LiftTracker()
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Eyebrow(text: "Practice", color: .white.opacity(0.9))
+            Text("\(lift.count)").font(W.display(48)).monospacedDigit().contentTransition(.numericText())
+            RepBars(ranges: lift.reps.map(\.range))
+            Text((lift.lastVelocity.map { String(format: "%.2f m/s · ", $0) } ?? "") + "Watch the iPhone")
+                .font(.system(size: 11, weight: .semibold)).opacity(0.9).lineLimit(1).minimumScaleFactor(0.7)
+            Button("Done") { store.practice = nil }.font(W.label(12)).buttonStyle(.plain).padding(.top, 4)
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(W.gradient(0xFF3D6E, 0xFF8A00).ignoresSafeArea())
+        .animation(.spring(duration: 0.3), value: lift.count)
+        .onAppear {
+            #if DEBUG
+            if let demo {
+                lift.demo(demo)
+                return
+            }
+            #endif
+            if LiftTracker.available { lift.practice(level: level) }
+        }
+        .onChange(of: level) { _, l in lift.recount(level: l) }
+        .task {
+            // A few times a second: trace and reps to the iPhone.
+            while !Task.isCancelled {
+                if let state = lift.practiceState() { store.send(state) }
+                try? await Task.sleep(for: .milliseconds(300))
+            }
+        }
+        .onDisappear { lift.stop() }
     }
 }
 

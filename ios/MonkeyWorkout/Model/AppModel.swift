@@ -33,6 +33,9 @@ final class AppModel {
     var exploreJump: LibraryView.Mode?
     /// Workouts other members shared (#62), loaded on demand; not persisted.
     var sharedLibrary: [SharedWorkout] = []
+    /// Gym Map (#406): the plan other members at the home gym agree with, and its live crowd; loaded on demand.
+    var sharedGymMap: SharedGymMap<GymLayout>?
+    var gymCrowd: GymCrowd?
     /// Gym zones changed from the player (#352): the plan follows once the running workout is over; not persisted.
     @ObservationIgnored var replanAfterWorkout = false
     /// Apple Health readings for first-time load estimates (#115); set at launch.
@@ -208,6 +211,7 @@ final class AppModel {
         ProStore.shared.reset()
         store.wipe()
         LiftSets.shared.wipe()
+        LiftLearning.shared.wipe()
         state = LocalState()
         user = nil
         phase = .signedOut

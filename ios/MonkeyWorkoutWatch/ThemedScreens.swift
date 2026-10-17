@@ -416,6 +416,17 @@ struct MirrorView: View {
     private var resting: Bool { live.restEnd.map { $0 > .now } ?? false }
 
     private var liftMode: WatchLiftMode { store.snapshot.liftSensor ?? .default }
+    private var liftLogging: WatchLiftLogging { store.snapshot.liftLogging ?? .default }
+
+    /// Counting level for an exercise (#410); corrections made on the iPhone teach it through the snapshot.
+    private func strictness(_ exerciseId: String) -> Double {
+        Strictness.level(setting: (store.snapshot.liftCounting ?? .default).level, learned: store.snapshot.liftLearned?[exerciseId] ?? 0)
+    }
+
+    /// Racked, waiting for a tap on SET DONE here or on the iPhone (Tap ✓ logging).
+    private var waitingForTap: Bool {
+        liftLogging == .confirm && lift.mode == .tracking && lift.endedAt != nil && lift.count > 0
+    }
 
     /// The iPhone set to measure: loaded, being done, while the Watch runs the workout session (keeps it awake).
     private var liftKey: String? {
@@ -439,9 +450,9 @@ struct MirrorView: View {
             return
         }
         if let profile = LiftProfile.for(name: live.exercise, exerciseId: ex) {
-            lift.track(key: key, profile: profile, lossLimit: liftMode.lossLimit)
+            lift.track(key: key, profile: profile, lossLimit: liftMode.lossLimit, strictness: strictness(ex))
         } else if let spot = MachineSpot.for(name: live.exercise, exerciseId: ex) {
-            lift.trackMachine(key: key, exercise: ex, family: spot.family, lossLimit: liftMode.lossLimit)
+            lift.trackMachine(key: key, exercise: ex, family: spot.family, lossLimit: liftMode.lossLimit, strictness: strictness(ex))
         } else if lift.mode != .idle {
             lift.stop()
         }
@@ -452,7 +463,7 @@ struct MirrorView: View {
         guard let t = tracked, let ex = t.exerciseId, let i = t.setIndex else { return }
         let hint = lift.mode == .strap || lift.mode == .testRep ? MachineSpot.for(name: t.exercise, exerciseId: ex).map { "Strap the Watch on \($0.place)" } : nil
         store.send(WLiftLive(sessionId: t.sessionId ?? "", exerciseId: ex, setIndex: i, reps: lift.count, lastVelocity: lift.lastVelocity,
-                             velocityLoss: lift.velocityLoss, machine: lift.machine, ended: autoLogAt != nil, strapHint: hint))
+                             velocityLoss: lift.velocityLoss, machine: lift.machine, ended: autoLogAt != nil || waitingForTap, strapHint: hint))
     }
 
     var body: some View {
@@ -466,12 +477,12 @@ struct MirrorView: View {
                 case .game: game
                 }
                 if lift.mode == .tracking, lift.count > 0 {
-                    LiftPanel(lift: lift, reps: lift.count, tint: live.tint)
+                    LiftPanel(lift: lift, reps: lift.count, tint: live.tint, waiting: waitingForTap)
                 } else if lift.mode == .tracking {
                     SensingChip(machine: lift.machine)
                 }
                 if let autoLogAt {
-                    AutoLogBanner(title: "\(lift.count) reps logging", end: autoLogAt) {
+                    AutoLogBanner(title: "\(lift.count) reps", end: autoLogAt) {
                         self.autoLogAt = nil
                         lift.resume()
                         sendLift()
@@ -509,7 +520,11 @@ struct MirrorView: View {
         .onChange(of: lift.mode) { sendLift() }
         .onChange(of: lift.endedAt) { _, at in
             guard at != nil, autoLogAt == nil, lift.count > 0 else { return }
-            autoLogAt = Date().addingTimeInterval(4)
+            switch liftLogging {
+            case .auto: autoLogAt = Date().addingTimeInterval(WatchLiftLogging.countdown)
+            case .confirm: WKInterfaceDevice.current().play(.notification)
+            case .manual: break
+            }
             sendLift()
         }
         .task(id: autoLogAt) {
@@ -528,7 +543,7 @@ struct MirrorView: View {
         if let ex = live.exerciseId, let spot = MachineSpot.for(name: live.exercise, exerciseId: ex) {
             if lift.mode == .strap {
                 StrapPrompt(exercise: live.exercise, spot: spot) {
-                    lift.strapped(exercise: ex, family: spot.family, lossLimit: liftMode.lossLimit)
+                    lift.strapped(exercise: ex, family: spot.family, lossLimit: liftMode.lossLimit, strictness: strictness(ex))
                 } onSkip: {
                     byHand.insert(ex)
                 }

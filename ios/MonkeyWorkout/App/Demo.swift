@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|account-security|account-reauth|account-2step|account-recovery|account-passkeys|signin-2step|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-gym-add|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|equipment-zones|equipment-by-zone|floor-plan|session-zones|swap-zones|player-zones|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|whats-new-history|watch-home|game-{week|session|done|progress}-{coach|deck|rings}|game-quest-deck|game-ladder|game-levelup|game-levelup-legend|game-level-row|explore-programmes|programme|programme-running|train-programme|programme-test|progress-programmes|profile-programme|calendar-programme|programme-finished|programme-length|programme-grid|programme-grid-running|programme-mine|programme-builder|programme-builder-week|train-missed|missed-catchup|missed-log|calendar-missed|train-day-picked|train-rest-day|undo-bar|edit-exercises|session-edited|flow-warmup|flow-cooldown|quick-flow|taste|train-taste|coach-chat|coach-chat-empty|position|position-mistake|position-press]`
+/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|account-security|account-reauth|account-2step|account-recovery|account-passkeys|signin-2step|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-gym-add|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|equipment-zones|equipment-by-zone|floor-plan|session-zones|swap-zones|player-zones|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|whats-new-history|watch-lift|lift-practice|watch-home|game-{week|session|done|progress}-{coach|deck|rings}|game-quest-deck|game-ladder|game-levelup|game-levelup-legend|game-level-row|explore-programmes|programme|programme-running|train-programme|programme-test|progress-programmes|profile-programme|calendar-programme|programme-finished|programme-length|programme-grid|programme-grid-running|programme-mine|programme-builder|programme-builder-week|train-missed|missed-catchup|missed-log|calendar-missed|train-day-picked|train-rest-day|undo-bar|edit-exercises|session-edited|flow-warmup|flow-cooldown|quick-flow|taste|train-taste|coach-chat|coach-chat-empty|position|position-mistake|position-press]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     /// Studio coach voices (#395) for the `coach-settings` screen.
@@ -256,8 +256,16 @@ enum Demo {
                      GymLayout.Rect(x: 0, y: 0.45, w: 0.5, h: 0.2), GymLayout.Rect(x: 0, y: 0.75, w: 1, h: 0.25),
                      GymLayout.Rect(x: 0.55, y: 0.65, w: 0.45, h: 0.1)]
         for i in l.zones.indices { l.zones[i].rect = rects[i] }
+        l.door = GymLayout.Point(x: 1, y: 0.7) // Gym Map (#406)
         return l
     }()
+
+    /// Gym Map (#406): the plan 14 members at the home gym agree on, and a busy rack corner right now.
+    static let sharedGymMap = SharedGymMap(layout: layout, members: 14, agreement: 94)
+    static let gymCrowd = GymCrowd(
+        now: [.init(zone: "rack corner", reports: 3)],
+        forecast: [.init(zone: "rack corner", hours: (0..<24).map { [17, 18, 19].contains($0) ? 6 : $0 > 7 && $0 < 22 ? 1 : 0 })]
+    )
 
     static let knownGym = KnownGym(
         place: GymTally(members: 7, votes: [:], equipment: GymKind.bigClub.equipment.filter { $0 != .sled && $0 != .skiErg }.map(\.rawValue)),

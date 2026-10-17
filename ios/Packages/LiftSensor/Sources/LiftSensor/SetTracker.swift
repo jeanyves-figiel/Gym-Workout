@@ -17,6 +17,9 @@ public final class SetTracker {
 
     public let profile: LiftProfile
     public var config: SetAnalyzer.Config
+    /// Config at the normal counting level; `config` is this at the current strictness (#410).
+    private var baseConfig: SetAnalyzer.Config
+    public private(set) var strictness: Double
     /// Velocity loss (0…1) that triggers the stop cue; nil = no cue.
     public var lossLimit: Double?
     /// Quiet time after the last rep that ends the set.
@@ -35,12 +38,33 @@ public final class SetTracker {
     private var quietFrom: Int?
     private var sinceAnalysis = 0
 
-    public init(profile: LiftProfile, lossLimit: Double?, config: SetAnalyzer.Config = SetAnalyzer.Config()) {
+    /// `strictness`: counting level (#410), -2 relaxed … 0 normal … +2 strict; see `Strictness`.
+    public init(profile: LiftProfile, lossLimit: Double?, config: SetAnalyzer.Config = SetAnalyzer.Config(), strictness: Double = 0) {
         self.profile = profile
         self.lossLimit = lossLimit
         var c = config
         c.minRange = min(c.minRange, profile.minRange)
-        self.config = c
+        baseConfig = c
+        self.strictness = strictness
+        self.config = Strictness.apply(strictness, to: c)
+    }
+
+    /// Recounts the set at another counting level (practice mode, #410).
+    public func setStrictness(_ level: Double) -> Update {
+        strictness = level
+        config = Strictness.apply(level, to: baseConfig)
+        reps = compute(closed: false)
+        return update(lossReached: false, ended: false)
+    }
+
+    /// Smoothed acceleration along the measured axis (g) for the last `seconds`, one value every `step` samples,
+    /// and the sample index of the first value (to place reps on it).
+    public func trace(seconds: Double = 6, every step: Int = 5) -> (values: [Double], start: Int) {
+        let n = Int(seconds * config.sampleRate)
+        let series = axisSeries()
+        let start = max(0, series.count - n)
+        let smooth = SetAnalyzer.smooth(Array(series[start...]), half: 4)
+        return (stride(from: 0, to: smooth.count, by: max(1, step)).map { smooth[$0] }, start)
     }
 
     public var sampleCount: Int { samples.count }
@@ -89,7 +113,8 @@ public final class SetTracker {
     private func compute(closed: Bool) -> [LiftRep] {
         let phases = SetAnalyzer.phases(axisSeries(), rotation: samples.map(\.rotationRate), config: config, closed: closed)
         let sign = SetAnalyzer.concentricSign(phases, given: profile.direction == .axis && fixedAxis == nil ? nil : 1)
-        return SetAnalyzer.reps(phases, concentricSign: sign, sampleRate: config.sampleRate)
+        let all = SetAnalyzer.reps(phases, concentricSign: sign, sampleRate: config.sampleRate)
+        return SetAnalyzer.consistent(all, share: config.minRangeShare)
     }
 
     private func analyse() -> Update? {

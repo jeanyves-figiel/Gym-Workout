@@ -49,7 +49,9 @@ enum Demo {
         case "mirror":
             MirrorView(live: WLive(sessionTitle: "Upper Strength", exercise: "Bench Press", setLabel: "Set 2 of 4", detail: "80 kg × 8",
                                    restEnd: nil, next: "Pull-up · 3×8–10", tint: 0xFF2D55, effortPending: false, action: "SET 2 DONE"))
-        case "lift", "lift-stop", "lift-log": LiftDemo(stop: screen == "lift-stop", logging: screen == "lift-log")
+        case "lift", "lift-stop", "lift-log", "lift-confirm":
+            LiftDemo(stop: screen == "lift-stop", logging: screen == "lift-log", confirm: screen == "lift-confirm")
+        case "practice": PracticeView(level: 0, demo: [0.62, 0.6, 0.64])
         case "strap":
             StrapPrompt(exercise: "Leg Extension", spot: MachineSpot.for(name: "Leg Extension")!, onReady: {}, onSkip: {})
         case "testrep": TestRepView(calibrated: false, onSkip: {})
@@ -61,15 +63,18 @@ enum Demo {
     struct LiftDemo: View {
         let stop: Bool
         let logging: Bool
+        var confirm = false
         @State private var lift = LiftTracker()
 
         var body: some View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Bench Press").font(W.display(18))
                 Text("80 kg · set 2 of 4").font(W.label(10)).opacity(0.85)
-                LiftPanel(lift: lift, reps: stop ? 6 : 5, tint: 0x7B2FF7)
+                LiftPanel(lift: lift, reps: stop ? 6 : confirm ? 8 : 5, tint: 0x7B2FF7, waiting: confirm)
                 if logging {
-                    AutoLogBanner(title: "80 × 8 logging", end: Date().addingTimeInterval(3), onUndo: {})
+                    AutoLogBanner(title: "80 kg × 8", end: Date().addingTimeInterval(4.2), onUndo: {})
+                } else if confirm {
+                    LimeButton(title: "✓ LOG 8 REPS") {}
                 } else {
                     LimeButton(title: "SET 2 DONE") {}
                 }
@@ -79,7 +84,7 @@ enum Demo {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(LinearGradient(colors: [W.color(0x7B2FF7).opacity(0.85), .black], startPoint: .top, endPoint: .bottom).ignoresSafeArea())
             .onAppear {
-                lift.demo(stop ? [0.71, 0.69, 0.64, 0.62, 0.57, 0.55] : logging ? [0.7, 0.68, 0.66, 0.63, 0.6, 0.59, 0.58, 0.57] : [0.71, 0.69, 0.66, 0.64, 0.62],
+                lift.demo(stop ? [0.71, 0.69, 0.64, 0.62, 0.57, 0.55] : logging || confirm ? [0.7, 0.68, 0.66, 0.63, 0.6, 0.59, 0.58, 0.57] : [0.71, 0.69, 0.66, 0.64, 0.62],
                           stop: stop)
             }
         }

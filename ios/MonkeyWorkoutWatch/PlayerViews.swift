@@ -23,6 +23,8 @@ struct PlayerView: View {
     @State private var byHand: Set<String> = []
     /// Last measured set, shown during the rest.
     @State private var lastLift: WLiftSet?
+    /// Counting levels learned from corrections in this workout (#410), ahead of the phone's next snapshot.
+    @State private var learnedHere: [String: Double] = [:]
 
     var body: some View {
         Group {
@@ -72,7 +74,11 @@ struct PlayerView: View {
         }
         .onChange(of: lift.endedAt) { _, at in
             guard at != nil, autoLogAt == nil, lift.count > 0 else { return }
-            autoLogAt = Date().addingTimeInterval(4)
+            switch liftLogging {
+            case .auto: autoLogAt = Date().addingTimeInterval(WatchLiftLogging.countdown)
+            case .confirm: WKInterfaceDevice.current().play(.notification)
+            case .manual: break
+            }
         }
         .task(id: autoLogAt) {
             guard let at = autoLogAt else { return }
@@ -87,6 +93,21 @@ struct PlayerView: View {
     // MARK: Lift sensor (#383)
 
     private var liftMode: WatchLiftMode { store.snapshot.liftSensor ?? .default }
+    private var liftLogging: WatchLiftLogging { store.snapshot.liftLogging ?? .default }
+
+    /// Counting level for an exercise (#410): the member's setting plus what the exercise learned.
+    private func strictness(_ exerciseId: String) -> Double {
+        Strictness.level(setting: (store.snapshot.liftCounting ?? .default).level, learned: learned(exerciseId))
+    }
+
+    private func learned(_ exerciseId: String) -> Double {
+        learnedHere[exerciseId] ?? store.snapshot.liftLearned?[exerciseId] ?? 0
+    }
+
+    /// Racked, waiting for the member's tap (Tap ✓ logging).
+    private var waitingForTap: Bool {
+        liftLogging == .confirm && lift.mode == .tracking && lift.endedAt != nil && lift.count > 0
+    }
 
     /// The set the sensor should measure now: a loaded, untimed set being done.
     private var liftKey: String? {
@@ -102,9 +123,10 @@ struct PlayerView: View {
             return
         }
         if let profile = LiftProfile.for(name: step.name, exerciseId: step.exerciseId) {
-            lift.track(key: key, profile: profile, lossLimit: liftMode.lossLimit)
+            lift.track(key: key, profile: profile, lossLimit: liftMode.lossLimit, strictness: strictness(step.exerciseId))
         } else if let spot = MachineSpot.for(name: step.name, exerciseId: step.exerciseId) {
-            lift.trackMachine(key: key, exercise: step.exerciseId, family: spot.family, lossLimit: liftMode.lossLimit)
+            lift.trackMachine(key: key, exercise: step.exerciseId, family: spot.family, lossLimit: liftMode.lossLimit,
+                              strictness: strictness(step.exerciseId))
         } else if lift.mode != .idle {
             lift.stop()
         }
@@ -117,8 +139,14 @@ struct PlayerView: View {
             return nil
         }
         let machine = lift.machine
-        return makeLiftSet(lift.stop(), sessionId: player.session.id, exerciseId: step.exerciseId, setIndex: player.done,
-                           kg: row.kg, machine: machine)
+        var set = makeLiftSet(lift.stop(), sessionId: player.session.id, exerciseId: step.exerciseId, setIndex: player.done,
+                              kg: row.kg, machine: machine)
+        // Crown correction (#410): the phone learns from it; this workout already counts with it.
+        if let counted = set?.reps, counted != row.reps {
+            set?.logged = row.reps
+            learnedHere[step.exerciseId] = Strictness.learn(learned(step.exerciseId), counted: counted, logged: row.reps)
+        }
+        return set
     }
 
     /// Completes the current set (SET DONE, automatic log), with its measured reps.
@@ -141,7 +169,10 @@ struct PlayerView: View {
 
     private var restNote: String? {
         var lines: [String] = []
-        if let lastLift { lines.append(liftLine(lastLift)) }
+        if let lastLift {
+            lines.append(liftLine(lastLift))
+            if let fix = correctionLine(lastLift) { lines.append(fix) }
+        }
         // Machine mode just ended and the next lift is measured on the wrist.
         if lastLift?.machine == true, let next = player.done >= (player.step?.sets ?? 0) ? player.nextStep : player.step,
            LiftProfile.for(name: next.name, exerciseId: next.exerciseId) != nil {
@@ -154,7 +185,8 @@ struct PlayerView: View {
         if let step = player.step, player.phase == .work {
             if lift.mode == .strap, let spot = MachineSpot.for(name: step.name, exerciseId: step.exerciseId) {
                 StrapPrompt(exercise: step.name, spot: spot) {
-                    lift.strapped(exercise: step.exerciseId, family: spot.family, lossLimit: liftMode.lossLimit)
+                    lift.strapped(exercise: step.exerciseId, family: spot.family, lossLimit: liftMode.lossLimit,
+                                  strictness: strictness(step.exerciseId))
                 } onSkip: {
                     byHand.insert(step.uid)
                 }
@@ -191,7 +223,7 @@ struct PlayerView: View {
                 Text(step.name).font(W.display(18)).lineLimit(1).minimumScaleFactor(0.6)
                 if step.loggable, let row = player.currentRow, player.done < step.sets, lift.mode == .tracking, lift.count > 0 {
                     Text("\(WatchPlayer.kg(row.kg)) kg · set \(player.done + 1) of \(step.sets)").font(W.label(10)).opacity(0.85)
-                    LiftPanel(lift: lift, reps: row.reps, tint: block?.tint ?? 0x7B2FF7)
+                    LiftPanel(lift: lift, reps: row.reps, tint: block?.tint ?? 0x7B2FF7, waiting: waitingForTap)
                         .focusable()
                         .digitalCrownRotation($crown, from: 0, through: 50, by: 1, sensitivity: .medium, isContinuous: false, isHapticFeedbackEnabled: true)
                         .onChange(of: crown) { _, v in player.setReps(Int(v)) }
@@ -230,7 +262,9 @@ struct PlayerView: View {
                     if let i = step.intensity { Text(i).font(.system(size: 10, weight: .semibold)).opacity(0.8) }
                 }
                 if let autoLogAt, let row = player.currentRow {
-                    AutoLogBanner(title: "\(WatchPlayer.kg(row.kg)) × \(row.reps) logging", end: autoLogAt, onUndo: undoAutoLog)
+                    AutoLogBanner(title: "\(WatchPlayer.kg(row.kg)) kg × \(row.reps)", end: autoLogAt, onUndo: undoAutoLog)
+                } else if waitingForTap, let row = player.currentRow {
+                    LimeButton(title: "✓ LOG \(row.reps) REPS") { main() }
                 } else {
                     LimeButton(title: player.mainLabel) { main() }
                 }

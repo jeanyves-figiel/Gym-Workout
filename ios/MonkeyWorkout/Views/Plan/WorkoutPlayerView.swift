@@ -65,6 +65,10 @@ struct WorkoutPlayerView: View {
     @State private var zoneDraft: (layout: GymLayout?, equipment: [Equipment]) = (nil, [])
     /// Workout map (#361): what's done and what's left, read-only.
     @State private var mapOpen = false
+    /// Zone found busy ("Taken?", #406): the swap sheet offers exercises elsewhere.
+    @State private var takenZone: GymLayout.Zone?
+    /// "Free weights cleared" beat when the member leaves a zone for good (#406).
+    @State private var zoneCleared: ZoneHop?
     /// "Next in 5" after an exercise's last set (#357); nil = not counting.
     @State private var autoNext: AutoNext?
     @AppStorage(AutoNextPref.key) private var autoNextSec = AutoNextPref.fallback
@@ -150,7 +154,8 @@ struct WorkoutPlayerView: View {
             if let step = steps.first(where: { $0.item.uid == item.uid }) {
                 let done = setsDone[item.uid] ?? 0
                 ChangeExerciseSheet(exercise: step.exercise, setsDone: done, canSwap: canSwapHere(step),
-                                    canRemove: canRemoveHere(step), canNotHere: canNotHere(step)) { changeChoice = $0 }
+                                    canRemove: canRemoveHere(step), canNotHere: canNotHere(step),
+                                    takenZone: homeZone(step.exercise.id)?.name) { changeChoice = $0 }
             }
         }
         .sheet(item: $setupFor) { MachineNoteSheet(exerciseId: $0.exerciseId, gym: $0.gym) }
@@ -167,8 +172,8 @@ struct WorkoutPlayerView: View {
                 }
             }
         }
-        .sheet(item: $swapPartner) { partner in
-            SwapExerciseSheet(exerciseId: partner.exerciseId, uid: partner.uid, onPick: { id in
+        .sheet(item: $swapPartner, onDismiss: { takenZone = nil }) { partner in
+            SwapExerciseSheet(exerciseId: partner.exerciseId, uid: partner.uid, busyZone: takenZone, onPick: { id in
                 let here = steps.indices.contains(index) ? steps[index].item.uid : partner.uid
                 model.swapInSession(sessionId, uid: partner.uid, to: id)
                 fitted?.swap(partner.uid, to: id)
@@ -259,6 +264,7 @@ struct WorkoutPlayerView: View {
         }
         .onChange(of: setsDone) { watchLift = nil }
         .onChange(of: index) { watchLift = nil }
+        .onChange(of: index) { old, new in zoneHop(from: old, to: new) }
     }
 
     // MARK: Player
@@ -321,6 +327,8 @@ struct WorkoutPlayerView: View {
                     FinishEarlyBanner(text: splitUndo.text, symbol: splitUndo.symbol, onUndo: undoSplit)
                 } else if let fitBanner {
                     FinishEarlyBanner(text: fitBanner, onUndo: undoFinishEarly)
+                } else if let zoneCleared {
+                    ZoneClearedBanner(zone: zoneCleared.cleared, next: zoneCleared.next)
                 }
 
                 let setupGym = model.gymRef(forItem: step.item.uid)
@@ -468,6 +476,8 @@ struct WorkoutPlayerView: View {
                             FinishEarlyBanner(text: splitUndo.text, symbol: splitUndo.symbol, onUndo: undoSplit)
                         } else if let fitBanner {
                             FinishEarlyBanner(text: fitBanner, onUndo: undoFinishEarly)
+                        } else if let zoneCleared {
+                            ZoneClearedBanner(zone: zoneCleared.cleared, next: zoneCleared.next)
                         }
                         if let p = pause {
                             cockpitRest(p, step: step, sets: sets, done: done, color: cat.colors[0])
@@ -555,7 +565,43 @@ struct WorkoutPlayerView: View {
                               then: SmartUpNextBar.after(items, current: step.item.uid, next: next?.exercise),
                               left: items.filter { $0.state == .left }.count,
                               doneBy: OverviewItem.doneBy(session.blocks, setsDone: setsDone, current: step.item.uid),
-                              fallback: step.category.colors) { mapOpen = true }
+                              fallback: step.category.colors,
+                              walk: walk(from: step.exercise, to: next?.exercise)) { mapOpen = true }
+    }
+
+    /// Gym Map (#406): the walk to the next exercise's zone, drawn in Up next when the member has a floor plan.
+    private func walk(from here: Exercise, to next: Exercise?) -> GymWalk? {
+        guard let next, let layout = model.profile?.gymLayout, layout.hasPlan,
+              let to = homeZone(next.id), to.rect != nil else { return nil }
+        let from = homeZone(here.id)
+        guard from?.id != to.id else { return nil }
+        return GymWalk(layout: layout, from: from?.id, to: to.id)
+    }
+
+    /// Zone in the home gym (#274); nil on a trip, where the home gym's zones don't apply.
+    private func homeZone(_ exerciseId: String) -> GymLayout.Zone? {
+        guard steps.indices.contains(index), model.trip(forItem: steps[index].item.uid) == nil else { return nil }
+        return model.gymZone(exerciseId)
+    }
+
+    struct ZoneHop: Equatable {
+        let id = UUID()
+        let cleared: GymLayout.Zone
+        let next: GymLayout.Zone?
+    }
+
+    /// "Zone cleared" (#406): moving on to another zone with nothing left in the one just finished.
+    private func zoneHop(from old: Int, to new: Int) {
+        guard new > old, steps.indices.contains(old), steps.indices.contains(new),
+              let was = homeZone(steps[old].exercise.id), let now = homeZone(steps[new].exercise.id), now.id != was.id,
+              !steps[new...].contains(where: { homeZone($0.exercise.id)?.id == was.id }) else { return }
+        let hop = ZoneHop(cleared: was, next: now)
+        withAnimation(.spring(duration: 0.4)) { zoneCleared = hop }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        Task {
+            try? await Task.sleep(for: .seconds(3))
+            if zoneCleared == hop { withAnimation(.spring(duration: 0.4)) { zoneCleared = nil } }
+        }
     }
 
     struct UpNext {
@@ -843,6 +889,11 @@ struct WorkoutPlayerView: View {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         let onScreen = step.loggable && log.item?.uid == step.item.uid
         if onScreen, let tapped, log.rows.indices.contains(done) { log.rows[done].rir = String(tapped.rir) }
+        // Watch counted this set and the member changed the reps (#410): the exercise learns to count stricter or looser.
+        if onScreen, let w = watchLift, w.exerciseId == step.item.exerciseId, w.setIndex == done, w.reps > 0,
+           log.rows.indices.contains(done), let reps = Int(log.rows[done].reps) {
+            LiftLearning.shared.correct(w.exerciseId, counted: w.reps, logged: reps)
+        }
         let logged = onScreen && log.log(done, model: model)
         setsDone[step.item.uid] = now
         if logged { coachSet(step, index: done, of: sets) }
@@ -1078,6 +1129,12 @@ struct WorkoutPlayerView: View {
         case .swap: swapPartner = step.item
         case .remove: remove(step)
         case .notHere: notHereFor = step.item
+        case .taken:
+            // Gym Map (#406): remember the zone was busy now, then swap to the same muscles elsewhere.
+            guard let z = homeZone(step.exercise.id) else { return }
+            model.logBusy(z)
+            takenZone = z
+            swapPartner = step.item
         }
     }
 

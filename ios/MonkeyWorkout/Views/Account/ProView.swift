@@ -73,7 +73,7 @@ struct ProPlan: Identifiable {
 
 /// A Pro feature someone tapped (#126): heads the paywall sheet ("New variation is Pro").
 enum ProGate: String, Identifiable {
-    case variation, keepSwap, workoutStyle, buildWorkout, generateWorkout, shareWorkout, customExercise, prAttempt, progress, watch, climbing, monkeyGrade
+    case variation, keepSwap, workoutStyle, buildWorkout, generateWorkout, shareWorkout, customExercise, prAttempt, progress, watch, climbing, monkeyGrade, gymScan
 
     var id: String { rawValue }
 
@@ -91,6 +91,7 @@ enum ProGate: String, Identifiable {
         case .watch: "Apple Watch is Pro"
         case .climbing: "Climbing days are Pro"
         case .monkeyGrade: "MonkeyGrade is Pro"
+        case .gymScan: "Gym scan is Pro"
         }
     }
 
@@ -108,6 +109,7 @@ enum ProGate: String, Identifiable {
         case .watch: "Start and log workouts from your wrist."
         case .climbing: "Plan gym days around climbing, climbing add-on."
         case .monkeyGrade: "Import your climbing sessions from MonkeyGrade."
+        case .gymScan: "Snap each area of your gym, the equipment sorts itself."
         }
     }
 
@@ -123,6 +125,7 @@ enum ProGate: String, Identifiable {
         case .progress: "chart.xyaxis.line"
         case .watch: "applewatch"
         case .climbing, .monkeyGrade: "figure.climbing"
+        case .gymScan: "camera.viewfinder"
         }
     }
 }

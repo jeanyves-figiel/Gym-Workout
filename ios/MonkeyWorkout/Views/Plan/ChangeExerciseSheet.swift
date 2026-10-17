@@ -4,7 +4,7 @@ import WorkoutEngine
 /// Change (#391, design C): the player's one place to swap, remove or report missing equipment for the exercise on
 /// screen. Options that don't apply stay visible but off, with the reason, so the sheet always looks the same.
 struct ChangeExerciseSheet: View {
-    enum Choice { case swap, remove, notHere }
+    enum Choice { case swap, remove, notHere, taken }
 
     let exercise: Exercise
     /// Sets already logged on it: swap and remove are then off (Skip moves on instead).
@@ -12,6 +12,8 @@ struct ChangeExerciseSheet: View {
     let canSwap: Bool
     let canRemove: Bool
     let canNotHere: Bool
+    /// Zone it's done in (#406): offers "Taken?", a swap to the same muscles in a free zone.
+    var takenZone: String? = nil
     let onPick: (Choice) -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -33,6 +35,10 @@ struct ChangeExerciseSheet: View {
             }
             option("Swap for similar", symbol: "arrow.triangle.2.circlepath", fill: Theme.lime, ink: Theme.ink,
                    enabled: canSwap, id: "change.swap") { pick(.swap) }
+            if let takenZone {
+                option("Taken? Free zone instead of \(takenZone)", symbol: "person.3.fill",
+                       fill: Color(red: 1, green: 0.54, blue: 0.24), ink: .white, enabled: canSwap, id: "change.taken") { pick(.taken) }
+            }
             option("Remove from workout", symbol: "trash", fill: Color(red: 1, green: 0.24, blue: 0.35), ink: .white,
                    enabled: canRemove, id: "change.remove") { pick(.remove) }
             if canNotHere {
@@ -49,7 +55,7 @@ struct ChangeExerciseSheet: View {
         .background(Theme.bg.ignoresSafeArea())
         .foregroundStyle(.white)
         .preferredColorScheme(.dark)
-        .presentationDetents([.height(setsDone > 0 ? 330 : 300)])
+        .presentationDetents([.height((setsDone > 0 ? 330 : 300) + (takenZone == nil ? 0 : 62))])
     }
 
     private func pick(_ c: Choice) {
