@@ -2,13 +2,14 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import type { Synthesize } from '../coach/polly.ts';
-import { STUDIO_VOICES, ssml, voiceLines } from '../coach/voiceLines.ts';
+import { CALL_NAME, type CoachStyle, STUDIO_VOICES, STYLES, type VoiceLine, callLine, ssml, voiceLines } from '../coach/voiceLines.ts';
 import { ApiError } from '../errors.ts';
 
 /**
  * Studio coach voices (#395). GET /v1/me/coach-voices lists the voices and every line (id, text, hash);
  * GET /v1/me/coach-voices/:voice/:line returns the MP3. Each recording is made once with Polly and kept on the volume
  * (`<cacheDir>/<voice>/<hash>.mp3`), so a voice pack costs one Polly run per voice for every member together.
+ * GET /v1/me/coach-voices/:voice/call/:style?name=Alex returns the short call said before key lines (#415).
  */
 export const coachVoiceRoutes = (
   r: FastifyInstance,
@@ -44,8 +45,8 @@ export const coachVoiceRoutes = (
     }
   };
 
-  const record = async (voice: string, lineId: string): Promise<Buffer> => {
-    const line = byId.get(lineId)!;
+  const record = async (voice: string, lineId: string | VoiceLine): Promise<Buffer> => {
+    const line = typeof lineId === 'string' ? byId.get(lineId)! : lineId;
     const key = `${voice}/${line.hash}`;
     const hit = memory.get(key);
     if (hit) return hit;
@@ -96,6 +97,22 @@ export const coachVoiceRoutes = (
       return reply.header('content-type', 'audio/mpeg').header('cache-control', 'private, max-age=31536000, immutable').send(mp3);
     } catch (e) {
       req.log.error({ err: e, voice, line: id }, 'coach voice failed');
+      throw new ApiError(502, 'voice_failed', 'Could not record this line right now.');
+    }
+  });
+
+  r.get('/me/coach-voices/:voice/call/:style', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req, reply) => {
+    const { voice, style } = req.params as { voice: string; style: string };
+    const s = style.replace(/\.mp3$/, '') as CoachStyle;
+    const name = String((req.query as { name?: unknown }).name ?? '').trim();
+    if (!voices.has(voice) || !STYLES.includes(s)) throw new ApiError(404, 'not_found', 'No such voice line.');
+    if (!CALL_NAME.test(name)) throw new ApiError(400, 'bad_name', 'Letters only, up to 24 characters.');
+    if (!synth) throw new ApiError(503, 'voices_unavailable', 'Studio voices are not available right now.');
+    try {
+      const mp3 = await record(voice, callLine(name, s));
+      return reply.header('content-type', 'audio/mpeg').header('cache-control', 'private, max-age=31536000, immutable').send(mp3);
+    } catch (e) {
+      req.log.error({ err: e, voice }, 'coach call failed');
       throw new ApiError(502, 'voice_failed', 'Could not record this line right now.');
     }
   });

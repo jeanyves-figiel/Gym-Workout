@@ -134,6 +134,25 @@ describe('game level (#242)', () => {
   });
 });
 
+describe('pronouns (#415)', () => {
+  it('are shown next to the nickname only once set, and null hides them', async () => {
+    const solo = await signUp('pro-solo@example.com');
+    expect((await req('PUT', '/v1/community/me/pronouns', solo.t, { pronouns: 'she/her' })).statusCode).toBe(404);
+    const a = await join('pro-a@example.com', 'pro_a', { defaultVisibility: 'members' });
+    const b = await join('pro-b@example.com', 'pro_b');
+    expect((await req('GET', '/v1/community/me', a.t)).json().profile.pronouns).toBeNull();
+    expect((await req('PUT', '/v1/community/me/pronouns', a.t, { pronouns: 'x'.repeat(25) })).statusCode).toBe(400);
+    expect((await req('PUT', '/v1/community/me/pronouns', a.t, { pronouns: ' she/her ' })).json()).toEqual({ pronouns: 'she/her' });
+    expect((await share(a.t, { visibility: 'members' })).statusCode).toBe(200);
+    const member = (await req('GET', `/v1/community/members/${a.id}`, b.t)).json();
+    expect(member.member.pronouns).toBe('she/her');
+    expect(member.posts[0].author.pronouns).toBe('she/her');
+    expect(JSON.stringify((await req('GET', '/v1/community/members?q=pro_a', b.t)).json())).toContain('"pronouns":"she/her"');
+    expect((await req('PUT', '/v1/community/me/pronouns', a.t, { pronouns: null })).json()).toEqual({ pronouns: null });
+    expect((await req('GET', `/v1/community/members/${a.id}`, b.t)).json().member.pronouns).toBeNull();
+  });
+});
+
 describe('community feed', () => {
   it('honours visibility, cheers, blocks and deletion', async () => {
     const a = await join('a@example.com', 'bea', { defaultVisibility: 'members' });

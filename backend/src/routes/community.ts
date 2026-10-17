@@ -31,6 +31,7 @@ interface ProfileRow {
   auto_share: number;
   show_gym: number;
   level: number | null;
+  pronouns: string | null;
   guidelines_accepted_at: string;
   created_at: string;
 }
@@ -57,6 +58,7 @@ interface PostRow {
   nickname: string | null;
   avatar_id: string | null;
   level: number | null;
+  pronouns: string | null;
 }
 
 interface Gym {
@@ -209,6 +211,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     autoShare: !!p.auto_share,
     showGym: !!p.show_gym,
     level: p.level ?? null,
+    pronouns: p.pronouns ?? null,
     gym: gymOf(p.user_id)?.name ?? null,
     guidelinesAcceptedAt: p.guidelines_accepted_at,
     ...stats(p.user_id),
@@ -220,6 +223,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     bio: p.bio,
     avatarUrl: avatarUrl(p.avatar_id),
     level: p.level ?? null,
+    pronouns: p.pronouns ?? null,
     gym: sharedGym(p)?.name ?? null,
     createdAt: p.created_at,
     ...stats(p.user_id),
@@ -234,6 +238,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       bio: p.bio,
       avatarUrl: avatarUrl(p.avatar_id),
       level: p.level ?? null,
+    pronouns: p.pronouns ?? null,
       gym: sharedGym(p)?.name ?? null,
       sharedPosts: s.sharedPosts,
       followers: s.followers,
@@ -241,7 +246,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     };
   };
 
-  const SELECT_POSTS = `SELECT p.*, cp.nickname, cp.avatar_id, cp.level FROM community_posts p LEFT JOIN community_profiles cp ON cp.user_id = p.user_id`;
+  const SELECT_POSTS = `SELECT p.*, cp.nickname, cp.avatar_id, cp.level, cp.pronouns FROM community_posts p LEFT JOIN community_profiles cp ON cp.user_id = p.user_id`;
   /** Posts `viewer` may see that are not their own. */
   const VISIBLE_TO_OTHERS = `cp.user_id IS NOT NULL AND ${visibleToOthersSql('p.user_id', 'p.visibility', 'p.hidden_at')}`;
 
@@ -256,7 +261,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       const rs = counts.filter((c) => c.post_id === p.id);
       return {
         id: p.id,
-        author: { userId: p.user_id, nickname: p.nickname ?? 'member', avatarUrl: avatarUrl(p.avatar_id), level: p.level ?? null },
+        author: { userId: p.user_id, nickname: p.nickname ?? 'member', avatarUrl: avatarUrl(p.avatar_id), level: p.level ?? null, pronouns: p.pronouns ?? null },
         mine: p.user_id === viewer,
         kind: p.kind,
         refId: p.ref_id,
@@ -396,6 +401,17 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     if (!p) throw new ApiError(404, 'not_member', 'Join the community first.');
     if (p.level !== b.level) db.prepare('UPDATE community_profiles SET level = ? WHERE user_id = ?').run(b.level, req.userId!);
     return { level: b.level };
+  });
+
+  /** Pronouns next to the nickname (#415); null hides them. The app sends them only when the member turns it on. */
+  r.put('/community/me/pronouns', async (req) => {
+    const b = z.object({ pronouns: z.string().trim().max(24).nullable() }).parse(req.body);
+    const p = profileRow(req.userId!);
+    if (!p) throw new ApiError(404, 'not_member', 'Join the community first.');
+    const pronouns = b.pronouns || null;
+    if (pronouns) checkClean(pronouns, null);
+    db.prepare('UPDATE community_profiles SET pronouns = ? WHERE user_id = ?').run(pronouns, req.userId!);
+    return { pronouns };
   });
 
   r.put('/community/me/avatar', async (req) => {

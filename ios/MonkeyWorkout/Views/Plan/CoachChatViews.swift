@@ -37,14 +37,19 @@ struct CoachChatMessage: Identifiable, Equatable {
 }
 
 extension AppModel {
-    /// What the coach knows about the member: goal, level, method, session length, gym, readiness, today's plan.
+    /// What the coach knows about the member: goal, level, method, session length, gym, readiness, today's plan, pronouns.
     /// `focus`: the screen the member asks from (#412).
     func coachChatContext(readiness: String?, focus: CoachFocus? = nil) -> CoachChatContext {
-        guard let p = profile else { return CoachChatContext(readiness: readiness, screen: focus?.screen, focus: focus?.text) }
+        // How we talk to you (#415): the coach uses the member's pronouns and calls them what they picked.
+        // A first name stays on the device: the coach writes {name} and the app fills it in.
+        let pronouns = body.pronounsText, call = coachCallIsName ? Self.nameSlot : coachCallName
+        guard let p = profile else {
+            return CoachChatContext(readiness: readiness, screen: focus?.screen, focus: focus?.text, pronouns: pronouns, callName: call)
+        }
         let today = nextSession.flatMap { $0.weekday == todayWeekday ? $0.displayTitle : nil }
         return CoachChatContext(goal: p.goal.rawValue, level: p.experience.rawValue, sessionMinutes: Generator.sessionMinutes(p),
                                 equipment: p.equipment.map(\.rawValue), readiness: readiness, todayPlanned: today,
-                                method: p.trainingMethod.rawValue, screen: focus?.screen, focus: focus?.text)
+                                method: p.trainingMethod.rawValue, screen: focus?.screen, focus: focus?.text, pronouns: pronouns, callName: call)
     }
 
     func coachChatStatus() async -> CoachChatStatus? {
@@ -59,8 +64,28 @@ extension AppModel {
         #if DEBUG
         if demo { return try Demo.coachAnswer(messages.last?.text ?? "", focus: focus) }
         #endif
-        let turns = messages.filter { !$0.text.isEmpty }.map { CoachChatTurn(role: $0.role.rawValue, text: $0.text) }
-        return try await api.coachChat(turns, context: coachChatContext(readiness: readiness, focus: focus), as: CoachWorkoutSettings.self)
+        let name = coachCallIsName ? coachCallName : nil
+        let turns = messages.filter { !$0.text.isEmpty }.map { m in
+            CoachChatTurn(role: m.role.rawValue, text: m.role == .coach ? Self.slotName(m.text, name) : m.text)
+        }
+        var answer = try await api.coachChat(turns, context: coachChatContext(readiness: readiness, focus: focus), as: CoachWorkoutSettings.self)
+        answer.reply = Self.fillName(answer.reply, name)
+        answer.suggestions = answer.suggestions?.map { Self.fillName($0, name) }
+        return answer
+    }
+
+    static let nameSlot = "{name}"
+
+    /// The coach's {name} → the member's first name (none: dropped with its comma).
+    static func fillName(_ text: String, _ name: String?) -> String {
+        guard let name else { return text.replacingOccurrences(of: ", " + nameSlot, with: "").replacingOccurrences(of: nameSlot, with: "") }
+        return text.replacingOccurrences(of: nameSlot, with: name)
+    }
+
+    /// Earlier coach lines go back with {name} again, so the name never leaves the device.
+    static func slotName(_ text: String, _ name: String?) -> String {
+        guard let name, !name.isEmpty else { return text }
+        return text.replacingOccurrences(of: name, with: nameSlot)
     }
 }
 

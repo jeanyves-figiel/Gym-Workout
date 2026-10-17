@@ -121,3 +121,14 @@ export const voiceLines = (): VoiceLine[] =>
       }),
     ),
   );
+
+/** What the member likes to be called (#415): a first name or a term like "Champ", letters only, ≤ 24 characters. */
+export const CALL_NAME = /^\p{L}[\p{L}\p{M} '.-]{0,23}$/u;
+
+/** The short call said before key lines ("Alex!" then the line), one recording per voice, style and name. */
+export const callLine = (name: string, style: CoachStyle): VoiceLine => {
+  const text = `${name.trim()}${style === 'hype' ? '!' : '.'}`;
+  const line = { id: `call-${style}`, text, style, kind: 'start' as CoachKind, hash: '' };
+  line.hash = `call-${createHash('sha256').update(ssml(line)).digest('hex').slice(0, 16)}`;
+  return line;
+};

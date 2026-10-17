@@ -64,6 +64,8 @@ final class WorkoutCoach {
     private var count = 0
     /// Demo screens keep the bubble and the burst on screen.
     var hold = false
+    /// What the coach calls the member before big moments (#415), nil = no call.
+    var call: String?
 
     /// `once`: a key that makes the line one-off for this workout (e.g. "final-<uid>").
     func say(_ m: CoachMoment, once: String? = nil) {
@@ -79,9 +81,14 @@ final class WorkoutCoach {
         let seed = count &* 7 &+ said.count
         // Studio voice (#395): the recorded line for this moment (its words in the bubble too); else the iPhone voice
         // reads the full line, numbers included.
-        let clip = CoachVoiceStore.shared.clip(style: CoachPref.style, kind: m.studioKind, seed: seed)
-        let text = clip?.text ?? CoachLines.line(m, style: CoachPref.style, seed: seed)
-        deliver(text, key: m.isKey, clip: clip?.url)
+        let style = CoachPref.style
+        let clip = CoachVoiceStore.shared.clip(style: style, kind: m.studioKind, seed: seed)
+        // Call before big moments (#415): with a studio voice only when its "Alex!" recording is on the device.
+        let callClip = clip == nil ? nil : call.flatMap { CoachVoiceStore.shared.callClip($0, style: style) }
+        let name = clip == nil || callClip != nil ? call : nil
+        let text = CoachLines.called(clip?.text ?? CoachLines.line(m, style: style, seed: seed), moment: m, style: style, call: name)
+        let clips = clip.map { c in (m.isCalled ? [callClip].compactMap { $0 } : []) + [c.url] } ?? []
+        deliver(text, key: m.isKey, clips: clips)
         if case let .record(e, kg, reps, more) = m {
             record = Record(exercise: e, kg: kg, reps: reps, heavierBy: more, text: text)
             bubble = nil
@@ -92,12 +99,12 @@ final class WorkoutCoach {
     func stop() { voice.stop() }
 
     /// Short answer to the player mic (#412): bubble + voice, even between key moments.
-    func reply(_ text: String) { deliver(text, key: false, clip: nil) }
+    func reply(_ text: String) { deliver(text, key: false, clips: []) }
 
     /// A resumed workout: what was already said before (e.g. "half") stays unsaid.
     func markSaid(_ key: String) { said.insert(key) }
 
-    private func deliver(_ text: String, key: Bool, clip: URL?) {
+    private func deliver(_ text: String, key: Bool, clips: [URL]) {
         let call = Call(text: text)
         bubble = call
         watchLine = CoachPref.watch ? call : nil
@@ -108,7 +115,7 @@ final class WorkoutCoach {
         let quiet = false
         #endif
         if CoachPref.voice != .off, !muted, !quiet {
-            if let clip { voice.play(clip) } else { voice.speak(text, style: CoachPref.style) }
+            if clips.isEmpty { voice.speak(text, style: CoachPref.style) } else { voice.play(clips) }
         }
         if CoachPref.haptics, key { UINotificationFeedbackGenerator().notificationOccurred(.success) }
     }
@@ -129,6 +136,7 @@ final class CoachVoice: NSObject {
     private(set) var speaking = false
     @ObservationIgnored private let synth = AVSpeechSynthesizer()
     @ObservationIgnored private var player: AVAudioPlayer?
+    @ObservationIgnored private var queue: [URL] = []
 
     /// Opens the audio session for one line; false = stay quiet (#402).
     /// Music playing: talk over it and duck it (the member chose to hear audio). No music: `.ambient`, which follows the
@@ -149,17 +157,34 @@ final class CoachVoice: NSObject {
     }
 
     /// Plays a studio recording.
-    func play(_ url: URL) {
+    func play(_ url: URL) { play([url]) }
+
+    /// Plays studio recordings back to back (the call, then the line, #415).
+    func play(_ urls: [URL]) {
         if synth.isSpeaking { synth.stopSpeaking(at: .immediate) }
         player?.stop()
-        guard let p = try? AVAudioPlayer(contentsOf: url), duck() else {
+        queue = []
+        guard let first = urls.first, let p = try? AVAudioPlayer(contentsOf: first), duck() else {
             speaking = false
             return
         }
+        queue = Array(urls.dropFirst())
         p.delegate = self
         player = p
         speaking = p.play()
         if !speaking { done() }
+    }
+
+    /// Next recording in the queue; false when none is left.
+    fileprivate func playNext() -> Bool {
+        while !queue.isEmpty {
+            let url = queue.removeFirst()
+            guard let p = try? AVAudioPlayer(contentsOf: url) else { continue }
+            p.delegate = self
+            player = p
+            if p.play() { return true }
+        }
+        return false
     }
 
     override init() {
@@ -171,6 +196,7 @@ final class CoachVoice: NSObject {
 
     /// iOS speech (#395: the best installed voice for the pick, premium first, not the basic one for the language).
     func speak(_ text: String, style: CoachStyle, voice: AVSpeechSynthesisVoice? = CoachVoicePref.bestSystemVoice()) {
+        queue = []
         player?.stop()
         player = nil
         if synth.isSpeaking { synth.stopSpeaking(at: .word) }
@@ -193,6 +219,7 @@ final class CoachVoice: NSObject {
 
     func stop() {
         synth.stopSpeaking(at: .immediate)
+        queue = []
         player?.stop()
         player = nil
         done()
@@ -208,7 +235,7 @@ final class CoachVoice: NSObject {
 
 extension CoachVoice: AVAudioPlayerDelegate {
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        Task { @MainActor in self.done() }
+        Task { @MainActor in if !self.playNext() { self.done() } }
     }
 }
 
