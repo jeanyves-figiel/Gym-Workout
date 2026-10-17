@@ -120,6 +120,8 @@ struct WatchRootView: View {
     @Environment(WatchStore.self) private var store
     @State private var player: WatchPlayer?
     @State private var locked = false
+    /// Sport tracking (#418) takes the whole screen while it runs, then shows its summary.
+    @State private var sports = SportTracker.shared
 
     var body: some View {
         #if DEBUG
@@ -145,7 +147,11 @@ struct WatchRootView: View {
     }
 
     @ViewBuilder private var screens: some View {
-        if store.offered, player == nil {
+        if sports.running, player == nil {
+            SportTrackView()
+        } else if let summary = sports.summary, player == nil {
+            SportSummaryView(summary: summary)
+        } else if store.offered, player == nil {
             PhoneStartView()
         } else if let live = store.live, player == nil {
             MirrorView(live: live)

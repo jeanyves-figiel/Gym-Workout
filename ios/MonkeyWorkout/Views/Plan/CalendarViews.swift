@@ -231,7 +231,9 @@ struct WeekCalendarCard: View {
         let missed = current && !done && session.map { s in model.missedSessions.contains { $0.id == s.id } } == true
         let day = week.date(wd, cal).map { cal.component(.day, from: $0) } ?? 0
         let count = week.plan.sessions.filter { $0.weekday == wd }.count
-        let tag: String? = session.map { short($0.focus) + (count > 1 ? " +\(count - 1)" : "") } ?? (off ? "Off" : climb ? "Climb" : nil)
+        // Other sports' days (#416), in season on that date.
+        let sport = model.profile?.sportDays(on: week.date(wd, cal) ?? Date()).first { $0.weekday == wd }?.sport
+        let tag: String? = session.map { short($0.focus) + (count > 1 ? " +\(count - 1)" : "") } ?? (off ? "Off" : climb ? "Climb" : sport?.short)
         let fill = missed ? AnyShapeStyle(MissedStyle.gradient) : tileFill(session: session != nil, off: off, travel: travel, climb: climb)
         VStack(spacing: 1) {
             Text(WeekSchedule.shortName(wd).uppercased()).font(Theme.label(9))
@@ -364,6 +366,12 @@ struct DaySheet: View {
                             .font(Theme.label(15)).foregroundStyle(Theme.ink)
                             .padding(.horizontal, 14).padding(.vertical, 10)
                             .background(Capsule().fill(WorkoutEngine.Category.warmup.gradient))
+                    }
+                    ForEach((model.profile?.sportDays(on: selection.week.date(wd, cal) ?? Date()) ?? []).filter { $0.weekday == wd }, id: \.sport) { sd in
+                        Label("\(sd.sport.label) day", systemImage: sd.sport.symbol)
+                            .font(Theme.label(15)).foregroundStyle(.white)
+                            .padding(.horizontal, 14).padding(.vertical, 10)
+                            .background(Capsule().fill(sd.sport.gradient))
                     }
                     ForEach(sessions) { session in
                         let done = selection.current && model.doneIds.contains(session.id)

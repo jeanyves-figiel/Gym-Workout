@@ -91,6 +91,10 @@ struct LocalState: Codable {
     var deletedClimbIds: Set<UUID>?
     /// Climbs logged before #312 lived only here: uploaded once, then this is true.
     var climbsUploaded: Bool?
+    // Other sport sessions (#416), synced like climbs.
+    var sportLogs: [SportLog]?
+    var pendingSportIds: Set<UUID>?
+    var deletedSportIds: Set<UUID>?
     // Machine setup notes (#355). Photos live in their own files (`MachineNotePhotos`).
     var machineNotes: [MachineNote]?
     var pendingMachineNoteIds: Set<UUID>?
@@ -187,6 +191,9 @@ extension LocalState {
         pendingClimbIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingClimbIds)
         deletedClimbIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedClimbIds)
         climbsUploaded = try? c.decodeIfPresent(Bool.self, forKey: .climbsUploaded)
+        sportLogs = try? c.decodeIfPresent([SportLog].self, forKey: .sportLogs)
+        pendingSportIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingSportIds)
+        deletedSportIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedSportIds)
         machineNotes = try? c.decodeIfPresent([MachineNote].self, forKey: .machineNotes)
         pendingMachineNoteIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingMachineNoteIds)
         deletedMachineNoteIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedMachineNoteIds)

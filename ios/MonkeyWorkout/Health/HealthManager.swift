@@ -1,4 +1,5 @@
 import Foundation
+import CoreLocation
 import HealthKit
 import WorkoutEngine
 
@@ -90,6 +91,8 @@ struct HealthSnapshot: Equatable, Codable {
     var climbingPerWeek4w: Double?
     /// Climbing workouts of the last 4 weeks from every app, newest first (#44).
     var recentClimbs: [ClimbEntry] = []
+    /// Other sport workouts of the last 4 weeks from every app (Watch, Strava, Garmin…), newest first (#416).
+    var recentSports: [SportEntry] = []
     var weightTrend: [TrendPoint] = []
     var vo2Trend: [TrendPoint] = []
     /// Body composition and waist (#185), latest values and the last year.
@@ -200,6 +203,8 @@ final class HealthManager {
             HKQuantityType(.heartRateVariabilitySDNN), HKQuantityType(.vo2Max), HKQuantityType(.heartRate),
             HKQuantityType(.activeEnergyBurned), HKCategoryType(.sleepAnalysis), HKObjectType.workoutType(),
             HKQuantityType(.bodyFatPercentage), HKQuantityType(.leanBodyMass), HKQuantityType(.waistCircumference),
+            // Sport session page (#416): the route of workouts recorded by the Watch or other apps.
+            HKSeriesType.workoutRoute(),
         ]
         if let dob = HKObjectType.characteristicType(forIdentifier: .dateOfBirth) { s.insert(dob) }
         if let sex = HKObjectType.characteristicType(forIdentifier: .biologicalSex) { s.insert(sex) }
@@ -264,6 +269,7 @@ final class HealthManager {
         async let climbingThisWeek = climbingCount(from: weekStart, to: now)
         async let climbingPast = climbingCount(from: fourWeeks, to: weekStart)
         async let recentClimbs = climbs(from: fourWeeks, to: now)
+        async let recentSports = sports(from: fourWeeks, to: now)
         async let measurementStatus = requestStatus()
 
         s.birthYear = (try? store.dateOfBirthComponents())?.year
@@ -296,6 +302,7 @@ final class HealthManager {
         let past = await climbingPast
         s.climbingPerWeek4w = past > 0 ? Double(past) / 4 : nil
         s.recentClimbs = await recentClimbs
+        s.recentSports = await recentSports
         needsMeasurementAccess = await measurementStatus == .shouldRequest
         cache(s)
     }
@@ -376,7 +383,179 @@ final class HealthManager {
         }
     }
 
+    private static let sportIdKey = "MonkeyWorkoutSportId"
+
+    /// Workouts of other sports (#416): every app's, except climbing (read above) and gym-type workouts.
+    private func sports(from: Date, to: Date) async -> [SportEntry] {
+        let pred = HKQuery.predicateForSamples(withStart: from, end: to)
+        let d = HKSampleQueryDescriptor(predicates: [.workout(pred)], sortDescriptors: [SortDescriptor<HKWorkout>(\.startDate, order: .reverse)], limit: 120)
+        let workouts = (try? await d.result(for: store)) ?? []
+        let meters = HKUnit.meter()
+        let distanceTypes: [HKQuantityTypeIdentifier] = [.distanceWalkingRunning, .distanceCycling, .distanceSwimming,
+                                                         .distanceDownhillSnowSports]
+        return workouts.compactMap { (w: HKWorkout) -> SportEntry? in
+            let meta = w.metadata ?? [:]
+            guard let sport = (meta["MonkeyWorkoutSport"] as? String).flatMap(Sport.init(rawValue:)) ?? Self.sport(for: w.workoutActivityType),
+                  sport != .climbing else { return nil }
+            let id = (meta[Self.sportIdKey] as? String).flatMap(UUID.init(uuidString:)) ?? w.uuid
+            let stats = w.allStatistics
+            let meters_ = distanceTypes.compactMap { stats[HKQuantityType($0)]?.sumQuantity()?.doubleValue(for: meters) }.reduce(0, +)
+            let hr = stats[HKQuantityType(.heartRate)]
+            return SportEntry(
+                id: id, sport: sport, start: w.startDate, end: w.endDate, source: w.sourceRevision.source.name,
+                effort: (meta["MonkeyWorkoutEffort"] as? NSNumber)?.intValue,
+                distanceKm: meters_ > 0 ? meters_ / 1000 : nil,
+                elevationM: (meta[HKMetadataKeyElevationAscended] as? HKQuantity)?.doubleValue(for: meters),
+                avgHR: hr?.averageQuantity()?.doubleValue(for: bpm),
+                maxHR: hr?.maximumQuantity()?.doubleValue(for: bpm),
+                kcal: stats[HKQuantityType(.activeEnergyBurned)]?.sumQuantity()?.doubleValue(for: .kilocalorie()),
+                local: meta[Self.sportIdKey] != nil)
+        }
+    }
+
+    /// Route, elevation, speed and laps of a Health sport workout (#416 session page), nil without a route.
+    func track(for id: UUID) async -> SportTrack? {
+        guard connected, available else { return nil }
+        let d = HKSampleQueryDescriptor(predicates: [.workout(HKQuery.predicateForObject(with: id))], sortDescriptors: [], limit: 1)
+        guard let workout = try? await d.result(for: store).first else { return nil }
+        let laps = (workout.workoutEvents ?? []).filter { $0.type == .lap || $0.type == .segment }
+            .map { SportTrack.Lap(start: $0.dateInterval.start, end: $0.dateInterval.end) }
+        let routes = HKSampleQueryDescriptor(
+            predicates: [.sample(type: HKSeriesType.workoutRoute(), predicate: HKQuery.predicateForObjects(from: workout))],
+            sortDescriptors: [])
+        var locations: [CLLocation] = []
+        for case let route as HKWorkoutRoute in (try? await routes.result(for: store)) ?? [] {
+            locations += await routeLocations(route)
+        }
+        locations.sort { $0.timestamp < $1.timestamp }
+        guard locations.count >= 2 || !laps.isEmpty else { return nil }
+        var points: [SportTrack.Point] = []
+        for (i, l) in locations.enumerated() {
+            var speed = l.speed
+            if speed < 0, i > 0 {
+                let prev = locations[i - 1]
+                let dt = l.timestamp.timeIntervalSince(prev.timestamp)
+                speed = dt > 0 ? l.distance(from: prev) / dt : 0
+            }
+            points.append(.init(lat: l.coordinate.latitude, lon: l.coordinate.longitude, alt: l.altitude, speed: max(0, speed), time: l.timestamp))
+        }
+        return SportTrack(points: points, laps: laps)
+    }
+
+    private func routeLocations(_ route: HKWorkoutRoute) async -> [CLLocation] {
+        await withCheckedContinuation { (cont: CheckedContinuation<[CLLocation], Never>) in
+            var all: [CLLocation] = []
+            var resumed = false
+            let q = HKWorkoutRouteQuery(route: route) { _, locations, done, error in
+                all += locations ?? []
+                if (done || error != nil) && !resumed {
+                    resumed = true
+                    cont.resume(returning: all)
+                }
+            }
+            store.execute(q)
+        }
+    }
+
+    /// Sport of a Health workout type; nil for gym-type and everyday activities (strength, walking, mobility…).
+    static func sport(for type: HKWorkoutActivityType) -> Sport? {
+        switch type {
+        case .snowboarding: .snowboard
+        case .downhillSkiing, .snowSports: .ski
+        case .crossCountrySkiing: .crossCountrySki
+        case .cycling: .roadBike
+        case .running: .run
+        case .hiking: .hike
+        case .climbing: .climbing
+        case .crossTraining: .crossfit
+        case .swimming: .swim
+        case .rowing: .rowing
+        case .soccer, .australianFootball, .americanFootball, .rugby: .football
+        case .basketball: .basketball
+        case .volleyball: .volleyball
+        case .tennis, .tableTennis, .badminton: .tennis
+        case .pickleball, .racquetball: .padel
+        case .squash: .squash
+        case .martialArts, .wrestling: .martialArts
+        case .boxing, .kickboxing: .boxing
+        case .surfingSports, .paddleSports, .sailing: .surf
+        case .underwaterDiving: .scubaDiving
+        case .skatingSports: .skate
+        case .golf: .golf
+        case .yoga, .pilates: .yoga
+        default: nil
+        }
+    }
+
+    /// Health workout type for a sport, when written from here.
+    static func activityType(for sport: Sport) -> HKWorkoutActivityType {
+        switch sport {
+        case .climbing: .climbing
+        case .snowboard: .snowboarding
+        case .ski: .downhillSkiing
+        case .crossCountrySki: .crossCountrySkiing
+        case .mountainBike, .roadBike: .cycling
+        case .run, .trailRun: .running
+        case .hike, .mountaineering: .hiking
+        case .hyrox, .crossfit: .crossTraining
+        case .swim: .swimming
+        case .rowing: .rowing
+        case .football: .soccer
+        case .basketball: .basketball
+        case .volleyball: .volleyball
+        case .tennis: .tennis
+        case .padel: .pickleball
+        case .squash: .squash
+        case .martialArts: .martialArts
+        case .boxing: .boxing
+        case .surf: .surfingSports
+        case .scubaDiving: .underwaterDiving
+        case .skate: .skatingSports
+        case .golf: .golf
+        case .yoga: .yoga
+        case .other: .other
+        }
+    }
+
     // MARK: Write
+
+    /// Saves a logged sport session as an Apple Health workout (#416). Returns true when written.
+    @discardableResult
+    func saveSport(_ log: SportLog, kcal: Double?) async -> Bool {
+        guard connected, available, writeWorkouts, log.fromHealth != true else { return false }
+        let config = HKWorkoutConfiguration()
+        config.activityType = Self.activityType(for: log.sport)
+        config.locationType = .outdoor
+        let builder = HKWorkoutBuilder(healthStore: store, configuration: config, device: .local())
+        do {
+            try await builder.beginCollection(at: log.start)
+            var samples: [HKSample] = []
+            if let kcal {
+                samples.append(HKQuantitySample(type: HKQuantityType(.activeEnergyBurned),
+                                                quantity: HKQuantity(unit: .kilocalorie(), doubleValue: kcal), start: log.start, end: log.end))
+            }
+            if !samples.isEmpty { try await builder.addSamples(samples) }
+            try await builder.addMetadata([
+                Self.sportIdKey: log.id.uuidString,
+                "MonkeyWorkoutSport": log.sport.rawValue,
+                "MonkeyWorkoutEffort": log.effort,
+            ])
+            try await builder.endCollection(at: log.end)
+            _ = try await builder.finishWorkout()
+            return true
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+    }
+
+    /// Removes the Health workout written for a logged sport session, if any.
+    func deleteSport(_ id: UUID) async {
+        guard connected, available else { return }
+        let pred = HKQuery.predicateForObjects(withMetadataKey: Self.sportIdKey, allowedValues: [id.uuidString])
+        _ = try? await store.deleteObjects(of: HKObjectType.workoutType(), predicate: pred)
+    }
+
 
     /// Saves a logged climb as an Apple Health Climbing workout. Returns true when written.
     @discardableResult
