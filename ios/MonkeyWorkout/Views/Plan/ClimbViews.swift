@@ -38,7 +38,10 @@ struct ClimbSection: View {
     @State private var settings = false
     @State private var gate: ProGate?
 
+    @AppStorage("wallDay") private var wallDayRaw = WallDay.bouldering.rawValue
+
     private var monkeyGrade: MonkeyGradeLink { .shared }
+    private var wallDay: WallDay { WallDay(rawValue: wallDayRaw) ?? .bouldering }
 
     private var climbs: [ClimbEntry] {
         Climbs.merged(local: model.climbLogs, health: health.snapshot.recentClimbs, monkeyGrade: monkeyGrade.climbs(for: model.user?.id))
@@ -47,31 +50,31 @@ struct ClimbSection: View {
     var body: some View {
         let all = climbs
         VStack(alignment: .leading, spacing: 12) {
-            Button {
-                logging = ClimbLog(start: Date().addingTimeInterval(-90 * 60))
-            } label: {
-                ClimbHeroCard(thisWeek: Climbs.thisWeek(all))
+            // Log climb and Wall session side by side (design B slim bars); Wall session opens its own page.
+            HStack(spacing: 8) {
+                Button {
+                    logging = ClimbLog(start: Date().addingTimeInterval(-90 * 60))
+                } label: {
+                    ClimbBar(symbol: "figure.climbing", title: "Log climb", detail: "\(Climbs.thisWeek(all)) this wk",
+                             trailing: "plus", gradient: ClimbKind.boulder.gradient)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Log a climbing session")
+                // Wall session (#366): on unless turned off in Around climbing days.
+                if model.profile?.climbDayAddon != false {
+                    NavigationLink {
+                        WallSessionPage(today: isClimbingDay, climbedToday: all.contains { Calendar.current.isDateInToday($0.start) })
+                    } label: {
+                        ClimbBar(symbol: "hand.raised.fill", title: "Wall session", detail: wallDay.label,
+                                 trailing: "chevron.right", gradient: ClimbKind.topRope.gradient)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            .buttonStyle(.plain)
             if let hard = Climbs.recentHard(all) {
                 HardClimbNote(climb: hard)
             }
-            // Wall session (#366): on unless turned off in Around climbing days.
-            if model.profile?.climbDayAddon != false {
-                WallSessionCard(today: isClimbingDay, climbedToday: all.contains { Calendar.current.isDateInToday($0.start) },
-                                locked: ProStore.shared.locked, onGate: { gate = .climbing },
-                                onLogClimb: { logging = ClimbLog(start: Date().addingTimeInterval(-90 * 60)) })
-                    .padding(.top, 4)
-            }
-            Button { ProStore.shared.run(.climbing, $gate) { settings = true } } label: {
-                HStack(spacing: 6) {
-                    Label("Around climbing days", systemImage: "slider.horizontal.3")
-                        .font(Theme.label(13))
-                        .foregroundStyle(Theme.lime)
-                    ProBadge()
-                }
-            }
-            .buttonStyle(.plain)
+            AroundClimbingLink { ProStore.shared.run(.climbing, $gate) { settings = true } }
             if !all.isEmpty {
                 Text("Recent climbs").eyebrow().padding(.top, 4)
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -109,30 +112,49 @@ struct ClimbSection: View {
     }
 }
 
-/// Explore-style gradient card: icon tile left, big weekly count right.
-private struct ClimbHeroCard: View {
-    let thisWeek: Int
+/// Slim gradient bar (design B): icon tile left, title + one detail line, action glyph right.
+private struct ClimbBar: View {
+    let symbol: String
+    let title: String
+    let detail: String
+    let trailing: String
+    let gradient: LinearGradient
 
     var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: "figure.climbing")
-                .font(.system(size: 30, weight: .bold))
-                .frame(width: 60, height: 60)
-                .background(RoundedRectangle(cornerRadius: 18).fill(.white.opacity(0.2)))
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Log climb").font(Theme.display(24))
-                Text("Boulder, lead, top rope or outdoor. Saved to Apple Health.")
-                    .font(.footnote.weight(.medium)).opacity(0.85).multilineTextAlignment(.leading)
+        HStack(spacing: 8) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .bold))
+                .frame(width: 38, height: 38)
+                .background(RoundedRectangle(cornerRadius: 11).fill(.white.opacity(0.22)))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(Theme.display(16)).lineLimit(1).minimumScaleFactor(0.7)
+                Text(detail).font(Theme.label(11)).opacity(0.85).lineLimit(1)
             }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 0) {
-                Text("\(thisWeek)").font(Theme.display(34)).monospacedDigit()
-                Text("this wk").font(Theme.label(10)).opacity(0.8)
-            }
+            Spacer(minLength: 0)
+            Image(systemName: trailing).font(.subheadline.weight(.heavy))
         }
         .foregroundStyle(.white)
-        .padding(18)
-        .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(ClimbKind.boulder.gradient))
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 64)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(gradient))
+        .contentShape(Rectangle())
+    }
+}
+
+/// "Around climbing days" link under the climbing cards and on the Wall session page.
+struct AroundClimbingLink: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Label("Around climbing days", systemImage: "slider.horizontal.3")
+                    .font(Theme.label(13))
+                    .foregroundStyle(Theme.lime)
+                ProBadge()
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 

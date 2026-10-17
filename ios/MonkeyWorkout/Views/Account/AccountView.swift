@@ -27,6 +27,7 @@ struct AccountView: View {
     @State private var signOutAllTask = FormTask()
     @State private var deviceCount: Int?
     @State private var gate: ProGate?
+    @State private var climbSettings = false
     @State private var webPage: WebPage?
 
     // Settings layout (#394, design B + C): search, sticky chapter bar, one gradient card per chapter.
@@ -45,6 +46,7 @@ struct AccountView: View {
         static let flow = "After last set workout flow next exercise countdown auto"
         static let coach = "Workout coach voice monkey hype chill drill haptics"
         static let reminders = "Reminders alerts notifications quiet hours check-in achievements"
+        static let climbing = "Around climbing days climbing wall session before after"
         static let watchStart = "Start from iPhone apple watch ask auto"
         static let action = "Action button apple watch ultra"
         static let lift = "Lift sensor beta apple watch reps bar speed velocity"
@@ -65,7 +67,7 @@ struct AccountView: View {
         static let support = "Support help contact"
 
         static let you = [pro, profile, gym, body]
-        static let training = [method, flow, coach, reminders]
+        static let training = [method, flow, coach, reminders, climbing]
         static let watch = [watchStart, action, lift]
         static let look = [style, widgets, monkeyGrade]
         static let account = [password, email, security, devices, lock, export, signOut, delete]
@@ -126,6 +128,7 @@ struct AccountView: View {
         .onChange(of: Community.shared.me.nickname) { _, new in if !handleFocused { handle = new ?? "" } }
         .task { deviceCount = try? await model.api.sessions().count }
         .proPaywall($gate)
+        .sheet(isPresented: $climbSettings) { ClimbSettingsView() }
         .sheet(item: $webPage) { SafariView(url: $0.url).ignoresSafeArea() }
         .confirmationDialog("Sign out everywhere?", isPresented: $confirmSignOutAll, titleVisibility: .visible) {
             Button("Sign out all devices", role: .destructive) {
@@ -241,6 +244,15 @@ struct AccountView: View {
                 if search.matches(Find.reminders) {
                     NavigationLink { NotificationSettingsView() } label: {
                         SettingsRow(symbol: "bell.badge.fill", title: "Reminders & alerts")
+                    }
+                    .buttonStyle(.plain)
+                }
+                // Around climbing days (#390): also linked under Train → Climbing. Climbers only.
+                if model.profile.map(Generator.isClimber) ?? false, search.matches(Find.climbing) {
+                    Button { ProStore.shared.run(.climbing, $gate) { climbSettings = true } } label: {
+                        SettingsRow(symbol: "figure.climbing", title: "Around climbing days") {
+                            if ProStore.shared.locked { ProBadge() } else { AccountChevron() }
+                        }
                     }
                     .buttonStyle(.plain)
                 }
