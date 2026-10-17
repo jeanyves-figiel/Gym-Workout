@@ -176,6 +176,10 @@ struct GymRouteCard: View {
     let route: GymRoute
     /// First stop's zone is usually busy around now (B: learned from "Taken?" taps).
     var busyFirst = false
+    /// Members who found a zone of the route busy in the last 20 minutes (live crowd).
+    var live: [(GymLayout.Zone, Int)] = []
+    /// Quietest hour coming up today, from members' taps.
+    var quietHour: Int?
     var onPlan: (() -> Void)?
 
     var body: some View {
@@ -220,8 +224,28 @@ struct GymRouteCard: View {
                     .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.black.opacity(0.22)))
                 }
             }
+            if !live.isEmpty || quietHour != nil {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Right now at your gym").font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.85)
+                    FlowLayout(spacing: 6) {
+                        ForEach(live, id: \.0.id) { item in
+                            Label("\(item.0.name) busy · \(item.1)", systemImage: "person.3.fill")
+                                .font(Theme.label(11))
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(Capsule().fill(item.0.gradient))
+                        }
+                        if let quietHour {
+                            Label("Quietest around \(quietHour):00", systemImage: "moon.zzz.fill")
+                                .font(Theme.label(11))
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(Capsule().fill(.black.opacity(0.3)))
+                        }
+                    }
+                }
+                .accessibilityElement(children: .combine)
+            }
             if busyFirst, let first = route.stops.first {
-                Label("\(first.zone.name) is usually busy around now. In the player, Taken? swaps to a free zone.",
+                Label("\(first.zone.name) is busy around now. In the player, Taken? swaps to a free zone.",
                       systemImage: "person.3.fill")
                     .font(.caption.weight(.bold))
                     .padding(8)

@@ -1011,7 +1011,7 @@ struct WorkoutPlayerView: View {
         case .taken:
             // Gym Map (#406): remember the zone was busy now, then swap to the same muscles elsewhere.
             guard let z = homeZone(step.exercise.id) else { return }
-            model.logBusy(z.id)
+            model.logBusy(z)
             takenZone = z
             swapPartner = step.item
         }

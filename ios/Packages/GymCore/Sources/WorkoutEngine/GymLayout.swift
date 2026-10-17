@@ -59,10 +59,13 @@ public struct GymLayout: Codable, Hashable, Sendable {
     public var zones: [Zone]
     /// Entrance on the plan's outer wall (#406); nil = middle of the bottom wall.
     public var door: Point?
+    /// Room width (x) and depth (y) in metres from a LiDAR room scan (#406); nil = a typical gym floor.
+    public var sizeM: Point?
 
-    public init(zones: [Zone], door: Point? = nil) {
+    public init(zones: [Zone], door: Point? = nil, sizeM: Point? = nil) {
         self.zones = zones
         self.door = door
+        self.sizeM = sizeM
     }
 
     /// Blocks closer than this on the plan count as next to each other.

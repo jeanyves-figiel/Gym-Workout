@@ -42,7 +42,7 @@ struct SwapExerciseSheet: View {
         let list = Array((busyZone == nil ? all : all.filter(freeZone)).prefix(12))
         if busyZone != nil {
             // Quiet zones first: ones not usually busy around now.
-            let quiet = { (e: Exercise) in model.gymZone(e.id).map { !model.usuallyBusy($0.id) } ?? true }
+            let quiet = { (e: Exercise) in model.gymZone(e.id).map { !model.zoneBusy($0) } ?? true }
             return list.filter(quiet) + list.filter { !quiet($0) }
         }
         // Gym zones (#274): moves done near the rest of its superset / circuit first.

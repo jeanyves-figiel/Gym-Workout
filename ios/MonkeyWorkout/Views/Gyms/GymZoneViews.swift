@@ -1,3 +1,4 @@
+import APIClient
 import SwiftUI
 import WorkoutEngine
 
@@ -42,10 +43,57 @@ struct ZoneBar: View {
     /// Zone being painted: tapping a picture moves it there. nil = tap ticks / unticks as usual.
     @Binding var painting: String?
     let equipment: [Equipment]
+    /// Gym scan (#406) found items the gym list doesn't have yet: the caller ticks them.
+    var onScanned: (([Equipment]) -> Void)? = nil
+    @Environment(AppModel.self) private var model
     @State private var editing: GymLayout.Zone?
     @State private var plan = false
+    @State private var scanning = false
+    @State private var gate: ProGate?
 
     var body: some View {
+        VStack(spacing: 10) {
+            if let shared = model.sharedGymMap, !(layout?.hasPlan ?? false) { sharedOffer(shared) }
+            content
+        }
+        .task { await model.loadSharedGymMap() }
+        .proPaywall($gate)
+        .sheet(isPresented: $scanning) {
+            GymScanSheet(layout: Binding(get: { layout ?? .starter }, set: { layout = $0 })) { found in
+                onScanned?(found.filter { !equipment.contains($0) })
+            }
+        }
+    }
+
+    /// Shared map (#406): members at this gym already mapped it; one tap uses their plan.
+    private func sharedOffer(_ shared: SharedGymMap<GymLayout>) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Map ready for your gym").font(.system(size: 16, weight: .heavy, design: .rounded))
+                Text("Mapped by \(shared.members) \(shared.members == 1 ? "member" : "members")"
+                     + (shared.agreement.map { " · \($0)% agree" } ?? "") + " · \(shared.layout.zones.count) zones")
+                    .font(.caption.weight(.semibold)).opacity(0.9)
+            }
+            Spacer(minLength: 0)
+            Button {
+                painting = nil
+                layout = shared.layout
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            } label: {
+                Text("USE IT").font(Theme.label(12)).foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(Capsule().fill(Theme.lime))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("zones.useShared")
+        }
+        .foregroundStyle(.white)
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .fill(LinearGradient(colors: [Color(hex: 0x00C9A7), Color(hex: 0x2EC5FF)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+    }
+
+    @ViewBuilder private var content: some View {
         if let current = layout {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 12) {
@@ -86,6 +134,14 @@ struct ZoneBar: View {
                             .background(Capsule().fill(.black.opacity(0.35)))
                     }
                     .buttonStyle(.plain)
+                    Button { ProStore.shared.run(.gymScan, $gate) { scanning = true } } label: {
+                        Label("Scan", systemImage: "camera.viewfinder")
+                            .font(Theme.label(12))
+                            .padding(.horizontal, 10).padding(.vertical, 7)
+                            .background(Capsule().fill(.black.opacity(0.35)))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("zones.scan")
                     Spacer()
                     Menu {
                         Button("Back to the usual layout", systemImage: "arrow.counterclockwise") { painting = nil; layout = .starter }
@@ -263,6 +319,7 @@ struct FloorPlanSheet: View {
     @State private var selected: String?
     @State private var tilted = false
     @State private var dropTarget: String?
+    @State private var roomScan = false
 
     private static let grid = 0.05
 
@@ -302,6 +359,24 @@ struct FloorPlanSheet: View {
                     .allowsHitTesting(!tilted)
                     .animation(.spring(duration: 0.6), value: tilted)
 
+                    if RoomScan.supported || layout.sizeM != nil {
+                        HStack {
+                            if let m = layout.sizeM {
+                                Label("\(Int(m.x.rounded())) × \(Int(m.y.rounded())) m", systemImage: "ruler.fill").font(Theme.label(12))
+                            }
+                            Spacer()
+                            if RoomScan.supported {
+                                Button { roomScan = true } label: {
+                                    Label(layout.sizeM == nil ? "Scan the room" : "Scan again", systemImage: "camera.metering.matrix")
+                                        .font(Theme.label(12))
+                                        .padding(.horizontal, 10).padding(.vertical, 7)
+                                        .background(Capsule().fill(Theme.lime))
+                                        .foregroundStyle(Theme.ink)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
                     let unplaced = layout.zones.filter { $0.rect == nil }
                     if !unplaced.isEmpty {
                         Text("Tap to put on the plan").eyebrow()
@@ -349,6 +424,17 @@ struct FloorPlanSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .onAppear { if !layout.hasPlan { autoPlace() } }
+            #if canImport(RoomPlan) && !targetEnvironment(simulator)
+            .fullScreenCover(isPresented: $roomScan) {
+                RoomScanView { result in
+                    if let result {
+                        layout.sizeM = result.sizeM
+                        if let d = result.door { layout.door = d }
+                    }
+                    roomScan = false
+                }
+            }
+            #endif
         }
         .preferredColorScheme(.dark)
     }

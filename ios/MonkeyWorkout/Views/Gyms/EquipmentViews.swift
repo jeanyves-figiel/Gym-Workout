@@ -86,7 +86,9 @@ struct EquipmentSheet: View {
                         if let onSetup { setupCard(onSetup) }
                     }
                     if let layout {
-                        ZoneBar(layout: layout, painting: $painting, equipment: equipment)
+                        ZoneBar(layout: layout, painting: $painting, equipment: equipment) { found in
+                            equipment += found
+                        }
                     }
                     if let zones {
                         Picker("Group pictures", selection: $byZone) {

@@ -19,6 +19,9 @@ import Testing
         let r = l.route(["bench-press", "leg-press"])
         // 0.75 of 37.5 m up, then 0.5 of 30 m across.
         #expect(r.metres == Int((0.75 * GymLayout.planHeightM + 0.5 * GymLayout.planWidthM).rounded()))
+        // A scanned room: 20 × 10 m.
+        l.sizeM = .init(x: 20, y: 10)
+        #expect(l.route(["bench-press", "leg-press"]).metres == Int((0.75 * 10 + 0.5 * 20).rounded()))
     }
 
     @Test func oldLayoutsDecodeWithoutADoor() throws {

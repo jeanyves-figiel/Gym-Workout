@@ -17,16 +17,16 @@ public struct GymRoute: Hashable, Sendable {
 }
 
 extension GymLayout {
-    /// Plan size in metres: a typical gym floor (the plan is drawn 4:5, width:height).
+    /// Plan size in metres without a room scan: a typical gym floor (the plan is drawn 4:5, width:height).
     public static let planWidthM = 30.0
     public static let planHeightM = 37.5
 
     /// Entrance, or the middle of the bottom wall.
     public var entrance: Point { door ?? Point(x: 0.5, y: 1) }
 
-    /// Metres between two plan points.
-    public static func metres(_ a: Point, _ b: Point) -> Double {
-        let dx = (a.x - b.x) * planWidthM, dy = (a.y - b.y) * planHeightM
+    /// Metres between two plan points (scanned room size, else a typical gym floor).
+    public func metres(_ a: Point, _ b: Point) -> Double {
+        let dx = (a.x - b.x) * (sizeM?.x ?? Self.planWidthM), dy = (a.y - b.y) * (sizeM?.y ?? Self.planHeightM)
         return (dx * dx + dy * dy).squareRoot()
     }
 
@@ -52,7 +52,7 @@ extension GymLayout {
             var sum = 0.0
             for s in stops {
                 guard let c = s.zone.rect?.center else { continue }
-                sum += Self.metres(at, c)
+                sum += metres(at, c)
                 at = c
             }
             metres = Int(sum.rounded())

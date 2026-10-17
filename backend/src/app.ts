@@ -17,6 +17,8 @@ import { followerIds } from './community/moderation.ts';
 import { communityPublicRoutes, communityRoutes } from './routes/community.ts';
 import { type CoachModel, claudeCoach } from './coach/chat.ts';
 import { coachChatRoutes } from './routes/coachChat.ts';
+import { type GymScanModel, claudeGymScan } from './coach/gymScan.ts';
+import { gymScanRoutes } from './routes/gymScan.ts';
 import { coachVoiceRoutes } from './routes/coachVoices.ts';
 import { pollySynthesizer, type Synthesize } from './coach/polly.ts';
 import { customExerciseRoutes } from './routes/customExercises.ts';
@@ -63,6 +65,8 @@ export interface AppDeps {
   webauthn?: WebAuthnVerifier;
   /** Workout chat model (#381); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
   coach?: CoachModel;
+  /** Gym scan photo model (#406); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
+  gymScan?: GymScanModel;
   /** Studio coach voices (#395); defaults to Polly when credentials are configured. Injectable for tests. */
   synth?: Synthesize;
 }
@@ -255,6 +259,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       gymRoutes(r, deps.db, now);
       const coach = deps.coach ?? (deps.config.coachChat.apiKey ? claudeCoach(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
       coachChatRoutes(r, deps.db, now, coach, deps.config.coachChat.dailyLimit, (id) => subscriptions.entitlement(id).access);
+      const gymScan = deps.gymScan ?? (deps.config.coachChat.apiKey ? claudeGymScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
+      gymScanRoutes(r, deps.db, now, gymScan, 30, (id) => subscriptions.entitlement(id).access);
       const voices = deps.config.coachVoices;
       coachVoiceRoutes(r, deps.synth ?? (voices.polly ? pollySynthesizer(voices.polly, outbound, now) : undefined), voices.cacheDir);
     },

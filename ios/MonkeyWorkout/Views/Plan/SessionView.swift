@@ -30,7 +30,10 @@ struct SessionView: View {
                     FlowOverview(session: session, onEdit: flowEdit(session))
                     // Gym Map (#406): the walk this session takes through the member's gym.
                     if let layout = model.profile?.gymLayout, let route = model.gymRoute(session) {
-                        GymRouteCard(layout: layout, route: route, busyFirst: model.usuallyBusy(route.stops[0].zone.id)) {
+                        GymRouteCard(layout: layout, route: route, busyFirst: model.zoneBusy(route.stops[0].zone),
+                                     live: (layout.zones.filter { z in route.stops.contains { $0.zone.id == z.id } })
+                                         .map { ($0, model.busyNow($0)) }.filter { $0.1 > 0 },
+                                     quietHour: model.quietestHour()) {
                             mapDraft = layout
                             mapOpen = true
                         }
@@ -70,6 +73,7 @@ struct SessionView: View {
                     .background(Theme.bg.ignoresSafeArea())
             }
             .standaloneWorkoutActions(session)
+            .task { if model.profile?.gymLayout != nil { await model.refreshGymCrowd() } }
             .fullScreenCover(isPresented: $playing) { WorkoutPlayerView(sessionId: session.id) }
             .sheet(item: $detail) { ref in
                 NavigationStack { ExerciseDetailView(exerciseId: ref.exerciseId, plannedUid: ref.uid) }
