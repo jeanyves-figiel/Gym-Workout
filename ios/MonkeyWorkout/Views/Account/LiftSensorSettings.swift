@@ -259,3 +259,17 @@ struct PracticeTrace: View {
         .accessibilityLabel("Movement graph, \(marks.count) reps marked")
     }
 }
+
+extension WLiftPracticeState {
+    /// CI screenshots: three reps on the practice graph.
+    static var demo: WLiftPracticeState {
+        var trace: [Double] = []
+        for i in 0..<120 {
+            let x = Double(i)
+            let moving = i >= 20 && i <= 100
+            trace.append(moving ? 0.32 * sin((x - 20) * Double.pi / 13.3) : 0.004 * sin(x))
+        }
+        return WLiftPracticeState(level: 0, reps: 3, velocities: [0.62, 0.6, 0.64], ranges: [0.43, 0.42, 0.44],
+                                  trace: trace, marks: [27, 53, 80])
+    }
+}
