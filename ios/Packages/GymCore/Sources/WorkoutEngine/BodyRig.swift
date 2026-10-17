@@ -183,7 +183,8 @@ public final class BodyRig: Sendable {
 
     /// What a hand holds.
     /// What a hand holds: a bar / handle / cable (axis, end a, end b) or a weight (kind, centre).
-    enum Held { case rod(SIMD3<Double>, SIMD3<Double>, SIMD3<Double>), weight(String, SIMD3<Double>) }
+    /// rod(axis, a, b, palmsUp), weight(kind, centre, handle axis, palmsUp)
+    enum Held { case rod(SIMD3<Double>, SIMD3<Double>, SIMD3<Double>, Bool), weight(String, SIMD3<Double>, SIMD3<Double>?, Bool) }
 
     /// A posed body: positions and normals per vertex (same order as `rest`), and the centre of each hand by figure
     /// side ("N" / "F") so equipment can sit in it.
@@ -374,7 +375,7 @@ public final class BodyRig: Sendable {
         let hd = J["hand" + d]! - J["wrist" + d]!
         let pd = Self.palmDir(J, d, hd, J["wrist" + d]! - J["elbow" + d]!, held, nrm(cross(hd, SIMD3(0, 1, 0))))
         let goff = 0.62 * length(hd0 - wr0) * nrm(hd) + 3.0 * pd
-        if case let .rod(_, a, b) = held {
+        if case let .rod(_, a, b, _) = held {
             let ab = b - a
             let t = min(1, max(0, dot(Wt + goff - a, ab) / dot(ab, ab)))
             Wt = a + t * ab - goff
@@ -445,16 +446,16 @@ public final class BodyRig: Sendable {
         var best: (Double, Held)?
         for p in props {
             switch p {
-            case let .rod(a, b, _):
+            case let .rod(a, b, _, up):
                 let ab = b - a
                 let L2 = dot(ab, ab)
                 guard L2 > 1e-6 else { continue }
                 for pt in [hd, (hd + wr) / 2] {
                     let t = min(1, max(0, dot(pt - a, ab) / L2))
                     let dist = length(pt - (a + t * ab))
-                    if dist < 9, best.map({ dist < $0.0 }) ?? true { best = (dist, .rod(nrm(ab), a, b)) }
+                    if dist < 9, best.map({ dist < $0.0 }) ?? true { best = (dist, .rod(nrm(ab), a, b, up)) }
                 }
-            case let .weight(kind, c, r, _):
+            case let .weight(kind, c, r, ax, up):
                 let r = r > 0 ? r : 8
                 if kind == "ball", r > 12 { continue }        // a stability ball is sat or lain on, not held
                 // the weight may already sit in the body's (wider) hand, outside the figure's: measure across the
@@ -462,7 +463,7 @@ public final class BodyRig: Sendable {
                 let lat = nrm(J["shoulder" + d]! - J["shoulder"]!)
                 let l = dot(c - hd, lat)
                 let dist = length((c - hd) - l * lat)
-                if dist < r + 6, l > -16, l < 30, best.map({ dist < $0.0 }) ?? true { best = (dist, .weight(kind, c)) }
+                if dist < r + 6, l > -16, l < 30, best.map({ dist < $0.0 }) ?? true { best = (dist, .weight(kind, c, ax.map(nrm), up)) }
             default: continue
             }
         }
@@ -490,13 +491,20 @@ public final class BodyRig: Sendable {
             return length(p) > 1e-3 ? nrm(p) : aFa
         }
         var axis: SIMD3<Double>
+        let palmsUp: Bool
         switch held {
-        case let .rod(a, _, _): axis = a
-        case .weight: axis = dumbbellAxis(J, d)
+        case let .rod(a, _, _, up): axis = a; palmsUp = up
+        case let .weight(_, _, ax, up): axis = ax ?? dumbbellAxis(J, d); palmsUp = up
         }
         axis = perp(axis, u)
         if length(axis) < 0.2 { axis = perp(SIMD3(0, 0, 1), u) }
         let p = nrm(cross(axis, u))
+        if palmsUp {                                      // underhand: the palm faces the way the elbow bends
+            let sw = J["shoulder" + d]! - J["wrist" + d]!
+            var t = perp(sw, nrm(fa))
+            if length(t) < 0.25 * length(sw) { t = SIMD3(1, 0, 0) }
+            return dot(p, t) >= 0 ? p : -p
+        }
         let along = dot(p, nrm(fa))
         if abs(along) > 0.45 { return along > 0 ? p : -p }
         return dot(p, toBody) >= 0 ? p : -p

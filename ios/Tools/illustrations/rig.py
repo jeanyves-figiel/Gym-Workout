@@ -95,7 +95,7 @@ def held_object(J, d, props):
                 dist = np.linalg.norm(pt - (a + t * ab))
                 lim = 9.0 if p.get("s") == "cable" else 7.5
                 if dist < lim and (best is None or dist < best[0]):
-                    best = (dist, ("rod", nrm(ab), (a, b)))
+                    best = (dist, ("rod", nrm(ab), (a, b), p.get("pm")))
         elif k in ("db", "kb", "ball"):
             if k == "ball" and p.get("r", 8) > 12:     # a stability ball is sat or lain on, not held
                 continue
@@ -106,7 +106,8 @@ def held_object(J, d, props):
             l = (c - h) @ lat
             dist = np.linalg.norm((c - h) - l * lat)
             if dist < p.get("r", 8) + 6 and -16 < l < 30 and (best is None or dist < best[0]):
-                best = (dist, (k, None, c))
+                ax = np.asarray(p["ax"], float) if "ax" in p else None
+                best = (dist, (k, None if ax is None else nrm(ax), c, p.get("pm")))
     return None if best is None else best[1]
 
 
@@ -132,7 +133,7 @@ def palm_dir(J, d, hd, fa, held, a_fa):
         else:                                          # relaxed: palm toward the body
             p = perp(to_body, u)
         return nrm(p) if np.linalg.norm(p) > 1e-3 else a_fa
-    if held[0] == "rod":
+    if held[1] is not None:
         axis = held[1]
     else:
         axis = db_axis(J, d)
@@ -140,6 +141,11 @@ def palm_dir(J, d, hd, fa, held, a_fa):
     if np.linalg.norm(axis) < 0.2:
         axis = perp(np.array([0, 0, 1.0]), u)
     p = nrm(np.cross(axis, u))
+    if len(held) > 3 and held[3] == "sup":             # palms up: the palm faces the way the elbow bends
+        t = perp(J["shoulder" + d] - J["wrist" + d], nrm(fa))
+        if np.linalg.norm(t) < 0.25 * np.linalg.norm(J["shoulder" + d] - J["wrist" + d]):
+            t = np.array([1.0, 0, 0])
+        return p if p @ t >= 0 else -p
     along = p @ nrm(fa)
     if abs(along) > 0.45:
         return p if along > 0 else -p

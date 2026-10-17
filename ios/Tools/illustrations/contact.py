@@ -150,7 +150,8 @@ def dumbbells(props, J, held, grip):
     def place(p, g, d):
         r = min(float(p.get("r", 9)), 9.0)
         if p["k"] == "db":
-            p["ax"] = [int(x) for x in rigmod.db_axis(J, d)]
+            if "ax" not in p:
+                p["ax"] = [int(x) for x in rigmod.db_axis(J, d)]
             p["r"] = r
             p["c"] = [round(float(x), 1) for x in g]
         elif p["k"] == "kb":
@@ -347,6 +348,93 @@ def lying_scenes(ex, e):
             J["head"] = [round(J["neck"][0] - 8 - 6 * np.sin(ang), 1), round(J["neck"][1] + 3, 1), round(J["neck"][2] + 10 * np.sin(ang), 1)]
 
 
+NEUTRAL = ("hammer", "neutral", "farmer", "suitcase", "carry")
+ACROSS = ("curl", "press", "bench", "row", "front-raise", "pullover", "skull", "french", "thruster", "snatch", "clean",
+          "overhead", "upright", "shrug", "spider", "preacher", "drag", "zottman", "concentration", "jm", "tate")
+
+
+def grip_axes(ex, keys):
+    """Dumbbell handle axis from the grip the exercise uses: palms up or down (curls, presses, rows) hold it
+    across the body, neutral grips (hammer curls, carries) along the forearm's swing plane."""
+    parts = ex.split("-")
+    neutral = any(w in ex for w in NEUTRAL)
+    across = any(w in parts or w in ex for w in ACROSS) and not neutral
+    sup = "curl" in parts and not neutral and "reverse" not in parts and not any(w in ex for w in ("leg-curl", "nordic", "hamstring", "jefferson", "zottman"))
+    for k in keys:
+        J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
+        if sup:
+            for p in k["p"]:
+                if p["k"] in ("db", "rod") and p.get("s") != "cable":
+                    pts = [np.asarray(p["c"], float)] if p["k"] == "db" else [np.asarray(p["a"], float), np.asarray(p["b"], float)]
+                    if p["k"] == "rod":
+                        a, b = pts; ab = b - a
+                        near = min(np.linalg.norm(a + np.clip(((J["hand" + d] - a) @ ab) / max(ab @ ab, 1e-6), 0, 1) * ab - J["hand" + d]) for d in "NF")
+                    else:
+                        near = min(np.linalg.norm(pts[0] - J["hand" + d]) for d in "NF")
+                    if near < 18:
+                        p["pm"] = "sup"
+        for p in k["p"]:
+            if p["k"] != "db":
+                continue
+            c = np.asarray(p["c"], float)
+            d = min(("N", "F"), key=lambda d: np.linalg.norm(J["hand" + d] - c))
+            fa = nrm3(J["wrist" + d] - J["elbow" + d])
+            if neutral:
+                ax = np.cross(fa, [0, 0, 1.0])
+            elif across:
+                ax = np.array([0, 0, 1.0])
+            else:
+                continue
+            p["ax"] = [round(float(x), 3) for x in nrm3(ax)]
+
+
+def cable_bar(ex, keys):
+    """A cable handle gripped by both hands close together is a straight bar across both fists, the cable
+    clipped to its middle (cable curls, pushdowns, straight-arm pulldowns). Ropes stay ropes."""
+    if "rope" in ex or "single" in ex or "one" in ex.split("-"):
+        return
+    for k in keys:
+        J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
+        hN, hF = J["handN"], J["handF"]
+        if abs(hN[1] - hF[1]) > 8 or abs(hN[0] - hF[0]) > 10 or abs(hN[2] - hF[2]) > 60:
+            continue
+        mid = (hN + hF) / 2
+        hs = [p for p in k["p"] if p["k"] == "rod" and p.get("s") == "handle"
+              and min(np.linalg.norm(np.asarray(p[e], float) - mid) for e in ("a", "b")) < 40]
+        if not hs:
+            continue
+        w = abs(hN[2] - hF[2]) / 2 + 10
+        h = hs[0]
+        h["a"] = [round(float(mid[0]), 1), round(float(mid[1]), 1), round(float(mid[2] - w), 1)]
+        h["b"] = [round(float(mid[0]), 1), round(float(mid[1]), 1), round(float(mid[2] + w), 1)]
+        h["r"] = 1.6
+        if "curl" in ex.split("-"):
+            h["pm"] = "sup"
+        for p in k["p"]:
+            if p["k"] == "rod" and p.get("s") == "cable":
+                a, b = np.asarray(p["a"], float), np.asarray(p["b"], float)
+                e = "a" if np.linalg.norm(a - mid) < np.linalg.norm(b - mid) else "b"
+                if np.linalg.norm(np.asarray(p[e], float) - mid) < 50:
+                    p[e] = [round(float(x), 1) for x in mid]
+        for p in hs[1:]:            # a second handle becomes part of the bar (keys keep the same prop list)
+            p["a"], p["b"], p["r"] = list(h["a"]), list(h["b"]), h["r"]
+            if "pm" in h:
+                p["pm"] = h["pm"]
+
+
+def _equipment():
+    """Catalog equipment per exercise id, read from the GymCore catalog sources."""
+    import re
+    out = {}
+    for f in (HERE.parent.parent / "Packages/GymCore/Sources/WorkoutEngine").glob("Exercises*.swift"):
+        for m in re.finditer(r'Exercise\(id: "([^"]+)".*?equipment: \[([^\]]*)\]', f.read_text()):
+            out[m.group(1)] = m.group(2)
+    return out
+
+
+EQUIP = _equipment()
+
+
 def complete(ex, keys):
     """Equipment the 2D scenes drew in shorthand gets its real kind: a short bar in a dumbbell exercise is the
     dumbbell, a ball in a kettlebell exercise is the kettlebell, the ball crunch gets its ball."""
@@ -367,7 +455,8 @@ def complete(ex, keys):
         P = k["p"]
         kinds = {p["k"] for p in P}
         hands = [J["handN"], J["handF"]]
-        if ("db" in parts or "dumbbell" in parts) and "db" not in kinds:
+        dumbbell = "db" in parts or "dumbbell" in parts or (".dumbbells" in EQUIP.get(ex, "") and ".barbell" not in EQUIP.get(ex, ""))
+        if dumbbell and "db" not in kinds:
             for p in list(P):
                 if p["k"] != "rod" or p.get("s") == "cable":
                     continue
@@ -430,6 +519,8 @@ def run(ids=None):
         keys = e["k"]
         lying_scenes(ex, e)
         complete(ex, keys)
+        grip_axes(ex, keys)
+        cable_bar(ex, keys)
         # every key must list the same static props; shifts are decided per exercise
         poses = []
         for k in keys:

@@ -367,7 +367,7 @@ struct PositionCamera: Equatable {
     }
 }
 
-/// The posed body (skin under studio light, worked muscles showing through as red tissue), the equipment and the red
+/// The posed body (grey anatomy figure, worked muscles in orange-red tissue), the equipment and the red
 /// mistake ghost. Poses are skinned off the main thread and kept per exercise / key / ghost; the clay mannequin
 /// stands in while a pose is being built or when the body resource is missing.
 struct PositionFigureView: UIViewRepresentable {
@@ -477,8 +477,8 @@ struct PositionFigureView: UIViewRepresentable {
     }
 }
 
-/// The skinned body on stage (look B): natural skin shaded by surface cavity, the worked muscles showing through as
-/// red tissue with fibres across the pull, dark shorts, studio key light with shadows. Built from `BodyRig`.
+/// The skinned body on stage (look B, anatomy): a grey sculpted figure with dark grooves between muscles and fibres on
+/// every muscle, the worked muscles in orange-red tissue, black shorts, studio key light with shadows. Built from `BodyRig`.
 enum BodyStage {
     /// A posed body ready to turn into geometry: vertex attributes packed for the shader.
     struct Mesh: Sendable {
@@ -501,7 +501,8 @@ enum BodyStage {
         tex0.reserveCapacity(rig.vertexCount); tex1.reserveCapacity(rig.vertexCount)
         for i in 0..<rig.vertexCount {
             tex0.append(SIMD2(rig.cavity[i], rig.phase[i]))
-            tex1.append(SIMD2(work[i], rig.shorts[i] ? 1 : 0))
+            // y: 0 plain skin (head, hands, feet), 0.5 muscle, 1 shorts
+            tex1.append(SIMD2(work[i], rig.shorts[i] ? 1 : (rig.muscle[i] > 0 ? 0.5 : 0)))
         }
         let g = ghost.map { rig.pose($0, mush: 4) }
         return Mesh(positions: pose.positions, normals: pose.normals, tex0: tex0, tex1: tex1, triangles: rig.triangles,
@@ -543,12 +544,13 @@ enum BodyStage {
         return root
     }
 
-    /// Skin material: PBR base with the look-B shader on top (cavity tint, tissue, shorts). Colours are linear.
+    /// Anatomy material (look B, #408): grey sculpted figure, dark grooves between muscles, fine fibres on every
+    /// muscle, worked muscles in orange-red tissue, black shorts. Colours in the shader are linear.
     static func skin() -> SCNMaterial {
         let m = SCNMaterial()
         m.lightingModel = .physicallyBased
-        m.diffuse.contents = UIColor(red: 0.85, green: 0.65, blue: 0.51, alpha: 1)
-        m.roughness.contents = 0.46
+        m.diffuse.contents = UIColor(red: 0.71, green: 0.72, blue: 0.75, alpha: 1)
+        m.roughness.contents = 0.62
         m.metalness.contents = 0.0
         m.isDoubleSided = false
         m.shaderModifiers = [.geometry: geometryModifier, .surface: surfaceModifier]
@@ -567,28 +569,24 @@ enum BodyStage {
     float cav = in.vAtt.x;
     float ph = in.vAtt.y;
     float w = in.vAtt.z;
-    float sh = in.vAtt.w;
-    float cv = smoothstep(-0.9, 0.35, cav);
-    float cvn = clamp((cav + 0.9) / 1.3, 0.0, 1.0);
-    // skin tone with natural variation: redder in creases and at joints, a touch lighter on the ridges
-    float3 col = mix(_surface.diffuse.rgb, float3(0.48, 0.145, 0.10), 0.35 * (1.0 - cvn));
-    col = mix(col, float3(0.81, 0.52, 0.35), 0.25 * max(0.0, cav));
-    col *= mix(float3(0.42, 0.30, 0.27), float3(1.0), cv);
-    col *= 1.0 + 0.08 * smoothstep(0.3, 1.0, cav);
-    // worked muscle: red tissue under the skin with fibres across the pull direction
-    float wq = smoothstep(0.08, 0.85, w);
-    float fib = 0.5 + 0.5 * sin(ph);
-    float fib2 = 0.5 + 0.5 * sin(ph * 2.3 + 1.7);
-    float3 tissue = mix(float3(0.42, 0.05, 0.07), float3(0.80, 0.19, 0.17), pow(fib, 1.4) * 0.72 + fib2 * 0.28);
-    tissue *= mix(0.75, 1.0, cv);
-    float3 flush = mix(col, float3(0.85, 0.42, 0.36), 0.45);
-    col = mix(col, flush, smoothstep(0.02, 0.35, w) * (1.0 - wq));
-    col = mix(col, tissue, wq * 0.94);
-    float3 shorts = mix(float3(0.011, 0.015, 0.03), tissue * 0.9, wq * 0.55);
+    float sh = step(0.75, in.vAtt.w);
+    float mu = step(0.25, in.vAtt.w) * (1.0 - sh);
+    float cv = smoothstep(-0.95, 0.4, cav);
+    // grey sculpt: grooves and muscle borders go dark (borders are baked into the cavity)
+    float3 col = float3(0.456, 0.474, 0.52) * mix(float3(0.22, 0.22, 0.25), float3(1.0), pow(cv, 0.8));
+    // fine fibres on every muscle; the phase wraps at 2 pi, so only whole multiples of it stay seamless
+    float f1 = pow(0.5 + 0.5 * sin(ph * 3.0), 4.0);
+    col *= 1.0 - 0.13 * f1 * mu * smoothstep(0.0, 0.5, cv);
+    // worked muscles: orange-red tissue with the same fibres
+    float wq = smoothstep(0.1, 0.8, w);
+    float3 tissue = mix(float3(0.62, 0.10, 0.05), float3(1.0, 0.40, 0.18), pow(0.5 + 0.5 * sin(ph * 3.0), 1.2));
+    tissue *= mix(0.55, 1.0, cv);
+    col = mix(col, tissue, wq * 0.95 * (1.0 - sh));
+    float3 shorts = float3(0.07, 0.07, 0.08) * mix(0.6, 1.0, cv);
     col = mix(col, shorts, sh);
     _surface.diffuse.rgb = col;
-    _surface.roughness = mix(mix(_surface.roughness, 0.38, wq), 0.9, sh);
-    _surface.emission.rgb += float3(0.55, 0.06, 0.04) * wq * 0.22 * (1.0 - sh);
+    _surface.roughness = mix(0.62, 0.85, sh);
+    _surface.emission.rgb += float3(0.55, 0.08, 0.03) * wq * 0.10 * (1.0 - sh);
     """
 
     /// Studio lighting: warm key with soft shadows, cool fill, two rims to carve the muscles, a little ambient.
@@ -617,7 +615,7 @@ enum BodyStage {
         key.shadowColor = UIColor(white: 0, alpha: 0.55)
         key.zNear = 50
         key.zFar = 1500
-        _ = add(.directional, UIColor(red: 0.62, green: 0.71, blue: 1, alpha: 1), 320, SCNVector3(420, 120, 180))
+        _ = add(.directional, UIColor(red: 0.62, green: 0.71, blue: 1, alpha: 1), 180, SCNVector3(420, 120, 180))
         _ = add(.directional, UIColor(red: 1, green: 0.84, blue: 0.72, alpha: 1), 1100, SCNVector3(180, 300, -420))
         _ = add(.directional, UIColor(red: 0.87, green: 0.91, blue: 1, alpha: 1), 650, SCNVector3(-420, 220, -260))
         _ = add(.ambient, UIColor(red: 1, green: 0.93, blue: 0.9, alpha: 1), 160, SCNVector3Zero)
@@ -755,7 +753,7 @@ enum Mannequin {
         let mat = material(UIColor(red: 0.18, green: 0.43, blue: 0.56, alpha: 1), ghost: false)
         for p in props {
             switch p {
-            case let .rod(a, b, r):
+            case let .rod(a, b, r, _):
                 root.addChildNode(cylinder(a, b, r: max(r, 1.6), steel))
             case let .pad(a, b, normal, halfWidth):
                 let along = v(b) - v(a)
@@ -791,7 +789,7 @@ enum Mannequin {
                 node.simdPosition = v(c)
                 node.simdOrientation = simd_quatf(from: SIMD3(0, 1, 0), to: alongX ? SIMD3(1, 0, 0) : SIMD3(0, 0, 1))
                 root.addChildNode(node)
-            case let .weight(kind, c, r0, axis):
+            case let .weight(kind, c, r0, axis, _):
                 let r = r0 > 0 ? min(r0, 9) : 8
                 if kind == "db" {
                     // knurled handle along the grip axis, a head at each end

@@ -73,7 +73,7 @@ import Testing
         #expect(k.dy == -3)
         let curl = try #require(Exercise.get("db-curl").position).keys[0]
         let axes = curl.props.compactMap { p -> SIMD3<Double>? in
-            if case let .weight(kind, _, _, axis) = p, kind == "db" { return axis }
+            if case let .weight(kind, _, _, axis, _) = p, kind == "db" { return axis }
             return nil
         }
         #expect(axes.allSatisfy { abs(simd_length($0) - 1) < 1e-6 }, "unit handle axes")

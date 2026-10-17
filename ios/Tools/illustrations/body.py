@@ -24,12 +24,15 @@ TARGETS = {
     "macrodetails/african-male-young.target": 0.33,
     "macrodetails/asian-male-young.target": 0.33,
     "macrodetails/universal-male-young-maxmuscle-averageweight.target": 0.1,
-    "macrodetails/universal-male-young-maxmuscle-minweight.target": 0.9,
+    "macrodetails/universal-male-young-maxmuscle-minweight.target": 0.55,
+    "macrodetails/universal-male-young-averagemuscle-minweight.target": 0.35,
     "macrodetails/proportions/male-young-maxmuscle-minweight-idealproportions.target": 1.0,
     "stomach/stomach-tone-incr.target": 1.0,
+    "torso/torso-muscle-pectoral-incr.target": 0.45,
+    "torso/torso-vshape-incr.target": 0.3,
     "neck/neck-scale-horiz-incr.target": 0.3,
     "head/head-square.target": 0.3,
-    **{f"armslegs/{s}-{m}-muscle-incr.target": w for s in "lr" for m, w in (("upperarm", 0.5), ("upperarm-shoulder", 0.5), ("lowerarm", 0.4), ("upperleg", 0.4))},
+    **{f"armslegs/{s}-{m}-muscle-incr.target": w for s in "lr" for m, w in (("upperarm", 0.25), ("upperarm-shoulder", 0.35), ("lowerarm", 0.3), ("upperleg", 0.25))},
 }
 DEFINITION = 0.3
 BREAST_FLATTEN = 0.85
@@ -271,6 +274,69 @@ def _taubin(V, tris, idx, passes=2):
     return V
 
 
+GROOVE = 0.9          # depth of the groove between muscles (rest units)
+SEAM_DARK = 0.45      # extra cavity on muscle borders (the shader darkens cavity)
+PLAIN = ("head", "neck", "jaw", "eye", "tongue", "teeth", "special", "finger", "metacarpal", "wrist", "toe", "foot",
+         "levator", "orbicularis", "oris", "temporalis")
+HEADS = {"quads": ("th", [(-200, -40), (-40, 40), (40, 200)]), "calves": ("sn", [(-200, 0), (0, 200)]),
+         "hamstrings": ("th", [(-200, 0), (0, 200)]), "forearms": ("fa", [(-200, -30), (-30, 200)]),
+         "triceps": ("ua", [(-200, 0), (0, 200)])}
+
+
+def _normals(V, T):
+    n = np.zeros_like(V); t = V[T]; fn = np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0])
+    for k in range(3):
+        np.add.at(n, T[:, k], fn)
+    return n / np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-9)
+
+
+def muscle_map(V, T, mus, dom, J):
+    """Full muscle map for the anatomy look. classify() marks the muscle centres; this floods the ids over the
+    mesh so the whole body is covered (head, hands, feet excluded by their bones), splits quads, hamstrings,
+    calves, forearms and triceps into heads by angle around the bone, smooths the borders by majority vote and
+    returns (muscle per vertex, seam weight 0..1 on the border ring)."""
+    n = len(V)
+    E = np.concatenate([T[:, [0, 1]], T[:, [1, 2]], T[:, [2, 0]]])
+    E = np.unique(np.sort(E, 1), axis=0)
+    a, b = np.concatenate([E[:, 0], E[:, 1]]), np.concatenate([E[:, 1], E[:, 0]])
+    plain = np.array([d.startswith(PLAIN) for d in dom])
+    full = np.where(plain, 0, mus).astype(int)
+    for _ in range(400):                       # flood: unlabeled body vertices take a labelled neighbour's id
+        todo = (full[a] == 0) & (full[b] > 0) & ~plain[a]
+        if not todo.any():
+            break
+        full[a[todo]] = full[b[todo]]
+    lab = full.copy()
+    F = _frames(J, {"L": "L", "R": "R"})
+    nid = 100
+    for m, (seg, secs) in HEADS.items():
+        k = full == MUSCLES.index(m)
+        for S in "LR":
+            o, B, _ = F[seg + S]
+            side = k & ((V[:, 2] < 0) if S == "L" else (V[:, 2] >= 0))
+            q = (V[side] - o) @ B
+            ang = np.degrees(np.arctan2(q[:, 2], q[:, 1])) * (1 if S == "R" else -1)
+            idx = np.nonzero(side)[0]
+            for j, (lo, hi) in enumerate(secs):
+                lab[idx[(ang >= lo) & (ang < hi)]] = nid + j
+        nid += 10
+    labs = [L_ for L_ in np.unique(lab) if L_ != 0]
+    for _ in range(25):                        # majority vote smooths the jagged region borders
+        best = lab.copy(); bestc = np.zeros(n)
+        for L_ in labs:
+            c = np.bincount(a, weights=(lab[b] == L_).astype(float), minlength=n) + 1.5 * (lab == L_)
+            upd = c > bestc
+            best[upd] = L_; bestc[upd] = c[upd]
+        lab = np.where(full == 0, 0, best)
+    diff = np.bincount(a, weights=(lab[a] != lab[b]).astype(float), minlength=n) > 0
+    near0 = np.bincount(a, weights=(lab[b] == 0).astype(float), minlength=n) > 0
+    seam = (diff & (lab > 0) & ~near0).astype(float)
+    # the muscle id the app highlights: the head's parent muscle
+    out = full.copy()
+    out[lab == 0] = 0
+    return out, seam
+
+
 def build(mh, only=None):
     mh = Path(mh)
     V, F = [], {}
@@ -439,20 +505,31 @@ def build(mh, only=None):
     heads = np.array([(conv(jh(b)) - off) * scale for b in names])
     tails = np.array([(conv(jt(b)) - off) * scale for b in names])
     parents = [names.index(skel["bones"][b]["parent"]) if skel["bones"][b]["parent"] else -1 for b in names]
-    np.savez_compressed(HERE / "body_rig.npz", v=Vr.astype(np.float32), vf=Vfist.astype(np.float32), bi=top.astype(np.int16),
+    Vrig, Vfrig = Vr.copy(), Vfist.copy()
+    Vr, Vfist, Jr = _proportion(Vr, Vfist, W, Jr)
+    mus = classify(Vr, W, Jr)
+    # anatomy: every body vertex gets a muscle, big limb muscles split into heads, and a shallow groove runs
+    # along each border (the separations an anatomy chart draws); head, hands and feet stay plain
+    T = remap[tris]
+    dom = np.array(names)[top[:, 0]]
+    mus, seam = muscle_map(Vr, T, mus, dom, Jr)
+    for VV, extra in ((Vr, (Vfist,)), (Vrig, (Vfrig,))):
+        nv = _normals(VV, T)
+        g = -(GROOVE * seam)[:, None] * nv
+        VV += g
+        for X in extra:
+            X += g
+    np.savez_compressed(HERE / "body_rig.npz", v=Vrig.astype(np.float32), vf=Vfrig.astype(np.float32), bi=top.astype(np.int16),
                         bw=tw.astype(np.float16), heads=heads.astype(np.float32), tails=tails.astype(np.float32),
                         parents=np.array(parents, np.int16), names=json.dumps(names),
                         palm=np.stack([conv(palms["L"]), conv(palms["R"])]).astype(np.float32))
-    Vr, Vfist, Jr = _proportion(Vr, Vfist, W, Jr)
-    mus = classify(Vr, W, Jr)
     # cavity: how far each vertex sits inside its smoothed neighbourhood (muscle separations), along the normal
-    T = remap[tris]
     nr = np.zeros_like(Vr); t = Vr[T]; fnr = np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0])
     for k in range(3):
         np.add.at(nr, T[:, k], fnr)
     nr /= np.maximum(np.linalg.norm(nr, axis=1, keepdims=True), 1e-9)
     cav = ((Vr - _smooth(Vr, T, 6)) * nr).sum(1)
-    cav = np.clip(cav / 1.2, -1, 1)
+    cav = np.clip(cav / 1.2 - SEAM_DARK * seam, -1, 1)
     band = np.array([(J["hip"][1] + 0.62 - floor) * scale - 2.0, ((J["hipL"][1] + J["kneeL"][1]) / 2 - floor) * scale + 3])
     np.savez_compressed(REST, v=Vr.astype(np.float32), f=remap[tris].astype(np.int32), m=mat.astype(np.int8), vf=Vfist.astype(np.float32), mu=mus.astype(np.int8), cav=cav.astype(np.float16), band=band,
                         w=W.astype(np.float16), j=json.dumps({k: np.round(v, 3).tolist() for k, v in Jr.items()}))
