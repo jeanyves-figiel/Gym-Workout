@@ -1,3 +1,4 @@
+import LiftSensor
 import SwiftUI
 import WorkoutEngine
 
@@ -23,12 +24,16 @@ extension ProgrammePhaseKind {
 
 extension Programme {
     var gradient: LinearGradient {
-        snowRide == nil ? palette.gradient
+        isHyrox ? LinearGradient(colors: [Color(hex: 0xFFD400), Color(hex: 0xFF7A00), Color(hex: 0xFF2D55)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            : snowRide == nil ? palette.gradient
             : LinearGradient(colors: [Color(hex: 0x00C6FF), Color(hex: 0x2B5CFF), Color(hex: 0x8A2BFF)], startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 
-    /// Explore order: Snow ready (#428) first, the rest as the catalog lists them.
-    static var catalog: [Programme] { all.filter { $0.snowRide != nil } + all.filter { $0.snowRide == nil } }
+    /// Explore order: the season ones, Snow ready (#428) and Hyrox ready (#431), first; the rest as the catalog lists them.
+    static var catalog: [Programme] {
+        let season = { (p: Programme) in p.snowRide != nil || p.isHyrox }
+        return all.filter(season) + all.filter { !season($0) }
+    }
 
     /// Same programme for the library: Snow ready variants count as one.
     func sameFamily(_ id: String?) -> Bool {
@@ -177,6 +182,9 @@ struct ProgrammeDetailView: View {
     @State private var ride: SnowRide?
     @State private var firstDay: Date?
     @AppStorage("snowNudgeSeen") private var snowSeen = 0
+    /// Hyrox ready (#431): the race days the season is built around.
+    @State private var races: [Date] = []
+    @State private var newRace = Calendar.current.date(byAdding: .weekOfYear, value: 9, to: .now)!
 
     /// Demo screenshots: open the length sheet, or scroll to the workouts grid.
     private let demoLength: Bool
@@ -197,6 +205,7 @@ struct ProgrammeDetailView: View {
     /// The member's own programme as last saved (#269); a catalog one as is; Snow ready as the picked ride.
     private var latest: Programme {
         if base.mine { return model.findProgramme(base.id) ?? base }
+        if base.isHyrox { return Programme.hyroxSeason(races: races, now: .now).targeting(model.hyroxTarget) }
         if let r = ride ?? base.snowRide { return Programme.snowReady(r) }
         return base
     }
@@ -218,8 +227,9 @@ struct ProgrammeDetailView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     if base.snowRide != nil, mine == nil || mine?.firstDay != nil { snowSetup }
+                    if base.isHyrox { hyroxSetup }
                     ProgrammePhaseStrip(programme: programme, week: mine == nil ? nil : model.programmeWeek)
-                    if mine != nil { lengthRow }
+                    if mine != nil, !base.isHyrox { lengthRow }
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(Array(programme.phaseStarts.enumerated()), id: \.offset) { _, item in
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -258,7 +268,8 @@ struct ProgrammeDetailView: View {
                                 .background(RoundedRectangle(cornerRadius: 16).fill(.white.opacity(0.25)))
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("Test week").font(Theme.display(21))
-                                Text("PR attempts: " + programme.lifts.map { Exercise.get($0).name }.joined(separator: ", "))
+                                Text(programme.lifts.isEmpty ? "Race a half Hyrox on your Watch; the report compares every split to your plan"
+                                     : "PR attempts: " + programme.lifts.map { Exercise.get($0).name }.joined(separator: ", "))
                                     .font(.footnote.weight(.semibold)).opacity(0.9)
                             }
                             Spacer(minLength: 0)
@@ -297,6 +308,9 @@ struct ProgrammeDetailView: View {
             }
         }
         .onAppear {
+            if base.isHyrox, races.isEmpty {
+                races = mine?.races ?? [model.hyroxPlan?.event].compactMap { $0 }.filter { $0 > .now }
+            }
             if base.snowRide != nil {
                 let sports = model.profile?.sports
                 ride = ride ?? SnowRide.from(sports) ?? base.snowRide
@@ -311,6 +325,78 @@ struct ProgrammeDetailView: View {
         } message: {
             Text("Your own plan comes back. Progress keeps what you trained.")
         }
+    }
+
+    /// Hyrox ready (#431, A + C): division, race days (one season block per race), goal pace; running, the next race.
+    private var hyroxSetup: some View {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: .now)
+        let list = (mine?.races ?? races).sorted()
+        let next = list.first { $0 >= today }
+        return VStack(alignment: .leading, spacing: 10) {
+            if mine == nil {
+                Text("DIVISION").font(Theme.label(11)).tracking(1.2).opacity(0.85)
+                HStack(spacing: 6) {
+                    ForEach(HyroxDivision.Category.allCases, id: \.self) { c in
+                        let on = model.hyroxDivision.category == c
+                        Button {
+                            var p = model.hyroxProfile
+                            p.category = c.rawValue
+                            model.saveHyroxProfile(p)
+                        } label: {
+                            Text(c.rawValue.capitalized).font(Theme.label(13))
+                                .padding(.horizontal, 12).padding(.vertical, 7)
+                                .foregroundStyle(on ? Color(hex: 0xFFD400) : .black)
+                                .background(Capsule().fill(on ? Color.black : Color.white.opacity(0.35)))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(on ? .isSelected : [])
+                    }
+                }
+            }
+            Text("RACE DAYS").font(Theme.label(11)).tracking(1.2).opacity(0.85)
+            if let next {
+                let days = cal.dateComponents([.day], from: today, to: cal.startOfDay(for: next)).day ?? 0
+                Text(next.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))
+                    .font(Theme.display(40)).lineLimit(1).minimumScaleFactor(0.6)
+                Text(days == 0 ? "Race day. Go get it 🏁" : "\(days) day\(days == 1 ? "" : "s") to go").font(.footnote.weight(.semibold))
+            }
+            ForEach(list, id: \.self) { d in
+                HStack {
+                    Image(systemName: "flag.checkered").font(.caption.bold())
+                    Text(d.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).year())).font(Theme.label(14))
+                    Spacer()
+                    if mine == nil {
+                        Button { races.removeAll { $0 == d } } label: { Image(systemName: "xmark.circle.fill") }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Remove race")
+                    }
+                }
+            }
+            if mine == nil {
+                HStack {
+                    DatePicker("Race day", selection: $newRace, in: cal.date(byAdding: .day, value: 7, to: .now)!..., displayedComponents: .date)
+                        .labelsHidden()
+                    Spacer()
+                    Button {
+                        if !races.contains(where: { cal.isDate($0, inSameDayAs: newRace) }) { races.append(newRace) }
+                    } label: {
+                        Label("Add race", systemImage: "plus").font(Theme.label(13))
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .foregroundStyle(Color(hex: 0xFFD400))
+                            .background(Capsule().fill(Color.black))
+                    }
+                    .buttonStyle(.plain)
+                }
+                Text(model.hyroxGoalSeconds.map { "Goal \(HyroxTime.clock($0)): run, SkiErg and row targets set from it." }
+                     ?? "Set a goal time in the Hyrox hub to get race-pace targets.")
+                    .font(.caption.weight(.semibold))
+            }
+        }
+        .foregroundStyle(.black)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(programme.gradient))
     }
 
     /// Snow ready (#428, A + B): ride picker and the first day on snow; running, the countdown.
@@ -463,6 +549,15 @@ struct ProgrammeDetailView: View {
                  ? "Paused at week \(model.programmeWeek ?? 1). Resume picks it up there."
                  : "Pause brings your own plan back (holiday, injury) and keeps this programme at week \(model.programmeWeek ?? 1).")
                 .font(.caption).foregroundStyle(Theme.muted)
+        } else if base.isHyrox {
+            bigButton(model.activeProgramme == nil
+                      ? (races.isEmpty ? "Start · \(programme.weeks) weeks" : "Start · \(races.count) race\(races.count == 1 ? "" : "s")")
+                      : "Switch to this programme", "flag.checkered", fill: Theme.lime) {
+                model.startProgramme(latest, races: races)
+            }
+            Text(races.isEmpty ? "No race set: a standard \(programme.weeks)-week block. Add your race days above to fit it."
+                 : "Starts this week. Ends after your last race; your own plan comes back.")
+                .font(.caption).foregroundStyle(Theme.muted)
         } else if let weeks = snowWeeks, let day = firstDay {
             let end = Calendar.current.date(byAdding: .day, value: -1, to: Progression.weekStart(day, Progression.calendar()))!
             bigButton(model.activeProgramme == nil ? "Start · ends \(end.formatted(.dateTime.day().month(.abbreviated)))" : "Switch to this programme",
@@ -563,7 +658,7 @@ struct ProgrammeHeroCard: View {
             .accessibilityHint("Opens the programme")
             if !a.paused, phase.kind == .test {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Test week · PR attempts").eyebrow()
+                    Text(p.lifts.isEmpty ? "Sim week · race a half Hyrox on your Watch" : "Test week · PR attempts").eyebrow()
                     ForEach(p.lifts, id: \.self) { id in
                         Button { attempt = id } label: {
                             HStack {
@@ -589,8 +684,8 @@ struct ProgrammeHeroCard: View {
     }
 
     private func headline(_ p: Programme, week: Int, phase: ProgrammePhase) -> String {
-        if phase.kind == .test { return "Test week. Go for your PRs 🏆" }
-        guard p.hasTest else { return phase.note }
+        if phase.kind == .test { return p.lifts.isEmpty ? "Sim week. Race a half on your Watch 🏁" : "Test week. Go for your PRs 🏆" }
+        guard p.hasTest, !p.lifts.isEmpty else { return phase.note }
         let test = p.phaseStarts.first { $0.phase.kind == .test }?.week ?? p.weeks
         guard test > week else { return phase.note }
         let toTest = test - week
