@@ -228,11 +228,11 @@ def hang_legs(j, J):
     if straight and hip[1] - LEG[0] - LEG[1] + 4 > 12:
         kn = hip + np.array([-2.0, -LEG[0], 0])
         an = kn + np.array([-4.0, -LEG[1] + 2, 0])
-        to = an + np.array([5.0, -11.0, 0])
+        to = an + np.array([4.0, -11.0, 0])
     else:
         kn = hip + np.array([7.0, -LEG[0] + 2, 0])
         an = kn + np.array([-LEG[1] + 4, 5.0, 0])
-        to = an + np.array([-9.0, -8.0, 0])
+        to = an + np.array([3.0, -11.0, 0])     # pointed down, a touch forward: the rig reads facing from the feet
     for a, v, z in (("knee", kn, 7.0), ("ankle", an, 4.0), ("toe", to, 4.0)):
         j[a + "N"] = [round(float(v[0]), 1), round(float(v[1]), 1), z]
         j[a + "F"] = [round(float(v[0]), 1), round(float(v[1]), 1), -z]
@@ -435,6 +435,28 @@ def _equipment():
 EQUIP = _equipment()
 
 
+def bar_clear(ex, keys, clear=22.0):
+    """At the top of a pull-up the 2D head sits against the bar; the body's head is bigger, so the body moves
+    back (hands stay on the bar) until the head clears it."""
+    if not hangs(ex):
+        return
+    for k in keys:
+        j = k["j"]
+        head = np.asarray(j["head"], float)
+        for p in k["p"]:
+            if p["k"] != "rod" or abs(p["a"][1] - p["b"][1]) > 1 or abs(p["a"][1] - head[1]) > 16:
+                continue
+            dx = head[0] - p["a"][0]
+            if abs(dx) >= clear:
+                continue
+            shift = (clear - abs(dx)) * (1 if dx >= 0 else -1)
+            for n, v in j.items():
+                if n.startswith("_") or n.startswith(("hand", "wrist")):
+                    continue
+                j[n] = [round(v[0] + shift, 1), v[1], v[2]]
+            break
+
+
 def complete(ex, keys):
     """Equipment the 2D scenes drew in shorthand gets its real kind: a short bar in a dumbbell exercise is the
     dumbbell, a ball in a kettlebell exercise is the kettlebell, the ball crunch gets its ball."""
@@ -521,6 +543,7 @@ def run(ids=None):
         complete(ex, keys)
         grip_axes(ex, keys)
         cable_bar(ex, keys)
+        bar_clear(ex, keys)
         # every key must list the same static props; shifts are decided per exercise
         poses = []
         for k in keys:
