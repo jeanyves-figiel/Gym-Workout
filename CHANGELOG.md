@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Gym Map: real floor plan, your route, busy-zone swap, guided walk** (#406): zones (#274) only worked in the background and the floor plan didn't read as a plan. Design A + B from `gym-zones/v3/` (part 1 of the Gym Map plan). **Gym map** (was Floor plan / Gym layout): tiled floor, thick outer walls, an entrance you drag along the walls, zone blocks with icons of the equipment that sits there, a **2D / 3D** tilt view; tap a zone to see its pieces, then drag one onto another zone (or touch and hold → Move to…). **Your route today** on the workout page: numbered stops from the entrance on a mini plan, stops, walks and rough metres walked, each stop's exercises; tap the plan to edit it. **Taken?** in the player's Change sheet: swaps to the same muscles in another zone (quiet zones first) and remembers the zone was busy at that time; the route card warns when the first zone is usually busy around now (two taps within 45 min of the time of day in 8 weeks, same weekday counts double; kept on the device only). Player: Up next shows a mini plan with the walk to the next zone, and a **Zone cleared** banner + haptic when you leave a zone for good. Engine `GymLayout.door/route`, `GymRoute`, `GymBusy`; tests `GymRouteTests`.
+
 ### Changed
 - **Release notes for the 2026-10-17 bundle** (What's new `2026-10-17.1`, 5 cards): cleaner Apple Watch (#393), coach voice picker (#397), 3D position guide (#400), change or remove an exercise on the fly (#396), Settings regrouping (#398) with the climbing Train bars (#392) in one card. `2026-10-16.1` moved to the history as build 39.
 

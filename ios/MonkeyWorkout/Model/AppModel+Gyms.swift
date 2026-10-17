@@ -73,6 +73,26 @@ extension AppModel {
     }
 
     /// Zone of the home gym an exercise is done in (#274); nil without zones, or anywhere (bodyweight, mat…).
+    /// Route of a session through the home gym (#406); nil without zones or with fewer than one stop.
+    func gymRoute(_ session: Session) -> GymRoute? {
+        guard let layout = profile?.gymLayout else { return nil }
+        let r = layout.route(session.blocks.flatMap { $0.items.map(\.exerciseId) })
+        return r.stops.isEmpty ? nil : r
+    }
+
+    /// "Taken?" in the player (#406): remembers the zone was busy now (last 8 weeks kept).
+    func logBusy(_ zoneId: String, at date: Date = Date()) {
+        var taps = (state.busyTaps ?? []).filter { date.timeIntervalSince($0.at) <= GymBusy.window }
+        taps.append(BusyTap(zoneId: zoneId, at: date))
+        state.busyTaps = Array(taps.suffix(300))
+        persist()
+    }
+
+    /// Zone usually busy around this time of day (from the member's own "Taken?" taps).
+    func usuallyBusy(_ zoneId: String, at date: Date = Date()) -> Bool {
+        GymBusy.usuallyBusy(state.busyTaps ?? [], zone: zoneId, at: date)
+    }
+
     func gymZone(_ exerciseId: String) -> GymLayout.Zone? {
         guard let layout = profile?.gymLayout, let e = Exercise.find(exerciseId) else { return nil }
         return layout.zone(of: e)

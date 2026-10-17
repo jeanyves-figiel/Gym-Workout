@@ -41,11 +41,29 @@ public struct GymLayout: Codable, Hashable, Sendable {
             let dy = max(0, max(o.y - (y + h), y - (o.y + o.h)))
             return (dx * dx + dy * dy).squareRoot()
         }
+
+        public var center: Point { Point(x: x + w / 2, y: y + h / 2) }
+    }
+
+    /// Point on the plan (unit square).
+    public struct Point: Codable, Hashable, Sendable {
+        public var x: Double
+        public var y: Double
+
+        public init(x: Double, y: Double) {
+            self.x = x
+            self.y = y
+        }
     }
 
     public var zones: [Zone]
+    /// Entrance on the plan's outer wall (#406); nil = middle of the bottom wall.
+    public var door: Point?
 
-    public init(zones: [Zone]) { self.zones = zones }
+    public init(zones: [Zone], door: Point? = nil) {
+        self.zones = zones
+        self.door = door
+    }
 
     /// Blocks closer than this on the plan count as next to each other.
     public static let neighbourGap = 0.06

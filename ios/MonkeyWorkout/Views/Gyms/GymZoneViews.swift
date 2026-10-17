@@ -80,7 +80,7 @@ struct ZoneBar: View {
                 }
                 HStack(spacing: 8) {
                     Button { plan = true } label: {
-                        Label(current.hasPlan ? "Floor plan" : "Draw a floor plan (optional)", systemImage: "square.grid.3x3.square")
+                        Label(current.hasPlan ? "Gym map" : "Draw your gym map", systemImage: "square.grid.3x3.square")
                             .font(Theme.label(12))
                             .padding(.horizontal, 10).padding(.vertical, 7)
                             .background(Capsule().fill(.black.opacity(0.35)))
@@ -253,13 +253,16 @@ private struct ZoneEditSheet: View {
     }
 }
 
-/// Rough floor plan (B): drag zone blocks to where they are and resize them from the corner. Blocks that touch count
-/// as next to each other, so a superset can use both.
+/// Floor plan (B; real plan look #406): floor tiles, outer walls and a draggable entrance. Drag each zone to where it
+/// is and resize it from the corner; blocks that touch count as next to each other, so a superset can use both. Tap a
+/// zone to see what sits there and drag a piece onto another zone to move it. 3D tilts the plan for a look.
 struct FloorPlanSheet: View {
     @Binding var layout: GymLayout
     let equipment: [Equipment]
     @Environment(\.dismiss) private var dismiss
     @State private var selected: String?
+    @State private var tilted = false
+    @State private var dropTarget: String?
 
     private static let grid = 0.05
 
@@ -267,21 +270,37 @@ struct FloorPlanSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("Drag each zone to where it is. Pull the corner to resize. Zones that touch count as next to each other.")
-                        .font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted)
+                    HStack(alignment: .top) {
+                        Text(tilted ? "Your gym in 3D. Switch back to 2D to edit."
+                             : "Drag each zone to where it is, pull the corner to resize, drag the door to your entrance.")
+                            .font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted)
+                        Spacer(minLength: 8)
+                        Picker("View", selection: $tilted) {
+                            Text("2D").tag(false)
+                            Text("3D").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 96)
+                        .accessibilityIdentifier("plan.view")
+                    }
                     GeometryReader { geo in
                         let size = geo.size
                         ZStack(alignment: .topLeading) {
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .fill(Theme.card)
-                                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])).foregroundStyle(Theme.stroke))
+                            GymFloor(door: layout.door)
                             ForEach(layout.zones) { z in
                                 if let r = z.rect { block(z, r, size) }
                             }
+                            doorHandle(size)
                         }
+                        .coordinateSpace(name: "plan")
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .aspectRatio(0.8, contentMode: .fit)
+                    .rotation3DEffect(.degrees(tilted ? 50 : 0), axis: (x: 1, y: 0, z: 0), anchor: .center, perspective: 0.55)
+                    .scaleEffect(tilted ? 0.92 : 1)
+                    .shadow(color: .black.opacity(tilted ? 0.6 : 0), radius: 18, y: 18)
+                    .allowsHitTesting(!tilted)
+                    .animation(.spring(duration: 0.6), value: tilted)
 
                     let unplaced = layout.zones.filter { $0.rect == nil }
                     if !unplaced.isEmpty {
@@ -289,28 +308,35 @@ struct FloorPlanSheet: View {
                         UnplacedZoneChips(zones: unplaced) { place($0) }
                     }
                     if let id = selected, let z = layout.zone(id: id) {
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                ZoneTag(zone: z)
+                                Text(z.name).font(Theme.display(20))
                                 Spacer()
                                 Button("Take off the plan") {
                                     setRect(id, nil)
                                     selected = nil
                                 }
-                                .font(.caption.bold()).foregroundStyle(Theme.lime)
+                                .font(.caption.bold())
                             }
                             let items = z.items.filter { equipment.contains($0) }
-                            Text(items.isEmpty ? "Nothing here yet" : items.map(\.label).joined(separator: " · "))
-                                .font(.caption).foregroundStyle(Theme.muted)
+                            if items.isEmpty {
+                                Text("Nothing here yet").font(.caption.weight(.semibold))
+                            } else {
+                                Text("Drag a piece onto another zone, or touch and hold it").font(.caption.weight(.semibold)).opacity(0.85)
+                                FlowLayout(spacing: 6) {
+                                    ForEach(items) { e in itemChip(e, in: z) }
+                                }
+                            }
                             let next = layout.zones.filter { $0.id != z.id && $0.rect != nil && layout.near(z, $0) }
                             Text(next.isEmpty ? "No zone next to it" : "Next to: " + next.map(\.name).joined(separator: ", "))
                                 .font(.caption.weight(.bold))
                         }
-                        .card(padding: 12)
+                        .gradientCard(z.gradient, padding: 14)
                     }
                     if layout.hasPlan {
                         Button("Clear the plan", role: .destructive) {
                             for z in layout.zones { setRect(z.id, nil) }
+                            layout.door = nil
                             selected = nil
                         }
                         .font(.footnote.bold())
@@ -319,7 +345,7 @@ struct FloorPlanSheet: View {
                 .padding(16)
             }
             .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle("Gym layout")
+            .navigationTitle("Gym map")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .onAppear { if !layout.hasPlan { autoPlace() } }
@@ -327,23 +353,69 @@ struct FloorPlanSheet: View {
         .preferredColorScheme(.dark)
     }
 
+    /// One piece of equipment in the selected zone: drag it onto another block, or move it from the menu.
+    private func itemChip(_ e: Equipment, in z: GymLayout.Zone) -> some View {
+        Label(e.label, systemImage: e.symbol)
+            .font(Theme.label(12))
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .background(Capsule().fill(.black.opacity(0.3)))
+            .draggable(e.rawValue)
+            .contextMenu {
+                ForEach(layout.zones.filter { $0.id != z.id }) { other in
+                    Button("Move to \(other.name)") { layout.move(e, to: other.id) }
+                }
+            }
+            .accessibilityHint("Touch and hold to move it to another zone.")
+    }
+
+    /// Entrance marker: drag it along the walls.
+    private func doorHandle(_ size: CGSize) -> some View {
+        let d = layout.entrance
+        return Text("DOOR")
+            .font(Theme.label(9))
+            .foregroundStyle(Theme.ink)
+            .padding(.horizontal, 6).padding(.vertical, 3)
+            .background(Capsule().fill(Theme.lime))
+            .position(x: min(max(CGFloat(d.x) * size.width, 24), size.width - 24),
+                      y: min(max(CGFloat(d.y) * size.height, 12), size.height - 12))
+            .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .named("plan")).onChanged { g in
+                let p = GymLayout.Point(x: Double(g.location.x / size.width), y: Double(g.location.y / size.height))
+                layout.door = p.onWall
+            })
+            .accessibilityLabel("Entrance")
+    }
+
     private func block(_ z: GymLayout.Zone, _ r: GymLayout.Rect, _ size: CGSize) -> some View {
         let on = selected == z.id
-        return RoundedRectangle(cornerRadius: 12, style: .continuous)
+        let items = z.items.filter { equipment.contains($0) }
+        let w = CGFloat(r.w) * size.width - 6, h = CGFloat(r.h) * size.height - 6
+        return RoundedRectangle(cornerRadius: 10, style: .continuous)
             .fill(z.gradient)
+            .opacity(0.9)
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(.white.opacity(0.45), lineWidth: 1.5))
             .overlay(alignment: .topLeading) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(z.name).font(Theme.label(12)).lineLimit(2)
-                    Text("\(z.items.filter { equipment.contains($0) }.count)").font(Theme.label(10)).opacity(0.8)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        Text(z.name).font(Theme.label(12)).lineLimit(1).minimumScaleFactor(0.7)
+                        Text("\(items.count)").font(Theme.label(10)).opacity(0.8)
+                    }
+                    // Equipment icons: the plan shows what sits where.
+                    let fit = max(0, Int((w - 12) / 18) * max(0, Int((h - 34) / 18)))
+                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(14), spacing: 4), count: max(1, Int((w - 12) / 18))),
+                              alignment: .leading, spacing: 4) {
+                        ForEach(Array(Set(items.map(\.symbol))).sorted().prefix(fit), id: \.self) { s in
+                            Image(systemName: s).font(.system(size: 11, weight: .bold)).opacity(0.85)
+                        }
+                    }
                 }
                 .foregroundStyle(.white)
                 .padding(6)
             }
             .overlay(alignment: .bottomTrailing) {
                 Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    .font(.system(size: 11, weight: .heavy))
+                    .font(.system(size: 10, weight: .heavy))
                     .foregroundStyle(.white)
-                    .frame(width: 26, height: 26)
+                    .frame(width: 24, height: 24)
                     .background(Circle().fill(.black.opacity(0.3)))
                     .padding(2)
                     .highPriorityGesture(DragGesture(minimumDistance: 1).onChanged { g in
@@ -357,9 +429,10 @@ struct FloorPlanSheet: View {
                     }.onEnded { _ in dragBase = nil })
                     .accessibilityLabel("Resize \(z.name)")
             }
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white, lineWidth: on ? 2.5 : 0))
-            .frame(width: CGFloat(r.w) * size.width - 3, height: CGFloat(r.h) * size.height - 3)
-            .offset(x: CGFloat(r.x) * size.width + 1.5, y: CGFloat(r.y) * size.height + 1.5)
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(dropTarget == z.id ? Theme.lime : .white, lineWidth: on || dropTarget == z.id ? 3 : 0))
+            .frame(width: w, height: h)
+            .offset(x: CGFloat(r.x) * size.width + 3, y: CGFloat(r.y) * size.height + 3)
             .onTapGesture { selected = on ? nil : z.id }
             .gesture(DragGesture(minimumDistance: 4).onChanged { g in
                 if dragBase == nil { dragBase = r }
@@ -371,8 +444,13 @@ struct FloorPlanSheet: View {
                 setRect(z.id, n)
                 selected = z.id
             }.onEnded { _ in dragBase = nil })
+            .dropDestination(for: String.self) { ids, _ in
+                let moved = ids.compactMap(Equipment.init(rawValue:))
+                for e in moved { layout.move(e, to: z.id) }
+                return !moved.isEmpty
+            } isTargeted: { dropTarget = $0 ? z.id : (dropTarget == z.id ? nil : dropTarget) }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(z.name) on the floor plan")
+            .accessibilityLabel("\(z.name) on the floor plan, \(items.count) items")
     }
 
     @State private var dragBase: GymLayout.Rect?

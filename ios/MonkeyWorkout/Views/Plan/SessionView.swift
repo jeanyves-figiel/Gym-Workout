@@ -16,6 +16,9 @@ struct SessionView: View {
     @State private var editingExercises = false
     /// Swap from a card that changes this workout's own list (#295) rather than the plan.
     @State private var pickingSwap: ExerciseRef?
+    /// Gym map opened from the route card (#406); saved when it closes.
+    @State private var mapDraft: GymLayout?
+    @State private var mapOpen = false
 
     private var session: Session? { model.session(sessionId) }
 
@@ -25,6 +28,13 @@ struct SessionView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     header(session)
                     FlowOverview(session: session, onEdit: flowEdit(session))
+                    // Gym Map (#406): the walk this session takes through the member's gym.
+                    if let layout = model.profile?.gymLayout, let route = model.gymRoute(session) {
+                        GymRouteCard(layout: layout, route: route, busyFirst: model.usuallyBusy(route.stops[0].zone.id)) {
+                            mapDraft = layout
+                            mapOpen = true
+                        }
+                    }
                     exercisesHeader(session)
                     ForEach(session.blocks) { block in
                         BlockSection(block: block, sessionId: session.id,
@@ -72,6 +82,13 @@ struct SessionView: View {
                 SessionFlowSheet(session: session).presentationDetents([.large])
             }
             .sheet(item: $editingCustom) { w in CustomWorkoutEditor(initial: w) }
+            .sheet(isPresented: $mapOpen, onDismiss: {
+                if let d = mapDraft { model.setGymLayout(d) }
+                mapDraft = nil
+            }) {
+                FloorPlanSheet(layout: Binding(get: { mapDraft ?? .starter }, set: { mapDraft = $0 }),
+                               equipment: model.profile?.equipment ?? [])
+            }
             .sheet(item: $swapping) { ref in
                 if let uid = ref.uid { SwapExerciseSheet(exerciseId: ref.exerciseId, uid: uid) }
             }
