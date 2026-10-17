@@ -27,6 +27,7 @@ final class LiftSets {
         sets.removeAll { $0.id == set.id || ($0.sessionId == set.sessionId && $0.exerciseId == set.exerciseId && $0.setIndex == set.setIndex
             && Calendar.current.isDate($0.date, inSameDayAs: set.date)) }
         sets.append(set)
+        if let logged = set.logged { LiftLearning.shared.correct(set.exerciseId, counted: set.reps, logged: logged) }
         if sets.count > 3000 { sets.removeFirst(sets.count - 3000) }
         save()
     }
@@ -78,4 +79,66 @@ final class LiftSets {
         ]
     }
     #endif
+}
+
+/// Counting level each exercise learned from the member's corrections (#410): the Watch counted 9, the member
+/// logged 8 → that exercise counts a bit stricter next time. Set by hand on the exercise page too.
+/// Kept on this iPhone (wiped on sign-out), sent to the Watch in the snapshot.
+@MainActor @Observable
+final class LiftLearning {
+    static let shared = LiftLearning()
+    private static let key = "liftLearned"
+
+    struct Entry: Codable, Equatable {
+        /// Added to the member's counting level, -1.5…1.5.
+        var level: Double
+        /// Corrections it learned from (0 = set by hand).
+        var corrections: Int
+    }
+
+    private(set) var entries: [String: Entry] = [:]
+
+    private init() {
+        #if DEBUG
+        if Demo.enabled { entries = ["bench-press": Entry(level: 1, corrections: 2)]; return }
+        #endif
+        if let data = UserDefaults.standard.data(forKey: Self.key), let e = try? JSONDecoder().decode([String: Entry].self, from: data) { entries = e }
+    }
+
+    /// Levels for the Watch, exercises with a learned level only.
+    var levels: [String: Double] { entries.compactMapValues { $0.level == 0 ? nil : $0.level } }
+
+    func entry(_ exerciseId: String) -> Entry? { entries[exerciseId] }
+
+    /// The member logged `logged` reps where the Watch counted `counted`.
+    func correct(_ exerciseId: String, counted: Int, logged: Int) {
+        guard counted != logged, counted > 0 else { return }
+        var e = entries[exerciseId] ?? Entry(level: 0, corrections: 0)
+        e.level = Strictness.learn(e.level, counted: counted, logged: logged)
+        e.corrections += 1
+        entries[exerciseId] = e
+        save()
+    }
+
+    /// Picked on the exercise page: this exercise counts at `counting` whatever the general setting.
+    func set(_ exerciseId: String, to counting: WatchLiftCounting) {
+        let level = counting.level - WatchLiftPref.shared.counting.level
+        entries[exerciseId] = Entry(level: min(Strictness.learnedLimit, max(-Strictness.learnedLimit, level)), corrections: 0)
+        save()
+    }
+
+    func reset(_ exerciseId: String) {
+        entries[exerciseId] = nil
+        save()
+    }
+
+    func wipe() {
+        entries = [:]
+        UserDefaults.standard.removeObject(forKey: Self.key)
+    }
+
+    private func save() {
+        if let data = try? JSONEncoder().encode(entries) { UserDefaults.standard.set(data, forKey: Self.key) }
+        WatchSync.shared.push()
+    }
 }

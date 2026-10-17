@@ -259,25 +259,6 @@ extension WatchActionMode {
     }
 }
 
-extension WatchLiftMode {
-    static var choices: [SettingsChoice<WatchLiftMode>] {
-        allCases.map { m in
-            switch m {
-            case .off: SettingsChoice(value: m, title: "Off", symbol: "power",
-                                      hint: "No rep counting from the Watch.")
-            case .noCue: SettingsChoice(value: m, title: "Count only", symbol: "number",
-                                        hint: "The Watch counts reps and bar speed, no stop buzz.")
-            case .loss10: SettingsChoice(value: m, title: "−10 % Power", symbol: "bolt.fill",
-                                         hint: "Buzzes when the bar slows 10 %. Fast, fresh reps for power.")
-            case .loss20: SettingsChoice(value: m, title: "−20 % Strength", symbol: "dumbbell.fill",
-                                         hint: "Buzzes when the bar slows 20 %. The strength sweet spot.")
-            case .loss30: SettingsChoice(value: m, title: "−30 % Muscle", symbol: "flame.fill",
-                                         hint: "Buzzes when the bar slows 30 %. Closer to failure for muscle.")
-            }
-        }
-    }
-}
-
 extension AutoNextPref {
     static func short(_ sec: Int) -> String {
         switch sec {
@@ -329,13 +310,8 @@ struct WatchOptionsView: View {
                         WatchActionPref.shared.set($0)
                     }
                     .id(Focus.action)
-                    ChoiceCard(symbol: "waveform.path.ecg", title: "Lift sensor (beta)",
-                               note: "Counts reps and bar speed from your wrist",
-                               choices: WatchLiftMode.choices, selection: WatchLiftPref.shared.mode,
-                               gradient: LinearGradient(colors: [Color(hex: 0x7B2FF7), Color(hex: 0x00C6FF)], startPoint: .topLeading, endPoint: .bottomTrailing)) {
-                        WatchLiftPref.shared.set($0)
-                    }
-                    .id(Focus.lift)
+                    LiftSensorCard()
+                        .id(Focus.lift)
                 }
                 .padding(16)
                 .readableWidth()

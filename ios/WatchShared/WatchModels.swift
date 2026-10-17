@@ -32,6 +32,11 @@ struct WatchSnapshot: Codable, Equatable {
     var actionButton: WatchActionMode?
     /// Lift sensor (#383): reps and bar speed from the Watch's motion sensors; nil (older phone app) = default.
     var liftSensor: WatchLiftMode?
+    /// Lift sensor counting level and how a racked set is logged (#410); nil (older phone app) = normal / auto.
+    var liftCounting: WatchLiftCounting?
+    var liftLogging: WatchLiftLogging?
+    /// Counting level each exercise learned from corrections (#410): exercise id → -1.5…1.5.
+    var liftLearned: [String: Double]?
 
     func session(_ id: String) -> WSession? { (sessions + extras).first { $0.id == id } }
 }
@@ -226,6 +231,8 @@ struct WLiftSet: Codable, Equatable, Hashable, Identifiable {
     var eccentric: [Double]
     /// Measured with the Watch strapped on the machine (#383 machine mode), not on the wrist.
     var machine: Bool
+    /// Reps the member logged when it differs from the count (Crown correction, #410); nil = not known.
+    var logged: Int? = nil
 
     var reps: Int { velocities.count }
     var best: Double? { velocities.max() }
@@ -397,6 +404,79 @@ struct WLive: Codable, Equatable {
     var coachAt: Date? = nil
 }
 
+/// How strict the lift sensor counts reps (#410).
+enum WatchLiftCounting: String, Codable, CaseIterable, Identifiable {
+    case relaxed, normal, strict
+
+    static let `default` = WatchLiftCounting.normal
+
+    var id: String { rawValue }
+
+    /// `Strictness` level of the setting.
+    var level: Double {
+        switch self {
+        case .relaxed: -1
+        case .normal: 0
+        case .strict: 1
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .relaxed: "Relaxed"
+        case .normal: "Normal"
+        case .strict: "Strict"
+        }
+    }
+
+    /// Name of a level, for a learned exercise level.
+    static func name(_ level: Double) -> String {
+        level <= -0.5 ? "Relaxed" : level >= 0.5 ? "Strict" : "Normal"
+    }
+}
+
+/// What happens when the bar is racked (#410).
+enum WatchLiftLogging: String, Codable, CaseIterable, Identifiable {
+    /// Logs itself after a countdown with Undo.
+    case auto
+    /// Asks "8 reps?" and waits for a tap.
+    case confirm
+    /// Counts only; the member logs the set as usual.
+    case manual
+
+    static let `default` = WatchLiftLogging.auto
+    /// Countdown before an automatic log, s.
+    static let countdown = 6.0
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .auto: "Auto"
+        case .confirm: "Tap ✓"
+        case .manual: "I log"
+        }
+    }
+}
+
+/// Practice mode (#410): the iPhone starts, recounts at another level, or stops a practice on the Watch.
+struct WLiftPracticeCommand: Codable, Equatable {
+    /// nil = stop.
+    var level: Double?
+}
+
+/// Practice mode (#410): what the Watch sees, sent to the iPhone a few times a second.
+struct WLiftPracticeState: Codable, Equatable {
+    var level: Double
+    var reps: Int
+    var velocities: [Double]
+    var ranges: [Double]
+    /// Smoothed acceleration along the movement (g), 20 values a second, the last 6 s.
+    var trace: [Double]
+    /// Where each counted rep ends in `trace` (index).
+    var marks: [Int]
+}
+
 /// Watch → phone remote control of the iPhone player.
 enum WCommand: String, Codable {
     case main, skipRest, addRest, effort0, effort1, effort2, effort3, effort4, next, previous
@@ -416,6 +496,9 @@ enum WatchKeys {
     static let lift = "lift"
     /// Live heart rate (Int bpm) of an iPhone workout the Watch tracks, for the Live Activity (#371).
     static let heartRate = "heartRate"
+    /// Practice mode (#410): `WLiftPracticeCommand` phone → Watch, `WLiftPracticeState` Watch → phone.
+    static let practice = "practice"
+    static let practiceState = "practiceState"
 }
 
 extension JSONEncoder {

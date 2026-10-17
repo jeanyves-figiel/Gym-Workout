@@ -58,6 +58,8 @@ public enum SetAnalyzer {
         public var turnVelocity = 0.04
         /// Slower mean speeds are drift, not reps (grinding reps stay above ~0.1 m/s).
         public var minMeanVelocity = 0.08
+        /// Share of the set's median range a rep needs once there are 3 reps (#410); 0 = off.
+        public var minRangeShare = 0.0
 
         public init() {}
     }
@@ -190,6 +192,14 @@ public enum SetAnalyzer {
                                concentricSec: p.duration, eccentricSec: ecc, endIndex: p.end))
         }
         return out
+    }
+
+    /// Drops reps much shorter than the set's typical rep (unracking, fidgeting) once there are 3 reps (#410).
+    public static func consistent(_ reps: [LiftRep], share: Double) -> [LiftRep] {
+        guard share > 0, reps.count >= 3 else { return reps }
+        let ranges = reps.map(\.range).sorted()
+        let median = ranges[ranges.count / 2]
+        return reps.filter { $0.range >= share * median }
     }
 
     /// Centred moving average with prefix sums.

@@ -7,6 +7,8 @@ extension Notification.Name {
     static let watchCommand = Notification.Name("watchCommand")
     /// Live lift sensor state from the Watch for the iPhone player (object: WLiftLive, #383).
     static let watchLift = Notification.Name("watchLift")
+    /// Practice mode state from the Watch (object: WLiftPracticeState, #410).
+    static let watchPractice = Notification.Name("watchPractice")
     /// Live heart rate from the Watch tracking the iPhone workout (#371).
     static let watchHeartRate = Notification.Name("watchHeartRate")
 }
@@ -96,15 +98,42 @@ final class WatchLiftPref {
     static let shared = WatchLiftPref()
     private static let key = "watchLiftMode"
 
+    private static let lastOnKey = "watchLiftLastOn"
+    private static let countingKey = "watchLiftCounting"
+    private static let loggingKey = "watchLiftLogging"
+
     private(set) var mode: WatchLiftMode
+    /// How strict counting is and how a racked set is logged (#410).
+    private(set) var counting: WatchLiftCounting
+    private(set) var logging: WatchLiftLogging
 
     private init() {
         mode = UserDefaults.standard.string(forKey: Self.key).flatMap(WatchLiftMode.init) ?? .default
+        counting = UserDefaults.standard.string(forKey: Self.countingKey).flatMap(WatchLiftCounting.init) ?? .default
+        logging = UserDefaults.standard.string(forKey: Self.loggingKey).flatMap(WatchLiftLogging.init) ?? .default
     }
 
     func set(_ new: WatchLiftMode) {
         mode = new
         UserDefaults.standard.set(new.rawValue, forKey: Self.key)
+        if new.on { UserDefaults.standard.set(new.rawValue, forKey: Self.lastOnKey) }
+        WatchSync.shared.push()
+    }
+
+    /// Sensor on (with the last stop buzz picked) or off.
+    func setOn(_ on: Bool) {
+        set(on ? UserDefaults.standard.string(forKey: Self.lastOnKey).flatMap(WatchLiftMode.init) ?? .default : .off)
+    }
+
+    func set(_ new: WatchLiftCounting) {
+        counting = new
+        UserDefaults.standard.set(new.rawValue, forKey: Self.countingKey)
+        WatchSync.shared.push()
+    }
+
+    func set(_ new: WatchLiftLogging) {
+        logging = new
+        UserDefaults.standard.set(new.rawValue, forKey: Self.loggingKey)
         WatchSync.shared.push()
     }
 }
@@ -176,6 +205,19 @@ final class WatchSync: NSObject {
         }
     }
 
+    /// The Watch app is open and can take a message now.
+    var watchReachable: Bool {
+        guard let session, session.activationState == .activated else { return false }
+        return session.isReachable
+    }
+
+    /// Practice mode (#410): starts or recounts at `level` on the Watch, nil stops it.
+    func practice(_ level: Double?) {
+        guard let session, session.activationState == .activated, session.isReachable,
+              let data = try? JSONEncoder.watch.encode(WLiftPracticeCommand(level: level)) else { return }
+        session.sendMessage([WatchKeys.practice: data], replyHandler: nil, errorHandler: nil)
+    }
+
     /// Wakes the Watch app when a workout starts on the iPhone so it can offer to track it (#347).
     /// Needs a paired Watch with the app installed; `HKHealthStore.startWatchApp` only reaches a Watch on the wrist.
     func offerStart(sessionId: String) {
@@ -239,6 +281,7 @@ final class WatchSync: NSObject {
             return
         case let .liftSet(set):
             LiftSets.shared.add(set)
+            // A correction changes what the Watch learned (pushed by LiftLearning).
             return
         case let .tracked(t):
             guard let r = awaitingWatch.removeValue(forKey: t.recordId) else { return }
@@ -282,6 +325,9 @@ final class WatchSync: NSObject {
         s.watchStart = WatchStartPref.shared.mode
         s.actionButton = WatchActionPref.shared.mode
         s.liftSensor = WatchLiftPref.shared.mode
+        s.liftCounting = WatchLiftPref.shared.counting
+        s.liftLogging = WatchLiftPref.shared.logging
+        s.liftLearned = LiftLearning.shared.levels
         let target = model.profile?.sessionsPerWeek ?? 3
         let stats = Progression.stats(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
         s.progress = WProgress(
@@ -366,6 +412,10 @@ extension WatchSync: WCSessionDelegate {
         }
         if let data = message[WatchKeys.lift] as? Data, let lift = try? JSONDecoder.watch.decode(WLiftLive.self, from: data) {
             Task { @MainActor in NotificationCenter.default.post(name: .watchLift, object: lift) }
+            return
+        }
+        if let data = message[WatchKeys.practiceState] as? Data, let state = try? JSONDecoder.watch.decode(WLiftPracticeState.self, from: data) {
+            Task { @MainActor in NotificationCenter.default.post(name: .watchPractice, object: state) }
             return
         }
         if let bpm = message[WatchKeys.heartRate] as? Int {

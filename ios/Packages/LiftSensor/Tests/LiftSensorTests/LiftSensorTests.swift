@@ -235,3 +235,47 @@ struct SetCase: Sendable, CustomTestStringConvertible {
         #expect(t.finish().count == 8)
     }
 }
+
+@Suite struct StrictnessTests {
+    func rep(_ range: Double) -> LiftRep {
+        LiftRep(meanVelocity: 0.6, peakVelocity: 0.9, range: range, concentricSec: 0.7, eccentricSec: nil, endIndex: 0)
+    }
+
+    @Test func levelsScaleMinimums() {
+        #expect(abs(Strictness.factor(0) - 1) < 1e-9)
+        #expect(Strictness.factor(-1) < 1)
+        #expect(Strictness.factor(1) > 1)
+        #expect(abs(Strictness.factor(0.5) - 1.125) < 1e-9)
+        #expect(abs(Strictness.factor(5) - 1.5) < 1e-9)
+        let strict = Strictness.apply(1, to: SetAnalyzer.Config())
+        #expect(abs(strict.minRange - 0.1) < 1e-9)
+        #expect(abs(strict.minRangeShare - 0.45) < 1e-9)
+        #expect(Strictness.apply(-2, to: SetAnalyzer.Config()).minRangeShare == 0)
+    }
+
+    @Test func shortMovesAreDropped() {
+        let reps = [rep(0.12), rep(0.45), rep(0.44), rep(0.46), rep(0.43)]
+        #expect(SetAnalyzer.consistent(reps, share: 0.35).count == 4)
+        #expect(SetAnalyzer.consistent(reps, share: 0).count == 5)
+        // Too few reps to know what a full one is.
+        #expect(SetAnalyzer.consistent([rep(0.1), rep(0.45)], share: 0.55).count == 2)
+    }
+
+    @Test func learnsFromCorrections() {
+        #expect(Strictness.learn(0, counted: 9, logged: 8) == 0.5)
+        #expect(Strictness.learn(0, counted: 6, logged: 8) == -0.5)
+        #expect(Strictness.learn(0.5, counted: 8, logged: 8) == 0.5)
+        #expect(Strictness.learn(1.5, counted: 9, logged: 8) == 1.5)
+        #expect(Strictness.level(setting: 1, learned: 1.5) == 2)
+    }
+
+    @Test func recountsAtAnotherLevel() {
+        let s = synthSet(startUp: true)
+        let t = SetTracker(profile: LiftProfile(direction: .up, family: .arm), lossLimit: nil, strictness: 0)
+        for a in s.accel { _ = t.append(MotionSample(userAcceleration: Vec3(0, 0, a), gravity: Vec3(0, 0, -1))) }
+        let normal = t.reps.count
+        // 45 cm reps stay reps at the strictest level.
+        #expect(t.setStrictness(2).reps.count == normal)
+        #expect(t.trace().values.count == 120)
+    }
+}
