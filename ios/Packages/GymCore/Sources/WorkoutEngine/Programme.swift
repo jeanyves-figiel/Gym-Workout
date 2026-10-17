@@ -342,6 +342,8 @@ public struct ActiveProgramme: Codable, Hashable, Sendable {
     public var length: Int?
     /// The member's own programme as it was started (#269); nil for a catalog one.
     public var custom: Programme?
+    /// Snow ready (#428): the member's first day on snow the length was fitted to.
+    public var firstDay: Date?
 
     public struct SavedPlan: Codable, Hashable, Sendable {
         public var profile: Profile
@@ -467,14 +469,14 @@ public struct ProgrammeLift: Hashable, Sendable, Identifiable {
 // MARK: - Catalog
 
 extension Programme {
-    public static func find(_ id: String) -> Programme? { all.first { $0.id == id } }
+    public static func find(_ id: String) -> Programme? { all.first { $0.id == id } ?? [snowReadySki, snowReadyBoard].first { $0.id == id } }
 
     /// Catalog programme (or the member's own, `custom`) at `length` weeks (nil = standard).
     public static func find(_ id: String, length: Int?, custom: Programme? = nil) -> Programme? {
         (custom ?? find(id)).map { p in length.map { p.resized(to: $0) } ?? p }
     }
 
-    public static let all: [Programme] = [strengthFoundation, muscleBuilder, climbersPower, athleticEngine, freshStart]
+    public static let all: [Programme] = [strengthFoundation, muscleBuilder, climbersPower, athleticEngine, freshStart, snowReadyBoth]
 
     private typealias Item = ProgrammeSignature.Item
     private typealias Dose = ProgrammeSignature.Dose

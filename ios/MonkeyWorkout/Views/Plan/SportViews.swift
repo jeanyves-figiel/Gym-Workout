@@ -676,7 +676,10 @@ struct SportsCard: View {
 /// Training profile: the member's other sports, each with days, season or event, and the rules around it.
 struct MySportsEditor: View {
     @Binding var sports: [SportPlan]?
+    /// Shows the Snow ready link (#428) for skiers and snowboarders; off during onboarding.
+    var programmeLink = false
     @State private var editing: SportPlan?
+    @State private var snow: ProgrammeRoute?
 
     var body: some View {
         let list = (sports ?? []).filter { $0.sport != .climbing }
@@ -695,7 +698,22 @@ struct MySportsEditor: View {
             if list.isEmpty {
                 Text("Snowboard, bike, Hyrox… Gym days are planned around them.").font(.caption).foregroundStyle(Theme.muted)
             }
+            if programmeLink, let ride = SnowRide.from(sports) {
+                Button { snow = ProgrammeRoute(id: ride.programmeId) } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "snowflake").font(.system(size: 14, weight: .bold))
+                        Text("Snow ready programme").font(Theme.label(14))
+                        Spacer(minLength: 4)
+                        Text("Get ready for the season ›").font(.footnote.weight(.bold)).foregroundStyle(Theme.lime)
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 12)
+                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.card))
+                }
+                .buttonStyle(.plain)
+            }
         }
+        .sheet(item: $snow) { ProgrammeSheet(id: $0.id) }
         .sheet(item: $editing) { sp in
             SportPlanEditor(plan: sp, isNew: !(sports ?? []).contains { $0.sport == sp.sport }) { saved, removed in
                 var all = (sports ?? []).filter { $0.sport != sp.sport && $0.sport != saved.sport }
