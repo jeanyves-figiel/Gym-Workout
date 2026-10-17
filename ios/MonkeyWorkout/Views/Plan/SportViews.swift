@@ -186,7 +186,7 @@ struct LogSportView: View {
             Spacer()
             Text("\(log.effort) · \(ClimbLog.effortLabel(log.effort))").font(Theme.label(13)).foregroundStyle(Theme.heat(Double(log.effort - 1) / 9))
         }
-        EffortPicker(effort: $log.effort)
+        SportEffortPicker(effort: $log.effort)
 
         if log.sport.hasDistance {
             Text("Distance (optional)").eyebrow()
@@ -261,7 +261,7 @@ private struct SportTile: View {
     }
 }
 
-private struct EffortPicker: View {
+private struct SportEffortPicker: View {
     @Binding var effort: Int
 
     var body: some View {
