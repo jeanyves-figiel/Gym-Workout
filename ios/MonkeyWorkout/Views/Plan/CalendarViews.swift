@@ -351,6 +351,11 @@ struct DaySheet: View {
                 VStack(alignment: .leading, spacing: 14) {
                     Text((selection.week.date(wd, cal) ?? Date()).formatted(.dateTime.weekday(.wide).day().month(.wide)))
                         .font(Theme.display(28))
+                    // Ask Coach about this day (#412 C).
+                    CoachSpark(question: sessions.isEmpty ? "What could I do this day?" : "Help me plan this day", focus: CoachFocus(
+                        screen: "calendar",
+                        title: (selection.week.date(wd, cal) ?? Date()).formatted(.dateTime.weekday(.wide).day().month(.wide)),
+                        detail: sessions.isEmpty ? (away == nil ? "rest day" : "away") : "planned: " + sessions.map(\.displayTitle).joined(separator: ", ")))
                     if let away {
                         Button { onEdit(away) } label: { AwayRow(period: away) }.buttonStyle(.plain)
                     }

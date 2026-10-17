@@ -9,6 +9,8 @@ import Anthropic from '@anthropic-ai/sdk';
 export const MUSCLE_GROUPS = ['shoulders', 'chest', 'arms', 'back', 'core', 'hips', 'legs'] as const;
 export const REST_STYLES = ['long', 'standard', 'short'] as const;
 export const GROUPINGS = ['straight', 'supersets', 'circuits'] as const;
+/** Screens Coach can send the member to (#412); 'exercise' also needs the exercise name. */
+export const OPEN_TARGETS = ['progress', 'calendar', 'explore', 'settings', 'exercise'] as const;
 
 export interface ChatTurn {
   role: 'member' | 'coach';
@@ -24,6 +26,18 @@ export interface ChatContext {
   readiness?: string;
   todayPlanned?: string;
   method?: string;
+  /** Where the member asked from (#412): 'train', 'exercise', 'progress', 'calendar', … */
+  screen?: string;
+  /** What that screen shows: an exercise name, a chart and its numbers, a calendar day. */
+  focus?: string;
+}
+
+export interface CoachAction {
+  target: (typeof OPEN_TARGETS)[number];
+  /** Exercise name when target is 'exercise'. */
+  exercise: string | null;
+  /** Button label, 2 to 4 words. */
+  label: string;
 }
 
 export interface CoachWorkout {
@@ -41,15 +55,26 @@ export interface CoachAnswer {
   reply: string;
   /** Settings for the engine; null while the coach still asks something. */
   workout: CoachWorkout | null;
+  /** Optional button that opens a screen (#412). */
+  action?: CoachAction | null;
+  /** Up to 3 short follow-up questions the member can tap (#412). */
+  suggestions?: string[];
 }
 
 export type CoachModel = (turns: ChatTurn[], context: ChatContext) => Promise<CoachAnswer>;
 
 export const COACH_MODEL_ID = 'claude-opus-5-5';
 
-const SYSTEM = `You are Coach Monkey, the upbeat coach inside the MonkeyWorkout gym app. A member chats with you to get a workout for today.
+const SYSTEM = `You are Coach Monkey, the upbeat coach inside the MonkeyWorkout gym app. Members ask you from any screen of the app, by text or by voice: to get a workout for today, or about an exercise, their form, their progress, their plan, recovery or how the app works.
 
-Your job: turn what they say into settings for the app's workout generator, plus one short friendly reply.
+Answering questions (#412):
+- "Screen" and "Looking at" below tell you what the member sees. Questions like "why is it down?" or "is this right for me?" are about that.
+- Answer in max 3 short sentences, practical, from their data when you have it. Never make up numbers you weren't given.
+- action: a button to open a screen when it truly helps ("progress", "calendar", "explore", "settings", or "exercise" with the exact exercise name, e.g. a safer alternative). Else null.
+- suggestions: up to 3 short follow-up questions the member might tap next (max 5 words each), in their language.
+- Replies may be read aloud: no lists, no symbols, no emoji, write units in words when short ("kilos", "minutes").
+
+Building a workout: only when the member wants one. Turn what they say into settings for the app's workout generator.
 - The generator picks the exercises itself from the member's equipment and level. You never list or invent exercises.
 - Make a workout as soon as you can. Ask one short question only when you truly can't guess (for example no hint at all about what to train). Otherwise pick sensible defaults and say which in the reply.
 - minutes: total session length the member wants, 15 to 120. Default: their usual session length.
@@ -61,9 +86,10 @@ Your job: turn what they say into settings for the app's workout generator, plus
 - grouping: "supersets" or "circuits" when time is short or they want intensity, else "straight".
 - When the member asks to change the last workout (shorter, harder, swap something), return the full updated settings.
 - Low readiness or tiredness: keep it shorter and lighter, and say so kindly.
-- Anything unrelated to training: one friendly line steering back to today's workout, workout null.
+- Anything unrelated to training, fitness, health habits or the app: one friendly line steering back to training, workout null.
 - Pain that sounds like an injury: suggest seeing a professional and offer a workout that avoids that area.
-- reply: max 2 short sentences, plain text, no markdown, in the member's language. name: 2 to 4 words for the workout.`;
+- workout null when the member only asks a question.
+- reply: plain text, no markdown, in the member's language. name: 2 to 4 words for the workout.`;
 
 const schema = {
   type: 'object',
@@ -89,8 +115,24 @@ const schema = {
         },
       ],
     },
+    action: {
+      anyOf: [
+        { type: 'null' },
+        {
+          type: 'object',
+          properties: {
+            target: { type: 'string', enum: [...OPEN_TARGETS] },
+            exercise: { anyOf: [{ type: 'null' }, { type: 'string' }] },
+            label: { type: 'string' },
+          },
+          required: ['target', 'exercise', 'label'],
+          additionalProperties: false,
+        },
+      ],
+    },
+    suggestions: { type: 'array', items: { type: 'string' } },
   },
-  required: ['reply', 'workout'],
+  required: ['reply', 'workout', 'action', 'suggestions'],
   additionalProperties: false,
 } as const;
 
@@ -103,21 +145,35 @@ const describe = (c: ChatContext) =>
     c.readiness && `Readiness today: ${c.readiness}`,
     c.todayPlanned && `Planned today: ${c.todayPlanned}`,
     c.equipment?.length && `Equipment ids: ${c.equipment.join(', ')}`,
+    c.screen && `Screen: ${c.screen}`,
+    c.focus && `Looking at: ${c.focus}`,
   ]
     .filter(Boolean)
     .join('\n');
 
 /** Keeps only settings the app can use; drops unknown values instead of failing the chat. */
+const cleanAction = (a: CoachAction | null | undefined): CoachAction | null => {
+  if (!a || !OPEN_TARGETS.includes(a.target)) return null;
+  const exercise = a.exercise?.trim().slice(0, 60) || null;
+  if (a.target === 'exercise' && !exercise) return null;
+  const label = a.label?.trim().slice(0, 30) || (exercise ? `Open ${exercise}`.slice(0, 30) : 'Open');
+  return { target: a.target, exercise: a.target === 'exercise' ? exercise : null, label };
+};
+
 export const clean = (a: CoachAnswer, context: ChatContext): CoachAnswer => {
-  const reply = a.reply.trim().slice(0, 400) || "Let's train!";
+  const reply = a.reply.trim().slice(0, 600) || "Let's train!";
+  const action = cleanAction(a.action);
+  const suggestions = [...new Set((a.suggestions ?? []).map((q) => q.trim().slice(0, 50)).filter(Boolean))].slice(0, 3);
   const w = a.workout;
-  if (!w) return { reply, workout: null };
+  if (!w) return { reply, workout: null, action, suggestions };
   const groups = [...new Set(w.groups.filter((g) => MUSCLE_GROUPS.includes(g)))];
   const avoidGroups = [...new Set(w.avoidGroups.filter((g) => MUSCLE_GROUPS.includes(g) && !groups.includes(g)))];
-  if (groups.length === 0) return { reply, workout: null };
+  if (groups.length === 0) return { reply, workout: null, action, suggestions };
   const known = new Set(context.equipment ?? []);
   return {
     reply,
+    action,
+    suggestions,
     workout: {
       name: w.name.trim().slice(0, 40) || 'Coach workout',
       minutes: Math.min(120, Math.max(15, Math.round(w.minutes || context.sessionMinutes || 45))),
@@ -152,7 +208,7 @@ export const claudeCoach = (apiKey: string, workspaceId?: string): CoachModel =>
       output_config: { effort: 'low', format: { type: 'json_schema', schema } },
       messages,
     });
-    if (res.stop_reason === 'refusal') return { reply: "I can't help with that one. Tell me what you'd like to train today!", workout: null };
+    if (res.stop_reason === 'refusal') return { reply: "I can't help with that one. Ask me about your training!", workout: null, action: null, suggestions: [] };
     const text = res.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
     return clean(JSON.parse(text) as CoachAnswer, context);
   };
