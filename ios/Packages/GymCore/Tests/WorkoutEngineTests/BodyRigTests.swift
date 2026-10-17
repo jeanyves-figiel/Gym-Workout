@@ -18,7 +18,7 @@ import Testing
         #expect(hi > 200 && hi < 240)
         // every highlighted muscle name is one the catalog uses
         for name in BodyRig.muscleNames.dropFirst() {
-            #expect(Muscle(rawValue: name) != nil, name)
+            #expect(Muscle(rawValue: name) != nil, "\(name)")
         }
         #expect(rig.shorts.contains(true) && rig.muscle.contains(where: { $0 > 0 }))
     }

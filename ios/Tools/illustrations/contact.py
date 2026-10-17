@@ -184,6 +184,51 @@ def hanging(J, held):
     return any(h is not None and h[0] == "rod" and J["hand" + d][1] > J["shoulder"][1] + 10 for d, h in held.items())
 
 
+UNILATERAL = ("lunge", "split", "step", "single", "one", "pistol", "bulgarian", "skater", "curtsy", "shrimp",
+              "side", "traverse", "climb", "crossover", "kick", "bird", "fire", "clamshell", "sprint", "skip", "march")
+
+
+def mirror_legs(ex, j):
+    """A bilateral pose keeps both legs the same: the 2D depth guess scissored them a little."""
+    if any(w in ex.split("-") for w in UNILATERAL):
+        return False
+    J = {n: np.asarray(v, float) for n, v in j.items() if not n.startswith("_")}
+    asym = max(np.linalg.norm((J[a + "N"] - J[a + "F"]) * [1, 1, 0]) for a in ("knee", "ankle", "toe"))
+    if asym < 0.5 or asym > 12:
+        return False
+    for a in ("knee", "ankle", "toe"):
+        n = J[a + "N"]
+        j[a + "F"] = [round(float(n[0]), 1), round(float(n[1]), 1), round(float(-abs(n[2])), 1)]
+        j[a + "N"] = [round(float(n[0]), 1), round(float(n[1]), 1), round(float(abs(n[2])), 1)]
+    return True
+
+
+def hang_legs(j, J):
+    """Legs trailing under a bar hang: feet together, toes pointed. The 2D scenes drew them as a kneeling
+    silhouette with the feet on the floor. Nearly straight 2D legs stay straight (slightly behind the hip);
+    bent ones become the classic bent-knee hang, shins back, ankles crossed. Raised legs are left alone."""
+    hip = J["hip"]
+    th, sn = J["kneeN"] - J["hipN"], J["ankleN"] - J["kneeN"]
+    if th[1] > -0.4 * LEG[0] or sn[1] > 0.3 * LEG[1]:
+        return False          # knees up, legs forward: a raise or lever, authored by the scene
+    straight = np.degrees(np.arccos(np.clip(nrm3(th) @ nrm3(sn), -1, 1))) < 25
+    if straight and hip[1] - LEG[0] - LEG[1] + 4 > 12:
+        kn = hip + np.array([-2.0, -LEG[0], 0])
+        an = kn + np.array([-4.0, -LEG[1] + 2, 0])
+        to = an + np.array([5.0, -11.0, 0])
+    else:
+        kn = hip + np.array([7.0, -LEG[0] + 2, 0])
+        an = kn + np.array([-LEG[1] + 4, 5.0, 0])
+        to = an + np.array([-9.0, -8.0, 0])
+    for a, v, z in (("knee", kn, 7.0), ("ankle", an, 4.0), ("toe", to, 4.0)):
+        j[a + "N"] = [round(float(v[0]), 1), round(float(v[1]), 1), z]
+        j[a + "F"] = [round(float(v[0]), 1), round(float(v[1]), 1), -z]
+    return True
+
+
+LEG = rigmod.LIMB["leg"]
+
+
 SIDE_FIX = ("prone-ytw", "supine-twist", "archer-push-up", "open-book")
 
 
@@ -376,8 +421,12 @@ def run(ids=None):
         # every key must list the same static props; shifts are decided per exercise
         poses = []
         for k in keys:
+            mirror_legs(ex, k["j"])
             J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
             V = R.pose(k["j"], k["p"])
+            if hanging(J, R.held) and hang_legs(k["j"], J):
+                J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
+                V = R.pose(k["j"], k["p"])
             poses.append((J, V, dict(R.held), dict(R.grip)))
         n_props = min(len(k["p"]) for k in keys)
         shifts = {}
