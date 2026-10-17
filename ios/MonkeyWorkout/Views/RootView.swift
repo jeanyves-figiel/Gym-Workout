@@ -138,6 +138,8 @@ private struct DemoScreen: View {
         case "player-coach": WorkoutPlayerView(sessionId: second, demoMode: "coach")
         case "player-record": WorkoutPlayerView(sessionId: second, demoMode: "coach-record")
         case "coach-settings": NavigationStack { CoachSettingsView() }
+        case "watch-options": NavigationStack { WatchOptionsView() }
+        case "workout-flow": NavigationStack { WorkoutFlowView() }
         case "finish-early": WorkoutPlayerView(sessionId: second, demoMode: "finish")
         case "player-fitted": WorkoutPlayerView(sessionId: second, demoMode: "fitted")
         // Machine setups (#355).

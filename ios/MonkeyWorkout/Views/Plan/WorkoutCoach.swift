@@ -20,7 +20,8 @@ enum CoachPref {
 
     static var summary: String {
         guard on else { return "Off" }
-        return "\(style.emoji) \(style.title) · voice " + voice.title.lowercased()
+        let studio = CoachVoicePref.studio
+        return "\(style.emoji) \(style.title) · voice " + voice.title.lowercased() + (studio.isEmpty || voice == .off ? "" : " · \(studio)")
     }
 }
 
@@ -75,8 +76,12 @@ final class WorkoutCoach {
             said.insert(once)
         }
         count += 1
-        let text = CoachLines.line(m, style: CoachPref.style, seed: count &* 7 &+ said.count)
-        deliver(text, key: m.isKey)
+        let seed = count &* 7 &+ said.count
+        // Studio voice (#395): the recorded line for this moment (its words in the bubble too); else the iPhone voice
+        // reads the full line, numbers included.
+        let clip = CoachVoiceStore.shared.clip(style: CoachPref.style, kind: m.studioKind, seed: seed)
+        let text = clip?.text ?? CoachLines.line(m, style: CoachPref.style, seed: seed)
+        deliver(text, key: m.isKey, clip: clip?.url)
         if case let .record(e, kg, reps, more) = m {
             record = Record(exercise: e, kg: kg, reps: reps, heavierBy: more, text: text)
             bubble = nil
@@ -89,7 +94,7 @@ final class WorkoutCoach {
     /// A resumed workout: what was already said before (e.g. "half") stays unsaid.
     func markSaid(_ key: String) { said.insert(key) }
 
-    private func deliver(_ text: String, key: Bool) {
+    private func deliver(_ text: String, key: Bool, clip: URL?) {
         let call = Call(text: text)
         bubble = call
         watchLine = CoachPref.watch ? call : nil
@@ -99,7 +104,9 @@ final class WorkoutCoach {
         #else
         let quiet = false
         #endif
-        if CoachPref.voice != .off, !muted, !quiet { voice.speak(text, style: CoachPref.style) }
+        if CoachPref.voice != .off, !muted, !quiet {
+            if let clip { voice.play(clip) } else { voice.speak(text, style: CoachPref.style) }
+        }
         if CoachPref.haptics, key { UINotificationFeedbackGenerator().notificationOccurred(.success) }
     }
 
@@ -112,29 +119,53 @@ final class WorkoutCoach {
     }
 }
 
-/// iOS speech, ducking the member's music while it talks (#379).
+/// The coach's voice, ducking the member's music while it talks (#379): a studio recording (#395) or iOS speech with the
+/// best installed voice for the member's pick.
 @MainActor @Observable
 final class CoachVoice: NSObject {
     private(set) var speaking = false
     @ObservationIgnored private let synth = AVSpeechSynthesizer()
+    @ObservationIgnored private var player: AVAudioPlayer?
+
+    private func duck() {
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .voicePrompt, options: [.duckOthers, .interruptSpokenAudioAndMixWithOthers])
+        try? session.setActive(true)
+    }
+
+    /// Plays a studio recording.
+    func play(_ url: URL) {
+        if synth.isSpeaking { synth.stopSpeaking(at: .immediate) }
+        player?.stop()
+        guard let p = try? AVAudioPlayer(contentsOf: url) else {
+            speaking = false
+            return
+        }
+        duck()
+        p.delegate = self
+        player = p
+        speaking = p.play()
+        if !speaking { done() }
+    }
 
     override init() {
         super.init()
         synth.delegate = self
     }
 
-    func speak(_ text: String, style: CoachStyle) {
-        let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .voicePrompt, options: [.duckOthers, .interruptSpokenAudioAndMixWithOthers])
-        try? session.setActive(true)
+    /// iOS speech (#395: the best installed voice for the pick, premium first, not the basic one for the language).
+    func speak(_ text: String, style: CoachStyle, voice: AVSpeechSynthesisVoice? = CoachVoicePref.bestSystemVoice()) {
+        player?.stop()
+        player = nil
+        duck()
         if synth.isSpeaking { synth.stopSpeaking(at: .word) }
         let u = AVSpeechUtterance(string: text)
-        let code = AVSpeechSynthesisVoice.currentLanguageCode()
-        u.voice = AVSpeechSynthesisVoice(language: code.hasPrefix("en") ? code : "en-US")
+        u.voice = voice ?? AVSpeechSynthesisVoice(language: "en-US")
+        // Natural voices sound wrong with a pitch shift; only the pace follows the style.
         switch style {
-        case .chill: u.rate = AVSpeechUtteranceDefaultSpeechRate * 0.95; u.pitchMultiplier = 0.95
-        case .hype: u.rate = AVSpeechUtteranceDefaultSpeechRate * 1.05; u.pitchMultiplier = 1.1
-        case .drill: u.rate = AVSpeechUtteranceDefaultSpeechRate * 1.08; u.pitchMultiplier = 0.85
+        case .chill: u.rate = AVSpeechUtteranceDefaultSpeechRate * 0.97
+        case .hype: u.rate = AVSpeechUtteranceDefaultSpeechRate * 1.04
+        case .drill: u.rate = AVSpeechUtteranceDefaultSpeechRate * 1.06
         }
         u.postUtteranceDelay = 0.1
         speaking = true
@@ -143,14 +174,22 @@ final class CoachVoice: NSObject {
 
     func stop() {
         synth.stopSpeaking(at: .immediate)
+        player?.stop()
+        player = nil
         done()
     }
 
     fileprivate func done() {
-        guard !synth.isSpeaking else { return }
+        guard !synth.isSpeaking, player?.isPlaying != true else { return }
         speaking = false
         // Music back to full volume.
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+}
+
+extension CoachVoice: AVAudioPlayerDelegate {
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor in self.done() }
     }
 }
 
@@ -289,7 +328,6 @@ struct CoachSettingsView: View {
     @AppStorage(CoachPref.hapticsKey) private var haptics = true
     @AppStorage(CoachPref.watchKey) private var watch = true
     @State private var sample = CoachVoice()
-    @State private var tries = 0
 
     var body: some View {
         ScrollView {
@@ -322,17 +360,11 @@ struct CoachSettingsView: View {
                         }
                     }
                     Text(voiceHint).font(.caption).opacity(0.85)
+                    if voice != CoachVoiceLevel.off.rawValue {
+                        CoachVoicePicker(style: CoachStyle(rawValue: style) ?? .hype, sample: sample)
+                    }
                     Toggle("Haptics on key moments", isOn: $haptics).tint(Theme.lime).font(Theme.label(14))
                     Toggle("Show and tap on Apple Watch", isOn: $watch).tint(Theme.lime).font(Theme.label(14))
-                    Button {
-                        tries += 1
-                        let s = CoachStyle(rawValue: style) ?? .hype
-                        sample.speak(CoachLines.line(.finalSet(exercise: "Bench press"), style: s, seed: tries), style: s)
-                    } label: {
-                        Label("Hear a sample", systemImage: "speaker.wave.2.fill")
-                    }
-                    .buttonStyle(LimeButtonStyle())
-                    .disabled(voice == CoachVoiceLevel.off.rawValue)
                 }
             }
             .foregroundStyle(.white)

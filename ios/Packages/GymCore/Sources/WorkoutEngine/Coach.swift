@@ -51,6 +51,24 @@ public enum CoachMoment: Equatable, Sendable {
     /// Workout finished.
     case finish(sets: Int, volumeKg: Double, minutes: Int)
 
+    /// Studio voice line group (#395, server `KINDS`): the recordings carry no numbers or names, so one kind per outcome.
+    public var studioKind: String {
+        switch self {
+        case .start: return "start"
+        case let .setLogged(_, _, kg, reps, lastKg, lastReps):
+            guard let lastKg, let lastReps else { return "set" }
+            if kg > lastKg + 0.01 { return "set-heavier" }
+            if abs(kg - lastKg) < 0.01, reps > lastReps { return "set-more" }
+            if abs(kg - lastKg) < 0.01, reps == lastReps { return "set-same" }
+            return "set"
+        case .finalSet: return "final"
+        case .halfway: return "halfway"
+        case .restEnding: return "rest"
+        case let .record(_, _, _, heavierBy): return heavierBy == nil ? "record" : "record-heavier"
+        case .finish: return "finish"
+        }
+    }
+
     /// Key moments are spoken at the "Key moments" voice level; the others only at "Every set".
     public var isKey: Bool {
         switch self {

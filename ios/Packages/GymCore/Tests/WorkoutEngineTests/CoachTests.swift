@@ -32,6 +32,19 @@ private func set(_ kg: Double, _ reps: Int, day: Int = 0) -> SetLog {
         #expect(!CoachMoment.setLogged(set: 1, of: 3, kg: 60, reps: 8, lastKg: nil, lastReps: nil).isKey)
     }
 
+    @Test func studioKindsMatchTheServerGroups() {
+        #expect(CoachMoment.start(exercises: 5).studioKind == "start")
+        #expect(CoachMoment.setLogged(set: 1, of: 3, kg: 62.5, reps: 8, lastKg: 60, lastReps: 8).studioKind == "set-heavier")
+        #expect(CoachMoment.setLogged(set: 1, of: 3, kg: 60, reps: 9, lastKg: 60, lastReps: 8).studioKind == "set-more")
+        #expect(CoachMoment.setLogged(set: 1, of: 3, kg: 60, reps: 8, lastKg: 60, lastReps: 8).studioKind == "set-same")
+        #expect(CoachMoment.setLogged(set: 1, of: 3, kg: 55, reps: 8, lastKg: 60, lastReps: 8).studioKind == "set")
+        #expect(CoachMoment.setLogged(set: 1, of: 3, kg: 60, reps: 8, lastKg: nil, lastReps: nil).studioKind == "set")
+        #expect(CoachMoment.record(exercise: "x", kg: 1, reps: 1, heavierBy: 2.5).studioKind == "record-heavier")
+        #expect(CoachMoment.record(exercise: "x", kg: 1, reps: 1, heavierBy: nil).studioKind == "record")
+        #expect(CoachMoment.restEnding(seconds: 10).studioKind == "rest")
+        #expect(CoachMoment.finish(sets: 1, volumeKg: 0, minutes: 1).studioKind == "finish")
+    }
+
     @Test func setLineComparesWithLastTime() {
         let more = CoachLines.variants(.setLogged(set: 2, of: 3, kg: 60, reps: 9, lastKg: 60, lastReps: 8), style: .hype)
         #expect(more[0] == "Boom! One rep more than last time!")
