@@ -63,3 +63,43 @@ import Testing
         #expect(Sport.snowboard.loadLabel == "legs")
     }
 }
+
+/// Session page analysis (#416, A + C).
+@Suite struct SportTrackTests {
+    private func track(_ alts: [Double], speed: Double = 10) -> SportTrack {
+        let t0 = Date(timeIntervalSince1970: 0)
+        return SportTrack(points: alts.enumerated().map { i, a in
+            SportTrack.Point(lat: 46, lon: 9 + Double(i) * 0.001, alt: a, speed: speed, time: t0.addingTimeInterval(Double(i) * 10))
+        })
+    }
+
+    @Test func runsSplitAtLifts() {
+        let up = stride(from: 0.0, through: 300, by: 20).map { $0 }
+        let down = stride(from: 300.0, through: 0, by: -20).map { $0 }
+        let down2 = stride(from: 300.0, through: 50, by: -25).map { $0 }
+        let runs = track(up + down + up + down2).runs()
+        #expect(runs.count == 2)
+        #expect(runs.map(\.drop) == [300, 250])
+        #expect(runs[0].topKmh == 36)
+    }
+
+    @Test func verticalIgnoresNoise() {
+        let v = track([100, 101, 99, 100, 150, 120]).vertical()
+        #expect(v.up == 50)
+        #expect(v.down == 30)
+        #expect(track([100, 150]).highest == 150)
+    }
+
+    @Test func topSpeedIgnoresOneJump() {
+        var t = track(Array(repeating: 100, count: 5), speed: 5)
+        t.points[2].speed = 60
+        #expect(t.topKmh == 18)
+    }
+
+    @Test func thinnedKeepsEnds() {
+        let t = track((0..<2000).map(Double.init)).thinned(max: 100)
+        #expect(t.points.count == 100)
+        #expect(t.points.first?.alt == 0 && t.points.last?.alt == 1999)
+        #expect(t.index(near: Date(timeIntervalSince1970: 0)) == 0)
+    }
+}

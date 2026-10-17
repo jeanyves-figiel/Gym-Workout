@@ -1,4 +1,5 @@
 import Foundation
+import CoreLocation
 import HealthKit
 import WorkoutEngine
 
@@ -190,6 +191,8 @@ final class HealthManager {
             HKQuantityType(.heartRateVariabilitySDNN), HKQuantityType(.vo2Max), HKQuantityType(.heartRate),
             HKQuantityType(.activeEnergyBurned), HKCategoryType(.sleepAnalysis), HKObjectType.workoutType(),
             HKQuantityType(.bodyFatPercentage), HKQuantityType(.leanBodyMass), HKQuantityType(.waistCircumference),
+            // Sport session page (#416): the route of workouts recorded by the Watch or other apps.
+            HKSeriesType.workoutRoute(),
         ]
         if let dob = HKObjectType.characteristicType(forIdentifier: .dateOfBirth) { s.insert(dob) }
         if let sex = HKObjectType.characteristicType(forIdentifier: .biologicalSex) { s.insert(sex) }
@@ -395,6 +398,50 @@ final class HealthManager {
                 maxHR: hr?.maximumQuantity()?.doubleValue(for: bpm),
                 kcal: stats[HKQuantityType(.activeEnergyBurned)]?.sumQuantity()?.doubleValue(for: .kilocalorie()),
                 local: meta[Self.sportIdKey] != nil)
+        }
+    }
+
+    /// Route, elevation, speed and laps of a Health sport workout (#416 session page), nil without a route.
+    func track(for id: UUID) async -> SportTrack? {
+        guard connected, available else { return nil }
+        let d = HKSampleQueryDescriptor(predicates: [.workout(HKQuery.predicateForObject(with: id))], sortDescriptors: [], limit: 1)
+        guard let workout = try? await d.result(for: store).first else { return nil }
+        let laps = (workout.workoutEvents ?? []).filter { $0.type == .lap || $0.type == .segment }
+            .map { SportTrack.Lap(start: $0.dateInterval.start, end: $0.dateInterval.end) }
+        let routes = HKSampleQueryDescriptor(
+            predicates: [.sample(type: HKSeriesType.workoutRoute(), predicate: HKQuery.predicateForObjects(from: workout))],
+            sortDescriptors: [])
+        var locations: [CLLocation] = []
+        for case let route as HKWorkoutRoute in (try? await routes.result(for: store)) ?? [] {
+            locations += await routeLocations(route)
+        }
+        locations.sort { $0.timestamp < $1.timestamp }
+        guard locations.count >= 2 || !laps.isEmpty else { return nil }
+        var points: [SportTrack.Point] = []
+        for (i, l) in locations.enumerated() {
+            var speed = l.speed
+            if speed < 0, i > 0 {
+                let prev = locations[i - 1]
+                let dt = l.timestamp.timeIntervalSince(prev.timestamp)
+                speed = dt > 0 ? l.distance(from: prev) / dt : 0
+            }
+            points.append(.init(lat: l.coordinate.latitude, lon: l.coordinate.longitude, alt: l.altitude, speed: max(0, speed), time: l.timestamp))
+        }
+        return SportTrack(points: points, laps: laps)
+    }
+
+    private func routeLocations(_ route: HKWorkoutRoute) async -> [CLLocation] {
+        await withCheckedContinuation { (cont: CheckedContinuation<[CLLocation], Never>) in
+            var all: [CLLocation] = []
+            var resumed = false
+            let q = HKWorkoutRouteQuery(route: route) { _, locations, done, error in
+                all += locations ?? []
+                if (done || error != nil) && !resumed {
+                    resumed = true
+                    cont.resume(returning: all)
+                }
+            }
+            store.execute(q)
         }
     }
 
