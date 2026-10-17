@@ -35,6 +35,9 @@ struct WorkoutPlayerView: View {
     @State private var prFor: Exercise?
     /// "Not here?" (#162): the planned item whose equipment the gym lacks.
     @State private var notHereFor: PlannedExercise?
+    /// Change (#391): the item whose Swap / Remove / Not here? sheet is open, and what was picked there.
+    @State private var changeFor: PlannedExercise?
+    @State private var changeChoice: ChangeExerciseSheet.Choice?
     @State private var setupFor: MachineNoteTarget?
     @State private var setupPhotoFor: MachineNote?
     @State private var gate: ProGate?
@@ -90,6 +93,7 @@ struct WorkoutPlayerView: View {
         var uid: String
         var edit: [Block]?
         var fitted: [Block]?
+        var symbol = "scissors"
     }
 
     private struct Step {
@@ -136,6 +140,13 @@ struct WorkoutPlayerView: View {
         .preferredColorScheme(.dark)
         .sheet(item: $formFor) { FormSheet(exercise: $0) }
         .sheet(item: $notHereFor) { NotHereSheet(exerciseId: $0.exerciseId, uid: $0.uid) }
+        .sheet(item: $changeFor, onDismiss: runChange) { item in
+            if let step = steps.first(where: { $0.item.uid == item.uid }) {
+                let done = setsDone[item.uid] ?? 0
+                ChangeExerciseSheet(exercise: step.exercise, setsDone: done, canSwap: canSwapHere(step),
+                                    canRemove: canRemoveHere(step), canNotHere: canNotHere(step)) { changeChoice = $0 }
+            }
+        }
         .sheet(item: $setupFor) { MachineNoteSheet(exerciseId: $0.exerciseId, gym: $0.gym) }
         .fullScreenCover(item: $setupPhotoFor) { n in
             MachineNotePhotoViewer(note: n) {
@@ -296,7 +307,7 @@ struct WorkoutPlayerView: View {
             VStack(alignment: .leading, spacing: 12) {
                 topBar(session)
                 if let splitUndo {
-                    FinishEarlyBanner(text: splitUndo.text, symbol: "scissors", onUndo: undoSplit)
+                    FinishEarlyBanner(text: splitUndo.text, symbol: splitUndo.symbol, onUndo: undoSplit)
                 } else if let fitBanner {
                     FinishEarlyBanner(text: fitBanner, onUndo: undoFinishEarly)
                 }
@@ -307,8 +318,7 @@ struct WorkoutPlayerView: View {
                 ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
                                  position: "\(index + 1)/\(steps.count)",
                                  onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
-                                 onNotHere: !step.exercise.equipment.isEmpty && model.canSwap(uid: step.item.uid) && done == 0
-                                     ? { notHereFor = step.item } : nil,
+                                 onChange: canChange(step) ? { changeFor = step.item } : nil,
                                  setup: setup,
                                  onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
                                  onSetupPhoto: { setupPhotoFor = setup },
@@ -396,8 +406,7 @@ struct WorkoutPlayerView: View {
                     ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
                                      position: "\(index + 1)/\(steps.count)",
                                      onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
-                                     onNotHere: !step.exercise.equipment.isEmpty && model.canSwap(uid: step.item.uid) && done == 0
-                                         ? { notHereFor = step.item } : nil,
+                                     onChange: canChange(step) ? { changeFor = step.item } : nil,
                                      setup: setup,
                                      onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
                                      onSetupPhoto: { setupPhotoFor = setup },
@@ -420,7 +429,7 @@ struct WorkoutPlayerView: View {
 
                     VStack(spacing: 8) {
                         if let splitUndo {
-                            FinishEarlyBanner(text: splitUndo.text, symbol: "scissors", onUndo: undoSplit)
+                            FinishEarlyBanner(text: splitUndo.text, symbol: splitUndo.symbol, onUndo: undoSplit)
                         } else if let fitBanner {
                             FinishEarlyBanner(text: fitBanner, onUndo: undoFinishEarly)
                         }
@@ -925,10 +934,65 @@ struct WorkoutPlayerView: View {
         }
     }
 
+    // MARK: Change: swap / remove / not here (#391)
+
+    /// The workout's list can change (saved as its edit), or the gym's equipment can still be reported missing.
+    private func canChange(_ step: Step) -> Bool {
+        model.editableBlocks(sessionId) != nil || canNotHere(step)
+    }
+
+    private func canSwapHere(_ step: Step) -> Bool {
+        (setsDone[step.item.uid] ?? 0) == 0 && model.editableBlocks(sessionId) != nil
+    }
+
+    private func canRemoveHere(_ step: Step) -> Bool {
+        canSwapHere(step) && steps.contains { $0.item.uid != step.item.uid && $0.item.supersetWith != step.item.uid }
+    }
+
+    private func canNotHere(_ step: Step) -> Bool {
+        !step.exercise.equipment.isEmpty && model.canSwap(uid: step.item.uid) && (setsDone[step.item.uid] ?? 0) == 0
+    }
+
+    /// Runs the choice from the Change sheet once it has closed, so the next sheet can open.
+    private func runChange() {
+        guard let choice = changeChoice, steps.indices.contains(index) else { return }
+        changeChoice = nil
+        let step = steps[index]
+        switch choice {
+        case .swap: swapPartner = step.item
+        case .remove: remove(step)
+        case .notHere: notHereFor = step.item
+        }
+    }
+
+    /// Takes the exercise out of this workout (saved as its edit, so the session page and the Watch follow) and moves
+    /// to the next one still in it; Undo puts it back on the same spot.
+    private func remove(_ step: Step) {
+        guard canRemoveHere(step) else { return }
+        let uid = step.item.uid
+        let gone: (Step) -> Bool = { $0.item.uid == uid || $0.item.supersetWith == uid }
+        let next = steps[index...].first { !gone($0) } ?? steps[..<index].last { !gone($0) }
+        let fittedBefore = fitted
+        let before = model.removeFromSession(sessionId, uid: uid)
+        let undo = SplitUndo(text: "\(step.exercise.name) removed", uid: uid, edit: before, fitted: fittedBefore, symbol: "trash")
+        fitted?.remove(uid)
+        if timed?.uid == uid { timed = nil }
+        pendingJump = nil
+        autoNext = nil
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        if let next { relocate(next.item.uid) }
+        withAnimation(.spring(duration: 0.4)) { splitUndo = undo }
+        guard demoMode == nil else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(8))
+            if splitUndo == undo { withAnimation(.spring(duration: 0.4)) { splitUndo = nil } }
+        }
+    }
+
     /// Back to the superset as it was, on the same exercise and set.
     private func undoSplit() {
         guard let u = splitUndo else { return }
-        if let edit = u.edit { model.saveSessionEdit(sessionId, blocks: edit) } else { model.resetSessionEdit(sessionId) }
+        model.restoreSessionEdit(sessionId, to: u.edit)
         fitted = u.fitted
         withAnimation(.spring(duration: 0.4)) { splitUndo = nil }
         relocate(u.uid)

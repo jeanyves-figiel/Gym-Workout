@@ -29,9 +29,9 @@ final class WorkoutMapUITests: XCTestCase {
         XCTAssertTrue(bar.isHittable, "Up next bar on screen")
         let form = app.buttons["Setup and technique"]
         XCTAssertTrue(form.exists, "Form button")
-        let notHere = app.buttons["Not at this gym?"]
-        if notHere.exists {
-            XCTAssertFalse(form.frame.intersects(notHere.frame), "Form and Not here? don't overlap")
+        let change = app.buttons["Change exercise"]
+        if change.exists {
+            XCTAssertFalse(form.frame.intersects(change.frame), "Form and Change don't overlap")
         }
         XCTAssertFalse(app.staticTexts["Coming up"].exists, "No Coming up strip")
         bar.tap()

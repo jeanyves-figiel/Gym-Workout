@@ -28,7 +28,8 @@ struct SessionView: View {
                     exercisesHeader(session)
                     ForEach(session.blocks) { block in
                         BlockSection(block: block, sessionId: session.id,
-                                     canSwap: { model.swapsThroughPlan(session, uid: $0.uid) || model.canEditExercises(session) }) { item in
+                                     canSwap: { model.swapsThroughPlan(session, uid: $0.uid) || model.canEditExercises(session) },
+                                     onRemove: canRemove(session) ? { remove($0, from: session) } : nil) { item in
                             // Example and custom workouts are fixed lists: no planned item behind them.
                             detail = ExerciseRef(exerciseId: item.exerciseId, uid: session.isStandalone ? nil : item.uid)
                         } onSwap: { item in
@@ -87,6 +88,21 @@ struct SessionView: View {
         } else {
             ContentUnavailableView("Session not found", systemImage: "questionmark")
         }
+    }
+
+    /// Remove from the long-press menu (#391): gone at once, Undo bar puts it back (no confirmation, #285).
+    private func canRemove(_ s: Session) -> Bool {
+        model.canEditExercises(s) && s.blocks.reduce(0) { $0 + $1.items.count } > 1
+    }
+
+    private func remove(_ item: PlannedExercise, from s: Session) {
+        guard canRemove(s) else { return }
+        let id = s.id
+        let name = Exercise.get(item.exerciseId).name
+        let before = model.removeFromSession(id, uid: item.uid)
+        UndoCloseCenter.shared.show(UndoOffer(
+            title: "\(name) removed", detail: s.title, symbol: "trash", reopen: { AnyView(EmptyView()) },
+            revert: { [model] in model.restoreSessionEdit(id, to: before) }))
     }
 
     /// Exercise count tile; until the workout starts it opens the exercise editor (#295).
@@ -275,6 +291,7 @@ private struct BlockSection: View {
     let block: Block
     let sessionId: String
     let canSwap: (PlannedExercise) -> Bool
+    var onRemove: ((PlannedExercise) -> Void)? = nil
     let onOpen: (PlannedExercise) -> Void
     let onSwap: (PlannedExercise) -> Void
 
@@ -288,7 +305,8 @@ private struct BlockSection: View {
             if let note = block.note { Text(note).font(.footnote).foregroundStyle(Theme.muted) }
             ForEach(block.items) { item in
                 ExerciseCard(item: item, block: block, sessionId: sessionId,
-                             onOpen: { onOpen(item) }, onSwap: canSwap(item) ? { onSwap(item) } : nil)
+                             onOpen: { onOpen(item) }, onSwap: canSwap(item) ? { onSwap(item) } : nil,
+                             onRemove: onRemove.map { r in { r(item) } })
             }
         }
     }
@@ -301,6 +319,8 @@ struct ExerciseCard: View {
     let sessionId: String
     let onOpen: () -> Void
     var onSwap: (() -> Void)? = nil
+    /// Long-press "Remove from workout" (#391); nil once the workout started or when it's the last exercise.
+    var onRemove: (() -> Void)? = nil
     @Environment(AppModel.self) private var model
 
     private var exercise: Exercise { Exercise.get(item.exerciseId) }
@@ -396,12 +416,16 @@ struct ExerciseCard: View {
                           systemImage: picked ? "pin.slash" : "pin.fill")
                 }
             }
+            if let onRemove {
+                Button(role: .destructive, action: onRemove) { Label("Remove from workout", systemImage: "trash") }
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(named: "Exercise details", onOpen)
         .accessibilityActions {
             if let onSwap { Button("Swap exercise", action: onSwap) }
+            if let onRemove { Button("Remove from workout", action: onRemove) }
         }
     }
 }

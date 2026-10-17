@@ -41,8 +41,8 @@ struct ExerciseHeroCard: View {
     let position: String
     /// Set for weighted strength work: opens the PR attempt flow (#60).
     var onAttemptPR: (() -> Void)?
-    /// Set while the gym's equipment can still be reported missing (before the first set).
-    var onNotHere: (() -> Void)?
+    /// Change (#391): swap, remove or "Not here?" for this exercise; nil when the workout's list is fixed.
+    var onChange: (() -> Void)?
     /// The member's setup for this exercise at this gym (#355); `onSetup` nil = no setups (bodyweight).
     var setup: MachineNote?
     var onSetup: (() -> Void)?
@@ -52,7 +52,7 @@ struct ExerciseHeroCard: View {
     /// Superset / circuit (#352): the machines-not-next-to-each-other choices.
     var onGroup: (() -> Void)?
     /// Landscape player (#362, #373 design A): smaller type, the picture takes all the height left with Form /
-    /// Not here? / Setup stacked beside it, no note.
+    /// Change / Setup stacked beside it, no note.
     var compact = false
     let onForm: () -> Void
 
@@ -117,7 +117,7 @@ struct ExerciseHeroCard: View {
                                  onEdit: onSetup, onPhoto: onSetupPhoto ?? onSetup)
             }
             // #373: the picture takes all the height left on screen (the player never scrolls, #206), and nothing sits on
-            // it but its own "Play movement" / tempo chip: Form, Not here? and Setup have their own places, so they never
+            // it but its own "Play movement" / tempo chip: Form, Change and Setup have their own places, so they never
             // overlap each other or the rep counter.
             if compact {
                 HStack(alignment: .top, spacing: 8) {
@@ -161,7 +161,7 @@ struct ExerciseHeroCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
-    /// Form, Not here? (before the first set) and the add-setup chip, each in its own slot.
+    /// Form, Change and the add-setup chip, each in its own slot.
     @ViewBuilder
     private var actionButtons: some View {
         Button(action: onForm) {
@@ -169,12 +169,20 @@ struct ExerciseHeroCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Setup and technique")
-        if let onNotHere {
-            Button(action: onNotHere) {
-                Label("Not here?", systemImage: "questionmark.circle").heroChip()
+        if let onChange {
+            Button(action: onChange) {
+                Label("Change", systemImage: "arrow.triangle.2.circlepath")
+                    .font(Theme.label(11))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Theme.lime))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Not at this gym?")
+            .accessibilityLabel("Change exercise")
+            .accessibilityIdentifier("player.change")
         }
         if setup == nil, let onSetup {
             MachineNoteAddChip(action: onSetup)
@@ -213,7 +221,7 @@ struct ExerciseHeroCard: View {
 }
 
 private extension View {
-    /// Dark capsule for the card's own buttons (Form, Not here?).
+    /// Dark capsule for the card's own buttons (Form).
     func heroChip() -> some View {
         font(Theme.label(11))
             .lineLimit(1)

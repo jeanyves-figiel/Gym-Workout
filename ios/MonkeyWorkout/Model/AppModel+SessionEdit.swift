@@ -70,6 +70,22 @@ extension AppModel {
         saveSessionEdit(id, blocks: blocks)
     }
 
+    /// Removes one exercise (#391), from the session page's menu or the player's Change sheet. Returns what Undo puts back:
+    /// the edit before (nil = the workout as planned).
+    @discardableResult
+    func removeFromSession(_ id: String, uid: String) -> [Block]? {
+        guard var blocks = editableBlocks(id) else { return nil }
+        let before = isEdited(id) ? blocks : nil
+        blocks.remove(uid)
+        saveSessionEdit(id, blocks: blocks)
+        return before
+    }
+
+    /// Undo of a removal: the edit as it was, or back to the plan.
+    func restoreSessionEdit(_ id: String, to blocks: [Block]?) {
+        if let blocks { saveSessionEdit(id, blocks: blocks) } else { resetSessionEdit(id) }
+    }
+
     /// Whether the session page's Swap goes through the plan (kept swaps, variation) rather than the edit.
     func swapsThroughPlan(_ s: Session, uid: String) -> Bool {
         canSwap(uid: uid) && !isEdited(s.id)
