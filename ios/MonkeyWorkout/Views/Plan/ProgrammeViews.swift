@@ -4,7 +4,7 @@ import WorkoutEngine
 // MARK: - Training programmes (#255)
 
 /// Pushes a programme's page.
-struct ProgrammeRoute: Hashable {
+struct ProgrammeRoute: Hashable, Identifiable {
     let id: String
 }
 
@@ -22,7 +22,19 @@ extension ProgrammePhaseKind {
 }
 
 extension Programme {
-    var gradient: LinearGradient { palette.gradient }
+    var gradient: LinearGradient {
+        snowRide == nil ? palette.gradient
+            : LinearGradient(colors: [Color(hex: 0x00C6FF), Color(hex: 0x2B5CFF), Color(hex: 0x8A2BFF)], startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+
+    /// Explore order: Snow ready (#428) first, the rest as the catalog lists them.
+    static var catalog: [Programme] { all.filter { $0.snowRide != nil } + all.filter { $0.snowRide == nil } }
+
+    /// Same programme for the library: Snow ready variants count as one.
+    func sameFamily(_ id: String?) -> Bool {
+        guard let id else { return false }
+        return id == self.id || (snowRide != nil && Programme.find(id)?.snowRide != nil)
+    }
     var plan: String { "\(weeks) weeks · \(sessionsPerWeek)× a week" }
 }
 
@@ -53,7 +65,7 @@ struct ProgrammeLibrarySection: View {
             }
             .buttonStyle(.plain)
             Text("Programmes").eyebrow()
-            ForEach(Programme.all.filter { $0.id != model.activeProgramme?.programmeId }) { p in
+            ForEach(Programme.catalog.filter { !$0.sameFamily(model.activeProgramme?.programmeId) }) { p in
                 NavigationLink(value: ProgrammeRoute(id: p.id)) { ProgrammeCard(programme: p) }
                     .buttonStyle(.plain)
             }
@@ -62,6 +74,19 @@ struct ProgrammeLibrarySection: View {
                 .foregroundStyle(Theme.muted)
         }
         .sheet(isPresented: $building) { ProgrammeBuilderView() }
+    }
+}
+
+/// A programme page as a sheet, for places without a navigation stack of their own (Coach tip, My sports).
+struct ProgrammeSheet: View {
+    let id: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Programme.find(id).map { ProgrammeDetailView(programme: $0) }
+                .toolbar { CloseToolbarItem { dismiss() } }
+        }
     }
 }
 
@@ -148,6 +173,10 @@ struct ProgrammeDetailView: View {
     @State private var picked: PickedProgrammeSession?
     /// Programme open in the editor: the member's own, or a copy to make theirs (#269).
     @State private var editing: Programme?
+    /// Snow ready (#428): what the member rides and their first day on snow (the length is fitted to it).
+    @State private var ride: SnowRide?
+    @State private var firstDay: Date?
+    @AppStorage("snowNudgeSeen") private var snowSeen = 0
 
     /// Demo screenshots: open the length sheet, or scroll to the workouts grid.
     private let demoLength: Bool
@@ -162,22 +191,33 @@ struct ProgrammeDetailView: View {
     }
 
     private var mine: ActiveProgramme? {
-        model.activeProgramme?.programmeId == base.id ? model.activeProgramme : nil
+        base.sameFamily(model.activeProgramme?.programmeId) ? model.activeProgramme : nil
     }
 
-    /// The member's own programme as last saved (#269); a catalog one as is.
-    private var latest: Programme { base.mine ? model.findProgramme(base.id) ?? base : base }
+    /// The member's own programme as last saved (#269); a catalog one as is; Snow ready as the picked ride.
+    private var latest: Programme {
+        if base.mine { return model.findProgramme(base.id) ?? base }
+        if let r = ride ?? base.snowRide { return Programme.snowReady(r) }
+        return base
+    }
+
+    /// Snow ready not started yet: weeks to the week before the first day on snow.
+    private var snowWeeks: Int? {
+        guard mine == nil, base.snowRide != nil, let firstDay else { return nil }
+        return Programme.snowWeeks(until: firstDay, now: .now)
+    }
 
     /// At its standard length: what the length choices are built from.
     private var standard: Programme { mine?.custom ?? latest }
 
-    private var programme: Programme { mine?.programme ?? latest }
+    private var programme: Programme { mine?.programme ?? snowWeeks.map { latest.resized(to: $0) } ?? latest }
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
+                    if base.snowRide != nil, mine == nil || mine?.firstDay != nil { snowSetup }
                     ProgrammePhaseStrip(programme: programme, week: mine == nil ? nil : model.programmeWeek)
                     if mine != nil { lengthRow }
                     VStack(alignment: .leading, spacing: 8) {
@@ -257,6 +297,12 @@ struct ProgrammeDetailView: View {
             }
         }
         .onAppear {
+            if base.snowRide != nil {
+                let sports = model.profile?.sports
+                ride = ride ?? SnowRide.from(sports) ?? base.snowRide
+                firstDay = firstDay ?? Programme.defaultSnowDay(sports: sports, now: .now)
+                snowSeen = Calendar.current.component(.year, from: .now)
+            }
             if demoLength { lengthSheet = true }
             if demoEdit { editing = base.copy() }
         }
@@ -265,6 +311,49 @@ struct ProgrammeDetailView: View {
         } message: {
             Text("Your own plan comes back. Progress keeps what you trained.")
         }
+    }
+
+    /// Snow ready (#428, A + B): ride picker and the first day on snow; running, the countdown.
+    private var snowSetup: some View {
+        let cal = Calendar.current
+        let day = mine?.firstDay ?? firstDay ?? .now
+        let days = max(0, cal.dateComponents([.day], from: cal.startOfDay(for: .now), to: cal.startOfDay(for: day)).day ?? 0)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: "mountain.2.fill").font(.system(size: 18, weight: .bold))
+                    .frame(width: 40, height: 40)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.22)))
+                Text("First day on snow").font(Theme.display(20))
+                Spacer(minLength: 0)
+            }
+            Text(day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))
+                .font(Theme.display(44)).lineLimit(1).minimumScaleFactor(0.6)
+            if mine == nil {
+                Text("\(days / 7) weeks away · we fit the plan to it").font(.footnote.weight(.semibold)).opacity(0.9)
+                DatePicker("First day on snow", selection: Binding(get: { firstDay ?? .now }, set: { firstDay = $0 }),
+                           in: cal.date(byAdding: .day, value: 7, to: .now)!..., displayedComponents: .date)
+                    .font(Theme.label(14)).tint(.white).colorScheme(.dark)
+                HStack(spacing: 8) {
+                    ForEach(SnowRide.allCases) { r in
+                        let on = (ride ?? base.snowRide) == r
+                        Button { ride = r } label: {
+                            Text(r.label).font(Theme.label(14))
+                                .padding(.horizontal, 14).padding(.vertical, 8)
+                                .foregroundStyle(on ? Color(hex: 0x2B5CFF) : .white)
+                                .background(Capsule().fill(on ? Color.white : Color.white.opacity(0.2)))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(on ? .isSelected : [])
+                    }
+                }
+            } else {
+                Text(days == 0 ? "Today. Have fun out there ❄️" : "\(days) day\(days == 1 ? "" : "s") to go").font(.footnote.weight(.semibold)).opacity(0.9)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(Programme.snowReady(.both).gradient))
     }
 
     /// Copy to edit ("Make it mine", design A of #269).
@@ -373,6 +462,15 @@ struct ProgrammeDetailView: View {
             Text(a.paused
                  ? "Paused at week \(model.programmeWeek ?? 1). Resume picks it up there."
                  : "Pause brings your own plan back (holiday, injury) and keeps this programme at week \(model.programmeWeek ?? 1).")
+                .font(.caption).foregroundStyle(Theme.muted)
+        } else if let weeks = snowWeeks, let day = firstDay {
+            let end = Calendar.current.date(byAdding: .day, value: -1, to: Progression.weekStart(day, Progression.calendar()))!
+            bigButton(model.activeProgramme == nil ? "Start · ends \(end.formatted(.dateTime.day().month(.abbreviated)))" : "Switch to this programme",
+                      "flag.checkered", fill: Theme.lime) {
+                model.startProgramme(latest, length: weeks, firstDay: day)
+            }
+            Text((model.activeProgramme.map { "Leaves \($0.programme?.name ?? "your programme"). " } ?? "")
+                 + "Starts this week, \(weeks) weeks: Base and Build stretch or shrink to fit, Peak, Test and an easy week stay.")
                 .font(.caption).foregroundStyle(Theme.muted)
         } else {
             bigButton(model.activeProgramme == nil ? "Start programme" : "Switch to this programme", "flag.checkered", fill: Theme.lime) {
@@ -491,10 +589,12 @@ struct ProgrammeHeroCard: View {
     }
 
     private func headline(_ p: Programme, week: Int, phase: ProgrammePhase) -> String {
-        let left = p.weeks - week
         if phase.kind == .test { return "Test week. Go for your PRs 🏆" }
         guard p.hasTest else { return phase.note }
-        return "\(phase.note). \(left) week\(left == 1 ? "" : "s") to your PR test."
+        let test = p.phaseStarts.first { $0.phase.kind == .test }?.week ?? p.weeks
+        guard test > week else { return phase.note }
+        let toTest = test - week
+        return "\(phase.note). \(toTest) week\(toTest == 1 ? "" : "s") to your PR test."
     }
 }
 

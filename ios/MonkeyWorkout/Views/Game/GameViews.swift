@@ -168,9 +168,12 @@ struct MonkeyCoachCard: View {
     @State private var gate: ProGate?
     /// Spotted in Health (#416): a sport session to rate, with a swap for today when it clashes.
     @State private var sportSession: SportEntry?
+    /// Snow ready season nudge (#428 C): the programme page as a sheet; opening it marks this season as seen.
+    @State private var snowProgramme: ProgrammeRoute?
+    @AppStorage("snowNudgeSeen") private var snowSeen = 0
 
     private enum Action {
-        case start(Session), catchUp(Int), progress(ProgressSection), exercise(String), levels, calendar, sport(SportEntry)
+        case start(Session), catchUp(Int), progress(ProgressSection), exercise(String), levels, calendar, sport(SportEntry), programme(String)
     }
 
     private struct Tip {
@@ -291,6 +294,7 @@ struct MonkeyCoachCard: View {
         .sheet(item: $catchUp) { MissedCatchUpSheet(weekday: $0.id) }
         .sheet(isPresented: $levels) { LevelLadderSheet() }
         .sheet(item: $sportSession) { SportSessionSheet(entry: $0) }
+        .sheet(item: $snowProgramme) { ProgrammeSheet(id: $0.id) }
         .fullScreenCover(isPresented: $chatting) { CoachChatView() }
         .proPaywall($gate)
         .onAppear {
@@ -344,6 +348,7 @@ struct MonkeyCoachCard: View {
             model.tab = .progress
         case .levels: levels = true
         case .sport(let e): sportSession = e
+        case .programme(let id): snowProgramme = ProgrammeRoute(id: id)
         case .exercise, .calendar: break // NavigationLinks
         }
     }
@@ -386,6 +391,13 @@ struct MonkeyCoachCard: View {
                   let to = Sports.swap(for: n.focus, after: e.sport), model.canChangeFocus(n) {
             out.insert(Tip(text: "\(e.sport.loadLabel.capitalized) loaded by \(e.sport.short). \(n.focus.dayLabel) → \(to.dayLabel)?",
                            tint: (0x00B86B, 0x1EC8A5), cta: "Swap today", action: .sport(e)), at: 0)
+        }
+        // Snow ready (#428 C): skiers and snowboarders get the pre-season programme first, each autumn until they look.
+        if let ride = Programme.snowNudge(sports: model.profile?.sports, running: model.activeProgramme != nil,
+                                          seenSeason: snowSeen, now: .now) {
+            let who = ride == .both ? "You ski and ride" : ride == .ski ? "You ski" : "You snowboard"
+            out.insert(Tip(text: "Season's coming! \(who): get your legs snow ready ❄️", tint: (0x00C6FF, 0x8A2BFF),
+                           cta: "See Snow ready", action: .programme(ride.programmeId)), at: 0)
         }
         if stats.currentStreakWeeks > 0 {
             let best = stats.currentStreakWeeks >= stats.bestStreakWeeks && stats.currentStreakWeeks > 1
