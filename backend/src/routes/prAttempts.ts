@@ -6,7 +6,7 @@ import { type DB, tx } from '../db.ts';
 const prAttempt = z
   .object({
     id: z.uuid(),
-    exerciseId: z.string().min(1).max(64),
+    exerciseId: z.string().min(1).max(128),
     date: z.iso.datetime({ offset: true }),
     kind: z.enum(['oneRepMax', 'repMax', 'maxReps']),
     kg: z.number().min(0).max(1000),
