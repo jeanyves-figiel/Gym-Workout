@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Release notes for the 2026-10-17 bundle** (What's new `2026-10-17.1`, 5 cards): cleaner Apple Watch (#393), coach voice picker (#397), 3D position guide (#400), change or remove an exercise on the fly (#396), Settings regrouping (#398) with the climbing Train bars (#392) in one card. `2026-10-16.1` moved to the history as build 39.
+
 ### Added
 - **Remove an exercise, and swap or remove during a workout** (#391): long-press on an exercise of a planned workout only offered Swap (Remove was only in Edit), and once a workout had started an exercise couldn't be swapped (only **Not here?** for missing equipment). Design A + C from `remove-exercise/proposals.png`. Workout page: the long-press menu gains a red **Remove from workout** (before the workout starts, not on the last exercise); it goes at once with the Undo bar, no confirmation. Player: a lime **Change** chip on the exercise card, in **Not here?**'s slot, opens **Swap for similar** / **Remove from workout** / **Not at this gym**; swap and remove apply before the exercise's first set (after it, Skip ⏭ moves on, and the sheet says so). Remove moves to the next exercise and shows an Undo banner that puts it back on the same spot. Both are saved as the workout's edit, so the session page and the Watch follow. `AppModel.removeFromSession` / `restoreSessionEdit`, `ChangeExerciseSheet`.
 ### Changed
