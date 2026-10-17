@@ -97,42 +97,39 @@ final class CoachVoiceStore {
         ready = Set(c.voices.map(\.id).filter(isComplete))
     }
 
-    /// Downloads the lines of `voice` not on the device yet, 4 at a time.
+    /// Downloads the lines of `voice` not on the device yet, 4 at a time; lines that fail get a second pass (#402).
     func download(_ voice: String, model: AppModel) async -> Bool {
         guard let lines = catalog?.lines, progress[voice] == nil else { return false }
         failed = nil
         let folder = Self.dir.appendingPathComponent(voice, isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let missing = lines.filter { !FileManager.default.fileExists(atPath: file(voice, $0).path) }
-        var done = lines.count - missing.count
-        progress[voice] = Double(done) / Double(max(1, lines.count))
         let api = model.api
-        var ok = true
-        // Four at a time; stop at the first failure (offline, server error).
-        var index = 0
-        while ok, index < missing.count {
-            let chunk = Array(missing[index..<min(missing.count, index + 4)])
-            index += chunk.count
-            let results = await withTaskGroup(of: (CoachVoiceCatalog.Line, Data?).self) { group in
-                for line in chunk {
-                    group.addTask { (line, try? await api.coachVoiceLine(voice: voice, line: line.id)) }
+        func have() -> Int { lines.filter { FileManager.default.fileExists(atPath: file(voice, $0).path) }.count }
+        progress[voice] = Double(have()) / Double(max(1, lines.count))
+        for pass in 0..<2 {
+            let missing = lines.filter { !FileManager.default.fileExists(atPath: file(voice, $0).path) }
+            if missing.isEmpty { break }
+            if pass > 0 { try? await Task.sleep(for: .seconds(2)) }
+            var index = 0
+            while index < missing.count {
+                let chunk = Array(missing[index..<min(missing.count, index + 4)])
+                index += chunk.count
+                let results = await withTaskGroup(of: (CoachVoiceCatalog.Line, Data?).self) { group in
+                    for line in chunk {
+                        group.addTask { (line, try? await api.coachVoiceLine(voice: voice, line: line.id)) }
+                    }
+                    var out: [(CoachVoiceCatalog.Line, Data?)] = []
+                    for await r in group { out.append(r) }
+                    return out
                 }
-                var out: [(CoachVoiceCatalog.Line, Data?)] = []
-                for await r in group { out.append(r) }
-                return out
-            }
-            for (line, data) in results {
-                if let data, !data.isEmpty {
-                    try? data.write(to: file(voice, line), options: .atomic)
-                } else {
-                    ok = false
+                for (line, data) in results where !(data?.isEmpty ?? true) {
+                    try? data?.write(to: file(voice, line), options: .atomic)
                 }
+                progress[voice] = Double(have()) / Double(max(1, lines.count))
             }
-            done += chunk.count
-            progress[voice] = Double(done) / Double(max(1, lines.count))
         }
         progress[voice] = nil
-        if ok, isComplete(voice) {
+        if isComplete(voice) {
             ready.insert(voice)
             return true
         }

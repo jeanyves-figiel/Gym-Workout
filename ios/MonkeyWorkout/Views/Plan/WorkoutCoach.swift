@@ -127,21 +127,32 @@ final class CoachVoice: NSObject {
     @ObservationIgnored private let synth = AVSpeechSynthesizer()
     @ObservationIgnored private var player: AVAudioPlayer?
 
-    private func duck() {
+    /// Opens the audio session for one line; false = stay quiet (#402).
+    /// Music playing: talk over it and duck it (the member chose to hear audio). No music: `.ambient`, which follows the
+    /// Ring/Silent switch. Never at zero volume.
+    private func duck() -> Bool {
         let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .voicePrompt, options: [.duckOthers, .interruptSpokenAudioAndMixWithOthers])
+        if session.isOtherAudioPlaying {
+            try? session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers, .interruptSpokenAudioAndMixWithOthers])
+        } else {
+            try? session.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
+        }
         try? session.setActive(true)
+        guard session.outputVolume > 0.01 else {
+            try? session.setActive(false, options: .notifyOthersOnDeactivation)
+            return false
+        }
+        return true
     }
 
     /// Plays a studio recording.
     func play(_ url: URL) {
         if synth.isSpeaking { synth.stopSpeaking(at: .immediate) }
         player?.stop()
-        guard let p = try? AVAudioPlayer(contentsOf: url) else {
+        guard let p = try? AVAudioPlayer(contentsOf: url), duck() else {
             speaking = false
             return
         }
-        duck()
         p.delegate = self
         player = p
         speaking = p.play()
@@ -151,14 +162,19 @@ final class CoachVoice: NSObject {
     override init() {
         super.init()
         synth.delegate = self
+        // Speech goes through the session set in duck(), so it follows the silent switch too.
+        synth.usesApplicationAudioSession = true
     }
 
     /// iOS speech (#395: the best installed voice for the pick, premium first, not the basic one for the language).
     func speak(_ text: String, style: CoachStyle, voice: AVSpeechSynthesisVoice? = CoachVoicePref.bestSystemVoice()) {
         player?.stop()
         player = nil
-        duck()
         if synth.isSpeaking { synth.stopSpeaking(at: .word) }
+        guard duck() else {
+            speaking = false
+            return
+        }
         let u = AVSpeechUtterance(string: text)
         u.voice = voice ?? AVSpeechSynthesisVoice(language: "en-US")
         // Natural voices sound wrong with a pitch shift; only the pace follows the style.
@@ -384,7 +400,7 @@ struct CoachSettingsView: View {
     private var voiceHint: String {
         switch CoachVoiceLevel(rawValue: voice) ?? .keyMoments {
         case .off: "No voice. Lines show on screen at the key moments."
-        case .keyMoments: "Speaks at the start, last set, halfway, records and the finish. Ducks your music while it talks."
+        case .keyMoments: "Speaks at the start, last set, halfway, records and the finish. Ducks your music; quiet in silent mode."
         case .everySet: "Also after each set (vs last time) and 10 s before rest ends."
         }
     }

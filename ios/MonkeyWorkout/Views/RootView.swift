@@ -146,7 +146,7 @@ private struct DemoScreen: View {
         case "player-setup": WorkoutPlayerView(sessionId: second, demoMode: "setup")
         case "machine-setup": MachineNoteSheet(exerciseId: "leg-press", gym: model.homeGym.ref)
         case "exercise-setups": NavigationStack { ExerciseDetailView(exerciseId: "leg-press") }
-        // Position guide (#399).
+        // Position guide (#402).
         case "position", "position-mistake", "position-press":
             let e = Exercise.get(Demo.screen == "position-press" ? "bench-press" : "back-squat")
             if let p = e.position {

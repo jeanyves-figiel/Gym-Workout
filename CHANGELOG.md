@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Coach voice: quiet in silent mode, studio voices download** (#402): the coach spoke with the volume at zero and in silent mode, because its audio session used `.playback`. Without music it now uses `.ambient`, which follows the Ring/Silent switch. With music playing it still talks over the music and ducks it. It never speaks at zero volume. Studio voice downloads failed because Polly throttled 4 recordings at once (`Rate exceeded`). The server now records 2 at a time, retries with backoff, and in production records every voice ahead in the background. The app gives failed lines a second pass. **Coach live check** gains a `voice` option that makes one real Polly recording.
+
 ### Changed
 - **Release notes for the 2026-10-17 bundle** (What's new `2026-10-17.1`, 5 cards): cleaner Apple Watch (#393), coach voice picker (#397), 3D position guide (#400), change or remove an exercise on the fly (#396), Settings regrouping (#398) with the climbing Train bars (#392) in one card. `2026-10-16.1` moved to the history as build 39.
 
