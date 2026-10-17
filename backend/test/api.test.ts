@@ -230,6 +230,15 @@ describe('Sign in with Apple', () => {
 });
 
 describe('account deletion, data sync & export', () => {
+  it('accepts logs of a workout added to the plan (long plan-insert session id, #404)', async () => {
+    const t = (await signUp()).tokens.accessToken;
+    const sessionId = `custom-${randomUUID()}~plan-${randomUUID()}`;
+    expect(sessionId.length).toBeGreaterThan(64);
+    const log = { id: randomUUID(), date: '2026-10-16T10:00:00Z', exerciseId: 'bench-press', sessionId, weightKg: 60, reps: 8, setIndex: 0 };
+    expect((await post('/v1/me/logs', { logs: [log] }, t)).json().saved).toBe(1);
+    expect((await get('/v1/me/logs', t)).json().logs[0].sessionId).toBe(sessionId);
+  });
+
   it('syncs profile and logs, exports, then deletes everything', async () => {
     const { tokens } = await signUp();
     const t = tokens.accessToken;

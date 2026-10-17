@@ -9,7 +9,7 @@ const customWorkout = z
   .object({
     id: z.uuid(),
     name: z.string().trim().min(1).max(100),
-    items: z.array(z.object({ exerciseId: z.string().min(1).max(64) }).catchall(z.unknown())).max(100),
+    items: z.array(z.object({ exerciseId: z.string().min(1).max(128) }).catchall(z.unknown())).max(100),
     /** Workout library (#62): who else can see it; absent = private. */
     visibility: z.enum(VISIBILITIES).optional(),
   })

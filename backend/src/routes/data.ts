@@ -15,8 +15,9 @@ import { listPrAttempts } from './prAttempts.ts';
 const logEntry = z.object({
   id: z.uuid(),
   date: z.iso.datetime({ offset: true }),
-  exerciseId: z.string().min(1).max(64),
-  sessionId: z.string().max(64).nullish(),
+  exerciseId: z.string().min(1).max(128),
+  /** Plan-insert ids are `custom-<uuid>~plan-<uuid>` (85 chars), so leave room. */
+  sessionId: z.string().max(200).nullish(),
   weightKg: z.number().min(0).max(1000).nullish(),
   reps: z.number().int().min(0).max(1000).nullish(),
   /** 0-based set number within the session (per-set logging); absent for legacy one-weight logs. */
