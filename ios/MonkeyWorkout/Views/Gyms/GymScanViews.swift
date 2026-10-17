@@ -258,6 +258,8 @@ private struct RoomCaptureRepresentable: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(onResult: onResult) }
 
+    // RoomCaptureViewDelegate is NSCoding: a nested class needs a stable Objective-C name to archive.
+    @objc(MWRoomCaptureCoordinator)
     final class Coordinator: NSObject, RoomCaptureViewDelegate {
         let onResult: (RoomScan.Result?) -> Void
         var stopped = false
