@@ -56,6 +56,11 @@ struct HomeStatRows: View {
                         value: p.records.isEmpty ? "›" : "\(p.records.count) PR", tint: (0x3D5AFF, 0x7B3DFF))
             }
             .buttonStyle(.plain)
+            // Other sports (#418): snowboard, MTB, hike, Hyrox… tracked in the background with GPS.
+            NavigationLink { SportPickerView() } label: {
+                HomeRow(symbol: "figure.mixed.cardio", title: "Track a sport", value: "›", tint: (0x00A3C4, 0x7DF9FF))
+            }
+            .buttonStyle(.plain)
             // Home style (#389): moved here from the gear next to the clock.
             NavigationLink { HomeStyleSettings() } label: {
                 HomeRow(symbol: "paintpalette.fill", title: "Home style", value: "›", tint: (0x5A5F73, 0x2C2F3A))
