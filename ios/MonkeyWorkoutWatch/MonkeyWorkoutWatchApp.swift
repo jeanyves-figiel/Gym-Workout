@@ -84,10 +84,15 @@ extension View {
     /// Main button pinned at the bottom (#389): always visible, the list scrolls under it.
     func pinnedButton(_ title: String, action: @escaping () -> Void) -> some View {
         safeAreaInset(edge: .bottom, spacing: 4) {
-            LimeButton(title: title, action: action)
-                .controlSize(.small)
-                .watchMargins()
-                .padding(.top, 10)
+            // Compact capsule (the system prominent button is ~45 pt tall and covered two rows).
+            Button(action: action) {
+                Text(title).font(W.label(14)).foregroundStyle(W.ink)
+                    .frame(maxWidth: .infinity, minHeight: 34)
+                    .background(Capsule().fill(W.lime).shadow(color: W.lime.opacity(0.45), radius: 6))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, W.edge + 6)
+            .padding(.top, 8)
                 // Rows fade out under the button instead of showing around it.
                 .background(LinearGradient(colors: [.black.opacity(0), .black.opacity(0.9), .black], startPoint: .top, endPoint: .bottom)
                     .ignoresSafeArea(edges: .bottom))
