@@ -48,17 +48,76 @@ ALLOWED = {
 _rec = None
 
 
+_depth = 0  # inside a recorded primitive: its own drawing is not parsed again
+_in_scene = False  # the scene (or pose props) is drawing, not the figure
+
+
 def _hook(mod, name, kind, pts):
     orig = getattr(mod, name)
 
     def wrapped(doc, *a, **k):
-        if _rec is not None:
+        global _depth
+        if _rec is not None and _depth == 0:
             try:
                 _rec.append((kind,) + pts(*a, **k))
             except Exception:  # noqa: BLE001 - a prop we cannot read is just left out of the guide
                 pass
-        return orig(doc, *a, **k)
+        _depth += 1
+        try:
+            return orig(doc, *a, **k)
+        finally:
+            _depth -= 1
     setattr(mod, name, wrapped)
+    if mod is art and name in art.PRIMS:  # pose props call through this table
+        art.PRIMS[name] = wrapped
+
+
+NUM = r'(-?[\d.]+)'
+
+
+def _attr(frag, name):
+    m = re.search(rf'\b{name}="{NUM}"', frag)
+    return float(m.group(1)) if m else None
+
+
+def _parse(frag):
+    """Equipment a scene drew straight into the SVG (its own helpers): circles, thick lines, plain rects."""
+    out = []
+    if "transform=" in frag or 'fill-opacity="0.' in frag:
+        return out
+    fill = re.search(r'fill="(#[0-9A-Fa-f]{6})"', frag)
+    col = fill.group(1) if fill else None
+    for m in re.finditer(r'<circle [^>]*>', frag):
+        c = m.group(0)
+        r = _attr(c, "r")
+        if r and r >= 5:
+            f = re.search(r'fill="(#[0-9A-Fa-f]{6})"', c)
+            out.append(("orb", [(_attr(c, "cx"), _attr(c, "cy"))], r, f.group(1) if f else None))
+    for m in re.finditer(r'<line [^>]*>', frag):
+        ln = m.group(0)
+        w = _attr(ln, "stroke-width") or 1
+        if w >= 2.5:
+            out.append(("tube", [(_attr(ln, "x1"), _attr(ln, "y1")), (_attr(ln, "x2"), _attr(ln, "y2"))], w))
+    for m in re.finditer(r'<rect [^>]*>', frag):
+        rc = m.group(0)
+        x, y, w, h = (_attr(rc, k) for k in ("x", "y", "width", "height"))
+        if None in (x, y, w, h) or w < 4 or h < 4 or w > 300:
+            continue
+        out.append(("block", [(x, y), (x + w, y + h)], 30))
+    return out
+
+
+_add = art.Doc.add
+
+
+def _doc_add(self, frag):
+    if _rec is not None and _depth == 0 and _in_scene:
+        for p in _parse(frag):
+            _rec.append(p[:3] + (({"col": p[3]},) if len(p) > 3 else ()))
+    return _add(self, frag)
+
+
+art.Doc.add = _doc_add
 
 
 _hook(art, "tube", "tube", lambda a, b, w=7, cap=None: ([a, b], w))
@@ -73,16 +132,34 @@ _hook(kit, "kettlebell", "kb", lambda c, up=False, r=11: ([c], r))
 _hook(kit, "ball", "ball", lambda c, r=13, color=None: ([c], r))
 _hook(kit, "strap", "tube", lambda c, anchor, handle=True, color=None: ([c, anchor], 3))
 _hook(kit, "ring", "tube", lambda c, anchor: ([c, anchor], 3))
+_hook(art, "cable", "cable", lambda pts: (list(pts), 1.2))
+_hook(art, "pulley", "pulley", lambda c, r=6.5: ([c], r))
+_hook(kit, "handle", "handle", lambda c, kind="d": ([c], 7))
+_hook(kit, "band", "cable", lambda a, b, color=None: ([a, b], 2.4))
 _hook(kit, "pullup_bar", "bar", lambda c, top=4, half=34: ([c], 60))
 
 _render = art.render
 _frames = []
 
 
-def _capture(*a, **k):
+def _scene_flag(fn):
+    def run(*a, **k):
+        global _in_scene
+        _in_scene = True
+        try:
+            return fn(*a, **k)
+        finally:
+            _in_scene = False
+    return run
+
+
+art.draw_props = _scene_flag(art.draw_props)
+
+
+def _capture(pose, ex, scene=None, *a, **k):
     global _rec
     _rec = []
-    svg = _render(*a, **k)
+    svg = _render(pose, ex, _scene_flag(scene) if scene else None, *a, **k)
     _frames.append((art.LAST[0], art.LAST[1], _rec))
     _rec = None
     return svg
@@ -103,7 +180,7 @@ def patterns():
 
 def on_bar(j, rec):
     """Both hands on a bar running across the body (barbell plates or a pull-up bar near the hands)."""
-    bars = [pts[0] for kind, pts, _ in rec if kind in ("plate", "bar")]
+    bars = [r[1][0] for r in rec if r[0] in ("plate", "bar")]
     return bool(bars) and all(min(math.dist(j["wrist" + s], b) for b in bars) < 40 for s in SIDES)
 
 
@@ -147,13 +224,56 @@ def lift(j, view, cx, stance=HIP, grip=None):
     return out
 
 
+F = art.F
+BONES = {"elbow": ("shoulder", F.UPPER_ARM), "wrist": ("elbow", F.FOREARM), "hand": ("wrist", F.HAND),
+         "knee": ("hip", F.THIGH), "ankle": ("knee", F.SHIN), "toe": ("ankle", F.FOOT)}
+
+
+def recover_depth(J, view):
+    """Limbs drawn shorter than they are point out of the picture: give them back the missing depth (#401).
+    Front / back views: forwards (+x), arms reaching, knees over the toes, a torso leaning in. Side view: across
+    the body (the near arm crossing to the far side), as pec deck and cable crossovers are drawn."""
+    flat = (lambda v: (v[0], v[1])) if view == "side" else (lambda v: (v[2], v[1]))
+    axis = 2 if view == "side" else 0
+    orig = {k: list(v) for k, v in J.items()}
+    if view != "side":  # torso leaning towards or away from the camera
+        l = math.dist(flat(orig["hip"]), flat(orig["shoulder"]))
+        if l < F.TORSO * 0.95:
+            d = math.sqrt(F.TORSO ** 2 - l * l)
+            for k in J:
+                if k.startswith(("shoulder", "neck", "head", "elbow", "wrist", "hand")):
+                    J[k][0] += d
+    for s, sign in SIDES.items():
+        for k in ("elbow", "wrist", "hand", "knee", "ankle", "toe"):
+            parent, L = BONES[k]
+            a, b = orig[parent + s], orig[k + s]
+            l = math.dist(flat(a), flat(b))
+            extra = math.sqrt(max(0.0, L * L - l * l)) if l < L * 0.95 else 0.0
+            if view == "side":
+                extra *= -sign  # across the body
+            new = [J[parent + s][i] + b[i] - a[i] for i in range(3)]
+            new[axis] += extra
+            J[k + s] = new
+    return J
+
+
 def props(rec, view, cx, hands):
-    """Equipment as 3D primitives: box (two corners), rod (two ends + radius), disc (centre, radius, axis z)."""
+    """Equipment as 3D primitives: box (two corners), rod (two ends + radius), disc (centre, radius, axis),
+    weights. `hands`: (x, y, joint 3D) of the drawn hands and wrists: anything drawn at a hand (handle, cable
+    end, dumbbell, bar) follows the hand into 3D."""
     out = []
+
+    def held(pt, reach=12):
+        near = [h for h in hands if math.dist(pt, h[:2]) < reach]
+        return list(min(near, key=lambda h: math.dist(pt, h[:2]))[2]) if near else None
 
     def P(pt, z=0.0):
         u, v = pt
         return [u - cx, FLOOR - v, z] if view == "side" else [0.0, FLOOR - v, (-1 if view == "front" else 1) * (u - cx)]
+
+    def side_z(pt):
+        """Depth of a free point in a side view: on the side of the nearest hand."""
+        return min(hands, key=lambda h: math.dist(pt, h[:2]))[2][2] if hands else 0.0
 
     def depth(a, b, half):
         """Corners of a slab drawn a→b, `half` deep across the drawing."""
@@ -162,7 +282,7 @@ def props(rec, view, cx, hands):
         pa, pb = P(a), P(b)
         pa[0], pb[0] = -half, half
         return pa, pb
-    for kind, pts, size in rec:
+    for kind, pts, size, *extra in rec:
         if kind == "pad":
             a, b = pts
             # the drawn pad's thickness sits on the left of a→b
@@ -173,17 +293,31 @@ def props(rec, view, cx, hands):
         elif kind in ("block", "mat"):
             a, b = depth(pts[0], pts[1], size / 2)
             out.append(dict(k=kind, lo=[min(a[i], b[i]) for i in range(3)], hi=[max(a[i], b[i]) for i in range(3)]))
+        elif kind == "cable":
+            # cable / band: free points on the hand's side (side view), the ends at a hand follow it
+            pp = [held(q, 8) or P(q, side_z(q) if view == "side" else 0.0) for q in pts]
+            for a, b in zip(pp, pp[1:]):
+                out.append(dict(k="rod", a=a, b=b, r=size / 2, s="cable" if size < 2 else "band"))
+        elif kind == "pulley":
+            c = pts[0]
+            out.append(dict(k="disc", c=P(c, side_z(c) if view == "side" else 0.0), r=size, ax="x" if view != "side" else "z"))
+        elif kind == "handle":
+            h = held(pts[0]) or P(pts[0], side_z(pts[0]) if view == "side" else 0.0)
+            out.append(dict(k="rod", a=[h[0], h[1] - 6, h[2]], b=[h[0], h[1] + 6, h[2]], r=3, s="handle"))
         elif kind == "tube":
             a, b = pts
             if math.dist(a, b) < 6:
                 continue
-            near = [h for h in hands if min(math.dist(a, h[:2]), math.dist(b, h[:2])) < 10]
-            if view == "side" and not near:
+            ha, hb = held(a, 10), held(b, 10)
+            if ha or hb:  # a bar or handle in the hand
+                za = ha or P(a, side_z(a) if view == "side" else 0.0)
+                zb = hb or P(b, side_z(b) if view == "side" else 0.0)
+                out.append(dict(k="rod", a=za, b=zb, r=size / 2))
+            elif view == "side":  # machine frame: both sides of the machine
                 for z in (-26, 26):
                     out.append(dict(k="rod", a=P(a, z), b=P(b, z), r=size / 2))
             else:
-                z = near[0][2] if near and view == "side" else 0
-                out.append(dict(k="rod", a=P(a, z), b=P(b, z), r=size / 2))
+                out.append(dict(k="rod", a=P(a), b=P(b), r=size / 2))
         elif kind in ("plate", "bar"):
             c = pts[0]
             if view == "side":
@@ -193,15 +327,23 @@ def props(rec, view, cx, hands):
                         out.append(dict(k="disc", c=P(c, z), r=size))
             else:
                 out.append(dict(k="disc", c=P(c), r=size, ax="x"))
-        elif kind in ("db", "kb", "ball"):
+        elif kind == "orb":  # circle the scene drew itself: ball, wheel, ring, roller, hub
             c = pts[0]
-            z = 0.0
-            if view == "side" and hands:
-                z = min(hands, key=lambda h: math.dist(c, h[:2]))[2]
-            out.append(dict(k=kind, c=P(c, z), r=size))
+            h = held(c, size + 6)
+            if h is None:
+                near = hands and min(math.dist(c, q[:2]) for q in hands) < 30
+                h = P(c, side_z(c) if view == "side" and near else 0.0)
+            o = dict(k="ball", c=h, r=size)
+            if extra and extra[0].get("col"):
+                o["col"] = extra[0]["col"]
+            out.append(o)
+        elif kind in ("db", "kb", "ball"):
+            c = held(pts[0], 22) or P(pts[0], side_z(pts[0]) if view == "side" else 0.0)
+            out.append(dict(k=kind, c=c, r=size))
     # identical primitives (both layers of a scene) once
     seen, uniq = set(), []
     for o in out:
+        o = json.loads(json.dumps(o), parse_float=lambda v: round(float(v), 1))
         key = json.dumps(o, sort_keys=True)
         if key not in seen:
             seen.add(key)
@@ -247,8 +389,8 @@ def export(ex_id, cat, scenes, pattern):
     cx = (min(xs) + max(xs)) / 2
     out, flags = [], []
     for n, (j, _, rec) in enumerate(keys):
-        J = lift(j, view, cx, 17.0 if pattern in WIDE else 11.0, GRIP if on_bar(j, rec) else None)
-        hands2d = [(j["hand" + s][0], j["hand" + s][1], J["hand" + s][2]) for s in SIDES]
+        J = recover_depth(lift(j, view, cx, 17.0 if pattern in WIDE else 11.0, GRIP if on_bar(j, rec) else None), view)
+        hands2d = [(j[k + s][0], j[k + s][1], J[k + s]) for s in SIDES for k in ("hand", "wrist")]
         out.append(dict(j={k: round_pt(v) for k, v in J.items()}, p=props(rec, view, cx, hands2d)))
         for s in SIDES:
             if bends_backwards(J, view, "hip", "knee" + s, "ankle" + s):

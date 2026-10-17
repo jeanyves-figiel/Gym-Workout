@@ -1,0 +1,334 @@
+#!/usr/bin/env python3
+"""Realism pass over ExercisePositions.json.z with the real body (rig.py): equipment the 2D scenes placed for the
+stick figure is fitted to the skinned body, and gym machines get their real size.
+
+- pads / blocks the body rests on move to touch it (same shift for every key of an exercise, so benches stay put);
+  what is left floating lowers the body (key "dy") unless its feet are on the floor or it hangs from a bar
+- a body sunk into the floor is lifted
+- cable towers: full-height uprights, top cap, guide rods and a plate stack; racks get base feet
+- writes the JSON back and a report of what changed
+
+    python3 contact.py            # whole catalog (minutes)
+    python3 contact.py bench-press cable-fly
+"""
+import json, sys, zlib
+from pathlib import Path
+import numpy as np
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import rig as rigmod
+
+DATA = rigmod.DATA
+RAW = Path("/tmp/claude-0/positions-raw.json.z")     # pristine positions.py export; contact.py is re-run from it
+TOWER_H = 232.0          # ~2.0 m cable tower / rack upright
+
+
+def pad_frame(p):
+    a, b = np.asarray(p["a"], float), np.asarray(p["b"], float)
+    along = b - a
+    L = np.linalg.norm(along)
+    n = np.array([p["n"][0], p["n"][1], 0.0])
+    t = np.linalg.norm(n)
+    nh = n / t if t > 1e-6 else np.array([0, 1.0, 0])
+    return a, b, along / max(L, 1e-6), L, nh, t
+
+
+def support_gap(V, J, p):
+    """Gap between the body and a pad/block it lies or sits on (positive = floating), or None when nothing rests there.
+    Returns (gap, unit shift direction toward the body)."""
+    mid = (np.asarray(J["hip"]) + np.asarray(J["shoulder"])) / 2
+    if p["k"] == "pad":
+        a, b, u, L, nh, t = pad_frame(p)
+        s = 1.0 if (mid - (a + b) / 2) @ nh >= 0 else -1.0
+        rel = V - a
+        al = rel @ u
+        lat = rel[:, 2] - (a[2] + 0 * al)
+        w = p.get("w", 0) or 20
+        dn = (rel @ nh) * s - t / 2
+        cand = (al > -3) & (al < L + 3) & (np.abs(lat) < w + 4) & (dn > -t) & (dn < 14)
+        if cand.sum() < 12:
+            return None
+        return float(dn[cand].min()), nh * s
+    if p["k"] in ("block", "mat"):
+        lo, hi = np.asarray(p["lo"], float), np.asarray(p["hi"], float)
+        if p["k"] == "mat" or hi[1] - lo[1] < 2:
+            return None
+        top = hi[1]
+        cand = (V[:, 0] > lo[0] - 3) & (V[:, 0] < hi[0] + 3) & (V[:, 2] > lo[2] - 3) & (V[:, 2] < hi[2] + 3) \
+            & (V[:, 1] > top - 6) & (V[:, 1] < top + 14)
+        if cand.sum() < 12:
+            return None
+        return float(V[cand, 1].min() - top), np.array([0, 1.0, 0])
+    return None
+
+
+def shift_prop(p, dv):
+    dv = [float(x) for x in dv]
+    if p["k"] == "pad":
+        p["a"] = [round(x + d, 1) for x, d in zip(p["a"], dv)]
+        p["b"] = [round(x + d, 1) for x, d in zip(p["b"], dv)]
+    elif p["k"] in ("block", "mat"):
+        p["hi"] = [round(x + d, 1) for x, d in zip(p["hi"], dv)]
+        if p["hi"][1] < p["lo"][1] + 2:
+            p["lo"][1] = round(p["hi"][1] - 2, 1)
+
+
+def attach_rods(props, p, dv):
+    """Rods that end at a pad's underside (bench legs, frames) follow it."""
+    if p["k"] != "pad":
+        return
+    a, b, u, L, nh, t = pad_frame(p)
+    for q in props:
+        if q["k"] != "rod":
+            continue
+        for end in ("a", "b"):
+            e = np.asarray(q[end], float)
+            rel = e - (a - dv)
+            al = rel @ u
+            if -4 < al < L + 4 and abs(abs(rel @ nh) - t / 2) < 4 and abs(rel[2]) < (p.get("w") or 20) + 4:
+                q[end] = [round(float(x), 1) for x in e + dv]
+
+
+def is_vertical(p):
+    a, b = np.asarray(p["a"], float), np.asarray(p["b"], float)
+    d = b - a
+    return abs(d[1]) > 0.95 * np.linalg.norm(d) + 1e-9 or (abs(d[0]) < 2 and abs(d[2]) < 2 and abs(d[1]) > 60)
+
+
+def machines(props):
+    """Full-size cable towers and racks. Returns the number of uprights completed."""
+    done = 0
+    uprights = [p for p in props if p["k"] == "rod" and p.get("r", 0) >= 3.5 and is_vertical(p)
+                and max(p["a"][1], p["b"][1]) >= 150 and min(p["a"][1], p["b"][1]) <= 8]
+    stacks = [p for p in props if p["k"] == "block" and p["hi"][1] - p["lo"][1] >= 90]
+    new = []
+    for up in uprights:
+        top = "a" if up["a"][1] > up["b"][1] else "b"
+        x, z = up[top][0], up[top][2]
+        near = [s for s in stacks if s["lo"][0] - 14 < x < s["hi"][0] + 14 and s["lo"][2] - 14 < z < s["hi"][2] + 14]
+        if near:
+            st = near[0]
+            if st.get("_done"):
+                continue
+            st["_done"] = True
+            up[top][1] = TOWER_H
+            cx, cz = (st["lo"][0] + st["hi"][0]) / 2, (st["lo"][2] + st["hi"][2]) / 2
+            # top cap from the upright over the stack, guide rods, plate stack with a pin
+            new.append(dict(k="rod", a=[x, TOWER_H, z], b=[cx, TOWER_H, cz], r=3.5))
+            new.append(dict(k="block", lo=[min(x, cx) - 5, TOWER_H - 3, min(z, cz) - 5], hi=[max(x, cx) + 5, TOWER_H + 2, max(z, cz) + 5]))
+            d = 0.35 * (st["hi"][0] - st["lo"][0])
+            for g in (-d, d):
+                new.append(dict(k="rod", a=[cx + g, st["lo"][1], cz], b=[cx + g, TOWER_H - 3, cz], r=0.9))
+            plate_h, gap = 4.2, 1.0
+            n = int(min(12, (st["hi"][1] - st["lo"][1] - 10) // (plate_h + gap)))
+            y0 = st["lo"][1]
+            lo, hi = st["lo"], st["hi"]
+            for i in range(n):
+                y = y0 + i * (plate_h + gap)
+                new.append(dict(k="block", lo=[lo[0], round(y, 1), lo[2]], hi=[hi[0], round(y + plate_h, 1), hi[2]]))
+            pin_y = y0 + 3 * (plate_h + gap) + plate_h / 2
+            new.append(dict(k="rod", a=[cx, pin_y, hi[2] + 1], b=[cx, pin_y, hi[2] + 7], r=1.2, s="handle"))
+            st["hi"][1] = y0 + n * (plate_h + gap) - gap     # the old solid block becomes the base under the plates
+            st["lo"][1] = y0 - 0.5; st["hi"][1] = y0 + 0.5
+            # base foot on the floor
+            new.append(dict(k="rod", a=[x - 22, 1.5, z], b=[max(x, cx) + 22, 1.5, z], r=2.5))
+            done += 1
+        elif max(up["a"][1], up["b"][1]) >= 200:
+            new.append(dict(k="rod", a=[x - 24, 1.5, z], b=[x + 24, 1.5, z], r=2.5))   # rack foot
+            done += 1
+    props.extend(new)
+    for s in stacks:
+        s.pop("_done", None)
+    return done
+
+
+def dumbbells(props, J, held, grip):
+    """Hand-held weights move into the fist that holds them (the 2D scene put them at the wrist): one weight near
+    both hands (goblet, two-hand swing) hangs between them, two of a kind pair up with the hands side by side.
+    Dumbbells get the handle axis the hand holds them with (rig.db_axis); a kettlebell hangs below the grip."""
+    def place(p, g, d):
+        r = min(float(p.get("r", 9)), 9.0)
+        if p["k"] == "db":
+            p["ax"] = [int(x) for x in rigmod.db_axis(J, d)]
+            p["r"] = r
+            p["c"] = [round(float(x), 1) for x in g]
+        elif p["k"] == "kb":
+            p["r"] = r
+            p["c"] = [round(float(x), 1) for x in g - np.array([0, r + 2.5, 0])]
+        else:
+            p["c"] = [round(float(x), 1) for x in g]
+    hands = [d for d in ("N", "F") if held.get(d) is not None and d in grip]
+    kinds = {}
+    for p in props:
+        if p["k"] in ("db", "kb", "ball") and not (p["k"] == "ball" and p.get("r", 8) > 12):
+            kinds.setdefault(p["k"], []).append(p)
+    for kind, ps in kinds.items():
+        hs = [d for d in hands if held[d][0] == kind]
+        if not hs:
+            continue
+        if len(ps) == 1:
+            p = ps[0]; c = np.asarray(p["c"], float)
+            close = [d for d in hs if np.linalg.norm(J["hand" + d] - c) < p.get("r", 8) + 16]
+            if len(close) == 2:
+                place(p, (grip["N"] + grip["F"]) / 2, close[0])
+            else:
+                d = min(hs, key=lambda d: np.linalg.norm(J["hand" + d] - c))
+                place(p, grip[d], d)
+        else:
+            for p, d in zip(sorted(ps, key=lambda p: p["c"][2]), sorted(hs, key=lambda d: J["hand" + d][2])):
+                place(p, grip[d], d)
+
+
+def hanging(J, held):
+    return any(h is not None and h[0] == "rod" and J["hand" + d][1] > J["shoulder"][1] + 10 for d, h in held.items())
+
+
+def complete(ex, keys):
+    """Equipment the 2D scenes drew in shorthand gets its real kind: a short bar in a dumbbell exercise is the
+    dumbbell, a ball in a kettlebell exercise is the kettlebell, the ball crunch gets its ball."""
+    parts = ex.split("-")
+    for k in keys:
+        # a scene exported far from the origin (depth recovery ran away) comes back under the camera
+        hip = np.asarray(k["j"]["hip"], float)
+        if abs(hip[0]) > 200 or abs(hip[2]) > 200:
+            off = np.array([hip[0], 0.0, hip[2]])
+            for n, v in k["j"].items():
+                if not n.startswith("_"):
+                    k["j"][n] = [round(float(x), 1) for x in np.asarray(v, float) - off]
+            for p in k["p"]:
+                for a in ("lo", "hi", "a", "b", "c"):
+                    if a in p:
+                        p[a] = [round(float(x), 1) for x in np.asarray(p[a], float) - off]
+        J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
+        P = k["p"]
+        kinds = {p["k"] for p in P}
+        hands = [J["handN"], J["handF"]]
+        if ("db" in parts or "dumbbell" in parts) and "db" not in kinds:
+            for p in list(P):
+                if p["k"] != "rod" or p.get("s") == "cable":
+                    continue
+                a, b = np.asarray(p["a"], float), np.asarray(p["b"], float)
+                L = np.linalg.norm(b - a)
+                if L > 34:
+                    continue
+                mid = (a + b) / 2
+                if min(np.linalg.norm(h - mid) for h in hands) < 14:
+                    ax = (b - a) / max(L, 1e-6)
+                    P.remove(p)
+                    P.append(dict(k="db", c=[round(float(x), 1) for x in mid], r=7.0,
+                                  ax=[int(round(float(x))) for x in ax]))
+        if ("kb" in parts or "kettlebell" in parts) and "kb" not in kinds:
+            for p in P:
+                if p["k"] == "ball" and min(np.linalg.norm(h - np.asarray(p["c"], float)) for h in hands) < p.get("r", 8) + 8:
+                    p["k"] = "kb"; p["r"] = min(float(p.get("r", 9)), 9.0)
+        for p in P:          # a mat drawn with depth came out as a wall: flatten it
+            if p["k"] == "block" and p["hi"][1] - p["lo"][1] > 60 and J["hip"][1] < 120 \
+                    and (p["hi"][2] - p["lo"][2] > 120 or p["hi"][0] - p["lo"][0] > 120):
+                p["k"] = "mat"; p["lo"][1] = 0.0; p["hi"][1] = 1.5
+        if "goblet" in parts and "kb" not in kinds:
+            mid = (J["handN"] + J["handF"]) / 2
+            P.append(dict(k="kb", c=[round(float(x), 1) for x in mid - np.array([0, 11.5, 0])], r=9.0))
+        if ex == "ball-crunch" and "ball" not in kinds:
+            r = 32.0
+            P.append(dict(k="ball", c=[round(float(J["hip"][0]), 1), r, 0.0], r=r))
+            k["dy"] = round(float(2 * r - 10 - J["hip"][1]), 1)
+            k["_ballfix"] = True
+
+
+def frames(props):
+    """A free-hanging pull-up bar gets two uprights to the floor and feet."""
+    bars = [p for p in props if p["k"] == "rod" and p.get("s") != "cable" and abs(p["a"][1] - p["b"][1]) < 2
+            and min(p["a"][1], p["b"][1]) > 170 and np.linalg.norm(np.asarray(p["a"]) - np.asarray(p["b"])) > 40]
+    verts = [p for p in props if p["k"] == "rod" and is_vertical(p) and max(p["a"][1], p["b"][1]) > 150]
+    new = []
+    for bar in bars:
+        y = bar["a"][1]
+        for end in ("a", "b"):
+            e = np.asarray(bar[end], float)
+            if any(min(np.linalg.norm(e - np.asarray(v[q], float)) for q in ("a", "b")) < 10 for v in verts):
+                continue
+            new.append(dict(k="rod", a=[e[0], 0.0, e[2]], b=[e[0], y, e[2]], r=3.5))
+            new.append(dict(k="rod", a=[e[0] - 22, 1.5, e[2]], b=[e[0] + 22, 1.5, e[2]], r=2.5))
+    props.extend(new)
+    return len(new) // 2
+
+
+def run(ids=None):
+    if not RAW.exists():
+        RAW.write_bytes(DATA.read_bytes())
+    d = json.loads(zlib.decompress(RAW.read_bytes(), -15))
+    R = rigmod.Rig()
+    rigmod.MUSH = 0
+    fingers = np.isin(R.bi[:, 0], [R.ix[n] for n in R.names if n.startswith("finger")])
+    report = []
+    for ex in (ids or sorted(d)):
+        e = d[ex]
+        keys = e["k"]
+        complete(ex, keys)
+        # every key must list the same static props; shifts are decided per exercise
+        poses = []
+        for k in keys:
+            J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
+            V = R.pose(k["j"], k["p"])
+            poses.append((J, V, dict(R.held), dict(R.grip)))
+        n_props = min(len(k["p"]) for k in keys)
+        shifts = {}
+        for i in range(n_props):
+            gaps = []
+            for (J, V, held, grip), k in zip(poses, keys):
+                p = k["p"][i]
+                if p["k"] not in ("pad", "block"):
+                    break
+                g = support_gap(V, J, p)
+                if g is not None:
+                    gaps.append(g)
+            if gaps:
+                gap = float(np.median([g[0] for g in gaps]))
+                if abs(gap) > 0.8:
+                    shifts[i] = (gap, gaps[0][1])
+        for i, (gap, nh) in shifts.items():
+            dv = nh * gap
+            for k in keys:
+                if i < len(k["p"]) and k["p"][i]["k"] in ("pad", "block"):
+                    attach_rods(k["p"], k["p"][i], dv) if k["p"][i]["k"] == "pad" else None
+                    shift_prop(k["p"][i], dv)
+        # residual: floating body comes down unless standing or hanging; sunk body comes up
+        for (J, V, held, grip), k in zip(poses, keys):
+            dy = 0.0
+            min_y = float(V[~fingers, 1].min())      # fingertips may tuck under a flat hand
+            supported = False
+            resid = []
+            for p in k["p"]:
+                if p["k"] in ("pad", "block"):
+                    g = support_gap(V, J, p)
+                    if g is not None:
+                        supported = True
+                        resid.append(g[0] * g[1][1])      # vertical part of the residual gap
+            if k.pop("_ballfix", False):
+                dy = k["dy"]
+            elif min_y < -2.0:
+                dy = -min_y
+            elif supported and resid and min(resid) > 1.0 and min_y > 2.0:
+                dy = -min(resid)
+            elif not supported and min_y > 2.5 and not hanging(J, held):
+                dy = -min_y
+            if abs(dy) > 0.5:
+                k["dy"] = round(dy, 1)
+            else:
+                k.pop("dy", None)
+        done = 0
+        for (J, V, held, grip), k in zip(poses, keys):
+            dumbbells(k["p"], J, held, grip)
+            done += machines(k["p"]) + frames(k["p"])
+        if shifts or done or any("dy" in k for k in keys):
+            report.append((ex, {i: round(g, 1) for i, (g, _) in shifts.items()}, [k.get("dy", 0) for k in keys], done))
+        print(ex, "shifts", {i: round(g, 1) for i, (g, _) in shifts.items()}, "dy", [k.get("dy", 0) for k in keys], "machines", done, flush=True)
+    z = zlib.compressobj(9, zlib.DEFLATED, -15)
+    DATA.write_bytes(z.compress(json.dumps(d, separators=(",", ":")).encode()) + z.flush())
+    Path("/tmp/claude-0/contact-report.json").write_text(json.dumps(report))
+    print(len(report), "exercises changed;", DATA.stat().st_size, "bytes")
+
+
+if __name__ == "__main__":
+    run(sys.argv[1:] or None)
