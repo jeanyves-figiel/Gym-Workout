@@ -15,27 +15,14 @@ struct BodyHealthView: View {
         var weight: String
         var birthYear: String
         var sex: BodyMetrics.Sex?
-        var gender: BodyMetrics.Gender?
-        var genderText: String
         var figure: BodyFigure?
         var writeToHealth: Bool
-        var pronouns: Pronouns? = nil
-        var pronounsCustom = ""
-        var coachCall: CoachCall? = nil
-        var showPronouns = false
     }
 
     @State private var height = ""
     @State private var weight = ""
     @State private var birthYear = ""
     @State private var sex: BodyMetrics.Sex?
-    @State private var gender: BodyMetrics.Gender?
-    @State private var genderText = ""
-    /// How we talk to you (#415).
-    @State private var pronouns: Pronouns?
-    @State private var pronounsCustom = ""
-    @State private var coachCall: CoachCall?
-    @State private var showPronouns = false
     /// Picked body figure (#110); nil = suggested from sex until the user picks.
     @State private var figure: BodyFigure?
     @State private var writeToHealth = true
@@ -96,7 +83,7 @@ struct BodyHealthView: View {
                 BodyFigurePicker(selection: Binding(
                     get: { figure ?? BodyMetrics.suggestedFigure(sex: snap.sex ?? sex) },
                     set: { figure = $0 }))
-                AccountNote(text: "The figure drawn on muscle maps. Display only: separate from gender and sex below.")
+                AccountNote(text: "The figure drawn on muscle maps. Display only: separate from sex below and from gender in Your profile.")
 
                 section("Body map")
                 BodyMapModeCard()
@@ -121,19 +108,6 @@ struct BodyHealthView: View {
                 section("Measurements")
                 MeasurementsCard()
                 AccountNote(text: "Girths, body weight and body fat over time. Logged values also fine-tune first suggested weights.")
-
-                section("About you (optional)")
-                TalkToYouCard(gender: $gender, pronouns: $pronouns, pronounsCustom: $pronounsCustom, call: $coachCall,
-                              showPronouns: $showPronouns, name: model.callableName,
-                              nickname: Community.shared.me.nickname ?? model.callableName ?? "You",
-                              avatar: model.api.resolve(Community.shared.me.avatarUrl))
-                if gender == .selfDescribe {
-                    AccountField(label: "In your words") {
-                        TextField("How do you describe your gender?", text: $genderText)
-                            .textInputAutocapitalization(.never)
-                    }
-                }
-                AccountNote(text: "Gender stays on your device and account, never in calculations. Pronouns are used by the coach and Ask Coach, and shown in Community only if you turn it on.")
 
                 section("For estimates (optional)")
                 if let healthSex = snap.sex {
@@ -179,9 +153,8 @@ struct BodyHealthView: View {
     }
 
     private var draft: Draft {
-        Draft(height: height, weight: weight, birthYear: birthYear, sex: sex, gender: gender, genderText: genderText,
-              figure: figure, writeToHealth: writeToHealth, pronouns: pronouns, pronounsCustom: pronounsCustom,
-              coachCall: coachCall, showPronouns: showPronouns)
+        Draft(height: height, weight: weight, birthYear: birthYear, sex: sex,
+              figure: figure, writeToHealth: writeToHealth)
     }
 
     private static func detail(_ d: Draft) -> String {
@@ -236,51 +209,35 @@ struct BodyHealthView: View {
         weight = b.weightKg.map { String(format: "%.1f", $0) } ?? ""
         birthYear = b.birthYear.map(String.init) ?? ""
         sex = b.sex
-        gender = b.gender
-        genderText = b.genderDescription ?? ""
         figure = b.figure
-        pronouns = b.pronouns
-        pronounsCustom = b.pronounsCustom ?? ""
-        coachCall = b.coachCall
-        showPronouns = b.showPronouns ?? false
         start = draft
         if let restoring {
             height = restoring.height
             weight = restoring.weight
             birthYear = restoring.birthYear
             sex = restoring.sex
-            gender = restoring.gender
-            genderText = restoring.genderText
             figure = restoring.figure
             writeToHealth = restoring.writeToHealth
-            pronouns = restoring.pronouns
-            pronounsCustom = restoring.pronounsCustom
-            coachCall = restoring.coachCall
-            showPronouns = restoring.showPronouns
         }
     }
 
     private static func number(_ s: String) -> Double? { Double(s.replacingOccurrences(of: ",", with: ".")) }
 
-    private static func metrics(_ d: Draft) -> BodyMetrics {
-        var b = BodyMetrics()
+    /// Body fields from `d` on top of `base`, which keeps How we talk to you (edited in Your profile, #438).
+    private static func metrics(_ d: Draft, base: BodyMetrics = BodyMetrics()) -> BodyMetrics {
+        var b = base
+        b.heightCm = nil
+        b.weightKg = nil
+        b.birthYear = nil
         if let h = number(d.height), (100...250).contains(h) { b.heightCm = h }
         if let w = number(d.weight), (30...300).contains(w) { b.weightKg = w }
         if let y = Int(d.birthYear), (1900...2020).contains(y) { b.birthYear = y }
         b.sex = d.sex
-        b.gender = d.gender
-        let described = d.genderText.trimmingCharacters(in: .whitespacesAndNewlines)
-        b.genderDescription = d.gender == .selfDescribe && !described.isEmpty ? String(described.prefix(60)) : nil
         b.figure = d.figure
-        b.pronouns = d.pronouns
-        let custom = d.pronounsCustom.trimmingCharacters(in: .whitespacesAndNewlines)
-        b.pronounsCustom = d.pronouns == .custom && !custom.isEmpty ? String(custom.prefix(24)) : nil
-        b.coachCall = d.coachCall
-        b.showPronouns = d.showPronouns ? true : nil
         return b
     }
 
-    private static func store(_ d: Draft, model: AppModel) { model.saveBody(metrics(d)) }
+    private static func store(_ d: Draft, model: AppModel) { model.saveBody(metrics(d, base: model.body)) }
 
     /// Once on leave (not per keystroke): height / weight Health doesn't have yet.
     private static func writeHealth(_ d: Draft, health: HealthManager) {
