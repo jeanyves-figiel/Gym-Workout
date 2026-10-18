@@ -44,7 +44,7 @@ struct ReportDraft: Identifiable {
 
     static let areas = ["Train", "Workout player", "Explore", "Progress", "History", "Community", "Apple Watch", "Sync & account", "Settings", "Other"]
 
-    static func area(for tab: MainTab) -> String {
+    static func areaName(for tab: MainTab) -> String {
         switch tab {
         case .train: "Train"
         case .explore: "Explore"
@@ -68,14 +68,14 @@ struct ReportDraft: Identifiable {
         guard let model, model.phase == .signedIn, !showing, let top = Self.topController() else { return }
         let shot = screenshot ? Self.capture() : nil
         var draft = ReportDraft(via: via, kind: error == nil ? .bug : .broken,
-                                area: area ?? (screen == nil ? ReportDraft.area(for: model.tab) : Self.guessArea(screen!, tab: model.tab)),
-                                screen: screen ?? ReportDraft.area(for: model.tab), error: error)
+                                area: area ?? (screen == nil ? ReportDraft.areaName(for: model.tab) : Self.guessArea(screen!, tab: model.tab)),
+                                screen: screen ?? ReportDraft.areaName(for: model.tab), error: error)
         if let shot { draft.shots = [shot] }
         let host = UIHostingController(rootView: NavigationStack {
-            ReportProblemView(draft: draft, modal: true) { [weak self] in
+            ReportProblemView(draft: draft, modal: true, onClose: { [weak self] in
                 self?.showing = false
                 top.presentedViewController?.dismiss(animated: true)
-            }
+            })
         }
         .environment(model)
         .preferredColorScheme(.dark)
@@ -88,7 +88,7 @@ struct ReportDraft: Identifiable {
     private static func guessArea(_ screen: String, tab: MainTab) -> String {
         let s = screen.lowercased()
         if s.contains("set") || s.contains("player") || s.contains("rest") { return "Workout player" }
-        return ReportDraft.area(for: tab)
+        return ReportDraft.areaName(for: tab)
     }
 
     private static var keyWindow: UIWindow? {
@@ -165,9 +165,7 @@ struct ReportProblemView: View {
     @State var draft: ReportDraft
     var modal = false
     var onClose: (() -> Void)?
-    #if DEBUG
     var demoSent = false
-    #endif
 
     @State private var text = ""
     @State private var pick: [PhotosPickerItem] = []
@@ -176,6 +174,13 @@ struct ReportProblemView: View {
     @State private var sent: Int??
     @State private var failure: String?
     @FocusState private var typing: Bool
+
+    init(draft: ReportDraft, modal: Bool = false, onClose: (() -> Void)? = nil, demoSent: Bool = false) {
+        _draft = State(initialValue: draft)
+        self.modal = modal
+        self.onClose = onClose
+        self.demoSent = demoSent
+    }
 
     private static let hot = LinearGradient(colors: [Color(hex: 0xFF3D81), Color(hex: 0x7B2FF7)], startPoint: .topLeading, endPoint: .bottomTrailing)
     private static let send = LinearGradient(colors: [Color(hex: 0xFF3D81), Color(hex: 0xFFB100)], startPoint: .leading, endPoint: .trailing)
@@ -196,7 +201,7 @@ struct ReportProblemView: View {
                 }
             }
         }
-        .sheet(item: Binding(get: { marking.map { MarkIndex(i: $0) } }, set: { marking = $0?.i })) { m in
+        .sheet(item: Binding(get: { marking.map { ReportMarkIndex(i: $0) } }, set: { marking = $0?.i })) { m in
             ScreenshotMarkupView(image: draft.shots[m.i]) { draft.shots[m.i] = $0 }
         }
         .onChange(of: pick) { _, items in
@@ -230,10 +235,10 @@ struct ReportProblemView: View {
             .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Self.hot))
 
             section("What's wrong?") {
-                FlowChips(items: ReportKind.allCases.map { Chip(id: $0.id, title: $0.title, symbol: $0.symbol) }, selected: draft.kind.id) { draft.kind = ReportKind(rawValue: $0) ?? .bug }
+                ReportChips(items: ReportKind.allCases.map { ReportChip(id: $0.id, title: $0.title, symbol: $0.symbol) }, selected: draft.kind.id) { draft.kind = ReportKind(rawValue: $0) ?? .bug }
             }
             section("Where?") {
-                FlowChips(items: ReportDraft.areas.map { Chip(id: $0, title: $0) }, selected: draft.area) { draft.area = $0 }
+                ReportChips(items: ReportDraft.areas.map { ReportChip(id: $0, title: $0) }, selected: draft.area) { draft.area = $0 }
             }
             if let e = draft.error {
                 Label(e, systemImage: "exclamationmark.triangle.fill").font(.footnote.weight(.semibold))
@@ -351,7 +356,8 @@ struct ReportProblemView: View {
                                    screen: draft.screen, error: draft.error, via: draft.via.rawValue, app: ProblemReporter.appInfo,
                                    screenshots: draft.shots.compactMap(ProblemReporter.jpeg))
         do {
-            sent = .some(try await model.api.sendProblemReport(report))
+            let issue = try await model.api.sendProblemReport(report)
+            sent = .some(issue)
             typing = false
         } catch {
             failure = (error as? APIError).map { $0.localizedDescription } ?? "Couldn't send. Check your connection and try again."
@@ -359,25 +365,25 @@ struct ReportProblemView: View {
     }
 }
 
-private struct MarkIndex: Identifiable {
+private struct ReportMarkIndex: Identifiable {
     let i: Int
     var id: Int { i }
 }
 
 /// Wrapping chips; one selected.
-private struct Chip: Identifiable {
+private struct ReportChip: Identifiable {
     let id: String
     let title: String
     var symbol: String?
 }
 
-private struct FlowChips: View {
-    let items: [Chip]
+private struct ReportChips: View {
+    let items: [ReportChip]
     let selected: String
     let pick: (String) -> Void
 
     var body: some View {
-        WrapLayout(spacing: 8) {
+        ReportWrapLayout(spacing: 8) {
             ForEach(items) { item in
                 let on = item.id == selected
                 Button { pick(item.id) } label: {
@@ -395,7 +401,7 @@ private struct FlowChips: View {
     }
 }
 
-private struct WrapLayout: Layout {
+private struct ReportWrapLayout: Layout {
     var spacing: CGFloat
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache _: inout ()) -> CGSize {
