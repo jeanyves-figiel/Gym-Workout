@@ -107,9 +107,9 @@ export class OffsiteStore {
     return { key, bytes: blob.length, pruned };
   }
 
-  /** Downloads and decrypts one day's copy to `dest`. */
+  /** Downloads and decrypts one day's copy to `dest`; refuses to overwrite an existing file. */
   async download(day: string, dest: string): Promise<void> {
     const res = await this.request('GET', objectKey(day));
-    writeFileSync(dest, decryptBackup(Buffer.from(await res.arrayBuffer()), this.c.passphrase), { mode: 0o600 });
+    writeFileSync(dest, decryptBackup(Buffer.from(await res.arrayBuffer()), this.c.passphrase), { mode: 0o600, flag: 'wx' });
   }
 }

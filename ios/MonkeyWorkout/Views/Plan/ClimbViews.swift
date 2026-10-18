@@ -209,11 +209,16 @@ struct LogClimbView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var log: ClimbLog
     @State private var closeGuard = CloseGuard()
+    /// Typing kept on the device until saved (#437).
+    @State private var draftKey: String?
+    @State private var draftRestored = false
     private let initial: ClimbLog
+    private let restoring: ClimbLog?
 
     /// `restoring`: the climb brought back by Undo (#285).
     init(initial: ClimbLog, restoring: ClimbLog? = nil) {
         self.initial = initial
+        self.restoring = restoring
         _log = State(initialValue: restoring ?? initial)
     }
 
@@ -229,6 +234,13 @@ struct LogClimbView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
+                    if draftRestored {
+                        DraftRestoredStrip {
+                            if let draftKey { DraftStore.clear(draftKey) }
+                            log = initial
+                            draftRestored = false
+                        }
+                    }
                     Text("Type").eyebrow()
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                         ForEach(ClimbKind.allCases) { k in
@@ -306,6 +318,12 @@ struct LogClimbView: View {
         }
         .preferredColorScheme(.dark)
         .undoableClose(closeGuard, offer: undoOffer)
+        .keepsDraft(draftKey, log, blank: initial)
+        .onAppear {
+            guard draftKey == nil, restoring == nil else { return }
+            draftKey = "climb"
+            if let d = DraftStore.load("climb", as: ClimbLog.self), d != initial { log = d; draftRestored = true }
+        }
     }
 
     /// Undo bar when anything was changed since the sheet opened (#285).
@@ -322,6 +340,7 @@ struct LogClimbView: View {
 
     private func save() {
         let entry = log
+        if let draftKey { DraftStore.clear(draftKey) }
         model.saveClimb(entry)
         let weight = model.body.weightKg ?? health.snapshot.weightKg
         Task {
@@ -445,6 +464,12 @@ struct ClimbSettingsView: View {
     @State private var after: ClimbNeighbour = .light
     @State private var sameDay: ClimbSameDay = .avoid
     @State private var addon = false
+    @State private var loaded = false
+
+    /// What's picked, saved on its own (#437).
+    struct Picks: Equatable {
+        var before: ClimbNeighbour, after: ClimbNeighbour, sameDay: ClimbSameDay, addon: Bool
+    }
 
     var body: some View {
         NavigationStack {
@@ -476,10 +501,7 @@ struct ClimbSettingsView: View {
                     .card(padding: 16)
                     .padding(.top, 8)
 
-                    Button { save() } label: { Label("Save", systemImage: "checkmark") }
-                        .buttonStyle(LimeButtonStyle())
-                        .padding(.top, 8)
-                    Text("Saving rebuilds this week's plan around your climbing days.")
+                    Text("Changes save on their own and rebuild this week's plan around your climbing days.")
                         .font(.footnote).foregroundStyle(Theme.muted)
                 }
                 .padding(16)
@@ -491,28 +513,32 @@ struct ClimbSettingsView: View {
             .toolbar {
                 CloseToolbarItem { dismiss() }
             }
+            .autoSave(loaded ? Picks(before: before, after: after, sameDay: sameDay, addon: addon) : nil,
+                      title: "Climbing days", symbol: "figure.climbing",
+                      detail: { _ in "This week's plan rebuilt" },
+                      save: { [model] in Self.store($0, model: model) })
         }
         .preferredColorScheme(.dark)
         .onAppear {
-            guard let p = model.profile else { return }
+            guard !loaded, let p = model.profile else { return }
             before = p.climbPrefs.before
             after = p.climbPrefs.after
             sameDay = p.climbPrefs.sameDay
             addon = p.climbDayAddon ?? true
+            loaded = true
         }
     }
 
-    private func save() {
-        guard var p = model.profile else { return dismiss() }
-        p.climbBefore = before == .light ? nil : before
-        p.climbAfter = after == .light ? nil : after
-        p.climbSameDay = sameDay == .avoid ? nil : sameDay
+    private static func store(_ k: Picks, model: AppModel) {
+        guard var p = model.profile else { return }
+        p.climbBefore = k.before == .light ? nil : k.before
+        p.climbAfter = k.after == .light ? nil : k.after
+        p.climbSameDay = k.sameDay == .avoid ? nil : k.sameDay
         // Wall session (#366) is on by default; only "off" is stored.
-        p.climbDayAddon = addon ? (p.climbDayAddon == true ? true : nil) : false
+        p.climbDayAddon = k.addon ? (p.climbDayAddon == true ? true : nil) : false
         if p != model.profile {
             model.updateProfile(p)
         }
-        dismiss()
     }
 }
 

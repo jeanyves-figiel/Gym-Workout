@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { randomToken, sha256 } from '../crypto.ts';
 import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
+import { deletedField, reviveUploaded, recordTombstone, sinceQuery } from './sync.ts';
+import { assertRowQuota } from '../quota.ts';
 
 /** Other sport sessions (#416): snowboard, MTB, Hyrox… Synced like climbs (upsert by client id). */
 const sport = z
@@ -16,25 +18,30 @@ const sport = z
   })
   .catchall(z.unknown());
 
-const upsert = (db: DB, userId: string, sports: z.infer<typeof sport>[], ts: string) => {
+const upsert = (db: DB, userId: string, upload: z.infer<typeof sport>[], ts: string) => {
   const up = db.prepare(
     `INSERT INTO sports (id, user_id, start, data, updated_at) VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET start = excluded.start, data = excluded.data, updated_at = excluded.updated_at
      WHERE sports.user_id = excluded.user_id`,
   );
-  tx(db, () => {
+  /** Rows written: another account's ids are skipped by the WHERE. */
+  return tx(db, () => {
+    const sports = reviveUploaded(db, userId, 'sports', upload);
+    assertRowQuota(db, 'sports', userId, sports.map((c) => c.id));
+    let count = 0;
     for (const c of sports) {
       const json = JSON.stringify(c);
       if (json.length > 10_000) throw Object.assign(new Error('Sport session too large'), { statusCode: 413 });
-      up.run(c.id, userId, c.start, json, ts);
+      count += Number(up.run(c.id, userId, c.start, json, ts).changes);
     }
+    return count;
   });
 };
 
 export const listSports = (db: DB, userId: string, since?: string) =>
   (
     (since
-      ? db.prepare('SELECT data, updated_at FROM sports WHERE user_id = ? AND updated_at > ? ORDER BY start').all(userId, since)
+      ? db.prepare('SELECT data, updated_at FROM sports WHERE user_id = ? AND updated_at >= ? ORDER BY start').all(userId, since)
       : db.prepare('SELECT data, updated_at FROM sports WHERE user_id = ? ORDER BY start').all(userId)) as unknown as {
       data: string;
       updated_at: string;
@@ -43,15 +50,14 @@ export const listSports = (db: DB, userId: string, since?: string) =>
 
 export const sportRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/me/sports', async (req) => {
-    const q = z.object({ since: z.iso.datetime({ offset: true }).optional() }).parse(req.query);
-    return { sports: listSports(db, req.userId!, q.since), serverTime: now().toISOString() };
+    const q = sinceQuery.parse(req.query);
+    return { sports: listSports(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'sports', q.since), serverTime: now().toISOString() };
   });
 
   r.post('/me/sports', async (req) => {
     const b = z.object({ sports: z.array(sport).max(200) }).parse(req.body);
     const ts = now().toISOString();
-    upsert(db, req.userId!, b.sports, ts);
-    return { saved: b.sports.length, serverTime: ts };
+    return { saved: upsert(db, req.userId!, b.sports, ts), serverTime: ts };
   });
 
   // Upload-only key for the member's Apple Watch (#426): a Hyrox race goes straight to the server when the Watch has
@@ -67,7 +73,10 @@ export const sportRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
 
   r.delete('/me/sports/:id', async (req, reply) => {
     const { id } = z.object({ id: z.uuid() }).parse(req.params);
-    db.prepare('DELETE FROM sports WHERE id = ? AND user_id = ?').run(id, req.userId!);
+    tx(db, () => {
+      db.prepare('DELETE FROM sports WHERE id = ? AND user_id = ?').run(id, req.userId!);
+      recordTombstone(db, req.userId!, 'sports', id, now().toISOString());
+    });
     return reply.status(204).send();
   });
 };
@@ -83,7 +92,6 @@ export const watchSportRoutes = (app: FastifyInstance, db: DB, now: () => Date) 
     if (!row) throw new ApiError(401, 'invalid_token', 'Unknown Watch key.');
     const b = z.object({ sports: z.array(sport).max(10) }).parse(req.body);
     const ts = now().toISOString();
-    upsert(db, row.user_id, b.sports, ts);
-    return { saved: b.sports.length, serverTime: ts };
+    return { saved: upsert(db, row.user_id, b.sports, ts), serverTime: ts };
   });
 };

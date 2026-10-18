@@ -229,3 +229,45 @@ describe('in-app subscriptions', () => {
     expect((await put(a.token, '/v1/me/subscriptions/test', { mode: null }, 'PUT')).json()).toMatchObject({ mode: 'off', access: true, test: {} });
   });
 });
+
+describe('sandbox purchases and notification retries (#432)', () => {
+  it('production refuses Sandbox transactions and notifications unless allowed', async () => {
+    const prod = { NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(32), CODE_PEPPER: 'p', MAIL_TRANSPORT: 'console', BACKUP_DIR: 'off' };
+    expect(loadConfig(prod).subscriptions.sandbox).toBe(false);
+    expect(loadConfig({ ...prod, SUBSCRIPTION_TESTS: 'on' }).subscriptions.sandbox).toBe(true);
+    expect(loadConfig({ ...prod, SUBSCRIPTION_SANDBOX: 'on' }).subscriptions.sandbox).toBe(true);
+    expect(loadConfig({ NODE_ENV: 'test' }).subscriptions.sandbox).toBe(true);
+
+    start({ SUBSCRIPTIONS: 'enforced', SUBSCRIPTION_SANDBOX: 'off' });
+    const u = await signUp('a@example.com');
+    const res = await postTx(u.token, await sign(txn(u.id)));
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('sandbox_transaction');
+    const n = { notificationType: 'SUBSCRIBED', notificationUUID: 'sb1', data: { bundleId: 'Com.app.MonkeyWorkout', environment: 'Sandbox', signedTransactionInfo: await sign(txn(u.id)) } };
+    expect((await notify(n)).statusCode).toBe(200);
+    expect(await entitlement(u.token)).toMatchObject({ pro: false });
+    expect((await postTx(u.token, await sign(txn(u.id, { environment: 'Production' })))).json()).toMatchObject({ pro: true, environment: 'Production' });
+  });
+
+  it('marks a notification seen only once handled, so a retry after a failure is processed', async () => {
+    const db = openDb(':memory:');
+    let fail = true;
+    const subs = new SubscriptionService({
+      db,
+      decode: async <T,>(jws: string) => {
+        if (jws === 'txn' && fail) throw new Error('disk full');
+        return (jws === 'txn' ? {} : { notificationType: 'DID_RENEW', notificationUUID: 'r1', data: { bundleId: 'b', signedTransactionInfo: 'txn' } }) as T;
+      },
+      now: () => new Date(),
+      mode: 'enforced',
+      productIds: [],
+      bundleIds: ['b'],
+    });
+    const seen = () => (db.prepare("SELECT COUNT(*) AS n FROM app_store_notifications WHERE uuid = 'r1'").get() as { n: number }).n;
+    await expect(subs.handleNotification('payload')).rejects.toThrow('disk full');
+    expect(seen()).toBe(0);
+    fail = false;
+    expect(await subs.handleNotification('payload')).toBe(true);
+    expect(seen()).toBe(1);
+  });
+});

@@ -429,15 +429,25 @@ final class HealthManager {
         }
         locations.sort { $0.timestamp < $1.timestamp }
         guard locations.count >= 2 || !laps.isEmpty else { return nil }
+        // Heart rate per point (#445 map colour): nearest sample within a minute.
+        let hrQuery = HKSampleQueryDescriptor(
+            predicates: [.quantitySample(type: HKQuantityType(.heartRate),
+                                         predicate: HKQuery.predicateForSamples(withStart: workout.startDate, end: workout.endDate))],
+            sortDescriptors: [SortDescriptor(\.startDate)])
+        let bpm = HKUnit.count().unitDivided(by: .minute())
+        let beats = ((try? await hrQuery.result(for: store)) ?? []).map { ($0.startDate, $0.quantity.doubleValue(for: bpm)) }
+        var b = 0
         var points: [SportTrack.Point] = []
         for (i, l) in locations.enumerated() {
+            while b + 1 < beats.count && abs(beats[b + 1].0.timeIntervalSince(l.timestamp)) <= abs(beats[b].0.timeIntervalSince(l.timestamp)) { b += 1 }
+            let hr = beats.indices.contains(b) && abs(beats[b].0.timeIntervalSince(l.timestamp)) <= 60 ? beats[b].1 : nil
             var speed = l.speed
             if speed < 0, i > 0 {
                 let prev = locations[i - 1]
                 let dt = l.timestamp.timeIntervalSince(prev.timestamp)
                 speed = dt > 0 ? l.distance(from: prev) / dt : 0
             }
-            points.append(.init(lat: l.coordinate.latitude, lon: l.coordinate.longitude, alt: l.altitude, speed: max(0, speed), time: l.timestamp))
+            points.append(.init(lat: l.coordinate.latitude, lon: l.coordinate.longitude, alt: l.altitude, speed: max(0, speed), time: l.timestamp, hr: hr))
         }
         return SportTrack(points: points, laps: laps)
     }

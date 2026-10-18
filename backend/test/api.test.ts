@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type AppleIdentity, audienceAllowed } from '../src/apple.ts';
@@ -131,13 +131,42 @@ describe('registration & verification', () => {
 });
 
 describe('login & sessions', () => {
-  it('rejects bad credentials uniformly and locks after 10 failures', async () => {
+  it('rejects bad credentials uniformly and locks the IP after 10 failures', async () => {
     await signUp();
     expect((await post('/v1/auth/login', { email: 'ghost@example.com', password: PW })).json().error).toBe('invalid_credentials');
     for (let i = 0; i < 10; i++) expect((await post('/v1/auth/login', { email: EMAIL, password: 'wrong-password!' })).statusCode).toBe(401);
-    expect((await post('/v1/auth/login', { email: EMAIL, password: PW })).statusCode).toBe(429);
+    const locked = await post('/v1/auth/login', { email: EMAIL, password: PW });
+    expect(locked.statusCode).toBe(429);
+    expect(locked.json()).toMatchObject({ error: 'account_locked', lockedUntil: new Date(clock.getTime() + 15 * 60_000).toISOString() });
     advance(16 * 60_000);
     expect((await post('/v1/auth/login', { email: EMAIL, password: PW })).statusCode).toBe(200);
+  });
+
+  // #432: a stranger's guesses lock only their own IP, not the owner's.
+  const loginFrom = (ip: string, password: string) =>
+    app.inject({ method: 'POST', url: '/v1/auth/login', payload: { email: EMAIL, password }, headers: { 'fly-client-ip': ip } });
+
+  it('lockout from one IP leaves other IPs able to sign in', async () => {
+    await signUp();
+    for (let i = 0; i < 10; i++) expect((await loginFrom('203.0.113.9', 'wrong-password!')).statusCode).toBe(401);
+    expect((await loginFrom('203.0.113.9', PW)).json().error).toBe('account_locked');
+    expect((await loginFrom('198.51.100.7', PW)).statusCode).toBe(200);
+  });
+
+  it('100 failures a day across IPs lock password sign-in for a day; a reset reopens it', async () => {
+    await signUp();
+    for (let i = 0; i < 100; i++) expect((await loginFrom(`203.0.113.${i}`, 'wrong-password!')).statusCode).toBe(401);
+    const r = await loginFrom('198.51.100.7', PW);
+    expect(r.statusCode).toBe(429);
+    expect(r.json()).toMatchObject({ error: 'account_locked', lockedUntil: new Date(clock.getTime() + 86_400_000).toISOString() });
+    advance(86_400_000 + 1000);
+    expect((await loginFrom('198.51.100.7', PW)).statusCode).toBe(200);
+    for (let i = 0; i < 100; i++) await loginFrom(`203.0.113.${i}`, 'wrong-password!');
+    expect((await loginFrom('198.51.100.7', PW)).json().error).toBe('account_locked');
+    await post('/v1/auth/password/forgot', { email: EMAIL });
+    const next = 'another-long-password';
+    expect((await post('/v1/auth/password/reset', { email: EMAIL, code: lastCode(), newPassword: next })).statusCode).toBe(204);
+    expect((await loginFrom('198.51.100.7', next)).statusCode).toBe(200);
   });
 
   it('rotates refresh tokens and revokes family on reuse', async () => {
@@ -226,6 +255,29 @@ describe('Sign in with Apple', () => {
     const { reauthToken } = (await post('/v1/me/reauth', { method: 'apple', identityToken: 'tok-del-identity-token' }, tokens.accessToken)).json();
     const del = await app.inject({ method: 'DELETE', url: '/v1/me', payload: { confirm: 'DELETE' }, headers: { ...auth, 'x-reauth-token': reauthToken } });
     expect(del.statusCode).toBe(204);
+  });
+
+  // #432: a token with a nonce claim needs the matching raw nonce, once.
+  it('checks the nonce claim and refuses its replay', async () => {
+    const raw = 'n0nce-raw-value-1234567890';
+    const hashed = createHash('sha256').update(raw).digest('hex');
+    appleIds.set('tok-nonce-identity-token', { sub: 'apple-n', emailVerified: false, nonce: hashed });
+    const bad = (b: object) => post('/v1/auth/apple', { identityToken: 'tok-nonce-identity-token', ...b });
+    expect((await bad({})).json().error).toBe('invalid_apple_token');
+    expect((await bad({ nonce: 'wrong-nonce-value-123456' })).json().error).toBe('invalid_apple_token');
+    expect((await bad({ nonce: hashed })).json().error).toBe('invalid_apple_token');
+    const ok = await bad({ nonce: raw });
+    expect(ok.statusCode).toBe(200);
+    expect((await bad({ nonce: raw })).json().error).toBe('invalid_apple_token');
+
+    // Re-auth follows the same rule.
+    const t = ok.json().tokens.accessToken as string;
+    const raw2 = 'second-raw-nonce-abcdefgh';
+    appleIds.set('tok-nonce-reauth-token', { sub: 'apple-n', emailVerified: false, nonce: createHash('sha256').update(raw2).digest('hex') });
+    const reauth = (nonce?: string) => post('/v1/me/reauth', { method: 'apple', identityToken: 'tok-nonce-reauth-token', nonce }, t);
+    expect((await reauth()).json().error).toBe('reauth_failed');
+    expect((await reauth(raw2)).statusCode).toBe(200);
+    expect((await reauth(raw2)).json().error).toBe('reauth_failed');
   });
 });
 
@@ -363,5 +415,94 @@ describe('rate limiting', () => {
     const codes = [];
     for (let i = 0; i < 4; i++) codes.push((await post('/v1/auth/password/forgot', { email: EMAIL })).statusCode);
     expect(codes).toEqual([202, 202, 202, 429]);
+  });
+});
+
+describe('abuse limits (#432)', () => {
+  it('keys rate limits on Fly-Client-IP, not a spoofed X-Forwarded-For', async () => {
+    await app.close();
+    setup({ AUTH_RATE_LIMIT_PER_MIN: '3' });
+    const codes = [];
+    for (let i = 0; i < 4; i++)
+      codes.push(
+        (
+          await app.inject({
+            method: 'POST',
+            url: '/v1/auth/password/forgot',
+            payload: { email: EMAIL },
+            headers: { 'x-forwarded-for': `10.0.0.${i}`, 'fly-client-ip': '203.0.113.9' },
+          })
+        ).statusCode,
+      );
+    expect(codes).toEqual([202, 202, 202, 429]);
+  });
+
+  it('does not replace a burned reset code at once and caps wrong guesses per account', async () => {
+    await signUp();
+    await post('/v1/auth/password/forgot', { email: EMAIL });
+    const first = lastCode();
+    const wrong = first === '000000' ? '111111' : '000000';
+    for (let i = 0; i < 5; i++) await post('/v1/auth/password/reset', { email: EMAIL, code: wrong, newPassword: 'another-good-passphrase' });
+    const sent = mailer.outbox.length;
+    await post('/v1/auth/password/forgot', { email: EMAIL });
+    expect(mailer.outbox.length).toBe(sent); // still inside the resend window
+    // 20 wrong guesses a day across fresh codes, then refused even with the right code.
+    for (let round = 0; round < 3; round++) {
+      advance(61_000);
+      await post('/v1/auth/password/forgot', { email: EMAIL });
+      for (let i = 0; i < 5; i++) await post('/v1/auth/password/reset', { email: EMAIL, code: wrong, newPassword: 'another-good-passphrase' });
+    }
+    advance(61_000);
+    advance(3_600_000);
+    await post('/v1/auth/password/forgot', { email: EMAIL });
+    const r = await post('/v1/auth/password/reset', { email: EMAIL, code: lastCode(), newPassword: 'another-good-passphrase' });
+    expect(r.statusCode).toBe(429);
+    expect(r.json().error).toBe('too_many_attempts');
+  });
+
+  it('caps codes mailed per account per hour', async () => {
+    await signUp();
+    const before = mailer.outbox.length;
+    for (let i = 0; i < 8; i++) {
+      await post('/v1/auth/password/forgot', { email: EMAIL });
+      advance(61_000);
+    }
+    expect(mailer.outbox.length - before).toBe(5);
+  });
+
+  it('caps "already have an account" mails per recipient', async () => {
+    await signUp();
+    const before = mailer.outbox.length;
+    for (let i = 0; i < 6; i++) await post('/v1/auth/register', { email: EMAIL, password: PW, acceptedTerms: true });
+    expect(mailer.outbox.length - before).toBe(3);
+  });
+
+  it('lets the inbox owner set the password at verification', async () => {
+    await post('/v1/auth/register', { email: EMAIL, password: 'stranger-password-123', acceptedTerms: true });
+    const r = await post('/v1/auth/verify-email', { email: EMAIL, code: lastCode(), password: PW });
+    expect(r.statusCode).toBe(200);
+    expect((await post('/v1/auth/login', { email: EMAIL, password: 'stranger-password-123' })).statusCode).toBe(401);
+    expect((await post('/v1/auth/login', { email: EMAIL, password: PW })).statusCode).toBe(200);
+  });
+
+  it('drops an unproven password when Apple links an unverified account', async () => {
+    await post('/v1/auth/register', { email: EMAIL, password: 'stranger-password-123', acceptedTerms: true });
+    appleIds.set('tok-victim-identity-token', { sub: 'apple-9', email: EMAIL, emailVerified: true });
+    const a = await post('/v1/auth/apple', { identityToken: 'tok-victim-identity-token' });
+    expect(a.json()).toMatchObject({ user: { hasPassword: false } });
+    expect((await post('/v1/auth/login', { email: EMAIL, password: 'stranger-password-123' })).statusCode).toBe(401);
+  });
+
+  it('counts re-auth password guesses per account', async () => {
+    const { tokens } = await signUp();
+    for (let i = 0; i < 20; i++)
+      expect((await post('/v1/me/reauth', { method: 'password', password: 'wrong-password-x' }, tokens.accessToken)).statusCode).toBe(401);
+    expect((await post('/v1/me/reauth', { method: 'password', password: PW }, tokens.accessToken)).statusCode).toBe(429);
+  });
+
+  it('lets only one of two parallel refreshes rotate a token', async () => {
+    const { tokens } = await signUp();
+    const rs = await Promise.all([1, 2].map(() => post('/v1/auth/refresh', { refreshToken: tokens.refreshToken })));
+    expect(rs.map((r) => r.statusCode).sort()).toEqual([200, 401]);
   });
 });

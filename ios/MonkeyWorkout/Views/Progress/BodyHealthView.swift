@@ -42,7 +42,6 @@ struct BodyHealthView: View {
     @State private var loaded = false
     @State private var showAccess = false
     @State private var start: Draft?
-    @State private var closeGuard = CloseGuard()
     @FocusState private var focus: Metric?
 
     private enum Metric: Hashable { case height, weight, birthYear }
@@ -55,14 +54,14 @@ struct BodyHealthView: View {
                 AccountHeader(symbol: "heart.text.square.fill", title: "Body & Health",
                               subtitle: health.connected ? "Connected to Apple Health" : "Connect Apple Health or enter your numbers.",
                               gradient: AccountTint.body) {
-                    if let kg = snap.weightKg ?? number(weight) {
+                    if let kg = snap.weightKg ?? Self.number(weight) {
                         AccountValue(value: Format.kg((kg * 10).rounded() / 10), unit: "kg")
                     }
                 }
 
                 section("Apple Health")
                 if health.connected {
-                    AccountCard(symbol: "heart.fill", title: "Apple Health", subtitle: "Connected · Health data stays on this iPhone",
+                    AccountCard(symbol: "heart.fill", title: "Apple Health", subtitle: "Connected · Only session summaries are synced",
                                 gradient: nil, textColor: .pink) {
                         Button { Task { await health.refresh() } } label: {
                             Image(systemName: "arrow.clockwise")
@@ -91,7 +90,7 @@ struct BodyHealthView: View {
                     }
                 }
                 ErrorText(message: health.error)
-                AccountNote(text: "Reads weight, height, body fat, lean mass, waist, age, sex, resting heart rate, HRV, VO₂max, sleep, heart rate during sessions and climbing workouts. Writes your sessions and, if you choose, weight, height, body fat, lean mass and waist. Health data stays on this iPhone.")
+                AccountNote(text: "Reads weight, height, body fat, lean mass, waist, age, sex, resting heart rate, HRV, VO₂max, sleep, heart rate during sessions and climbing workouts. Writes your sessions and, if you choose, weight, height, body fat, lean mass and waist. Health data you allow stays on this iPhone, except each session's summary (duration, calories, average and max heart rate) saved with your history.")
 
                 section("Body figure")
                 BodyFigurePicker(selection: Binding(
@@ -160,8 +159,8 @@ struct BodyHealthView: View {
                 }
                 AccountNote(text: "Physiological sex can slightly refine calorie and heart-rate estimates. Leave unset or choose “Prefer not to say” and the app uses neutral defaults.")
 
-                LimeActionButton(title: "Save") { save() }
-                    .padding(.top, 14)
+                AccountNote(text: "Changes save on their own.")
+                    .padding(.top, 8)
             }
             .padding(16)
             .padding(.bottom, 24)
@@ -173,7 +172,10 @@ struct BodyHealthView: View {
         .toolbarTitleDisplayMode(.inline)
         .onAppear(perform: load)
         .task { await health.refresh() }
-        .undoableClose(closeGuard, offer: undoOffer)
+        // Auto save (#437): every change is saved, Undo on leave puts the opened values back.
+        .autoSave(start == nil ? nil : draft, title: "Body & Health", symbol: "heart.text.square.fill",
+                  detail: Self.detail, save: { [model] in Self.store($0, model: model) },
+                  committed: { [health] in Self.writeHealth($0, health: health) })
     }
 
     private var draft: Draft {
@@ -182,16 +184,9 @@ struct BodyHealthView: View {
               coachCall: coachCall, showPronouns: showPronouns)
     }
 
-    /// Undo bar when something was changed since the screen opened (#285).
-    private var undoOffer: UndoOffer? {
-        guard let start, draft != start else { return nil }
-        let kept = draft
-        let detail = undoDetail(kept.height.isEmpty ? nil : "\(kept.height) cm", kept.weight.isEmpty ? nil : "\(kept.weight) kg",
-                                kept.birthYear.isEmpty ? nil : "born \(kept.birthYear)")
-        return UndoOffer(title: "Body & Health closed", detail: detail.isEmpty ? "Changes not saved" : detail,
-                         symbol: "heart.text.square.fill", colors: WorkoutEngine.Category.power.colors) {
-            AnyView(UndoReopenedPush { BodyHealthView(restoring: kept) })
-        }
+    private static func detail(_ d: Draft) -> String {
+        undoDetail(d.height.isEmpty ? nil : "\(d.height) cm", d.weight.isEmpty ? nil : "\(d.weight) kg",
+                   d.birthYear.isEmpty ? nil : "born \(d.birthYear)")
     }
 
     private func section(_ title: String) -> some View {
@@ -265,32 +260,36 @@ struct BodyHealthView: View {
         }
     }
 
-    private func number(_ s: String) -> Double? { Double(s.replacingOccurrences(of: ",", with: ".")) }
+    private static func number(_ s: String) -> Double? { Double(s.replacingOccurrences(of: ",", with: ".")) }
 
-    private func save() {
+    private static func metrics(_ d: Draft) -> BodyMetrics {
         var b = BodyMetrics()
-        if let h = number(height), (100...250).contains(h) { b.heightCm = h }
-        if let w = number(weight), (30...300).contains(w) { b.weightKg = w }
-        if let y = Int(birthYear), (1900...2020).contains(y) { b.birthYear = y }
-        b.sex = sex
-        b.gender = gender
-        let described = genderText.trimmingCharacters(in: .whitespacesAndNewlines)
-        b.genderDescription = gender == .selfDescribe && !described.isEmpty ? String(described.prefix(60)) : nil
-        b.figure = figure
-        b.pronouns = pronouns
-        let custom = pronounsCustom.trimmingCharacters(in: .whitespacesAndNewlines)
-        b.pronounsCustom = pronouns == .custom && !custom.isEmpty ? String(custom.prefix(24)) : nil
-        b.coachCall = coachCall
-        b.showPronouns = showPronouns ? true : nil
-        model.saveBody(b)
-        if health.connected && writeToHealth {
-            var toHealth = BodyMetrics()
-            if snap.heightCm == nil { toHealth.heightCm = b.heightCm }
-            if snap.weightKg == nil { toHealth.weightKg = b.weightKg }
-            Task { await health.saveBody(toHealth) }
-        }
-        closeGuard.done()
-        dismiss()
+        if let h = number(d.height), (100...250).contains(h) { b.heightCm = h }
+        if let w = number(d.weight), (30...300).contains(w) { b.weightKg = w }
+        if let y = Int(d.birthYear), (1900...2020).contains(y) { b.birthYear = y }
+        b.sex = d.sex
+        b.gender = d.gender
+        let described = d.genderText.trimmingCharacters(in: .whitespacesAndNewlines)
+        b.genderDescription = d.gender == .selfDescribe && !described.isEmpty ? String(described.prefix(60)) : nil
+        b.figure = d.figure
+        b.pronouns = d.pronouns
+        let custom = d.pronounsCustom.trimmingCharacters(in: .whitespacesAndNewlines)
+        b.pronounsCustom = d.pronouns == .custom && !custom.isEmpty ? String(custom.prefix(24)) : nil
+        b.coachCall = d.coachCall
+        b.showPronouns = d.showPronouns ? true : nil
+        return b
+    }
+
+    private static func store(_ d: Draft, model: AppModel) { model.saveBody(metrics(d)) }
+
+    /// Once on leave (not per keystroke): height / weight Health doesn't have yet.
+    private static func writeHealth(_ d: Draft, health: HealthManager) {
+        guard health.connected && d.writeToHealth else { return }
+        let b = metrics(d)
+        var toHealth = BodyMetrics()
+        if health.snapshot.heightCm == nil { toHealth.heightCm = b.heightCm }
+        if health.snapshot.weightKg == nil { toHealth.weightKg = b.weightKg }
+        Task { await health.saveBody(toHealth) }
     }
 }
 

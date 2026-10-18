@@ -74,4 +74,15 @@ describe('restore one member (#315)', () => {
     expect(() => restoreMember(db, backup, { email: 'ana@example.com', apply: true }, root)).toThrow(/created again/);
     expect(ids('u9')).toEqual([]);
   });
+
+  it('photos unchanged since the backup are not listed as changed (#432)', () => {
+    db.prepare("INSERT INTO machine_note_photos (id, user_id, note_id, data, created_at) VALUES ('p1', 'u1', 'n1', ?, ?)").run(Buffer.from([1, 2, 3]), T);
+    const b = backupNow(db, join(root, 'b2'), { keep: 7, now: new Date(T) });
+    const copy = new DatabaseSync(join(root, 'b2', b.file), { readOnly: true });
+    try {
+      expect(restoreMember(db, copy, { email: 'ana@example.com' }, root).summary.machine_note_photos).toEqual({ missing: 0, changed: 0, restored: 0 });
+    } finally {
+      copy.close();
+    }
+  });
 });

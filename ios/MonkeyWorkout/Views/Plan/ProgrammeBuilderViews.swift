@@ -290,6 +290,8 @@ struct ProgrammeEditorView: View {
     @State private var confirmDelete = false
     @State private var start: Programme? = nil
     @State private var closeGuard = CloseGuard()
+    /// Set on Delete so a pending auto save doesn't bring it back (#437).
+    @State private var deleted = CloseGuard()
 
     var body: some View {
         NavigationStack {
@@ -365,17 +367,21 @@ struct ProgrammeEditorView: View {
                     ProgrammeLiftChips(candidates: Array(Set(testableLifts(programme.signatures) + programme.lifts)).sorted {
                         Exercise.get($0).name < Exercise.get($1).name
                     }, lifts: Binding(get: { programme.lifts }, set: { setLifts($0) }))
-                    Button {
-                        save()
-                    } label: {
-                        Text("Save programme")
-                            .font(Theme.display(17))
-                            .frame(maxWidth: .infinity, minHeight: 52)
-                            .foregroundStyle(Theme.ink)
-                            .background(Capsule().fill(Theme.lime))
+                    if isNew {
+                        Button {
+                            save()
+                        } label: {
+                            Text("Save programme")
+                                .font(Theme.display(17))
+                                .frame(maxWidth: .infinity, minHeight: 52)
+                                .foregroundStyle(Theme.ink)
+                                .background(Capsule().fill(Theme.lime))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 6)
+                    } else {
+                        Text("Changes save on their own.").font(.caption).foregroundStyle(Theme.muted)
                     }
-                    .buttonStyle(.plain)
-                    .padding(.top, 6)
                     if !isNew {
                         Button("Delete programme", role: .destructive) { confirmDelete = true }
                             .font(.footnote.weight(.bold))
@@ -393,11 +399,16 @@ struct ProgrammeEditorView: View {
                     Button { dismiss() } label: { Image(systemName: "xmark") }.accessibilityLabel("Close")
                 }
             }
+            // Editing a saved programme saves on its own (#437).
+            .autoSave(isNew || start == nil ? nil : programme, title: "Programme", symbol: programme.symbol,
+                      detail: { undoDetail($0.name, $0.plan) },
+                      save: { [model, deleted] in if !deleted.saved { model.saveProgramme(Self.cleaned($0)) } })
             .sheet(isPresented: $adding) {
                 ProgrammeWorkoutPicker { programme.signatures.append($0.signature(progression: true)) }
             }
             .confirmationDialog("Delete \(programme.name)?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete programme", role: .destructive) {
+                    deleted.done()
                     closeGuard.done()
                     model.deleteProgramme(programme.id)
                     dismiss()
@@ -418,7 +429,7 @@ struct ProgrammeEditorView: View {
 
     /// Undo bar when anything changed since the editor opened (#285).
     private var undoOffer: UndoOffer? {
-        guard let start, programme != start else { return nil }
+        guard isNew, let start, programme != start else { return nil }
         let kept = programme, new = isNew
         let detail = undoDetail(programme.name, programme.plan,
                                 programme.signatures.isEmpty ? nil : "\(programme.signatures.count) pinned")
@@ -445,12 +456,16 @@ struct ProgrammeEditorView: View {
         setLifts(programme.lifts.filter { left.contains($0) })
     }
 
-    private func save() {
+    private static func cleaned(_ programme: Programme) -> Programme {
         var p = programme
         p.name = p.name.trimmingCharacters(in: .whitespacesAndNewlines)
         if p.name.isEmpty { p.name = "My programme" }
         p.tagline = "My programme · \(p.sessionsPerWeek)× a week"
-        model.saveProgramme(p)
+        return p
+    }
+
+    private func save() {
+        model.saveProgramme(Self.cleaned(programme))
         closeGuard.done()
         dismiss()
     }

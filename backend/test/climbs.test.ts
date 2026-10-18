@@ -5,6 +5,7 @@ import { buildApp } from '../src/app.ts';
 import { loadConfig } from '../src/config.ts';
 import { type DB, openDb } from '../src/db.ts';
 import { ConsoleMailer } from '../src/mailer.ts';
+import { purgeExpired } from '../src/purge.ts';
 
 const PW = 'correct-horse-battery';
 
@@ -82,6 +83,87 @@ describe('climbs sync (#312)', () => {
 
     db.prepare('DELETE FROM users').run();
     expect(db.prepare('SELECT COUNT(*) AS n FROM climbs').get()).toEqual({ n: 0 });
+  });
+
+  it('since without milliseconds or with an offset, or equal to updated_at, keeps the rows of that moment (#432)', async () => {
+    const t = await signUp('climber@example.com');
+    clock = new Date('2026-10-07T10:00:00.300Z');
+    const a = sample();
+    await post('/v1/me/climbs', { climbs: [a] }, t);
+    for (const since of ['2026-10-07T10:00:00Z', '2026-10-07T12:00:00+02:00', '2026-10-07T10:00:00.300Z'])
+      expect((await get(`/v1/me/climbs?since=${encodeURIComponent(since)}`, t)).json().climbs.map((x: { id: string }) => x.id)).toEqual([a.id]);
+    expect((await get(`/v1/me/climbs?since=${encodeURIComponent('2026-10-07T10:00:01Z')}`, t)).json().climbs).toEqual([]);
+  });
+
+  it('saved counts only rows written, not ids of another account (#432)', async () => {
+    const t = await signUp('climber@example.com');
+    const a = sample();
+    await post('/v1/me/climbs', { climbs: [a] }, t);
+    const t2 = await signUp('other@example.com');
+    expect((await post('/v1/me/climbs', { climbs: [{ ...a, effort: 1 }, sample()] }, t2)).json().saved).toBe(1);
+  });
+
+  it('refuses new rows past the per-member quota, still allows updates (#432)', async () => {
+    const t = await signUp('climber@example.com');
+    const { id: userId } = db.prepare('SELECT id FROM users WHERE email = ?').get('climber@example.com') as { id: string };
+    const fill = db.prepare('INSERT INTO climbs (id, user_id, start, data, updated_at) VALUES (?, ?, ?, ?, ?)');
+    db.exec('BEGIN');
+    for (let i = 0; i < 19_999; i++) fill.run(randomUUID(), userId, '2026-01-01T00:00:00Z', '{}', clock.toISOString());
+    db.exec('COMMIT');
+    const a = sample();
+    const over = await post('/v1/me/climbs', { climbs: [a, sample()] }, t);
+    expect(over.statusCode).toBe(413);
+    expect(over.json()).toMatchObject({ error: 'quota_exceeded', limit: 20_000 });
+    expect((await post('/v1/me/climbs', { climbs: [a] }, t)).json().saved).toBe(1);
+    expect((await post('/v1/me/climbs', { climbs: [sample()] }, t)).json().error).toBe('quota_exceeded');
+    expect((await post('/v1/me/climbs', { climbs: [{ ...a, effort: 9 }] }, t)).json().saved).toBe(1);
+  });
+
+  it('a delete reaches other devices as deleted; a re-upload (Undo) brings it back (#432)', async () => {
+    const t = await signUp('climber@example.com');
+    const a = sample();
+    const b = sample();
+    await post('/v1/me/climbs', { climbs: [a, b] }, t);
+    advance(1000);
+    const lastPullB = clock.toISOString();
+    // Full pulls have no `deleted`; since pulls always do.
+    expect((await get('/v1/me/climbs', t)).json().deleted).toBeUndefined();
+    expect((await get(`/v1/me/climbs?since=${encodeURIComponent(lastPullB)}`, t)).json()).toMatchObject({ climbs: [], deleted: [] });
+
+    advance(1000);
+    expect((await del(`/v1/me/climbs/${a.id}`, t)).statusCode).toBe(204); // device A
+    advance(1000);
+    const pull = (await get(`/v1/me/climbs?since=${encodeURIComponent(lastPullB)}`, t)).json(); // device B
+    expect(pull.deleted).toEqual([a.id]);
+    expect(pull.climbs).toEqual([]);
+
+    // Undo on device A re-uploads the same id (any letter case): it's back and no longer reported as deleted.
+    advance(1000);
+    expect((await post('/v1/me/climbs', { climbs: [{ ...a, id: a.id.toLowerCase() }] }, t)).json().saved).toBe(1);
+    expect((await get(`/v1/me/climbs?since=${encodeURIComponent(lastPullB)}`, t)).json().deleted).toEqual([]);
+    await del(`/v1/me/climbs/${a.id}`, t);
+    advance(1000);
+
+    // Later pulls don't repeat it; tombstones go after 180 days.
+    expect((await get(`/v1/me/climbs?since=${encodeURIComponent(clock.toISOString())}`, t)).json().deleted).toEqual([]);
+    purgeExpired(db, new Date(clock.getTime() + 181 * 86_400_000));
+    expect(db.prepare('SELECT COUNT(*) AS n FROM sync_tombstones').get()).toEqual({ n: 0 });
+  });
+
+  it('logs and workouts report deletes too (#432)', async () => {
+    const t = await signUp('climber@example.com');
+    const since = clock.toISOString();
+    const log = { id: randomUUID(), date: '2026-10-07T18:00:00Z', exerciseId: 'bench', weightKg: 60, reps: 8 };
+    const w = { id: randomUUID(), startedAt: '2026-10-07T18:00:00Z' };
+    await post('/v1/me/logs', { logs: [log] }, t);
+    await post('/v1/me/workouts', { workouts: [w] }, t);
+    advance(1000);
+    await del(`/v1/me/logs/${log.id}`, t);
+    await del(`/v1/me/workouts/${w.id}`, t);
+    expect((await get(`/v1/me/logs?since=${encodeURIComponent(since)}`, t)).json().deleted).toEqual([log.id]);
+    expect((await get(`/v1/me/workouts?since=${encodeURIComponent(since)}`, t)).json().deleted).toEqual([w.id]);
+    db.prepare('DELETE FROM users').run();
+    expect(db.prepare('SELECT COUNT(*) AS n FROM sync_tombstones').get()).toEqual({ n: 0 });
   });
 
   it('rejects malformed climbs', async () => {

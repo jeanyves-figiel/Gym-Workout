@@ -10,6 +10,8 @@ import type { DB } from './db.ts';
  */
 
 const FILE = /^app-(\d{4}-\d{2}-\d{2})\.db$/;
+/** Daily backups and fetched off-site copies (`app-<day>.offsite.db`, #432) can be restored. */
+const RESTORABLE = /^app-\d{4}-\d{2}-\d{2}(\.offsite)?\.db$/;
 export const RESTORE_FILE = 'restore.db';
 
 export interface BackupInfo {
@@ -114,7 +116,7 @@ export const startBackupJob = (
 
 /** Copies a backup to `restore.db` after checking it; the next start swaps it in (see `applyPendingRestore`). */
 export const stageRestore = (dir: string, file: string, dbPath: string): void => {
-  if (!FILE.test(file)) throw new Error(`not a backup file name: ${file}`);
+  if (!RESTORABLE.test(file)) throw new Error(`not a backup file name: ${file}`);
   const src = join(dir, file);
   if (!existsSync(src)) throw new Error(`no such backup: ${file}`);
   const r = inspectCopy(src);

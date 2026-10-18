@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { assertClean, hasAcceptedGuidelines, VISIBILITIES } from '../community/moderation.ts';
 import { type DB, tx } from '../db.ts';
+import { deletedField, reviveUploaded, recordTombstone, sinceQuery } from './sync.ts';
+import { assertRowQuota } from '../quota.ts';
 import { ApiError } from '../errors.ts';
 
 /** User-built workouts (opaque app-defined records, like completed workouts). */
@@ -36,15 +38,15 @@ export const listCustomWorkouts = (db: DB, userId: string, since?: string) =>
   (
     (since
       ? db
-          .prepare('SELECT data, updated_at, visibility, hidden_at, saves FROM custom_workouts WHERE user_id = ? AND updated_at > ? ORDER BY updated_at')
+          .prepare('SELECT data, updated_at, visibility, hidden_at, saves FROM custom_workouts WHERE user_id = ? AND updated_at >= ? ORDER BY updated_at')
           .all(userId, since)
       : db.prepare('SELECT data, updated_at, visibility, hidden_at, saves FROM custom_workouts WHERE user_id = ? ORDER BY updated_at').all(userId)) as unknown as Row[]
   ).map(toWorkout);
 
 export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/me/custom-workouts', async (req) => {
-    const q = z.object({ since: z.iso.datetime({ offset: true }).optional() }).parse(req.query);
-    return { workouts: listCustomWorkouts(db, req.userId!, q.since), serverTime: now().toISOString() };
+    const q = sinceQuery.parse(req.query);
+    return { workouts: listCustomWorkouts(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'custom-workouts', q.since), serverTime: now().toISOString() };
   });
 
   r.post('/me/custom-workouts', async (req) => {
@@ -63,20 +65,27 @@ export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date)
          shared_at = CASE WHEN excluded.visibility = 'private' THEN NULL ELSE COALESCE(custom_workouts.shared_at, excluded.shared_at) END
        WHERE custom_workouts.user_id = excluded.user_id`,
     );
-    tx(db, () => {
-      for (const w of b.workouts) {
+    const saved = tx(db, () => {
+      const workouts = reviveUploaded(db, userId, 'custom-workouts', b.workouts);
+      assertRowQuota(db, 'custom_workouts', userId, workouts.map((w) => w.id));
+      let count = 0;
+      for (const w of workouts) {
         const visibility = w.visibility ?? 'private';
         const json = JSON.stringify({ ...w, visibility });
         if (json.length > 100_000) throw Object.assign(new Error('Workout too large'), { statusCode: 413 });
-        up.run(w.id, userId, json, ts, visibility, visibility === 'private' ? null : ts);
+        count += Number(up.run(w.id, userId, json, ts, visibility, visibility === 'private' ? null : ts).changes);
       }
+      return count;
     });
-    return { saved: b.workouts.length, serverTime: ts };
+    return { saved, serverTime: ts };
   });
 
   r.delete('/me/custom-workouts/:id', async (req, reply) => {
     const { id } = z.object({ id: z.uuid() }).parse(req.params);
-    db.prepare('DELETE FROM custom_workouts WHERE id = ? AND user_id = ?').run(id, req.userId!);
+    tx(db, () => {
+      db.prepare('DELETE FROM custom_workouts WHERE id = ? AND user_id = ?').run(id, req.userId!);
+      recordTombstone(db, req.userId!, 'custom-workouts', id, now().toISOString());
+    });
     return reply.status(204).send();
   });
 };

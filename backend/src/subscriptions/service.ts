@@ -53,6 +53,8 @@ export interface SubscriptionDeps {
   bundleIds: string[];
   /** Staging only: fake purchases (environment `Test`) and a per-account mode override. */
   tests?: boolean;
+  /** Sandbox / TestFlight purchases count (#432). Off on production unless SUBSCRIPTION_SANDBOX=on (App Review). Default on. */
+  sandbox?: boolean;
   log?: (m: string) => void;
 }
 
@@ -64,6 +66,11 @@ export class SubscriptionService {
 
   private bundleOk(id?: string) {
     return !!id && this.d.bundleIds.some((b) => b.toLowerCase() === id.toLowerCase());
+  }
+
+  /** Sandbox purchases are free: refused where only real ones may unlock Pro. */
+  private envOk(environment?: string) {
+    return this.d.sandbox !== false || (environment ?? 'Production') === 'Production';
   }
 
   entitlement(userId: string): Entitlement {
@@ -111,6 +118,7 @@ export class SubscriptionService {
     }
     if (!this.bundleOk(t.bundleId)) throw new ApiError(400, 'invalid_transaction', 'Transaction is for another app.');
     if (!this.d.productIds.includes(t.productId)) throw new ApiError(400, 'unknown_product', 'Unknown product.');
+    if (!this.envOk(t.environment)) throw new ApiError(400, 'sandbox_transaction', 'Sandbox purchases do not unlock Pro on this server.');
     if (r && r.originalTransactionId !== t.originalTransactionId) throw new ApiError(400, 'invalid_transaction', 'Renewal info mismatch.');
     if (t.appAccountToken && t.appAccountToken.toLowerCase() !== userId.toLowerCase())
       throw new ApiError(403, 'subscription_other_account', 'This purchase belongs to another MonkeyWorkout account.');
@@ -129,21 +137,27 @@ export class SubscriptionService {
       this.d.log?.(`app store notification rejected: ${(e as Error).message}`);
       return false;
     }
-    const seen = this.d.db
+    const uuid = n.notificationUUID;
+    if (this.d.db.prepare('SELECT 1 FROM app_store_notifications WHERE uuid = ?').get(uuid)) return true;
+    // Marked seen only once handled: a throw answers 500 and Apple's retry is processed, not dropped as a duplicate.
+    await this.applyNotification(n);
+    this.d.db
       .prepare('INSERT INTO app_store_notifications (uuid, type, received_at) VALUES (?, ?, ?) ON CONFLICT(uuid) DO NOTHING')
-      .run(n.notificationUUID, [n.notificationType, n.subtype].filter(Boolean).join('/'), this.d.now().toISOString());
-    if (seen.changes === 0) return true;
-    if (!n.data?.signedTransactionInfo || !this.bundleOk(n.data.bundleId)) return true;
+      .run(uuid, [n.notificationType, n.subtype].filter(Boolean).join('/'), this.d.now().toISOString());
+    return true;
+  }
+
+  private async applyNotification(n: AppStoreNotification) {
+    if (!n.data?.signedTransactionInfo || !this.bundleOk(n.data.bundleId) || !this.envOk(n.data.environment)) return;
     const t = await this.d.decode<AppStoreTransaction>(n.data.signedTransactionInfo);
     const r = n.data.signedRenewalInfo ? await this.d.decode<AppStoreRenewalInfo>(n.data.signedRenewalInfo) : undefined;
-    if (!this.bundleOk(t.bundleId) || !this.d.productIds.includes(t.productId)) return true;
+    if (!this.bundleOk(t.bundleId) || !this.d.productIds.includes(t.productId) || !this.envOk(t.environment)) return;
     const owner = this.ownerOf(t.originalTransactionId);
     const token = t.appAccountToken && UUID.test(t.appAccountToken) ? t.appAccountToken.toLowerCase() : undefined;
     const userId = owner ?? (token && this.d.db.prepare('SELECT id FROM users WHERE lower(id) = ?').get(token) ? token : undefined);
-    if (!userId) return true; // not (yet) linked: the app posts the transaction on next launch
+    if (!userId) return; // not (yet) linked: the app posts the transaction on next launch
     // REFUND / REVOKE carry revocationDate on the transaction; EXPIRED / DID_RENEW update expiresDate.
     this.upsert(userId, t, r);
-    return true;
   }
 
   private ownerOf(originalTransactionId: string) {

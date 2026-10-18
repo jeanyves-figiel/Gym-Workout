@@ -3,7 +3,14 @@ import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import type { Synthesize } from '../coach/polly.ts';
 import { CALL_NAME, type CoachStyle, STUDIO_VOICES, STYLES, type VoiceLine, callLine, ssml, voiceLines } from '../coach/voiceLines.ts';
+import type { DB } from '../db.ts';
 import { ApiError } from '../errors.ts';
+import { DAY, throttleCount, throttleHit, throttleTake } from '../throttle.ts';
+
+/** Different call names a member may have recorded per day (#432): each new name is a paid Polly run. */
+const CALL_NAMES_PER_DAY = 20;
+/** Recordings kept in memory when there is no cache dir. */
+const MEMORY_MAX = 200;
 
 /**
  * Studio coach voices (#395). GET /v1/me/coach-voices lists the voices and every line (id, text, hash);
@@ -15,7 +22,7 @@ export const coachVoiceRoutes = (
   r: FastifyInstance,
   synth: Synthesize | undefined,
   cacheDir: string | undefined,
-  opts: { warm?: boolean; retryMs?: number } = {},
+  opts: { warm?: boolean; retryMs?: number; db?: DB; now?: () => Date } = {},
 ) => {
   const lines = voiceLines();
   const byId = new Map(lines.map((l) => [l.id, l]));
@@ -28,7 +35,8 @@ export const coachVoiceRoutes = (
   let running = 0;
   const waiting: (() => void)[] = [];
   const polly = async (text: string, voice: string): Promise<Buffer> => {
-    if (running >= 2) await new Promise<void>((go) => waiting.push(go));
+    // `while`: a slot freed by a finishing call can be taken by a new caller before the woken one runs.
+    while (running >= 2) await new Promise<void>((go) => waiting.push(go));
     running += 1;
     try {
       for (let attempt = 0; ; attempt += 1) {
@@ -49,7 +57,11 @@ export const coachVoiceRoutes = (
     const line = typeof lineId === 'string' ? byId.get(lineId)! : lineId;
     const key = `${voice}/${line.hash}`;
     const hit = memory.get(key);
-    if (hit) return hit;
+    if (hit) {
+      memory.delete(key);
+      memory.set(key, hit);
+      return hit;
+    }
     const file = cacheDir ? join(cacheDir, voice, `${line.hash}.mp3`) : undefined;
     if (file) {
       const cached = await readFile(file).catch(() => undefined);
@@ -65,6 +77,7 @@ export const coachVoiceRoutes = (
           await rename(`${file}.tmp`, file);
         } else {
           memory.set(key, mp3);
+          if (memory.size > MEMORY_MAX) memory.delete(memory.keys().next().value!);
         }
         return mp3;
       })().finally(() => inFlight.delete(key));
@@ -108,6 +121,16 @@ export const coachVoiceRoutes = (
     if (!voices.has(voice) || !STYLES.includes(s)) throw new ApiError(404, 'not_found', 'No such voice line.');
     if (!CALL_NAME.test(name)) throw new ApiError(400, 'bad_name', 'Letters only, up to 24 characters.');
     if (!synth) throw new ApiError(503, 'voices_unavailable', 'Studio voices are not available right now.');
+    if (opts.db) {
+      const db = opts.db;
+      const at = opts.now?.() ?? new Date();
+      const nameKey = `voicecall:${req.userId!}:${name.toLowerCase()}`;
+      if (throttleCount(db, nameKey, DAY, at) === 0) {
+        if (!throttleTake(db, `voicecall:${req.userId!}`, CALL_NAMES_PER_DAY, DAY, at))
+          throw new ApiError(429, 'daily_limit', 'That is a lot of names today. Try again tomorrow!');
+        throttleHit(db, nameKey, DAY, at);
+      }
+    }
     try {
       const mp3 = await record(voice, callLine(name, s));
       return reply.header('content-type', 'audio/mpeg').header('cache-control', 'private, max-age=31536000, immutable').send(mp3);

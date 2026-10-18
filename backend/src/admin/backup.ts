@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { backupDirFor, backupNow, inspectCopy, listBackups, stageRestore } from '../backup.ts';
-import { loadConfig } from '../config.ts';
+import { loadConfig, positiveInt } from '../config.ts';
 import { OffsiteStore } from '../offsite.ts';
 
 // CLI (#310), run on the Fly machine by the "Fly backups" workflow:
@@ -13,7 +13,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const [cmd, file] = process.argv.slice(2);
   const path = process.env.DB_PATH ?? '/data/app.db';
   const dir = backupDirFor(path);
-  const keep = Number(process.env.BACKUP_KEEP_DAYS ?? 7);
+  const keep = positiveInt(process.env.BACKUP_KEEP_DAYS, 7);
   const out = (v: unknown) => console.log(JSON.stringify(v, null, 2));
   if (cmd === 'list') out({ dir, backups: listBackups(dir), live: inspectCopy(path) });
   else if (cmd === 'now') {
@@ -35,10 +35,11 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     if (cmd === 'offsite-list') out({ bucket: c.bucket, copies: await store.list() });
     else if (cmd === 'offsite-upload' && file && /^app-\d{4}-\d{2}-\d{2}\.db$/.test(file)) out(await store.upload(join(dir, file), file.slice(4, 14)));
     else if (cmd === 'offsite-fetch' && file && /^\d{4}-\d{2}-\d{2}$/.test(file)) {
-      // Lands as a normal backup file, so `verify` / `stage-restore` work on it.
-      const dest = join(dir, `app-${file}.db`);
+      // Own name next to the local backups (never overwrites one, not pruned); `verify` / `stage-restore` work on it.
+      const name = `app-${file}.offsite.db`;
+      const dest = join(dir, name);
       await store.download(file, dest);
-      out({ fetched: file, file: `app-${file}.db`, ...inspectCopy(dest) });
+      out({ fetched: file, file: name, ...inspectCopy(dest) });
     } else throw new Error('usage: offsite-list | offsite-upload app-YYYY-MM-DD.db | offsite-fetch YYYY-MM-DD');
   } else {
     console.error('usage: backup.ts list | now | verify <file> | stage-restore <file> | offsite-list | offsite-upload <file> | offsite-fetch <day>');

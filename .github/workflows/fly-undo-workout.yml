@@ -40,17 +40,23 @@ jobs:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       FLY_APP: ${{ inputs.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
       HOST: ${{ inputs.environment == 'production' && 'workout.monkeygrade.cloud' || 'workout-staging.monkeygrade.cloud' }}
-      EMAIL: ${{ inputs.email }}
       FROM: ${{ inputs.from }}
       TO: ${{ inputs.to }}
       WORKOUT_ID: ${{ inputs.workout_id }}
       APPLY: ${{ inputs.apply }}
     steps:
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # The repo is public: the member email is read from the event file and masked before any step prints its env (#432).
+      - name: Mask member email
+        run: |
+          email=$(jq -r '.inputs.email // ""' "$GITHUB_EVENT_PATH" | tr -d '\r\n')
+          [ -n "$email" ] && echo "::add-mask::$email"
+          echo "EMAIL=$email" >> "$GITHUB_ENV"
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master, pinned (#432)
       - name: Wake machine
         run: curl -fsS --retry 5 --retry-delay 3 "https://$HOST/healthz" >/dev/null
       - name: Run
         run: |
           args=$(jq -nc --arg email "$EMAIL" --arg from "$FROM" --arg to "$TO" --arg id "$WORKOUT_ID" --argjson apply "$APPLY" \
             '{email: $email, from: $from, to: $to, apply: $apply} + (if $id == "" then {} else {workoutId: $id} end)' | base64 -w0)
+          echo "::add-mask::$args"
           flyctl ssh console -a "$FLY_APP" -C "node --disable-warning=ExperimentalWarning /app/src/admin/undoWorkout.ts $args"
