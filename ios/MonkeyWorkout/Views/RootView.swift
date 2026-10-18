@@ -182,6 +182,12 @@ private struct DemoScreen: View {
         case "explore-list": NavigationStack { LibraryView(scrollTo: .back) }
         case "explore-volume": NavigationStack { LibraryView(scrollTo: .shoulders) }
         case "explore-workouts": NavigationStack { LibraryView(mode: .workouts) }
+        // Explore by machine (#456).
+        case "explore-machines": NavigationStack { LibraryView(mode: .machines) }
+        case "explore-machine-chips":
+            NavigationStack { LibraryView(scrollTo: .arms) }
+                .onAppear { UserDefaults.standard.set(MachineFilter.area(.cables).key, forKey: MachineFilterStore.key) }
+        case "machine": NavigationStack { MachineDetailView(item: .cable) }
         // Training programmes (#255); train-programme and programme-test are the Train tab.
         case "explore-programmes": NavigationStack { LibraryView(mode: .programmes) }
         case "programme", "programme-running": NavigationStack { ProgrammeDetailView(programme: Programme.all[0]) }

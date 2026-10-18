@@ -22,6 +22,7 @@ extension TrainWidgetKind {
         case .lastWorkout: "clock.arrow.circlepath"
         case .thisWeek: "list.bullet.rectangle.fill"
         case .programme: "flag.checkered"
+        case .move: "figure.walk"
         }
     }
 
@@ -34,6 +35,7 @@ extension TrainWidgetKind {
         case .climbing, .streak: .warmup
         case .volume, .body, .thisWeek: .power
         case .programme: .strength
+        case .move: .warmup
         }
     }
 }
@@ -613,5 +615,164 @@ struct LastWorkoutWidget: View {
             }
         }
         .opensProgress(.history)
+    }
+}
+
+// MARK: - Daily Move (#454, design B)
+
+/// Steps today against the member's usual, floors, the XP walking earned and active days this week.
+/// Tap → Daily Move sheet. Shows only with steps from Health (or a prompt when steps aren't allowed yet).
+struct MoveWidget: View {
+    let size: TrainWidgetSize
+    var arranging = false
+    @Environment(HealthManager.self) private var health
+    @State private var move = MoveStore.shared
+    @State private var details = false
+
+    var body: some View {
+        if health.connected && health.needsMoveAccess {
+            Button { Task { await health.connect() } } label: {
+                WidgetTile(kind: .move) {
+                    Text("Count your steps").font(Theme.display(20))
+                    caption("Allow steps and floors in Apple Health: walking and stairs earn XP.")
+                }
+            }
+            .buttonStyle(.plain)
+        } else if health.connected && move.hasData {
+            Button { details = true } label: { tile }
+                .buttonStyle(.plain)
+                .accessibilityHint("Shows today's steps, floors and XP")
+                .sheet(isPresented: $details) { MoveSheet().presentationDetents([.medium, .large]) }
+        } else if arranging {
+            WidgetTile(kind: .move) {
+                Text("No steps yet").font(Theme.display(18))
+                caption("Shows here once Apple Health has steps from your iPhone or Watch.")
+            }
+        }
+    }
+
+    private var tile: some View {
+        let today = move.today, usual = move.usual
+        return WidgetTile(kind: .move) {
+            if size == .small {
+                bigNumber(today.steps.formatted())
+                MoveBar(progress: Double(today.steps) / Double(max(1, usual)))
+                caption("of \(usual.formatted()) · +\(move.todayXP) XP")
+            } else {
+                HStack(alignment: .firstTextBaseline) {
+                    Image(systemName: "figure.walk").font(.system(size: 26, weight: .heavy))
+                    Spacer(minLength: 0)
+                    VStack(alignment: .trailing, spacing: 0) {
+                        bigNumber(today.steps.formatted())
+                        Text("of your usual \(usual.formatted())").font(Theme.label(11)).opacity(0.85)
+                    }
+                }
+                MoveBar(progress: Double(today.steps) / Double(max(1, usual)))
+                // No horizontal scroll or clipping (#303): the active-days chip shortens, then drops.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) {
+                        MoveChip(text: "🪜 \(today.floors) floors")
+                        MoveChip(text: "+\(move.todayXP) XP", lime: true)
+                        MoveChip(text: "🔥 \(move.activeDaysThisWeek) active days")
+                    }
+                    HStack(spacing: 6) {
+                        MoveChip(text: "🪜 \(today.floors)")
+                        MoveChip(text: "+\(move.todayXP) XP", lime: true)
+                        MoveChip(text: "🔥 \(move.activeDaysThisWeek) days")
+                    }
+                    HStack(spacing: 6) {
+                        MoveChip(text: "🪜 \(today.floors)")
+                        MoveChip(text: "+\(move.todayXP) XP", lime: true)
+                    }
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Daily Move: \(today.steps) of your usual \(usual) steps, \(today.floors) floors, \(move.todayXP) XP today")
+    }
+}
+
+private struct MoveBar: View {
+    let progress: Double
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(.black.opacity(0.28))
+                Capsule().fill(Theme.lime).frame(width: geo.size.width * min(1, max(0.03, progress)))
+            }
+        }
+        .frame(height: 8)
+    }
+}
+
+private struct MoveChip: View {
+    let text: String
+    var lime = false
+
+    var body: some View {
+        Text(text).font(Theme.label(11)).lineLimit(1).fixedSize()
+            .foregroundStyle(lime ? Theme.ink : .white)
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(Capsule().fill(lime ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(.black.opacity(0.28))))
+    }
+}
+
+/// Daily Move details: today, how XP works, the nudge. Nothing to set up.
+struct MoveSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var move = MoveStore.shared
+    @State private var notify = NotificationManager.shared
+
+    var body: some View {
+        let today = move.today, usual = move.usual
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(spacing: 10) {
+                        stat("\(today.steps.formatted())", "steps")
+                        stat("\(today.floors)", "floors")
+                        stat("+\(move.todayXP)", "XP today")
+                    }
+                    row("target", "Your usual: \(usual.formatted()) steps", "The middle of your last two weeks, so the goal moves with you.")
+                    row("star.fill", "\(DailyMove.xpPerThousandSteps) XP per 1,000 steps, \(DailyMove.xpPerFloor) per floor",
+                        "Up to \(DailyMove.dailyCap) XP a day. \(DailyMove.activeWeekDays) days at your usual in a week: +\(DailyMove.activeWeekBonus) XP.")
+                    row("bell.fill", notify.prefs.moveNudges ? "Nudge around \(NotificationPrefs.clock(move.hour * 60))" : "Nudge off",
+                        "Once on a slow day, at the hour you usually walk. Not after a workout or sport. Change it in Settings → Notifications.")
+                    row("lock.fill", "Stays on your iPhone", "Steps and floors come from Apple Health and are never sent to our server.")
+                }
+                .padding(16)
+            }
+            .background(Theme.bg.ignoresSafeArea())
+            .navigationTitle("Daily Move")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { dismiss() } label: { Image(systemName: "xmark") }.accessibilityLabel("Close")
+                }
+            }
+        }
+    }
+
+    private func stat(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(Theme.display(26)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
+            Text(label).font(Theme.label(11)).textCase(.uppercase).opacity(0.85)
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity).padding(.vertical, 14)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(TrainWidgetKind.move.palette.gradient))
+    }
+
+    private func row(_ symbol: String, _ title: String, _ detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: symbol).font(.system(size: 18, weight: .bold)).foregroundStyle(Theme.lime).frame(width: 26)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(Theme.label(15))
+                Text(detail).font(.footnote).foregroundStyle(Theme.muted)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
     }
 }

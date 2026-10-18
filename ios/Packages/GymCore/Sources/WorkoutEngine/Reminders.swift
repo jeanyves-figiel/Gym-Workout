@@ -17,6 +17,8 @@ public struct NotificationPrefs: Codable, Hashable, Sendable {
     public var quietHours = true
     public var quietStart = 22 * 60
     public var quietEnd = 7 * 60
+    /// Daily Move (#454): one nudge on a day well below your usual steps.
+    public var moveNudges = true
 
     public init() {}
 
@@ -34,6 +36,7 @@ public struct NotificationPrefs: Codable, Hashable, Sendable {
         quietHours = v(.quietHours, d.quietHours)
         quietStart = NotificationPrefs.clamp(v(.quietStart, d.quietStart))
         quietEnd = NotificationPrefs.clamp(v(.quietEnd, d.quietEnd))
+        moveNudges = v(.moveNudges, d.moveNudges)
     }
 
     static func clamp(_ m: Int) -> Int { min(max(m, 0), 1439) }

@@ -5,7 +5,8 @@ import WorkoutEngine
 extension AppModel {
     var gameTarget: Int { profile?.sessionsPerWeek ?? 3 }
 
-    var game: GameProgress { GameProgress.evaluate(records: state.history, targetPerWeek: gameTarget) }
+    /// Walking and stairs (Daily Move, #454) add their XP on top of the workouts.
+    var game: GameProgress { GameProgress.evaluate(records: state.history, targetPerWeek: gameTarget, moveXP: MoveStore.shared.xp) }
 
     /// Rank on the level ladder (#242).
     var rank: GameRank { .of(level: game.level) }

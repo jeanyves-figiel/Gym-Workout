@@ -15,9 +15,12 @@ public struct GameProgress: Sendable, Equatable {
     public var totalSets = 0
     /// Weeks where the session goal was met.
     public var weeksCleared = 0
+    /// Part of `xp` earned by walking and stairs (Daily Move, #454).
+    public var moveXP = 0
 
-    public init(xp: Int = 0, workouts: Int = 0, totalSets: Int = 0, weeksCleared: Int = 0) {
+    public init(xp: Int = 0, workouts: Int = 0, totalSets: Int = 0, weeksCleared: Int = 0, moveXP: Int = 0) {
         self.xp = xp
+        self.moveXP = moveXP
         self.workouts = workouts
         self.totalSets = totalSets
         self.weeksCleared = weeksCleared
@@ -42,7 +45,8 @@ public struct GameProgress: Sendable, Equatable {
         }
     }
 
-    public static func evaluate(records: [WorkoutRecord], targetPerWeek: Int,
+    /// `moveXP`: what Daily Move earned (`DailyMove.totalXP`), added on top of the workouts.
+    public static func evaluate(records: [WorkoutRecord], targetPerWeek: Int, moveXP: Int = 0,
                                 calendar cal: Calendar = Progression.calendar()) -> GameProgress {
         var g = GameProgress()
         var perWeek: [Date: Int] = [:]
@@ -54,6 +58,8 @@ public struct GameProgress: Sendable, Equatable {
         }
         g.weeksCleared = perWeek.values.filter { $0 >= max(1, targetPerWeek) }.count
         g.xp += weekBonus * g.weeksCleared
+        g.moveXP = max(0, moveXP)
+        g.xp += g.moveXP
         return g
     }
 }

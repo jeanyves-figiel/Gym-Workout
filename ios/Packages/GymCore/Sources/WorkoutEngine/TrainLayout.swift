@@ -9,6 +9,8 @@ public enum TrainWidgetKind: String, Codable, CaseIterable, Sendable, Identifiab
     case actions, coach, week, level, nextUp, climbing, calendar, streak, volume, records, body, muscles, lastWorkout, thisWeek
     /// Training programme in progress (#255); last so the stable ids of the others stay put.
     case programme
+    /// Daily Move (#454): steps and floors from Health.
+    case move
 
     public var id: String { rawValue }
 
@@ -35,6 +37,7 @@ public enum TrainWidgetKind: String, Codable, CaseIterable, Sendable, Identifiab
         case .lastWorkout: "Last workout"
         case .thisWeek: "This week's sessions"
         case .programme: "Programme"
+        case .move: "Daily Move"
         }
     }
 
@@ -55,6 +58,7 @@ public enum TrainWidgetKind: String, Codable, CaseIterable, Sendable, Identifiab
         case .lastWorkout: "When, how long and how much"
         case .thisWeek: "Every session of the week, move or add one"
         case .programme: "Your programme's week, phase and test week"
+        case .move: "Steps and floors today against your usual, and the XP they earn"
         }
     }
 
@@ -62,7 +66,7 @@ public enum TrainWidgetKind: String, Codable, CaseIterable, Sendable, Identifiab
     public var sizes: [TrainWidgetSize] {
         switch self {
         case .actions, .programme: [.wide]
-        case .coach, .week, .level, .climbing, .streak, .records, .body, .lastWorkout: [.small, .wide]
+        case .coach, .week, .level, .climbing, .streak, .records, .body, .lastWorkout, .move: [.small, .wide]
         case .nextUp, .calendar, .volume: [.small, .wide, .large]
         case .muscles: [.wide, .large]
         case .thisWeek: [.large]
@@ -81,7 +85,7 @@ public enum TrainWidgetKind: String, Codable, CaseIterable, Sendable, Identifiab
 
     public var defaultSize: TrainWidgetSize {
         switch self {
-        case .actions, .coach, .week, .level, .climbing, .calendar, .muscles, .programme: .wide
+        case .actions, .coach, .week, .level, .climbing, .calendar, .muscles, .programme, .move: .wide
         case .nextUp, .thisWeek: .large
         default: .small
         }
@@ -309,6 +313,8 @@ public struct TrainLayout: Codable, Equatable, Sendable {
         w.append(TrainWidget(.week))
         if levelBar { w.append(TrainWidget(.level, size: .wide)) }
         w.append(TrainWidget(.nextUp, size: .large))
+        // Below Next up so Start stays on the first screen; shows only with steps from Health (#454).
+        w.append(TrainWidget(.move))
         if climber { w.append(TrainWidget(.climbing)) }
         w.append(TrainWidget(.thisWeek))
         return TrainLayout(w)
@@ -324,6 +330,7 @@ public struct TrainLayout: Codable, Equatable, Sendable {
             return TrainLayout([
                 TrainWidget(.programme), TrainWidget(.nextUp, size: .wide), TrainWidget(.week, size: .small), TrainWidget(.streak),
                 TrainWidget(.volume, size: .small, look: .kg), TrainWidget(.records), TrainWidget(.body), TrainWidget(.level, size: .small),
+                TrainWidget(.move, size: .wide),
                 TrainWidget(.muscles, size: .wide), TrainWidget(.calendar, size: .wide, look: .month), TrainWidget(.actions),
             ])
         case .climber:
