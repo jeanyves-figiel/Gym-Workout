@@ -117,4 +117,15 @@ describe('Gym Map (#406)', () => {
     const png = Buffer.alloc(200, 1).toString('base64');
     expect((await send('POST', '/v1/me/gym-scan', { photo: png, catalog }, a)).statusCode).toBe(400);
   });
+
+  it('parallel scans cannot pass the daily cap (#432)', async () => {
+    const a = await signUp('a@example.com');
+    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(200, 1)]).toString('base64');
+    const catalog = [{ id: 'bench', label: 'Bench' }];
+    const userId = (db.prepare('SELECT id FROM users').get() as { id: string }).id;
+    db.prepare("INSERT INTO gym_scan_usage (user_id, day, count) VALUES (?, '2026-10-07', 29)").run(userId);
+    const res = await Promise.all([send('POST', '/v1/me/gym-scan', { photo: jpeg, catalog }, a), send('POST', '/v1/me/gym-scan', { photo: jpeg, catalog }, a)]);
+    expect(res.map((r) => r.statusCode).sort()).toEqual([200, 429]);
+    expect((db.prepare('SELECT count FROM gym_scan_usage').get() as { count: number }).count).toBe(30);
+  });
 });
