@@ -197,7 +197,7 @@ final class WatchSync: NSObject {
     static func changeKey(_ model: AppModel) -> String {
         let plan = model.plan.map { "\($0.seed)-\($0.week)-\($0.sessions.count)" } ?? "-"
         // Next up follows the day too (#266): a missed session stops being next.
-        return "\(plan)|\(model.nextSession?.id ?? "-")|\(model.state.done.count)|\(model.state.history.count)|\(model.customWorkouts.count)|\(model.state.logs.count)|\(ProStore.shared.locked)|\(model.user?.id ?? "-")|\(model.climbLogs.count)|\(model.sportLogs.count)|\(model.profile?.hyrox?.goalMinutes ?? 0)|\(model.state.watchUploadKey != nil)"
+        return "\(plan)|\(model.nextSession?.id ?? "-")|\(model.state.done.count)|\(model.state.history.count)|\(model.customWorkouts.count)|\(model.state.logs.count)|\(ProStore.shared.locked)|\(model.user?.id ?? "-")|\(model.climbLogs.count)|\(model.sportLogs.count)|\(model.profile?.hyrox?.goalMinutes ?? 0)|\(model.watchUploadKey != nil)"
     }
 
     /// Mirrors the iPhone player on the Watch (best effort, only while the Watch app is reachable).

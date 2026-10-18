@@ -19,6 +19,9 @@ final class AppModel {
         }
     }
     var syncError: String?
+    /// Upload-only key the Watch uses to send a Hyrox race straight to the server (#426). In this device's
+    /// Keychain, not state.json (#432); see `AppModel+Hyrox`.
+    var watchUploadKey: String?
     /// Variation before the last one applied this launch (#98); set while Train offers Undo.
     var variationUndo: VariationUndo?
     /// Pro offer after the first plan (#126); not persisted, so it shows once.
@@ -139,6 +142,7 @@ final class AppModel {
         #endif
         await forgetTokensAfterReinstall()
         state = store.load()
+        loadWatchUploadKey()
         startConnectivityWatch()
         await api.setOnSignedOut { [weak self] in
             Task { @MainActor in self?.sessionExpired() }
@@ -184,6 +188,7 @@ final class AppModel {
         if !store.exists {
             await api.forgetTokens()
             MonkeyGradeLink.shared.disconnect()
+            clearWatchUploadKey()
         }
         defaults.set(true, forKey: Self.installedKey)
     }
@@ -198,6 +203,8 @@ final class AppModel {
             store.wipe()
             state = LocalState()
             state.ownerId = user.id
+            // The previous account's key.
+            clearWatchUploadKey()
         }
         self.user = user
         phase = .signedIn
@@ -253,8 +260,9 @@ final class AppModel {
         phase = .signedOut
         // Personal copies outside state.json: cached Health readings, the data export, HTTP responses.
         HealthManager.clearCache()
-        // The MonkeyGrade sign-in lives in this device's Keychain, not in state.json.
+        // The MonkeyGrade sign-in and the Watch upload key live in this device's Keychain, not in state.json.
         MonkeyGradeLink.shared.disconnect()
+        clearWatchUploadKey()
         try? FileManager.default.removeItem(at: Self.exportFileURL)
         URLCache.shared.removeAllCachedResponses()
         // Signed-out snapshots for the Watch and the Home Screen widgets (WatchSync.push refreshes both).

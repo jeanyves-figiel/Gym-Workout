@@ -95,7 +95,8 @@ struct LocalState: Codable {
     var sportLogs: [SportLog]?
     var pendingSportIds: Set<UUID>?
     var deletedSportIds: Set<UUID>?
-    /// Upload-only key the Watch uses to send a Hyrox race straight to the server (#426).
+    /// Legacy (#426): the Watch upload key now lives in the Keychain (#432, `AppModel.watchUploadKey`).
+    /// Still decoded so `AppModel.loadWatchUploadKey` can move it there; nil once moved, so never written again.
     var watchUploadKey: String?
     // Machine setup notes (#355). Photos live in their own files (`MachineNotePhotos`).
     var machineNotes: [MachineNote]?
