@@ -684,7 +684,7 @@ private struct NextUpCard: View {
 
     private var actions: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 10) {
+            Group {
                 if done {
                     NavigationLink(value: session.id) { Label("Done · see workout", systemImage: "checkmark.seal.fill") }
                         .buttonStyle(LimeButtonStyle())
@@ -699,11 +699,11 @@ private struct NextUpCard: View {
                     }
                     .buttonStyle(LimeButtonStyle())
                 }
-                // The card itself opens the overview, so Log sport (#416, was Log climb) takes the list button's place.
-                if !ahead {
-                    LogSportButton { logging = SportLog(start: Date().addingTimeInterval(-120 * 60)) }
-                    TrackOnWatchButton { trackingSport = SportLog(start: Date()) }
-                }
+            }
+            // Start workout gets the full width; sports sit under it in one split pill (#462, design C).
+            if !ahead {
+                SportSplitPill(onLog: { logging = SportLog(start: Date().addingTimeInterval(-120 * 60)) },
+                               onTrack: { trackingSport = SportLog(start: Date()) })
             }
             if picked != nil && !isNext, let next = model.nextSession {
                 BackToNextUpButton(label: backLabel(next), action: onBack)
@@ -780,13 +780,14 @@ private struct RestDayCard: View {
                         .buttonStyle(LimeButtonStyle())
                     if climbing && !ahead {
                         LogClimbButton { logging = ClimbLog(start: climbStart()) }
-                    } else if !ahead {
-                        // Any other sport (#416), dated like a climb.
-                        LogSportButton { loggingSport = SportLog(start: climbStart()) }
                     }
-                    if !ahead { TrackOnWatchButton { trackingSport = SportLog(start: Date()) } }
                 }
                 .padding(.top, 6)
+                if !climbing && !ahead {
+                    // Any other sport (#416), dated like a climb; Track live with a Watch (#462, design C).
+                    SportSplitPill(onLog: { loggingSport = SportLog(start: climbStart()) },
+                                   onTrack: { trackingSport = SportLog(start: Date()) })
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(16)

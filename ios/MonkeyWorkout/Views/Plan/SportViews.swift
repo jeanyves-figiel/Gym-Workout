@@ -98,46 +98,39 @@ extension AppModel {
     }
 }
 
-/// Lime-row button beside Start workout (#277 slot): opens the sport grid.
-struct LogSportButton: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Label("Log sport", systemImage: "plus.circle.fill")
-                .font(Theme.label(15))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .fixedSize()
-                .padding(.horizontal, 16)
-                .padding(.vertical, 18)
-                .background(Capsule().fill(LinearGradient(colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)],
-                                                          startPoint: .leading, endPoint: .trailing)))
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint("Log a sport session: snowboard, bike, Hyrox, climbing…")
-    }
-}
-
-/// Round lime Watch button beside Log sport (#439, design C): opens the sheet in Track live mode. Only with a paired
-/// Watch that has MonkeyWorkout; `WatchLink` redraws it once the Watch link is up (#462).
-struct TrackOnWatchButton: View {
-    let action: () -> Void
+/// Under Start workout on Train (#462, design C from `other-sports/row-proposals.png`): one pill split in two, Log sport
+/// (a past session) and Track live (on the Watch). Without a paired Watch that has MonkeyWorkout, only Log sport.
+struct SportSplitPill: View {
+    let onLog: () -> Void
+    let onTrack: () -> Void
     @State private var link = WatchLink.shared
 
     var body: some View {
-        if link.ready {
-            Button(action: action) {
-                Image(systemName: "applewatch.radiowaves.left.and.right")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(Theme.ink)
-                    .frame(width: 56, height: 56)
-                    .background(Circle().fill(Theme.lime))
+        HStack(spacing: 0) {
+            half("Log sport", detail: "past session", symbol: "plus.circle.fill", ink: .white, action: onLog)
+                .background(LinearGradient(colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)], startPoint: .leading, endPoint: .trailing))
+                .accessibilityHint("Log a sport session you already did: snowboard, bike, Hyrox…")
+            if link.ready {
+                half("Track live", detail: "on your Watch", symbol: "applewatch.radiowaves.left.and.right", ink: Theme.ink, action: onTrack)
+                    .background(Theme.lime)
+                    .accessibilityHint("Start a sport on your Apple Watch now")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Track on Watch")
-            .accessibilityHint("Start a sport on your Apple Watch: snowboard, bike, run, Hyrox…")
         }
+        .clipShape(Capsule())
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: link.ready)
+    }
+
+    private func half(_ title: String, detail: String, symbol: String, ink: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 1) {
+                Label(title, systemImage: symbol).font(Theme.label(15)).lineLimit(1).minimumScaleFactor(0.8)
+                Text(detail).font(Theme.label(10)).opacity(0.85).lineLimit(1)
+            }
+            .foregroundStyle(ink)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
