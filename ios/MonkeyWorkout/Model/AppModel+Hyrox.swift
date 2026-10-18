@@ -56,8 +56,17 @@ extension AppModel {
     }
 
     /// One upload-only key per account; the Watch posts races with it when it has a network.
+    /// Every snapshot build asks while the key is missing: one request at a time.
+    private static var fetchingUploadKey = false
+
     func fetchWatchUploadKey() async {
-        guard phase == .signedIn, !demo, state.watchUploadKey == nil, let key = try? await api.watchUploadKey() else { return }
+        guard phase == .signedIn, !demo, state.watchUploadKey == nil, !Self.fetchingUploadKey else { return }
+        Self.fetchingUploadKey = true
+        defer { Self.fetchingUploadKey = false }
+        let owner = state.ownerId
+        // Signed out or another account meanwhile: that key isn't this account's.
+        guard let key = try? await api.watchUploadKey(), phase == .signedIn, state.ownerId == owner,
+              state.watchUploadKey == nil else { return }
         state.watchUploadKey = key
         persist()
         WatchSync.shared.push()
