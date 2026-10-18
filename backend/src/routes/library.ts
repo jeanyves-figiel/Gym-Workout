@@ -24,7 +24,8 @@ interface SharedRow {
 
 const SELECT_SHARED = `SELECT w.id, w.user_id, w.data, w.visibility, w.shared_at, w.saves, cp.nickname, cp.avatar_id
   FROM custom_workouts w LEFT JOIN community_profiles cp ON cp.user_id = w.user_id`;
-const VISIBLE = visibleToOthersSql('w.user_id', 'w.visibility', 'w.hidden_at');
+// Authors who left the community (no profile) are not listed (#432).
+const VISIBLE = `cp.user_id IS NOT NULL AND ${visibleToOthersSql('w.user_id', 'w.visibility', 'w.hidden_at')}`;
 
 const toShared = (r: SharedRow) => {
   const d = JSON.parse(r.data) as { name?: string; items?: unknown[]; createdAt?: string; flow?: unknown[] };

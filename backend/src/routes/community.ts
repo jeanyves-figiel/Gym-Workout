@@ -379,15 +379,20 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     return { profile: ownProfile(profileRow(req.userId!)!) };
   });
 
-  /** Leave the community: posts, cheers given and follows are deleted. Blocks are kept. Nickname, photo and about stay on Account (#108). */
+  /**
+   * Leave the community: posts, cheers given and follows are deleted, shared workouts go back to private (#432).
+   * Blocks are kept. Nickname, photo and about stay on Account (#108).
+   */
   r.delete('/community/me', async (req, reply) => {
+    const ts = now().toISOString();
     tx(db, () => {
       db.prepare(
         `INSERT INTO user_profiles (user_id, nickname, bio, avatar_id, updated_at)
          SELECT user_id, nickname, bio, avatar_id, ? FROM community_profiles WHERE user_id = ?
          ON CONFLICT(user_id) DO UPDATE SET nickname = excluded.nickname, bio = excluded.bio, avatar_id = excluded.avatar_id, updated_at = excluded.updated_at`,
-      ).run(now().toISOString(), req.userId!);
+      ).run(ts, req.userId!);
       db.prepare('DELETE FROM community_posts WHERE user_id = ?').run(req.userId!);
+      db.prepare("UPDATE custom_workouts SET visibility = 'private', shared_at = NULL, updated_at = ? WHERE user_id = ? AND visibility != 'private'").run(ts, req.userId!);
       db.prepare('DELETE FROM community_reactions WHERE user_id = ?').run(req.userId!);
       db.prepare('DELETE FROM community_follows WHERE follower_id = ? OR followed_id = ?').run(req.userId!, req.userId!);
       db.prepare('DELETE FROM community_profiles WHERE user_id = ?').run(req.userId!);

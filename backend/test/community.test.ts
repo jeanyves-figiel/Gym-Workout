@@ -265,6 +265,8 @@ describe('community feed', () => {
     await req('POST', '/v1/community/blocks', d.t, { userId: b.id });
     expect(nicks(await req('GET', '/v1/community/members?q=be', b.t))).toEqual(['bea']);
     for (const r of [b, c, d]) await req('POST', '/v1/community/reports', r.t, { userId: e.id, reason: 'spam' });
+    expect(nicks(await req('GET', '/v1/community/members?q=bx', a.t))).toEqual(['bxeast']); // new accounts don't hide
+    db.prepare("UPDATE users SET created_at = '2026-01-01T00:00:00.000Z'").run(); // reporters' accounts ≥ 7 days old (#432)
     expect(nicks(await req('GET', '/v1/community/members?q=bx', a.t))).toEqual([]);
   });
 
@@ -335,12 +337,15 @@ describe('community feed', () => {
     expect((await app.inject({ method: 'GET', url: `/share/${post.id}` })).statusCode).toBe(200);
     expect((await req('POST', '/v1/community/reports', a.t, { postId: post.id, reason: 'spam' })).statusCode).toBe(400);
     const reporters = [await join('b@example.com', 'b_b'), await join('c@example.com', 'c_c'), await join('d@example.com', 'd_d')];
+    db.prepare("UPDATE users SET created_at = '2026-01-01T00:00:00.000Z'").run(); // reporters' accounts ≥ 7 days old (#432)
+    // A fresh sign-up's report reaches moderation but doesn't count towards auto-hide.
+    expect((await req('POST', '/v1/community/reports', (await join('g@example.com', 'g_g')).t, { postId: post.id, reason: 'spam' })).json().hidden).toBe(false);
     for (const [i, r] of reporters.entries()) {
       const res = await req('POST', '/v1/community/reports', r.t, { postId: post.id, reason: 'harassment', details: 'mean' });
       expect(res.statusCode).toBe(202);
       expect(res.json().hidden).toBe(i === 2);
     }
-    expect(mailer.outbox.filter((m) => m.to === 'mod@example.com')).toHaveLength(3);
+    expect(mailer.outbox.filter((m) => m.to === 'mod@example.com')).toHaveLength(4);
     expect((await req('GET', '/v1/community/feed', reporters[0]!.t)).json().posts).toHaveLength(0);
     expect((await app.inject({ method: 'GET', url: `/share/${post.id}` })).statusCode).toBe(404);
     // owner still sees it, flagged hidden
