@@ -2,9 +2,10 @@ import APIClient
 import SwiftUI
 import WorkoutEngine
 
-/// Composer: pick a workout, personal best or badge, add a caption, choose who sees it.
+/// Composer: pick a workout, sport or climb, personal best or badge, add a caption, choose who sees it.
 struct ShareWinView: View {
     @Environment(AppModel.self) private var model
+    @Environment(HealthManager.self) private var health
     @Environment(\.dismiss) private var dismiss
     /// Values brought back by Undo (#285).
     var restoring: Draft?
@@ -29,11 +30,12 @@ struct ShareWinView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     if wins.isEmpty {
-                        Text("Finish a workout to share your first win.")
+                        Text("Finish a workout or log a sport to share your first win.")
                             .font(.subheadline.weight(.medium)).foregroundStyle(Theme.muted)
                             .frame(maxWidth: .infinity, alignment: .leading).card()
                     }
                     section("Workouts", kind: "workout")
+                    section("Sports", kinds: ["sport", "climb"])
                     section("Personal bests", kind: "record")
                     section("Badges", kind: "badge")
 
@@ -81,7 +83,12 @@ struct ShareWinView: View {
 
     @ViewBuilder
     private func section(_ title: String, kind: String) -> some View {
-        let items = wins.filter { $0.kind == kind }
+        section(title, kinds: [kind])
+    }
+
+    @ViewBuilder
+    private func section(_ title: String, kinds: Set<String>) -> some View {
+        let items = wins.filter { kinds.contains($0.kind) }
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 Text(title).eyebrow()
@@ -97,14 +104,18 @@ struct ShareWinView: View {
         visibility = Community.shared.profile?.defaultVisibility ?? .onlyMe
         let history = model.state.history
         let target = model.profile?.sessionsPerWeek ?? 3
-        let workouts = history.filter { $0.totalSets > 0 }.sorted { $0.startedAt > $1.startedAt }.prefix(6).map(WinCard.workout)
+        let workouts = history.filter(WinCard.shareable).sorted { $0.startedAt > $1.startedAt }.prefix(6).map(WinCard.workout)
+        // Sports and climbs (#479): logged here, tracked on the Watch or read from Apple Health, newest first.
+        let sports = Sports.merged(local: model.sportLogs, health: health.snapshot.recentSports).map(WinCard.sport)
+        let climbs = Climbs.merged(local: model.climbLogs, health: health.snapshot.recentClimbs).map(WinCard.climb)
+        let active = (sports + climbs).sorted { ($0.date ?? .distantPast) > ($1.date ?? .distantPast) }.prefix(6)
         let bests = Progression.stats(records: history, weights: model.weightEntries, targetPerWeek: target)
             .personalRecords.prefix(5).map(WinCard.best)
         let badges = Achievements.evaluate(records: history, weights: model.weightEntries, targetPerWeek: target)
             .filter(\.unlocked)
             .sorted { ($0.unlockedAt ?? .distantPast) > ($1.unlockedAt ?? .distantPast) }
             .prefix(5).map(WinCard.badge)
-        wins = Array(workouts) + Array(bests) + Array(badges)
+        wins = Array(workouts) + Array(active) + Array(bests) + Array(badges)
         selected = wins.first?.id
         guard start == nil else { return }
         start = Draft(selected: selected, caption: caption, visibility: visibility)
@@ -128,7 +139,7 @@ struct ShareWinView: View {
             }
             #endif
             let post = try await model.api.sharePost(
-                kind: w.kind, refId: w.refId, visibility: visibility, caption: text.isEmpty ? nil : text, card: w.card)
+                kind: w.postKind, refId: w.refId, visibility: visibility, caption: text.isEmpty ? nil : text, card: w.card)
             Community.shared.insert(post)
             closing.done()
             dismiss()

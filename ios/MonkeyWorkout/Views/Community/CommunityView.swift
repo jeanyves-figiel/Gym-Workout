@@ -365,7 +365,9 @@ extension CommunityVisibility {
 
 extension CommunityCard {
     var gradient: LinearGradient {
-        (style.flatMap(WorkoutEngine.Category.init(rawValue:)) ?? .strength).gradient
+        // Sport and climb posts (#479): "sport:<Sport raw value>".
+        if let s = style, s.hasPrefix("sport:"), let sport = Sport(rawValue: String(s.dropFirst(6))) { return sport.gradient }
+        return (style.flatMap(WorkoutEngine.Category.init(rawValue:)) ?? .strength).gradient
     }
 }
 
