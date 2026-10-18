@@ -404,6 +404,19 @@ private struct DemoScreen: View {
             if let w = model.calendarWeeks(count: 1).first, let wd = w.plan.sessions.first(where: { $0.id == second })?.weekday {
                 DaySheet(selection: DaySelection(week: w, weekday: wd, current: true)) { _, _ in } onEdit: { _ in }
             }
+        case "your-week-sports":
+            NavigationStack {
+                ProfileFormView(initial: model.profile, section: .week) { _ in }
+                    .navigationTitle("Your week")
+                    .navigationBarTitleDisplayMode(.inline)
+            }
+        case "add-sport": SportPlanEditor(plan: SportPlan(sport: .snowboard, weekdays: [6], seasonMonths: [12, 1, 2, 3]), isNew: true) { _, _ in }
+        case "plan-sport": PlanSportSheet(day: model.sportTrips.first?.start ?? PlanCalendar.key(Date(), model.planCalendar), sport: .snowboard)
+        case "calendar-trip": NavigationStack { CalendarView() }
+        case "day-trip":
+            if let w = model.calendarWeeks(count: 3).first(where: { !$0.trips.isEmpty }), let wd = w.trips.keys.min() {
+                DaySheet(selection: DaySelection(week: w, weekday: wd, current: false)) { _, _ in } onEdit: { _ in }
+            }
         case "away": AwayEditorView(initial: AwayPeriod(kind: .travel, start: Demo.away()[1].start, end: Demo.away()[1].end, note: "Berlin", setup: .hotelGym), isNew: true) { _ in }
         case "notifications": NavigationStack { NotificationSettingsView() }
         case "watch-home": NavigationStack { WatchHomeView() }

@@ -241,39 +241,8 @@ struct ProfileFormView: View {
                 }
             }
 
-            Toggle(isOn: $p.climbs) {
-                HStack(spacing: 10) {
-                    Image(systemName: "figure.climbing")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 34, height: 34)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(WorkoutEngine.Category.mobility.gradient))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("I climb").font(.system(size: 15, weight: .heavy, design: .rounded))
-                        Text("Gym sessions are placed around climbing").font(.caption).foregroundStyle(Theme.muted)
-                    }
-                }
-            }
-            .tint(Theme.lime)
-
-            if p.climbs {
-                VStack(alignment: .leading, spacing: 8) {
-                    fieldLabel("I climb on", symbol: "figure.climbing")
-                    DayTiles(days: climbingDays, symbol: "figure.climbing", fill: AnyShapeStyle(WorkoutEngine.Category.mobility.gradient), ink: .white)
-                    if p.climbingDays.isEmpty {
-                        HStack(spacing: 8) {
-                            Text("or days / week").font(.footnote).foregroundStyle(Theme.muted)
-                            ForEach(1...4, id: \.self) { n in
-                                Chip(title: "\(n)", selected: p.climbingDaysPerWeek == n) { p.climbingDaysPerWeek = n }
-                            }
-                        }
-                    }
-                }
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-
-            // Other sports (#416, design B): planned around like climbing days.
-            MySportsEditor(sports: $p.sports, programmeLink: !isNew)
+            // Climbing and other sports as cards with day dots (#474 design C).
+            MySportCards(profile: $p, programmeLink: !isNew, climbingDays: climbingDays)
 
             VStack(alignment: .leading, spacing: 8) {
                 fieldLabel("Gym days", symbol: "dumbbell.fill", optional: true)

@@ -875,92 +875,7 @@ struct SportsCard: View {
     }
 }
 
-// MARK: - My sports (design B)
-
-/// Training profile: the member's other sports, each with days, season or event, and the rules around it.
-struct MySportsEditor: View {
-    @Binding var sports: [SportPlan]?
-    /// Shows the Snow ready link (#428) for skiers and snowboarders; off during onboarding.
-    var programmeLink = false
-    @State private var editing: SportPlan?
-    @State private var snow: ProgrammeRoute?
-
-    var body: some View {
-        let list = (sports ?? []).filter { $0.sport != .climbing }
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Label("My other sports", systemImage: "figure.mixed.cardio").font(Theme.label(13)).foregroundStyle(Theme.muted)
-                Spacer()
-                Button { editing = SportPlan(sport: firstFree(list)) } label: {
-                    Label("Add", systemImage: "plus").font(Theme.label(13)).foregroundStyle(Theme.lime)
-                }
-                .buttonStyle(.plain)
-            }
-            ForEach(list) { sp in
-                Button { editing = sp } label: { SportPlanCard(plan: sp) }.buttonStyle(.plain)
-            }
-            if list.isEmpty {
-                Text("Snowboard, bike, Hyrox… Gym days are planned around them.").font(.caption).foregroundStyle(Theme.muted)
-            }
-            if programmeLink, let ride = SnowRide.from(sports) {
-                Button { snow = ProgrammeRoute(id: ride.programmeId) } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "snowflake").font(.system(size: 14, weight: .bold))
-                        Text("Snow ready programme").font(Theme.label(14))
-                        Spacer(minLength: 4)
-                        Text("Get ready for the season ›").font(.footnote.weight(.bold)).foregroundStyle(Theme.lime)
-                    }
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 12)
-                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.card))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .sheet(item: $snow) { ProgrammeSheet(id: $0.id) }
-        .sheet(item: $editing) { sp in
-            SportPlanEditor(plan: sp, isNew: !(sports ?? []).contains { $0.sport == sp.sport }) { saved, removed in
-                var all = (sports ?? []).filter { $0.sport != sp.sport && $0.sport != saved.sport }
-                if !removed { all.append(saved) }
-                sports = all.isEmpty ? nil : all
-            }
-        }
-    }
-
-    private func firstFree(_ list: [SportPlan]) -> Sport {
-        Sport.allCases.first { s in s != .climbing && !list.contains { $0.sport == s } } ?? .other
-    }
-}
-
-private struct SportPlanCard: View {
-    let plan: SportPlan
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: plan.sport.symbol).font(.system(size: 17, weight: .bold))
-                .frame(width: 38, height: 38)
-                .background(RoundedRectangle(cornerRadius: 11).fill(.white.opacity(0.22)))
-            VStack(alignment: .leading, spacing: 1) {
-                Text(plan.sport.label).font(Theme.display(17)).lineLimit(1)
-                Text(detail).font(Theme.label(11)).opacity(0.85).lineLimit(1)
-            }
-            Spacer(minLength: 0)
-            Text(plan.sport.loadLabel).font(Theme.label(10)).padding(.horizontal, 8).padding(.vertical, 4)
-                .background(Capsule().fill(.black.opacity(0.25)))
-        }
-        .foregroundStyle(.white)
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(plan.sport.gradient))
-    }
-
-    private var detail: String {
-        let days = WeekSchedule.normalized(plan.weekdays).map(WeekSchedule.shortName).joined(separator: " · ")
-        var parts = [days.isEmpty ? "No set days" : days]
-        if let m = plan.seasonMonths, !m.isEmpty { parts.append(SportPlanEditor.seasonText(m)) }
-        if let e = plan.event { parts.append("Event \(e.formatted(.dateTime.day().month(.abbreviated)))") }
-        return parts.joined(separator: " · ")
-    }
-}
+// MARK: - My sports (cards in PlanSportViews.swift, #474)
 
 /// One sport: which one, days, season, event, and the gym days around it.
 struct SportPlanEditor: View {
@@ -969,8 +884,10 @@ struct SportPlanEditor: View {
     /// (plan, removed)
     let onDone: (SportPlan, Bool) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
     @State private var hasEvent: Bool
     @State private var event: Date
+    @State private var showsSeason = false
 
     init(plan: SportPlan, isNew: Bool, onDone: @escaping (SportPlan, Bool) -> Void) {
         _plan = State(initialValue: plan)
@@ -996,67 +913,47 @@ struct SportPlanEditor: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Sport").eyebrow()
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
-                        ForEach(Sport.allCases.filter { $0 != .climbing }) { s in
-                            Button { plan.sport = s } label: {
-                                VStack(spacing: 4) {
-                                    Image(systemName: s.symbol).font(.system(size: 18, weight: .bold))
-                                    Text(s.short).font(Theme.label(10)).lineLimit(1).minimumScaleFactor(0.7)
-                                }
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity, minHeight: 58)
-                                .selectableGradient(s.gradient, selected: plan.sport == s, cornerRadius: 14)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(s.label)
-                        }
-                    }
-                    Text("Usual days").eyebrow()
+                VStack(alignment: .leading, spacing: 12) {
+                    // Design C (#474): one swipeable sport strip instead of a full grid, the form fits under it.
+                    SportStripPicker(selected: $plan.sport, sports: sportChoices)
+                    Text("Usual days").eyebrow().padding(.top, 4)
                     DayTiles(days: days, symbol: plan.sport.symbol, fill: AnyShapeStyle(plan.sport.gradient), ink: .white)
 
-                    Text("Season").eyebrow()
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 6), spacing: 6) {
-                        ForEach(1...12, id: \.self) { m in
-                            let on = plan.seasonMonths?.contains(m) ?? false
-                            SportChip(title: String(Calendar.current.shortMonthSymbols[m - 1].prefix(3)), selected: on) {
-                                var months = plan.seasonMonths ?? []
-                                if on { months.removeAll { $0 == m } } else { months.append(m) }
-                                plan.seasonMonths = months.isEmpty ? nil : months.sorted()
-                            }
-                        }
+                    Button { showsSeason = true } label: {
+                        formRow("Season", value: plan.seasonMonths.map(Self.seasonText) ?? "All year")
                     }
-                    Text(plan.seasonMonths.map(Self.seasonText) ?? "All year: no months picked.").font(.caption).foregroundStyle(Theme.muted)
-
+                    .buttonStyle(.plain)
                     Toggle(isOn: $hasEvent) {
                         Text("Race or event").font(.system(size: 15, weight: .heavy, design: .rounded))
                     }
                     .tint(Theme.lime)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.cardStrong))
                     if hasEvent {
                         DatePicker("Event day", selection: $event, in: Date()..., displayedComponents: .date)
                             .font(.body.weight(.semibold))
                     }
 
-                    Text("Day before").eyebrow()
-                    neighbourChips(Binding(get: { plan.before ?? plan.sport.defaultBefore }, set: { plan.before = $0 == plan.sport.defaultBefore ? nil : $0 }))
-                    Text("Day after").eyebrow()
-                    neighbourChips(Binding(get: { plan.after ?? plan.sport.defaultAfter }, set: { plan.after = $0 == plan.sport.defaultAfter ? nil : $0 }))
-                    Text("Same day").eyebrow()
+                    Text("Gym around it").eyebrow().padding(.top, 4)
+                    labelled("Day before") {
+                        neighbourChips(Binding(get: { plan.before ?? plan.sport.defaultBefore }, set: { plan.before = $0 == plan.sport.defaultBefore ? nil : $0 }))
+                    }
+                    labelled("Day after") {
+                        neighbourChips(Binding(get: { plan.after ?? plan.sport.defaultAfter }, set: { plan.after = $0 == plan.sport.defaultAfter ? nil : $0 }))
+                    }
                     if plan.sport.allowsSameDayGym {
-                        HStack(spacing: 8) {
-                            SportChip(title: "Skip gym", selected: plan.sameDay != .allow) { plan.sameDay = nil }
-                            SportChip(title: "Gym allowed", selected: plan.sameDay == .allow) { plan.sameDay = .allow }
+                        labelled("Same day") {
+                            HStack(spacing: 8) {
+                                SportChip(title: "Skip gym", selected: plan.sameDay != .allow) { plan.sameDay = nil }
+                                SportChip(title: "Gym allowed", selected: plan.sameDay == .allow) { plan.sameDay = .allow }
+                            }
                         }
                     } else {
                         Text("No gym on dive days, and rest the day after: hard exercise after diving raises the risk of decompression sickness.")
                             .font(.footnote.weight(.semibold)).foregroundStyle(Theme.lime)
                     }
-                    Text("Light keeps \(plan.sport.loadLabel) easy next to \(plan.sport.short.lowercased()) days. Saving rebuilds this week's plan.")
+                    Text("Light keeps \(plan.sport.loadLabel) easy next to \(plan.sport.short.lowercased()) days. Trips and one-off days: tap a day in Calendar.")
                         .font(.footnote).foregroundStyle(Theme.muted)
-
-                    Button { finish(removed: false) } label: { Label("Done", systemImage: "checkmark") }
-                        .buttonStyle(LimeButtonStyle())
                     if !isNew {
                         Button(role: .destructive) { finish(removed: true) } label: { Label("Remove \(plan.sport.short)", systemImage: "trash") }
                             .font(Theme.label(14))
@@ -1066,11 +963,66 @@ struct SportPlanEditor: View {
             }
             .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
+            .safeAreaInset(edge: .bottom) {
+                Button { finish(removed: false) } label: { Label("Done", systemImage: "checkmark") }
+                    .buttonStyle(LimeButtonStyle())
+                    .padding(.horizontal, 16).padding(.vertical, 8)
+                    .background(Theme.bg.opacity(0.95).ignoresSafeArea())
+            }
             .navigationTitle(isNew ? "Add sport" : plan.sport.label)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }
+            .sheet(isPresented: $showsSeason) { seasonSheet }
         }
         .preferredColorScheme(.dark)
+    }
+
+    /// Any sport but climbing (it has its own card), the member's own first.
+    private var sportChoices: [Sport] { model.sportOrder.filter { $0 != .climbing } }
+
+    private func formRow(_ title: String, value: String) -> some View {
+        HStack {
+            Text(title).font(.system(size: 15, weight: .heavy, design: .rounded))
+            Spacer()
+            Text(value).font(Theme.label(14)).foregroundStyle(Theme.lime)
+            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.lime)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.cardStrong))
+    }
+
+    private func labelled<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
+            content()
+        }
+    }
+
+    private var seasonSheet: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 12) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 6) {
+                    ForEach(1...12, id: \.self) { m in
+                        let on = plan.seasonMonths?.contains(m) ?? false
+                        SportChip(title: String(Calendar.current.shortMonthSymbols[m - 1].prefix(3)), selected: on) {
+                            var months = plan.seasonMonths ?? []
+                            if on { months.removeAll { $0 == m } } else { months.append(m) }
+                            plan.seasonMonths = months.isEmpty ? nil : months.sorted()
+                        }
+                    }
+                }
+                Text(plan.seasonMonths.map(Self.seasonText) ?? "All year: no months picked.").font(.caption).foregroundStyle(Theme.muted)
+                Spacer(minLength: 0)
+            }
+            .padding(16)
+            .background(Theme.bg.ignoresSafeArea())
+            .navigationTitle("\(plan.sport.short) season")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { CloseToolbarItem { showsSeason = false } }
+        }
+        .preferredColorScheme(.dark)
+        .presentationDetents([.medium])
     }
 
     private func neighbourChips(_ value: Binding<ClimbNeighbour>) -> some View {

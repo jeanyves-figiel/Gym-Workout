@@ -170,11 +170,15 @@ public struct SportPlan: Codable, Hashable, Sendable, Identifiable {
     public var after: ClimbNeighbour?
     /// Gym on sport days; nil = `.avoid`.
     public var sameDay: ClimbSameDay?
+    /// Switched off for now on its card in Your week (#474): days kept, not planned around. nil = on.
+    public var paused: Bool?
 
     public var id: String { sport.rawValue }
+    public var isOn: Bool { paused != true }
 
     public init(sport: Sport, weekdays: [Int] = [], seasonMonths: [Int]? = nil, eventDate: String? = nil,
-                before: ClimbNeighbour? = nil, after: ClimbNeighbour? = nil, sameDay: ClimbSameDay? = nil) {
+                before: ClimbNeighbour? = nil, after: ClimbNeighbour? = nil, sameDay: ClimbSameDay? = nil, paused: Bool? = nil) {
+        self.paused = paused
         self.sport = sport
         self.weekdays = weekdays
         self.seasonMonths = seasonMonths
@@ -192,7 +196,7 @@ public struct SportPlan: Codable, Hashable, Sendable, Identifiable {
 
     /// Days of the week planned around this sport on `date`: none out of season.
     public func days(on date: Date) -> [SportDay] {
-        guard inSeason(date) else { return [] }
+        guard isOn, inSeason(date) else { return [] }
         return WeekSchedule.normalized(weekdays).map {
             SportDay(weekday: $0, sport: sport, before: before ?? sport.defaultBefore, after: after ?? sport.defaultAfter,
                      sameDay: sport.allowsSameDayGym ? sameDay ?? .avoid : .avoid)
@@ -207,6 +211,34 @@ public struct SportPlan: Codable, Hashable, Sendable, Identifiable {
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
         return f.date(from: eventDate)
+    }
+}
+
+/// A dated sport day or trip (#474): a snowboard week, a one-off race or hike. No gym on those days; the days
+/// around it are planned like weekly sport days. Day keys as in `PlanCalendar` ("2027-02-13").
+public struct SportTrip: Codable, Hashable, Sendable, Identifiable {
+    public var id: UUID
+    public var sport: Sport
+    public var start: String
+    public var end: String
+    /// "Laax week"; nil = the sport's name.
+    public var name: String?
+
+    public init(id: UUID = UUID(), sport: Sport, start: String, end: String, name: String? = nil) {
+        self.id = id
+        self.sport = sport
+        self.start = min(start, end)
+        self.end = max(start, end)
+        self.name = name
+    }
+
+    public func covers(_ day: String) -> Bool { start <= day && day <= end }
+    public var isTrip: Bool { start != end }
+
+    /// "Laax week", "Snowboard trip", "Run day".
+    public var title: String {
+        if let n = name?.trimmingCharacters(in: .whitespaces), !n.isEmpty { return n }
+        return "\(sport.label) \(isTrip ? "trip" : "day")"
     }
 }
 
@@ -309,8 +341,24 @@ extension WeekSchedule {
 
 extension Profile {
     /// Other sports' days planned around this week (#416); empty without sports or out of season.
-    public func sportDays(on date: Date = Date()) -> [SportDay] {
-        (sports ?? []).filter { $0.sport != .climbing }.flatMap { $0.days(on: date) }
+    public func sportDays(on date: Date = Date(), calendar cal: Calendar = Progression.calendar()) -> [SportDay] {
+        var out = (sports ?? []).filter { $0.sport != .climbing }.flatMap { $0.days(on: date) }
+        // Dated sport days and trips (#474) of that week take their weekday over.
+        guard let trips = sportTrips, !trips.isEmpty else { return out }
+        let keys = PlanCalendar.dayKeys(weekStart: Progression.weekStart(date, cal), cal)
+        for (i, key) in keys.enumerated() {
+            guard let t = trips.first(where: { $0.covers(key) }) else { continue }
+            let plan = sports?.first { $0.sport == t.sport }
+            out.removeAll { $0.weekday == i + 1 }
+            out.append(SportDay(weekday: i + 1, sport: t.sport, before: plan?.before ?? t.sport.defaultBefore,
+                                after: plan?.after ?? t.sport.defaultAfter, sameDay: .avoid))
+        }
+        return out.sorted { $0.weekday < $1.weekday }
+    }
+
+    /// The dated sport day or trip covering a day key ("2027-02-13"), if any (#474).
+    public func sportTrip(on key: String) -> SportTrip? {
+        sportTrips?.first { $0.covers(key) }
     }
 
     /// Picked sports other than climbing.

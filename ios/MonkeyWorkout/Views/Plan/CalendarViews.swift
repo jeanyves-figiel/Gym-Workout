@@ -233,8 +233,11 @@ struct WeekCalendarCard: View {
         let count = week.plan.sessions.filter { $0.weekday == wd }.count
         // Other sports' days (#416), in season on that date.
         let sport = model.profile?.sportDays(on: week.date(wd, cal) ?? Date()).first { $0.weekday == wd }?.sport
-        let tag: String? = session.map { short($0.focus) + (count > 1 ? " +\(count - 1)" : "") } ?? (off ? "Off" : climb ? "Climb" : sport?.short)
-        let fill = missed ? AnyShapeStyle(MissedStyle.gradient) : tileFill(session: session != nil, off: off, travel: travel, climb: climb)
+        // A dated sport day or trip (#474) shows in the sport's colours.
+        let trip = week.trips[wd]
+        let tag: String? = session.map { short($0.focus) + (count > 1 ? " +\(count - 1)" : "") } ?? (off ? "Off" : trip.map { $0.sport.short } ?? (climb ? "Climb" : sport?.short))
+        let fill = missed ? AnyShapeStyle(MissedStyle.gradient)
+            : trip.map { AnyShapeStyle($0.sport.gradient) } ?? tileFill(session: session != nil, off: off, travel: travel, climb: climb)
         VStack(spacing: 1) {
             Text(WeekSchedule.shortName(wd).uppercased()).font(Theme.label(9))
             Text("\(day)").font(Theme.display(17)).monospacedDigit()
@@ -337,6 +340,11 @@ struct DaySheet: View {
     @State private var adding = false
     @State private var insertsBefore = 0
     @State private var logging: Session?
+    /// Plan sport (#474): a new sport on this day, or the dated sport day / trip being edited.
+    @State private var planningSport = false
+    @State private var editingTrip: SportTrip?
+    /// Profile when Plan sport opened: the day sheet closes after a change (its week is a snapshot).
+    @State private var profileBefore: Profile?
     /// Opens sized to its content (#264): the medium detent cut off Can't train / Travelling.
     @State private var contentHeight: CGFloat = 0
     @State private var chromeHeight: CGFloat = 0
@@ -361,13 +369,19 @@ struct DaySheet: View {
                     if let away {
                         Button { onEdit(away) } label: { AwayRow(period: away) }.buttonStyle(.plain)
                     }
+                    if let trip = selection.week.trips[wd] {
+                        Button {
+                            profileBefore = model.profile
+                            editingTrip = trip
+                        } label: { SportTripRow(trip: trip) }.buttonStyle(.plain)
+                    }
                     if selection.week.climbing.contains(wd) {
                         Label("Climbing day", systemImage: "figure.climbing")
                             .font(Theme.label(15)).foregroundStyle(Theme.ink)
                             .padding(.horizontal, 14).padding(.vertical, 10)
                             .background(Capsule().fill(WorkoutEngine.Category.warmup.gradient))
                     }
-                    ForEach((model.profile?.sportDays(on: selection.week.date(wd, cal) ?? Date()) ?? []).filter { $0.weekday == wd }, id: \.sport) { sd in
+                    ForEach((model.profile?.sportDays(on: selection.week.date(wd, cal) ?? Date()) ?? []).filter { $0.weekday == wd && selection.week.trips[wd] == nil }, id: \.sport) { sd in
                         Label("\(sd.sport.label) day", systemImage: sd.sport.symbol)
                             .font(Theme.label(15)).foregroundStyle(.white)
                             .padding(.horizontal, 14).padding(.vertical, 10)
@@ -393,7 +407,7 @@ struct DaySheet: View {
                             moving = session
                         }
                     }
-                    if sessions.isEmpty && away == nil {
+                    if sessions.isEmpty && away == nil && selection.week.trips[wd] == nil {
                         Text("No gym session planned.").foregroundStyle(Theme.muted)
                     }
                     if selection.current && selection.week.off[wd] == nil {
@@ -405,6 +419,19 @@ struct DaySheet: View {
                                 .font(Theme.label(15)).foregroundStyle(Theme.ink)
                                 .frame(maxWidth: .infinity).padding(.vertical, 14)
                                 .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.lime))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if away == nil && selection.week.trips[wd] == nil && key >= PlanCalendar.key(Date(), cal) {
+                        // Plan sport (#474): once, every week or a trip from this day.
+                        Button {
+                            profileBefore = model.profile
+                            planningSport = true
+                        } label: {
+                            Label("Plan sport", systemImage: "figure.mixed.cardio")
+                                .font(Theme.label(15)).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(.vertical, 14)
+                                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Sport.snowboard.gradient))
                         }
                         .buttonStyle(.plain)
                     }
@@ -434,7 +461,13 @@ struct DaySheet: View {
         .presentationDetents(fitDetent.map { [$0, .large] } ?? [.large], selection: $detent)
         .sheet(item: $moving) { s in MoveSessionSheet(sessionId: s.id) { _ in dismiss() } }
         .sheet(item: $logging) { s in MissedLogSheet(session: s) }
+        .sheet(isPresented: $planningSport, onDismiss: closeIfPlanned) { PlanSportSheet(day: key, sport: model.profile?.otherSports.first?.sport) }
+        .sheet(item: $editingTrip, onDismiss: closeIfPlanned) { t in PlanSportSheet(day: t.start, editing: t) }
         .sheet(isPresented: $adding, onDismiss: { if (model.state.synced?.planInserts?.count ?? 0) > insertsBefore { dismiss() } }) { AddWorkoutSheet(weekday: wd) }
+    }
+
+    private func closeIfPlanned() {
+        if model.profile != profileBefore { dismiss() }
     }
 
     /// Content + close bar + home indicator; nil until measured.

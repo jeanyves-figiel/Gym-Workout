@@ -125,7 +125,7 @@ extension AppModel {
         let done = doneIds
         let kept = done.union([state.activeWorkout?.sessionId].compactMap { $0 })
         let regular = Generator.generateWeek(sp.planProfile, week: sp.week, seed: sp.seed).keeping(kept, from: state.plan)
-        if PlanCalendar.touches(away, weekStart: monday, cal) {
+        if PlanCalendar.touches(away, weekStart: monday, cal) || PlanCalendar.touches(sp.profile.sportTrips ?? [], weekStart: monday, cal) {
             let today = WeekSchedule.fromCalendar(cal.component(.weekday, from: now))
             let adapted = PlanCalendar.adapt(sp.planProfile, week: sp.week, seed: sp.seed, weekStart: monday, away: away,
                                              base: regular, done: done, firstDay: today, fixed: movesThisWeek(now), calendar: cal).plan
