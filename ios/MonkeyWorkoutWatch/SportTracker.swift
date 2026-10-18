@@ -136,6 +136,17 @@ final class SportTracker: NSObject {
     private(set) var altitude: Double?
     private(set) var highest: Double?
     private(set) var runs = 0
+    /// Breadcrumb for the live map (#445 C), thinned to stay under `trailMax` points.
+    private(set) var trail: [CLLocationCoordinate2D] = []
+    /// Metres and compass bearing (degrees) back to where tracking started; direction of travel when moving.
+    private(set) var homeMeters: Double?
+    private(set) var homeBearing: Double?
+    private(set) var course: Double?
+    /// Ski / snowboard live state: on a lift (climbing) or riding, time in each, the last finished run.
+    private(set) var onLift = false
+    private(set) var rideSeconds: TimeInterval = 0
+    private(set) var liftSeconds: TimeInterval = 0
+    private(set) var lastRun: (drop: Double, topKmh: Double)?
     /// Lap / station index (0-based) and when it started.
     private(set) var lap = 0
     private(set) var lapStart: Date?
@@ -152,6 +163,9 @@ final class SportTracker: NSObject {
         let runs: Int
         let topKmh: Double
         let batteryUsed: Int?
+        var trail: [CLLocationCoordinate2D] = []
+        var rideSeconds: TimeInterval = 0
+        var liftSeconds: TimeInterval = 0
     }
 
     var running: Bool { sport != nil }
@@ -166,7 +180,10 @@ final class SportTracker: NSObject {
     private var altRef: Double?
     private var runTop: Double?
     private var runLow: Double?
+    private var runTopSpeed: Double = 0
+    private var home: CLLocation?
     private var saverTimer: Timer?
+    private let trailMax = 400
 
     func start(_ sport: TrackedSport, power: TrackPower) async {
         guard HKHealthStore.isHealthDataAvailable(), !running, !WorkoutManager.shared.running, !HyroxTracker.shared.running else { return }
@@ -224,11 +241,22 @@ final class SportTracker: NSObject {
         altRef = nil
         runTop = nil
         runLow = nil
+        runTopSpeed = 0
+        trail = []
+        home = nil
+        homeMeters = nil
+        homeBearing = nil
+        course = nil
+        onLift = false
+        rideSeconds = 0
+        liftSeconds = 0
+        lastRun = nil
     }
 
     private func startLocation() {
         guard let sport else { return }
-        routeBuilder = HKWorkoutRouteBuilder(healthStore: store, device: nil)
+        // One route per session: resume keeps adding to the same builder.
+        if routeBuilder == nil { routeBuilder = HKWorkoutRouteBuilder(healthStore: store, device: nil) }
         location.delegate = self
         location.activityType = sport.locationActivity
         location.requestWhenInUseAuthorization()
@@ -288,7 +316,8 @@ final class SportTracker: NSObject {
             return now >= 0 ? max(0, Int(((start - now) * 100).rounded())) : 0
         }
         summary = Summary(sport: sport, minutes: Int(end.timeIntervalSince(started ?? end) / 60), km: meters / 1000,
-                          vertical: sport.downhill ? down : up, runs: runs, topKmh: topSpeed, batteryUsed: used)
+                          vertical: sport.downhill ? down : up, runs: runs, topKmh: topSpeed, batteryUsed: used,
+                          trail: trail, rideSeconds: rideSeconds, liftSeconds: liftSeconds)
         do {
             var meta: [String: Any] = [HKMetadataKeyIndoorWorkout: !sport.usesGPS]
             if up > 0 { meta[HKMetadataKeyElevationAscended] = HKQuantity(unit: .meter(), doubleValue: up) }
@@ -339,13 +368,36 @@ final class SportTracker: NSObject {
                 let kmh = (l.speed >= 0 ? l.speed : d / dt) * 3.6
                 // Smoothed live speed; top speed only from a believable fix.
                 speed = speed * 0.5 + kmh * 0.5
-                if l.horizontalAccuracy <= 20, kmh < 150 { topSpeed = max(topSpeed, speed) }
+                if l.horizontalAccuracy <= 20, kmh < 150 {
+                    topSpeed = max(topSpeed, speed)
+                    runTopSpeed = max(runTopSpeed, speed)
+                }
+                // Gaps (Saver, tunnels) longer than 2 minutes count for neither.
+                if sport.downhill && dt < 120 {
+                    if onLift { liftSeconds += dt } else { rideSeconds += dt }
+                }
             }
             last = l
             pending.append(l)
+            breadcrumb(l)
             if l.verticalAccuracy >= 0 { climb(l.altitude, downhill: sport.downhill) }
         }
         if pending.count >= 30 { flushRoute() }
+    }
+
+    /// Live map (#445 C): trail, distance and bearing home, direction of travel. Halves the trail when full.
+    private func breadcrumb(_ l: CLLocation) {
+        trail.append(l.coordinate)
+        if trail.count > trailMax { trail = trail.enumerated().filter { $0.offset % 2 == 0 || $0.offset == trail.count - 1 }.map(\.element) }
+        if l.course >= 0 && l.speed > 0.5 { course = l.course }
+        guard let home else { home = l; return }
+        homeMeters = l.distance(from: home)
+        let rad = Double.pi / 180
+        let lat1 = l.coordinate.latitude * rad, lat2 = home.coordinate.latitude * rad
+        let dLon = (home.coordinate.longitude - l.coordinate.longitude) * rad
+        let y = sin(dLon) * cos(lat2)
+        let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
+        homeBearing = (atan2(y, x) / rad + 360).truncatingRemainder(dividingBy: 360)
     }
 
     /// Vertical up/down ignoring < 3 m wobble; a downhill run counts once it dropped 40 m and the lift climbs 25 m.
@@ -361,9 +413,18 @@ final class SportTracker: NSObject {
         guard downhill, let top = runTop, let low = runLow else { return }
         if alt < low { runLow = alt }
         if alt - (runLow ?? alt) >= 25 {
-            if top - (runLow ?? top) >= 40 { runs += 1 }
+            if top - (runLow ?? top) >= 40 {
+                runs += 1
+                lastRun = (top - (runLow ?? top), runTopSpeed)
+                WKInterfaceDevice.current().play(.click)
+            }
+            onLift = true
             runTop = alt
             runLow = alt
+        } else if onLift && alt < top - 15 {
+            // Going down again: a new run.
+            onLift = false
+            runTopSpeed = 0
         } else if alt > top && runLow == top {
             runTop = alt
             runLow = alt
