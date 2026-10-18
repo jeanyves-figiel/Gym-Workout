@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type DB, tx } from '../db.ts';
-import { sinceQuery } from './sync.ts';
+import { deletedField, notDeleted, recordTombstone, sinceQuery } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
 
 /** Climbing sessions (#312): were kept only on the device; now synced like PR attempts (upsert by client id). */
@@ -30,7 +30,7 @@ export const listClimbs = (db: DB, userId: string, since?: string) =>
 export const climbRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/me/climbs', async (req) => {
     const q = sinceQuery.parse(req.query);
-    return { climbs: listClimbs(db, req.userId!, q.since), serverTime: now().toISOString() };
+    return { climbs: listClimbs(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'climbs', q.since), serverTime: now().toISOString() };
   });
 
   r.post('/me/climbs', async (req) => {
@@ -42,9 +42,10 @@ export const climbRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
        WHERE climbs.user_id = excluded.user_id`,
     );
     const saved = tx(db, () => {
-      assertRowQuota(db, 'climbs', req.userId!, b.climbs.map((c) => c.id));
+      const climbs = notDeleted(db, req.userId!, 'climbs', b.climbs);
+      assertRowQuota(db, 'climbs', req.userId!, climbs.map((c) => c.id));
       let count = 0;
-      for (const c of b.climbs) {
+      for (const c of climbs) {
         const json = JSON.stringify(c);
         if (json.length > 10_000) throw Object.assign(new Error('Climb too large'), { statusCode: 413 });
         count += Number(up.run(c.id, req.userId!, c.start, json, ts).changes);
@@ -56,7 +57,10 @@ export const climbRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
 
   r.delete('/me/climbs/:id', async (req, reply) => {
     const { id } = z.object({ id: z.uuid() }).parse(req.params);
-    db.prepare('DELETE FROM climbs WHERE id = ? AND user_id = ?').run(id, req.userId!);
+    tx(db, () => {
+      db.prepare('DELETE FROM climbs WHERE id = ? AND user_id = ?').run(id, req.userId!);
+      recordTombstone(db, req.userId!, 'climbs', id, now().toISOString());
+    });
     return reply.status(204).send();
   });
 };

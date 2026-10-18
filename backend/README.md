@@ -115,6 +115,13 @@ Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode
 | POST | `/app-store/notifications` | Apple-signed | App Store Server Notifications V2 `{signedPayload}` |
 | GET | `/healthz` | – | |
 
+Sync deletes (#432): every `GET /me/<kind>?since=ISO` pull (`logs`, `workouts`, `custom-workouts`, `custom-exercises`,
+`pr-attempts`, `body-measurements`, `climbs`, `sports`, `machine-notes`) also returns `deleted: string[]`, the ids of
+items deleted (by any device, or by ops' undo-workout) at or after `since`; drop them locally. Always present on a
+`since` pull (`[]` when nothing was deleted; always `[]` for custom exercises, which are archived, not deleted), absent
+on a full pull. Uploads of a deleted id are skipped (not counted in `saved`), so a stale device can't bring it back.
+Tombstones are kept 180 days; a device offline for longer should do a full pull.
+
 Errors: `{error: <code>, message}`. Password endpoints (register, reset, change) may return 400 `weak_password` or `breached_password`.
 
 ## Security model

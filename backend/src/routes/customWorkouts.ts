@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { assertClean, hasAcceptedGuidelines, VISIBILITIES } from '../community/moderation.ts';
 import { type DB, tx } from '../db.ts';
-import { sinceQuery } from './sync.ts';
+import { deletedField, notDeleted, recordTombstone, sinceQuery } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
 import { ApiError } from '../errors.ts';
 
@@ -46,7 +46,7 @@ export const listCustomWorkouts = (db: DB, userId: string, since?: string) =>
 export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/me/custom-workouts', async (req) => {
     const q = sinceQuery.parse(req.query);
-    return { workouts: listCustomWorkouts(db, req.userId!, q.since), serverTime: now().toISOString() };
+    return { workouts: listCustomWorkouts(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'custom-workouts', q.since), serverTime: now().toISOString() };
   });
 
   r.post('/me/custom-workouts', async (req) => {
@@ -66,9 +66,10 @@ export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date)
        WHERE custom_workouts.user_id = excluded.user_id`,
     );
     const saved = tx(db, () => {
-      assertRowQuota(db, 'custom_workouts', userId, b.workouts.map((w) => w.id));
+      const workouts = notDeleted(db, userId, 'custom-workouts', b.workouts);
+      assertRowQuota(db, 'custom_workouts', userId, workouts.map((w) => w.id));
       let count = 0;
-      for (const w of b.workouts) {
+      for (const w of workouts) {
         const visibility = w.visibility ?? 'private';
         const json = JSON.stringify({ ...w, visibility });
         if (json.length > 100_000) throw Object.assign(new Error('Workout too large'), { statusCode: 413 });
@@ -81,7 +82,10 @@ export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date)
 
   r.delete('/me/custom-workouts/:id', async (req, reply) => {
     const { id } = z.object({ id: z.uuid() }).parse(req.params);
-    db.prepare('DELETE FROM custom_workouts WHERE id = ? AND user_id = ?').run(id, req.userId!);
+    tx(db, () => {
+      db.prepare('DELETE FROM custom_workouts WHERE id = ? AND user_id = ?').run(id, req.userId!);
+      recordTombstone(db, req.userId!, 'custom-workouts', id, now().toISOString());
+    });
     return reply.status(204).send();
   });
 };

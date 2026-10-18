@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type DB, tx } from '../db.ts';
-import { sinceQuery } from './sync.ts';
+import { deletedField, notDeleted, recordTombstone, sinceQuery } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
 
 /** Body measurements (#185): one dated entry of girths (cm), weight and body fat; extra app fields kept as is. */
@@ -29,7 +29,11 @@ export const listBodyMeasurements = (db: DB, userId: string, since?: string) =>
 export const bodyMeasurementRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/me/body-measurements', async (req) => {
     const q = sinceQuery.parse(req.query);
-    return { measurements: listBodyMeasurements(db, req.userId!, q.since), serverTime: now().toISOString() };
+    return {
+      measurements: listBodyMeasurements(db, req.userId!, q.since),
+      ...deletedField(db, req.userId!, 'body-measurements', q.since),
+      serverTime: now().toISOString(),
+    };
   });
 
   r.post('/me/body-measurements', async (req) => {
@@ -41,9 +45,10 @@ export const bodyMeasurementRoutes = (r: FastifyInstance, db: DB, now: () => Dat
        WHERE body_measurements.user_id = excluded.user_id`,
     );
     const saved = tx(db, () => {
-      assertRowQuota(db, 'body_measurements', req.userId!, b.measurements.map((m) => m.id));
+      const measurements = notDeleted(db, req.userId!, 'body-measurements', b.measurements);
+      assertRowQuota(db, 'body_measurements', req.userId!, measurements.map((m) => m.id));
       let count = 0;
-      for (const m of b.measurements) {
+      for (const m of measurements) {
         const json = JSON.stringify(m);
         if (json.length > 5_000) throw Object.assign(new Error('Measurement too large'), { statusCode: 413 });
         count += Number(up.run(m.id, req.userId!, m.date, json, ts).changes);
@@ -55,7 +60,10 @@ export const bodyMeasurementRoutes = (r: FastifyInstance, db: DB, now: () => Dat
 
   r.delete('/me/body-measurements/:id', async (req, reply) => {
     const { id } = z.object({ id: z.uuid() }).parse(req.params);
-    db.prepare('DELETE FROM body_measurements WHERE id = ? AND user_id = ?').run(id, req.userId!);
+    tx(db, () => {
+      db.prepare('DELETE FROM body_measurements WHERE id = ? AND user_id = ?').run(id, req.userId!);
+      recordTombstone(db, req.userId!, 'body-measurements', id, now().toISOString());
+    });
     return reply.status(204).send();
   });
 };

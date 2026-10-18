@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type DB, tx } from '../db.ts';
-import { sinceQuery } from './sync.ts';
+import { deletedField, sinceQuery } from './sync.ts';
 
 /** Max stored size of one exercise record (photo is a base64 JPEG the app keeps under ~300 KB). */
 export const MAX_CUSTOM_EXERCISE_BYTES = 450_000;
@@ -31,7 +31,8 @@ export const listCustomExercises = (db: DB, userId: string, since?: string) =>
 export const customExerciseRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/me/custom-exercises', async (req) => {
     const q = sinceQuery.parse(req.query);
-    return { exercises: listCustomExercises(db, req.userId!, q.since), serverTime: now().toISOString() };
+    // Archived by a flag, never deleted: `deleted` stays empty, kept for the same since-pull shape (#432).
+    return { exercises: listCustomExercises(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'custom-exercises', q.since), serverTime: now().toISOString() };
   });
 
   r.post('/me/custom-exercises', async (req) => {

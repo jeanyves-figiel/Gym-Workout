@@ -5,6 +5,7 @@ import { buildApp } from '../src/app.ts';
 import { loadConfig } from '../src/config.ts';
 import { type DB, openDb } from '../src/db.ts';
 import { ConsoleMailer } from '../src/mailer.ts';
+import { purgeExpired } from '../src/purge.ts';
 
 const PW = 'correct-horse-battery';
 
@@ -116,6 +117,55 @@ describe('climbs sync (#312)', () => {
     expect((await post('/v1/me/climbs', { climbs: [a] }, t)).json().saved).toBe(1);
     expect((await post('/v1/me/climbs', { climbs: [sample()] }, t)).json().error).toBe('quota_exceeded');
     expect((await post('/v1/me/climbs', { climbs: [{ ...a, effort: 9 }] }, t)).json().saved).toBe(1);
+  });
+
+  it('a delete reaches other devices as deleted and a stale re-upload is ignored (#432)', async () => {
+    const t = await signUp('climber@example.com');
+    const a = sample();
+    const b = sample();
+    await post('/v1/me/climbs', { climbs: [a, b] }, t);
+    advance(1000);
+    const lastPullB = clock.toISOString();
+    // Full pulls have no `deleted`; since pulls always do.
+    expect((await get('/v1/me/climbs', t)).json().deleted).toBeUndefined();
+    expect((await get(`/v1/me/climbs?since=${encodeURIComponent(lastPullB)}`, t)).json()).toMatchObject({ climbs: [], deleted: [] });
+
+    advance(1000);
+    expect((await del(`/v1/me/climbs/${a.id}`, t)).statusCode).toBe(204); // device A
+    advance(1000);
+    const pull = (await get(`/v1/me/climbs?since=${encodeURIComponent(lastPullB)}`, t)).json(); // device B
+    expect(pull.deleted).toEqual([a.id]);
+    expect(pull.climbs).toEqual([]);
+
+    // Device B hasn't pulled yet and pushes its old copy: skipped, still deleted.
+    const stale = await post('/v1/me/climbs', { climbs: [{ ...a, effort: 3 }, { ...b, effort: 4 }] }, t);
+    expect(stale.json().saved).toBe(1);
+    expect((await get('/v1/me/climbs', t)).json().climbs.map((x: { id: string }) => x.id)).toEqual([b.id]);
+    // Also when the id comes back in another letter case.
+    expect((await post('/v1/me/climbs', { climbs: [{ ...a, id: a.id.toLowerCase() }] }, t)).json().saved).toBe(0);
+
+    // Later pulls don't repeat it; tombstones go after 180 days.
+    expect((await get(`/v1/me/climbs?since=${encodeURIComponent(clock.toISOString())}`, t)).json().deleted).toEqual([]);
+    purgeExpired(db, new Date(clock.getTime() + 181 * 86_400_000));
+    expect(db.prepare('SELECT COUNT(*) AS n FROM sync_tombstones').get()).toEqual({ n: 0 });
+  });
+
+  it('logs and workouts report deletes too (#432)', async () => {
+    const t = await signUp('climber@example.com');
+    const since = clock.toISOString();
+    const log = { id: randomUUID(), date: '2026-10-07T18:00:00Z', exerciseId: 'bench', weightKg: 60, reps: 8 };
+    const w = { id: randomUUID(), startedAt: '2026-10-07T18:00:00Z' };
+    await post('/v1/me/logs', { logs: [log] }, t);
+    await post('/v1/me/workouts', { workouts: [w] }, t);
+    advance(1000);
+    await del(`/v1/me/logs/${log.id}`, t);
+    await del(`/v1/me/workouts/${w.id}`, t);
+    expect((await get(`/v1/me/logs?since=${encodeURIComponent(since)}`, t)).json().deleted).toEqual([log.id]);
+    expect((await get(`/v1/me/workouts?since=${encodeURIComponent(since)}`, t)).json().deleted).toEqual([w.id]);
+    expect((await post('/v1/me/logs', { logs: [log] }, t)).json().saved).toBe(0);
+    expect((await post('/v1/me/workouts', { workouts: [w] }, t)).json().saved).toBe(0);
+    db.prepare('DELETE FROM users').run();
+    expect(db.prepare('SELECT COUNT(*) AS n FROM sync_tombstones').get()).toEqual({ n: 0 });
   });
 
   it('rejects malformed climbs', async () => {

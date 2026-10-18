@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { sanitizeJpeg } from '../community/image.ts';
 import { type DB, tx } from '../db.ts';
-import { sinceQuery } from './sync.ts';
+import { deletedField, notDeleted, recordTombstone, sinceQuery } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
 import { ApiError } from '../errors.ts';
 
@@ -53,7 +53,7 @@ export const machineNoteRoutes = (r: FastifyInstance, db: DB, now: () => Date) =
 
   r.get('/me/machine-notes', async (req) => {
     const q = sinceQuery.parse(req.query);
-    return { notes: listMachineNotes(db, req.userId!, q.since), serverTime: now().toISOString() };
+    return { notes: listMachineNotes(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'machine-notes', q.since), serverTime: now().toISOString() };
   });
 
   r.post('/me/machine-notes', async (req) => {
@@ -65,9 +65,10 @@ export const machineNoteRoutes = (r: FastifyInstance, db: DB, now: () => Date) =
        WHERE machine_notes.user_id = excluded.user_id`,
     );
     const saved = tx(db, () => {
-      assertRowQuota(db, 'machine_notes', req.userId!, b.notes.map((n) => n.id));
+      const notes = notDeleted(db, req.userId!, 'machine-notes', b.notes);
+      assertRowQuota(db, 'machine_notes', req.userId!, notes.map((n) => n.id));
       let count = 0;
-      for (const n of b.notes) {
+      for (const n of notes) {
         const { photoId: _p, updatedAt: _u, ...rest } = n as typeof n & { photoId?: unknown; updatedAt?: unknown };
         const json = JSON.stringify(rest);
         if (json.length > 10_000) throw Object.assign(new Error('Note too large'), { statusCode: 413 });
@@ -83,6 +84,7 @@ export const machineNoteRoutes = (r: FastifyInstance, db: DB, now: () => Date) =
     tx(db, () => {
       db.prepare('DELETE FROM machine_note_photos WHERE note_id = ? AND user_id = ?').run(id, req.userId!);
       db.prepare('DELETE FROM machine_notes WHERE id = ? AND user_id = ?').run(id, req.userId!);
+      recordTombstone(db, req.userId!, 'machine-notes', id, now().toISOString());
     });
     return reply.status(204).send();
   });

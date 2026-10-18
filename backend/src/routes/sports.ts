@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { randomToken, sha256 } from '../crypto.ts';
 import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
-import { sinceQuery } from './sync.ts';
+import { deletedField, notDeleted, recordTombstone, sinceQuery } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
 
 /** Other sport sessions (#416): snowboard, MTB, Hyrox… Synced like climbs (upsert by client id). */
@@ -18,7 +18,7 @@ const sport = z
   })
   .catchall(z.unknown());
 
-const upsert = (db: DB, userId: string, sports: z.infer<typeof sport>[], ts: string) => {
+const upsert = (db: DB, userId: string, upload: z.infer<typeof sport>[], ts: string) => {
   const up = db.prepare(
     `INSERT INTO sports (id, user_id, start, data, updated_at) VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET start = excluded.start, data = excluded.data, updated_at = excluded.updated_at
@@ -26,6 +26,7 @@ const upsert = (db: DB, userId: string, sports: z.infer<typeof sport>[], ts: str
   );
   /** Rows written: another account's ids are skipped by the WHERE. */
   return tx(db, () => {
+    const sports = notDeleted(db, userId, 'sports', upload);
     assertRowQuota(db, 'sports', userId, sports.map((c) => c.id));
     let count = 0;
     for (const c of sports) {
@@ -50,7 +51,7 @@ export const listSports = (db: DB, userId: string, since?: string) =>
 export const sportRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/me/sports', async (req) => {
     const q = sinceQuery.parse(req.query);
-    return { sports: listSports(db, req.userId!, q.since), serverTime: now().toISOString() };
+    return { sports: listSports(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'sports', q.since), serverTime: now().toISOString() };
   });
 
   r.post('/me/sports', async (req) => {
@@ -72,7 +73,10 @@ export const sportRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
 
   r.delete('/me/sports/:id', async (req, reply) => {
     const { id } = z.object({ id: z.uuid() }).parse(req.params);
-    db.prepare('DELETE FROM sports WHERE id = ? AND user_id = ?').run(id, req.userId!);
+    tx(db, () => {
+      db.prepare('DELETE FROM sports WHERE id = ? AND user_id = ?').run(id, req.userId!);
+      recordTombstone(db, req.userId!, 'sports', id, now().toISOString());
+    });
     return reply.status(204).send();
   });
 };

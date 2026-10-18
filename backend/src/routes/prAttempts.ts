@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type DB, tx } from '../db.ts';
-import { sinceQuery } from './sync.ts';
+import { deletedField, notDeleted, recordTombstone, sinceQuery } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
 
 /** Personal-record attempts (#60): app-defined records; the typed fields are what a future community feed reads. */
@@ -31,7 +31,7 @@ export const listPrAttempts = (db: DB, userId: string, since?: string) =>
 export const prAttemptRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/me/pr-attempts', async (req) => {
     const q = sinceQuery.parse(req.query);
-    return { attempts: listPrAttempts(db, req.userId!, q.since), serverTime: now().toISOString() };
+    return { attempts: listPrAttempts(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'pr-attempts', q.since), serverTime: now().toISOString() };
   });
 
   r.post('/me/pr-attempts', async (req) => {
@@ -43,9 +43,10 @@ export const prAttemptRoutes = (r: FastifyInstance, db: DB, now: () => Date) => 
        WHERE pr_attempts.user_id = excluded.user_id`,
     );
     const saved = tx(db, () => {
-      assertRowQuota(db, 'pr_attempts', req.userId!, b.attempts.map((a) => a.id));
+      const attempts = notDeleted(db, req.userId!, 'pr-attempts', b.attempts);
+      assertRowQuota(db, 'pr_attempts', req.userId!, attempts.map((a) => a.id));
       let count = 0;
-      for (const a of b.attempts) {
+      for (const a of attempts) {
         const json = JSON.stringify(a);
         if (json.length > 20_000) throw Object.assign(new Error('Attempt too large'), { statusCode: 413 });
         count += Number(up.run(a.id, req.userId!, a.exerciseId, a.date, json, ts).changes);
@@ -57,7 +58,10 @@ export const prAttemptRoutes = (r: FastifyInstance, db: DB, now: () => Date) => 
 
   r.delete('/me/pr-attempts/:id', async (req, reply) => {
     const { id } = z.object({ id: z.uuid() }).parse(req.params);
-    db.prepare('DELETE FROM pr_attempts WHERE id = ? AND user_id = ?').run(id, req.userId!);
+    tx(db, () => {
+      db.prepare('DELETE FROM pr_attempts WHERE id = ? AND user_id = ?').run(id, req.userId!);
+      recordTombstone(db, req.userId!, 'pr-attempts', id, now().toISOString());
+    });
     return reply.status(204).send();
   });
 };
