@@ -525,6 +525,8 @@ struct AwayEditorView: View {
     @State private var findingGym = false
     @State private var settingUp = false
     @State private var closeGuard = CloseGuard()
+    /// Set on Remove so a pending auto save never brings the period back (#437).
+    @State private var removed = CloseGuard()
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     private let initial: AwayPeriod
@@ -560,7 +562,7 @@ struct AwayEditorView: View {
     /// Undo bar when anything was changed since the sheet opened (#285).
     private var undoOffer: UndoOffer? {
         let kept = entered
-        guard kept != baseline else { return nil }
+        guard isNew, kept != baseline else { return nil }
         let original = self.initial, new = self.isNew, done = self.onDone
         let kind = kept.period.kind
         return UndoOffer(title: new ? "Away closed" : "Edit closed", detail: undoDetail(kind.label, kept.note),
@@ -622,11 +624,16 @@ struct AwayEditorView: View {
                             .font(.footnote).foregroundStyle(Theme.muted)
                     }
 
-                    Button("Save") { save() }
-                        .buttonStyle(LimeButtonStyle())
-                        .padding(.top, 6)
+                    if isNew {
+                        Button("Save") { save() }
+                            .buttonStyle(LimeButtonStyle())
+                            .padding(.top, 6)
+                    } else {
+                        Text("Changes save on their own.").font(.footnote).foregroundStyle(Theme.muted)
+                    }
                     if !isNew {
                         Button(role: .destructive) {
+                            removed.done()
                             closeGuard.done()
                             onDone(nil)
                             dismiss()
@@ -676,6 +683,10 @@ struct AwayEditorView: View {
         }
         .preferredColorScheme(.dark)
         .undoableClose(closeGuard, offer: undoOffer)
+        // Editing a saved period saves on its own (#437), straight to the plan (onDone would close the sheet).
+        .autoSave(isNew ? nil : period, title: "Away", symbol: draft.kind.symbol,
+                  detail: { undoDetail($0.kind.label, $0.note) },
+                  save: { [model, removed] in if !removed.saved { model.saveAway($0) } })
     }
 
     private var kindPicker: some View {
@@ -781,14 +792,17 @@ struct AwayEditorView: View {
         draft.equipment = g.equipment
     }
 
-    private func save() {
+    private var period: AwayPeriod {
         let cal = Progression.calendar()
         let n = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        let p = AwayPeriod(id: draft.id, kind: draft.kind, start: PlanCalendar.key(from, cal), end: PlanCalendar.key(max(from, to), cal),
-                           note: n.isEmpty ? nil : n, setup: draft.kind == .travel ? (draft.setup ?? .hotelGym) : nil,
-                           equipment: draft.kind == .travel ? draft.equipment : nil, gym: draft.kind == .travel ? draft.gym : nil)
+        return AwayPeriod(id: draft.id, kind: draft.kind, start: PlanCalendar.key(from, cal), end: PlanCalendar.key(max(from, to), cal),
+                          note: n.isEmpty ? nil : n, setup: draft.kind == .travel ? (draft.setup ?? .hotelGym) : nil,
+                          equipment: draft.kind == .travel ? draft.equipment : nil, gym: draft.kind == .travel ? draft.gym : nil)
+    }
+
+    private func save() {
         closeGuard.done()
-        onDone(p)
+        onDone(period)
         dismiss()
     }
 }

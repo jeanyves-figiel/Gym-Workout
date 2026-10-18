@@ -256,6 +256,14 @@ private struct ZoneEditSheet: View {
     let onSave: (GymLayout.Zone) -> Void
     let onDelete: () -> Void
     @Environment(\.dismiss) private var dismiss
+    /// Set on Delete so a pending auto save never brings the zone back (#437).
+    @State private var deleted = CloseGuard()
+
+    private static func cleaned(_ z: GymLayout.Zone) -> GymLayout.Zone {
+        var z = z
+        if z.name.trimmingCharacters(in: .whitespaces).isEmpty { z.name = "Zone" }
+        return z
+    }
 
     var body: some View {
         NavigationStack {
@@ -280,6 +288,7 @@ private struct ZoneEditSheet: View {
                 }
                 if canDelete {
                     Button(role: .destructive) {
+                        deleted.done()
                         onDelete()
                         dismiss()
                     } label: {
@@ -296,13 +305,12 @@ private struct ZoneEditSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        zone.name = zone.name.trimmingCharacters(in: .whitespaces).isEmpty ? "Zone" : zone.name
-                        onSave(zone)
-                        dismiss()
-                    }
+                    Button("Done") { dismiss() }
                 }
             }
+            // Name and colour save on their own (#437); swiping down no longer drops them.
+            .autoSave(zone, title: "Zone", symbol: "square.grid.2x2.fill", detail: { Self.cleaned($0).name },
+                      save: { [onSave, deleted] in if !deleted.saved { onSave(Self.cleaned($0)) } })
         }
         .presentationDetents([.medium])
         .preferredColorScheme(.dark)
