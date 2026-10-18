@@ -89,11 +89,17 @@ extension SportEntry {
 }
 
 extension AppModel {
-    /// The member's sports first (climbing for climbers), then every other one.
-    var sportOrder: [Sport] {
+    /// The member's own sports: profile picks (climbing for climbers), then any they logged.
+    var mySports: [Sport] {
         var mine = (profile?.otherSports ?? []).map(\.sport)
         if profile.map(Generator.isClimber) ?? false { mine.insert(.climbing, at: 0) }
         for log in sportLogs where !mine.contains(log.sport) { mine.append(log.sport) }
+        return mine
+    }
+
+    /// The member's sports first (climbing for climbers), then every other one.
+    var sportOrder: [Sport] {
+        let mine = mySports
         return mine + Sport.allCases.filter { !mine.contains($0) }
     }
 }
@@ -207,12 +213,8 @@ struct LogSportView: View {
                                 .font(.footnote).foregroundStyle(Theme.muted)
                         }
                     } else {
-                        Text(live ? "What are you doing?" : "What did you do?").eyebrow()
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                            ForEach(gridSports) { s in
-                                SportTile(sport: s, selected: picked && log.sport == s) { pick(s) }
-                            }
-                        }
+                        SportPicker(sports: gridSports, mine: model.mySports, live: live,
+                                    selected: picked ? log.sport : nil, pick: pick)
                     }
                 }
                 .padding(16)
@@ -544,6 +546,124 @@ struct AddChip: View {
                 .foregroundStyle(.white)
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Sport picker of Log sport and Track on Watch (#471, design C from `other-sports/picker-proposals.png`): the member's
+/// sports as big Explore-style cards on top, every other one as a vivid tile grouped by kind.
+struct SportPicker: View {
+    let sports: [Sport]
+    let mine: [Sport]
+    let live: Bool
+    let selected: Sport?
+    let pick: (Sport) -> Void
+    @Environment(AppModel.self) private var model
+
+    private var heroes: [Sport] { Array(mine.filter { sports.contains($0) }.prefix(3)) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !heroes.isEmpty {
+                Text("Your sports").eyebrow()
+                ForEach(heroes) { s in hero(s) }
+            }
+            ForEach(Sport.PickerGroup.allCases, id: \.self) { g in
+                let list = sports.filter { $0.pickerGroup == g && !heroes.contains($0) }
+                if !list.isEmpty {
+                    Text(g.title).eyebrow().padding(.top, 6)
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+                        ForEach(list) { s in tile(s) }
+                    }
+                }
+            }
+        }
+    }
+
+    private func hero(_ s: Sport) -> some View {
+        Button { pick(s) } label: {
+            HStack(spacing: 14) {
+                Image(systemName: s.symbol).font(.system(size: 26, weight: .bold))
+                    .frame(width: 54, height: 54)
+                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.22)))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(s.label).font(Theme.display(22)).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(lastLine(s)).font(.footnote.weight(.semibold)).opacity(0.9).lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                Text(live ? "Start" : "Log").font(Theme.label(14))
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(Capsule().fill(.white))
+            }
+            .foregroundStyle(.white)
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(s.gradient))
+            .overlay(ring(s, cornerRadius: 24))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(live ? "Track" : "Log") \(s.label)")
+        .accessibilityAddTraits(selected == s ? .isSelected : [])
+    }
+
+    private func tile(_ s: Sport) -> some View {
+        Button { pick(s) } label: {
+            VStack(spacing: 6) {
+                Image(systemName: s.symbol).font(.system(size: 24, weight: .bold)).frame(height: 28)
+                Text(s.short).font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+            .frame(maxWidth: .infinity, minHeight: 76)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(s.gradient))
+            .overlay(ring(s, cornerRadius: 18))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(s.label)
+        .accessibilityAddTraits(selected == s ? .isSelected : [])
+    }
+
+    private func ring(_ s: Sport, cornerRadius: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .strokeBorder(.white, lineWidth: selected == s ? 3 : 0)
+    }
+
+    /// "Last: Sat · 2 h · 32 km", or what to do when never logged.
+    private func lastLine(_ s: Sport) -> String {
+        guard let last = model.sportLogs.first(where: { $0.sport == s }) else {
+            return live ? "Your Watch records it" : "Not logged yet"
+        }
+        let days = Calendar.current.dateComponents([.day], from: last.start, to: .now).day ?? 0
+        let when = Calendar.current.isDateInToday(last.start) ? "Today"
+            : days < 6 ? last.start.formatted(.dateTime.weekday(.abbreviated))
+            : last.start.formatted(.dateTime.day().month(.abbreviated))
+        var parts = ["Last: \(when)", Climbs.duration(last.minutes)]
+        if let d = last.distanceKm { parts.append(d >= 10 ? "\(Int(d.rounded())) km" : String(format: "%.1f km", d)) }
+        return parts.joined(separator: " · ")
+    }
+}
+
+extension Sport {
+    /// Sections of the sport picker (#471).
+    enum PickerGroup: CaseIterable {
+        case snow, feet, water, court
+
+        var title: String {
+            switch self {
+            case .snow: "Snow & mountain"
+            case .feet: "Wheels & feet"
+            case .water: "Water"
+            case .court: "Gym, court & more"
+            }
+        }
+    }
+
+    var pickerGroup: PickerGroup {
+        switch self {
+        case .snowboard, .ski, .crossCountrySki, .mountaineering, .climbing: .snow
+        case .mountainBike, .roadBike, .run, .trailRun, .hike, .skate: .feet
+        case .swim, .rowing, .surf, .scubaDiving: .water
+        default: .court
+        }
     }
 }
 
