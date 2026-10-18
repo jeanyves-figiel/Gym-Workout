@@ -310,7 +310,11 @@ struct SportSessionSheet: View {
     @State private var effort: Int?
     @State private var swapped = false
     @State private var track: SportTrack?
-    @State private var scrub: Date?
+    /// Point the elevation chart is scrubbed to; the map dot follows.
+    @State private var scrub: Int?
+    @State private var selectedRun: Int?
+    @State private var colour: RouteColour = .speed
+    @State private var runs: [SportTrack.Run] = []
 
     private static let feels: [(String, Int)] = [("Easy", 3), ("Solid", 6), ("Hard", 8), ("Wrecked", 10)]
 
@@ -330,13 +334,15 @@ struct SportSessionSheet: View {
                         // Hyrox race recorded on the Watch (#426): the race report.
                         HyroxReportView(race: race)
                     } else if let track, track.points.count >= 2 {
-                        SportRouteMap(track: track, sport: entry.sport, source: entry.source, minutes: entry.minutes, scrub: scrub)
-                        SportStatTiles(entry: entry, track: track)
-                        SportElevationChart(track: track, scrub: $scrub)
+                        SportRouteMap(track: track, sport: entry.sport, source: entry.source, minutes: entry.minutes,
+                                      scrub: scrub, runs: runs, selected: selectedRun, colour: $colour)
+                        SportStatTiles(entry: entry, track: track, runs: runs.count)
+                        if entry.sport.downhill { SkiDayCard(track: track) }
+                        SportElevationChart(track: track, byDistance: !entry.sport.downhill, scrub: $scrub)
                     } else {
                         header
                     }
-                    SportSection(entry: entry, track: track)
+                    SportSection(entry: entry, track: track, runs: runs, selected: $selectedRun)
                     Text("How did it feel?").eyebrow()
                     HStack(spacing: 8) {
                         ForEach(Self.feels.indices, id: \.self) { i in
@@ -385,7 +391,11 @@ struct SportSessionSheet: View {
             .toolbar { CloseToolbarItem { dismiss() } }
         }
         .preferredColorScheme(.dark)
-        .task { if !entry.local { track = await health.track(for: entry.id)?.thinned() } }
+        .task {
+            guard !entry.local else { return }
+            track = await health.track(for: entry.id)?.thinned()
+            runs = entry.sport.downhill ? track?.runs() ?? [] : []
+        }
     }
 
     private var header: some View {
@@ -434,206 +444,6 @@ struct SportSessionSheet: View {
             await health.refresh()
         }
         dismiss()
-    }
-}
-
-/// Route coloured by speed (slow green → fast red); the dot follows the elevation chart's scrub.
-private struct SportRouteMap: View {
-    let track: SportTrack
-    let sport: Sport
-    let source: String
-    let minutes: Int
-    let scrub: Date?
-
-    private struct Piece: Identifiable {
-        let id: Int
-        let coords: [CLLocationCoordinate2D]
-        let color: Color
-    }
-
-    private static let speedColors = [Color(hex: 0x7DFFB0), Color(hex: 0xFFB800), Color(hex: 0xFF3D3D)]
-
-    /// Consecutive points of the same speed band become one polyline (sharing the joint point).
-    private var pieces: [Piece] {
-        let top = max(track.points.map(\.speed).max() ?? 1, 0.1)
-        func band(_ v: Double) -> Int { min(2, Int(v / top * 3)) }
-        var out: [Piece] = []
-        var current: [CLLocationCoordinate2D] = []
-        var currentBand = band(track.points.first?.speed ?? 0)
-        for p in track.points {
-            let c = CLLocationCoordinate2D(latitude: p.lat, longitude: p.lon)
-            let b = band(p.speed)
-            current.append(c)
-            if b != currentBand && current.count > 1 {
-                out.append(Piece(id: out.count, coords: current, color: Self.speedColors[currentBand]))
-                current = [c]
-                currentBand = b
-            }
-        }
-        if current.count > 1 { out.append(Piece(id: out.count, coords: current, color: Self.speedColors[currentBand])) }
-        return out
-    }
-
-    var body: some View {
-        let dot = scrub.flatMap { track.index(near: $0) }.map { track.points[$0] }
-        Map(initialPosition: .automatic) {
-            ForEach(pieces) { p in
-                MapPolyline(coordinates: p.coords).stroke(p.color, style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
-            }
-            if let first = track.points.first {
-                Annotation("Start", coordinate: CLLocationCoordinate2D(latitude: first.lat, longitude: first.lon)) {
-                    Circle().fill(Theme.lime).frame(width: 12, height: 12)
-                }
-            }
-            if let dot {
-                Annotation("", coordinate: CLLocationCoordinate2D(latitude: dot.lat, longitude: dot.lon)) {
-                    Circle().fill(Theme.lime).frame(width: 16, height: 16).overlay(Circle().stroke(Color.black, lineWidth: 2))
-                }
-            }
-        }
-        .mapStyle(.standard(elevation: .realistic, emphasis: .muted))
-        .frame(height: 230)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(alignment: .topLeading) {
-            Label("\(sport.short) · \(Climbs.duration(minutes)) · \(source)", systemImage: sport.symbol)
-                .font(Theme.label(11)).foregroundStyle(.white)
-                .padding(.horizontal, 9).padding(.vertical, 5)
-                .background(Capsule().fill(.black.opacity(0.55)))
-                .padding(10)
-        }
-        .overlay(alignment: .bottomLeading) {
-            HStack(spacing: 4) {
-                Text("slow").font(Theme.label(9))
-                Capsule().fill(LinearGradient(colors: Self.speedColors, startPoint: .leading, endPoint: .trailing)).frame(width: 40, height: 5)
-                Text("fast").font(Theme.label(9))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 8).padding(.vertical, 5)
-            .background(Capsule().fill(.black.opacity(0.55)))
-            .padding(10)
-        }
-    }
-}
-
-/// Four bold tiles: distance, vertical, top speed, heart rate.
-private struct SportStatTiles: View {
-    let entry: SportEntry
-    let track: SportTrack
-
-    var body: some View {
-        let v = track.vertical()
-        let downhill = [Sport.snowboard, .ski].contains(entry.sport)
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-            if let d = entry.distanceKm { tile("Distance", d >= 10 ? "\(Int(d.rounded()))" : String(format: "%.1f", d), "km", [0x00A3C4, 0x7DF9FF]) }
-            tile(downhill ? "Vertical" : "Ascent", "\(Int((downhill ? v.down : entry.elevationM ?? v.up).rounded()).formatted())", "m", [0x3D59FF, 0x00C7FF])
-            if let top = track.topKmh, top > 1 { tile("Top speed", "\(Int(top.rounded()))", "km/h", [0xFF3D8B, 0xFF9A5E]) }
-            if let hr = entry.avgHR { tile("Avg HR", "\(Int(hr.rounded()))", "bpm", [0xFF5E3A, 0xFFB03D]) }
-        }
-    }
-
-    private func tile(_ label: String, _ value: String, _ unit: String, _ hex: [UInt32]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label.uppercased()).font(Theme.label(10)).tracking(1.2).opacity(0.85)
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(value).font(Theme.display(28)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
-                Text(unit).font(Theme.label(11)).opacity(0.85)
-            }
-        }
-        .foregroundStyle(.white)
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 18, style: .continuous)
-            .fill(LinearGradient(colors: hex.map { Color(hex: $0) }, startPoint: .topLeading, endPoint: .bottomTrailing)))
-    }
-}
-
-/// Elevation over time; drag to scrub (the map dot follows) and read altitude, speed and time at that point.
-private struct SportElevationChart: View {
-    let track: SportTrack
-    @Binding var scrub: Date?
-
-    var body: some View {
-        let low = (track.points.map(\.alt).min() ?? 0) - 10
-        let picked = scrub.flatMap { track.index(near: $0) }.map { track.points[$0] }
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(picked.map { $0.time.formatted(date: .omitted, time: .shortened) } ?? "Elevation").eyebrow()
-                Spacer()
-                if let p = picked {
-                    Text("\(Int(p.alt.rounded()).formatted()) m · \(Int((p.speed * 3.6).rounded())) km/h").font(Theme.label(13)).foregroundStyle(Theme.lime)
-                } else {
-                    Text("Drag to replay").font(Theme.label(11)).foregroundStyle(Theme.muted)
-                }
-            }
-            Chart {
-                ForEach(Array(track.points.enumerated()), id: \.offset) { _, p in
-                    AreaMark(x: .value("Time", p.time), yStart: .value("Base", low), yEnd: .value("Altitude", p.alt))
-                        .foregroundStyle(LinearGradient(colors: [Color(hex: 0x3D59FF).opacity(0.8), Color(hex: 0x3D59FF).opacity(0.05)],
-                                                        startPoint: .top, endPoint: .bottom))
-                    LineMark(x: .value("Time", p.time), y: .value("Altitude", p.alt))
-                        .foregroundStyle(Color(hex: 0x7DF9FF))
-                        .lineStyle(StrokeStyle(lineWidth: 2))
-                }
-                if let picked {
-                    RuleMark(x: .value("Time", picked.time)).foregroundStyle(Theme.lime).lineStyle(StrokeStyle(lineWidth: 2))
-                }
-            }
-            .chartYScale(domain: low...((track.highest ?? low) + 10))
-            .chartXAxis(.hidden)
-            .chartXSelection(value: $scrub)
-            .frame(height: 120)
-        }
-        .card(padding: 14)
-    }
-}
-
-/// What matters for this sport: runs (ski, snowboard), laps (Hyrox, intervals), summit (hike, mountaineering).
-private struct SportSection: View {
-    let entry: SportEntry
-    let track: SportTrack?
-
-    var body: some View {
-        if let track {
-            let runs = [Sport.snowboard, .ski].contains(entry.sport) ? track.runs() : []
-            if !runs.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Runs · \(runs.count)").eyebrow()
-                    ForEach(Array(runs.enumerated()), id: \.offset) { i, r in
-                        row("\(i + 1)", "\(Int(r.drop.rounded())) m down", "\(Int(r.topKmh.rounded())) km/h")
-                    }
-                }
-                .card(padding: 14)
-            } else if !track.laps.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(entry.sport == .hyrox ? "Splits · \(track.laps.count)" : "Laps · \(track.laps.count)").eyebrow()
-                    ForEach(Array(track.laps.enumerated()), id: \.offset) { i, l in
-                        row("\(i + 1)", Self.clock(l.minutes), l.start.formatted(date: .omitted, time: .shortened))
-                    }
-                }
-                .card(padding: 14)
-            } else if [Sport.hike, .mountaineering, .trailRun].contains(entry.sport), let top = track.highest {
-                HStack {
-                    Label("Summit", systemImage: "flag.fill").font(Theme.label(14))
-                    Spacer()
-                    Text("\(Int(top.rounded()).formatted()) m").font(Theme.display(22))
-                }
-                .card(padding: 14)
-            }
-        }
-    }
-
-    private func row(_ n: String, _ main: String, _ trailing: String) -> some View {
-        HStack {
-            Text(n).font(Theme.label(13)).foregroundStyle(Theme.lime).frame(width: 24, alignment: .leading)
-            Text(main).font(Theme.label(14))
-            Spacer()
-            Text(trailing).font(Theme.label(13)).foregroundStyle(Theme.muted)
-        }
-    }
-
-    static func clock(_ minutes: Double) -> String {
-        let s = Int((minutes * 60).rounded())
-        return String(format: "%d:%02d", s / 60, s % 60)
     }
 }
 

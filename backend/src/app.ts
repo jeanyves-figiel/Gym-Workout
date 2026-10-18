@@ -77,6 +77,13 @@ const password = z.string().min(1).max(256);
 const code = z.string().regex(/^\d{6}$/, 'Code must be 6 digits');
 const name = z.string().trim().min(1).max(80);
 
+/**
+ * The address Fly's proxy saw: with trustProxy, req.ip is the client-supplied left-most X-Forwarded-For entry,
+ * so any caller could pick a fresh value per request (#432). Used for rate limits and per-IP login lockout.
+ */
+export const clientIp = (req: FastifyRequest): string =>
+  (req.headers['fly-client-ip'] as string | undefined)?.trim() || req.socket.remoteAddress || req.ip;
+
 const device = (req: FastifyRequest) => (req.headers['x-device-name'] as string | undefined) ?? req.headers['user-agent'];
 
 export const buildApp = (deps: AppDeps): FastifyInstance => {
@@ -113,6 +120,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
     mode: deps.config.subscriptions.mode,
     productIds: deps.config.subscriptions.productIds,
     tests: deps.config.subscriptions.tests,
+    sandbox: deps.config.subscriptions.sandbox,
     bundleIds: deps.config.appleBundleIds,
     log: warn,
   });
@@ -128,7 +136,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
     return reply.status(500).send({ error: 'internal', message: 'Something went wrong.' });
   });
 
-  app.register(rateLimit, { global: false });
+  // Key on the address Fly's proxy saw, not the spoofable X-Forwarded-For (#432).
+  app.register(rateLimit, { global: false, keyGenerator: clientIp });
 
   // Personal data must not land in HTTP caches on the device or in between (#310).
   app.addHook('onSend', async (req, reply) => {
@@ -164,8 +173,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       });
 
       r.post('/verify-email', limit, async (req) => {
-        const b = z.object({ email, code }).parse(req.body);
-        return auth.verifyEmail(b.email, b.code, device(req));
+        const b = z.object({ email, code, password: password.optional() }).parse(req.body);
+        return auth.verifyEmail(b.email, b.code, device(req), b.password);
       });
 
       r.post('/resend-verification', limit, async (req, reply) => {
@@ -176,14 +185,20 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
 
       r.post('/login', limit, async (req) => {
         const b = z.object({ email, password }).parse(req.body);
-        return auth.login(b.email, b.password, device(req));
+        return auth.login(b.email, b.password, device(req), clientIp(req));
       });
 
       r.post('/apple', limit, async (req) => {
         const b = z
-          .object({ identityToken: z.string().min(10).max(5000), authorizationCode: z.string().min(1).max(2000).optional(), name: name.optional() })
+          .object({
+            identityToken: z.string().min(10).max(5000),
+            authorizationCode: z.string().min(1).max(2000).optional(),
+            name: name.optional(),
+            // Raw Sign in with Apple nonce (#432); required when the token has a nonce claim.
+            nonce: z.string().min(16).max(128).optional(),
+          })
           .parse(req.body);
-        return auth.signInWithApple(b.identityToken, b.name, device(req), b.authorizationCode);
+        return auth.signInWithApple(b.identityToken, b.name, device(req), b.authorizationCode, b.nonce);
       });
 
       r.post('/refresh', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (req) => {
@@ -267,6 +282,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       const voices = deps.config.coachVoices;
       coachVoiceRoutes(r, deps.synth ?? (voices.polly ? pollySynthesizer(voices.polly, outbound, now) : undefined), voices.cacheDir, {
         warm: deps.config.env === 'production',
+        db: deps.db,
+        now,
       });
     },
     { prefix: '/v1' },

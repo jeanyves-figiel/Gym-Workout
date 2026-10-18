@@ -77,5 +77,15 @@ export const ensureSchemaExtras = (db: DB): void => {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS machine_note_photos_note ON machine_note_photos(user_id, note_id);
+    -- Sync deletes (#432): ids a member deleted, so other devices drop them ('deleted' in since pulls) and a
+    -- stale device can't upload them back. Purged after 180 days (purge.ts).
+    CREATE TABLE IF NOT EXISTS sync_tombstones (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      item_id TEXT NOT NULL COLLATE NOCASE,
+      deleted_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, kind, item_id)
+    );
+    CREATE INDEX IF NOT EXISTS sync_tombstones_deleted ON sync_tombstones(user_id, kind, deleted_at);
   `);
 };

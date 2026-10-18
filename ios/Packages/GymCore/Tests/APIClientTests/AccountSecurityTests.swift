@@ -36,6 +36,24 @@ private func json(_ data: Data?) -> [String: String] {
         #expect(u.appleLinked)
     }
 
+    @Test func appleSignInSendsRawNonce() async throws {
+        StubProtocol.register("apple-nonce.test") { req, body in
+            guard req.url!.path == "/v1/auth/apple" else { return (404, "{}") }
+            return json(body)["nonce"] == "raw-nonce-0123456789"
+                ? (200, #"{"user":\#(user("a@b.c")),"tokens":\#(pairJSON),"created":false}"#)
+                : (400, #"{"error":"invalid_request","message":"missing nonce"}"#)
+        }
+        let api = client("apple-nonce.test", tokens: InMemoryTokenStore())
+        _ = try await api.signInWithApple(identityToken: "id-token", name: nil, nonce: "raw-nonce-0123456789")
+    }
+
+    @Test func appleNonceIsRandomHexAndHashIsSHA256Hex() {
+        let a = AppleNonce(), b = AppleNonce()
+        #expect(a.raw != b.raw)
+        #expect(a.raw.count == 64 && a.raw.allSatisfy { "0123456789abcdef".contains($0) })
+        #expect(AppleNonce(raw: "abc").hashed == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+    }
+
     @Test func changeEmailRequestThenConfirm() async throws {
         let store = InMemoryTokenStore(StoredTokens(accessToken: "access-1", accessExpiresAt: Date().addingTimeInterval(900), refreshToken: "refresh-1"))
         StubProtocol.register("email.test") { req, body in

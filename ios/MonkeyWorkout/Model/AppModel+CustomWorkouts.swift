@@ -86,7 +86,8 @@ extension AppModel {
         let deleted = state.deletedCustomWorkoutIds ?? []
         let local = state.customWorkoutList ?? []
         // Server copy wins unless a local edit is still queued; ids gone from the server were deleted elsewhere.
-        var merged = remote.filter { !stillPending.contains($0.id) && !deleted.contains($0.id) }
+        // Sanitized like a local save: flow moves this app doesn't know never reach `Exercise.get`.
+        var merged = remote.filter { !stillPending.contains($0.id) && !deleted.contains($0.id) }.map(\.sanitized)
         merged += local.filter { stillPending.contains($0.id) }
         var seen = Set<UUID>()
         state.customWorkoutList = merged.filter { seen.insert($0.id).inserted }

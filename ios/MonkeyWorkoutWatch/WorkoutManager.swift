@@ -53,6 +53,7 @@ final class WorkoutManager: NSObject {
         }
         guard let s = session, let b = builder else { return }
         self.phoneSessionId = phoneSessionId
+        UserDefaults.standard.set(phoneSessionId, forKey: Self.phoneSessionKey)
         heartRate = nil
         activeKcal = 0
         hrSum = 0
@@ -99,7 +100,14 @@ final class WorkoutManager: NSObject {
     func finish(sets: Int?) async -> Bool {
         guard let session, let builder, running else { discard(); return false }
         session.end()
-        defer { self.session = nil; self.builder = nil; running = false; paused = false; phoneSessionId = nil }
+        defer {
+            self.session = nil
+            self.builder = nil
+            running = false
+            paused = false
+            phoneSessionId = nil
+            UserDefaults.standard.removeObject(forKey: Self.phoneSessionKey)
+        }
         do {
             var meta: [String: Any] = [HKMetadataKeyIndoorWorkout: true]
             if let sets { meta["MonkeyWorkoutSets"] = sets }
@@ -121,6 +129,58 @@ final class WorkoutManager: NSObject {
         running = false
         paused = false
         phoneSessionId = nil
+        UserDefaults.standard.removeObject(forKey: Self.phoneSessionKey)
+    }
+
+    // MARK: Recovery
+
+    /// iPhone workout being tracked, kept on disk so a relaunch after a crash can pick the session back up.
+    private static let phoneSessionKey = "workout.phoneSessionId"
+
+    /// watchOS relaunched the app after it quit mid-workout. An iPhone workout's tracking carries on (the iPhone
+    /// ends it); anything else (Watch player, sport, Hyrox) lost its screen state, so what Health recorded is saved.
+    func recoverActiveWorkout() {
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+        store.recoverActiveWorkoutSession { [weak self] session, _ in
+            guard let session else { return }
+            Task { @MainActor in self?.recovered(session) }
+        }
+    }
+
+    private func recovered(_ s: HKWorkoutSession) {
+        let b = s.associatedWorkoutBuilder()
+        let phoneId = UserDefaults.standard.string(forKey: Self.phoneSessionKey)
+        guard s.workoutConfiguration.activityType == .functionalStrengthTraining, let phoneId, !running else {
+            UserDefaults.standard.removeObject(forKey: Self.phoneSessionKey)
+            s.end()
+            Task {
+                try? await b.endCollection(at: Date())
+                _ = try? await b.finishWorkout()
+            }
+            return
+        }
+        if session != nil { discard() } // only ever a prepared, not started one here
+        b.dataSource = HKLiveWorkoutDataSource(healthStore: store, workoutConfiguration: s.workoutConfiguration)
+        s.delegate = self
+        b.delegate = self
+        session = s
+        builder = b
+        phoneSessionId = phoneId
+        UserDefaults.standard.set(phoneId, forKey: Self.phoneSessionKey)
+        heartRate = nil
+        activeKcal = 0
+        hrSum = 0
+        hrCount = 0
+        maxHeartRate = nil
+        running = true
+        paused = s.state == .paused
+    }
+
+    /// The Health session failed: drop it. The Watch player and the iPhone save the workout without it
+    /// (`finish` returns false), and a tracked iPhone workout is told tracking stopped.
+    private func failed(_ s: HKWorkoutSession) {
+        guard s === session else { return }
+        if phoneSessionId != nil, let store = WatchStore.current { store.stopTracking() } else { discard() }
     }
 
     fileprivate func update(_ stats: HKStatistics) {
@@ -149,7 +209,9 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState,
                                     from fromState: HKWorkoutSessionState, date: Date) {}
 
-    nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {}
+    nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
+        Task { @MainActor in self.failed(workoutSession) }
+    }
 }
 
 extension WorkoutManager: HKLiveWorkoutBuilderDelegate {

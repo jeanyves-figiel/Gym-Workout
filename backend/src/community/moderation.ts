@@ -16,6 +16,12 @@ export const REPORT_REASONS = ['spam', 'harassment', 'hate', 'sexual', 'violence
 export type ReportReason = (typeof REPORT_REASONS)[number];
 /** Distinct open reports after which an item should be hidden pending review. */
 export const AUTO_HIDE_REPORTS = 3;
+/**
+ * Only reporters whose account was at least 7 days old when they reported count towards auto-hide (#432): fresh
+ * sign-ups can't hide a member's content on their own. Their reports still reach moderation. Report alias `r`.
+ */
+const SEASONED_REPORTER = `EXISTS (SELECT 1 FROM users ru WHERE ru.id = r.reporter_id
+  AND ru.created_at <= strftime('%Y-%m-%dT%H:%M:%fZ', r.created_at, '-7 days'))`;
 
 /** 400 objectionable_content when any text trips the filter. */
 export const assertClean = (...texts: (string | null | undefined)[]) => {
@@ -41,7 +47,7 @@ export const visibleToOthersSql = (ownerCol: string, visibilityCol: string, hidd
  */
 export const memberNotHiddenSql = (userCol: string) =>
   `(SELECT COUNT(DISTINCT r.reporter_id) FROM community_reports r
-     WHERE r.target_user_id = ${userCol} AND r.target_type IS NULL AND r.resolved_at IS NULL) < ${AUTO_HIDE_REPORTS}`;
+     WHERE r.target_user_id = ${userCol} AND r.target_type IS NULL AND r.resolved_at IS NULL AND ${SEASONED_REPORTER}) < ${AUTO_HIDE_REPORTS}`;
 
 /**
  * Members following `userId` who may be told about their shared wins: still in the community and
@@ -87,7 +93,10 @@ export const reportContent = (db: DB, r: ReportInput): number => {
 const openReporters = (db: DB, targetType: string, targetId: string) =>
   (
     db
-      .prepare('SELECT COUNT(DISTINCT reporter_id) AS n FROM community_reports WHERE target_type = ? AND target_id = ? AND resolved_at IS NULL')
+      .prepare(
+        `SELECT COUNT(DISTINCT r.reporter_id) AS n FROM community_reports r
+         WHERE r.target_type = ? AND r.target_id = ? AND r.resolved_at IS NULL AND ${SEASONED_REPORTER}`,
+      )
       .get(targetType, targetId) as { n: number }
   ).n;
 

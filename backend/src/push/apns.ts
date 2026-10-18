@@ -94,6 +94,8 @@ export const createApnsSender = (
         } catch {
           /* non-JSON body */
         }
+        // A rejected provider token stays cached for 50 min otherwise: sign a fresh one for the next send (#432).
+        if (status === 403 && (reason === 'ExpiredProviderToken' || reason === 'InvalidProviderToken')) jwt = undefined;
         resolve({ status, reason });
       });
       req.on('error', reject);

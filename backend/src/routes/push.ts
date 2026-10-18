@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { assertClean } from '../community/moderation.ts';
 import { ApiError } from '../errors.ts';
 import { NotificationPrefs } from '../push/prefs.ts';
 import type { PushService } from '../push/service.ts';
@@ -17,6 +18,8 @@ export const pushRoutes = (r: FastifyInstance, push: PushService, topics: string
           .max(30),
       })
       .parse(req.body);
+    // The text goes to followers' lock screens: same filter as community captions (#432).
+    assertClean(...b.achievements.map((a) => a.text));
     const announced = await push.announce(req.userId!, nameOf(req.userId!) ?? 'Someone you follow', b.achievements);
     return { announced };
   });

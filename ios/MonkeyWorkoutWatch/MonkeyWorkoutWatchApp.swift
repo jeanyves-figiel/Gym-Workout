@@ -20,6 +20,11 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
             if let store = WatchStore.current { store.phoneStarted() } else { WatchStore.pendingPhoneStart = true }
         }
     }
+
+    /// Relaunched after quitting mid-workout: the Health session is still running and must be picked back up.
+    func handleActiveWorkoutRecovery() {
+        Task { @MainActor in WorkoutManager.shared.recoverActiveWorkout() }
+    }
 }
 
 @main

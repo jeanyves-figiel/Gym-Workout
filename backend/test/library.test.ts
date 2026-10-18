@@ -60,6 +60,34 @@ type Shared = { id: string; name: string; author: { nickname: string }; saves: n
 const shared = async (t: string, q = '') => (await req('GET', `/v1/library/shared${q}`, t)).json() as { workouts: Shared[] };
 
 describe('workout library', () => {
+  it('pages through workouts shared at the same moment with beforeId (#432)', async () => {
+    const a = await member('a@example.com', 'alice');
+    const b = await member('b@example.com', 'bob');
+    await req('POST', '/v1/me/custom-workouts', a.t, { workouts: Array.from({ length: 5 }, () => workout('members')) });
+    const seen: string[] = [];
+    let url = '/v1/library/shared?limit=2';
+    for (let i = 0; i < 5 && url; i++) {
+      const page = (await req('GET', url, b.t)).json() as { workouts: Shared[]; nextBefore: string | null; nextBeforeId: string | null };
+      seen.push(...page.workouts.map((w) => w.id));
+      url = page.nextBefore ? `/v1/library/shared?limit=2&before=${encodeURIComponent(page.nextBefore)}&beforeId=${page.nextBeforeId}` : '';
+    }
+    expect(new Set(seen).size).toBe(5);
+    expect(seen).toHaveLength(5);
+  });
+
+  it('leaving the community makes shared workouts private again (#432)', async () => {
+    const a = await member('a@example.com', 'alice');
+    const b = await member('b@example.com', 'bob');
+    const w = workout('public');
+    await req('POST', '/v1/me/custom-workouts', a.t, { workouts: [w] });
+    expect((await shared(b.t)).workouts).toHaveLength(1);
+    expect((await req('DELETE', '/v1/community/me', a.t)).statusCode).toBe(204);
+    expect((await shared(b.t)).workouts).toHaveLength(0);
+    expect((await req('GET', `/v1/library/shared/${w.id}`, b.t)).statusCode).toBe(404);
+    const own = (await req('GET', '/v1/me/custom-workouts', a.t)).json() as { workouts: { id: string; visibility: string }[] };
+    expect(own.workouts.map((x) => x.visibility)).toEqual(['private']);
+  });
+
   it('shares members/public workouts, hides private ones and own ones', async () => {
     const a = await member('a@example.com', 'alice');
     const b = await member('b@example.com', 'bob');
@@ -125,6 +153,7 @@ describe('workout library', () => {
     expect((await shared(viewers[1]!.t)).workouts).toHaveLength(1);
 
     expect((await req('POST', `/v1/library/shared/${w.id}/report`, owner.t, { reason: 'spam' })).statusCode).toBe(404);
+    db.prepare("UPDATE users SET created_at = '2026-01-01T00:00:00.000Z'").run(); // reporters' accounts ≥ 7 days old (#432)
     for (const v of viewers.slice(1)) {
       const r = await req('POST', `/v1/library/shared/${w.id}/report`, v.t, { reason: 'spam' });
       expect(r.statusCode).toBe(202);
@@ -132,6 +161,7 @@ describe('workout library', () => {
     }
     // Third distinct reporter (a new member) hides it.
     const v4 = await member('v4@example.com', 'viewer4');
+    db.prepare("UPDATE users SET created_at = '2026-01-01T00:00:00.000Z'").run();
     expect((await req('POST', `/v1/library/shared/${w.id}/report`, v4.t, { reason: 'hate' })).json().hidden).toBe(true);
     expect((await shared(viewers[1]!.t)).workouts).toHaveLength(0);
     // Owner still sees it, flagged hidden.

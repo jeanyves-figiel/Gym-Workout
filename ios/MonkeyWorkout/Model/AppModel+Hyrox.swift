@@ -1,3 +1,4 @@
+import APIClient
 import Foundation
 import LiftSensor
 import WorkoutEngine
@@ -49,17 +50,45 @@ extension AppModel {
     /// Settings, last race and upload key for the Watch snapshot.
     func watchHyrox(start: (format: HyroxFormat, at: Date)?) -> WHyrox? {
         guard doesHyrox else { return nil }
-        if state.watchUploadKey == nil { Task { await fetchWatchUploadKey() } }
+        if watchUploadKey == nil { Task { await fetchWatchUploadKey() } }
         return WHyrox(division: hyroxDivision, goalSeconds: hyroxGoalSeconds, raceName: hyroxProfile.raceName,
-                      raceDate: hyroxPlan?.event, lastRace: lastFullRace(), uploadKey: state.watchUploadKey,
+                      raceDate: hyroxPlan?.event, lastRace: lastFullRace(), uploadKey: watchUploadKey,
                       apiBase: AppConfig.apiBaseURL.absoluteString, start: start?.format, startAt: start?.at)
     }
 
     /// One upload-only key per account; the Watch posts races with it when it has a network.
+    /// Every snapshot build asks while the key is missing: one request at a time.
+    private static var fetchingUploadKey = false
+
     func fetchWatchUploadKey() async {
-        guard phase == .signedIn, !demo, state.watchUploadKey == nil, let key = try? await api.watchUploadKey() else { return }
-        state.watchUploadKey = key
-        persist()
+        guard phase == .signedIn, !demo, watchUploadKey == nil, !Self.fetchingUploadKey else { return }
+        Self.fetchingUploadKey = true
+        defer { Self.fetchingUploadKey = false }
+        let owner = state.ownerId
+        // Signed out or another account meanwhile: that key isn't this account's.
+        guard let key = try? await api.watchUploadKey(), phase == .signedIn, state.ownerId == owner,
+              watchUploadKey == nil else { return }
+        watchUploadKey = key
+        Self.uploadKeyItem.save(Data(key.utf8))
         WatchSync.shared.push()
+    }
+
+    /// The key is a credential: this device's Keychain (after first unlock, for background snapshots), not state.json (#432).
+    private static let uploadKeyItem = KeychainItem(service: AppConfig.keychainService, account: "watchUploadKey")
+
+    /// At launch, after `state` is loaded: moves a key an older build kept in state.json to the Keychain.
+    func loadWatchUploadKey() {
+        if let legacy = state.watchUploadKey {
+            Self.uploadKeyItem.save(Data(legacy.utf8))
+            state.watchUploadKey = nil
+            persist()
+        }
+        watchUploadKey = Self.uploadKeyItem.load().flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    /// Sign-out, another account, reinstall.
+    func clearWatchUploadKey() {
+        watchUploadKey = nil
+        Self.uploadKeyItem.clear()
     }
 }

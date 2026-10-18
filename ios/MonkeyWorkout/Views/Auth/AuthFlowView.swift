@@ -4,7 +4,7 @@ import SwiftUI
 import WorkoutEngine
 
 enum AuthRoute: Hashable {
-    case signIn, signUp, verify(email: String), forgot, reset(email: String), privacy, twoStep(token: String)
+    case signIn, signUp, verify(email: String, password: String? = nil), forgot, reset(email: String), privacy, twoStep(token: String)
 }
 
 struct AuthFlowView: View {
@@ -31,7 +31,7 @@ struct AuthFlowView: View {
                     switch route {
                     case .signIn: SignInView(path: $path)
                     case .signUp: SignUpView(path: $path)
-                    case let .verify(email): VerifyEmailView(email: email)
+                    case let .verify(email, password): VerifyEmailView(email: email, password: password)
                     case .forgot: ForgotPasswordView(path: $path)
                     case let .reset(email): ResetPasswordView(email: email, path: $path)
                     case .privacy: PrivacyNoticeView()
@@ -108,12 +108,19 @@ struct WelcomeView: View {
 struct AppleSignInButton: View {
     @Environment(AppModel.self) private var model
     @State private var task = FormTask()
+    /// Raw nonce of the request in flight; its hash goes to Apple, the raw value to the server (#432).
+    @State private var nonce: AppleNonce?
 
     var body: some View {
         VStack(spacing: 6) {
             SignInWithAppleButton(.continue) { request in
                 request.requestedScopes = [.fullName, .email]
+                let n = AppleNonce()
+                nonce = n
+                request.nonce = n.hashed
             } onCompletion: { result in
+                let rawNonce = nonce?.raw
+                nonce = nil
                 switch result {
                 case let .success(auth):
                     guard let cred = auth.credential as? ASAuthorizationAppleIDCredential,
@@ -128,7 +135,7 @@ struct AppleSignInButton: View {
                     let code = cred.authorizationCode.flatMap { String(data: $0, encoding: .utf8) }
                     let appleUserID = cred.user
                     task.run {
-                        let user = try await model.api.signInWithApple(identityToken: token, name: name, authorizationCode: code)
+                        let user = try await model.api.signInWithApple(identityToken: token, name: name, authorizationCode: code, nonce: rawNonce)
                         AppleCredentialCheck.remember(appleUserID: appleUserID, accountId: user.id)
                         await model.didAuthenticate(user)
                     }

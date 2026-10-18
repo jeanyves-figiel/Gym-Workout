@@ -127,6 +127,19 @@ import Testing
         #expect(d.items.map(\.exerciseId) == c.items.map(\.exerciseId))
     }
 
+    @Test func unknownFlowMovesAreLeftOut() throws {
+        // A library copy carries its warm-up / cool-down moves as flow blocks (#252).
+        var w = try #require(WorkoutTemplate.all.map { CustomWorkout(duplicating: $0) }.first { !($0.flow.first?.items.isEmpty ?? true) })
+        let known = w.flow[0].items[0].exerciseId
+        // Synced from a newer app version: a move this catalog doesn't have.
+        w.flow[0].items[0].exerciseId = "from-the-future"
+        let ids = w.session.blocks.flatMap(\.items).map(\.exerciseId)
+        #expect(!ids.contains("from-the-future"))
+        #expect(!w.sanitized.flow.flatMap(\.items).contains { $0.exerciseId == "from-the-future" })
+        w.flow[0].items[0].exerciseId = known
+        #expect(w.session.blocks.flatMap(\.items).map(\.exerciseId).contains(known))
+    }
+
     @Test func sanitizesInput() {
         var w = CustomWorkout(name: "   ", items: [.init(exerciseId: "dips", sets: 0, reps: 9999, restSec: -5, kcal: -1)])
         w = w.sanitized

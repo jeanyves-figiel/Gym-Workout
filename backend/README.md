@@ -63,8 +63,8 @@ Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode
 | POST | `/auth/register` | – | `{email, password, name?, acceptedTerms}` → 202, emails 6-digit code. Enumeration-safe. |
 | POST | `/auth/verify-email` | – | `{email, code}` → `{user, tokens}` |
 | POST | `/auth/resend-verification` | – | `{email}` → 202 (throttled 1/min) |
-| POST | `/auth/login` | – | `{email, password}` → `{user, tokens}`; 403 `email_not_verified`; 429 `account_locked` |
-| POST | `/auth/apple` | – | `{identityToken, authorizationCode?, name?}` → `{user, tokens, created}`; links verified email; code exchanged for Apple refresh token (revoked on account deletion) |
+| POST | `/auth/login` | – | `{email, password}` → `{user, tokens}`; 403 `email_not_verified`; 429 `account_locked` `{lockedUntil}` |
+| POST | `/auth/apple` | – | `{identityToken, authorizationCode?, name?, nonce?}` → `{user, tokens, created}`; `nonce` = raw nonce (16–128 chars) when the token has a `nonce` claim (its SHA-256 hex, single use), else 401 `invalid_apple_token`; links verified email; code exchanged for Apple refresh token (revoked on account deletion) |
 | POST | `/auth/refresh` | – | `{refreshToken}` → new pair (rotation; replay revokes family) |
 | POST | `/auth/logout` | – | `{refreshToken}` → 204 |
 | POST | `/auth/password/forgot` | – | `{email}` → 202 |
@@ -77,19 +77,19 @@ Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode
 | POST | `/me/logout-all` | ✓ | 204 |
 | DELETE | `/me` | ✓ | `{confirm: "DELETE", password?}` — permanent, cascades all data, revokes Sign in with Apple |
 | GET / PUT | `/me/profile` | ✓ | opaque app profile JSON |
-| GET / POST | `/me/logs` | ✓ | `?since=ISO` delta; upsert ≤500 by client UUID. Entry: `{id, date, exerciseId, sessionId?, weightKg?, reps?, setIndex?, rir?}` |
+| GET / POST | `/me/logs` | ✓ | `?since=ISO` delta (rows updated at or after it; merge by id); upsert ≤500 by client UUID, `saved` = rows written. Entry: `{id, date, exerciseId, sessionId?, weightKg?, reps?, setIndex?, rir?}` |
 | DELETE | `/me/logs/:id` | ✓ | |
 | GET / POST | `/me/workouts` | ✓ | completed sessions (opaque JSON with `id`, `startedAt`); `?since=ISO` delta; upsert ≤100 |
 | DELETE | `/me/workouts/:id` | ✓ | |
 | GET / POST | `/me/custom-workouts` | ✓ | user-built workouts (opaque JSON with `id`, `name`, `items[].exerciseId`); `?since=ISO` delta; upsert ≤100 |
 | DELETE | `/me/custom-workouts/:id` | ✓ | |
-| GET | `/library/shared` | ✓ | workout library (#62): members' shared custom workouts (`visibility` members/public on upsert), newest first; `?q=` name, `?before=`, `?limit=`; needs community profile; blocks + auto-hidden excluded |
+| GET | `/library/shared` | ✓ | workout library (#62): members' shared custom workouts (`visibility` members/public on upsert), newest first; `?q=` name, `?before=` + `beforeId=` (the page's `nextBefore` / `nextBeforeId`), `?limit=`; needs community profile; blocks + auto-hidden excluded |
 | GET | `/library/shared/:id` | ✓ | one shared workout |
 | POST | `/library/shared/:id/save` | ✓ | count a copy into "My workouts" |
 | POST | `/library/shared/:id/report` | ✓ | `{reason, details?}`; auto-hides after 3 distinct reporters |
 | GET / PUT / DELETE | `/community/me` | ✓ | community profile (`nickname`, `bio`, `defaultVisibility` private\|members\|public, `autoShare`; joining needs `acceptGuidelines: true`); DELETE = leave (profile, photo, posts, cheers) |
 | PUT / DELETE | `/community/me/avatar` | ✓ | raw `image/jpeg` ≤512 KB, 64–1024 px; APPn/comment segments (EXIF, GPS, XMP) stripped |
-| GET | `/community/feed?scope=members\|following\|mine&before=ISO&limit=` | ✓ | newest first, `nextBefore` cursor; blocks applied both ways |
+| GET | `/community/feed?scope=members\|following\|mine&before=ISO&limit=` | ✓ | newest first, `nextBefore` + `nextBeforeId` cursor (pass back as `before` + `beforeId`; `before` alone still works but can skip posts of the same moment); blocks applied both ways |
 | POST | `/community/posts` | ✓ | share a win (`kind` workout\|badge\|record\|climb\|note, `refId` dedupes, `payload` card, `caption`, `visibility`) |
 | PATCH / DELETE | `/community/posts/:id` | ✓ | own posts: visibility / caption |
 | PUT / DELETE | `/community/posts/:id/reactions/:kind` | ✓ | like\|strong\|fire\|clap, not on own posts |
@@ -115,14 +115,22 @@ Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode
 | POST | `/app-store/notifications` | Apple-signed | App Store Server Notifications V2 `{signedPayload}` |
 | GET | `/healthz` | – | |
 
+Sync deletes (#432): every `GET /me/<kind>?since=ISO` pull (`logs`, `workouts`, `custom-workouts`, `custom-exercises`,
+`pr-attempts`, `body-measurements`, `climbs`, `sports`, `machine-notes`) also returns `deleted: string[]`, the ids of
+items deleted (by any device, or by ops' undo-workout) at or after `since`; drop them locally. Always present on a
+`since` pull (`[]` when nothing was deleted; always `[]` for custom exercises, which are archived, not deleted), absent
+on a full pull. Uploading a deleted id again (Undo in the app) brings it back and clears its tombstone.
+Tombstones are kept 180 days; a device offline for longer should do a full pull.
+
 Errors: `{error: <code>, message}`. Password endpoints (register, reset, change) may return 400 `weak_password` or `breached_password`.
 
 ## Security model
 - Passwords: scrypt (N=2¹⁵, r=8, p=1), ≥10 chars, common/email-derived rejected; dummy hash for unknown accounts (timing).
 - Email codes: 6 digits, HMAC-peppered at rest, 15 min TTL, 5 attempts, previous codes invalidated.
 - Access: HS256 JWT, 15 min. Refresh: opaque 256-bit, SHA-256 at rest, 60 days, single-use rotation with family revocation on replay.
-- Lockout: 10 failed logins → 15 min. Rate limit: 10 req/min/IP on auth routes.
-- Sign in with Apple: identity token verified against Apple JWKS (issuer + bundle-id audience).
+- Lockout: 10 failed logins from one IP → that IP locked out of the account for 15 min; 100 a day across IPs → password sign-in locked for a day (a reset reopens it). Rate limit: 10 req/min/IP (`Fly-Client-IP`) on auth routes.
+- Sync quotas: 413 `quota_exceeded` past a per-member row cap per table (`ROW_QUOTAS` in `src/quota.ts`).
+- Sign in with Apple: identity token verified against Apple JWKS (issuer + bundle-id audience); a `nonce` claim needs the matching raw `nonce` and is accepted once (also for `/me/reauth` `{method: 'apple', identityToken, nonce?}`).
 - Password change/reset revokes all refresh tokens and notifies by email.
 - Breached passwords: Have I Been Pwned range API (k-anonymity: only 5 hex chars of the SHA-1 leave the server, `Add-Padding`), 2 s timeout, fails open.
 - Email change: 6-digit code to the new address (same TTL/attempt rules), old address notified, pending codes invalidated.

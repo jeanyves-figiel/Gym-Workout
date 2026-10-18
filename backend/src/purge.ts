@@ -1,4 +1,5 @@
 import type { DB } from './db.ts';
+import { TOMBSTONE_KEEP_DAYS } from './routes/sync.ts';
 
 export interface PurgeResult {
   codes: number;
@@ -29,8 +30,10 @@ export const purgeExpired = (db: DB, now: Date = new Date()): PurgeResult => {
       .run(iso, cutoff, iso).changes,
   );
   // Re-auth grants/codes, 2-step challenges, passkey challenges (#257): all short-lived.
-  for (const t of ['reauth_grants', 'reauth_codes', 'mfa_challenges', 'webauthn_challenges'])
+  for (const t of ['reauth_grants', 'reauth_codes', 'mfa_challenges', 'webauthn_challenges', 'throttle_hits'])
     db.prepare(`DELETE FROM ${t} WHERE expires_at <= ?`).run(iso);
+  // Sync deletes (#432): old enough that every active device has pulled them.
+  db.prepare('DELETE FROM sync_tombstones WHERE deleted_at <= ?').run(new Date(now.getTime() - TOMBSTONE_KEEP_DAYS * 86_400_000).toISOString());
   return { codes, emailChanges, refreshTokens };
 };
 
