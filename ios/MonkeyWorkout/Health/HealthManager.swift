@@ -510,7 +510,8 @@ final class HealthManager {
                 avgHR: hr?.averageQuantity()?.doubleValue(for: bpm),
                 maxHR: hr?.maximumQuantity()?.doubleValue(for: bpm),
                 kcal: stats[HKQuantityType(.activeEnergyBurned)]?.sumQuantity()?.doubleValue(for: .kilocalorie()),
-                local: meta[Self.sportIdKey] != nil)
+                local: meta[Self.sportIdKey] != nil,
+                tracked: meta["MonkeyWorkoutSport"] != nil && meta[Self.sportIdKey] == nil)
         }
     }
 

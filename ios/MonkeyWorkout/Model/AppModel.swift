@@ -604,7 +604,7 @@ final class AppModel {
         if plan?.sessions.contains(where: { $0.id == session.id }) != true { dropSessionEdit(session.id) }
         persist()
         Task { await sync() }
-        Community.shared.didRecord(r, api: api, userId: user?.id)
+        Task { await Community.shared.autoShare(autoShareWins(), api: api, userId: user?.id) }
         return r
     }
 

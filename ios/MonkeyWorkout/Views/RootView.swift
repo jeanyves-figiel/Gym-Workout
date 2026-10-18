@@ -47,6 +47,8 @@ enum MainTab: Hashable { case train, explore, progress, community, account }
 
 struct MainTabView: View {
     @Environment(AppModel.self) private var model
+    @Environment(HealthManager.self) private var health
+    @Environment(\.scenePhase) private var scenePhase
     @State private var whatsNew = WhatsNew.pending
     @State private var ask = CoachAsk.shared
     @AppStorage(AskCoachPref.bubbleKey) private var coachBubble = true
@@ -75,7 +77,14 @@ struct MainTabView: View {
         .overlay { if coachBubble { AskCoachBubble() } }
         .sheet(item: $ask.request) { r in CoachChatView(ask: r) }
         // Community profile early so auto-share works for the first workout of the session.
-        .task(id: model.user?.id) { await Community.shared.load(api: model.api, userId: model.user?.id) }
+        .task(id: model.user?.id) {
+            await Community.shared.load(api: model.api, userId: model.user?.id)
+            await autoShare()
+        }
+        // Auto-share catch-up (#479): a workout finished on the Watch while the app was closed, a failed post or
+        // a sport the Watch tracked (it reaches the iPhone through Health) is posted when the app opens.
+        .onChange(of: scenePhase) { _, p in if p == .active { Task { await autoShare() } } }
+        .onChange(of: health.snapshot.recentSports.count) { Task { await autoShare() } }
         // Coach voice (#402, C): the best matching studio voice, downloaded once in the background.
         .task(id: model.user?.id) { await CoachVoiceStore.shared.prepare(model: model) }
         .task(id: "\(Community.shared.profile?.userId ?? "")-\(model.game.level)") { await Community.shared.reportLevel(model.game.level, api: model.api) }
@@ -482,3 +491,10 @@ private struct TalkToYouDemo: View {
     }
 }
 #endif
+
+extension MainTabView {
+    fileprivate func autoShare() async {
+        await Community.shared.autoShare(model.autoShareWins(healthSports: health.snapshot.recentSports), api: model.api,
+                                         userId: model.user?.id)
+    }
+}

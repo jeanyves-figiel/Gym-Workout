@@ -14,6 +14,7 @@ extension AppModel {
         state.pendingSportIds = (state.pendingSportIds ?? []).union([log.id])
         persist()
         Task { await sync() }
+        Task { await Community.shared.autoShare(autoShareWins(), api: api, userId: user?.id) }
     }
 
     func deleteSport(_ id: UUID) {

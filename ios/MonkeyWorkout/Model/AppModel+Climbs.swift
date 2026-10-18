@@ -13,6 +13,7 @@ extension AppModel {
         state.pendingClimbIds = (state.pendingClimbIds ?? []).union([log.id])
         persist()
         Task { await sync() }
+        Task { await Community.shared.autoShare(autoShareWins(), api: api, userId: user?.id) }
     }
 
     func deleteClimb(_ id: UUID) {
