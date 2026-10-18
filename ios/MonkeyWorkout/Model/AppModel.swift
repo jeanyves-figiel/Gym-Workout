@@ -633,15 +633,18 @@ final class AppModel {
 
     // MARK: Sync
 
+    /// Server profile replaces the local one unless a local edit is still unsaved (the next push sends it).
+    /// Unchanged → nothing, so this week's one-off swaps stay; done and running sessions keep their content.
     private func pullProfile() async {
         guard let remote = try? await api.fetchProfile(SyncedProfile.self) else { return }
-        if state.synced == nil || !state.profileDirty {
-            state.synced = remote
-            state.plan = Generator.generateWeek(remote.planProfile, week: remote.week, seed: remote.seed)
-            replanCurrentWeek()
-            state.profileDirty = false
-            persist()
-        }
+        guard state.synced == nil || !state.profileDirty, remote != state.synced else { return }
+        let sameWeek = state.synced.map { $0.week == remote.week && $0.seed == remote.seed && $0.weekOf == remote.weekOf } ?? false
+        let kept = sameWeek ? doneIds.union([state.activeWorkout?.sessionId].compactMap { $0 }) : []
+        state.synced = remote
+        state.plan = Generator.generateWeek(remote.planProfile, week: remote.week, seed: remote.seed).keeping(kept, from: state.plan)
+        replanCurrentWeek()
+        state.profileDirty = false
+        persist()
     }
 
     /// Something not yet on the server: edits, new records or queued deletes.
@@ -675,6 +678,8 @@ final class AppModel {
         // the first error is the one shown.
         var firstError: Error?
         guard await runSyncStep(&firstError, { try await self.pushProfile() }),
+              // Edits from another device; skipped while a local edit is still unsaved.
+              await runSyncStep(&firstError, { if !self.state.profileDirty { await self.pullProfile() } }),
               await runSyncStep(&firstError, { try await self.pushLogs() }),
               await runSyncStep(&firstError, { try await self.pushHistory() }),
               await runSyncStep(&firstError, { try await self.pushQueuedDeletes() }),
