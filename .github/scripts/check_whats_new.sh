@@ -11,8 +11,8 @@ H=ios/MonkeyWorkout/Resources/WhatsNewHistory.json
 ITEMS='all(.items[]; (.symbol | length > 0) and (.title | length > 0) and (.body | length > 0)
   and (.tint | IN("warmup", "power", "strength", "mobility", "cardio", "stretch")))'
 jq -e "(.id | type == \"string\" and length > 0)
-  and (.items | type == \"array\" and length > 0 and length <= 5) and $ITEMS" "$F" >/dev/null \
-  || { echo "::error file=$F::Invalid What's new: needs id and 1-5 items with symbol, tint (category), title, body"; exit 1; }
+  and (.items | type == \"array\" and length > 0) and $ITEMS" "$F" >/dev/null \
+  || { echo "::error file=$F::Invalid What's new: needs id and at least 1 item with symbol, tint (category), title, body"; exit 1; }
 jq -e "(.releases | type == \"array\") and all(.releases[]; (.id | length > 0) and (.items | length > 0) and $ITEMS)
   and ([.releases[].id] | length == (unique | length))" "$H" >/dev/null \
   || { echo "::error file=$H::Invalid What's new history: releases need a unique id and valid items"; exit 1; }

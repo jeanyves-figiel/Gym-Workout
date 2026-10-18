@@ -11,25 +11,67 @@
       "symbol": "map.fill",
       "tint": "cardio",
       "title": "Maps for your sports",
-      "body": "Ski runs vs lifts, hike and ride profiles with splits, a live trail on your Watch. Start tracking from the iPhone with Track live."
+      "body": "Ski runs vs lifts, hike and ride profiles with splits, and a live trail on your Watch."
+    },
+    {
+      "symbol": "applewatch.radiowaves.left.and.right",
+      "tint": "cardio",
+      "title": "Start on your Watch from the iPhone",
+      "body": "Track live in Log sport, or tap the Watch button on Train. Hyrox is now in Explore."
+    },
+    {
+      "symbol": "figure.run",
+      "tint": "warmup",
+      "title": "Log a sport in seconds",
+      "body": "Pick the sport and everything sits on one card: time, duration and how hard."
     },
     {
       "symbol": "clock.arrow.circlepath",
       "tint": "mobility",
-      "title": "History and your Progress board",
-      "body": "Every session on one timeline with search. Build Progress your way with widgets and per-sport cards."
+      "title": "Your History",
+      "body": "Every session on one timeline, with search and sport filters."
+    },
+    {
+      "symbol": "square.grid.2x2.fill",
+      "tint": "mobility",
+      "title": "Progress, your way",
+      "body": "Build your Progress board with widgets and add a card for each of your sports."
     },
     {
       "symbol": "flag.checkered",
       "tint": "strength",
-      "title": "Hyrox ready and a trainer plan",
-      "body": "Race prep that fits all your Hyrox races, paced from your goal time. Plus a new Chest & Back workout in the library."
+      "title": "Hyrox ready",
+      "body": "A race-prep programme that fits all your Hyrox races, paced from your goal time."
     },
     {
-      "symbol": "checkmark.icloud.fill",
+      "symbol": "dumbbell.fill",
+      "tint": "strength",
+      "title": "Chest & Back trainer workout",
+      "body": "A new trainer plan in the library, ready to start."
+    },
+    {
+      "symbol": "checkmark.circle.fill",
       "tint": "stretch",
-      "title": "Saves itself, safer too",
-      "body": "Edits save on their own with Undo, your profile lives in one place, gym search fixes typos, and sign-in and sync are safer."
+      "title": "Auto save",
+      "body": "Edits save themselves. Tap Undo when you leave if you change your mind; drafts of new workouts wait for you."
+    },
+    {
+      "symbol": "person.crop.circle.fill",
+      "tint": "stretch",
+      "title": "One profile page",
+      "body": "Photo, name, nickname, about and how we talk to you, all in one place."
+    },
+    {
+      "symbol": "magnifyingglass",
+      "tint": "warmup",
+      "title": "Find a gym near a place",
+      "body": "Place suggestions as you type, and typos are fixed for you."
+    },
+    {
+      "symbol": "lock.shield.fill",
+      "tint": "power",
+      "title": "Safer sign-in and sync",
+      "body": "Stronger protection for your account, and sync no longer loses or brings back changes."
     }
   ]
 }
