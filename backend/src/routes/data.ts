@@ -13,6 +13,7 @@ import { listBodyMeasurements } from './bodyMeasurements.ts';
 import { listClimbs } from './climbs.ts';
 import { listSports } from './sports.ts';
 import { machineNoteExport } from './machineNotes.ts';
+import { reportExport } from './reports.ts';
 import { listPrAttempts } from './prAttempts.ts';
 
 const logEntry = z.object({
@@ -185,6 +186,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
       climbs: listClimbs(db, req.userId!),
       sports: listSports(db, req.userId!),
       machineNotes: machineNoteExport(db, req.userId!),
+      problemReports: reportExport(db, req.userId!),
       bodyMeasurements: listBodyMeasurements(db, req.userId!),
       gyms: gymExport(db, req.userId!),
       gymMap: gymMapExport(db, req.userId!),

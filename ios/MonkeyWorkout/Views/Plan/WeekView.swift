@@ -75,7 +75,11 @@ struct WeekView: View {
                         .buttonStyle(.plain)
                     }
                     if let e = model.syncError {
-                        Label(e, systemImage: "icloud.slash").font(.footnote).foregroundStyle(Theme.muted)
+                        HStack(spacing: 8) {
+                            Label(e, systemImage: "icloud.slash").font(.footnote).foregroundStyle(Theme.muted)
+                            Spacer(minLength: 4)
+                            ReportErrorButton(error: e, area: "Sync & account")
+                        }
                     }
                 }
                 .padding(16)

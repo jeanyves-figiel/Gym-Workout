@@ -83,6 +83,8 @@ struct MainTabView: View {
             await Community.shared.setPronouns(model.communityPronouns, api: model.api)
         }
         .modifier(NotificationsHost())
+        // Shake to report and Report on errors (#467) present over any screen.
+        .onAppear { ProblemReporter.shared.model = model }
         .fullScreenCover(isPresented: Binding(get: { model.offerPro }, set: { model.offerPro = $0 })) {
             NavigationStack { ProView(context: .onboarding) { model.offerPro = false } }
         }
@@ -262,6 +264,17 @@ private struct DemoScreen: View {
                 return MeasureGuideView.Step(key: metric.id, metric: metric, last: value)
             }, text: .constant(["waist": "78.5"]), index: 5)
         case "account": NavigationStack { AccountView() }
+        // Report a problem (#467): the page, after a shake (screenshot attached), after Report on an error, and sent.
+        case "report": NavigationStack { ReportProblemView(draft: ReportDraft(via: .settings, area: "Workout player")) }
+        case "report-shake": NavigationStack {
+            ReportProblemView(draft: ReportDraft(via: .shake, area: "Workout player", screen: "Bench press",
+                                                 shots: [UIImage(systemName: "photo")!.withTintColor(.gray)]), modal: true)
+        }
+        case "report-error": NavigationStack {
+            ReportProblemView(draft: ReportDraft(via: .error, kind: .broken, area: "Sync & account", screen: "Train",
+                                                 error: "Some changes haven't synced yet. We'll keep trying."), modal: true)
+        }
+        case "report-sent": NavigationStack { ReportProblemView(draft: ReportDraft(via: .settings, area: "Train"), demoSent: true) }
         case "paywall", "pro": NavigationStack { ProView() }
         case "pro-offer": NavigationStack { ProView(context: .onboarding) {} }
         case "pro-gate": ProPaywallSheet(gate: .variation)
