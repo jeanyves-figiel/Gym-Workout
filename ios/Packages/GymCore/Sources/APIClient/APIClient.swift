@@ -59,6 +59,12 @@ public actor APIClient {
 
     public var hasSession: Bool { tokens.load() != nil }
 
+    /// Drops stored tokens without calling the server (e.g. Keychain left over from an earlier install).
+    public func forgetTokens() {
+        tokens.clear()
+        reauthGrant = nil
+    }
+
     // MARK: Registration & sign-in
 
     public func register(email: String, password: String, name: String?, acceptedTerms: Bool) async throws {

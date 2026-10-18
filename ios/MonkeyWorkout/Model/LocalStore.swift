@@ -152,6 +152,8 @@ struct LocalStore {
         url = dir.appendingPathComponent(filename)
     }
 
+    var exists: Bool { FileManager.default.fileExists(atPath: url.path) }
+
     func load() -> LocalState {
         guard let data = try? Data(contentsOf: url), let s = try? JSONDecoder().decode(LocalState.self, from: data) else { return LocalState() }
         return s

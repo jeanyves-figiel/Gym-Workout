@@ -137,6 +137,7 @@ final class AppModel {
             return
         }
         #endif
+        await forgetTokensAfterReinstall()
         state = store.load()
         startConnectivityWatch()
         await api.setOnSignedOut { [weak self] in
@@ -146,10 +147,45 @@ final class AppModel {
             phase = .signedOut
             return
         }
-        phase = .signedIn // optimistic: works offline at the gym
-        await refreshUser()
+        if state.synced == nil {
+            // No plan on this device (state.json lost or never synced): fetch the account and its profile first, so
+            // onboarding never replaces a plan the server has. The launch spinner stays meanwhile.
+            await refreshUser()
+            guard await api.hasSession else {
+                phase = .signedOut
+                return
+            }
+            claimOwnerIfNeeded()
+            await pullProfile()
+            phase = .signedIn
+        } else {
+            phase = .signedIn // optimistic: works offline at the gym
+            await refreshUser()
+            claimOwnerIfNeeded()
+        }
         await sync()
         await ProStore.shared.start(api: api, userId: user?.id)
+    }
+
+    /// State written without an owner (lost state.json, older build) belongs to the signed-in account.
+    private func claimOwnerIfNeeded() {
+        guard state.ownerId == nil, let user else { return }
+        state.ownerId = user.id
+        persist()
+    }
+
+    private static let installedKey = "app.installed"
+
+    /// The Keychain survives uninstall, UserDefaults don't: first launch of a new install drops tokens left from
+    /// the old one. An update from a build before this flag already has its state.json and stays signed in.
+    private func forgetTokensAfterReinstall() async {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: Self.installedKey) else { return }
+        if !store.exists {
+            await api.forgetTokens()
+            MonkeyGradeLink.shared.disconnect()
+        }
+        defaults.set(true, forKey: Self.installedKey)
     }
 
     func refreshUser() async {
