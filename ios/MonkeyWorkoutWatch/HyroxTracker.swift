@@ -70,6 +70,8 @@ final class HyroxTracker: NSObject {
     private var hrCount = 0
     private var maxHR: Double?
     private var lastRace: HyroxRace?
+    /// Between the finish line and the saved race: the detector's finish and End can both call `finish`.
+    private var finishing = false
 
     /// Gets ready: settings from the iPhone, Health session prepared, then 3-2-1 and go.
     func start(_ format: HyroxFormat, settings: WHyrox?) async {
@@ -209,7 +211,10 @@ final class HyroxTracker: NSObject {
 
     /// The finish line (or End): saves to Health, then queues and uploads the race.
     func finish(at end: Date = Date()) async {
+        guard !finishing else { return }
         guard let session, let builder, let started else { discard(); return }
+        finishing = true
+        defer { finishing = false }
         if let detector, detector.phase != .done {
             _ = detector.finish(at: end)
             splits = detector.splits
