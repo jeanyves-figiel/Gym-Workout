@@ -79,6 +79,11 @@ struct CustomWorkoutEditor: View {
     /// Warm-up / cool-down style or exact moves (#293).
     @State private var tweaks: FlowTweaks
     @State private var tweaking: FlowTweakTarget?
+    /// Editing a saved workout (not a new one, not one for a day): saves on its own (#437). Fixed on appear.
+    @State private var autoSaving: Bool?
+    /// A blank new workout's typing kept on the device until saved (#437).
+    @State private var draftKey: String?
+    @State private var draftRestored = false
     private let initial: CustomWorkout
     /// Set when building a workout for a day (#178): Save saves it and hands it over (the caller places it).
     private let onSave: ((CustomWorkout) -> Void)?
@@ -112,6 +117,14 @@ struct CustomWorkoutEditor: View {
         NavigationStack {
             // A plain List keeps swipe-to-delete and reorder; each row is drawn as an Explore-style card.
             List {
+                if draftRestored {
+                    DraftRestoredStrip {
+                        if let draftKey { DraftStore.clear(draftKey) }
+                        draft = initial
+                        draftRestored = false
+                    }
+                    .cardRow()
+                }
                 AccountField(label: "Name") {
                     TextField("e.g. Push day", text: $draft.name)
                         .textInputAutocapitalization(.words)
@@ -212,11 +225,15 @@ struct CustomWorkoutEditor: View {
             .toolbar {
                 // Closes at once; with unsaved changes the Undo bar brings them back (#285). The old "Discard changes?"
                 // dialog didn't show on iOS 26, so Cancel did nothing and swipe-down was blocked.
+                if autoSaving == true {
+                    CloseToolbarItem { dismiss() }
+                } else {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(onSave == nil ? "Save" : "Add") {
+                        if let draftKey { DraftStore.clear(draftKey) }
                         closeGuard.done()
                         model.saveCustomWorkout(draft)
                         onSave?(draft)
@@ -225,7 +242,12 @@ struct CustomWorkoutEditor: View {
                     .bold()
                     .disabled(!canSave)
                 }
+                }
             }
+            // Edits to a saved workout save on their own (#437); an empty name or no exercises waits.
+            .autoSave(autoSaving == true && canSave ? draft : nil, title: "Workout", symbol: "dumbbell.fill",
+                      detail: { w in undoDetail(w.name, "\(w.items.count) exercise\(w.items.count == 1 ? "" : "s")") },
+                      save: { [model] in model.saveCustomWorkout($0) })
             .sheet(item: $tweaking) { t in
                 FlowTweakSheet(kind: t.kind, tweaks: $tweaks, preview: { previewFlow($0, t.kind) }) {
                     flowMinutes[t.kind] = nil
@@ -257,7 +279,24 @@ struct CustomWorkoutEditor: View {
             }
         }
         .undoableClose(closeGuard, offer: undoOffer)
-        .onAppear { if initial.flow.isEmpty { rebuildFlow() } }
+        .onChange(of: draft) { _, d in
+            guard let draftKey else { return }
+            if d.items.isEmpty && d.name.trimmingCharacters(in: .whitespaces).isEmpty { DraftStore.clear(draftKey) } else { DraftStore.save(draftKey, d) }
+        }
+        .onAppear {
+            if autoSaving == nil {
+                autoSaving = !isNew && onSave == nil
+                // Blank new workout: bring back what was typed last time.
+                if isNew, onSave == nil, generated == nil, initial.items.isEmpty, initial.name.isEmpty, draft == initial {
+                    draftKey = "custom-workout"
+                    if let d = DraftStore.load("custom-workout", as: CustomWorkout.self), !d.items.isEmpty || !d.name.isEmpty {
+                        draft = d
+                        draftRestored = true
+                    }
+                }
+            }
+            if initial.flow.isEmpty { rebuildFlow() }
+        }
         .onChange(of: flowMinutes) { rebuildFlow() }
         .onChange(of: tweaks) { rebuildFlow() }
         .onChange(of: draft.items) { rebuildFlow() }
@@ -265,7 +304,7 @@ struct CustomWorkoutEditor: View {
 
     /// Undo bar when the workout was changed and not saved (#285).
     private var undoOffer: UndoOffer? {
-        guard !saved, draft != initial, !(isNew && draft.items.isEmpty && trimmedName.isEmpty) else { return nil }
+        guard autoSaving != true, !saved, draft != initial, !(isNew && draft.items.isEmpty && trimmedName.isEmpty) else { return nil }
         let kept = Restore(draft: draft, generated: generated, flowMinutes: flowMinutes, tweaks: tweaks)
         let original = self.initial, save = self.onSave
         let n = draft.items.count
@@ -299,6 +338,7 @@ struct CustomWorkoutEditor: View {
 
     /// Saves the draft (once per change), then runs `next`.
     private func saveThen(_ next: () -> Void) {
+        if let draftKey { DraftStore.clear(draftKey) }
         model.saveCustomWorkout(draft)
         saved = true
         closeGuard.done()

@@ -134,6 +134,10 @@ struct MachineNoteSheet: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var showCamera = false
     @State private var loaded = false
+    /// An existing setup saves on its own (#437); a new one keeps Save setup.
+    @State private var editing = false
+    /// Set on Delete so a pending auto save never brings the setup back.
+    @State private var deleted = CloseGuard()
     @FocusState private var focus: UUID?
 
     init(exerciseId: String, gym: GymRef) {
@@ -175,6 +179,8 @@ struct MachineNoteSheet: View {
                     if !others.isEmpty { otherGyms }
                     if existing != nil {
                         Button(role: .destructive) {
+                            editing = false
+                            deleted.done()
                             if let id = existing?.id { model.deleteMachineNote(id) }
                             dismiss()
                         } label: {
@@ -192,6 +198,7 @@ struct MachineNoteSheet: View {
             .navigationTitle("Machine setup")
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
+                if !editing {
                 Button {
                     model.saveMachineNote(draft, photo: newPhoto)
                     dismiss()
@@ -201,8 +208,15 @@ struct MachineNoteSheet: View {
                 .buttonStyle(LimeButtonStyle())
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
+                }
             }
             .toolbar { CloseToolbarItem { dismiss() } }
+            .autoSave(editing ? draft : nil, title: "Setup", symbol: "wrench.adjustable.fill",
+                      detail: { [gym] _ in gym.name }, save: { [model, deleted] in if !deleted.saved { model.saveMachineNote($0) } })
+            .onChange(of: newPhoto) { _, photo in
+                // A new or removed photo on an existing setup is kept at once too.
+                if editing, let photo { model.saveMachineNote(draft, photo: .some(photo)) }
+            }
             .fullScreenCover(isPresented: $showCamera) {
                 CameraPicker { image in
                     if let image, let jpeg = PhotoCompressor.jpeg(image) { newPhoto = .some(jpeg) }
@@ -222,6 +236,7 @@ struct MachineNoteSheet: View {
                 loaded = true
                 if let existing { draft = existing }
                 if draft.fields.isEmpty { draft.fields = [.init(label: "Seat", value: "")] }
+                editing = existing != nil
             }
         }
         .preferredColorScheme(.dark)

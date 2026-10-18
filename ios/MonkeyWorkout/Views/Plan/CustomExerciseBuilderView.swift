@@ -20,6 +20,12 @@ struct CustomExerciseBuilderView: View {
     /// What the builder opened with, the Undo baseline (#285).
     @State private var start: CustomExercise
     @State private var closeGuard = CloseGuard()
+    /// Set on Archive so a pending auto save doesn't write it back (#437).
+    @State private var archived = CloseGuard()
+    /// A new exercise's typing kept on the device until saved (#437).
+    @State private var draftKey: String?
+    @State private var draftRestored = false
+    private let restoring: CustomExercise?
 
     /// `prefill` seeds a new exercise, e.g. the muscle or category it is added from in Explore.
     /// `restoring`: the exercise as it was when closed, brought back by Undo (#285).
@@ -27,6 +33,7 @@ struct CustomExerciseBuilderView: View {
          onSave: @escaping (CustomExercise) -> Void = { _ in }) {
         self.existing = existing
         self.onSave = onSave
+        self.restoring = restoring
         let first = existing ?? prefill ?? CustomExercise()
         _start = State(initialValue: first)
         _draft = State(initialValue: restoring ?? first)
@@ -34,7 +41,7 @@ struct CustomExerciseBuilderView: View {
 
     /// Undo bar when anything was entered or changed since the builder opened (#285).
     private var undoOffer: UndoOffer? {
-        guard draft.sanitized != start.sanitized else { return nil }
+        guard existing == nil, draft.sanitized != start.sanitized else { return nil }
         let kept = draft, base = start, original = existing, save = onSave
         let detail = undoDetail(draft.name, draft.category.label,
                                 draft.photo != nil ? "photo" : nil, draft.drawing != nil ? "pose" : nil)
@@ -48,6 +55,13 @@ struct CustomExerciseBuilderView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
+                    if draftRestored {
+                        DraftRestoredStrip {
+                            if let draftKey { DraftStore.clear(draftKey) }
+                            draft = start
+                            draftRestored = false
+                        }
+                    }
                     preview
                     nameSection
                     categorySection
@@ -68,8 +82,10 @@ struct CustomExerciseBuilderView: View {
             .toolbar {
                 // Both on the trailing side: a leading item next to the inline large title gets
                 // collapsed by iOS 26 into an overflow "•••" button whose menu can't show the icon-only X.
+                if existing == nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        if let draftKey { DraftStore.clear(draftKey) }
                         let saved = model.saveCustomExercise(draft)
                         onSave(saved)
                         closeGuard.done()
@@ -82,8 +98,14 @@ struct CustomExerciseBuilderView: View {
                     .foregroundStyle(Theme.ink)
                     .disabled(!draft.isComplete)
                 }
+                }
                 CloseToolbarItem { dismiss() }
             }
+            // Editing one of my exercises saves on its own (#437) while it's complete.
+            .autoSave(existing != nil && draft.isComplete ? draft : nil, title: "Exercise", symbol: "figure.strengthtraining.traditional",
+                      detail: { undoDetail($0.name, $0.category.label) },
+                      save: { [model, archived] in if !archived.saved { _ = model.saveCustomExercise($0) } },
+                      committed: { [model, onSave] w in onSave(model.customExercises.first { $0.id == w.id } ?? w) })
             .navigationDestination(isPresented: $designing) {
                 PoseDesignerView(
                     drawing: Binding(
@@ -112,6 +134,7 @@ struct CustomExerciseBuilderView: View {
             }
             .confirmationDialog("Remove this exercise?", isPresented: $confirmArchive, titleVisibility: .visible) {
                 Button("Remove", role: .destructive) {
+                    archived.done()
                     model.archiveCustomExercise(draft.id)
                     closeGuard.done()
                     dismiss()
@@ -121,6 +144,15 @@ struct CustomExerciseBuilderView: View {
             }
         }
         .undoableClose(closeGuard, offer: undoOffer)
+        .keepsDraft(draftKey, draft, blank: start)
+        .onAppear {
+            guard draftKey == nil, existing == nil, restoring == nil else { return }
+            draftKey = "custom-exercise"
+            if let d = DraftStore.load("custom-exercise", as: CustomExercise.self), d.sanitized != start.sanitized {
+                draft = d
+                draftRestored = true
+            }
+        }
     }
 
     // MARK: Sections
