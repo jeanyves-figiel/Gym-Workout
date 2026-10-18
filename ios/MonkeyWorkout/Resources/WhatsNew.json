@@ -1,35 +1,35 @@
 {
-  "id": "2026-10-17.3",
+  "id": "2026-10-18.1",
   "items": [
     {
-      "symbol": "figure.snowboarding",
-      "tint": "cardio",
-      "title": "Every sport counts",
-      "body": "Log or track snowboard, MTB, hikes, dives and more on your Watch, and your gym plan works around them."
-    },
-    {
-      "symbol": "stopwatch.fill",
+      "symbol": "sparkles",
       "tint": "power",
-      "title": "Hyrox on your wrist",
-      "body": "Race with only your Watch: every run, station and Roxzone recorded by itself, then a full race report."
-    },
-    {
-      "symbol": "snowflake",
-      "tint": "mobility",
-      "title": "Snow ready",
-      "body": "An 8-week pre-season programme for skiers and snowboarders, fitted to your first day on snow."
-    },
-    {
-      "symbol": "person.wave.2.fill",
-      "tint": "stretch",
-      "title": "How we talk to you",
-      "body": "Pick your pronouns and what Coach calls you. Coach cheers you by name at the big moments."
+      "title": "Meet MonkeyFit",
+      "body": "A short new name on your Home Screen and a bold kettlebell icon, on iPhone and Watch."
     },
     {
       "symbol": "map.fill",
+      "tint": "cardio",
+      "title": "Maps for your sports",
+      "body": "Ski runs vs lifts, hike and ride profiles with splits, a live trail on your Watch. Start tracking from the iPhone with Track live."
+    },
+    {
+      "symbol": "clock.arrow.circlepath",
+      "tint": "mobility",
+      "title": "History and your Progress board",
+      "body": "Every session on one timeline with search. Build Progress your way with widgets and per-sport cards."
+    },
+    {
+      "symbol": "flag.checkered",
       "tint": "strength",
-      "title": "Smoother map, sharper sensor",
-      "body": "Drag gym map blocks freely: they snap, push others aside and swap. The lift sensor now needs real travel per lift, so wobble no longer counts."
+      "title": "Hyrox ready and a trainer plan",
+      "body": "Race prep that fits all your Hyrox races, paced from your goal time. Plus a new Chest & Back workout in the library."
+    },
+    {
+      "symbol": "checkmark.icloud.fill",
+      "tint": "stretch",
+      "title": "Saves itself, safer too",
+      "body": "Edits save on their own with Undo, your profile lives in one place, gym search fixes typos, and sign-in and sync are safer."
     }
   ]
 }

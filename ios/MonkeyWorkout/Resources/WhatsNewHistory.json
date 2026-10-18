@@ -1,6 +1,43 @@
 {
   "releases": [
     {
+      "id": "2026-10-17.3",
+      "build": 43,
+      "date": "2026-10-17",
+      "items": [
+        {
+          "symbol": "figure.snowboarding",
+          "tint": "cardio",
+          "title": "Every sport counts",
+          "body": "Log or track snowboard, MTB, hikes, dives and more on your Watch, and your gym plan works around them."
+        },
+        {
+          "symbol": "stopwatch.fill",
+          "tint": "power",
+          "title": "Hyrox on your wrist",
+          "body": "Race with only your Watch: every run, station and Roxzone recorded by itself, then a full race report."
+        },
+        {
+          "symbol": "snowflake",
+          "tint": "mobility",
+          "title": "Snow ready",
+          "body": "An 8-week pre-season programme for skiers and snowboarders, fitted to your first day on snow."
+        },
+        {
+          "symbol": "person.wave.2.fill",
+          "tint": "stretch",
+          "title": "How we talk to you",
+          "body": "Pick your pronouns and what Coach calls you. Coach cheers you by name at the big moments."
+        },
+        {
+          "symbol": "map.fill",
+          "tint": "strength",
+          "title": "Smoother map, sharper sensor",
+          "body": "Drag gym map blocks freely: they snap, push others aside and swap. The lift sensor now needs real travel per lift, so wobble no longer counts."
+        }
+      ]
+    },
+    {
       "id": "2026-10-17.2",
       "build": 41,
       "date": "2026-10-17",
