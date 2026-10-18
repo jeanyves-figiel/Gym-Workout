@@ -130,8 +130,9 @@ jobs:
   screenshots:
     name: Screenshots (demo mode)
     needs: app
-    # 100: the programme (#255) and security (#257) screens pushed the run past 60 minutes.
-    timeout-minutes: 100
+    # 100: the programme (#255) and security (#257) screens pushed the run past 60 minutes;
+    # 150: iPhone + iPad + Watch captures passed 100 on busy runners (#443).
+    timeout-minutes: 150
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: macos-26
     permissions:
