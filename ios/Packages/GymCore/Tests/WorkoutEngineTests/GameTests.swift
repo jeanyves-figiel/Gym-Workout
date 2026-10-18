@@ -31,6 +31,21 @@ private func record(_ s: Session, at date: Date) -> WorkoutRecord {
         #expect(g.weeksCleared == 0)
     }
 
+    @Test func recentWeeksShowEachChestAndItsXP() {
+        let a = record(plan.sessions[0], at: monday)
+        let b = record(plan.sessions[1], at: monday.addingTimeInterval(2 * 86_400))
+        let c = record(plan.sessions[0], at: monday.addingTimeInterval(7 * 86_400))
+        let now = monday.addingTimeInterval(8 * 86_400)
+        let weeks = GameWeek.recent(records: [a, b, c], targetPerWeek: 2, count: 8, now: now, calendar: utc)
+        #expect(weeks.count == 8)
+        #expect(weeks.last?.weekStart == Progression.weekStart(now, utc))
+        #expect(weeks[6].chestOpen && weeks[6].sessions == 2)
+        #expect(weeks[6].workoutXP == GameProgress.xp(sets: a.totalSets) + GameProgress.xp(sets: b.totalSets))
+        #expect(weeks[6].chestXP == GameProgress.weekBonus)
+        #expect(!weeks[7].chestOpen && weeks[7].sessions == 1 && weeks[7].chestXP == 0)
+        #expect(weeks.prefix(6).allSatisfy { $0.sessions == 0 && !$0.chestOpen })
+    }
+
     @Test func meetingTheWeekGoalAddsTheChestBonus() {
         let a = record(plan.sessions[0], at: monday)
         let b = record(plan.sessions[1], at: monday.addingTimeInterval(2 * 86_400))

@@ -18,3 +18,29 @@ extension AppModel {
         GameProgress.xp(sets: session.blocks.reduce(0) { $0 + $1.items.reduce(0) { $0 + max(1, $1.prescription.sets) } })
     }
 }
+
+// MARK: - Week chest reveal (#476)
+
+/// The chest opens whichever way the goal-meeting workout was saved (player, Watch, logged later).
+/// Only the iPhone player showed it, so Train reveals a chest the member hasn't seen open yet.
+extension AppModel {
+    private static let chestSeenKey = "game.chestSeenWeek"
+
+    private var thisWeekStart: Date { Progression.weekStart(Date(), Progression.calendar()) }
+
+    /// This week's session goal is met.
+    var weekChestOpen: Bool {
+        Progression.stats(records: state.history, weights: [], targetPerWeek: gameTarget).thisWeek >= max(1, gameTarget)
+    }
+
+    /// This week's chest opened but its reveal hasn't been shown on this device.
+    var chestRevealPending: Bool {
+        guard weekChestOpen else { return false }
+        let seen = UserDefaults.standard.double(forKey: Self.chestSeenKey)
+        return seen != thisWeekStart.timeIntervalSince1970
+    }
+
+    func markChestSeen() {
+        UserDefaults.standard.set(thisWeekStart.timeIntervalSince1970, forKey: Self.chestSeenKey)
+    }
+}

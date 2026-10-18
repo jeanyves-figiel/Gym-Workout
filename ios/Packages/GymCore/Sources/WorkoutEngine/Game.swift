@@ -87,3 +87,42 @@ public struct GameReward: Sendable, Equatable {
                   badges: badgesAfter.filter { $0.unlocked && !had.contains($0.id) })
     }
 }
+
+/// One week of the game (#476): sessions, the XP its workouts earned, and its chest.
+public struct GameWeek: Sendable, Equatable, Identifiable {
+    public var weekStart: Date
+    public var sessions: Int
+    /// XP from the week's workouts (no chest, no walking).
+    public var workoutXP: Int
+    /// The week's session goal was met (+`GameProgress.weekBonus`).
+    public var chestOpen: Bool
+
+    public var id: Date { weekStart }
+    public var chestXP: Int { chestOpen ? GameProgress.weekBonus : 0 }
+
+    public init(weekStart: Date, sessions: Int, workoutXP: Int, chestOpen: Bool) {
+        self.weekStart = weekStart
+        self.sessions = sessions
+        self.workoutXP = workoutXP
+        self.chestOpen = chestOpen
+    }
+
+    /// The last `count` weeks, oldest first, ending with the week of `now`.
+    public static func recent(records: [WorkoutRecord], targetPerWeek: Int, count: Int = 8, now: Date = Date(),
+                              calendar cal: Calendar = Progression.calendar()) -> [GameWeek] {
+        let thisWeek = Progression.weekStart(now, cal)
+        var sessions: [Date: Int] = [:]
+        var xp: [Date: Int] = [:]
+        for r in records {
+            let w = Progression.weekStart(r.startedAt, cal)
+            sessions[w, default: 0] += 1
+            xp[w, default: 0] += GameProgress.xp(sets: r.totalSets)
+        }
+        return (0..<max(1, count)).reversed().compactMap { i in
+            cal.date(byAdding: .weekOfYear, value: -i, to: thisWeek).map { w in
+                GameWeek(weekStart: w, sessions: sessions[w] ?? 0, workoutXP: xp[w] ?? 0,
+                         chestOpen: (sessions[w] ?? 0) >= max(1, targetPerWeek))
+            }
+        }
+    }
+}

@@ -22,6 +22,8 @@ struct WeekView: View {
     @State private var addingWidget = false
     @State private var customising = false
     @State private var showingCalendar = false
+    /// Week chest opened without its reveal (Watch or logged workout, #476).
+    @State private var chestReveal = false
     /// Height the Train screen shows between the safe areas: short phones get a tighter Next up (#337).
     @State private var visibleHeight: CGFloat = 800
     /// CI screenshots: open in edit mode.
@@ -108,6 +110,13 @@ struct WeekView: View {
             VariationSheet(days: Set(model.variableSessions.map(\.id)), keep: model.keptSwapUids)
         }
         .fullScreenCover(item: $playing) { s in WorkoutPlayerView(sessionId: s.id) }
+        .fullScreenCover(isPresented: $chestReveal) {
+            ChestReveal(sessions: Progression.stats(records: model.state.history, weights: [], targetPerWeek: model.gameTarget).thisWeek) {
+                chestReveal = false
+            }
+            .presentationBackground(.clear)
+        }
+        .onChange(of: model.state.history.count) { revealChestIfNeeded() }
         .proPaywall($gate)
         .sheet(item: $moving) { s in MoveSessionSheet(sessionId: s.id) }
         .sheet(isPresented: $adding) { AddWorkoutSheet(weekday: addingDay) }
@@ -141,7 +150,18 @@ struct WeekView: View {
             // Away periods (#68): re-plan from today on (new day, period starting this week).
             model.replanCurrentWeek()
             model.persist()
+            revealChestIfNeeded()
         }
+    }
+
+    /// Opens the week chest the member hasn't seen open yet (#476); never over the player.
+    private func revealChestIfNeeded() {
+        #if DEBUG
+        if Demo.enabled { return }
+        #endif
+        guard playing == nil, !chestReveal, model.chestRevealPending else { return }
+        model.markChestSeen()
+        chestReveal = true
     }
 
     /// Next up (#266), or the day picked in its strip (#277): that day's workout, or a rest day with Add workout.

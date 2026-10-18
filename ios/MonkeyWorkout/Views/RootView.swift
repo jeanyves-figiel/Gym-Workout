@@ -434,6 +434,7 @@ private struct DemoScreen: View {
         case "game-ladder": LevelLadderSheet()
         case "game-levelup": LevelUpCelebration(level: 8)
         case "game-levelup-legend": LevelUpCelebration(level: 40)
+        case "game-chest": ChestReveal(sessions: 4)
         case "game-level-row":
             NavigationStack {
                 ScrollView { GameProgressCard(badges: model.badges).padding(16) }
