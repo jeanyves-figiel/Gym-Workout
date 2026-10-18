@@ -128,6 +128,18 @@ export const consensus = (rows: { layout: Layout; updatedAt: string }[]) => {
 const LIVE_MIN = 20;
 const BUSY_KEEP_DAYS = 56;
 
+/**
+ * Candidate rows for a place (#432): same id, or a name starting with the same first word. SQLite's lower() and LIKE
+ * fold ASCII only, so other letters match any one character (`_`); sameGym / chainOf decide in JS. A name without
+ * words matches by id only (an empty prefix would read the whole table).
+ */
+const candidates = (db: DB, table: 'gym_maps' | 'gym_reports', userId: string, id: string, name: string): unknown[] => {
+  const first = words(name.normalize('NFC'))[0];
+  if (!first) return db.prepare(`SELECT * FROM ${table} WHERE user_id != ? AND gym_id = ?`).all(userId, id);
+  const prefix = `${first.replace(/[^\x00-\x7f]/gu, '_')}%`;
+  return db.prepare(`SELECT * FROM ${table} WHERE user_id != ? AND (gym_id = ? OR lower(name) LIKE ?)`).all(userId, id, prefix);
+};
+
 const placeQuery = z.object({
   id: z.string().min(1).max(80),
   name: z.string().trim().min(1).max(120),
@@ -172,10 +184,7 @@ export const gymRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/gyms/maps', async (req) => {
     const q = placeQuery.parse(req.query);
     const me = { id: q.id, name: q.name, latitude: q.lat ?? null, longitude: q.lng ?? null };
-    const first = words(q.name)[0] ?? '';
-    const rows = (db
-      .prepare('SELECT * FROM gym_maps WHERE user_id != ? AND (gym_id = ? OR lower(name) LIKE ?)')
-      .all(req.userId!, q.id, `${first}%`) as unknown as MapRow[])
+    const rows = (candidates(db, 'gym_maps', req.userId!, q.id, q.name) as MapRow[])
       .filter((r) => sameGym({ id: r.gym_id, name: r.name, latitude: r.latitude, longitude: r.longitude }, me))
       .map((r) => ({ layout: JSON.parse(r.layout) as Layout, updatedAt: r.updated_at }))
       .filter((r) => r.layout.zones.some((z) => z.rect));
@@ -236,10 +245,7 @@ export const gymRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/gyms/known', async (req) => {
     const q = placeQuery.parse(req.query);
     const me = { id: q.id, name: q.name, latitude: q.lat ?? null, longitude: q.lng ?? null };
-    const first = words(q.name)[0] ?? '';
-    const rows = db
-      .prepare('SELECT * FROM gym_reports WHERE user_id != ? AND (gym_id = ? OR lower(name) LIKE ?)')
-      .all(req.userId!, q.id, `${first}%`) as unknown as ReportRow[];
+    const rows = candidates(db, 'gym_reports', req.userId!, q.id, q.name) as ReportRow[];
     const at = (r: ReportRow) => ({ id: r.gym_id, name: r.name, latitude: r.latitude, longitude: r.longitude });
     const place = rows.filter((r) => sameGym(at(r), me));
     const chainRows = rows.filter((r) => !place.includes(r) && chainOf(r.name, q.name) != null);
