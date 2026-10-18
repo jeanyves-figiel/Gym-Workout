@@ -1,35 +1,35 @@
 {
-  "id": "2026-10-17.2",
+  "id": "2026-10-17.3",
   "items": [
     {
-      "symbol": "bubble.left.and.text.bubble.right.fill",
-      "tint": "power",
-      "title": "Ask Coach everywhere",
-      "body": "Tap the 🐵 on any screen or just talk. Say “done” or “80 kg” mid-set."
+      "symbol": "figure.snowboarding",
+      "tint": "cardio",
+      "title": "Every sport counts",
+      "body": "Log or track snowboard, MTB, hikes, dives and more on your Watch, and your gym plan works around them."
     },
     {
-      "symbol": "figure.strengthtraining.traditional",
-      "tint": "strength",
-      "title": "Anatomy in the position guide",
-      "body": "Start, middle and end of every exercise on a muscle-by-muscle figure, worked muscles in red, real grips and full-size machines."
+      "symbol": "stopwatch.fill",
+      "tint": "power",
+      "title": "Hyrox on your wrist",
+      "body": "Race with only your Watch: every run, station and Roxzone recorded by itself, then a full race report."
+    },
+    {
+      "symbol": "snowflake",
+      "tint": "mobility",
+      "title": "Snow ready",
+      "body": "An 8-week pre-season programme for skiers and snowboarders, fitted to your first day on snow."
+    },
+    {
+      "symbol": "person.wave.2.fill",
+      "tint": "stretch",
+      "title": "How we talk to you",
+      "body": "Pick your pronouns and what Coach calls you. Coach cheers you by name at the big moments."
     },
     {
       "symbol": "map.fill",
-      "tint": "mobility",
-      "title": "Gym Map",
-      "body": "Scan your gym with the camera, use the map members already made, see your route and what's busy right now."
-    },
-    {
-      "symbol": "applewatch",
-      "tint": "cardio",
-      "title": "Lift sensor, your way",
-      "body": "Pick how strict it counts, tap ✓ to log or let it log itself, and try it live with a graph. It learns from your Crown fixes."
-    },
-    {
-      "symbol": "waveform",
-      "tint": "stretch",
-      "title": "Coach voice fixed",
-      "body": "Quiet in silent mode, studio voices download, and your coach picks a natural voice for you. Change it in Settings → Workout coach."
+      "tint": "strength",
+      "title": "Smoother map, sharper sensor",
+      "body": "Drag gym map blocks freely: they snap, push others aside and swap. The lift sensor now needs real travel per lift, so wobble no longer counts."
     }
   ]
 }
