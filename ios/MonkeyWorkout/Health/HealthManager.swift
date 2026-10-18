@@ -711,12 +711,18 @@ final class HealthManager {
 
     /// Wakes the Watch app with a strength workout so it can offer to track the iPhone workout (#347).
     /// `activity`: any other type starts what the iPhone asked: Hyrox (#426) or a sport (#439).
-    func startWatchApp(activity: HKWorkoutActivityType = .functionalStrengthTraining) {
-        guard available else { return }
+    /// `done` (main actor): whether the Watch app was woken; it fails when the Watch is off the wrist or locked (#462).
+    func startWatchApp(activity: HKWorkoutActivityType = .functionalStrengthTraining, done: ((Bool) -> Void)? = nil) {
+        guard available else {
+            done?(false)
+            return
+        }
         let config = HKWorkoutConfiguration()
         config.activityType = activity
         config.locationType = .indoor
-        store.startWatchApp(with: config) { _, _ in }
+        store.startWatchApp(with: config) { ok, _ in
+            Task { @MainActor in done?(ok) }
+        }
     }
 
     /// Saves the session as an Apple Health workout; returns heart-rate stats measured during it (e.g. by a Watch).

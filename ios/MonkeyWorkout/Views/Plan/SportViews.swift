@@ -89,53 +89,54 @@ extension SportEntry {
 }
 
 extension AppModel {
-    /// The member's sports first (climbing for climbers), then every other one.
-    var sportOrder: [Sport] {
+    /// The member's own sports: profile picks (climbing for climbers), then any they logged.
+    var mySports: [Sport] {
         var mine = (profile?.otherSports ?? []).map(\.sport)
         if profile.map(Generator.isClimber) ?? false { mine.insert(.climbing, at: 0) }
         for log in sportLogs where !mine.contains(log.sport) { mine.append(log.sport) }
+        return mine
+    }
+
+    /// The member's sports first (climbing for climbers), then every other one.
+    var sportOrder: [Sport] {
+        let mine = mySports
         return mine + Sport.allCases.filter { !mine.contains($0) }
     }
 }
 
-/// Lime-row button beside Start workout (#277 slot): opens the sport grid.
-struct LogSportButton: View {
-    let action: () -> Void
+/// Under Start workout on Train (#462, design C from `other-sports/row-proposals.png`): one pill split in two, Log sport
+/// (a past session) and Track live (on the Watch). Without a paired Watch that has MonkeyWorkout, only Log sport.
+struct SportSplitPill: View {
+    let onLog: () -> Void
+    let onTrack: () -> Void
+    @State private var link = WatchLink.shared
 
     var body: some View {
+        HStack(spacing: 0) {
+            half("Log sport", detail: "past session", symbol: "plus.circle.fill", ink: .white, action: onLog)
+                .background(LinearGradient(colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)], startPoint: .leading, endPoint: .trailing))
+                .accessibilityHint("Log a sport session you already did: snowboard, bike, Hyrox…")
+            if link.ready {
+                half("Track live", detail: "on your Watch", symbol: "applewatch.radiowaves.left.and.right", ink: Theme.ink, action: onTrack)
+                    .background(Theme.lime)
+                    .accessibilityHint("Start a sport on your Apple Watch now")
+            }
+        }
+        .clipShape(Capsule())
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: link.ready)
+    }
+
+    private func half(_ title: String, detail: String, symbol: String, ink: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Label("Log sport", systemImage: "plus.circle.fill")
-                .font(Theme.label(15))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .fixedSize()
-                .padding(.horizontal, 16)
-                .padding(.vertical, 18)
-                .background(Capsule().fill(LinearGradient(colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)],
-                                                          startPoint: .leading, endPoint: .trailing)))
+            VStack(spacing: 1) {
+                Label(title, systemImage: symbol).font(Theme.label(15)).lineLimit(1).minimumScaleFactor(0.8)
+                Text(detail).font(Theme.label(10)).opacity(0.85).lineLimit(1)
+            }
+            .foregroundStyle(ink)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityHint("Log a sport session: snowboard, bike, Hyrox, climbing…")
-    }
-}
-
-/// Round lime Watch button beside Log sport (#439, design C): opens the sheet in Track live mode. Only with a Watch.
-struct TrackOnWatchButton: View {
-    let action: () -> Void
-
-    var body: some View {
-        if WatchSync.shared.watchReady {
-            Button(action: action) {
-                Image(systemName: "applewatch.radiowaves.left.and.right")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(Theme.ink)
-                    .frame(width: 56, height: 56)
-                    .background(Circle().fill(Theme.lime))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Track on Watch")
-            .accessibilityHint("Start a sport on your Apple Watch: snowboard, bike, run, Hyrox…")
-        }
     }
 }
 
@@ -159,6 +160,9 @@ struct LogSportView: View {
     @State private var saver = false
     @State private var hyroxFormat: HyroxFormat = .full
     @State private var sent = false
+    /// The Watch could not be woken: off the wrist, locked or out of reach (#462).
+    @State private var noWatch = false
+    @State private var link = WatchLink.shared
     private let initial: SportLog
 
     /// `restoring`: the session brought back by Undo (#285). `live`: opened from Track on Watch (#439).
@@ -194,6 +198,11 @@ struct LogSportView: View {
                         if canTrack { modeSwitch }
                         if live && canTrack {
                             liveCard
+                            if noWatch {
+                                Label("Your Watch didn't answer. Put it on, unlock it, then tap Start again. Or start it on the Watch: Track a sport.",
+                                      systemImage: "exclamationmark.applewatch")
+                                    .font(.footnote.weight(.semibold)).foregroundStyle(Theme.lime)
+                            }
                             Text("Your Watch opens \(log.sport.short) and records it: heart rate, route, kcal. Keep it on your wrist; it saves to Apple Health and shows up here after.")
                                 .font(.footnote).foregroundStyle(Theme.muted)
                         } else {
@@ -204,12 +213,8 @@ struct LogSportView: View {
                                 .font(.footnote).foregroundStyle(Theme.muted)
                         }
                     } else {
-                        Text(live ? "What are you doing?" : "What did you do?").eyebrow()
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                            ForEach(gridSports) { s in
-                                SportTile(sport: s, selected: picked && log.sport == s) { pick(s) }
-                            }
-                        }
+                        SportPicker(sports: gridSports, mine: model.mySports, live: live,
+                                    selected: picked ? log.sport : nil, pick: pick)
                     }
                 }
                 .padding(16)
@@ -253,8 +258,8 @@ struct LogSportView: View {
         live ? model.sportOrder.filter(\.watchTrackable) : model.sportOrder
     }
 
-    /// The Watch can record this sport now.
-    private var canTrack: Bool { log.sport.watchTrackable && WatchSync.shared.watchReady }
+    /// A paired Watch with MonkeyWorkout records this sport (#462: `WatchLink` redraws when the link comes up).
+    private var canTrack: Bool { log.sport.watchTrackable && link.ready }
 
     /// Track live / Log past (#439, design A).
     private var modeSwitch: some View {
@@ -321,21 +326,28 @@ struct LogSportView: View {
     }
 
     private func startOnWatch() {
-        if log.sport == .hyrox {
-            WatchSync.shared.startHyrox(hyroxFormat)
-        } else {
-            WatchSync.shared.startSport(log.sport, saver: saver)
-        }
+        noWatch = false
         sent = true
-        closeGuard.done()
-        Task {
-            try? await Task.sleep(for: .seconds(1.5))
+        let done: (Bool) -> Void = { ok in
+            guard ok else {
+                sent = false
+                noWatch = true
+                return
+            }
+            closeGuard.done()
             dismiss()
+        }
+        if log.sport == .hyrox {
+            WatchSync.shared.startHyrox(hyroxFormat, done: done)
+        } else {
+            WatchSync.shared.startSport(log.sport, saver: saver, done: done)
         }
     }
 
     private func pick(_ s: Sport) {
         if s == .climbing {
+            // Switching to the climb log isn't closing: no "… closed" Undo bar over it (#460).
+            closeGuard.done()
             climbing = true
         } else {
             log.sport = s
@@ -344,33 +356,9 @@ struct LogSportView: View {
         }
     }
 
-    /// The picked sport first, then the member's order; "All" opens the full grid again.
     private var strip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach([log.sport] + gridSports.filter { $0 != log.sport }.prefix(7)) { s in
-                    SportTile(sport: s, selected: log.sport == s) { pick(s) }
-                        .frame(width: 74)
-                        .opacity(log.sport == s ? 1 : 0.55)
-                }
-                Button { allSports = true } label: {
-                    VStack(spacing: 6) {
-                        Image(systemName: "square.grid.3x3.fill").font(.system(size: 22, weight: .bold)).frame(height: 28)
-                        Text("All").font(Theme.label(12))
-                    }
-                    .foregroundStyle(.white)
-                    .frame(width: 74, height: 74)
-                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.cardStrong))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("All sports")
-            }
-            .padding(.vertical, 3)
-        }
-        .scrollClipDisabled()
+        SportStrip(selected: log.sport, sports: gridSports, pick: pick) { allSports = true }
     }
-
-    private static let feels: [(String, Int)] = [("Easy", 3), ("Solid", 6), ("Hard", 8), ("Wrecked", 10)]
 
     /// Design C card (#435): the sport's own colours hold when, how long and how hard.
     private var card: some View {
@@ -386,36 +374,11 @@ struct LogSportView: View {
                 Image(systemName: log.sport.symbol).font(.system(size: 40, weight: .bold))
             }
 
-            HStack {
-                cardStep("minus") { log.minutes = max(15, log.minutes - 15) }
-                Spacer()
-                Text(Climbs.duration(log.minutes)).font(Theme.display(44)).monospacedDigit()
-                    .contentTransition(.numericText())
-                Spacer()
-                cardStep("plus") { log.minutes = min(16 * 60, log.minutes + 15) }
-            }
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.black.opacity(0.25)))
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Duration \(Climbs.duration(log.minutes))")
+            CardDuration(minutes: $log.minutes, max: 16 * 60)
 
             Text("How hard · \(log.effort) \(ClimbLog.effortLabel(log.effort))")
                 .font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.9)
-            HStack(spacing: 6) {
-                ForEach(Self.feels.indices, id: \.self) { i in
-                    let f = Self.feels[i]
-                    let on = abs(log.effort - f.1) <= 1
-                    Button { log.effort = f.1 } label: {
-                        Text(f.0).font(Theme.label(14)).lineLimit(1).minimumScaleFactor(0.8)
-                            .frame(maxWidth: .infinity, minHeight: 42)
-                            .foregroundStyle(on ? Theme.ink : .white)
-                            .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(on ? AnyShapeStyle(.white) : AnyShapeStyle(.black.opacity(0.25))))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(on ? .isSelected : [])
-                }
-            }
+            FeelChips(effort: $log.effort)
 
             if log.sport.hasDistance {
                 if showDistance {
@@ -437,34 +400,12 @@ struct LogSportView: View {
                     .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.black.opacity(0.25)))
             }
             HStack(spacing: 8) {
-                if log.sport.hasDistance && !showDistance { addChip("Distance") { showDistance = true } }
-                if !showNotes { addChip("Notes") { showNotes = true } }
+                if log.sport.hasDistance && !showDistance { AddChip(title: "Distance") { showDistance = true } }
+                if !showNotes { AddChip(title: "Notes") { showNotes = true } }
             }
         }
         .gradientCard(log.sport.gradient, padding: 18)
         .shadow(color: log.sport.colors[0].opacity(0.35), radius: 16, y: 8)
-    }
-
-    private func cardStep(_ symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 20, weight: .heavy))
-                .frame(width: 50, height: 50)
-                .background(Circle().fill(.white.opacity(0.22)))
-                .foregroundStyle(.white)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(symbol == "plus" ? "15 minutes more" : "15 minutes less")
-    }
-
-    private func addChip(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: "plus").font(Theme.label(13))
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(Capsule().fill(.black.opacity(0.25)))
-                .foregroundStyle(.white)
-        }
-        .buttonStyle(.plain)
     }
 
     private var undoOffer: UndoOffer? {
@@ -491,8 +432,243 @@ struct LogSportView: View {
     }
 }
 
+/// The picked sport first, then the member's order; "All" opens the full grid again. Shared by Log sport and Log climb (#460).
+struct SportStrip: View {
+    let selected: Sport
+    let sports: [Sport]
+    let pick: (Sport) -> Void
+    let all: () -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach([selected] + sports.filter { $0 != selected }.prefix(7)) { s in
+                    SportTile(sport: s, selected: selected == s) { pick(s) }
+                        .frame(width: 74)
+                        .opacity(selected == s ? 1 : 0.55)
+                }
+                Button(action: all) {
+                    VStack(spacing: 6) {
+                        Image(systemName: "square.grid.3x3.fill").font(.system(size: 22, weight: .bold)).frame(height: 28)
+                        Text("All").font(Theme.label(12))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(width: 74, height: 74)
+                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.cardStrong))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("All sports")
+            }
+            .padding(.vertical, 3)
+        }
+        .scrollClipDisabled()
+    }
+}
+
+/// Duration stepper inside a sport-coloured log card (#435), 15 min steps.
+struct CardDuration: View {
+    @Binding var minutes: Int
+    let max: Int
+
+    var body: some View {
+        HStack {
+            step("minus") { minutes = Swift.max(15, minutes - 15) }
+            Spacer()
+            Text(Climbs.duration(minutes)).font(Theme.display(44)).monospacedDigit()
+                .contentTransition(.numericText())
+            Spacer()
+            step("plus") { minutes = Swift.min(max, minutes + 15) }
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.black.opacity(0.25)))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Duration \(Climbs.duration(minutes))")
+    }
+
+    private func step(_ symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 20, weight: .heavy))
+                .frame(width: 50, height: 50)
+                .background(Circle().fill(.white.opacity(0.22)))
+                .foregroundStyle(.white)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(symbol == "plus" ? "15 minutes more" : "15 minutes less")
+    }
+}
+
+/// How hard as four feel chips (Easy 3, Solid 6, Hard 8, Wrecked 10) inside a log card (#435).
+struct FeelChips: View {
+    @Binding var effort: Int
+    static let feels: [(String, Int)] = [("Easy", 3), ("Solid", 6), ("Hard", 8), ("Wrecked", 10)]
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Self.feels.indices, id: \.self) { i in
+                let f = Self.feels[i]
+                let on = abs(effort - f.1) <= 1
+                CardChip(title: f.0, on: on) { effort = f.1 }
+            }
+        }
+    }
+}
+
+/// White-when-picked chip inside a log card.
+struct CardChip: View {
+    let title: String
+    let on: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title).font(Theme.label(14)).lineLimit(1).minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, minHeight: 42)
+                .foregroundStyle(on ? Theme.ink : .white)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(on ? AnyShapeStyle(.white) : AnyShapeStyle(.black.opacity(0.25))))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+/// "+ Notes" style chip that opens an optional field in a log card.
+struct AddChip: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: "plus").font(Theme.label(13))
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(Capsule().fill(.black.opacity(0.25)))
+                .foregroundStyle(.white)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Sport picker of Log sport and Track on Watch (#471, design C from `other-sports/picker-proposals.png`): the member's
+/// sports as big Explore-style cards on top, every other one as a vivid tile grouped by kind.
+struct SportPicker: View {
+    let sports: [Sport]
+    let mine: [Sport]
+    let live: Bool
+    let selected: Sport?
+    let pick: (Sport) -> Void
+    @Environment(AppModel.self) private var model
+
+    private var heroes: [Sport] { Array(mine.filter { sports.contains($0) }.prefix(3)) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !heroes.isEmpty {
+                Text("Your sports").eyebrow()
+                ForEach(heroes) { s in hero(s) }
+            }
+            ForEach(Sport.PickerGroup.allCases, id: \.self) { g in
+                let list = sports.filter { $0.pickerGroup == g && !heroes.contains($0) }
+                if !list.isEmpty {
+                    Text(g.title).eyebrow().padding(.top, 6)
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+                        ForEach(list) { s in tile(s) }
+                    }
+                }
+            }
+        }
+    }
+
+    private func hero(_ s: Sport) -> some View {
+        Button { pick(s) } label: {
+            HStack(spacing: 14) {
+                Image(systemName: s.symbol).font(.system(size: 26, weight: .bold))
+                    .frame(width: 54, height: 54)
+                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.22)))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(s.label).font(Theme.display(22)).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(lastLine(s)).font(.footnote.weight(.semibold)).opacity(0.9).lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                Text(live ? "Start" : "Log").font(Theme.label(14))
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(Capsule().fill(.white))
+            }
+            .foregroundStyle(.white)
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(s.gradient))
+            .overlay(ring(s, cornerRadius: 24))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(live ? "Track" : "Log") \(s.label)")
+        .accessibilityAddTraits(selected == s ? .isSelected : [])
+    }
+
+    private func tile(_ s: Sport) -> some View {
+        Button { pick(s) } label: {
+            VStack(spacing: 6) {
+                Image(systemName: s.symbol).font(.system(size: 24, weight: .bold)).frame(height: 28)
+                Text(s.short).font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+            .frame(maxWidth: .infinity, minHeight: 76)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(s.gradient))
+            .overlay(ring(s, cornerRadius: 18))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(s.label)
+        .accessibilityAddTraits(selected == s ? .isSelected : [])
+    }
+
+    private func ring(_ s: Sport, cornerRadius: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .strokeBorder(.white, lineWidth: selected == s ? 3 : 0)
+    }
+
+    /// "Last: Sat · 2 h · 32 km", or what to do when never logged.
+    private func lastLine(_ s: Sport) -> String {
+        guard let last = model.sportLogs.first(where: { $0.sport == s }) else {
+            return live ? "Your Watch records it" : "Not logged yet"
+        }
+        let days = Calendar.current.dateComponents([.day], from: last.start, to: .now).day ?? 0
+        let when = Calendar.current.isDateInToday(last.start) ? "Today"
+            : days < 6 ? last.start.formatted(.dateTime.weekday(.abbreviated))
+            : last.start.formatted(.dateTime.day().month(.abbreviated))
+        var parts = ["Last: \(when)", Climbs.duration(last.minutes)]
+        if let d = last.distanceKm { parts.append(d >= 10 ? "\(Int(d.rounded())) km" : String(format: "%.1f km", d)) }
+        return parts.joined(separator: " · ")
+    }
+}
+
+extension Sport {
+    /// Sections of the sport picker (#471).
+    enum PickerGroup: CaseIterable {
+        case snow, feet, water, court
+
+        var title: String {
+            switch self {
+            case .snow: "Snow & mountain"
+            case .feet: "Wheels & feet"
+            case .water: "Water"
+            case .court: "Gym, court & more"
+            }
+        }
+    }
+
+    var pickerGroup: PickerGroup {
+        switch self {
+        case .snowboard, .ski, .crossCountrySki, .mountaineering, .climbing: .snow
+        case .mountainBike, .roadBike, .run, .trailRun, .hike, .skate: .feet
+        case .swim, .rowing, .surf, .scubaDiving: .water
+        default: .court
+        }
+    }
+}
+
 /// Bold square sport tile: icon on top, name under it.
-private struct SportTile: View {
+struct SportTile: View {
     let sport: Sport
     let selected: Bool
     let action: () -> Void
@@ -532,8 +708,6 @@ struct SportSessionSheet: View {
     @State private var colour: RouteColour = .speed
     @State private var runs: [SportTrack.Run] = []
 
-    private static let feels: [(String, Int)] = [("Easy", 3), ("Solid", 6), ("Hard", 8), ("Wrecked", 10)]
-
     /// Today's workout, when not started or done, and the type that spares what this session loaded.
     private var swap: (Session, Focus)? {
         guard let s = model.nextSession, s.weekday == model.todayWeekday, model.canChangeFocus(s),
@@ -561,8 +735,8 @@ struct SportSessionSheet: View {
                     SportSection(entry: entry, track: track, runs: runs, selected: $selectedRun)
                     Text("How did it feel?").eyebrow()
                     HStack(spacing: 8) {
-                        ForEach(Self.feels.indices, id: \.self) { i in
-                            let f = Self.feels[i]
+                        ForEach(FeelChips.feels.indices, id: \.self) { i in
+                            let f = FeelChips.feels[i]
                             let on = (effort ?? entry.effort).map { abs($0 - f.1) <= 1 } ?? false
                             Button { rate(f.1) } label: {
                                 Text(f.0).font(Theme.label(14)).frame(maxWidth: .infinity, minHeight: 44)

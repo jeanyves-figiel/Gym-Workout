@@ -6,6 +6,8 @@ export interface Mail {
   to: string;
   subject: string;
   text: string;
+  /** Member problem reports (#467): screenshots. */
+  attachments?: { filename: string; contentType: string; content: Buffer }[];
 }
 
 export interface Mailer {

@@ -11,6 +11,7 @@ struct AccountView: View {
     @State private var confirmSignOutAll = false
     @AppStorage(AutoNextPref.key) private var autoNextSec = AutoNextPref.fallback
     @AppStorage(CoachPref.onKey) private var coachOn = true
+    @AppStorage(ReportPref.shakeKey) private var shakeToReport = true
     @AppStorage(CoachPref.styleKey) private var coachStyle = CoachStyle.hype.rawValue
     @AppStorage(CoachPref.voiceKey) private var coachVoice = CoachVoiceLevel.keyMoments.rawValue
     private var coachSummary: String {
@@ -58,13 +59,14 @@ struct AccountView: View {
         static let privacy = "Privacy policy legal"
         static let terms = "Terms of use legal eula"
         static let support = "Support help contact"
+        static let report = "Report a problem bug feedback broken idea shake screenshot"
 
         static let you = [pro, profile, gym, body]
         static let training = [method, flow, coach, reminders, climbing]
         static let watch = [watchStart, action, lift]
         static let look = [style, widgets, monkeyGrade]
         static let account = [password, email, security, devices, lock, export, signOut, delete]
-        static let help = [whatsNew, privacy, terms, support]
+        static let help = [whatsNew, report, privacy, terms, support]
         static let all = you + training + watch + look + account + help
     }
 
@@ -375,6 +377,16 @@ struct AccountView: View {
                                     value: "\(WhatsNew.history.count + (WhatsNew.current == nil ? 0 : 1)) updates")
                     }
                     .buttonStyle(.plain)
+                }
+                if search.matches(Find.report) {
+                    // Report a problem (#467 A); shake to report (B) can be turned off here.
+                    NavigationLink { ReportProblemView(draft: ReportDraft(via: .settings, area: "Train")) } label: {
+                        SettingsRow(symbol: "ladybug.fill", title: "Report a problem")
+                    }
+                    .buttonStyle(.plain)
+                    SettingsRow(symbol: "iphone.radiowaves.left.and.right", title: "Shake to report") {
+                        Toggle("Shake to report", isOn: $shakeToReport).labelsHidden().tint(Theme.lime)
+                    }
                 }
                 if search.matches(Find.privacy) { legalRow(symbol: "hand.raised.fill", title: "Privacy policy", url: AppConfig.privacyURL) }
                 if search.matches(Find.terms) { legalRow(symbol: "doc.text.fill", title: "Terms of use", url: AppConfig.termsURL) }

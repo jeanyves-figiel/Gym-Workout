@@ -47,6 +47,8 @@ export interface Config {
     sandbox: boolean;
   };
   /** Who runs the app, shown on /privacy, /terms and /support (#125). Unset → placeholder text the owner must fill. */
+  /** Member problem reports (#467): also opened as GitHub issues when a token (Issues: write) is set. */
+  reports: { githubToken?: string; githubRepo: string };
   legal: { operator?: string; address?: string; email?: string; law: string; venue?: string };
   /** Passkeys (#257): relying party = the API host the app has in its Associated Domains (webcredentials:). */
   webauthn: { rpId: string; origins: string[] };
@@ -152,6 +154,10 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
         .filter(Boolean),
       tests: env.SUBSCRIPTION_TESTS === 'on',
       sandbox: env.SUBSCRIPTION_SANDBOX ? env.SUBSCRIPTION_SANDBOX === 'on' : !prod || env.SUBSCRIPTION_TESTS === 'on',
+    },
+    reports: {
+      githubToken: env.GITHUB_REPORTS_TOKEN || undefined,
+      githubRepo: env.GITHUB_REPORTS_REPO || 'jeanyves-figiel/Gym-Workout',
     },
     legal: {
       operator: env.LEGAL_OPERATOR || undefined,

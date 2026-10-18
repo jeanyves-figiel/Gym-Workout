@@ -29,21 +29,8 @@ struct LibraryView: View {
         ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                GradientSegments(selection: $mode, items: [
-                    SegmentItem(value: .muscles, title: "Muscles", symbol: "figure.strengthtraining.traditional",
-                                detail: "\(Muscle.allCases.count) muscles"),
-                    // Explore by machine (#456).
-                    SegmentItem(value: .machines, title: "Machines", symbol: "gearshape.2.fill",
-                                detail: "\(GymArea.allCases.reduce(0) { $0 + $1.browsable().count }) machines"),
-                    SegmentItem(value: .categories, title: "Categories", symbol: "square.grid.2x2.fill",
-                                detail: "\(WorkoutEngine.Category.allCases.count + 1) types"),
-                    SegmentItem(value: .workouts, title: "Workouts", symbol: "list.bullet.rectangle.fill",
-                                detail: "\(model.myLibrary.count + model.builtInLibrary.count) workouts"),
-                    // Training programmes (#255).
-                    SegmentItem(value: .programmes, title: "Programmes", symbol: "flag.checkered",
-                                detail: model.activeProgramme.map { $0.paused ? "paused" : "week \(model.programmeWeek ?? 1)" }
-                                    ?? "\(Programme.all.count) goals"),
-                ])
+                // Live hero + colour dock (#459).
+                ExploreMenu(mode: $mode)
 
                 switch mode {
                 case .muscles: muscles
@@ -80,7 +67,7 @@ struct LibraryView: View {
 
     private var muscles: some View {
         VStack(alignment: .leading, spacing: 20) {
-            BodyMapCard(heat: model.weekHeat, sets: model.weeklyWorkingSets) { tapped = $0 }
+            BodyMapCard(heat: model.weekHeat) { tapped = $0 }
             // Machine chips (#456): muscle cards count only exercises on the picked kit; muscles with none hide.
             MachineChips()
             NewExerciseButton()
@@ -130,11 +117,10 @@ struct LibraryView: View {
     }
 }
 
-/// Explore → Muscles hero (#110): gradient "this week" header with the most-worked muscles,
-/// then the front/back anatomical figures on a soft glow. Tap a muscle to open it.
+/// Explore → Muscles body map (#110): front/back anatomical figures on a soft glow. Tap a muscle to open it.
+/// This week's sets and top muscles live in the Explore hero above (#459).
 private struct BodyMapCard: View {
     let heat: [Muscle: Double]
-    let sets: Int
     let onTap: (Muscle) -> Void
     @AppStorage(BodyMapMode.storageKey) private var storedMode = BodyMapMode.flat
     @Environment(\.bodyMapDemo) private var demo
@@ -146,38 +132,8 @@ private struct BodyMapCard: View {
         BodyMapModeToggle(selection: $storedMode, current: mode)
     }
 
-    private var top: [Muscle] {
-        heat.filter { $0.value > 0 }.sorted { $0.value > $1.value || ($0.value == $1.value && $0.key.name < $1.key.name) }
-            .prefix(3).map(\.key)
-    }
-
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("This week").font(Theme.label(11)).tracking(2).textCase(.uppercase).opacity(0.85)
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("\(sets)").font(Theme.display(40)).monospacedDigit()
-                        Text("sets").font(Theme.display(18)).opacity(0.9)
-                    }
-                    if !top.isEmpty {
-                        ViewThatFits(in: .horizontal) {
-                            chips(top)
-                            chips(Array(top.prefix(2)))
-                            chips(Array(top.prefix(1)))
-                        }
-                    }
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "flame.fill")
-                    .font(.system(size: 26, weight: .bold))
-                    .frame(width: 56, height: 56)
-                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.white.opacity(0.2)))
-            }
-            .foregroundStyle(.white)
-            .padding(18)
-            .background(WorkoutEngine.Category.strength.gradient)
-
             if mode == .solid {
                 BodyMap3DPanel(heat: heat, modeToggle: AnyView(modeToggle), onOpen: onTap)
             } else {
@@ -203,16 +159,6 @@ private struct BodyMapCard: View {
         }
         .background(Theme.card)
         .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-    }
-
-    private func chips(_ muscles: [Muscle]) -> some View {
-        HStack(spacing: 6) {
-            ForEach(muscles) { m in
-                Text(m.name).font(Theme.label(11)).lineLimit(1).fixedSize()
-                    .padding(.horizontal, 9).padding(.vertical, 4)
-                    .background(Capsule().fill(.white.opacity(0.22)))
-            }
-        }
     }
 }
 
