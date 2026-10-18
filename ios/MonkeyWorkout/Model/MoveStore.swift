@@ -46,6 +46,11 @@ final class MoveStore {
     var todayXP: Int { DailyMove.xp(today) }
     var activeDaysThisWeek: Int { DailyMove.activeDays(saved.days, weekOf: Date(), calendar: cal) }
     var hour: Int { saved.hour }
+    /// Walking XP earned this week (Week chest card, #476).
+    var weekXP: Int {
+        guard let since = saved.since else { return 0 }
+        return DailyMove.totalXP(saved.days, since: max(since, Progression.weekStart(Date(), cal)), calendar: cal)
+    }
 
     /// Days and walking hour from a Health read.
     func update(days: [DayMove], hour: Int?) {

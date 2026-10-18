@@ -184,6 +184,13 @@ struct ProgressTabView: View {
             } else {
                 GameProgressCard(badges: badges)
             }
+        case .chest:
+            // Week chest (#476): this week's chest and XP, the last 8 weeks; a placeholder before the first workout.
+            if fresh {
+                ProgressWidgetPlaceholder(widget: w, note: "Your week chest opens when you meet your weekly goal")
+            } else {
+                WeekChestCard { opened = .training }
+            }
         case .streak:
             StreakRow(current: s.currentStreakWeeks, best: s.bestStreakWeeks, thisWeek: s.thisWeek, target: target, fresh: fresh)
         case .training, .body, .records, .badges, .muscles, .programmes:
