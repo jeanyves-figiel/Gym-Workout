@@ -1,7 +1,7 @@
 name: Fly setup
 
 # Manual, idempotent, one-time bootstrap of a Fly.io app (#3) — no local CLI needed.
-# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Email: secrets SES_ACCESS_KEY_ID + SES_SECRET_ACCESS_KEY (IAM user, ses:SendRawEmail; sent via the SES HTTPS API) or SMTP_URL → real email, else console. Optional APPLE_KEY_ID + APPLE_PRIVATE_KEY (Sign in with Apple .p8) → Apple token revocation. Optional APNS_KEY_ID + APNS_PRIVATE_KEY (APNs .p8) → remote push. Optional ANTHROPIC_API_KEY → workout chat (#381); ANTHROPIC_WORKSPACE_ID only when that key isn't scoped to a workspace.
+# Needs secret FLY_API_TOKEN = Fly org token (dashboard → Tokens). Email: secrets SES_ACCESS_KEY_ID + SES_SECRET_ACCESS_KEY (IAM user, ses:SendRawEmail; sent via the SES HTTPS API) or SMTP_URL → real email, else console. Optional APPLE_KEY_ID + APPLE_PRIVATE_KEY (Sign in with Apple .p8) → Apple token revocation. Optional APNS_KEY_ID + APNS_PRIVATE_KEY (APNs .p8) → remote push. Optional ANTHROPIC_API_KEY → workout chat (#381); ANTHROPIC_WORKSPACE_ID only when that key isn't scoped to a workspace. Optional GITHUB_REPORTS_TOKEN (fine-grained, this repo, Issues: read and write) → member problem reports also open GitHub issues (#467).
 on:
   workflow_dispatch:
     inputs:
@@ -34,6 +34,7 @@ jobs:
       APNS_PRIVATE_KEY: ${{ secrets.APNS_PRIVATE_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       ANTHROPIC_WORKSPACE_ID: ${{ secrets.ANTHROPIC_WORKSPACE_ID }}
+      GITHUB_REPORTS_TOKEN: ${{ secrets.GITHUB_REPORTS_TOKEN }}
       FLY_APP: ${{ inputs.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
       REGION: fra
       HOSTNAME: ${{ inputs.environment == 'production' && 'workout.monkeygrade.cloud' || 'workout-staging.monkeygrade.cloud' }}
@@ -85,6 +86,10 @@ jobs:
           # Key not scoped to a workspace → the API needs the workspace id (#386).
           if [ -n "$ANTHROPIC_WORKSPACE_ID" ]; then
             flyctl secrets set --stage -a "$FLY_APP" ANTHROPIC_WORKSPACE_ID="$ANTHROPIC_WORKSPACE_ID"
+          fi
+          # Member problem reports (#467): also opened as GitHub issues. Unset → email only.
+          if [ -n "$GITHUB_REPORTS_TOKEN" ]; then
+            printf '%s' "$GITHUB_REPORTS_TOKEN" | flyctl secrets set --stage -a "$FLY_APP" GITHUB_REPORTS_TOKEN=-
           fi
           flyctl secrets list -a "$FLY_APP"
       # Apply staged secrets to running machines now; a later image deploy alone left the old Claude key live (#387).
