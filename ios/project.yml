@@ -149,7 +149,10 @@ targets:
     platform: watchOS
     sources:
       - path: MonkeyWorkoutWatch
-        excludes: [MonkeyWorkoutWatch.entitlements]
+        excludes: [MonkeyWorkoutWatch.entitlements, PrivacyInfo.xcprivacy]
+      # Own privacy manifest: the Watch app reads UserDefaults and posts Hyrox races itself (#426).
+      - path: MonkeyWorkoutWatch/PrivacyInfo.xcprivacy
+        buildPhase: resources
       - path: WatchShared
       - path: MonkeyWorkoutWatchComplications/SharedSnapshot.swift
     dependencies:
