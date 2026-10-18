@@ -49,7 +49,8 @@ extension AppModel {
 
     /// Settings, last race and upload key for the Watch snapshot.
     func watchHyrox(start: (format: HyroxFormat, at: Date)?) -> WHyrox? {
-        guard doesHyrox else { return nil }
+        // A start from the iPhone goes through even before Hyrox is in My sports (Explore, Track live: #439).
+        guard doesHyrox || start != nil else { return nil }
         if watchUploadKey == nil { Task { await fetchWatchUploadKey() } }
         return WHyrox(division: hyroxDivision, goalSeconds: hyroxGoalSeconds, raceName: hyroxProfile.raceName,
                       raceDate: hyroxPlan?.event, lastRace: lastFullRace(), uploadKey: watchUploadKey,

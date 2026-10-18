@@ -599,6 +599,7 @@ private struct NextUpCard: View {
     @Environment(AppModel.self) private var model
     @Environment(\.trainCompact) private var compact
     @State private var logging: SportLog?
+    @State private var trackingSport: SportLog?
     /// A later day picked in the strip (#343): nothing can be started or logged in advance.
     private var ahead: Bool { picked.map { $0 > model.todayWeekday } ?? false }
 
@@ -625,6 +626,7 @@ private struct NextUpCard: View {
         }
         .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Color.white.opacity(0.15)))
         .sheet(item: $logging) { LogSportView(initial: $0) }
+        .sheet(item: $trackingSport) { LogSportView(initial: $0, live: true) }
     }
 
     /// Slim (#337, design A): muscle chips sit in the text column beside a smaller figure, so Start workout stays
@@ -698,6 +700,7 @@ private struct NextUpCard: View {
                 // The card itself opens the overview, so Log sport (#416, was Log climb) takes the list button's place.
                 if !ahead {
                     LogSportButton { logging = SportLog(start: Date().addingTimeInterval(-120 * 60)) }
+                    TrackOnWatchButton { trackingSport = SportLog(start: Date()) }
                 }
             }
             if picked != nil && !isNext, let next = model.nextSession {
@@ -741,6 +744,7 @@ private struct RestDayCard: View {
     @Environment(AppModel.self) private var model
     @State private var logging: ClimbLog?
     @State private var loggingSport: SportLog?
+    @State private var trackingSport: SportLog?
 
     /// Climbers get Log climb next to Add workout on every rest day (#304).
     private var climber: Bool { model.profile.map(Generator.isClimber) ?? false }
@@ -778,6 +782,7 @@ private struct RestDayCard: View {
                         // Any other sport (#416), dated like a climb.
                         LogSportButton { loggingSport = SportLog(start: climbStart()) }
                     }
+                    if !ahead { TrackOnWatchButton { trackingSport = SportLog(start: Date()) } }
                 }
                 .padding(.top, 6)
             }
@@ -799,6 +804,7 @@ private struct RestDayCard: View {
         .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Color.white.opacity(0.15)))
         .sheet(item: $logging) { LogClimbView(initial: $0) }
         .sheet(item: $loggingSport) { LogSportView(initial: $0) }
+        .sheet(item: $trackingSport) { LogSportView(initial: $0, live: true) }
     }
 }
 
