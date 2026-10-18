@@ -60,7 +60,7 @@ export const securityRoutes = (r: FastifyInstance, security: SecurityService, ra
     const b = z
       .discriminatedUnion('method', [
         z.object({ method: z.literal('password'), password: z.string().min(1).max(256) }),
-        z.object({ method: z.literal('apple'), identityToken: z.string().min(10).max(5000) }),
+        z.object({ method: z.literal('apple'), identityToken: z.string().min(10).max(5000), nonce: z.string().min(16).max(128).optional() }),
         z.object({ method: z.literal('email_code'), code }),
         z.object({ method: z.literal('totp'), code }),
         z.object({ method: z.literal('passkey'), challengeId: z.uuid(), response: webauthnJson }),

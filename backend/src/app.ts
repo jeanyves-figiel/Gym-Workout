@@ -190,9 +190,15 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
 
       r.post('/apple', limit, async (req) => {
         const b = z
-          .object({ identityToken: z.string().min(10).max(5000), authorizationCode: z.string().min(1).max(2000).optional(), name: name.optional() })
+          .object({
+            identityToken: z.string().min(10).max(5000),
+            authorizationCode: z.string().min(1).max(2000).optional(),
+            name: name.optional(),
+            // Raw Sign in with Apple nonce (#432); required when the token has a nonce claim.
+            nonce: z.string().min(16).max(128).optional(),
+          })
           .parse(req.body);
-        return auth.signInWithApple(b.identityToken, b.name, device(req), b.authorizationCode);
+        return auth.signInWithApple(b.identityToken, b.name, device(req), b.authorizationCode, b.nonce);
       });
 
       r.post('/refresh', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (req) => {

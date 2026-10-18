@@ -8,7 +8,7 @@ import {
   type AuthenticatorTransportFuture,
   type RegistrationResponseJSON,
 } from '@simplewebauthn/server';
-import type { AppleVerifier } from './apple.ts';
+import { appleNonceOk, type AppleVerifier } from './apple.ts';
 import type { AuthService, PublicUser, TokenPair, UserRow } from './auth.ts';
 import { publicUser } from './auth.ts';
 import type { Config } from './config.ts';
@@ -235,7 +235,7 @@ export class SecurityService {
     userId: string,
     b:
       | { method: 'password'; password: string }
-      | { method: 'apple'; identityToken: string }
+      | { method: 'apple'; identityToken: string; nonce?: string }
       | { method: 'email_code' | 'totp'; code: string }
       | { method: 'passkey'; challengeId: string; response: AuthenticationResponseJSON },
   ): Promise<{ reauthToken: string; expiresIn: number }> {
@@ -248,7 +248,8 @@ export class SecurityService {
       case 'apple': {
         let sub: string | undefined;
         try {
-          sub = (await this.d.apple(b.identityToken)).sub;
+          const identity = await this.d.apple(b.identityToken);
+          if (appleNonceOk(this.d.db, identity, b.nonce, this.d.now())) sub = identity.sub;
         } catch {
           /* fallthrough */
         }

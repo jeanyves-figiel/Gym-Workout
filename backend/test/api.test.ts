@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type AppleIdentity, audienceAllowed } from '../src/apple.ts';
@@ -253,6 +253,29 @@ describe('Sign in with Apple', () => {
     const { reauthToken } = (await post('/v1/me/reauth', { method: 'apple', identityToken: 'tok-del-identity-token' }, tokens.accessToken)).json();
     const del = await app.inject({ method: 'DELETE', url: '/v1/me', payload: { confirm: 'DELETE' }, headers: { ...auth, 'x-reauth-token': reauthToken } });
     expect(del.statusCode).toBe(204);
+  });
+
+  // #432: a token with a nonce claim needs the matching raw nonce, once.
+  it('checks the nonce claim and refuses its replay', async () => {
+    const raw = 'n0nce-raw-value-1234567890';
+    const hashed = createHash('sha256').update(raw).digest('hex');
+    appleIds.set('tok-nonce-identity-token', { sub: 'apple-n', emailVerified: false, nonce: hashed });
+    const bad = (b: object) => post('/v1/auth/apple', { identityToken: 'tok-nonce-identity-token', ...b });
+    expect((await bad({})).json().error).toBe('invalid_apple_token');
+    expect((await bad({ nonce: 'wrong-nonce-value-123456' })).json().error).toBe('invalid_apple_token');
+    expect((await bad({ nonce: hashed })).json().error).toBe('invalid_apple_token');
+    const ok = await bad({ nonce: raw });
+    expect(ok.statusCode).toBe(200);
+    expect((await bad({ nonce: raw })).json().error).toBe('invalid_apple_token');
+
+    // Re-auth follows the same rule.
+    const t = ok.json().tokens.accessToken as string;
+    const raw2 = 'second-raw-nonce-abcdefgh';
+    appleIds.set('tok-nonce-reauth-token', { sub: 'apple-n', emailVerified: false, nonce: createHash('sha256').update(raw2).digest('hex') });
+    const reauth = (nonce?: string) => post('/v1/me/reauth', { method: 'apple', identityToken: 'tok-nonce-reauth-token', nonce }, t);
+    expect((await reauth()).json().error).toBe('reauth_failed');
+    expect((await reauth(raw2)).statusCode).toBe(200);
+    expect((await reauth(raw2)).json().error).toBe('reauth_failed');
   });
 });
 

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { jwtVerify, SignJWT } from 'jose';
-import type { AppleVerifier } from './apple.ts';
+import { appleNonceOk, type AppleVerifier } from './apple.ts';
 import type { AppleTokenService } from './appleTokens.ts';
 import type { Config } from './config.ts';
 import { burnPasswordCheck, hashPassword, hmac, randomToken, safeEqualHex, sha256, sixDigitCode, verifyPassword } from './crypto.ts';
@@ -236,13 +236,16 @@ export class AuthService {
     name: string | undefined,
     device?: string,
     authorizationCode?: string,
+    nonce?: string,
   ): Promise<{ user: PublicUser; tokens: TokenPair; created: boolean }> {
+    const invalid = new ApiError(401, 'invalid_apple_token', 'Apple sign-in could not be verified.');
     let identity;
     try {
       identity = await this.d.apple(identityToken);
     } catch {
-      throw new ApiError(401, 'invalid_apple_token', 'Apple sign-in could not be verified.');
+      throw invalid;
     }
+    if (!appleNonceOk(this.d.db, identity, nonce, this.d.now())) throw invalid;
     const now = this.iso();
     let created = false;
     const userId = tx(this.d.db, () => {
