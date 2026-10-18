@@ -212,5 +212,6 @@ extension LocalState {
         deletedMeasurementIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedMeasurementIds)
         deletedWorkoutIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedWorkoutIds)
         deletedLogIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedLogIds)
+        busyTaps = try? c.decodeIfPresent([BusyTap].self, forKey: .busyTaps)
     }
 }
