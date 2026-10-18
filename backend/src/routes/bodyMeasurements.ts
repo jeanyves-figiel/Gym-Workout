@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type DB, tx } from '../db.ts';
 import { sinceQuery } from './sync.ts';
+import { assertRowQuota } from '../quota.ts';
 
 /** Body measurements (#185): one dated entry of girths (cm), weight and body fat; extra app fields kept as is. */
 const cm = z.number().min(5).max(300);
@@ -40,6 +41,7 @@ export const bodyMeasurementRoutes = (r: FastifyInstance, db: DB, now: () => Dat
        WHERE body_measurements.user_id = excluded.user_id`,
     );
     const saved = tx(db, () => {
+      assertRowQuota(db, 'body_measurements', req.userId!, b.measurements.map((m) => m.id));
       let count = 0;
       for (const m of b.measurements) {
         const json = JSON.stringify(m);

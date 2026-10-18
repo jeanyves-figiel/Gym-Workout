@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { assertClean, hasAcceptedGuidelines, VISIBILITIES } from '../community/moderation.ts';
 import { type DB, tx } from '../db.ts';
 import { sinceQuery } from './sync.ts';
+import { assertRowQuota } from '../quota.ts';
 import { ApiError } from '../errors.ts';
 
 /** User-built workouts (opaque app-defined records, like completed workouts). */
@@ -65,6 +66,7 @@ export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date)
        WHERE custom_workouts.user_id = excluded.user_id`,
     );
     const saved = tx(db, () => {
+      assertRowQuota(db, 'custom_workouts', userId, b.workouts.map((w) => w.id));
       let count = 0;
       for (const w of b.workouts) {
         const visibility = w.visibility ?? 'private';

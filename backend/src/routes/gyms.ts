@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { DB } from '../db.ts';
 import { sameGym } from './community.ts';
+import { assertRowQuota } from '../quota.ts';
 
 /** Gym memory (#162): see `ensureGymSchema`. Only counts are shared, never who reported. */
 interface ReportRow {
@@ -154,6 +155,7 @@ export const gymRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
       .object({ gym: gymRef, equipment: z.array(item).max(80), unsure: z.array(item).max(80).optional() })
       .parse(req.body);
     const ts = now().toISOString();
+    assertRowQuota(db, 'gym_reports', req.userId!, [b.gym.id]);
     db.prepare(
       `INSERT INTO gym_reports (user_id, gym_id, name, latitude, longitude, equipment, unsure, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(user_id, gym_id) DO UPDATE SET name = excluded.name, latitude = excluded.latitude, longitude = excluded.longitude,
@@ -172,6 +174,7 @@ export const gymRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   /** Your floor plan for a gym (#406); replaces your earlier one. Only plans with blocks drawn are shared. */
   r.put('/gyms/maps', async (req) => {
     const b = z.object({ gym: gymRef, layout: layoutSchema }).parse(req.body);
+    assertRowQuota(db, 'gym_maps', req.userId!, [b.gym.id]);
     db.prepare(
       `INSERT INTO gym_maps (user_id, gym_id, name, latitude, longitude, layout, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(user_id, gym_id) DO UPDATE SET name = excluded.name, latitude = excluded.latitude, longitude = excluded.longitude,

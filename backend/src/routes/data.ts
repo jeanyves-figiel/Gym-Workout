@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { type AuthService, publicUser } from '../auth.ts';
 import { type DB, tx } from '../db.ts';
 import { sinceQuery } from './sync.ts';
+import { assertRowQuota } from '../quota.ts';
 import { pushExport } from '../push/schema.ts';
 import { communityExport } from './community.ts';
 import { gymExport, gymMapExport } from './gyms.ts';
@@ -96,6 +97,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
        WHERE workout_logs.user_id = excluded.user_id`,
     );
     const saved = tx(db, () => {
+      assertRowQuota(db, 'workout_logs', req.userId!, b.logs.map((l) => l.id));
       let count = 0;
       for (const l of b.logs) count += Number(up.run(
           l.id, req.userId!, l.date, l.exerciseId, l.sessionId ?? null, l.weightKg ?? null, l.reps ?? null,
@@ -141,6 +143,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
        WHERE workouts.user_id = excluded.user_id`,
     );
     const saved = tx(db, () => {
+      assertRowQuota(db, 'workouts', req.userId!, b.workouts.map((w) => w.id));
       let count = 0;
       for (const w of b.workouts) {
         const json = JSON.stringify(w);

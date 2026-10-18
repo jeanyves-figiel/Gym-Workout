@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { sanitizeJpeg } from '../community/image.ts';
 import { type DB, tx } from '../db.ts';
 import { sinceQuery } from './sync.ts';
+import { assertRowQuota } from '../quota.ts';
 import { ApiError } from '../errors.ts';
 
 /**
@@ -64,6 +65,7 @@ export const machineNoteRoutes = (r: FastifyInstance, db: DB, now: () => Date) =
        WHERE machine_notes.user_id = excluded.user_id`,
     );
     const saved = tx(db, () => {
+      assertRowQuota(db, 'machine_notes', req.userId!, b.notes.map((n) => n.id));
       let count = 0;
       for (const n of b.notes) {
         const { photoId: _p, updatedAt: _u, ...rest } = n as typeof n & { photoId?: unknown; updatedAt?: unknown };

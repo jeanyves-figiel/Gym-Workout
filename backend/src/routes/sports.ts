@@ -4,6 +4,7 @@ import { randomToken, sha256 } from '../crypto.ts';
 import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
 import { sinceQuery } from './sync.ts';
+import { assertRowQuota } from '../quota.ts';
 
 /** Other sport sessions (#416): snowboard, MTB, Hyrox… Synced like climbs (upsert by client id). */
 const sport = z
@@ -25,6 +26,7 @@ const upsert = (db: DB, userId: string, sports: z.infer<typeof sport>[], ts: str
   );
   /** Rows written: another account's ids are skipped by the WHERE. */
   return tx(db, () => {
+    assertRowQuota(db, 'sports', userId, sports.map((c) => c.id));
     let count = 0;
     for (const c of sports) {
       const json = JSON.stringify(c);

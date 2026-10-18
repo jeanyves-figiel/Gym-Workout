@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type DB, tx } from '../db.ts';
 import { sinceQuery } from './sync.ts';
+import { assertRowQuota } from '../quota.ts';
 
 /** Personal-record attempts (#60): app-defined records; the typed fields are what a future community feed reads. */
 const prAttempt = z
@@ -42,6 +43,7 @@ export const prAttemptRoutes = (r: FastifyInstance, db: DB, now: () => Date) => 
        WHERE pr_attempts.user_id = excluded.user_id`,
     );
     const saved = tx(db, () => {
+      assertRowQuota(db, 'pr_attempts', req.userId!, b.attempts.map((a) => a.id));
       let count = 0;
       for (const a of b.attempts) {
         const json = JSON.stringify(a);

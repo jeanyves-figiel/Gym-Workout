@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type DB, tx } from '../db.ts';
 import { sinceQuery } from './sync.ts';
+import { assertRowQuota } from '../quota.ts';
 
 /** Climbing sessions (#312): were kept only on the device; now synced like PR attempts (upsert by client id). */
 const climb = z
@@ -41,6 +42,7 @@ export const climbRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
        WHERE climbs.user_id = excluded.user_id`,
     );
     const saved = tx(db, () => {
+      assertRowQuota(db, 'climbs', req.userId!, b.climbs.map((c) => c.id));
       let count = 0;
       for (const c of b.climbs) {
         const json = JSON.stringify(c);

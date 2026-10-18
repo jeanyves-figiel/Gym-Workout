@@ -102,6 +102,22 @@ describe('climbs sync (#312)', () => {
     expect((await post('/v1/me/climbs', { climbs: [{ ...a, effort: 1 }, sample()] }, t2)).json().saved).toBe(1);
   });
 
+  it('refuses new rows past the per-member quota, still allows updates (#432)', async () => {
+    const t = await signUp('climber@example.com');
+    const { id: userId } = db.prepare('SELECT id FROM users WHERE email = ?').get('climber@example.com') as { id: string };
+    const fill = db.prepare('INSERT INTO climbs (id, user_id, start, data, updated_at) VALUES (?, ?, ?, ?, ?)');
+    db.exec('BEGIN');
+    for (let i = 0; i < 19_999; i++) fill.run(randomUUID(), userId, '2026-01-01T00:00:00Z', '{}', clock.toISOString());
+    db.exec('COMMIT');
+    const a = sample();
+    const over = await post('/v1/me/climbs', { climbs: [a, sample()] }, t);
+    expect(over.statusCode).toBe(413);
+    expect(over.json()).toMatchObject({ error: 'quota_exceeded', limit: 20_000 });
+    expect((await post('/v1/me/climbs', { climbs: [a] }, t)).json().saved).toBe(1);
+    expect((await post('/v1/me/climbs', { climbs: [sample()] }, t)).json().error).toBe('quota_exceeded');
+    expect((await post('/v1/me/climbs', { climbs: [{ ...a, effort: 9 }] }, t)).json().saved).toBe(1);
+  });
+
   it('rejects malformed climbs', async () => {
     const t = await signUp('climber@example.com');
     for (const c of [{ ...sample(), id: 'x' }, { ...sample(), effort: 11 }, { ...sample(), start: 'today' }, { ...sample(), minutes: -5 }])
