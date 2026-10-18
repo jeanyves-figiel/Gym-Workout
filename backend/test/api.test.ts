@@ -365,3 +365,92 @@ describe('rate limiting', () => {
     expect(codes).toEqual([202, 202, 202, 429]);
   });
 });
+
+describe('abuse limits (#432)', () => {
+  it('keys rate limits on Fly-Client-IP, not a spoofed X-Forwarded-For', async () => {
+    await app.close();
+    setup({ AUTH_RATE_LIMIT_PER_MIN: '3' });
+    const codes = [];
+    for (let i = 0; i < 4; i++)
+      codes.push(
+        (
+          await app.inject({
+            method: 'POST',
+            url: '/v1/auth/password/forgot',
+            payload: { email: EMAIL },
+            headers: { 'x-forwarded-for': `10.0.0.${i}`, 'fly-client-ip': '203.0.113.9' },
+          })
+        ).statusCode,
+      );
+    expect(codes).toEqual([202, 202, 202, 429]);
+  });
+
+  it('does not replace a burned reset code at once and caps wrong guesses per account', async () => {
+    await signUp();
+    await post('/v1/auth/password/forgot', { email: EMAIL });
+    const first = lastCode();
+    const wrong = first === '000000' ? '111111' : '000000';
+    for (let i = 0; i < 5; i++) await post('/v1/auth/password/reset', { email: EMAIL, code: wrong, newPassword: 'another-good-passphrase' });
+    const sent = mailer.outbox.length;
+    await post('/v1/auth/password/forgot', { email: EMAIL });
+    expect(mailer.outbox.length).toBe(sent); // still inside the resend window
+    // 20 wrong guesses a day across fresh codes, then refused even with the right code.
+    for (let round = 0; round < 3; round++) {
+      advance(61_000);
+      await post('/v1/auth/password/forgot', { email: EMAIL });
+      for (let i = 0; i < 5; i++) await post('/v1/auth/password/reset', { email: EMAIL, code: wrong, newPassword: 'another-good-passphrase' });
+    }
+    advance(61_000);
+    advance(3_600_000);
+    await post('/v1/auth/password/forgot', { email: EMAIL });
+    const r = await post('/v1/auth/password/reset', { email: EMAIL, code: lastCode(), newPassword: 'another-good-passphrase' });
+    expect(r.statusCode).toBe(429);
+    expect(r.json().error).toBe('too_many_attempts');
+  });
+
+  it('caps codes mailed per account per hour', async () => {
+    await signUp();
+    const before = mailer.outbox.length;
+    for (let i = 0; i < 8; i++) {
+      await post('/v1/auth/password/forgot', { email: EMAIL });
+      advance(61_000);
+    }
+    expect(mailer.outbox.length - before).toBe(5);
+  });
+
+  it('caps "already have an account" mails per recipient', async () => {
+    await signUp();
+    const before = mailer.outbox.length;
+    for (let i = 0; i < 6; i++) await post('/v1/auth/register', { email: EMAIL, password: PW, acceptedTerms: true });
+    expect(mailer.outbox.length - before).toBe(3);
+  });
+
+  it('lets the inbox owner set the password at verification', async () => {
+    await post('/v1/auth/register', { email: EMAIL, password: 'stranger-password-123', acceptedTerms: true });
+    const r = await post('/v1/auth/verify-email', { email: EMAIL, code: lastCode(), password: PW });
+    expect(r.statusCode).toBe(200);
+    expect((await post('/v1/auth/login', { email: EMAIL, password: 'stranger-password-123' })).statusCode).toBe(401);
+    expect((await post('/v1/auth/login', { email: EMAIL, password: PW })).statusCode).toBe(200);
+  });
+
+  it('drops an unproven password when Apple links an unverified account', async () => {
+    await post('/v1/auth/register', { email: EMAIL, password: 'stranger-password-123', acceptedTerms: true });
+    appleIds.set('tok-victim-identity-token', { sub: 'apple-9', email: EMAIL, emailVerified: true });
+    const a = await post('/v1/auth/apple', { identityToken: 'tok-victim-identity-token' });
+    expect(a.json()).toMatchObject({ user: { hasPassword: false } });
+    expect((await post('/v1/auth/login', { email: EMAIL, password: 'stranger-password-123' })).statusCode).toBe(401);
+  });
+
+  it('counts re-auth password guesses per account', async () => {
+    const { tokens } = await signUp();
+    for (let i = 0; i < 20; i++)
+      expect((await post('/v1/me/reauth', { method: 'password', password: 'wrong-password-x' }, tokens.accessToken)).statusCode).toBe(401);
+    expect((await post('/v1/me/reauth', { method: 'password', password: PW }, tokens.accessToken)).statusCode).toBe(429);
+  });
+
+  it('lets only one of two parallel refreshes rotate a token', async () => {
+    const { tokens } = await signUp();
+    const rs = await Promise.all([1, 2].map(() => post('/v1/auth/refresh', { refreshToken: tokens.refreshToken })));
+    expect(rs.map((r) => r.statusCode).sort()).toEqual([200, 401]);
+  });
+});
