@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { applyPendingRestore, backupDirFor, backupNow, inspectCopy, listBackups, stageRestore } from '../src/backup.ts';
-import { loadConfig } from '../src/config.ts';
+import { loadConfig, positiveInt } from '../src/config.ts';
 import { type DB, openDb } from '../src/db.ts';
 
 let root: string;
@@ -73,5 +73,18 @@ describe('daily backups (#310)', () => {
     expect(loadConfig(base).backup).toEqual({ dir: '/data/backups', keepDays: 7 });
     expect(loadConfig({ ...base, BACKUP_DIR: 'off' }).backup.dir).toBeUndefined();
     expect(loadConfig({ NODE_ENV: 'test' }).backup.dir).toBeUndefined();
+  });
+
+  it('keeps the default days when BACKUP_KEEP_DAYS / BACKUP_OFFSITE_DAYS are not whole numbers ≥ 1 (#432)', () => {
+    const base = { NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(32), CODE_PEPPER: 'p', MAIL_TRANSPORT: 'console', DB_PATH: '/data/app.db' };
+    for (const v of ['seven', '', '0', '-3', '2.5']) expect(loadConfig({ ...base, BACKUP_KEEP_DAYS: v }).backup.keepDays).toBe(7);
+    expect(loadConfig({ ...base, BACKUP_KEEP_DAYS: '14' }).backup.keepDays).toBe(14);
+    const tigris = { AWS_ENDPOINT_URL_S3: 'https://t', BUCKET_NAME: 'b', AWS_ACCESS_KEY_ID: 'a', AWS_SECRET_ACCESS_KEY: 's', BACKUP_KEY: 'k' };
+    expect(loadConfig({ ...base, ...tigris, BACKUP_OFFSITE_DAYS: 'x' }).offsite?.keepDays).toBe(30);
+    expect(positiveInt('3', 7)).toBe(3);
+  });
+
+  it('restores a fetched off-site copy by its own name', () => {
+    expect(() => stageRestore(backupDirFor(dbPath), 'app-2026-10-01.offsite.db', dbPath)).toThrow(/no such backup/);
   });
 });

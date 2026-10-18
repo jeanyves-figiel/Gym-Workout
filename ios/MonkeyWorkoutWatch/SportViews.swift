@@ -1,3 +1,4 @@
+import CoreLocation
 import SwiftUI
 import WatchKit
 
@@ -78,6 +79,7 @@ struct SportTrackView: View {
             TimelineView(.periodic(from: .now, by: dimmed ? 60 : 1)) { ctx in
                 dashboard(now: ctx.date)
             }
+            if tracker.sport?.usesGPS == true { mapPage }
             controls
         }
         .tabViewStyle(.verticalPage)
@@ -91,6 +93,9 @@ struct SportTrackView: View {
                 if sport.downhill {
                     big("\(Int(tracker.speed.rounded()))", "km/h · top \(Int(tracker.topSpeed.rounded()))", sport)
                     pair(("VERT", "\(Int(tracker.down.rounded()))"), ("HR", hr))
+                    if let r = tracker.lastRun, !dimmed {
+                        Text("Last run \(Int(r.drop.rounded())) m · \(Int(r.topKmh.rounded())) km/h").font(W.label(10)).opacity(0.85).lineLimit(1)
+                    }
                 } else if [TrackedSport.hike, .mountaineering, .trailRun].contains(sport) {
                     big("+\(Int(tracker.up.rounded()))", "m up · \(km) km", sport)
                     pair(("SUMMIT", tracker.highest.map { "\(Int($0.rounded()))" } ?? "–"), ("HR", hr))
@@ -114,7 +119,8 @@ struct SportTrackView: View {
     }
 
     private func header(_ sport: TrackedSport) -> String {
-        if sport.downhill { return "RUN \(tracker.runs + 1)" }
+        // Live run / lift state (#445 C).
+        if sport.downhill { return tracker.onLift ? "ON LIFT · \(tracker.runs) RUNS" : "RUN \(tracker.runs + 1)" }
         return sport.label.uppercased()
     }
 
@@ -134,6 +140,34 @@ struct SportTrackView: View {
             Spacer()
             VStack(alignment: .trailing, spacing: 0) { Text(b.0).font(W.label(9)).opacity(0.75); Text(b.1).font(W.label(15)) }
         }
+    }
+
+    /// Live map (#445 C): breadcrumb, distance and climb, arrow back to the start. Drawn as a line, no map tiles: cheap on battery
+    /// and works without signal.
+    private var mapPage: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let sport = tracker.sport {
+                Text(sport.downhill ? "Riding \(Self.clock(tracker.rideSeconds)) · Lifts \(Self.clock(tracker.liftSeconds))" : sport.label.uppercased())
+                    .font(W.label(10)).foregroundStyle(W.lime).lineLimit(1)
+            }
+            TrailView(trail: tracker.trail, live: true)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            HStack(alignment: .firstTextBaseline) {
+                Text("\(km) km").font(W.label(16))
+                Spacer()
+                Text(tracker.sport?.downhill == true ? "\(Int(tracker.down.rounded())) m ↓" : "+\(Int(tracker.up.rounded())) m").font(W.label(16))
+            }
+            if let m = tracker.homeMeters, m >= 50, let b = tracker.homeBearing {
+                HStack(spacing: 4) {
+                    // Relative to the direction of travel when moving, else to north.
+                    Image(systemName: "location.north.fill").rotationEffect(.degrees(b - (tracker.course ?? 0)))
+                    Text(String(format: m >= 1000 ? "Start %.1f km" : "Start %.0f m", m >= 1000 ? m / 1000 : m))
+                    if tracker.course == nil { Text("· N up").opacity(0.7) }
+                }
+                .font(W.label(10)).opacity(0.85)
+            }
+        }
+        .watchMargins()
     }
 
     private var controls: some View {
@@ -170,11 +204,49 @@ struct SportSummaryView: View {
                 if summary.km > 0 { Text(String(format: "%.1f km", summary.km)).font(W.label(14)) }
                 if summary.vertical > 0 { Text("\(Int(summary.vertical.rounded())) m \(summary.sport.downhill ? "down" : "up")").font(W.label(14)) }
                 if summary.sport.downhill { Text("\(summary.runs) runs · top \(Int(summary.topKmh.rounded())) km/h").font(W.label(13)) }
+                if summary.sport.downhill && summary.rideSeconds + summary.liftSeconds > 0 {
+                    Text("Riding \(SportTrackView.clock(summary.rideSeconds)) · Lifts \(SportTrackView.clock(summary.liftSeconds))").font(W.label(11))
+                }
+                if summary.trail.count >= 2 {
+                    TrailView(trail: summary.trail, live: false).frame(height: 70)
+                }
                 if let b = summary.batteryUsed { Text("Battery used \(b) %").font(W.label(11)).opacity(0.75) }
                 Text("Saved to Apple Health. Rate it on your iPhone.").font(.footnote).opacity(0.8)
                 LimeButton(title: "Done") { SportTracker.shared.closeSummary() }
             }
             .watchMargins()
+        }
+    }
+}
+
+/// A route drawn as a line fitted to the view (#445 C): start dot, lime dot where you are now (live).
+struct TrailView: View {
+    let trail: [CLLocationCoordinate2D]
+    let live: Bool
+
+    var body: some View {
+        Canvas { ctx, size in
+            guard trail.count >= 2 else { return }
+            let lats = trail.map(\.latitude), lons = trail.map(\.longitude)
+            let minLat = lats.min()!, maxLat = lats.max()!, minLon = lons.min()!, maxLon = lons.max()!
+            // Same scale both ways (longitude shrinks with latitude), centred.
+            let k = cos((minLat + maxLat) / 2 * .pi / 180)
+            let w = max((maxLon - minLon) * k, 1e-5), h = max(maxLat - minLat, 1e-5)
+            let scale = min((size.width - 12) / w, (size.height - 12) / h)
+            let ox = (size.width - w * scale) / 2, oy = (size.height - h * scale) / 2
+            func pt(_ c: CLLocationCoordinate2D) -> CGPoint {
+                CGPoint(x: ox + (c.longitude - minLon) * k * scale, y: size.height - oy - (c.latitude - minLat) * scale)
+            }
+            var path = Path()
+            path.move(to: pt(trail[0]))
+            for c in trail.dropFirst() { path.addLine(to: pt(c)) }
+            ctx.stroke(path, with: .color(W.color(0x7DFFB0)), style: StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round))
+            let s = pt(trail[0])
+            ctx.fill(Path(ellipseIn: CGRect(x: s.x - 3, y: s.y - 3, width: 6, height: 6)), with: .color(.white))
+            if live, let last = trail.last {
+                let e = pt(last)
+                ctx.fill(Path(ellipseIn: CGRect(x: e.x - 5, y: e.y - 5, width: 10, height: 10)), with: .color(W.lime))
+            }
         }
     }
 }

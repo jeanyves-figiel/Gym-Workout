@@ -3,6 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { sanitizeJpeg } from '../community/image.ts';
 import { type DB, tx } from '../db.ts';
+import { deletedField, reviveUploaded, recordTombstone, sinceQuery } from './sync.ts';
+import { assertRowQuota } from '../quota.ts';
 import { ApiError } from '../errors.ts';
 
 /**
@@ -32,7 +34,7 @@ const toNote = (r: Row) => ({ ...(JSON.parse(r.data) as object), photoId: r.phot
 export const listMachineNotes = (db: DB, userId: string, since?: string) =>
   (
     (since
-      ? db.prepare('SELECT data, photo_id, updated_at FROM machine_notes WHERE user_id = ? AND updated_at > ? ORDER BY updated_at').all(userId, since)
+      ? db.prepare('SELECT data, photo_id, updated_at FROM machine_notes WHERE user_id = ? AND updated_at >= ? ORDER BY updated_at').all(userId, since)
       : db.prepare('SELECT data, photo_id, updated_at FROM machine_notes WHERE user_id = ? ORDER BY updated_at').all(userId)) as unknown as Row[]
   ).map(toNote);
 
@@ -50,8 +52,8 @@ export const machineNoteRoutes = (r: FastifyInstance, db: DB, now: () => Date) =
     db.prepare('SELECT photo_id FROM machine_notes WHERE id = ? AND user_id = ?').get(id, userId) as { photo_id: string | null } | undefined;
 
   r.get('/me/machine-notes', async (req) => {
-    const q = z.object({ since: z.iso.datetime({ offset: true }).optional() }).parse(req.query);
-    return { notes: listMachineNotes(db, req.userId!, q.since), serverTime: now().toISOString() };
+    const q = sinceQuery.parse(req.query);
+    return { notes: listMachineNotes(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'machine-notes', q.since), serverTime: now().toISOString() };
   });
 
   r.post('/me/machine-notes', async (req) => {
@@ -62,15 +64,19 @@ export const machineNoteRoutes = (r: FastifyInstance, db: DB, now: () => Date) =
        ON CONFLICT(id) DO UPDATE SET gym_id = excluded.gym_id, exercise_id = excluded.exercise_id, data = excluded.data, updated_at = excluded.updated_at
        WHERE machine_notes.user_id = excluded.user_id`,
     );
-    tx(db, () => {
-      for (const n of b.notes) {
+    const saved = tx(db, () => {
+      const notes = reviveUploaded(db, req.userId!, 'machine-notes', b.notes);
+      assertRowQuota(db, 'machine_notes', req.userId!, notes.map((n) => n.id));
+      let count = 0;
+      for (const n of notes) {
         const { photoId: _p, updatedAt: _u, ...rest } = n as typeof n & { photoId?: unknown; updatedAt?: unknown };
         const json = JSON.stringify(rest);
         if (json.length > 10_000) throw Object.assign(new Error('Note too large'), { statusCode: 413 });
-        up.run(n.id, req.userId!, n.gymId, n.exerciseId, json, ts);
+        count += Number(up.run(n.id, req.userId!, n.gymId, n.exerciseId, json, ts).changes);
       }
+      return count;
     });
-    return { saved: b.notes.length, serverTime: ts };
+    return { saved, serverTime: ts };
   });
 
   r.delete('/me/machine-notes/:id', async (req, reply) => {
@@ -78,6 +84,7 @@ export const machineNoteRoutes = (r: FastifyInstance, db: DB, now: () => Date) =
     tx(db, () => {
       db.prepare('DELETE FROM machine_note_photos WHERE note_id = ? AND user_id = ?').run(id, req.userId!);
       db.prepare('DELETE FROM machine_notes WHERE id = ? AND user_id = ?').run(id, req.userId!);
+      recordTombstone(db, req.userId!, 'machine-notes', id, now().toISOString());
     });
     return reply.status(204).send();
   });

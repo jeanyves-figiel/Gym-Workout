@@ -21,7 +21,7 @@ name: Fly backups
 #                 `confirm` = the same email. Same as Account → Delete account (Apple revoked, email sent).
 #   offsite-rotate  new Tigris keys: destroys and recreates the bucket (copies refill from the next daily backup)
 #   offsite-list  list encrypted copies in the bucket
-#   offsite-fetch download + decrypt copy for `file` (a day, YYYY-MM-DD) into /data/backups, then use verify/restore
+#   offsite-fetch download + decrypt copy for `file` (a day, YYYY-MM-DD) to /data/backups/app-<day>.offsite.db, then verify/restore it
 on:
   schedule:
     - cron: '30 4 * * *'
@@ -86,7 +86,7 @@ jobs:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       FLY_APP: ${{ matrix.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
     steps:
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master, pinned (#432)
       - name: Newest volume snapshot younger than 36 h
         run: |
           vol=$(flyctl volumes list -a "$FLY_APP" --json | jq -r '.[0].id')
@@ -120,19 +120,19 @@ jobs:
           email=$(jq -r '.inputs.email // ""' "$GITHUB_EVENT_PATH"); confirm=$(jq -r '.inputs.confirm // ""' "$GITHUB_EVENT_PATH")
           for v in "$email" "$confirm"; do [ -n "$v" ] && echo "::add-mask::$v"; done
           { echo "EMAIL=$email"; echo "CONFIRM=$confirm"; } >> "$GITHUB_ENV"
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master, pinned (#432)
       - name: Check inputs
         run: |
           case "$ACTION" in
             offsite-fetch) echo "$FILE" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' || { echo "::error::file must be a day, YYYY-MM-DD"; exit 1; } ;;
             offsite-setup|offsite-rotate) [ -n "$BACKUP_KEY" ] && [ ${#BACKUP_KEY} -ge 24 ] || { echo "::error::add GitHub secret BACKUP_KEY (24+ chars, also keep it in your password manager)"; exit 1; } ;;
             member-restore)
-              echo "$FILE" | grep -Eq '^app-[0-9]{4}-[0-9]{2}-[0-9]{2}\.db$' || { echo "::error::file must look like app-YYYY-MM-DD.db"; exit 1; }
+              echo "$FILE" | grep -Eq '^app-[0-9]{4}-[0-9]{2}-[0-9]{2}(\.offsite)?\.db$' || { echo "::error::file must look like app-YYYY-MM-DD.db"; exit 1; }
               echo "$EMAIL" | grep -Eq '^[^ @]+@[^ @]+$' || { echo "::error::email required"; exit 1; } ;;
             member-delete)
               echo "$EMAIL" | grep -Eq '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$' || { echo "::error::email required"; exit 1; }
               [ -z "$CONFIRM" ] || echo "$CONFIRM" | grep -Eq '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$' || { echo "::error::confirm must be the email"; exit 1; } ;;
-            verify|restore) echo "$FILE" | grep -Eq '^app-[0-9]{4}-[0-9]{2}-[0-9]{2}\.db$' || { echo "::error::file must look like app-YYYY-MM-DD.db"; exit 1; } ;;
+            verify|restore) echo "$FILE" | grep -Eq '^app-[0-9]{4}-[0-9]{2}-[0-9]{2}(\.offsite)?\.db$' || { echo "::error::file must look like app-YYYY-MM-DD.db"; exit 1; } ;;
             retention) echo "$DAYS" | grep -Eq '^[0-9]+$' && [ "$DAYS" -ge 1 ] && [ "$DAYS" -le 60 ] || { echo "::error::days must be 1-60"; exit 1; } ;;
           esac
           if [ "$ACTION" = restore ] && [ "$CONFIRM" != "$FLY_APP" ]; then echo "::error::confirm must be $FLY_APP"; exit 1; fi

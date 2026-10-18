@@ -43,6 +43,8 @@ export interface Config {
     productIds: string[];
     /** SUBSCRIPTION_TESTS=on (staging only): fake purchases without Apple and a per-account mode, for testing Pro. */
     tests: boolean;
+    /** Sandbox / TestFlight purchases unlock Pro (#432). SUBSCRIPTION_SANDBOX=on|off; default off on production without tests. */
+    sandbox: boolean;
   };
   /** Who runs the app, shown on /privacy, /terms and /support (#125). Unset → placeholder text the owner must fill. */
   legal: { operator?: string; address?: string; email?: string; law: string; venue?: string };
@@ -55,6 +57,12 @@ export interface Config {
   /** Encrypted off-site copy (#313): Fly Tigris bucket (secrets set by `flyctl storage create`) + BACKUP_KEY. Unset → off. */
   offsite?: OffsiteConfig;
 }
+
+/** Whole number ≥ 1, else `dflt`: a typo must not turn into NaN days and prune every backup (#432). */
+export const positiveInt = (v: string | undefined, dflt: number): number => {
+  const n = Number(v);
+  return v !== undefined && v.trim() !== '' && Number.isInteger(n) && n >= 1 ? n : dflt;
+};
 
 const required = (name: string, env: NodeJS.ProcessEnv, prod: boolean, dev: string): string => {
   const v = env[name];
@@ -143,6 +151,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
         .map((s) => s.trim())
         .filter(Boolean),
       tests: env.SUBSCRIPTION_TESTS === 'on',
+      sandbox: env.SUBSCRIPTION_SANDBOX ? env.SUBSCRIPTION_SANDBOX === 'on' : !prod || env.SUBSCRIPTION_TESTS === 'on',
     },
     legal: {
       operator: env.LEGAL_OPERATOR || undefined,
@@ -161,7 +170,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
     appleTeamId: env.APPLE_TEAM_ID || undefined,
     backup: {
       dir: backupDir(env, prod, env.DB_PATH ?? (prod ? '/data/app.db' : './data/dev.db')),
-      keepDays: Math.max(1, Number(env.BACKUP_KEEP_DAYS ?? 7)),
+      keepDays: positiveInt(env.BACKUP_KEEP_DAYS, 7),
     },
     offsite:
       env.AWS_ENDPOINT_URL_S3 && env.BUCKET_NAME && env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY && env.BACKUP_KEY
@@ -172,7 +181,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
             accessKeyId: env.AWS_ACCESS_KEY_ID,
             secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
             passphrase: env.BACKUP_KEY,
-            keepDays: Math.max(1, Number(env.BACKUP_OFFSITE_DAYS ?? 30)),
+            keepDays: positiveInt(env.BACKUP_OFFSITE_DAYS, 30),
           }
         : undefined,
   };

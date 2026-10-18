@@ -55,6 +55,16 @@ describe('Gym memory (#162)', () => {
     expect(chainOf('Holmes Place', 'Holmes Place')).toBeNull();
   });
 
+  it('finds the same place by a non-ASCII name; a name without words matches by id only (#432)', async () => {
+    const a = await signUp('a@example.com');
+    const b = await signUp('b@example.com');
+    const elan = { id: 'map:46.20000,6.14000', name: 'Élan Fitness', latitude: 46.2, longitude: 6.14 };
+    await put('/v1/gyms/reports', { gym: elan, equipment: ['barbell'] }, a);
+    expect((await known(b, { ...elan, id: 'map:46.20010,6.14010', name: 'élan fitness' })).json().place).toMatchObject({ members: 1 });
+    expect((await known(b, { id: 'other', name: '!!!' })).json()).toEqual({ place: null, chain: null });
+    expect((await known(b, { id: elan.id, name: '!!!' })).json().place).toMatchObject({ members: 1 });
+  });
+
   it('tallies other members per place and per chain, never counting you, and exports and replaces your list', async () => {
     const a = await signUp('a@example.com');
     const b = await signUp('b@example.com');

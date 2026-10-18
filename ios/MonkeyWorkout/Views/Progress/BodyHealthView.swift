@@ -62,7 +62,7 @@ struct BodyHealthView: View {
 
                 section("Apple Health")
                 if health.connected {
-                    AccountCard(symbol: "heart.fill", title: "Apple Health", subtitle: "Connected · Health data stays on this iPhone",
+                    AccountCard(symbol: "heart.fill", title: "Apple Health", subtitle: "Connected · Only session summaries are synced",
                                 gradient: nil, textColor: .pink) {
                         Button { Task { await health.refresh() } } label: {
                             Image(systemName: "arrow.clockwise")
@@ -91,7 +91,7 @@ struct BodyHealthView: View {
                     }
                 }
                 ErrorText(message: health.error)
-                AccountNote(text: "Reads weight, height, body fat, lean mass, waist, age, sex, resting heart rate, HRV, VO₂max, sleep, heart rate during sessions and climbing workouts. Writes your sessions and, if you choose, weight, height, body fat, lean mass and waist. Health data stays on this iPhone.")
+                AccountNote(text: "Reads weight, height, body fat, lean mass, waist, age, sex, resting heart rate, HRV, VO₂max, sleep, heart rate during sessions and climbing workouts. Writes your sessions and, if you choose, weight, height, body fat, lean mass and waist. Health data you allow stays on this iPhone, except each session's summary (duration, calories, average and max heart rate) saved with your history.")
 
                 section("Body figure")
                 BodyFigurePicker(selection: Binding(
