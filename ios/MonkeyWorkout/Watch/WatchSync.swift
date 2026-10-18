@@ -151,6 +151,8 @@ final class WatchSync: NSObject {
     private weak var health: HealthManager?
     private var lastSnapshot: WatchSnapshot?
     private var handled: Set<UUID> = []
+    /// Plan sessions sent to the Watch this launch: a workout finished there still records after the week rolled.
+    private var knownSessions: [String: Session] = [:]
     /// Session of the iPhone workout the Watch tracks heart rate for (#347).
     private var trackedBy: String?
     /// Last iPhone player state, re-sent when the Watch app comes up mid-workout (#347).
@@ -181,6 +183,7 @@ final class WatchSync: NSObject {
         // Home Screen widgets (#297) follow the same changes.
         HomeWidgetSync.shared.push()
         guard let model, let session, session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
+        for s in model.plan?.sessions ?? [] { knownSessions[s.id] = s }
         var snap = Self.snapshot(model, readiness: health.flatMap { Readiness.assess($0.snapshot)?.0.title })
         snap.generatedAt = lastSnapshot?.generatedAt ?? snap.generatedAt
         guard snap != lastSnapshot else { return }
@@ -299,7 +302,7 @@ final class WatchSync: NSObject {
             guard let r = awaitingWatch.removeValue(forKey: t.recordId) else { return }
             if t.savedToHealth { model.attachHeartRate(r.id, avg: t.avgHeartRate, max: t.maxHeartRate) } else { saveOnPhone(r) }
         case let .finished(f):
-            guard !handled.contains(f.id), let session = model.session(f.sessionId) else { return }
+            guard !handled.contains(f.id), let session = model.session(f.sessionId) ?? knownSessions[f.sessionId] else { return }
             handled.insert(f.id)
             let r = model.recordWorkout(
                 session: session, setsDone: f.setsDone, startedAt: f.start, endedAt: f.end,
