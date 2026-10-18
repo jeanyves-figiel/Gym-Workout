@@ -51,6 +51,46 @@ struct CustomExerciseBuilderView: View {
         }
     }
 
+    // Split out of `body` so it type-checks in time.
+    @ToolbarContentBuilder private var toolbarItems: some ToolbarContent {
+        // Both on the trailing side: a leading item next to the inline large title gets
+        // collapsed by iOS 26 into an overflow "•••" button whose menu can't show the icon-only X.
+        if existing == nil {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: saveNew) {
+                    Text("Save").font(.system(.body, design: .rounded).weight(.heavy))
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.lime)
+                .foregroundStyle(Theme.ink)
+                .disabled(!draft.isComplete)
+            }
+        }
+        CloseToolbarItem { dismiss() }
+    }
+
+    private func saveNew() {
+        if let draftKey { DraftStore.clear(draftKey) }
+        let saved = model.saveCustomExercise(draft)
+        onSave(saved)
+        closeGuard.done()
+        dismiss()
+    }
+
+    private var autoSaveValue: CustomExercise? { existing != nil && draft.isComplete ? draft : nil }
+
+    private static func autoSaveDetail(_ e: CustomExercise) -> String { undoDetail(e.name, e.category.label) }
+
+    private var autoSaveStore: (CustomExercise) -> Void {
+        let model = model, archived = archived
+        return { e in if !archived.saved { _ = model.saveCustomExercise(e) } }
+    }
+
+    private var autoSaveCommit: (CustomExercise) -> Void {
+        let model = model, onSave = onSave
+        return { e in onSave(model.customExercises.first { $0.id == e.id } ?? e) }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -79,33 +119,10 @@ struct CustomExerciseBuilderView: View {
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle(existing == nil ? "New exercise" : "Edit exercise")
             .toolbarTitleDisplayMode(.inlineLarge)
-            .toolbar {
-                // Both on the trailing side: a leading item next to the inline large title gets
-                // collapsed by iOS 26 into an overflow "•••" button whose menu can't show the icon-only X.
-                if existing == nil {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        if let draftKey { DraftStore.clear(draftKey) }
-                        let saved = model.saveCustomExercise(draft)
-                        onSave(saved)
-                        closeGuard.done()
-                        dismiss()
-                    } label: {
-                        Text("Save").font(.system(.body, design: .rounded).weight(.heavy))
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.lime)
-                    .foregroundStyle(Theme.ink)
-                    .disabled(!draft.isComplete)
-                }
-                }
-                CloseToolbarItem { dismiss() }
-            }
+            .toolbar { toolbarItems }
             // Editing one of my exercises saves on its own (#437) while it's complete.
-            .autoSave(existing != nil && draft.isComplete ? draft : nil, title: "Exercise", symbol: "figure.strengthtraining.traditional",
-                      detail: { undoDetail($0.name, $0.category.label) },
-                      save: { [model, archived] in if !archived.saved { _ = model.saveCustomExercise($0) } },
-                      committed: { [model, onSave] w in onSave(model.customExercises.first { $0.id == w.id } ?? w) })
+            .autoSave(autoSaveValue, title: "Exercise", symbol: "figure.strengthtraining.traditional",
+                      detail: Self.autoSaveDetail, save: autoSaveStore, committed: autoSaveCommit)
             .navigationDestination(isPresented: $designing) {
                 PoseDesignerView(
                     drawing: Binding(
