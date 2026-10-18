@@ -77,6 +77,13 @@ const password = z.string().min(1).max(256);
 const code = z.string().regex(/^\d{6}$/, 'Code must be 6 digits');
 const name = z.string().trim().min(1).max(80);
 
+/**
+ * The address Fly's proxy saw: with trustProxy, req.ip is the client-supplied left-most X-Forwarded-For entry,
+ * so any caller could pick a fresh value per request (#432). Used for rate limits and per-IP login lockout.
+ */
+export const clientIp = (req: FastifyRequest): string =>
+  (req.headers['fly-client-ip'] as string | undefined)?.trim() || req.socket.remoteAddress || req.ip;
+
 const device = (req: FastifyRequest) => (req.headers['x-device-name'] as string | undefined) ?? req.headers['user-agent'];
 
 export const buildApp = (deps: AppDeps): FastifyInstance => {
@@ -129,12 +136,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
     return reply.status(500).send({ error: 'internal', message: 'Something went wrong.' });
   });
 
-  // Key on the address Fly's proxy saw: with trustProxy, req.ip is the client-supplied left-most
-  // X-Forwarded-For entry, so any caller could pick a fresh key per request (#432).
-  app.register(rateLimit, {
-    global: false,
-    keyGenerator: (req) => (req.headers['fly-client-ip'] as string | undefined)?.trim() || req.socket.remoteAddress || req.ip,
-  });
+  // Key on the address Fly's proxy saw, not the spoofable X-Forwarded-For (#432).
+  app.register(rateLimit, { global: false, keyGenerator: clientIp });
 
   // Personal data must not land in HTTP caches on the device or in between (#310).
   app.addHook('onSend', async (req, reply) => {
@@ -182,7 +185,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
 
       r.post('/login', limit, async (req) => {
         const b = z.object({ email, password }).parse(req.body);
-        return auth.login(b.email, b.password, device(req));
+        return auth.login(b.email, b.password, device(req), clientIp(req));
       });
 
       r.post('/apple', limit, async (req) => {

@@ -6,7 +6,7 @@ import type { Config } from './config.ts';
 import { burnPasswordCheck, hashPassword, hmac, randomToken, safeEqualHex, sha256, sixDigitCode, verifyPassword } from './crypto.ts';
 import { type DB, tx } from './db.ts';
 import { ApiError } from './errors.ts';
-import { CODES_PER_HOUR, DAY, GUESSES_PER_DAY, HOUR, MAILS_PER_HOUR, throttleCount, throttleHit, throttleTake } from './throttle.ts';
+import { CODES_PER_HOUR, DAY, GUESSES_PER_DAY, HOUR, MAILS_PER_HOUR, throttleClear, throttleCount, throttleHit, throttleTake } from './throttle.ts';
 import type { BreachChecker } from './hibp.ts';
 import type { Mailer } from './mailer.ts';
 
@@ -47,8 +47,11 @@ type Purpose = 'verify_email' | 'reset_password';
 const CODE_TTL_MIN = 15;
 const CODE_MAX_ATTEMPTS = 5;
 const CODE_RESEND_SEC = 60;
+/** Wrong passwords from one client IP before that IP is locked out of the account for LOCK_MIN (#432). */
 const LOCK_AFTER = 10;
 const LOCK_MIN = 15;
+/** Wrong passwords per account per day, across all IPs, before sign-in needs a password reset (#432). */
+const LOGIN_CEILING = 100;
 
 export const publicUser = (u: UserRow): PublicUser => ({
   id: u.id,
@@ -186,26 +189,40 @@ export class AuthService {
 
   // ───────────── login
 
-  async login(email: string, password: string, device?: string): Promise<{ user: PublicUser; tokens: TokenPair }> {
+  /**
+   * Lockout is per (account, client IP) so a stranger can't lock the owner out by guessing from elsewhere (#432):
+   * LOCK_AFTER failures from one IP lock that IP for LOCK_MIN. LOGIN_CEILING failures a day across all IPs mark the
+   * account (`failed_logins`) so only a password reset reopens password sign-in.
+   */
+  async login(email: string, password: string, device?: string, ip = 'unknown'): Promise<{ user: PublicUser; tokens: TokenPair }> {
     const u = this.userByEmail(email);
     if (!u || !u.password_hash) {
       await burnPasswordCheck(password);
       throw new ApiError(401, 'invalid_credentials', 'Email or password is incorrect.');
     }
-    if (u.locked_until && u.locked_until > this.iso()) {
-      throw new ApiError(429, 'account_locked', 'Too many failed attempts. Try again later or reset your password.', {
-        lockedUntil: u.locked_until,
-      });
-    }
+    const locked = (lockedUntil: string | null) =>
+      new ApiError(429, 'account_locked', 'Too many failed attempts. Try again later or reset your password.', { lockedUntil });
+    if (u.failed_logins >= LOGIN_CEILING) throw locked(null);
+    const now = this.d.now();
+    const ipKey = `login:${u.id}:${ip}`;
+    const lockKey = `login-lock:${u.id}:${ip}`;
+    const lock = this.d.db
+      .prepare('SELECT expires_at FROM throttle_hits WHERE key = ? AND expires_at > ? ORDER BY expires_at DESC LIMIT 1')
+      .get(lockKey, now.toISOString()) as { expires_at: string } | undefined;
+    if (lock) throw locked(lock.expires_at);
     if (!(await verifyPassword(password, u.password_hash))) {
-      const fails = u.failed_logins + 1;
-      const lock = fails >= LOCK_AFTER ? this.iso(LOCK_MIN * 60_000) : null;
-      this.d.db
-        .prepare('UPDATE users SET failed_logins = ?, locked_until = ? WHERE id = ?')
-        .run(lock ? 0 : fails, lock, u.id);
+      throttleHit(this.d.db, ipKey, DAY, now);
+      if (throttleCount(this.d.db, ipKey, DAY, now) >= LOCK_AFTER) {
+        throttleClear(this.d.db, ipKey);
+        throttleHit(this.d.db, lockKey, LOCK_MIN * 60_000, now);
+      }
+      const accountKey = `login-fail:${u.id}`;
+      throttleHit(this.d.db, accountKey, DAY, now);
+      if (throttleCount(this.d.db, accountKey, DAY, now) >= LOGIN_CEILING)
+        this.d.db.prepare('UPDATE users SET failed_logins = ? WHERE id = ?').run(LOGIN_CEILING, u.id);
       throw new ApiError(401, 'invalid_credentials', 'Email or password is incorrect.');
     }
-    this.d.db.prepare('UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = ?').run(u.id);
+    throttleClear(this.d.db, ipKey);
     if (!u.email_verified_at) {
       await this.sendCode(u.id, u.email!, 'verify_email', false);
       throw new ApiError(403, 'email_not_verified', 'Verify your email first. We sent you a new code.');
@@ -277,6 +294,7 @@ export class AuthService {
         'UPDATE users SET password_hash = ?, email_verified_at = COALESCE(email_verified_at, ?), failed_logins = 0, locked_until = NULL, updated_at = ? WHERE id = ?',
       )
       .run(hash, now, now, u.id);
+    throttleClear(this.d.db, `login-fail:${u.id}`);
     this.revokeAll(u.id);
     await this.notifyPasswordChanged(email);
   }

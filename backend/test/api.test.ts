@@ -131,13 +131,40 @@ describe('registration & verification', () => {
 });
 
 describe('login & sessions', () => {
-  it('rejects bad credentials uniformly and locks after 10 failures', async () => {
+  it('rejects bad credentials uniformly and locks the IP after 10 failures', async () => {
     await signUp();
     expect((await post('/v1/auth/login', { email: 'ghost@example.com', password: PW })).json().error).toBe('invalid_credentials');
     for (let i = 0; i < 10; i++) expect((await post('/v1/auth/login', { email: EMAIL, password: 'wrong-password!' })).statusCode).toBe(401);
-    expect((await post('/v1/auth/login', { email: EMAIL, password: PW })).statusCode).toBe(429);
+    const locked = await post('/v1/auth/login', { email: EMAIL, password: PW });
+    expect(locked.statusCode).toBe(429);
+    expect(locked.json()).toMatchObject({ error: 'account_locked', lockedUntil: new Date(clock.getTime() + 15 * 60_000).toISOString() });
     advance(16 * 60_000);
     expect((await post('/v1/auth/login', { email: EMAIL, password: PW })).statusCode).toBe(200);
+  });
+
+  // #432: a stranger's guesses lock only their own IP, not the owner's.
+  const loginFrom = (ip: string, password: string) =>
+    app.inject({ method: 'POST', url: '/v1/auth/login', payload: { email: EMAIL, password }, headers: { 'fly-client-ip': ip } });
+
+  it('lockout from one IP leaves other IPs able to sign in', async () => {
+    await signUp();
+    for (let i = 0; i < 10; i++) expect((await loginFrom('203.0.113.9', 'wrong-password!')).statusCode).toBe(401);
+    expect((await loginFrom('203.0.113.9', PW)).json().error).toBe('account_locked');
+    expect((await loginFrom('198.51.100.7', PW)).statusCode).toBe(200);
+  });
+
+  it('100 failures a day across IPs require a password reset', async () => {
+    await signUp();
+    for (let i = 0; i < 100; i++) expect((await loginFrom(`203.0.113.${i}`, 'wrong-password!')).statusCode).toBe(401);
+    const r = await loginFrom('198.51.100.7', PW);
+    expect(r.statusCode).toBe(429);
+    expect(r.json()).toMatchObject({ error: 'account_locked', lockedUntil: null });
+    advance(2 * 86_400_000);
+    expect((await loginFrom('198.51.100.7', PW)).json().error).toBe('account_locked');
+    await post('/v1/auth/password/forgot', { email: EMAIL });
+    const next = 'another-long-password';
+    expect((await post('/v1/auth/password/reset', { email: EMAIL, code: lastCode(), newPassword: next })).statusCode).toBe(204);
+    expect((await loginFrom('198.51.100.7', next)).statusCode).toBe(200);
   });
 
   it('rotates refresh tokens and revokes family on reuse', async () => {
