@@ -211,8 +211,6 @@ struct WeekDayStrip: View {
     /// Swipe pages of 7 days (#464): page 0 has today in the middle.
     @State private var page: Int? = 0
     @State private var laterDay: DaySelection?
-    @State private var editingAway: AwayPeriod?
-    @State private var awayIsNew = false
     @State private var showsHistory = false
 
     struct DayPick: Identifiable { let id: Int }
@@ -263,23 +261,7 @@ struct WeekDayStrip: View {
                 .accessibilityHidden(true)
             }
             .sheet(item: $catchUp) { MissedCatchUpSheet(weekday: $0.id) }
-            .sheet(item: $laterDay) { s in
-                DaySheet(selection: s) { kind, key in
-                    laterDay = nil
-                    awayIsNew = true
-                    editingAway = AwayPeriod(kind: kind, start: key, end: key, setup: kind == .travel ? .hotelGym : nil)
-                } onEdit: { a in
-                    laterDay = nil
-                    awayIsNew = false
-                    editingAway = a
-                }
-            }
-            .sheet(item: $editingAway) { a in
-                AwayEditorView(initial: a, isNew: awayIsNew) { saved in
-                    if let saved { model.saveAway(saved) } else { model.deleteAway(a.id) }
-                    editingAway = nil
-                }
-            }
+            .modifier(LaterDaySheets(day: $laterDay))
             .sheet(isPresented: $showsHistory) {
                 NavigationStack { HistoryView().toolbar { CloseToolbarItem { showsHistory = false } } }
             }
@@ -385,6 +367,35 @@ struct WeekDayStrip: View {
         .padding(.vertical, 6)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(fill).opacity(state == .missed(skipped: true) ? 0.5 : 1))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.lime, lineWidth: isToday ? 2 : 0))
+    }
+}
+
+/// Calendar day sheet for a day of a later week (#464, #473), with its Can't train / Travelling editor.
+struct LaterDaySheets: ViewModifier {
+    @Binding var day: DaySelection?
+    @Environment(AppModel.self) private var model
+    @State private var editingAway: AwayPeriod?
+    @State private var awayIsNew = false
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(item: $day) { s in
+                DaySheet(selection: s) { kind, key in
+                    day = nil
+                    awayIsNew = true
+                    editingAway = AwayPeriod(kind: kind, start: key, end: key, setup: kind == .travel ? .hotelGym : nil)
+                } onEdit: { a in
+                    day = nil
+                    awayIsNew = false
+                    editingAway = a
+                }
+            }
+            .sheet(item: $editingAway) { a in
+                AwayEditorView(initial: a, isNew: awayIsNew) { saved in
+                    if let saved { model.saveAway(saved) } else { model.deleteAway(a.id) }
+                    editingAway = nil
+                }
+            }
     }
 }
 

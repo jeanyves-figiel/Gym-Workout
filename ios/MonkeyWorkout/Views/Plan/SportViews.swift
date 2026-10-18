@@ -549,7 +549,7 @@ struct AddChip: View {
     }
 }
 
-/// Sport picker of Log sport and Track on Watch (#471, design C from `other-sports/picker-proposals.png`): the member's
+/// Sport picker of Log sport and Track on Watch (#473, design C from `other-sports/picker-proposals.png`): the member's
 /// sports as big Explore-style cards on top, every other one as a vivid tile grouped by kind.
 struct SportPicker: View {
     let sports: [Sport]
@@ -643,7 +643,7 @@ struct SportPicker: View {
 }
 
 extension Sport {
-    /// Sections of the sport picker (#471).
+    /// Sections of the sport picker (#473).
     enum PickerGroup: CaseIterable {
         case snow, feet, water, court
 
