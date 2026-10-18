@@ -842,10 +842,14 @@ final class AppModel {
     private func pullLogs() async throws {
         // 5 min overlap absorbs clock skew; merge is idempotent by id.
         let since = state.lastLogPull?.addingTimeInterval(-300)
-        let remote = try await api.fetchLogs(since: since)
+        let changes = try await api.fetchLogChanges(since: since)
         let deleted = state.deletedLogIds ?? []
         var byId = Dictionary(state.logs.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
-        for l in remote where !state.pendingLogIds.contains(l.id) && !deleted.contains(l.id) { byId[l.id] = l }
+        for l in changes.logs where !state.pendingLogIds.contains(l.id) && !deleted.contains(l.id) { byId[l.id] = l }
+        // Deleted on the server since the last pull (undo on another device): drop here too, even with a local
+        // edit still queued, since the server ignores re-uploads of deleted ids (#432).
+        for id in changes.deleted { byId[id] = nil }
+        state.pendingLogIds.subtract(changes.deleted)
         state.logs = byId.values.sorted { $0.date < $1.date }
         state.lastLogPull = Date()
     }

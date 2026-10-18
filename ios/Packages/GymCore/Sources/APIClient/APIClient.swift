@@ -183,12 +183,18 @@ public actor APIClient {
     }
 
     public func fetchLogs(since: Date? = nil) async throws -> [LogEntry] {
+        try await fetchLogChanges(since: since).logs
+    }
+
+    /// Like `fetchLogs`, plus the ids deleted on the server since `since` (another device's undo, #432).
+    public func fetchLogChanges(since: Date? = nil) async throws -> LogChanges {
         var path = "/v1/me/logs"
         if let since {
             let s = ISO8601DateFormatter().string(from: since)
             path += "?since=\(s.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? s)"
         }
-        return try await authorized("GET", path, Empty?.none, as: LogsResponse.self).logs
+        let r = try await authorized("GET", path, Empty?.none, as: LogsResponse.self)
+        return LogChanges(logs: r.logs, deleted: Set((r.deleted ?? []).compactMap(UUID.init(uuidString:))))
     }
 
     public func pushLogs(_ logs: [LogEntry]) async throws {

@@ -74,7 +74,20 @@ struct SessionsResponse: Decodable { var sessions: [ActiveSession] }
 struct LogsResponse: Decodable {
     private var list: LossyArray<LogEntry>
     var logs: [LogEntry] { list.elements }
-    enum CodingKeys: String, CodingKey { case list = "logs" }
+    /// With `?since=`: ids deleted on the server since then (#432). Absent on older servers.
+    var deleted: [String]?
+    enum CodingKeys: String, CodingKey { case list = "logs", deleted }
+}
+
+/// A delta pull of set logs: changed entries plus ids deleted on the server since then (#432).
+public struct LogChanges: Sendable, Equatable {
+    public var logs: [LogEntry]
+    public var deleted: Set<UUID>
+
+    public init(logs: [LogEntry], deleted: Set<UUID> = []) {
+        self.logs = logs
+        self.deleted = deleted
+    }
 }
 
 /// List that skips elements it can't decode (a record a newer app version wrote, a bad row), so one of them

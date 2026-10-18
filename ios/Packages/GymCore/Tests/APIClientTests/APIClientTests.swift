@@ -166,6 +166,19 @@ private func tokensJSON(_ n: Int) -> String {
         #expect(logs.first?.date == date)
     }
 
+    @Test func logChangesDecodeDeletedIds() async throws {
+        let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
+        StubProtocol.register("logs-deleted.test") { req, _ in
+            req.url!.query?.contains("since=") == true
+                ? (200, #"{"logs":[],"deleted":["6f9619ff-8b86-d011-b42d-00c04fc964ff","not-a-uuid"],"serverTime":"x"}"#)
+                : (200, #"{"logs":[],"serverTime":"x"}"#)
+        }
+        let api = makeClient("logs-deleted.test", tokens: store)
+        let changes = try await api.fetchLogChanges(since: Date())
+        #expect(changes.deleted == [UUID(uuidString: "6F9619FF-8B86-D011-B42D-00C04FC964FF")!])
+        #expect(try await api.fetchLogChanges().deleted.isEmpty)
+    }
+
     @Test func workoutsRoundTrip() async throws {
         struct W: Codable, Sendable, Equatable { var id: UUID; var startedAt: Date; var title: String }
         let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
