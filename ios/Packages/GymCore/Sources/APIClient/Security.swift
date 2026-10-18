@@ -195,9 +195,10 @@ extension APIClient {
         try await reauth(Body(password: password))
     }
 
-    public func reauth(appleIdentityToken: String) async throws {
-        struct Body: Encodable { var method = "apple"; var identityToken: String }
-        try await reauth(Body(identityToken: appleIdentityToken))
+    /// `nonce`: the raw `AppleNonce` whose hash was set on the Apple request (#432).
+    public func reauth(appleIdentityToken: String, nonce: String? = nil) async throws {
+        struct Body: Encodable { var method = "apple"; var identityToken: String; var nonce: String? }
+        try await reauth(Body(identityToken: appleIdentityToken, nonce: nonce))
     }
 
     /// `method`: `.totp` (authenticator) or `.emailCode` (after `sendReauthCode`).

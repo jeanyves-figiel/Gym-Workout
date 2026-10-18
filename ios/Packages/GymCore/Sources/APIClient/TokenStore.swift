@@ -21,28 +21,30 @@ public final class InMemoryTokenStore: TokenStore, @unchecked Sendable {
 }
 
 #if canImport(Security)
-/// Tokens in the Keychain, this device only, readable after first unlock (background sync).
-public final class KeychainTokenStore: TokenStore, @unchecked Sendable {
-    private let service: String
-    private let account = "tokens"
+/// One generic-password Keychain item, this device only, readable after first unlock (background sync).
+public struct KeychainItem: Sendable {
+    public let service: String
+    public let account: String
 
-    public init(service: String) { self.service = service }
+    public init(service: String, account: String) {
+        self.service = service
+        self.account = account
+    }
 
     private var query: [String: Any] {
         [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
     }
 
-    public func load() -> StoredTokens? {
+    public func load() -> Data? {
         var q = query
         q[kSecReturnData as String] = true
         q[kSecMatchLimit as String] = kSecMatchLimitOne
         var out: AnyObject?
         guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess, let data = out as? Data else { return nil }
-        return try? JSONDecoder().decode(StoredTokens.self, from: data)
+        return data
     }
 
-    public func save(_ tokens: StoredTokens) {
-        guard let data = try? JSONEncoder().encode(tokens) else { return }
+    public func save(_ data: Data) {
         let attrs: [String: Any] = [
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
@@ -53,5 +55,26 @@ public final class KeychainTokenStore: TokenStore, @unchecked Sendable {
     }
 
     public func clear() { _ = SecItemDelete(query as CFDictionary) }
+
+    /// JSON-encoded value.
+    public func loadJSON<T: Decodable>(_: T.Type) -> T? {
+        load().flatMap { try? JSONDecoder().decode(T.self, from: $0) }
+    }
+
+    public func saveJSON(_ value: some Encodable) {
+        guard let data = try? JSONEncoder().encode(value) else { return }
+        save(data)
+    }
+}
+
+/// Tokens in the Keychain, this device only, readable after first unlock (background sync).
+public final class KeychainTokenStore: TokenStore, @unchecked Sendable {
+    private let item: KeychainItem
+
+    public init(service: String) { item = KeychainItem(service: service, account: "tokens") }
+
+    public func load() -> StoredTokens? { item.loadJSON(StoredTokens.self) }
+    public func save(_ tokens: StoredTokens) { item.saveJSON(tokens) }
+    public func clear() { item.clear() }
 }
 #endif

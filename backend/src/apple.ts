@@ -1,4 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { sha256 } from './crypto.ts';
+import type { DB } from './db.ts';
+import { throttleTake } from './throttle.ts';
 
 export interface AppleIdentity {
   sub: string;
@@ -6,6 +9,8 @@ export interface AppleIdentity {
   emailVerified: boolean;
   /** Bundle id the token was issued to (`aud`); used as client_id for code exchange / revocation. */
   audience?: string;
+  /** `nonce` claim: SHA-256 hex of the raw nonce the app passed to the Apple request (#432). */
+  nonce?: string;
 }
 
 export type AppleVerifier = (identityToken: string) => Promise<AppleIdentity>;
@@ -32,6 +37,21 @@ export const createAppleVerifier = (bundleIds: string[]): AppleVerifier => {
       sub: payload.sub,
       email: typeof payload.email === 'string' ? payload.email.toLowerCase() : undefined,
       emailVerified: ev === true || ev === 'true',
+      nonce: typeof payload.nonce === 'string' ? payload.nonce : undefined,
     };
   };
+};
+
+/** Apple identity tokens live 10 minutes; a nonce stays spent a little longer than that. */
+const NONCE_WINDOW_MS = 15 * 60_000;
+
+/**
+ * Replay guard (#432): when the token carries a `nonce` claim, the request must send the raw nonce whose
+ * lowercase SHA-256 hex matches it, and each claim is accepted once. Tokens without the claim (app builds
+ * before the nonce) are still accepted so older installs can sign in.
+ */
+export const appleNonceOk = (db: DB, identity: AppleIdentity, rawNonce: string | undefined, now: Date): boolean => {
+  if (identity.nonce === undefined) return true;
+  if (rawNonce === undefined || sha256(rawNonce) !== identity.nonce) return false;
+  return throttleTake(db, `apple-nonce:${identity.nonce}`, 1, NONCE_WINDOW_MS, now);
 };

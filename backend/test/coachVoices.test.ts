@@ -148,4 +148,16 @@ describe('coach calls the member by name (#415)', () => {
     expect((await get(t, '/v1/me/coach-voices/Joanna/call/loud.mp3?name=Alex')).statusCode).toBe(404);
     expect(calls).toHaveLength(0);
   });
+
+  it('records up to 20 different names per member per day (#432)', async () => {
+    start();
+    const t = await signUp('n@example.com');
+    const names = Array.from({ length: 20 }, (_, i) => `Ana${String.fromCharCode(97 + i)}`);
+    for (const n of names) expect((await get(t, `/v1/me/coach-voices/Joanna/call/hype.mp3?name=${n}`)).statusCode).toBe(200);
+    // Same name again (other voice or style) is fine; a 21st name is not.
+    expect((await get(t, `/v1/me/coach-voices/Joanna/call/chill.mp3?name=${names[0]}`)).statusCode).toBe(200);
+    const over = await get(t, '/v1/me/coach-voices/Joanna/call/hype.mp3?name=Zed');
+    expect(over.statusCode).toBe(429);
+    expect(over.json().error).toBe('daily_limit');
+  });
 });

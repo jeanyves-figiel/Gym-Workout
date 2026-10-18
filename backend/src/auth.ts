@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { jwtVerify, SignJWT } from 'jose';
-import type { AppleVerifier } from './apple.ts';
+import { appleNonceOk, type AppleVerifier } from './apple.ts';
 import type { AppleTokenService } from './appleTokens.ts';
 import type { Config } from './config.ts';
 import { burnPasswordCheck, hashPassword, hmac, randomToken, safeEqualHex, sha256, sixDigitCode, verifyPassword } from './crypto.ts';
 import { type DB, tx } from './db.ts';
 import { ApiError } from './errors.ts';
+import { CODES_PER_HOUR, DAY, GUESSES_PER_DAY, HOUR, MAILS_PER_HOUR, throttleClear, throttleCount, throttleHit, throttleTake } from './throttle.ts';
 import type { BreachChecker } from './hibp.ts';
 import type { Mailer } from './mailer.ts';
 
@@ -46,8 +47,11 @@ type Purpose = 'verify_email' | 'reset_password';
 const CODE_TTL_MIN = 15;
 const CODE_MAX_ATTEMPTS = 5;
 const CODE_RESEND_SEC = 60;
+/** Wrong passwords from one client IP before that IP is locked out of the account for LOCK_MIN (#432). */
 const LOCK_AFTER = 10;
 const LOCK_MIN = 15;
+/** Wrong passwords per account per day, across all IPs, before sign-in needs a password reset (#432). */
+const LOGIN_CEILING = 100;
 
 export const publicUser = (u: UserRow): PublicUser => ({
   id: u.id,
@@ -135,7 +139,8 @@ export class AuthService {
     const now = this.iso();
 
     if (existing && (existing.email_verified_at || existing.apple_sub)) {
-      // Enumeration-safe: same response, owner gets a heads-up instead of a code.
+      // Enumeration-safe: same response, owner gets a heads-up instead of a code (capped per recipient, #432).
+      if (!throttleTake(this.d.db, `mail:exists:${email}`, MAILS_PER_HOUR, HOUR, this.d.now())) return;
       await this.d.mailer.send({
         to: email,
         subject: `${this.d.config.appName}: you already have an account`,
@@ -166,37 +171,64 @@ export class AuthService {
     await this.sendCode(u.id, u.email, 'verify_email', false);
   }
 
-  async verifyEmail(email: string, code: string, device?: string): Promise<{ user: PublicUser; tokens: TokenPair }> {
+  /**
+   * `password` (app builds since #432): whoever proves the inbox sets the password, so a stranger who
+   * registered the same unverified email with their own password never keeps access.
+   */
+  async verifyEmail(email: string, code: string, device?: string, password?: string): Promise<{ user: PublicUser; tokens: TokenPair }> {
     const u = this.userByEmail(email);
     if (!u) throw new ApiError(400, 'invalid_code', 'Invalid or expired code.');
+    if (password !== undefined) this.assertPassword(password, email);
     this.consumeCode(u.id, 'verify_email', code);
     const now = this.iso();
+    if (password !== undefined && !u.email_verified_at)
+      this.d.db.prepare('UPDATE users SET password_hash = ? WHERE id = ? AND email_verified_at IS NULL').run(await hashPassword(password), u.id);
     this.d.db.prepare('UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?), updated_at = ? WHERE id = ?').run(now, now, u.id);
     return { user: publicUser(this.userById(u.id)!), tokens: await this.issueTokens(u.id, device) };
   }
 
   // ───────────── login
 
-  async login(email: string, password: string, device?: string): Promise<{ user: PublicUser; tokens: TokenPair }> {
+  /**
+   * Lockout is per (account, client IP) so a stranger can't lock the owner out by guessing from elsewhere (#432):
+   * LOCK_AFTER failures from one IP lock that IP for LOCK_MIN. LOGIN_CEILING failures a day across all IPs lock password
+   * sign-in for a day (a password reset reopens it at once), so a distributed guess can't keep the owner out for good.
+   */
+  async login(email: string, password: string, device?: string, ip = 'unknown'): Promise<{ user: PublicUser; tokens: TokenPair }> {
     const u = this.userByEmail(email);
     if (!u || !u.password_hash) {
       await burnPasswordCheck(password);
       throw new ApiError(401, 'invalid_credentials', 'Email or password is incorrect.');
     }
-    if (u.locked_until && u.locked_until > this.iso()) {
-      throw new ApiError(429, 'account_locked', 'Too many failed attempts. Try again later or reset your password.', {
-        lockedUntil: u.locked_until,
-      });
-    }
+    const locked = (lockedUntil: string | null) =>
+      new ApiError(429, 'account_locked', 'Too many failed attempts. Try again later or reset your password.', { lockedUntil });
+    const now = this.d.now();
+    const ipKey = `login:${u.id}:${ip}`;
+    const lockKey = `login-lock:${u.id}:${ip}`;
+    const accountLockKey = `login-lock:${u.id}`;
+    const lockUntil = (key: string) =>
+      (
+        this.d.db
+          .prepare('SELECT expires_at FROM throttle_hits WHERE key = ? AND expires_at > ? ORDER BY expires_at DESC LIMIT 1')
+          .get(key, now.toISOString()) as { expires_at: string } | undefined
+      )?.expires_at;
+    const lock = lockUntil(accountLockKey) ?? lockUntil(lockKey);
+    if (lock) throw locked(lock);
     if (!(await verifyPassword(password, u.password_hash))) {
-      const fails = u.failed_logins + 1;
-      const lock = fails >= LOCK_AFTER ? this.iso(LOCK_MIN * 60_000) : null;
-      this.d.db
-        .prepare('UPDATE users SET failed_logins = ?, locked_until = ? WHERE id = ?')
-        .run(lock ? 0 : fails, lock, u.id);
+      throttleHit(this.d.db, ipKey, DAY, now);
+      if (throttleCount(this.d.db, ipKey, DAY, now) >= LOCK_AFTER) {
+        throttleClear(this.d.db, ipKey);
+        throttleHit(this.d.db, lockKey, LOCK_MIN * 60_000, now);
+      }
+      const accountKey = `login-fail:${u.id}`;
+      throttleHit(this.d.db, accountKey, DAY, now);
+      if (throttleCount(this.d.db, accountKey, DAY, now) >= LOGIN_CEILING) {
+        throttleClear(this.d.db, accountKey);
+        throttleHit(this.d.db, accountLockKey, DAY, now);
+      }
       throw new ApiError(401, 'invalid_credentials', 'Email or password is incorrect.');
     }
-    this.d.db.prepare('UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = ?').run(u.id);
+    throttleClear(this.d.db, ipKey);
     if (!u.email_verified_at) {
       await this.sendCode(u.id, u.email!, 'verify_email', false);
       throw new ApiError(403, 'email_not_verified', 'Verify your email first. We sent you a new code.');
@@ -210,13 +242,16 @@ export class AuthService {
     name: string | undefined,
     device?: string,
     authorizationCode?: string,
+    nonce?: string,
   ): Promise<{ user: PublicUser; tokens: TokenPair; created: boolean }> {
+    const invalid = new ApiError(401, 'invalid_apple_token', 'Apple sign-in could not be verified.');
     let identity;
     try {
       identity = await this.d.apple(identityToken);
     } catch {
-      throw new ApiError(401, 'invalid_apple_token', 'Apple sign-in could not be verified.');
+      throw invalid;
     }
+    if (!appleNonceOk(this.d.db, identity, nonce, this.d.now())) throw invalid;
     const now = this.iso();
     let created = false;
     const userId = tx(this.d.db, () => {
@@ -224,6 +259,8 @@ export class AuthService {
       if (bySub) return bySub.id;
       const byEmail = identity.email && identity.emailVerified ? this.userByEmail(identity.email) : undefined;
       if (byEmail) {
+        // Unverified row: its password was never proven to belong to the inbox owner (#432). Drop it.
+        if (!byEmail.email_verified_at) this.d.db.prepare('UPDATE users SET password_hash = NULL WHERE id = ?').run(byEmail.id);
         this.d.db
           .prepare(
             'UPDATE users SET apple_sub = ?, email_verified_at = COALESCE(email_verified_at, ?), name = COALESCE(name, ?), updated_at = ? WHERE id = ?',
@@ -266,6 +303,8 @@ export class AuthService {
         'UPDATE users SET password_hash = ?, email_verified_at = COALESCE(email_verified_at, ?), failed_logins = 0, locked_until = NULL, updated_at = ? WHERE id = ?',
       )
       .run(hash, now, now, u.id);
+    throttleClear(this.d.db, `login-fail:${u.id}`);
+    throttleClear(this.d.db, `login-lock:${u.id}`);
     this.revokeAll(u.id);
     await this.notifyPasswordChanged(email);
   }
@@ -282,12 +321,15 @@ export class AuthService {
     return this.issueTokens(userId, device);
   }
 
+  /** Sent after the change is committed: a mail failure must not turn it into an error (#432). */
   private notifyPasswordChanged(email: string) {
-    return this.d.mailer.send({
-      to: email,
-      subject: `${this.d.config.appName}: password changed`,
-      text: `Your password was changed and all devices were signed out.\nIf this wasn't you, reset your password immediately.`,
-    });
+    return this.d.mailer
+      .send({
+        to: email,
+        subject: `${this.d.config.appName}: password changed`,
+        text: `Your password was changed and all devices were signed out.\nIf this wasn't you, reset your password immediately.`,
+      })
+      .catch(() => undefined);
   }
 
   // ───────────── account
@@ -309,16 +351,19 @@ export class AuthService {
         to: u.email,
         subject: `${this.d.config.appName}: account deleted`,
         text: 'Your account and all associated data have been permanently deleted.',
-      });
+        })
+        .catch(() => undefined);
   }
 
   // ───────────── codes
 
   private async sendCode(userId: string, email: string, purpose: Purpose, force: boolean): Promise<void> {
+    // Throttle on the newest code even when burned by wrong guesses, else a burned code is replaced at once (#432).
     const last = this.d.db
-      .prepare('SELECT created_at FROM codes WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL ORDER BY created_at DESC LIMIT 1')
+      .prepare('SELECT created_at FROM codes WHERE user_id = ? AND purpose = ? ORDER BY created_at DESC LIMIT 1')
       .get(userId, purpose) as { created_at: string } | undefined;
-    if (!force && last && last.created_at > this.iso(-CODE_RESEND_SEC * 1000)) return; // throttle
+    if (!force && last && last.created_at > this.iso(-CODE_RESEND_SEC * 1000)) return;
+    if (!throttleTake(this.d.db, `code:${purpose}:${userId}`, CODES_PER_HOUR, HOUR, this.d.now())) return;
     const code = sixDigitCode();
     const now = this.iso();
     tx(this.d.db, () => {
@@ -346,8 +391,12 @@ export class AuthService {
       )
       .get(userId, purpose) as { id: string; code_hash: string; attempts: number; expires_at: string } | undefined;
     const invalid = new ApiError(400, 'invalid_code', 'Invalid or expired code.');
+    const guesses = `guess:${purpose}:${userId}`;
+    if (throttleCount(this.d.db, guesses, DAY, this.d.now()) >= GUESSES_PER_DAY)
+      throw new ApiError(429, 'too_many_attempts', 'Too many wrong codes. Try again tomorrow.');
     if (!row || row.expires_at <= this.iso()) throw invalid;
     if (!safeEqualHex(row.code_hash, this.codeHash(userId, purpose, code))) {
+      throttleHit(this.d.db, guesses, DAY, this.d.now());
       const attempts = row.attempts + 1;
       if (attempts >= CODE_MAX_ATTEMPTS) {
         this.d.db.prepare('UPDATE codes SET attempts = ?, consumed_at = ? WHERE id = ?').run(attempts, this.iso(), row.id);
@@ -416,9 +465,11 @@ export class AuthService {
       throw invalid;
     }
     if (row.expires_at <= now) throw invalid;
+    // Claim the token before the await so two parallel refreshes can't both rotate it (#432).
+    if (this.d.db.prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL').run(now, row.id).changes !== 1) throw invalid;
     const pair = await this.issueTokens(row.user_id, device, row.family_id);
     const newId = (this.d.db.prepare('SELECT id FROM refresh_tokens WHERE token_hash = ?').get(sha256(pair.refreshToken)) as { id: string }).id;
-    this.d.db.prepare('UPDATE refresh_tokens SET revoked_at = ?, replaced_by = ? WHERE id = ?').run(now, newId, row.id);
+    this.d.db.prepare('UPDATE refresh_tokens SET replaced_by = ? WHERE id = ?').run(newId, row.id);
     return pair;
   }
 

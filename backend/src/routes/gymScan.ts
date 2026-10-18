@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { GymScanModel } from '../coach/gymScan.ts';
 import type { DB } from '../db.ts';
 import { ApiError } from '../errors.ts';
+import { inFlight, refundDaily, reserveDaily } from '../quota.ts';
 
 const MAX_PHOTO = 1_500_000;
 
@@ -27,6 +28,8 @@ export const gymScanRoutes = (
   dailyLimit: number,
   hasAccess: (userId: string) => boolean,
 ) => {
+  const busy = inFlight(2);
+
   r.post('/me/gym-scan', { bodyLimit: 2_200_000 }, async (req) => {
     if (!scan) throw new ApiError(503, 'scan_unavailable', 'Gym scan is not available right now.');
     if (!hasAccess(req.userId!)) throw new ApiError(402, 'pro_required', 'Gym scan is part of MonkeyWorkout Pro.');
@@ -34,20 +37,22 @@ export const gymScanRoutes = (
     const jpeg = Buffer.from(b.photo, 'base64');
     if (jpeg.length > MAX_PHOTO || jpeg[0] !== 0xff || jpeg[1] !== 0xd8) throw new ApiError(400, 'bad_photo', 'Send one JPEG photo up to 1.5 MB.');
     const day = now().toISOString().slice(0, 10);
-    const used =
-      (db.prepare('SELECT count FROM gym_scan_usage WHERE user_id = ? AND day = ?').get(req.userId!, day) as { count: number } | undefined)?.count ?? 0;
-    if (used >= dailyLimit) throw new ApiError(429, 'daily_limit', `That's ${dailyLimit} scans today. Scan more tomorrow!`);
+    if (!busy.enter(req.userId!)) throw new ApiError(429, 'busy', 'Still reading your last photos.');
     let items: string[];
+    let count: number | undefined;
     try {
-      items = await scan(jpeg, b.catalog);
-    } catch (e) {
-      req.log.warn(`gym scan failed: ${(e as Error).message}`);
-      throw new ApiError(502, 'scan_failed', "Couldn't read that photo. Try again in a moment.");
+      count = reserveDaily(db, 'gym_scan_usage', req.userId!, day, dailyLimit);
+      if (count === undefined) throw new ApiError(429, 'daily_limit', `That's ${dailyLimit} scans today. Scan more tomorrow!`);
+      try {
+        items = await scan(jpeg, b.catalog);
+      } catch (e) {
+        refundDaily(db, 'gym_scan_usage', req.userId!, day);
+        req.log.warn(`gym scan failed: ${(e as Error).message}`);
+        throw new ApiError(502, 'scan_failed', "Couldn't read that photo. Try again in a moment.");
+      }
+    } finally {
+      busy.leave(req.userId!);
     }
-    db.prepare(
-      `INSERT INTO gym_scan_usage (user_id, day, count) VALUES (?, ?, 1)
-       ON CONFLICT(user_id, day) DO UPDATE SET count = count + 1`,
-    ).run(req.userId!, day);
-    return { items, remainingToday: Math.max(0, dailyLimit - used - 1) };
+    return { items, remainingToday: Math.max(0, dailyLimit - count) };
   });
 };

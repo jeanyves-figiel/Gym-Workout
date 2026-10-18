@@ -21,6 +21,7 @@ Other territories get Apple's equalized price. The free week is one per Apple ID
 - `GET /v1/me/entitlement` → `{ mode, pro, access, source, productId, expiresAt, trial, willRenew, grant }`.
   `pro` = active subscription (trial and grace period included) or free access from the owner.
 - One App Store subscription belongs to one MonkeyWorkout account (restoring it on another account → 409).
+- Production refuses Sandbox / TestFlight purchases (`400 sandbox_transaction`, sandbox notifications ignored) (#432). `SUBSCRIPTION_SANDBOX=on` allows them, e.g. while App Review tests purchases against production; staging and `SUBSCRIPTION_TESTS=on` allow them by default.
 
 ## Staging test mode (#154)
 

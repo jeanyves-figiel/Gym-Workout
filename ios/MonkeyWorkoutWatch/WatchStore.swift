@@ -258,7 +258,10 @@ final class WatchStore: NSObject {
     private func save() {
         guard let data = try? JSONEncoder.watch.encode(snapshot) else { return }
         try? data.write(to: Self.url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
-        SharedSnapshot.save(data)
+        // Complications don't need the Hyrox upload key (#426): keep it out of the App Group container.
+        var shared = snapshot
+        shared.hyrox?.uploadKey = nil
+        if let sharedData = try? JSONEncoder.watch.encode(shared) { SharedSnapshot.save(sharedData) }
         WidgetCenter.shared.reloadAllTimelines()
     }
 }

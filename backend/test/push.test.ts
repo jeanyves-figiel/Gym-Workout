@@ -141,6 +141,11 @@ describe('push devices and prefs', () => {
     const again = await app.inject({ method: 'POST', url: '/v1/me/achievements', payload: body, headers: auth(actor.token) });
     expect(again.json()).toEqual({ announced: [] });
     expect(sent).toHaveLength(1);
+    // Same content filter as community captions (#432).
+    const rude = { achievements: [{ id: 'w11', type: 'badge', text: 'shit day' }] };
+    const refused = await app.inject({ method: 'POST', url: '/v1/me/achievements', payload: rude, headers: auth(actor.token) });
+    expect(refused.json().error).toBe('objectionable_content');
+    expect(sent).toHaveLength(1);
   });
 
   it('deletes devices and prefs with the account', async () => {

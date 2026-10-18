@@ -71,7 +71,52 @@ struct AuthResponse: Decodable {
 struct UserResponse: Decodable { var user: User }
 struct TokensResponse: Decodable { var tokens: TokenPair }
 struct SessionsResponse: Decodable { var sessions: [ActiveSession] }
-struct LogsResponse: Decodable { var logs: [LogEntry] }
+struct LogsResponse: Decodable {
+    private var list: LossyArray<LogEntry>
+    var logs: [LogEntry] { list.elements }
+    /// With `?since=`: ids deleted on the server since then (#432). Absent on older servers.
+    var deleted: [String]?
+    enum CodingKeys: String, CodingKey { case list = "logs", deleted }
+}
+
+/// A delta pull of set logs: changed entries plus ids deleted on the server since then (#432).
+public struct LogChanges: Sendable, Equatable {
+    public var logs: [LogEntry]
+    public var deleted: Set<UUID>
+
+    public init(logs: [LogEntry], deleted: Set<UUID> = []) {
+        self.logs = logs
+        self.deleted = deleted
+    }
+}
+
+/// List that skips elements it can't decode (a record a newer app version wrote, a bad row), so one of them
+/// doesn't fail the whole pull.
+struct LossyArray<Element: Decodable>: Decodable {
+    var elements: [Element]
+
+    init(from decoder: Decoder) throws {
+        var c = try decoder.unkeyedContainer()
+        var out: [Element] = []
+        while !c.isAtEnd {
+            let index = c.currentIndex
+            if try c.decodeNil() { continue }
+            if let e = try? c.decode(Element.self) {
+                out.append(e)
+            } else {
+                _ = try? c.decode(Skip.self)
+            }
+            // A failed decode doesn't always advance the container: never spin on one element.
+            if c.currentIndex == index { break }
+        }
+        elements = out
+    }
+
+    /// Consumes any one value.
+    private struct Skip: Decodable {
+        init(from decoder: Decoder) throws {}
+    }
+}
 struct ProfileResponse<T: Decodable>: Decodable {
     var data: T?
     var updatedAt: String?

@@ -59,6 +59,12 @@ public actor APIClient {
 
     public var hasSession: Bool { tokens.load() != nil }
 
+    /// Drops stored tokens without calling the server (e.g. Keychain left over from an earlier install).
+    public func forgetTokens() {
+        tokens.clear()
+        reauthGrant = nil
+    }
+
     // MARK: Registration & sign-in
 
     public func register(email: String, password: String, name: String?, acceptedTerms: Bool) async throws {
@@ -66,9 +72,10 @@ public actor APIClient {
         _ = try await send("POST", "/v1/auth/register", Body(email: email, password: password, name: name, acceptedTerms: acceptedTerms))
     }
 
-    public func verifyEmail(email: String, code: String) async throws -> User {
-        struct Body: Encodable { var email, code: String }
-        return try await authenticate("/v1/auth/verify-email", Body(email: email, code: code))
+    /// `password`: whoever proves the inbox sets it (#432); left out of the body when nil.
+    public func verifyEmail(email: String, code: String, password: String? = nil) async throws -> User {
+        struct Body: Encodable { var email, code: String; var password: String? }
+        return try await authenticate("/v1/auth/verify-email", Body(email: email, code: code, password: password))
     }
 
     public func resendVerification(email: String) async throws {
@@ -82,9 +89,10 @@ public actor APIClient {
     }
 
     /// `authorizationCode` lets the server obtain an Apple refresh token, revoked when the account is deleted.
-    public func signInWithApple(identityToken: String, name: String?, authorizationCode: String? = nil) async throws -> User {
-        struct Body: Encodable { var identityToken: String; var authorizationCode: String?; var name: String? }
-        return try await authenticate("/v1/auth/apple", Body(identityToken: identityToken, authorizationCode: authorizationCode, name: name))
+    /// `nonce`: the raw `AppleNonce` whose hash was set on the Apple request (#432).
+    public func signInWithApple(identityToken: String, name: String?, authorizationCode: String? = nil, nonce: String? = nil) async throws -> User {
+        struct Body: Encodable { var identityToken: String; var authorizationCode: String?; var name: String?; var nonce: String? }
+        return try await authenticate("/v1/auth/apple", Body(identityToken: identityToken, authorizationCode: authorizationCode, name: name, nonce: nonce))
     }
 
     public func forgotPassword(email: String) async throws {
@@ -175,12 +183,18 @@ public actor APIClient {
     }
 
     public func fetchLogs(since: Date? = nil) async throws -> [LogEntry] {
+        try await fetchLogChanges(since: since).logs
+    }
+
+    /// Like `fetchLogs`, plus the ids deleted on the server since `since` (another device's undo, #432).
+    public func fetchLogChanges(since: Date? = nil) async throws -> LogChanges {
         var path = "/v1/me/logs"
         if let since {
             let s = ISO8601DateFormatter().string(from: since)
             path += "?since=\(s.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? s)"
         }
-        return try await authorized("GET", path, Empty?.none, as: LogsResponse.self).logs
+        let r = try await authorized("GET", path, Empty?.none, as: LogsResponse.self)
+        return LogChanges(logs: r.logs, deleted: Set((r.deleted ?? []).compactMap(UUID.init(uuidString:))))
     }
 
     public func pushLogs(_ logs: [LogEntry]) async throws {
@@ -403,7 +417,12 @@ public actor APIClient {
     struct ProfileBody<T: Encodable>: Encodable { var data: T }
     struct PrefsBody<T: Encodable>: Encodable { var prefs: T }
     struct WorkoutsBody<T: Encodable>: Encodable { var workouts: [T] }
-    struct WorkoutsResponse<T: Decodable>: Decodable { var workouts: [T] }
+    /// Lossy: an undecodable workout is skipped, not the whole list.
+    struct WorkoutsResponse<T: Decodable>: Decodable {
+        private var list: LossyArray<T>
+        var workouts: [T] { list.elements }
+        enum CodingKeys: String, CodingKey { case list = "workouts" }
+    }
     struct ExercisesBody<T: Encodable>: Encodable { var exercises: [T] }
     struct ExercisesResponse<T: Decodable>: Decodable { var exercises: [T] }
     struct AttemptsBody<T: Encodable>: Encodable { var attempts: [T] }
