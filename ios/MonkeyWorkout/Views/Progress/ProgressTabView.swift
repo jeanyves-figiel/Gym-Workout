@@ -2,31 +2,36 @@ import Charts
 import SwiftUI
 import WorkoutEngine
 
-/// "Progress" tab in the Explore card style (#82): level card, streak row, page map + pinned section bar (#243),
-/// then sections: training (live tiles #218, consistency, trends, climbing), body, records, badges, muscles, history. New users get a "day one" layout instead of zeros.
+/// "Progress" tab (#444, design A + C): a board of widgets the member arranges like Train (#260): level, streak,
+/// a tile per part of Progress, recent sessions, consistency, sessions per week, and optional sport widgets.
+/// A tile opens its part as a page: training (live tiles #218, consistency, trends, climbing, sports), programmes,
+/// body, records, badges, muscles; recent sessions open History (#442). New users get a "day one" layout.
 struct ProgressTabView: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @State private var badge: Badge?
     @State private var lift: String?
     @State private var gate: ProGate?
-    @State private var active: ProgressSection?
-    @State private var tops: [ProgressSection: CGFloat] = [:]
-    @State private var barBottom: CGFloat = 0
-    @State private var viewport: CGFloat = 0
-    @State private var pageEnd: CGFloat = .infinity
-    /// Chip tapped: stays lit until the member scrolls, even when the page ends before its section reaches the bar.
-    @State private var jumped: ProgressSection?
-    /// History page (#442): opened by See all, the History card and its section chip.
-    @State private var showHistory = false
+    /// Part opened from a board tile (#444); History is its own page (#442).
+    @State private var opened: ProgressSection?
+    /// Sport widget tapped: History filtered to it.
+    @State private var openedSport: Sport?
+    @State private var arranging = false
+    @State private var addingWidget = false
+    @State private var customising = false
     /// CI screenshots: open with this tile flipped.
     var demoFlipped: StatMetric?
-    /// CI screenshots: open scrolled to this section, bar pinned (#243).
+    /// CI screenshots: open this part's page.
     var demoSection: ProgressSection?
+    var demoEditing = false
+    /// Set on a part's page: shows only that part.
+    var detail: ProgressSection?
 
-    init(demoFlipped: StatMetric? = nil, demoSection: ProgressSection? = nil) {
+    init(demoFlipped: StatMetric? = nil, demoSection: ProgressSection? = nil, demoEditing: Bool = false, detail: ProgressSection? = nil) {
         self.demoFlipped = demoFlipped
         self.demoSection = demoSection
+        self.demoEditing = demoEditing
+        self.detail = detail
     }
 
     private var target: Int { model.profile?.sessionsPerWeek ?? 3 }
@@ -52,160 +57,212 @@ struct ProgressTabView: View {
     var body: some View {
         let s = stats
         let fresh = s.totalWorkouts == 0
-        let climbList = climbs
         let top = highlights(s)
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14, pinnedViews: [.sectionHeaders]) {
-                    // Level card, trophy shelf or quest log: the member's game look (#227).
-                    if !fresh { GameProgressCard(badges: badges) }
-                    StreakRow(current: s.currentStreakWeeks, best: s.bestStreakWeeks, thisWeek: s.thisWeek,
-                              target: target, fresh: fresh)
-                    // Page map (#243 B): what's on the page, one tap to each part.
-                    ProgressMap(h: top) { s in
-                        // Nothing to show yet (#345): the Programmes card goes straight to picking one.
-                        if s == .programmes && model.activeProgramme == nil && model.programmeHistory.isEmpty {
-                            model.openExploreProgrammes()
-                        } else {
-                            jump(s, proxy)
-                        }
-                    }
-                    // Recent sessions (#442 C): every kind of session, See all opens History.
-                    let recent = model.historyItems(health: health)
-                    if !recent.isEmpty { RecentSessionsStrip(items: recent) { showHistory = true } }
-                    Section {
-                        group(.training, trailing: nil) {
-                            if fresh {
-                                FirstMilestonesCard(session: false, pr: !model.personalRecords.isEmpty, climb: !climbList.isEmpty)
-                            } else {
-                                tiles(climbs: climbList)
-                            }
-                            ConsistencyCalendar(days: s.days, records: dayRecords, empty: fresh)
-                            weeklyChart(s)
-                            strengthTrend
-                            if !climbList.isEmpty { ClimbingCard(climbs: climbList) }
-                            // Other sports (#416): logged here or from Apple Health.
-                            let sports = Sports.merged(local: model.sportLogs, health: health.snapshot.recentSports)
-                            // Hyrox hub (#426): division, goal, sims, races.
-                            if model.doesHyrox { HyroxHubCard() }
-                            if !sports.isEmpty { SportsCard(entries: sports) }
-                        }
-                        // Training programmes (#255): the running one, lifts start vs now, finished ones.
-                        group(.programmes, trailing: model.programmeHistory.isEmpty ? nil : "\(model.programmeHistory.filter(\.finished).count) finished") {
-                            ProgrammeProgressSection()
-                        }
-                        group(.body, trailing: nil) {
-                            if !model.measurementSeries(.weight).isEmpty || !health.snapshot.vo2Trend.isEmpty { bodyTrends }
-                            ProgressMeasurementsSection()
-                        }
-                        group(.records, trailing: top.records.isEmpty ? nil : "\(top.records.count) PRs") { records(s) }
-                        group(.badges, trailing: "\(top.unlocked)/\(top.badgeCount)") { achievements }
-                        group(.muscles, trailing: "Last 28 days") { muscleBalance(s, fresh: fresh) }
-                    } header: {
-                        // Section bar (#243 A): pins under the title, lights the section on screen.
-                        ProgressSectionBar(active: active) { jump($0, proxy) }
-                            .background(GeometryReader { g in
-                                Color.clear.preference(key: SectionBarBottomKey.self, value: g.frame(in: .named("progress")).maxY)
-                            })
-                    }
-                    // Page end marker: how far the page can still scroll, for lighting the last sections.
-                    Color.clear.frame(height: 0)
-                        .background(GeometryReader { g in
-                            Color.clear.preference(key: PageEndKey.self, value: g.frame(in: .named("progress")).maxY)
-                        })
-                }
-                .padding(16)
-            }
-            .background(GeometryReader { g in
-                Color.clear.preference(key: ViewportHeightKey.self, value: g.size.height)
-            })
-            .coordinateSpace(name: "progress")
-            .modifier(OnUserScroll { if jumped != nil { jumped = nil; updateActive() } })
-            .onPreferenceChange(ViewportHeightKey.self) { viewport = $0; updateActive() }
-            .onPreferenceChange(PageEndKey.self) { pageEnd = $0; updateActive() }
-            .onPreferenceChange(SectionTopsKey.self) { tops = $0; updateActive() }
-            .onPreferenceChange(SectionBarBottomKey.self) { barBottom = $0; updateActive() }
-            .task {
-                guard let demoSection else { return }
-                try? await Task.sleep(for: .milliseconds(600))
-                proxy.scrollTo(demoSection, anchor: .top)
-            }
-            // Opened from a Train widget (#260): scroll to its section.
-            .task(id: model.progressJump) {
-                guard let section = model.progressJump else { return }
-                try? await Task.sleep(for: .milliseconds(350))
-                jump(section, proxy)
-                model.progressJump = nil
+        Group {
+            if let detail {
+                page(detail, s: s, fresh: fresh, top: top)
+            } else {
+                board(s: s, fresh: fresh, top: top)
             }
         }
-        .sensoryFeedback(.selection, trigger: active)
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .proPaywall($gate)
-        .navigationTitle("Progress")
-        .toolbarTitleDisplayMode(.inlineLarge)
-        .navigationDestination(for: UUID.self) { id in HistoryDetailView(recordId: id) }
-        .navigationDestination(isPresented: $showHistory) { HistoryView() }
-        .navigationDestination(for: ProgrammeRoute.self) { r in model.findProgramme(r.id).map { ProgrammeDetailView(programme: $0) } }
         .sheet(item: $badge) { b in BadgeSheet(badge: b).presentationDetents([.medium]) }
     }
 
-    // MARK: Structure (#243)
+    // MARK: Board (#444)
 
-    /// Bar height, kept above a section's header when jumping so the pinned bar doesn't cover it.
-    private static let barClearance: CGFloat = 60
-
-    /// One page section: bold header + content; reports its top for the bar and is the jump target.
-    private func group<Content: View>(_ section: ProgressSection, trailing: String?,
-                                      @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ProgressSectionHeader(section: section, trailing: trailing)
-            content()
+    private func board(s: ProgressStats, fresh: Bool, top: ProgressHighlights) -> some View {
+        let layout = model.progressBoard
+        let items = model.historyItems(health: health)
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                header
+                if arranging {
+                    ProgressEditBar(onAdd: { addingWidget = true }, onList: { customising = true })
+                }
+                ForEach(layout.rows) { row in
+                    switch row {
+                    case .full(let w):
+                        widget(w, s: s, fresh: fresh, top: top, items: items)
+                    case .pair(let a, let b):
+                        HStack(alignment: .top, spacing: 12) {
+                            widget(a, s: s, fresh: fresh, top: top, items: items)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                            Group {
+                                if let b { widget(b, s: s, fresh: fresh, top: top, items: items) } else { Color.clear }
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                if layout.widgets.isEmpty {
+                    Button { arranging = true; addingWidget = true } label: {
+                        Label("Add widgets to Progress", systemImage: "plus.square.dashed")
+                            .font(Theme.label(15)).foregroundStyle(Theme.lime)
+                            .frame(maxWidth: .infinity).padding(.vertical, 28)
+                            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .strokeBorder(Theme.lime.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(16)
+            .animation(.snappy, value: layout.widgets)
         }
-        .background(GeometryReader { g in
-            Color.clear.preference(key: SectionTopsKey.self, value: [section: g.frame(in: .named("progress")).minY])
-        })
-        .padding(.top, Self.barClearance)
-        .id(section)
-        .padding(.top, -Self.barClearance)
-    }
-
-    /// Lit chip: the last section whose top has passed the reading line; none while the page map is on screen.
-    /// The line sits just under the bar, then slides down to the screen bottom over the last screenful of
-    /// scrolling, so the short sections at the end (which never reach the bar) light up too (#286).
-    private func updateActive() {
-        if let jumped {
-            if active != jumped { active = jumped }
-            return
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("Progress")
+        .navigationDestination(for: UUID.self) { id in HistoryDetailView(recordId: id) }
+        .navigationDestination(for: ProgrammeRoute.self) { r in model.findProgramme(r.id).map { ProgrammeDetailView(programme: $0) } }
+        .navigationDestination(item: $opened) { s in
+            if s == .history { HistoryView() } else { ProgressTabView(demoFlipped: demoFlipped, detail: s) }
         }
-        let line = Self.readingLine(barBottom: barBottom, viewport: viewport, pageEnd: pageEnd)
-        let passed = ProgressSection.allCases.filter { (tops[$0] ?? .infinity) <= line }
-        let now = passed.last
-        if now != active { active = now }
+        .navigationDestination(item: $openedSport) { HistoryView(initial: .sport($0)) }
+        .sheet(isPresented: $addingWidget) { ProgressWidgetGallery() }
+        .sheet(isPresented: $customising) { ProgressCustomiseSheet() }
+        .task {
+            if demoEditing { arranging = true }
+            guard let demoSection else { return }
+            try? await Task.sleep(for: .milliseconds(400))
+            opened = demoSection
+        }
+        // Opened from a Train widget (#260): that part's page.
+        .task(id: model.progressJump) {
+            guard let section = model.progressJump else { return }
+            try? await Task.sleep(for: .milliseconds(350))
+            opened = section
+            model.progressJump = nil
+        }
     }
 
-    static func readingLine(barBottom: CGFloat, viewport: CGFloat, pageEnd: CGFloat) -> CGFloat {
-        let top = barBottom + 24
-        let bottom = viewport - 120
-        guard viewport > 0, bottom > top else { return top }
-        let left = max(0, pageEnd - viewport)  // scroll distance still to go
-        let span = viewport - barBottom
-        let p = min(1, max(0, 1 - left / span))
-        return top + p * (bottom - top)
-    }
-
-    private func jump(_ section: ProgressSection, _ proxy: ScrollViewProxy) {
-        // History is its own page (#442).
-        if section == .history { showHistory = true; return }
-        jumped = section
-        active = section
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { proxy.scrollTo(section, anchor: .top) }
-        if #unavailable(iOS 18.0) {
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(1))
-                if jumped == section { jumped = nil; updateActive() }
+    /// Title with Edit (#444); while editing, "Edit Progress" and Done.
+    private var header: some View {
+        HStack(spacing: 10) {
+            Text(arranging ? "Edit Progress" : "Progress").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
+            Spacer()
+            if arranging {
+                Button { withAnimation(.snappy) { arranging = false } } label: {
+                    Text("Done").font(Theme.label(15)).foregroundStyle(Theme.ink)
+                        .padding(.horizontal, 16).padding(.vertical, 8)
+                        .background(Capsule().fill(Theme.lime))
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button { withAnimation(.snappy) { arranging = true } } label: {
+                    Image(systemName: "square.grid.2x2.fill")
+                        .font(.system(size: 15, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(Color.white.opacity(0.14)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Edit Progress")
+                .accessibilityHint("Add, remove, resize and reorder the widgets on this screen")
             }
         }
+        .padding(.top, 4)
+    }
+
+    @ViewBuilder
+    private func widget(_ w: ProgressWidget, s: ProgressStats, fresh: Bool, top: ProgressHighlights, items: [HistoryItem]) -> some View {
+        if arranging {
+            ProgressWidgetEditChrome(widget: w) { widgetContent(w, s: s, fresh: fresh, top: top, items: items) }
+        } else {
+            widgetContent(w, s: s, fresh: fresh, top: top, items: items)
+        }
+    }
+
+    @ViewBuilder
+    private func widgetContent(_ w: ProgressWidget, s: ProgressStats, fresh: Bool, top: ProgressHighlights, items: [HistoryItem]) -> some View {
+        switch w.kind {
+        case .level:
+            // Level card, trophy shelf or quest log: the member's game look (#227); a placeholder before the first workout.
+            if fresh {
+                ProgressWidgetPlaceholder(widget: w, note: "Your level shows after your first workout")
+            } else {
+                GameProgressCard(badges: badges)
+            }
+        case .streak:
+            StreakRow(current: s.currentStreakWeeks, best: s.bestStreakWeeks, thisWeek: s.thisWeek, target: target, fresh: fresh)
+        case .training, .body, .records, .badges, .muscles, .programmes:
+            let section = w.kind.section
+            Button {
+                // Nothing to show yet (#345): the Programmes card goes straight to picking one.
+                if section == .programmes && model.activeProgramme == nil && model.programmeHistory.isEmpty {
+                    model.openExploreProgrammes()
+                } else {
+                    opened = section
+                }
+            } label: { ProgressSectionTile(h: top, section: section) }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens \(section.title)")
+        case .history:
+            if w.size == .small || items.isEmpty {
+                Button { opened = .history } label: { ProgressSectionTile(h: top, section: .history) }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens History")
+            } else {
+                // Recent sessions (#442 C): every kind of session, See all opens History.
+                RecentSessionsStrip(items: items) { opened = .history }
+            }
+        case .consistency:
+            ConsistencyCalendar(days: s.days, records: dayRecords, empty: fresh)
+        case .weekly:
+            weeklyChart(s)
+        case .sport:
+            let sport = w.sport ?? .other
+            Button { openedSport = sport } label: {
+                SportProgressWidget(sport: sport, size: w.size, items: items.filter { $0.filter == .sport(sport) })
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens your \(sport.label) sessions")
+        }
+    }
+
+    // MARK: A part's page
+
+    private func page(_ section: ProgressSection, s: ProgressStats, fresh: Bool, top: ProgressHighlights) -> some View {
+        let climbList = climbs
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                switch section {
+                case .training:
+                    if fresh {
+                        FirstMilestonesCard(session: false, pr: !model.personalRecords.isEmpty, climb: !climbList.isEmpty)
+                    } else {
+                        tiles(climbs: climbList)
+                    }
+                    ConsistencyCalendar(days: s.days, records: dayRecords, empty: fresh)
+                    weeklyChart(s)
+                    strengthTrend
+                    if !climbList.isEmpty { ClimbingCard(climbs: climbList) }
+                    // Other sports (#416): logged here or from Apple Health.
+                    let sports = Sports.merged(local: model.sportLogs, health: health.snapshot.recentSports)
+                    // Hyrox hub (#426): division, goal, sims, races.
+                    if model.doesHyrox { HyroxHubCard() }
+                    if !sports.isEmpty { SportsCard(entries: sports) }
+                case .programmes:
+                    // Training programmes (#255): the running one, lifts start vs now, finished ones.
+                    ProgrammeProgressSection()
+                case .body:
+                    if !model.measurementSeries(.weight).isEmpty || !health.snapshot.vo2Trend.isEmpty { bodyTrends }
+                    ProgressMeasurementsSection()
+                case .records:
+                    records(s)
+                case .badges:
+                    achievements
+                case .muscles:
+                    muscleBalance(s, fresh: fresh)
+                case .history:
+                    EmptyView()
+                }
+            }
+            .padding(16)
+        }
+        .navigationTitle(section.title)
+        .toolbarTitleDisplayMode(.inlineLarge)
     }
 
     private func highlights(_ s: ProgressStats) -> ProgressHighlights {
@@ -869,18 +926,3 @@ struct HistoryDetailView: View {
     }
 }
 
-/// Runs `action` when the member starts dragging the page (iOS 18+; on iOS 17 a tapped chip stays lit until
-/// the scroll settles a second later).
-private struct OnUserScroll: ViewModifier {
-    let action: () -> Void
-
-    func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
-            content.onScrollPhaseChange { _, phase in
-                if phase == .interacting { action() }
-            }
-        } else {
-            content
-        }
-    }
-}

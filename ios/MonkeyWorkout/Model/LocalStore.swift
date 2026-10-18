@@ -31,6 +31,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var programmeHistory: [ProgrammeRecord]?
     /// Customised Train screen (#260); nil = the default layout.
     var trainLayout: TrainLayout?
+    /// Customised Progress page (#444); nil = the default board.
+    var progressBoard: ProgressBoard?
     /// Programmes the member made or copied (#269).
     var customProgrammes: [Programme]?
     /// Monday ("yyyy-MM-dd") of the calendar week the plan belongs to (#266); a new calendar week moves the plan on.

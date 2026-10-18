@@ -178,6 +178,9 @@ struct HistoryView: View {
     @State private var picked: HistoryFilter = .all
     @State private var sport: SportEntry?
 
+    /// `initial`: the sport chip lit on opening (a sport widget, #444).
+    init(initial: HistoryFilter = .all) { _picked = State(initialValue: initial) }
+
     var body: some View {
         let all = model.historyItems(health: health)
         let shown = History.filter(all, by: picked, query: query)
@@ -187,7 +190,7 @@ struct HistoryView: View {
                 if all.isEmpty {
                     empty
                 } else {
-                    chips(History.filters(all))
+                    chips(History.filters(all) + (picked == .all || History.filters(all).contains(picked) ? [] : [picked]))
                     totals(shown)
                     if shown.isEmpty {
                         Text(query.isEmpty ? "No \(picked.label.lowercased()) sessions yet." : "Nothing matches “\(query)”.")

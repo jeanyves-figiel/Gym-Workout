@@ -284,6 +284,18 @@ enum Demo {
         ]
     }
 
+    /// Other sports for the History page and sport widgets (#442, #444).
+    static func sportLogs() -> [SportLog] {
+        let day: Double = 86_400
+        return [
+            SportLog(sport: .snowboard, start: Date().addingTimeInterval(-2 * day - 3_600 * 5), minutes: 240, effort: 7, distanceKm: 38),
+            SportLog(sport: .hyrox, start: Date().addingTimeInterval(-8 * day), minutes: 84, effort: 9),
+            SportLog(sport: .run, start: Date().addingTimeInterval(-4 * day), minutes: 42, effort: 5, distanceKm: 8.2),
+            SportLog(sport: .snowboard, start: Date().addingTimeInterval(-16 * day), minutes: 300, effort: 6, distanceKm: 45),
+            SportLog(sport: .run, start: Date().addingTimeInterval(-11 * day), minutes: 35, effort: 4, distanceKm: 6.5),
+        ]
+    }
+
     /// Body measurements (#185): four check-ins over 12 weeks, arms and thighs growing, waist down.
     static func measurements() -> [BodyMeasurement] {
         (0..<4).map { i in
