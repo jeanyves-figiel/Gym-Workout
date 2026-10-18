@@ -17,6 +17,8 @@ struct ProgressTabView: View {
     @State private var pageEnd: CGFloat = .infinity
     /// Chip tapped: stays lit until the member scrolls, even when the page ends before its section reaches the bar.
     @State private var jumped: ProgressSection?
+    /// History page (#442): opened by See all, the History card and its section chip.
+    @State private var showHistory = false
     /// CI screenshots: open with this tile flipped.
     var demoFlipped: StatMetric?
     /// CI screenshots: open scrolled to this section, bar pinned (#243).
@@ -68,6 +70,9 @@ struct ProgressTabView: View {
                             jump(s, proxy)
                         }
                     }
+                    // Recent sessions (#442 C): every kind of session, See all opens History.
+                    let recent = model.historyItems(health: health)
+                    if !recent.isEmpty { RecentSessionsStrip(items: recent) { showHistory = true } }
                     Section {
                         group(.training, trailing: nil) {
                             if fresh {
@@ -96,7 +101,6 @@ struct ProgressTabView: View {
                         group(.records, trailing: top.records.isEmpty ? nil : "\(top.records.count) PRs") { records(s) }
                         group(.badges, trailing: "\(top.unlocked)/\(top.badgeCount)") { achievements }
                         group(.muscles, trailing: "Last 28 days") { muscleBalance(s, fresh: fresh) }
-                        group(.history, trailing: model.history.isEmpty ? nil : "\(model.history.count)") { historyList }
                     } header: {
                         // Section bar (#243 A): pins under the title, lights the section on screen.
                         ProgressSectionBar(active: active) { jump($0, proxy) }
@@ -141,6 +145,7 @@ struct ProgressTabView: View {
         .navigationTitle("Progress")
         .toolbarTitleDisplayMode(.inlineLarge)
         .navigationDestination(for: UUID.self) { id in HistoryDetailView(recordId: id) }
+        .navigationDestination(isPresented: $showHistory) { HistoryView() }
         .navigationDestination(for: ProgrammeRoute.self) { r in model.findProgramme(r.id).map { ProgrammeDetailView(programme: $0) } }
         .sheet(item: $badge) { b in BadgeSheet(badge: b).presentationDetents([.medium]) }
     }
@@ -190,6 +195,8 @@ struct ProgressTabView: View {
     }
 
     private func jump(_ section: ProgressSection, _ proxy: ScrollViewProxy) {
+        // History is its own page (#442).
+        if section == .history { showHistory = true; return }
         jumped = section
         active = section
         withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { proxy.scrollTo(section, anchor: .top) }
@@ -460,29 +467,6 @@ struct ProgressTabView: View {
                 }
             }
             .card()
-        }
-    }
-
-    private var historyList: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if model.history.isEmpty {
-                HStack(spacing: 14) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(Theme.lime)
-                        .frame(width: 48, height: 48)
-                        .background(RoundedRectangle(cornerRadius: 16).fill(Theme.lime.opacity(0.12)))
-                    Text("Finish a session and it shows up here with everything you did.")
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(Theme.muted)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .card()
-            }
-            ForEach(model.history) { r in
-                NavigationLink(value: r.id) { HistoryRow(record: r) }
-                    .buttonStyle(.plain)
-            }
         }
     }
 }
@@ -805,32 +789,6 @@ struct BadgeSheet: View {
         .frame(maxWidth: .infinity)
         .background(Theme.bg.ignoresSafeArea())
         .preferredColorScheme(.dark)
-    }
-}
-
-struct HistoryRow: View {
-    let record: WorkoutRecord
-
-    var body: some View {
-        HStack(spacing: 14) {
-            VStack(spacing: 0) {
-                Text(record.startedAt.formatted(.dateTime.day())).font(Theme.display(26))
-                Text(record.startedAt.formatted(.dateTime.month(.abbreviated)).uppercased()).font(Theme.label(10)).foregroundStyle(Theme.muted)
-            }
-            .frame(width: 48)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(record.title).font(.system(.headline, design: .rounded).weight(.heavy))
-                Text("\(record.durationSec / 60) min · \(record.totalSets) sets" + (record.volumeKg > 0 ? " · \(Format.volume(record.volumeKg))" : ""))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.muted)
-                if let hr = record.avgHeartRate {
-                    Label("\(Int(hr)) bpm avg", systemImage: "heart.fill").font(.caption2.weight(.bold)).foregroundStyle(WorkoutEngine.Category.power.color)
-                }
-            }
-            Spacer()
-            BodyMapView(side: .front, heat: record.muscleHeat, showLabel: false).frame(width: 34, height: 68)
-        }
-        .card(padding: 14)
     }
 }
 

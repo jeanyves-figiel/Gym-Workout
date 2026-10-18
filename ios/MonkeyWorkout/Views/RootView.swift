@@ -225,6 +225,7 @@ private struct DemoScreen: View {
         case "progress-flipped": NavigationStack { ProgressTabView(demoFlipped: .volume) }
         case "progress-records": NavigationStack { ProgressTabView(demoSection: .records) }
         case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
+        case "history-page": NavigationStack { HistoryView() }
         case "body": NavigationStack { BodyHealthView() }
         case "body-talk": NavigationStack { TalkToYouDemo() }
         case "measurements": NavigationStack { MeasurementsView() }
