@@ -52,6 +52,16 @@ extension AppModel {
                                   future: programmeWeeks(sp))
     }
 
+    /// First session of a later week (#473), for Next up once this week has nothing left.
+    func nextWeekSession(now: Date = Date()) -> (day: DaySelection, session: Session)? {
+        for week in calendarWeeks(count: 3, now: now).dropFirst() {
+            if let s = week.plan.sessions.filter({ $0.weekday != nil }).min(by: { $0.weekday! < $1.weekday! }), let wd = s.weekday {
+                return (DaySelection(week: week, weekday: wd, current: false), s)
+            }
+        }
+        return nil
+    }
+
     /// Planned, not yet done sessions with their date, from `from` to `to` inclusive (e.g. for reminders).
     func plannedSessions(from: Date, to: Date) -> [(date: Date, session: Session)] {
         let cal = planCalendar
