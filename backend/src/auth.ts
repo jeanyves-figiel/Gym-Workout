@@ -45,6 +45,17 @@ export interface PublicUser {
 type Purpose = 'verify_email' | 'reset_password';
 
 const CODE_TTL_MIN = 15;
+/** A refresh token claimed this recently is still being rotated by a parallel request (#469). */
+const IN_FLIGHT_MS = 10_000;
+
+interface RefreshRow {
+  id: string;
+  user_id: string;
+  family_id: string;
+  expires_at: string;
+  revoked_at: string | null;
+  replaced_by: string | null;
+}
 const CODE_MAX_ATTEMPTS = 5;
 const CODE_RESEND_SEC = 60;
 /** Wrong passwords from one client IP before that IP is locked out of the account for LOCK_MIN (#432). */
@@ -452,21 +463,37 @@ export class AuthService {
     }
   }
 
-  /** Rotating refresh: each token is single-use; replaying a used token revokes the whole family. */
+  /**
+   * Rotating refresh: each token is single-use; replaying a used token revokes the whole family.
+   * Exception (#469): a replayed token whose replacement was never used is a lost response (app suspended or offline
+   * mid-refresh), not theft: the unused replacement is revoked and a new pair issued, so the member stays signed in.
+   */
   async refresh(raw: string, device?: string): Promise<TokenPair> {
-    const row = this.d.db.prepare('SELECT * FROM refresh_tokens WHERE token_hash = ?').get(sha256(raw)) as
-      | { id: string; user_id: string; family_id: string; expires_at: string; revoked_at: string | null }
-      | undefined;
+    const row = this.d.db.prepare('SELECT * FROM refresh_tokens WHERE token_hash = ?').get(sha256(raw)) as RefreshRow | undefined;
     const invalid = new ApiError(401, 'invalid_refresh_token', 'Session expired. Sign in again.');
     if (!row) throw invalid;
     const now = this.iso();
     if (row.revoked_at) {
+      const next = row.replaced_by
+        ? (this.d.db.prepare('SELECT * FROM refresh_tokens WHERE id = ?').get(row.replaced_by) as RefreshRow | undefined)
+        : undefined;
+      if (next && !next.revoked_at && !next.replaced_by && next.expires_at > now) {
+        if (this.d.db.prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL').run(now, next.id).changes !== 1) throw invalid;
+        return this.rotate(row, device);
+      }
+      // Claimed a moment ago and still rotating (parallel refresh): refuse this one, keep the family.
+      if (!row.replaced_by && Date.parse(row.revoked_at) > this.d.now().getTime() - IN_FLIGHT_MS) throw invalid;
       this.d.db.prepare('UPDATE refresh_tokens SET revoked_at = COALESCE(revoked_at, ?) WHERE family_id = ?').run(now, row.family_id);
       throw invalid;
     }
     if (row.expires_at <= now) throw invalid;
     // Claim the token before the await so two parallel refreshes can't both rotate it (#432).
     if (this.d.db.prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL').run(now, row.id).changes !== 1) throw invalid;
+    return this.rotate(row, device);
+  }
+
+  /** New pair in the same family; `row` (already revoked) points to it. */
+  private async rotate(row: RefreshRow, device?: string): Promise<TokenPair> {
     const pair = await this.issueTokens(row.user_id, device, row.family_id);
     const newId = (this.d.db.prepare('SELECT id FROM refresh_tokens WHERE token_hash = ?').get(sha256(pair.refreshToken)) as { id: string }).id;
     this.d.db.prepare('UPDATE refresh_tokens SET replaced_by = ? WHERE id = ?').run(newId, row.id);

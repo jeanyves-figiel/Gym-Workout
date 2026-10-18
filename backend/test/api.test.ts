@@ -175,9 +175,36 @@ describe('login & sessions', () => {
     expect(r1.statusCode).toBe(200);
     const t2 = r1.json().refreshToken as string;
     expect(t2).not.toBe(tokens.refreshToken);
-    // replay of old token → family revoked
+    const r2 = await post('/v1/auth/refresh', { refreshToken: t2 });
+    expect(r2.statusCode).toBe(200);
+    // replay of old token once its replacement was used → family revoked
     expect((await post('/v1/auth/refresh', { refreshToken: tokens.refreshToken })).statusCode).toBe(401);
-    expect((await post('/v1/auth/refresh', { refreshToken: t2 })).statusCode).toBe(401);
+    expect((await post('/v1/auth/refresh', { refreshToken: r2.json().refreshToken })).statusCode).toBe(401);
+  });
+
+  it('keeps the session when a refresh response was lost (#469)', async () => {
+    const { tokens } = await signUp();
+    const lost = (await post('/v1/auth/refresh', { refreshToken: tokens.refreshToken })).json().refreshToken as string;
+    advance(60_000);
+    // the app never got `lost` and retries with its old token
+    const retry = await post('/v1/auth/refresh', { refreshToken: tokens.refreshToken });
+    expect(retry.statusCode).toBe(200);
+    const t3 = retry.json().refreshToken as string;
+    advance(60_000);
+    expect((await post('/v1/auth/refresh', { refreshToken: lost })).statusCode).toBe(401);
+    // presenting the undelivered token revoked the family
+    expect((await post('/v1/auth/refresh', { refreshToken: t3 })).statusCode).toBe(401);
+  });
+
+  it('lost response twice in a row still keeps the session (#469)', async () => {
+    const { tokens } = await signUp();
+    await post('/v1/auth/refresh', { refreshToken: tokens.refreshToken });
+    advance(60_000);
+    await post('/v1/auth/refresh', { refreshToken: tokens.refreshToken });
+    advance(60_000);
+    const r = await post('/v1/auth/refresh', { refreshToken: tokens.refreshToken });
+    expect(r.statusCode).toBe(200);
+    expect((await post('/v1/auth/refresh', { refreshToken: r.json().refreshToken })).statusCode).toBe(200);
   });
 
   it('expires access tokens', async () => {
@@ -504,5 +531,8 @@ describe('abuse limits (#432)', () => {
     const { tokens } = await signUp();
     const rs = await Promise.all([1, 2].map(() => post('/v1/auth/refresh', { refreshToken: tokens.refreshToken })));
     expect(rs.map((r) => r.statusCode).sort()).toEqual([200, 401]);
+    // the losing request didn't revoke the winner's session
+    const winner = rs.find((r) => r.statusCode === 200)!;
+    expect((await post('/v1/auth/refresh', { refreshToken: winner.json().refreshToken })).statusCode).toBe(200);
   });
 });
