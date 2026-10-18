@@ -177,6 +177,9 @@ struct WeekView: View {
             RestDayCard(weekday: d, onPick: pick, onBack: back) { addingDay = d; adding = true }
         } else if let next {
             NextUpCard(session: next, picked: nil, onPick: pick, onBack: back) { playing = next }
+        } else if let later = model.nextWeekSession() {
+            // This week has nothing left (#473): Next up is next week's first session, shown, not startable.
+            NextUpCard(session: later.session, later: later.day, onPick: pick, onBack: back) {}
         } else {
             WeekCompleteCard(missed: model.missedToHandle.count, onPick: pick)
         }
@@ -619,6 +622,8 @@ private struct NextUpCard: View {
     let session: Session
     /// Day picked in the strip (#277); nil = this is the next session.
     var picked: Int? = nil
+    /// Day of a later week (#473): its session is shown (opens the calendar day sheet), not started.
+    var later: DaySelection? = nil
     var onPick: (Int) -> Void = { _ in }
     var onBack: () -> Void = {}
     let onStart: () -> Void
@@ -626,8 +631,9 @@ private struct NextUpCard: View {
     @Environment(\.trainCompact) private var compact
     @State private var logging: SportLog?
     @State private var trackingSport: SportLog?
+    @State private var laterDay: DaySelection?
     /// A later day picked in the strip (#343): nothing can be started or logged in advance.
-    private var ahead: Bool { picked.map { $0 > model.todayWeekday } ?? false }
+    private var ahead: Bool { later != nil || (picked.map { $0 > model.todayWeekday } ?? false) }
 
     private var lead: WorkoutEngine.Category {
         session.blocks.first { $0.kind == .strength }?.kind.category ?? .strength
@@ -636,13 +642,19 @@ private struct NextUpCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             // The week at a glance (#266): missed days red (tap to catch up), today ringed; any other day shows here (#277).
-            WeekDayStrip(selected: picked ?? session.weekday, onPick: onPick)
+            WeekDayStrip(selected: later == nil ? picked ?? session.weekday : nil, onPick: onPick)
             // Tapping the card opens the session page, same as the list button (#150).
-            NavigationLink(value: session.id) {
-                summary
+            if let later {
+                Button { laterDay = later } label: { summary }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens the day")
+            } else {
+                NavigationLink(value: session.id) {
+                    summary
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens the session overview")
             }
-            .buttonStyle(.plain)
-            .accessibilityHint("Opens the session overview")
             actions
         }
         .padding(16)
@@ -653,6 +665,7 @@ private struct NextUpCard: View {
         .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Color.white.opacity(0.15)))
         .sheet(item: $logging) { LogSportView(initial: $0) }
         .sheet(item: $trackingSport) { LogSportView(initial: $0, live: true) }
+        .modifier(LaterDaySheets(day: $laterDay))
     }
 
     /// Slim (#337, design A): muscle chips sit in the text column beside a smaller figure, so Start workout stays
@@ -699,6 +712,9 @@ private struct NextUpCard: View {
     private var isNext: Bool { session.id == model.nextSession?.id }
 
     private var eyebrow: String {
+        if let later, let date = later.week.date(later.weekday, model.planCalendar) {
+            return "Next up · \(date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))"
+        }
         guard let d = picked else { return "Next up · \(model.upcomingDayLabel(session))" }
         let state = done ? "done" : model.skippedIds.contains(session.id) ? "skipped"
             : model.missedSessions.contains { $0.id == session.id } ? "missed"
@@ -709,7 +725,10 @@ private struct NextUpCard: View {
     private var actions: some View {
         VStack(spacing: 10) {
             Group {
-                if done {
+                if let later {
+                    Button { laterDay = later } label: { Label("See workout", systemImage: "list.bullet") }
+                        .buttonStyle(LimeButtonStyle())
+                } else if done {
                     NavigationLink(value: session.id) { Label("Done · see workout", systemImage: "checkmark.seal.fill") }
                         .buttonStyle(LimeButtonStyle())
                 } else if ahead {
