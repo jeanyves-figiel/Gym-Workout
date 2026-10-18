@@ -14,12 +14,12 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
-    "@fastify/rate-limit": "^11.2.0",
-    "@simplewebauthn/server": "^13.3.3",
+    "@fastify/rate-limit": "^11.2.1",
+    "@simplewebauthn/server": "^14.0.3",
     "fastify": "^5.12.5",
     "jose": "^6.2.12",
-    "nodemailer": "^10.0.15",
-    "zod": "^4.6.5"
+    "nodemailer": "^10.1.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

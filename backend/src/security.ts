@@ -5,7 +5,7 @@ import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
   type AuthenticationResponseJSON,
-  type AuthenticatorTransportFuture,
+  type AuthenticatorTransport,
   type RegistrationResponseJSON,
 } from '@simplewebauthn/server';
 import { appleNonceOk, type AppleVerifier } from './apple.ts';
@@ -529,9 +529,9 @@ export class SecurityService {
     return this.passkeys(userId);
   }
 
-  private transports(r: PasskeyRow): AuthenticatorTransportFuture[] | undefined {
+  private transports(r: PasskeyRow): AuthenticatorTransport[] | undefined {
     try {
-      return r.transports ? (JSON.parse(r.transports) as AuthenticatorTransportFuture[]) : undefined;
+      return r.transports ? (JSON.parse(r.transports) as AuthenticatorTransport[]) : undefined;
     } catch {
       return undefined;
     }
