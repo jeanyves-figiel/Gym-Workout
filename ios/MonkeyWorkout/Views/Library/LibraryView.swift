@@ -107,6 +107,8 @@ struct LibraryView: View {
             // Climbing gym exercises (#366).
             NavigationLink(value: ClimbingRoute()) { ClimbingCategoryCard() }
                 .buttonStyle(.plain)
+            // Hyrox for everyone (#439): race mode, pacing, sims.
+            HyroxExploreCard()
             NewExerciseButton()
         }
     }

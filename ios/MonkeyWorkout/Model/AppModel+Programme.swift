@@ -59,7 +59,7 @@ extension AppModel {
 
     /// Starts `programme` this week at `length` weeks (nil = standard). Another one in progress is left first; the
     /// member's own plan stays saved.
-    func startProgramme(_ programme: Programme, length: Int? = nil, firstDay: Date? = nil, now: Date = .now) {
+    func startProgramme(_ programme: Programme, length: Int? = nil, firstDay: Date? = nil, races: [Date]? = nil, now: Date = .now) {
         guard let sp = state.synced else { return }
         var saved = ActiveProgramme.SavedPlan(profile: sp.profile, seed: sp.seed, week: sp.week)
         if let old = sp.programme {
@@ -69,8 +69,11 @@ extension AppModel {
         state.synced?.programme = ActiveProgramme(
             programmeId: programme.id, start: Progression.weekStart(now, Progression.calendar()),
             seed: UInt32.random(in: 0...UInt32.max), saved: saved,
-            length: length == programme.weeks ? nil : length, custom: programme.mine ? programme : nil)
+            length: length == programme.weeks ? nil : length,
+            // Hyrox ready (#431) runs as built for the member's races and targets, kept as a snapshot.
+            custom: programme.mine || programme.isHyrox ? programme : nil)
         state.synced?.programme?.firstDay = firstDay
+        state.synced?.programme?.races = races.map { $0.sorted() }
         syncProgramme(now: now, starting: true)
     }
 

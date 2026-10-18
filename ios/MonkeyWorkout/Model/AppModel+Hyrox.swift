@@ -49,11 +49,37 @@ extension AppModel {
 
     /// Settings, last race and upload key for the Watch snapshot.
     func watchHyrox(start: (format: HyroxFormat, at: Date)?) -> WHyrox? {
-        guard doesHyrox else { return nil }
+        // A start from the iPhone goes through even before Hyrox is in My sports (Explore, Track live: #439).
+        guard doesHyrox || start != nil else { return nil }
         if watchUploadKey == nil { Task { await fetchWatchUploadKey() } }
         return WHyrox(division: hyroxDivision, goalSeconds: hyroxGoalSeconds, raceName: hyroxProfile.raceName,
                       raceDate: hyroxPlan?.event, lastRace: lastFullRace(), uploadKey: watchUploadKey,
                       apiBase: AppConfig.apiBaseURL.absoluteString, start: start?.format, startAt: start?.at)
+    }
+
+    /// Hyrox ready (#431 C): race pace from the goal time or race load from the division, for a signature exercise.
+    func hyroxTarget(_ exerciseId: String) -> String? {
+        let d = hyroxDivision
+        let steps = HyroxFormat.full.steps
+        let pacing = hyroxGoalSeconds.map { HyroxPacing(goalSeconds: $0, steps: steps) }
+        func split(_ s: HyroxStation) -> Double? {
+            guard let p = pacing, let i = steps.firstIndex(of: .station(s)) else { return nil }
+            return p.targets[i]
+        }
+        switch exerciseId {
+        case "treadmill-run":
+            guard let p = pacing else { return nil }
+            let runs = steps.indices.filter { steps[$0].isRun }.map { p.targets[$0] }
+            return "Race pace \(HyroxTime.clock(runs.reduce(0, +) / Double(max(1, runs.count)))) /km"
+        case "ski-erg": return split(.skiErg).map { "Race pace \(HyroxTime.clock($0 / 2)) /500 m" }
+        case "rower": return split(.rowing).map { "Race pace \(HyroxTime.clock($0 / 2)) /500 m" }
+        case "sled-sprint": return d.load(.sledPush).map { "Race sled \($0)" }
+        case "sled-drag": return d.load(.sledPull).map { "Race sled \($0)" }
+        case "sandbag-lunge": return d.load(.sandbagLunges).map { "Race bag \($0)" }
+        case "kb-thruster": return d.load(.wallBalls).map { "Race wall ball \($0)" }
+        case "farmer-carry": return d.load(.farmersCarry).map { "Race load \($0)" }
+        default: return nil
+        }
     }
 
     /// One upload-only key per account; the Watch posts races with it when it has a network.

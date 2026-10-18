@@ -58,6 +58,8 @@ public struct ProgrammeSignature: Codable, Hashable, Sendable, Identifiable {
         public let byPhase: [ProgrammePhaseKind: Dose]
         public let dose: Dose
         public let restSec: Int
+        /// Pace or load to aim for (Hyrox ready #431: from the goal time and division), shown as the intensity.
+        public var target: String?
 
         public init(_ exerciseId: String, _ dose: Dose, rest: Int = 90, _ byPhase: [ProgrammePhaseKind: Dose] = [:]) {
             self.exerciseId = exerciseId
@@ -268,11 +270,13 @@ public struct Programme: Codable, Identifiable, Hashable, Sendable {
             used.insert(e.id)
             let d = it.dose(phase)
             let reps = Double(Int(d.reps.prefix { $0.isNumber }) ?? 8)
-            let work = Double(d.sets) * reps * (e.unit == .sec ? 1 : e.secPerRep ?? 3) * (e.unilateral ? 2 : 1)
+            // "4 min" and "500 m" (Hyrox ready) are time and distance, not reps.
+            let per = d.reps.hasSuffix(" min") ? 60 : d.reps.hasSuffix(" m") ? 0.3 : (e.unit == .sec ? 1 : e.secPerRep ?? 3)
+            let work = Double(d.sets) * reps * per * (e.unilateral ? 2 : 1)
             items.append(PlannedExercise(
                 uid: "\(base.id)-sig\(n)", exerciseId: e.id, slot: e.pattern,
                 prescription: Prescription(sets: d.sets, reps: d.reps, restSec: it.restSec,
-                                           intensity: phase == .ease ? "Light: 3+ reps in reserve" : nil,
+                                           intensity: phase == .ease ? "Light: 3+ reps in reserve" : it.target,
                                            note: e.id == wanted.id ? nil : "Instead of \(wanted.name)"),
                 estSec: Int(work) + (d.sets - 1) * it.restSec + 60))
         }
@@ -344,6 +348,8 @@ public struct ActiveProgramme: Codable, Hashable, Sendable {
     public var custom: Programme?
     /// Snow ready (#428): the member's first day on snow the length was fitted to.
     public var firstDay: Date?
+    /// Hyrox ready (#431): the race days the season was built around, in order.
+    public var races: [Date]?
 
     public struct SavedPlan: Codable, Hashable, Sendable {
         public var profile: Profile
@@ -476,7 +482,7 @@ extension Programme {
         (custom ?? find(id)).map { p in length.map { p.resized(to: $0) } ?? p }
     }
 
-    public static let all: [Programme] = [strengthFoundation, muscleBuilder, climbersPower, athleticEngine, freshStart, snowReadyBoth]
+    public static let all: [Programme] = [strengthFoundation, muscleBuilder, climbersPower, athleticEngine, freshStart, snowReadyBoth, hyroxReady]
 
     private typealias Item = ProgrammeSignature.Item
     private typealias Dose = ProgrammeSignature.Dose

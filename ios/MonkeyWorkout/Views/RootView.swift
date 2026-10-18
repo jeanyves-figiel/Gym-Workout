@@ -191,6 +191,7 @@ private struct DemoScreen: View {
         case "programme-mine": NavigationStack { ProgrammeDetailView(programme: Programme.all[0], demoEdit: true) }
         case "programme-builder", "programme-builder-week": ProgrammeBuilderView()
         case "snow-ready": NavigationStack { ProgrammeDetailView(programme: Programme.snowReady(.snowboard)) }
+        case "hyrox-ready": NavigationStack { ProgrammeDetailView(programme: Programme.find(Programme.hyroxId)!) }
         case "progress-programmes": NavigationStack { ProgressTabView(demoSection: .programmes) }
         case "profile-programme": NavigationStack { TrainingProfileView().navigationTitle("Training profile") }
         case "calendar-programme": NavigationStack { CalendarView() }
@@ -222,9 +223,12 @@ private struct DemoScreen: View {
         case "pr-result": PRAttemptView(exerciseId: "bench-press", showing: Demo.prResult)
         case "technique": FormSheet(exercise: Exercise.get("leg-press"))
         case "progress", "progress-empty": NavigationStack { ProgressTabView() }
-        case "progress-flipped": NavigationStack { ProgressTabView(demoFlipped: .volume) }
+        case "progress-flipped": NavigationStack { ProgressTabView(demoFlipped: .volume, demoSection: .training) }
         case "progress-records": NavigationStack { ProgressTabView(demoSection: .records) }
+        case "progress-edit": NavigationStack { ProgressTabView(demoEditing: true) }
+        case "progress-sports": NavigationStack { ProgressTabView() }
         case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
+        case "history-page": NavigationStack { HistoryView() }
         case "body": NavigationStack { BodyHealthView() }
         case "body-talk": NavigationStack { TalkToYouDemo() }
         case "measurements": NavigationStack { MeasurementsView() }
@@ -255,7 +259,7 @@ private struct DemoScreen: View {
         case "paywall", "pro": NavigationStack { ProView() }
         case "pro-offer": NavigationStack { ProView(context: .onboarding) {} }
         case "pro-gate": ProPaywallSheet(gate: .variation)
-        case "account-profile": NavigationStack { PublicProfileView() }
+        case "account-profile": NavigationStack { ProfileView() }
         case "account-password": NavigationStack { ChangePasswordView(hasPassword: true) }
         case "account-email": NavigationStack { ChangeEmailView(currentEmail: Demo.user?.email) }
         // Account security (#257).

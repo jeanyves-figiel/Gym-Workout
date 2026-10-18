@@ -116,6 +116,7 @@ struct GymFinderView: View {
     var place: String = ""
     /// When set, the detail screen offers "Use this gym".
     var onPick: ((GymRef) -> Void)?
+    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var mode: Mode = .nearMe
     @State private var placeText = ""
@@ -126,6 +127,20 @@ struct GymFinderView: View {
     @State private var camera: MapCameraPosition = .automatic
     @State private var selected: FoundGym?
     @State private var locator: OneShotLocation?
+    // Place search (#447)
+    @FocusState private var fieldFocused: Bool
+    @State private var completer = PlaceCompleter()
+    /// The member is typing: suggestions float over the map and its pins follow the top match.
+    @State private var typing = false
+    /// The next text change came from a pick, not from typing.
+    @State private var settingText = false
+    @State private var recents: [PlaceSuggestion] = []
+    @State private var here: PlaceSuggestion?
+    @State private var counts: [String: Int] = [:]
+    @State private var counting = Set<String>()
+    @State private var guess: String?
+    @State private var previewTask: Task<Void, Never>?
+    @State private var previewKey = ""
 
     enum Mode: Hashable { case nearMe, place }
 
@@ -134,37 +149,53 @@ struct GymFinderView: View {
         self.onPick = onPick
     }
 
+    /// Cards before typing.
+    private var initialPlaces: [PlaceSuggestion] {
+        PlaceSuggest.initial(trips: model.away, recents: recents, gyms: model.savedGyms.map(\.ref) + [model.homeGym.ref],
+                             here: here, today: PlaceCalendarKey.today)
+    }
+
+    /// Every place we know of, for typo-tolerant matching.
+    private var knownPlaces: [PlaceSuggestion] {
+        PlaceSuggest.initial(trips: model.away, recents: recents, gyms: model.savedGyms.map(\.ref) + [model.homeGym.ref],
+                             here: here, today: PlaceCalendarKey.today, limit: 40)
+    }
+
+    private var options: [PlaceOption] {
+        let q = placeText.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return [] }
+        return PlaceOption.list(query: q, known: knownPlaces, completions: completer.results)
+    }
+
+    /// "Did you mean": a known place first, else Apple Maps' reading when it finds nothing for the spelling.
+    private var correction: String? {
+        let q = placeText.trimmingCharacters(in: .whitespaces)
+        if let local = PlaceSuggest.correction(for: q, among: knownPlaces.map(\.title)), options.allSatisfy({ $0.known == nil }) {
+            return local
+        }
+        return guess
+    }
+
+    private var showCards: Bool { mode == .place && placeText.trimmingCharacters(in: .whitespaces).isEmpty }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     modePicker
-                    if mode == .place {
-                        HStack(spacing: 8) {
-                            Image(systemName: "mappin.and.ellipse").foregroundStyle(Theme.muted)
-                            TextField("City, hotel or address", text: $placeText)
-                                .textInputAutocapitalization(.words)
-                                .autocorrectionDisabled()
-                                .submitLabel(.search)
-                                .onSubmit { Task { await search() } }
-                        }
-                        .padding(12)
-                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.cardStrong))
+                    if mode == .place { placeField }
+                    if mode == .place && typing, let correction { DidYouMean(name: correction) { useCorrection(correction) } }
+                    if showCards && !initialPlaces.isEmpty {
+                        PlaceCards(places: initialPlaces, counts: counts, onPick: pick, onAppear: count)
+                    } else {
+                        map
                     }
-                    Map(position: $camera) {
-                        if mode == .nearMe { UserAnnotation() }
-                        ForEach(gyms) { g in
-                            Marker(g.name, systemImage: "dumbbell.fill", coordinate: g.coordinate).tint(Theme.lime)
-                        }
-                    }
-                    .frame(height: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     if loading {
                         ProgressView().frame(maxWidth: .infinity).padding()
-                    } else if let failure {
+                    } else if let failure, !typing {
                         Text(failure).font(.subheadline).foregroundStyle(Theme.muted)
                     } else if !gyms.isEmpty {
-                        Text("\(gyms.count) gyms").eyebrow()
+                        Text(typing ? "\(gyms.count) gyms near \(previewTitle)" : "\(gyms.count) gyms").eyebrow()
                     }
                     ForEach(gyms) { g in
                         Button { selected = g } label: { GymRow(gym: g) }.buttonStyle(.plain)
@@ -187,15 +218,65 @@ struct GymFinderView: View {
                 })
             }
             .task {
+                recents = RecentPlaces.load()
                 if !place.trimmingCharacters(in: .whitespaces).isEmpty {
-                    placeText = place
+                    setText(place)
                     mode = .place
                 }
                 await search()
             }
-            .onChange(of: mode) { _, _ in Task { await search() } }
+            .task { await locateHere() }
+            .onChange(of: mode) { _, m in
+                typing = false
+                if m == .place && placeText.isEmpty { fieldFocused = true }
+                Task { await search() }
+            }
+            .onChange(of: placeText) { _, text in edited(text) }
+            .onChange(of: completer.answered) { _, _ in schedulePreview() }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private var placeField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "mappin.and.ellipse").foregroundStyle(Theme.muted)
+            TextField("City, hotel or address", text: $placeText)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused($fieldFocused)
+                .onSubmit { submit() }
+            if !placeText.isEmpty {
+                Button {
+                    placeText = ""
+                    fieldFocused = true
+                } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear")
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.cardStrong)
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Theme.lime, lineWidth: fieldFocused ? 2 : 0))
+        )
+    }
+
+    private var map: some View {
+        Map(position: $camera) {
+            if mode == .nearMe { UserAnnotation() }
+            ForEach(gyms) { g in
+                Marker(g.name, systemImage: "dumbbell.fill", coordinate: g.coordinate).tint(Theme.lime)
+            }
+        }
+        .frame(height: typing ? 300 : 220)
+        .overlay(alignment: .top) {
+            if mode == .place && typing && !options.isEmpty {
+                PlaceOptionList(query: placeText, options: options, onPick: pick).padding(8)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .animation(.snappy, value: typing)
     }
 
     private var modePicker: some View {
@@ -217,7 +298,135 @@ struct GymFinderView: View {
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.cardStrong))
     }
 
-    private func search() async {
+    // MARK: Place search
+
+    private var previewTitle: String { options.first?.title ?? placeText }
+
+    /// Sets the field without counting it as typing.
+    private func setText(_ text: String) {
+        guard text != placeText else { return }
+        settingText = true
+        placeText = text
+    }
+
+    private func edited(_ text: String) {
+        if settingText {
+            settingText = false
+            completer.query = ""
+            return
+        }
+        typing = !text.trimmingCharacters(in: .whitespaces).isEmpty
+        guess = nil
+        completer.query = text
+        if !typing {
+            previewTask?.cancel()
+            gyms = []
+            failure = nil
+        }
+    }
+
+    /// Debounced: drops the top match's gyms on the map while typing; asks Apple Maps how to spell it when nothing matches.
+    private func schedulePreview() {
+        guard typing, mode == .place else { return }
+        let q = placeText.trimmingCharacters(in: .whitespaces)
+        let top = options.first
+        let key = top.map(\.id) ?? "guess:" + PlaceSuggest.fold(q)
+        guard key != previewKey else { return }
+        previewKey = key
+        previewTask?.cancel()
+        previewTask = Task {
+            try? await Task.sleep(for: .milliseconds(450))
+            guard !Task.isCancelled else { return }
+            if top == nil, q.count >= 3 {
+                let g = await GymFinder.spellingGuess(q)
+                guard !Task.isCancelled, typing else { return }
+                guess = g
+            }
+            guard let top, let location = await resolve(top), !Task.isCancelled, typing else { return }
+            let found = await GymFinder.gyms(near: location)
+            guard !Task.isCancelled, typing else { return }
+            gyms = found
+            center = location
+            withAnimation(.snappy) {
+                camera = .region(MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 6_000, longitudinalMeters: 6_000))
+            }
+        }
+    }
+
+    private func resolve(_ option: PlaceOption) async -> CLLocation? {
+        if let k = option.known { return await resolve(k) }
+        if let c = option.completion, let item = await GymFinder.locate(c) {
+            let p = item.placemark.coordinate
+            return CLLocation(latitude: p.latitude, longitude: p.longitude)
+        }
+        return await GymFinder.locate(option.title)
+    }
+
+    private func resolve(_ place: PlaceSuggestion) async -> CLLocation? {
+        if let lat = place.latitude, let lon = place.longitude { return CLLocation(latitude: lat, longitude: lon) }
+        return await GymFinder.locate(place.title)
+    }
+
+    private func pick(_ option: PlaceOption) {
+        Task {
+            let location = await resolve(option)
+            finish(PlaceSuggestion(kind: .recent, title: option.title, subtitle: option.subtitle,
+                                   latitude: location?.coordinate.latitude, longitude: location?.coordinate.longitude),
+                   at: location)
+        }
+    }
+
+    private func pick(_ place: PlaceSuggestion) {
+        Task { finish(place, at: await resolve(place)) }
+    }
+
+    private func useCorrection(_ name: String) {
+        guess = nil
+        placeText = name
+    }
+
+    private func submit() {
+        if typing, let top = options.first { return pick(top) }
+        if typing, let correction { return pick(PlaceOption(title: correction, subtitle: "", symbol: "mappin")) }
+        typing = false
+        Task { await search() }
+    }
+
+    /// A place was chosen: show its gyms and remember it.
+    private func finish(_ place: PlaceSuggestion, at location: CLLocation?) {
+        previewTask?.cancel()
+        previewKey = ""
+        typing = false
+        fieldFocused = false
+        guess = nil
+        setText(place.title)
+        if location != nil { recents = RecentPlaces.remember(place) }
+        Task { await search(at: location) }
+    }
+
+    /// Gym count on a card, loaded once when it shows.
+    private func count(_ place: PlaceSuggestion) {
+        guard counts[place.id] == nil, counting.insert(place.id).inserted else { return }
+        Task {
+            guard let location = await resolve(place) else { return }
+            counts[place.id] = await GymFinder.gyms(near: location).count
+        }
+    }
+
+    /// "You're here" card and suggestions near you, only when location is already allowed (never asks here).
+    private func locateHere() async {
+        let status = CLLocationManager().authorizationStatus
+        guard status == .authorizedWhenInUse || status == .authorizedAlways else { return }
+        // Own locator: a shared one would cancel the Near me request running at the same time.
+        let l = OneShotLocation()
+        guard let location = await l.current() else { return }
+        completer.bias(location)
+        if let town = await GymFinder.town(at: location) {
+            here = PlaceSuggestion(kind: .here, title: town, latitude: location.coordinate.latitude, longitude: location.coordinate.longitude)
+        }
+    }
+
+    private func search(at placeOrigin: CLLocation? = nil) async {
         failure = nil
         loading = true
         defer { loading = false }
@@ -230,12 +439,16 @@ struct GymFinderView: View {
             if origin == nil { failure = "Location unavailable. Allow location for MonkeyWorkout in Settings, or search near a place." }
         case .place:
             let q = placeText.trimmingCharacters(in: .whitespaces)
-            guard q.count >= 2 else {
-                gyms = []
-                return
+            if let placeOrigin {
+                origin = placeOrigin
+            } else {
+                guard q.count >= 2 else {
+                    gyms = []
+                    return
+                }
+                origin = await GymFinder.locate(q)
+                if origin == nil { failure = "Couldn't find \"\(q)\"." }
             }
-            origin = await GymFinder.locate(q)
-            if origin == nil { failure = "Couldn't find \"\(q)\"." }
         }
         guard let origin else {
             gyms = []
@@ -246,6 +459,11 @@ struct GymFinderView: View {
         if gyms.isEmpty && failure == nil { failure = "No gyms found nearby." }
         camera = .region(MKCoordinateRegion(center: origin.coordinate, latitudinalMeters: 6_000, longitudinalMeters: 6_000))
     }
+}
+
+/// Today's day key for trip suggestions.
+enum PlaceCalendarKey {
+    static var today: String { PlanCalendar.key(Date(), Calendar.current) }
 }
 
 extension FoundGym: Hashable {

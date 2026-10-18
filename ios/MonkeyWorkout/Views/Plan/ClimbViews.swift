@@ -75,22 +75,7 @@ struct ClimbSection: View {
                 HardClimbNote(climb: hard)
             }
             AroundClimbingLink { ProStore.shared.run(.climbing, $gate) { settings = true } }
-            if !all.isEmpty {
-                Text("Recent climbs").eyebrow().padding(.top, 4)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(all.prefix(8)) { c in
-                            ClimbTile(climb: c)
-                                .contextMenu {
-                                    if c.local {
-                                        Button("Delete climb", systemImage: "trash", role: .destructive) { delete(c.id) }
-                                    }
-                                }
-                        }
-                    }
-                }
-                .scrollClipDisabled()
-            }
+            // Past climbs live on the History page (#442); delete one there with a long press.
         }
         .sheet(item: $logging) { LogClimbView(initial: $0) }
         .sheet(isPresented: $settings) { ClimbSettingsView() }
@@ -101,14 +86,6 @@ struct ClimbSection: View {
     private var isClimbingDay: Bool {
         let today = WeekSchedule.fromCalendar(Calendar.current.component(.weekday, from: Date()))
         return model.profile?.climbingDays.contains(today) ?? false
-    }
-
-    private func delete(_ id: UUID) {
-        model.deleteClimb(id)
-        Task {
-            await health.deleteClimb(id)
-            await health.refresh()
-        }
     }
 }
 
@@ -173,32 +150,6 @@ private struct HardClimbNote: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(padding: 14)
-    }
-}
-
-private struct ClimbTile: View {
-    let climb: ClimbEntry
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: (climb.kind ?? .boulder).symbol).font(.system(size: 18, weight: .bold))
-                Spacer()
-                if let g = climb.topGrade, !g.isEmpty {
-                    Text(g).font(Theme.display(20))
-                }
-            }
-            Spacer(minLength: 0)
-            Text(climb.kind?.label ?? "Climbing").font(Theme.display(17))
-            Text("\(climb.start.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))) · \(climb.durationText)")
-                .font(Theme.label(11)).opacity(0.9)
-            Text([climb.detail, climb.effort.map { "Effort \($0)" }, climb.source].compactMap { $0 }.joined(separator: " · "))
-                .font(Theme.label(10)).opacity(0.75).lineLimit(2)
-        }
-        .foregroundStyle(.white)
-        .padding(14)
-        .frame(width: 160, height: 140, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(climb.gradient))
     }
 }
 

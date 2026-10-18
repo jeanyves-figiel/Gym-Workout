@@ -148,6 +148,8 @@ final class WatchSync: NSObject {
     private weak var model: AppModel?
     /// Last "Start race on Watch" (#426), sent with the snapshot.
     private(set) var hyroxStart: (format: HyroxFormat, at: Date)?
+    /// Last "Start on Watch" for another sport (#439), sent with the snapshot.
+    private(set) var sportStart: WSportStart?
     private weak var health: HealthManager?
     private var lastSnapshot: WatchSnapshot?
     private var handled: Set<UUID> = []
@@ -237,6 +239,20 @@ final class WatchSync: NSObject {
         hyroxStart = (format, Date())
         push()
         health?.startWatchApp(activity: .crossTraining)
+    }
+
+    /// A paired Watch with MonkeyWorkout installed: "Start on Watch" can reach it (#439).
+    var watchReady: Bool {
+        guard let session, session.activationState == .activated else { return false }
+        return session.isPaired && session.isWatchAppInstalled
+    }
+
+    /// "Start on Watch" for another sport (#439): same path as Hyrox, the sport goes with the snapshot, then the
+    /// Watch app is woken with the sport's workout type.
+    func startSport(_ sport: Sport, saver: Bool) {
+        sportStart = WSportStart(sport: sport.rawValue, saver: saver, at: Date())
+        push()
+        health?.startWatchApp(activity: HealthManager.activityType(for: sport))
     }
 
     /// The Watch tracks heart rate for this iPhone workout, so the Watch saves its Health workout (#347).
@@ -344,6 +360,7 @@ final class WatchSync: NSObject {
         s.liftLogging = WatchLiftPref.shared.logging
         s.liftLearned = LiftLearning.shared.levels
         s.hyrox = model.watchHyrox(start: WatchSync.shared.hyroxStart)
+        s.sportStart = WatchSync.shared.sportStart
         let target = model.profile?.sessionsPerWeek ?? 3
         let stats = Progression.stats(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
         s.progress = WProgress(

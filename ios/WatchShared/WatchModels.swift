@@ -40,6 +40,8 @@ struct WatchSnapshot: Codable, Equatable {
     var liftLearned: [String: Double]?
     /// Hyrox (#426): division, goal, last race, and how to upload a race straight from the Watch; nil when unset.
     var hyrox: WHyrox?
+    /// "Start on Watch" for another sport on the iPhone (#439); used for a few minutes after `at`.
+    var sportStart: WSportStart?
 
     func session(_ id: String) -> WSession? { (sessions + extras).first { $0.id == id } }
 }
@@ -523,6 +525,13 @@ extension JSONDecoder {
 }
 
 /// Hyrox settings for the Watch (#426), from the iPhone's Hyrox hub.
+/// A sport the iPhone asked the Watch to track (#439). `sport` is the shared raw value (`Sport` / `TrackedSport`).
+struct WSportStart: Codable, Equatable {
+    var sport: String
+    var saver: Bool
+    var at: Date
+}
+
 struct WHyrox: Codable, Equatable {
     var division = HyroxDivision()
     /// Goal for a full race, seconds.

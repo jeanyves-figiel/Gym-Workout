@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|account-security|account-reauth|account-2step|account-recovery|account-passkeys|signin-2step|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-gym-add|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|equipment-zones|equipment-by-zone|floor-plan|session-zones|swap-zones|player-zones|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|whats-new-history|watch-lift|lift-practice|watch-home|game-{week|session|done|progress}-{coach|deck|rings}|game-quest-deck|game-ladder|game-levelup|game-levelup-legend|game-level-row|explore-programmes|programme|programme-running|train-programme|programme-test|progress-programmes|profile-programme|calendar-programme|programme-finished|programme-length|programme-grid|programme-grid-running|programme-mine|programme-builder|programme-builder-week|snow-ready|train-missed|missed-catchup|missed-log|calendar-missed|train-day-picked|train-rest-day|undo-bar|edit-exercises|session-edited|flow-warmup|flow-cooldown|quick-flow|taste|train-taste|coach-chat|coach-chat-empty|position|position-mistake|position-press]`
+/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|account-security|account-reauth|account-2step|account-recovery|account-passkeys|signin-2step|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-gym-add|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|equipment-zones|equipment-by-zone|floor-plan|session-zones|swap-zones|player-zones|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|whats-new-history|watch-lift|lift-practice|watch-home|game-{week|session|done|progress}-{coach|deck|rings}|game-quest-deck|game-ladder|game-levelup|game-levelup-legend|game-level-row|explore-programmes|programme|programme-running|train-programme|programme-test|progress-programmes|profile-programme|calendar-programme|programme-finished|programme-length|programme-grid|programme-grid-running|programme-mine|programme-builder|programme-builder-week|snow-ready|hyrox-ready|train-missed|missed-catchup|missed-log|calendar-missed|train-day-picked|train-rest-day|undo-bar|edit-exercises|session-edited|flow-warmup|flow-cooldown|quick-flow|taste|train-taste|coach-chat|coach-chat-empty|position|position-mistake|position-press]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     /// Studio coach voices (#395) for the `coach-settings` screen.
@@ -281,6 +281,18 @@ enum Demo {
         return [
             ClimbLog(kind: .boulder, start: Date().addingTimeInterval(-day - 3_600 * 3), minutes: 105, effort: 8, topGrade: "6C+"),
             ClimbLog(kind: .lead, start: Date().addingTimeInterval(-6 * day), minutes: 120, effort: 6, topGrade: "6b"),
+        ]
+    }
+
+    /// Other sports for the History page and sport widgets (#442, #444).
+    static func sportLogs() -> [SportLog] {
+        let day: Double = 86_400
+        return [
+            SportLog(sport: .snowboard, start: Date().addingTimeInterval(-2 * day - 3_600 * 5), minutes: 240, effort: 7, distanceKm: 38),
+            SportLog(sport: .hyrox, start: Date().addingTimeInterval(-8 * day), minutes: 84, effort: 9),
+            SportLog(sport: .run, start: Date().addingTimeInterval(-4 * day), minutes: 42, effort: 5, distanceKm: 8.2),
+            SportLog(sport: .snowboard, start: Date().addingTimeInterval(-16 * day), minutes: 300, effort: 6, distanceKm: 45),
+            SportLog(sport: .run, start: Date().addingTimeInterval(-11 * day), minutes: 35, effort: 4, distanceKm: 6.5),
         ]
     }
 

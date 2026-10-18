@@ -6,13 +6,6 @@ struct AccountView: View {
     @Environment(AppModel.self) private var model
     @Environment(AppLock.self) private var lock
     @Environment(HealthManager.self) private var health
-    @State private var name = ""
-    @State private var nameTask = FormTask()
-    @FocusState private var nameFocused: Bool
-    /// Community @handle, edited here next to the name (#335); same record as Community.
-    @State private var handle = ""
-    @State private var handleTask = FormTask()
-    @FocusState private var handleFocused: Bool
     @State private var exportURL: URL?
     @State private var exportTask = FormTask()
     @State private var confirmSignOutAll = false
@@ -39,9 +32,9 @@ struct AccountView: View {
     // Row search texts: title first, then the words a member might type.
     private enum Find {
         static let pro = "MonkeyWorkout Pro membership subscription trial lifetime"
-        static let profile = "Community profile photo about nickname avatar"
+        static let profile = "Your profile name nickname photo about avatar community gender pronouns coach calls you how we talk to you"
         static let gym = "Your gym equipment trip travel"
-        static let body = "Body & Health height weight apple health"
+        static let body = "Body & Health height weight sex figure apple health"
         static let method = "Training method block dup rir volume minimal"
         static let flow = "After last set workout flow next exercise countdown auto"
         static let coach = "Workout coach voice monkey hype chill drill haptics ask coach bubble microphone talk mic hands-free"
@@ -81,7 +74,6 @@ struct AccountView: View {
                 LazyVStack(alignment: .leading, spacing: 10, pinnedViews: [.sectionHeaders]) {
                     if let user = model.user {
                         profileHero(user).padding(.horizontal, 16).padding(.top, 16)
-                        ErrorText(message: nameTask.error ?? handleTask.error).padding(.horizontal, 16)
                     }
                     Section {
                         VStack(alignment: .leading, spacing: 10) {
@@ -122,10 +114,6 @@ struct AccountView: View {
         .readableWidth()
         .themedForm()
         .navigationTitle("Settings")
-        .onAppear { name = model.user?.name ?? "" }
-        .onChange(of: model.user?.name) { _, new in name = new ?? "" }
-        .onAppear { handle = Community.shared.me.nickname ?? "" }
-        .onChange(of: Community.shared.me.nickname) { _, new in if !handleFocused { handle = new ?? "" } }
         .task { deviceCount = try? await model.api.sessions().count }
         .proPaywall($gate)
         .sheet(isPresented: $climbSettings) { ClimbSettingsView() }
@@ -189,11 +177,11 @@ struct AccountView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                // Name and @handle live on the header card (#335); this row is photo and about only.
-                if search.matches(Find.profile) {
-                    NavigationLink { PublicProfileView() } label: {
+                // The header card opens Your profile (#438); this row only shows up for a search.
+                if search.active && search.matches(Find.profile) {
+                    NavigationLink { ProfileView() } label: {
                         let me = Community.shared.me
-                        SettingsRow(symbol: "person.2.fill", title: "Community profile", value: profileValue(me)) {
+                        SettingsRow(symbol: "person.crop.circle.fill", title: "Your profile", value: profileValue(me)) {
                             if let url = model.api.resolve(me.avatarUrl) {
                                 AvatarView(url: url, nickname: me.nickname ?? "?", size: 30, ring: .white)
                             } else {
@@ -432,38 +420,42 @@ struct AccountView: View {
         // Badges get their own full-width row and the sessions count is a lime pill (#211),
         // so neither squeezes the chips into letter-by-letter wrapping.
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 14) {
-                ZStack {
-                    Text(initials(user))
-                        .font(Theme.display(24))
-                        .foregroundStyle(Theme.ink)
-                        .frame(width: 64, height: 64)
-                        .background(Circle().fill(Theme.lime))
-                    // Profile photo (#108), same as in Community.
-                    if let url = model.api.resolve(Community.shared.me.avatarUrl) {
-                        AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+            // Photo, name and @nickname open one profile page for every "about me" field (#438).
+            NavigationLink { ProfileView() } label: {
+                HStack(spacing: 14) {
+                    ZStack {
+                        Text(initials(user))
+                            .font(Theme.display(24))
+                            .foregroundStyle(Theme.ink)
                             .frame(width: 64, height: 64)
-                            .clipShape(Circle())
-                    }
-                }
-                .overlay(Circle().strokeBorder(Theme.lime, lineWidth: 2.5))
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        TextField("Add your name", text: $name, prompt: Text("Add your name").foregroundStyle(.white.opacity(0.6)))
-                            .font(Theme.display(22))
-                            .textContentType(.name)
-                            .submitLabel(.done)
-                            .focused($nameFocused)
-                            .onChange(of: nameFocused) { _, focused in if !focused { saveName() } }
-                        if nameTask.busy { ProgressView().tint(.white) } else if !nameFocused {
-                            Image(systemName: "pencil").font(.footnote.weight(.bold)).opacity(0.7)
+                            .background(Circle().fill(Theme.lime))
+                        // Profile photo (#108), same as in Community.
+                        if let url = model.api.resolve(Community.shared.me.avatarUrl) {
+                            AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                                .frame(width: 64, height: 64)
+                                .clipShape(Circle())
                         }
-                        sessionsPill
                     }
-                    handleRow
-                    Text(user.email ?? "Hidden (Apple)").font(.footnote.weight(.medium)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.8)
+                    .overlay(Circle().strokeBorder(Theme.lime, lineWidth: 2.5))
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Text(user.name?.isEmpty == false ? user.name! : "Add your name")
+                                .font(Theme.display(22))
+                                .opacity(user.name?.isEmpty == false ? 1 : 0.6)
+                                .lineLimit(1).minimumScaleFactor(0.7)
+                            Image(systemName: "pencil").font(.footnote.weight(.bold)).opacity(0.7)
+                            Spacer(minLength: 0)
+                            sessionsPill
+                        }
+                        Text(Community.shared.me.nickname.map { "@\($0)" } ?? "@ add a nickname")
+                            .font(Theme.label(15))
+                            .foregroundStyle(Theme.lime.opacity(Community.shared.me.nickname == nil ? 0.6 : 1))
+                        Text(user.email ?? "Hidden (Apple)").font(.footnote.weight(.medium)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.8)
+                    }
                 }
             }
+            .buttonStyle(.plain)
+            .accessibilityHint("Edit your profile")
             let pro = ProStore.shared.entitlement.pro
             if user.appleLinked || (user.emailVerified && user.email != nil) || pro {
                 HStack(spacing: 6) {
@@ -479,27 +471,6 @@ struct AccountView: View {
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(AccountTint.profile))
-    }
-
-    /// Public @handle under the name (#335): one field, the same nickname shown in Community.
-    private var handleRow: some View {
-        HStack(spacing: 1) {
-            Text("@").font(Theme.label(15))
-            TextField("nickname", text: $handle, prompt: Text("add a nickname").foregroundStyle(Theme.lime.opacity(0.6)))
-                .font(Theme.label(15))
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .textContentType(.username)
-                .submitLabel(.done)
-                .focused($handleFocused)
-                .onChange(of: handleFocused) { _, focused in if !focused { saveHandle() } }
-                .fixedSize()
-            if handleTask.busy { ProgressView().tint(Theme.lime).scaleEffect(0.7) } else if !handleFocused {
-                Image(systemName: "pencil").font(.caption2.weight(.bold)).opacity(0.8).padding(.leading, 4)
-            }
-        }
-        .foregroundStyle(Theme.lime)
-        .accessibilityLabel("Nickname")
     }
 
     private var sessionsPill: some View {
@@ -531,39 +502,6 @@ struct AccountView: View {
         let words = ((named ? user.name : user.email) ?? "?").split(whereSeparator: { " @.".contains($0) })
         if named && words.count >= 2 { return String(words.prefix(2).compactMap(\.first)).uppercased() }
         return String((words.first ?? "?").prefix(named ? 2 : 1)).uppercased()
-    }
-
-    private func saveName() {
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
-        guard (trimmed.isEmpty ? nil : trimmed) != model.user?.name else { return }
-        nameTask.run { model.user = try await model.api.updateName(trimmed.isEmpty ? nil : trimmed) }
-    }
-
-    private func saveHandle() {
-        let me = Community.shared.me
-        let t = handle.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "@"))
-        handle = t
-        guard t != (me.nickname ?? "") else { return }
-        if t.isEmpty && me.member {
-            handleTask.error = "Community members need a nickname."
-        } else if !t.isEmpty && t.range(of: "^[A-Za-z0-9_.]{3,20}$", options: .regularExpression) == nil {
-            handleTask.error = "Nickname: 3–20 letters, digits, _ or ."
-        } else {
-            let api = model.api
-            handleTask.run {
-                #if DEBUG
-                if model.demo { return }
-                #endif
-                do {
-                    Community.shared.setPublic(try await api.savePublicProfile(nickname: t, bio: me.bio ?? ""))
-                } catch {
-                    handle = me.nickname ?? ""
-                    throw error
-                }
-            }
-            return
-        }
-        handle = me.nickname ?? ""
     }
 
     private func export() {

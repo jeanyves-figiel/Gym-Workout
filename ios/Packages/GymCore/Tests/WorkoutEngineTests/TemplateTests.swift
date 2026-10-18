@@ -3,7 +3,7 @@ import Testing
 
 @Suite struct TemplateTests {
     @Test func examplesResolveToCatalogExercises() {
-        #expect(WorkoutTemplate.all.count == 12)
+        #expect(WorkoutTemplate.all.count == 13)
         #expect(Set(WorkoutTemplate.all.map(\.id)).count == WorkoutTemplate.all.count)
         #expect(Set(WorkoutTemplate.all.map(\.name)).count == WorkoutTemplate.all.count)
         for t in WorkoutTemplate.all {
@@ -23,6 +23,11 @@ import Testing
         }
         #expect(WorkoutTemplate.armsShoulder.items.count == 10)
         #expect(WorkoutTemplate.lowerbody.items.count == 10)
+        // Trainer's Chest & Back plan: 3 × 10, pull-ups 3 × 12, one strength block.
+        let cb = WorkoutTemplate.chestBack
+        #expect(cb.items.count == 10)
+        #expect(cb.session.blocks.count == 1)
+        #expect(cb.session.blocks[0].items.map(\.prescription.reps) == ["10", "10", "10", "10", "12", "10", "10", "10", "10", "10"])
     }
 
     /// #252: ten library workouts, each goal covered, warm-up before and cool-down after the main block, sensible length.

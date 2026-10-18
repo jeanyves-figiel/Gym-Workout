@@ -143,7 +143,7 @@ public struct WorkoutTemplate: Identifiable, Hashable, Sendable {
             Item("dead-bug", sets: 2, reps: 10),
         ])
 
-    public static let all: [WorkoutTemplate] = [lowerbody, armsShoulder] + library
+    public static let all: [WorkoutTemplate] = [lowerbody, armsShoulder, chestBack] + library
 
     /// Built-in library workouts with distinct focus points (#252).
     static let library: [WorkoutTemplate] = [
@@ -179,6 +179,22 @@ public struct WorkoutTemplate: Identifiable, Hashable, Sendable {
             Item("db-reverse-fly"),
             Item("db-french-press"),
             Item("diamond-push-up", kcal: 30),
+        ])
+
+    /// Trainer's plan "Trainingspläne 3 – Chest & Back" (#451), as given: 3 × 10 (pull-ups 3 × 12).
+    static let chestBack = WorkoutTemplate(
+        id: "chest-back", name: "Chest & Back", focus: .chestBack, kcal: 102, activityPoints: 88,
+        items: [
+            Item("bench-press"),
+            Item("incline-bench-press"),
+            Item("db-fly"),
+            Item("low-high-cable-fly", kcal: 6),
+            Item("pull-up", reps: 12, kcal: 72),
+            Item("plate-loaded-pulldown"),
+            Item("single-arm-cable-row"),
+            Item("deadlift", kcal: 24),
+            Item("db-reverse-fly"),
+            Item("db-shrug"),
         ])
 
     static let pushPower = WorkoutTemplate(

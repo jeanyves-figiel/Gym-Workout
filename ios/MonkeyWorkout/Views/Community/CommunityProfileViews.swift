@@ -9,7 +9,7 @@ import WorkoutEngine
 /// The form owns the scroll view here so the join button stays pinned above the fold.
 struct JoinCommunityView: View {
     var body: some View {
-        CommunityProfileForm(profile: nil)
+        CommunityProfileForm()
     }
 }
 
@@ -104,27 +104,13 @@ private struct JoinVisibilityCard: View {
     }
 }
 
-// MARK: - Profile form (join + edit + Account)
+// MARK: - Join form
 
-/// One form for the nickname, photo and about shown on Account and in Community (#108).
-/// `account`: edited from Account (works before joining; nickname optional until then).
+/// Joining the community: nickname, photo and about (#108), visibility and the guidelines.
+/// Editing after that is on Your profile (#438).
 struct CommunityProfileForm: View {
-    let profile: CommunityProfile?
-    var account = false
-    /// Values brought back by Undo (#285).
-    var restoring: Draft?
     var onSaved: () -> Void = {}
     @Environment(AppModel.self) private var model
-
-    /// What's entered, kept for Undo (#285).
-    struct Draft: Equatable {
-        var nickname: String
-        var bio: String
-        var visibility: CommunityVisibility
-        var autoShare: Bool
-        var photo: Data?
-        var removePhoto: Bool
-    }
 
     @State private var nickname = ""
     @State private var bio = ""
@@ -139,25 +125,15 @@ struct CommunityProfileForm: View {
     @State private var loaded = false
     /// Join with an Account profile already set: show it as a card instead of the fields.
     @State private var prefilled = false
-    @State private var start: Draft?
-    @State private var closeGuard = CloseGuard()
 
-    private var joining: Bool { profile == nil && !account }
-    private var member: Bool { Community.shared.profile != nil }
     private var nicknameValid: Bool { nickname.range(of: "^[A-Za-z0-9_.]{3,20}$", options: .regularExpression) != nil }
-    /// Photo already saved (Account or community profile, same record).
-    private var savedAvatar: String? { profile?.avatarUrl ?? Community.shared.me.avatarUrl }
-
-    private var canSave: Bool {
-        if account { return nicknameValid || (nickname.isEmpty && !member) }
-        return nicknameValid && (!joining || accepted)
-    }
+    /// Photo already saved on Your profile (same record).
+    private var savedAvatar: String? { Community.shared.me.avatarUrl }
+    private var canSave: Bool { nicknameValid && accepted }
 
     var body: some View {
-        Group {
-            if joining { joinLayout } else if account { accountLayout } else { editLayout }
-        }
-        .sheet(isPresented: $showGuidelines) { NavigationStack { GuidelinesView() } }
+        joinLayout
+            .sheet(isPresented: $showGuidelines) { NavigationStack { GuidelinesView() } }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
             Task {
@@ -173,47 +149,17 @@ struct CommunityProfileForm: View {
             guard !loaded else { return }
             loaded = true
             fillFromProfile()
-            visibility = profile?.defaultVisibility ?? .members  // join preselects Members (#90)
-            autoShare = profile?.autoShare ?? false
-            start = draft
-            if let restoring {
-                nickname = restoring.nickname
-                bio = restoring.bio
-                visibility = restoring.visibility
-                autoShare = restoring.autoShare
-                photo = restoring.photo
-                removePhoto = restoring.removePhoto
-            }
+            visibility = .members  // join preselects Members (#90)
         }
-        // The join screen stays alive in its tab: follow Account edits made meanwhile (#122).
-        .onChange(of: Community.shared.me) { _, _ in if joining { fillFromProfile() } }
-        .undoableClose(closeGuard, offer: undoOffer)
-    }
-
-    private var draft: Draft {
-        Draft(nickname: nickname, bio: bio, visibility: visibility, autoShare: autoShare, photo: photo, removePhoto: removePhoto)
-    }
-
-    /// Undo bar when Account → Profile or Edit profile closes with changes (#285); joining has no close.
-    private var undoOffer: UndoOffer? {
-        guard !joining, let start, draft != start else { return nil }
-        let kept = draft
-        let edited = self.profile, fromAccount = self.account
-        let detail = undoDetail(kept.nickname, kept.photo != nil ? "new photo" : kept.removePhoto ? "photo removed" : nil)
-        return UndoOffer(title: "Profile closed", detail: detail.isEmpty ? "Changes not saved" : detail,
-                         symbol: "person.crop.circle.fill", colors: [Color(red: 0.08, green: 0.78, blue: 0.56), Color(red: 0.12, green: 0.5, blue: 1)]) {
-            if !fromAccount, let edited {
-                return AnyView(UndoReopenedPush { EditCommunityProfileView(profile: edited, restoring: kept) })
-            }
-            return AnyView(UndoReopenedPush { PublicProfileView(restoring: kept) })
-        }
+        // The join screen stays alive in its tab: follow Your profile edits made meanwhile (#122).
+        .onChange(of: Community.shared.me) { _, _ in fillFromProfile() }
     }
 
     private func fillFromProfile() {
         let me = Community.shared.me
-        nickname = profile?.nickname ?? me.nickname ?? ""
-        bio = profile?.bio ?? me.bio ?? ""
-        prefilled = joining && (me.nickname ?? "").range(of: "^[A-Za-z0-9_.]{3,20}$", options: .regularExpression) != nil
+        nickname = me.nickname ?? ""
+        bio = me.bio ?? ""
+        prefilled = (me.nickname ?? "").range(of: "^[A-Za-z0-9_.]{3,20}$", options: .regularExpression) != nil
     }
 
     /// Join: hero, nickname and the visibility choice first; the guidelines toggle and the join
@@ -259,18 +205,6 @@ struct CommunityProfileForm: View {
         }
     }
 
-    /// Settings → Community profile: photo and about; the nickname is edited on the Settings header card (#335).
-    private var accountLayout: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            photoRow
-            bioField
-            Text(member ? "Shown on your community profile and posts." : "Used when you join the community. Nothing is shared until then.")
-                .font(.footnote).foregroundStyle(Theme.muted)
-            ErrorText(message: task.error)
-            saveButton
-        }
-    }
-
     /// Join with the Account profile already set: who you'll appear as, with Edit to change it here.
     private var prefilledCard: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -282,7 +216,7 @@ struct CommunityProfileForm: View {
                     if !bio.isEmpty {
                         Text(bio).font(.footnote.weight(.semibold)).opacity(0.88).lineLimit(2)
                     }
-                    Text("From Settings").font(Theme.label(10)).tracking(1).opacity(0.75)
+                    Text("From Your profile").font(Theme.label(10)).tracking(1).opacity(0.75)
                 }
                 Spacer(minLength: 4)
                 Button("Edit") { withAnimation(.snappy) { prefilled = false } }
@@ -297,23 +231,8 @@ struct CommunityProfileForm: View {
         }
     }
 
-    private var editLayout: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            photoRow
-            nicknameField
-            bioField
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Default visibility of your posts").eyebrow()
-                VisibilityPicker(selection: $visibility)
-            }
-            autoShareToggle
-            ErrorText(message: task.error)
-            saveButton
-        }
-    }
-
     private var saveButton: some View {
-        Button(task.busy ? "SAVING…" : (joining ? "JOIN THE COMMUNITY" : "SAVE")) { save() }
+        Button(task.busy ? "SAVING…" : "JOIN THE COMMUNITY") { save() }
             .buttonStyle(LimeButtonStyle(fill: canSave ? Theme.lime : Theme.cardStrong, text: canSave ? Theme.ink : Color.white.opacity(0.6)))
             .disabled(!canSave || task.busy)
     }
@@ -357,7 +276,7 @@ struct CommunityProfileForm: View {
                 .autocorrectionDisabled()
                 .font(.system(.title3, design: .rounded).weight(.bold))
                 .card(padding: 14)
-            Text(account && !member ? "3–20 letters, digits, _ or . · optional until you join the community" : "3–20 letters, digits, _ or . · shown instead of your name")
+            Text("3–20 letters, digits, _ or . · shown instead of your name")
                 .font(.footnote).foregroundStyle(nickname.isEmpty || nicknameValid ? Theme.muted : .red)
         }
     }
@@ -387,29 +306,15 @@ struct CommunityProfileForm: View {
         let api = model.api
         let n = nickname.trimmingCharacters(in: .whitespaces)
         let b = bio.trimmingCharacters(in: .whitespacesAndNewlines)
-        let v = visibility, a = autoShare, join = joining, newPhoto = photo, remove = removePhoto
-        let closing = closeGuard
+        let v = visibility, a = autoShare, newPhoto = photo, remove = removePhoto
         task.run {
             #if DEBUG
-            if model.demo {
-                closing.done()
-                onSaved()
-                return
-            }
+            if model.demo { return onSaved() }
             #endif
-            if account {
-                var pp = try await api.savePublicProfile(nickname: n, bio: b)
-                if let newPhoto { pp = try await api.uploadPublicAvatar(jpeg: newPhoto) } else if remove, pp.avatarUrl != nil { pp = try await api.deletePublicAvatar() }
-                Community.shared.setPublic(pp)
-                closing.done()
-                onSaved()
-                return
-            }
-            var p = try await api.saveCommunityProfile(nickname: n, bio: b, defaultVisibility: v, autoShare: a, acceptGuidelines: join)
+            var p = try await api.saveCommunityProfile(nickname: n, bio: b, defaultVisibility: v, autoShare: a, acceptGuidelines: true)
             if let newPhoto { p = try await api.uploadAvatar(jpeg: newPhoto) } else if remove, p.avatarUrl != nil { p = try await api.deleteAvatar() }
             Community.shared.setProfile(p)
-            if join { await Community.shared.refresh(api: api) }
-            closing.done()
+            await Community.shared.refresh(api: api)
             onSaved()
         }
     }
@@ -508,21 +413,13 @@ struct CommunityProfileView: View {
                         Label(gym, systemImage: "building.2.fill").font(Theme.label(13)).foregroundStyle(Theme.lime).frame(maxWidth: .infinity)
                     }
                     CommunityStats(shared: p.sharedPosts, cheers: p.cheersReceived, followers: p.followers)
-                    Text("Your gym").eyebrow()
-                    ShowGymCard()
                     Text("Profile").eyebrow()
                     Group {
-                        NavigationLink { editView(p) } label: {
-                            AccountCard(symbol: "pencil", title: "Nickname, photo, about", subtitle: "Also in Settings",
+                        // Same page as the Settings header card (#438): nickname, photo, about, pronouns, visibility, auto-share.
+                        NavigationLink { ProfileView() } label: {
+                            AccountCard(symbol: "pencil", title: "Edit profile",
+                                        subtitle: "\(p.defaultVisibility.title) · auto-share \(p.autoShare ? "on" : "off")",
                                         gradient: WorkoutEngine.Category.strength.gradient)
-                        }
-                        NavigationLink { editView(p) } label: {
-                            AccountCard(symbol: p.defaultVisibility.symbol, title: "Default visibility", subtitle: p.defaultVisibility.title,
-                                        gradient: WorkoutEngine.Category.cardio.gradient)
-                        }
-                        NavigationLink { editView(p) } label: {
-                            AccountCard(symbol: "bolt.fill", title: "Auto-share workouts", subtitle: p.autoShare ? "On" : "Off",
-                                        gradient: WorkoutEngine.Category.warmup.gradient)
                         }
                         NavigationLink { BlockedMembersView() } label: {
                             AccountCard(symbol: "hand.raised.fill", title: "Blocked members", gradient: WorkoutEngine.Category.mobility.gradient)
@@ -552,10 +449,6 @@ struct CommunityProfileView: View {
         }
     }
 
-    private func editView(_ p: CommunityProfile) -> some View {
-        EditCommunityProfileView(profile: p)
-    }
-
     private func leave() {
         let api = model.api
         task.run {
@@ -563,24 +456,6 @@ struct CommunityProfileView: View {
             Community.shared.left()
             dismiss()
         }
-    }
-}
-
-private struct EditCommunityProfileView: View {
-    let profile: CommunityProfile
-    /// Values brought back by Undo (#285).
-    var restoring: CommunityProfileForm.Draft?
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        ScrollView {
-            CommunityProfileForm(profile: profile, restoring: restoring) { dismiss() }.padding(16)
-        }
-        .readableWidth()
-        .scrollDismissesKeyboard(.interactively)
-        .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Edit profile")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -888,31 +763,5 @@ extension CommunityReportReason {
         case .violence: "Violence or self-harm"
         case .other: "Something else"
         }
-    }
-}
-
-// MARK: - Account → Profile (#108)
-
-/// Nickname, photo and about edited from Account; the same record as the community profile.
-struct PublicProfileView: View {
-    /// Values brought back by Undo (#285).
-    var restoring: CommunityProfileForm.Draft?
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                AccountHeader(symbol: "person.2.fill", title: "Community profile",
-                              subtitle: "Photo and about. Your @nickname is on the Settings card.", gradient: AccountTint.publicProfile)
-                CommunityProfileForm(profile: Community.shared.profile, account: true, restoring: restoring) { dismiss() }
-            }
-            .padding(16)
-            .padding(.bottom, 24)
-        }
-        .readableWidth()
-        .scrollDismissesKeyboard(.interactively)
-        .themedForm()
-        .navigationTitle("Community profile")
-        .toolbarTitleDisplayMode(.inline)
     }
 }

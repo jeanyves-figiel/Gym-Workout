@@ -27,6 +27,40 @@ extension HyroxStep {
 }
 
 /// Progress: the way into the hub, with the race countdown.
+/// B · Hyrox ready in the hub (#431): "Train for this race" until it runs, then its week and phase.
+private struct HyroxProgrammeCard: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let running = model.activeProgramme.flatMap { $0.programme?.isHyrox == true ? $0 : nil }
+        let p = running?.programme ?? Programme.find(Programme.hyroxId)!
+        NavigationLink { ProgrammeDetailView(programme: Programme.find(Programme.hyroxId)!) } label: {
+            HStack(spacing: 12) {
+                Image(systemName: running == nil ? "figure.strengthtraining.functional" : "flag.checkered")
+                    .font(.system(size: 20, weight: .bold))
+                    .frame(width: 44, height: 44)
+                    .background(RoundedRectangle(cornerRadius: 13).fill(.white.opacity(0.22)))
+                VStack(alignment: .leading, spacing: 3) {
+                    if let running, let w = model.programmeWeek {
+                        Text("HYROX READY · WEEK \(w) OF \(p.weeks)").font(Theme.label(10)).tracking(1).opacity(0.85)
+                        Text(running.paused ? "Paused" : p.phase(week: w).note).font(Theme.display(17)).lineLimit(2).minimumScaleFactor(0.7)
+                    } else {
+                        Text("Train for this race").font(Theme.display(19))
+                        Text("Hyrox ready fits a plan to your race days: your stations, your goal pace.")
+                            .font(.footnote.weight(.semibold)).opacity(0.9).lineLimit(2)
+                    }
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.system(size: 14, weight: .heavy))
+            }
+            .foregroundStyle(.white)
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(HyroxColors.run))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 struct HyroxHubCard: View {
     @Environment(AppModel.self) private var model
     @State private var open = false
@@ -53,6 +87,35 @@ struct HyroxHubCard: View {
     }
 }
 
+/// Explore → Hyrox (#439, design C): the hub for everyone, not only members with Hyrox in My sports.
+struct HyroxExploreCard: View {
+    @State private var open = false
+
+    var body: some View {
+        Button { open = true } label: {
+            HStack(spacing: 16) {
+                Image(systemName: "flag.checkered")
+                    .font(.system(size: 28, weight: .bold))
+                    .frame(width: 60, height: 60)
+                    .background(RoundedRectangle(cornerRadius: 18).fill(.white.opacity(0.2)))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Hyrox").font(Theme.display(24))
+                    Text("Race mode on your Watch, pacing plan, sims and race reports.")
+                        .font(.footnote.weight(.medium)).opacity(0.85).multilineTextAlignment(.leading)
+                }
+                Spacer()
+                Text("16").font(Theme.display(22)).opacity(0.8)
+            }
+            .foregroundStyle(.white)
+            .padding(18)
+            .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(HyroxColors.race))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens the Hyrox page")
+        .sheet(isPresented: $open) { HyroxHubView() }
+    }
+}
+
 /// B · Hyrox hub: division and goal, pacing plan per split, sims for this week, Start race on Watch, past races.
 struct HyroxHubView: View {
     @Environment(AppModel.self) private var model
@@ -73,6 +136,7 @@ struct HyroxHubView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     hero
+                    HyroxProgrammeCard()
                     HyroxSettingsCard()
                     pacing
                     sims
