@@ -15,6 +15,7 @@ import type { Config } from './config.ts';
 import { hmac, randomToken, safeEqualHex, sha256, sixDigitCode, verifyPassword } from './crypto.ts';
 import { type DB, tx } from './db.ts';
 import { ApiError } from './errors.ts';
+import { CODES_PER_HOUR, DAY, GUESSES_PER_DAY, HOUR, throttleCount, throttleHit, throttleTake } from './throttle.ts';
 import type { Mailer } from './mailer.ts';
 import { newTotpSecret, otpauthUrl, verifyTotp } from './totp.ts';
 
@@ -181,10 +182,12 @@ export class SecurityService {
   async sendReauthCode(userId: string): Promise<void> {
     const u = this.user(userId)!;
     if (!u.email || !u.email_verified_at) throw new ApiError(400, 'no_verified_email', 'This account has no verified email.');
+    // Newest code even when burned, plus an hourly cap: a burned code must not be replaced at once (#432).
     const last = this.d.db
-      .prepare('SELECT created_at FROM reauth_codes WHERE user_id = ? AND consumed_at IS NULL ORDER BY created_at DESC LIMIT 1')
+      .prepare('SELECT created_at FROM reauth_codes WHERE user_id = ? ORDER BY created_at DESC LIMIT 1')
       .get(userId) as { created_at: string } | undefined;
     if (last && last.created_at > this.iso(-RESEND_MS)) return;
+    if (!throttleTake(this.d.db, `code:reauth:${userId}`, CODES_PER_HOUR, HOUR, this.d.now())) return;
     const code = sixDigitCode();
     const now = this.iso();
     tx(this.d.db, () => {
@@ -209,8 +212,10 @@ export class SecurityService {
       .prepare('SELECT id, code_hash, attempts, expires_at FROM reauth_codes WHERE user_id = ? AND consumed_at IS NULL ORDER BY created_at DESC LIMIT 1')
       .get(userId) as { id: string; code_hash: string; attempts: number; expires_at: string } | undefined;
     const invalid = new ApiError(400, 'invalid_code', 'Invalid or expired code.');
+    this.assertGuessBudget(userId, 'reauth_code');
     if (!row || row.expires_at <= this.iso()) throw invalid;
     if (!safeEqualHex(row.code_hash, this.codeHash(userId, code))) {
+      this.missedGuess(userId, 'reauth_code');
       const attempts = row.attempts + 1;
       const burn = attempts >= MAX_ATTEMPTS;
       this.d.db.prepare('UPDATE reauth_codes SET attempts = ?, consumed_at = ? WHERE id = ?').run(attempts, burn ? this.iso() : null, row.id);
@@ -238,7 +243,7 @@ export class SecurityService {
     const fail = (msg: string) => new ApiError(401, 'reauth_failed', msg);
     switch (b.method) {
       case 'password':
-        if (!u.password_hash || !(await verifyPassword(b.password, u.password_hash))) throw fail('Password is incorrect.');
+        if (!(await this.passwordMatches(u, b.password))) throw fail('Password is incorrect.');
         break;
       case 'apple': {
         let sub: string | undefined;
@@ -281,7 +286,7 @@ export class SecurityService {
     }
     const u = this.user(userId)!;
     if (legacyPassword !== undefined && u.password_hash) {
-      if (await verifyPassword(legacyPassword, u.password_hash)) return;
+      if (await this.passwordMatches(u, legacyPassword)) return;
       throw new ApiError(401, 'invalid_credentials', 'Password is incorrect.');
     }
     throw new ApiError(403, 'reauth_required', "Confirm it's you first.", { methods: this.reauthMethods(u) });
@@ -361,22 +366,47 @@ export class SecurityService {
     });
   }
 
+  /** Per-account wrong-guess budget, shared across challenges, codes and IPs (#432). */
+  private assertGuessBudget(userId: string, kind: string): void {
+    if (throttleCount(this.d.db, `guess:${kind}:${userId}`, DAY, this.d.now()) >= GUESSES_PER_DAY)
+      throw new ApiError(429, 'too_many_attempts', 'Too many wrong attempts. Try again tomorrow.');
+  }
+  private missedGuess(userId: string, kind: string): void {
+    throttleHit(this.d.db, `guess:${kind}:${userId}`, DAY, this.d.now());
+  }
+
+  /** Password check for signed-in members (re-auth): counted, so a stolen session can't brute-force it. */
+  private async passwordMatches(u: UserRow, password: string): Promise<boolean> {
+    if (!u.password_hash) return false;
+    this.assertGuessBudget(u.id, 'password');
+    if (await verifyPassword(password, u.password_hash)) return true;
+    this.missedGuess(u.id, 'password');
+    return false;
+  }
+
   private checkTotp(userId: string, code: string): boolean {
+    this.assertGuessBudget(userId, 'totp');
     const row = this.d.db.prepare('SELECT secret_enc, last_step FROM totp_secrets WHERE user_id = ? AND enabled_at IS NOT NULL').get(userId) as
       | { secret_enc: string; last_step: number }
       | undefined;
     if (!row) return false;
     const step = verifyTotp(this.decrypt(row.secret_enc), code, this.d.now(), row.last_step);
-    if (step === undefined) return false;
+    if (step === undefined) {
+      this.missedGuess(userId, 'totp');
+      return false;
+    }
     this.d.db.prepare('UPDATE totp_secrets SET last_step = ? WHERE user_id = ?').run(step, userId);
     return true;
   }
 
   private useRecoveryCode(userId: string, code: string): boolean {
+    this.assertGuessBudget(userId, 'totp');
     const r = this.d.db
       .prepare('UPDATE recovery_codes SET used_at = ? WHERE user_id = ? AND code_hash = ? AND used_at IS NULL')
       .run(this.iso(), userId, this.recoveryHash(userId, code));
-    return Number(r.changes) > 0;
+    if (Number(r.changes) > 0) return true;
+    this.missedGuess(userId, 'totp');
+    return false;
   }
 
   /** Called by password login after the password checks out: no tokens until the second step. */
@@ -561,10 +591,13 @@ export class SecurityService {
   private async notify(userId: string, what: string, text: string) {
     const u = this.user(userId);
     if (!u?.email || !u.email_verified_at) return;
-    await this.d.mailer.send({
-      to: u.email,
-      subject: `${this.d.config.appName}: ${what}`,
-      text: `${text}\nIf this wasn't you, reset your password and sign out all devices.`,
-    });
+    // Notices follow a committed change: a mail failure must not fail the request (#432).
+    await this.d.mailer
+      .send({
+        to: u.email,
+        subject: `${this.d.config.appName}: ${what}`,
+        text: `${text}\nIf this wasn't you, reset your password and sign out all devices.`,
+      })
+      .catch(() => undefined);
   }
 }

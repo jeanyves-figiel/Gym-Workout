@@ -128,7 +128,12 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
     return reply.status(500).send({ error: 'internal', message: 'Something went wrong.' });
   });
 
-  app.register(rateLimit, { global: false });
+  // Key on the address Fly's proxy saw: with trustProxy, req.ip is the client-supplied left-most
+  // X-Forwarded-For entry, so any caller could pick a fresh key per request (#432).
+  app.register(rateLimit, {
+    global: false,
+    keyGenerator: (req) => (req.headers['fly-client-ip'] as string | undefined)?.trim() || req.socket.remoteAddress || req.ip,
+  });
 
   // Personal data must not land in HTTP caches on the device or in between (#310).
   app.addHook('onSend', async (req, reply) => {
@@ -164,8 +169,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       });
 
       r.post('/verify-email', limit, async (req) => {
-        const b = z.object({ email, code }).parse(req.body);
-        return auth.verifyEmail(b.email, b.code, device(req));
+        const b = z.object({ email, code, password: password.optional() }).parse(req.body);
+        return auth.verifyEmail(b.email, b.code, device(req), b.password);
       });
 
       r.post('/resend-verification', limit, async (req, reply) => {
