@@ -187,6 +187,16 @@ struct SetCase: Sendable, CustomTestStringConvertible {
         #expect(LiftProfile.for(name: "Dumbbell Curl") == LiftProfile(direction: .up, family: .arm))
     }
 
+    @Test func floorFollowsTheLift() {
+        #expect(LiftProfile.for(name: "Bench Press")?.minRange == 0.12)
+        #expect(LiftProfile.for(name: "Barbell Back Squat")?.minRange == 0.15)
+        #expect(LiftProfile.for(name: "Dumbbell Curl")?.minRange == 0.10)
+        // Shrugs move 5–10 cm.
+        #expect(LiftProfile.for(name: "Barbell Shrug")?.minRange == 0.06)
+        let t = SetTracker(profile: LiftProfile(direction: .up, family: .squat), lossLimit: nil)
+        #expect(t.config.minRange == 0.15)
+    }
+
     @Test func machineLiftsAreNotTracked() {
         for n in ["Leg Press", "Leg Extension", "Seated Leg Curl", "Standing Calf Raise", "Barbell Hip Thrust", "Pull-Up", "Dips", "Plank"] {
             #expect(LiftProfile.for(name: n) == nil, "\(n)")

@@ -43,7 +43,8 @@ public final class SetTracker {
         self.profile = profile
         self.lossLimit = lossLimit
         var c = config
-        c.minRange = min(c.minRange, profile.minRange)
+        // Smallest rep of the lift's family (#424).
+        c.minRange = profile.minRange
         baseConfig = c
         self.strictness = strictness
         self.config = Strictness.apply(strictness, to: c)

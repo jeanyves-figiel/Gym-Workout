@@ -87,9 +87,9 @@ struct LiftSensorCard: View {
 extension WatchLiftCounting {
     var hint: String {
         switch self {
-        case .relaxed: "Counts short pushes too (from about 7 cm). For small movements like raises."
-        case .normal: "A rep is a push of 8 cm or more. Moves much shorter than your other reps don't count."
-        case .strict: "A rep needs 10 cm and a full push like your other reps. Unracking and fidgeting don't count."
+        case .relaxed: "15 % less travel needed (bench 10 cm, squat 13 cm). Partials and short movements count too."
+        case .normal: "A rep needs real travel: 12 cm on bench, rows and deadlifts, 15 cm on squats and presses, 10 cm on curls and raises. After 3 reps, moves under a third of your usual rep don't count."
+        case .strict: "25 % more travel (bench 15 cm, squat 19 cm) and close to your usual rep. Unracking and fidgeting never count."
         }
     }
 }
