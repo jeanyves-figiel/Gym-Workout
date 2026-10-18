@@ -68,12 +68,16 @@ final class AuthorizationRunner: NSObject, ASAuthorizationControllerDelegate, AS
         return a
     }
 
-    /// Fresh Sign in with Apple (Face ID), for "confirm it's you". Returns the identity token.
-    func appleIdentityToken() async throws -> String {
-        guard case let .apple(token, _, _) = try await perform(ASAuthorizationAppleIDProvider().createRequest()) else {
+    /// Fresh Sign in with Apple (Face ID), for "confirm it's you". Returns the identity token and the raw nonce
+    /// whose hash Apple signed into it (#432).
+    func appleIdentityToken() async throws -> (token: String, nonce: String) {
+        let nonce = AppleNonce()
+        let request = ASAuthorizationAppleIDProvider().createRequest()
+        request.nonce = nonce.hashed
+        guard case let .apple(token, _, _) = try await perform(request) else {
             throw PasskeyError.badResponse
         }
-        return token
+        return (token, nonce.raw)
     }
 
     nonisolated func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
@@ -264,7 +268,8 @@ struct ReauthSheet: View {
             }
         case .apple:
             task.run {
-                try await model.api.reauth(appleIdentityToken: try await runner.appleIdentityToken())
+                let apple = try await runner.appleIdentityToken()
+                try await model.api.reauth(appleIdentityToken: apple.token, nonce: apple.nonce)
                 done(true)
             }
         case .emailCode:

@@ -89,9 +89,10 @@ public actor APIClient {
     }
 
     /// `authorizationCode` lets the server obtain an Apple refresh token, revoked when the account is deleted.
-    public func signInWithApple(identityToken: String, name: String?, authorizationCode: String? = nil) async throws -> User {
-        struct Body: Encodable { var identityToken: String; var authorizationCode: String?; var name: String? }
-        return try await authenticate("/v1/auth/apple", Body(identityToken: identityToken, authorizationCode: authorizationCode, name: name))
+    /// `nonce`: the raw `AppleNonce` whose hash was set on the Apple request (#432).
+    public func signInWithApple(identityToken: String, name: String?, authorizationCode: String? = nil, nonce: String? = nil) async throws -> User {
+        struct Body: Encodable { var identityToken: String; var authorizationCode: String?; var name: String?; var nonce: String? }
+        return try await authenticate("/v1/auth/apple", Body(identityToken: identityToken, authorizationCode: authorizationCode, name: name, nonce: nonce))
     }
 
     public func forgotPassword(email: String) async throws {
