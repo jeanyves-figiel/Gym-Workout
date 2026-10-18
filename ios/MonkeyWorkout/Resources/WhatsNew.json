@@ -20,6 +20,12 @@
       "body": "Logging a climb now looks like Log sport, with quick grade chips."
     },
     {
+      "symbol": "applewatch",
+      "tint": "cardio",
+      "title": "Track on your Watch from Train",
+      "body": "The Watch button and Track live show up as soon as your Watch is connected, under a full-width Start workout."
+    },
+    {
       "symbol": "exclamationmark.bubble.fill",
       "tint": "power",
       "title": "Report a problem",
