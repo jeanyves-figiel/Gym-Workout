@@ -17,6 +17,8 @@ export const NotificationPrefs = z.object({
   quietHours: z.boolean().default(true),
   quietStart: minutes.default(22 * 60),
   quietEnd: minutes.default(7 * 60),
+  /** Daily Move nudge (#454): scheduled on the device; kept so the copy matches. */
+  moveNudges: z.boolean().default(true),
 });
 export type NotificationPrefs = z.infer<typeof NotificationPrefs>;
 

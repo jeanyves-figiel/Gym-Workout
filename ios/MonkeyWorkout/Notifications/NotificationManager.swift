@@ -37,11 +37,14 @@ final class NotificationManager: NSObject {
         static let missed = "SESSION_MISSED"
         static let follow = "FOLLOW_ACHIEVEMENT"
         static let badge = "BADGE_UNLOCKED"
+        static let move = "MOVE_NUDGE"
     }
 
     enum Action {
         static let trainToday = "TRAIN_TODAY"
         static let reschedule = "RESCHEDULE"
+        static let moveLater = "MOVE_LATER"
+        static let moveRest = "MOVE_REST"
     }
 
     private static let prefsKey = "notifications.prefs"
@@ -79,6 +82,10 @@ final class NotificationManager: NSObject {
             UNNotificationCategory(identifier: Category.missed, actions: [train, move], intentIdentifiers: []),
             UNNotificationCategory(identifier: Category.follow, actions: [], intentIdentifiers: []),
             UNNotificationCategory(identifier: Category.badge, actions: [], intentIdentifiers: []),
+            UNNotificationCategory(identifier: Category.move, actions: [
+                UNNotificationAction(identifier: Action.moveLater, title: "Later", options: []),
+                UNNotificationAction(identifier: Action.moveRest, title: "Rest day", options: []),
+            ], intentIdentifiers: []),
         ])
     }
 
@@ -161,6 +168,38 @@ final class NotificationManager: NSObject {
     }
 
     private static func isOurs(_ id: String) -> Bool { id.hasPrefix("upcoming|") || id.hasPrefix("missed|") || id.hasPrefix("sport|") }
+
+    // MARK: Daily Move (#454)
+
+    /// The slow-day nudge, right now (decided by `HealthManager.checkMoveNudge` from fresh steps).
+    func postMoveNudge(steps: Int, usual: Int) async {
+        await refreshAuthorization()
+        guard allowed else { return }
+        let text = DailyMove.message(steps: steps, usual: usual)
+        await postMove(id: "move|\(MoveStore.shared.key(Date()))", title: text.title, body: text.body, trigger: nil)
+    }
+
+    /// "Later": one reminder an hour from now, still inside the evening and out of quiet hours.
+    func moveLater(now: Date = Date()) async {
+        let at = now.addingTimeInterval(3600)
+        let cal = Calendar.current
+        let minute = cal.component(.hour, from: at) * 60 + cal.component(.minute, from: at)
+        guard cal.isDate(at, inSameDayAs: now), minute < 21 * 60, !prefs.isQuiet(minute) else { return }
+        await postMove(id: "move-later|\(MoveStore.shared.key(now))", title: "Up for that walk now? 👣",
+                       body: "Steps and stairs count toward your level.",
+                       trigger: UNTimeIntervalNotificationTrigger(timeInterval: 3600, repeats: false))
+    }
+
+    private func postMove(id: String, title: String, body: String, trigger: UNNotificationTrigger?) async {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.threadIdentifier = "move"
+        content.categoryIdentifier = Category.move
+        content.userInfo = ["kind": "move"]
+        try? await center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
+    }
 
     /// Test notification in 5 s (Settings).
     func sendLocalTest() async {
@@ -303,6 +342,19 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let info = response.notification.request.content.userInfo
+        if info["kind"] as? String == "move", [Action.moveLater, Action.moveRest].contains(response.actionIdentifier) {
+            let later = response.actionIdentifier == Action.moveLater
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    if !later { MoveStore.shared.restToday() }
+                }
+                Task { @MainActor in
+                    if later { await NotificationManager.shared.moveLater() }
+                    completionHandler()
+                }
+            }
+            return
+        }
         let route = Self.route(kind: info["kind"] as? String, action: response.actionIdentifier,
                                sessionId: info["sessionId"] as? String,
                                day: (info["day"] as? Double).map { Date(timeIntervalSince1970: $0) },
