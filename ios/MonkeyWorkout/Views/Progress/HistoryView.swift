@@ -59,7 +59,7 @@ enum HistoryItem: Identifiable, Equatable {
             if let hr = r.avgHeartRate { parts.append("\(Int(hr)) bpm") }
             return parts.joined(separator: " · ")
         case .climb(let c):
-            return [c.topGrade.map { "top \($0)" }, c.detail, c.source == "MonkeyWorkout" ? nil : c.source]
+            return [c.topGrade.map { "top \($0)" }, c.detail, c.effort.map { "effort \($0)" }, c.source == "MonkeyWorkout" ? nil : c.source]
                 .compactMap { $0 }.joined(separator: " · ")
         case .sport(let s):
             let stats = s.statsText
@@ -284,8 +284,24 @@ struct HistoryView: View {
             NavigationLink(value: r.id) { HistoryTile(item: item) }.buttonStyle(.plain)
         case .sport(let s):
             Button { sport = s } label: { HistoryTile(item: item) }.buttonStyle(.plain)
-        case .climb:
+        case .climb(let c):
+            // Logged here: long press deletes it (moved from Train's Recent climbs).
             HistoryTile(item: item)
+                .contextMenu {
+                    if c.local {
+                        Button("Delete climb", systemImage: "trash", role: .destructive) { deleteClimb(c.id) }
+                    }
+                }
+        }
+    }
+}
+
+extension HistoryView {
+    fileprivate func deleteClimb(_ id: UUID) {
+        model.deleteClimb(id)
+        Task {
+            await health.deleteClimb(id)
+            await health.refresh()
         }
     }
 }
