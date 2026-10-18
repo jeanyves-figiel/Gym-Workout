@@ -58,8 +58,12 @@ export const deletedSince = (db: DB, userId: string, kind: SyncKind, since: stri
 export const deletedField = (db: DB, userId: string, kind: SyncKind, since: string | undefined): { deleted?: string[] } =>
   since === undefined ? {} : { deleted: deletedSince(db, userId, kind, since) };
 
-/** Items of an upload whose id the member hasn't deleted: a stale device must not bring a deleted item back. */
-export const notDeleted = <T extends { id: string }>(db: DB, userId: string, kind: SyncKind, items: T[]): T[] => {
-  const dead = db.prepare('SELECT 1 FROM sync_tombstones WHERE user_id = ? AND kind = ? AND item_id = ?');
-  return items.filter((i) => !dead.get(userId, kind, i.id));
+/**
+ * An upload of a deleted id brings it back (Undo in the app re-saves the same id): its tombstone goes, so the
+ * next since pull of other devices no longer lists it as deleted. Returns the items unchanged.
+ */
+export const reviveUploaded = <T extends { id: string }>(db: DB, userId: string, kind: SyncKind, items: T[]): T[] => {
+  const revive = db.prepare('DELETE FROM sync_tombstones WHERE user_id = ? AND kind = ? AND item_id = ?');
+  for (const i of items) revive.run(userId, kind, i.id);
+  return items;
 };

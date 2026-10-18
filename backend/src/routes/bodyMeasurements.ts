@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type DB, tx } from '../db.ts';
-import { deletedField, notDeleted, recordTombstone, sinceQuery } from './sync.ts';
+import { deletedField, reviveUploaded, recordTombstone, sinceQuery } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
 
 /** Body measurements (#185): one dated entry of girths (cm), weight and body fat; extra app fields kept as is. */
@@ -45,7 +45,7 @@ export const bodyMeasurementRoutes = (r: FastifyInstance, db: DB, now: () => Dat
        WHERE body_measurements.user_id = excluded.user_id`,
     );
     const saved = tx(db, () => {
-      const measurements = notDeleted(db, req.userId!, 'body-measurements', b.measurements);
+      const measurements = reviveUploaded(db, req.userId!, 'body-measurements', b.measurements);
       assertRowQuota(db, 'body_measurements', req.userId!, measurements.map((m) => m.id));
       let count = 0;
       for (const m of measurements) {

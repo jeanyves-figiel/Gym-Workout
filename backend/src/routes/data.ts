@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type AuthService, publicUser } from '../auth.ts';
 import { type DB, tx } from '../db.ts';
-import { deletedField, notDeleted, recordTombstone, sinceQuery } from './sync.ts';
+import { deletedField, reviveUploaded, recordTombstone, sinceQuery } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
 import { pushExport } from '../push/schema.ts';
 import { communityExport } from './community.ts';
@@ -97,7 +97,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
        WHERE workout_logs.user_id = excluded.user_id`,
     );
     const saved = tx(db, () => {
-      const logs = notDeleted(db, req.userId!, 'logs', b.logs);
+      const logs = reviveUploaded(db, req.userId!, 'logs', b.logs);
       assertRowQuota(db, 'workout_logs', req.userId!, logs.map((l) => l.id));
       let count = 0;
       for (const l of logs) count += Number(up.run(
@@ -147,7 +147,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
        WHERE workouts.user_id = excluded.user_id`,
     );
     const saved = tx(db, () => {
-      const workouts = notDeleted(db, req.userId!, 'workouts', b.workouts);
+      const workouts = reviveUploaded(db, req.userId!, 'workouts', b.workouts);
       assertRowQuota(db, 'workouts', req.userId!, workouts.map((w) => w.id));
       let count = 0;
       for (const w of workouts) {

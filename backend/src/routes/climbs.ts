@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type DB, tx } from '../db.ts';
-import { deletedField, notDeleted, recordTombstone, sinceQuery } from './sync.ts';
+import { deletedField, reviveUploaded, recordTombstone, sinceQuery } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
 
 /** Climbing sessions (#312): were kept only on the device; now synced like PR attempts (upsert by client id). */
@@ -42,7 +42,7 @@ export const climbRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
        WHERE climbs.user_id = excluded.user_id`,
     );
     const saved = tx(db, () => {
-      const climbs = notDeleted(db, req.userId!, 'climbs', b.climbs);
+      const climbs = reviveUploaded(db, req.userId!, 'climbs', b.climbs);
       assertRowQuota(db, 'climbs', req.userId!, climbs.map((c) => c.id));
       let count = 0;
       for (const c of climbs) {

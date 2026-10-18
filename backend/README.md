@@ -63,7 +63,7 @@ Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode
 | POST | `/auth/register` | – | `{email, password, name?, acceptedTerms}` → 202, emails 6-digit code. Enumeration-safe. |
 | POST | `/auth/verify-email` | – | `{email, code}` → `{user, tokens}` |
 | POST | `/auth/resend-verification` | – | `{email}` → 202 (throttled 1/min) |
-| POST | `/auth/login` | – | `{email, password}` → `{user, tokens}`; 403 `email_not_verified`; 429 `account_locked` `{lockedUntil}` (`null` = password reset needed) |
+| POST | `/auth/login` | – | `{email, password}` → `{user, tokens}`; 403 `email_not_verified`; 429 `account_locked` `{lockedUntil}` |
 | POST | `/auth/apple` | – | `{identityToken, authorizationCode?, name?, nonce?}` → `{user, tokens, created}`; `nonce` = raw nonce (16–128 chars) when the token has a `nonce` claim (its SHA-256 hex, single use), else 401 `invalid_apple_token`; links verified email; code exchanged for Apple refresh token (revoked on account deletion) |
 | POST | `/auth/refresh` | – | `{refreshToken}` → new pair (rotation; replay revokes family) |
 | POST | `/auth/logout` | – | `{refreshToken}` → 204 |
@@ -119,7 +119,7 @@ Sync deletes (#432): every `GET /me/<kind>?since=ISO` pull (`logs`, `workouts`, 
 `pr-attempts`, `body-measurements`, `climbs`, `sports`, `machine-notes`) also returns `deleted: string[]`, the ids of
 items deleted (by any device, or by ops' undo-workout) at or after `since`; drop them locally. Always present on a
 `since` pull (`[]` when nothing was deleted; always `[]` for custom exercises, which are archived, not deleted), absent
-on a full pull. Uploads of a deleted id are skipped (not counted in `saved`), so a stale device can't bring it back.
+on a full pull. Uploading a deleted id again (Undo in the app) brings it back and clears its tombstone.
 Tombstones are kept 180 days; a device offline for longer should do a full pull.
 
 Errors: `{error: <code>, message}`. Password endpoints (register, reset, change) may return 400 `weak_password` or `breached_password`.
@@ -128,7 +128,7 @@ Errors: `{error: <code>, message}`. Password endpoints (register, reset, change)
 - Passwords: scrypt (N=2¹⁵, r=8, p=1), ≥10 chars, common/email-derived rejected; dummy hash for unknown accounts (timing).
 - Email codes: 6 digits, HMAC-peppered at rest, 15 min TTL, 5 attempts, previous codes invalidated.
 - Access: HS256 JWT, 15 min. Refresh: opaque 256-bit, SHA-256 at rest, 60 days, single-use rotation with family revocation on replay.
-- Lockout: 10 failed logins from one IP → that IP locked out of the account for 15 min; 100 a day across IPs → password reset needed. Rate limit: 10 req/min/IP (`Fly-Client-IP`) on auth routes.
+- Lockout: 10 failed logins from one IP → that IP locked out of the account for 15 min; 100 a day across IPs → password sign-in locked for a day (a reset reopens it). Rate limit: 10 req/min/IP (`Fly-Client-IP`) on auth routes.
 - Sync quotas: 413 `quota_exceeded` past a per-member row cap per table (`ROW_QUOTAS` in `src/quota.ts`).
 - Sign in with Apple: identity token verified against Apple JWKS (issuer + bundle-id audience); a `nonce` claim needs the matching raw `nonce` and is accepted once (also for `/me/reauth` `{method: 'apple', identityToken, nonce?}`).
 - Password change/reset revokes all refresh tokens and notifies by email.

@@ -191,8 +191,8 @@ export class AuthService {
 
   /**
    * Lockout is per (account, client IP) so a stranger can't lock the owner out by guessing from elsewhere (#432):
-   * LOCK_AFTER failures from one IP lock that IP for LOCK_MIN. LOGIN_CEILING failures a day across all IPs mark the
-   * account (`failed_logins`) so only a password reset reopens password sign-in.
+   * LOCK_AFTER failures from one IP lock that IP for LOCK_MIN. LOGIN_CEILING failures a day across all IPs lock password
+   * sign-in for a day (a password reset reopens it at once), so a distributed guess can't keep the owner out for good.
    */
   async login(email: string, password: string, device?: string, ip = 'unknown'): Promise<{ user: PublicUser; tokens: TokenPair }> {
     const u = this.userByEmail(email);
@@ -202,14 +202,18 @@ export class AuthService {
     }
     const locked = (lockedUntil: string | null) =>
       new ApiError(429, 'account_locked', 'Too many failed attempts. Try again later or reset your password.', { lockedUntil });
-    if (u.failed_logins >= LOGIN_CEILING) throw locked(null);
     const now = this.d.now();
     const ipKey = `login:${u.id}:${ip}`;
     const lockKey = `login-lock:${u.id}:${ip}`;
-    const lock = this.d.db
-      .prepare('SELECT expires_at FROM throttle_hits WHERE key = ? AND expires_at > ? ORDER BY expires_at DESC LIMIT 1')
-      .get(lockKey, now.toISOString()) as { expires_at: string } | undefined;
-    if (lock) throw locked(lock.expires_at);
+    const accountLockKey = `login-lock:${u.id}`;
+    const lockUntil = (key: string) =>
+      (
+        this.d.db
+          .prepare('SELECT expires_at FROM throttle_hits WHERE key = ? AND expires_at > ? ORDER BY expires_at DESC LIMIT 1')
+          .get(key, now.toISOString()) as { expires_at: string } | undefined
+      )?.expires_at;
+    const lock = lockUntil(accountLockKey) ?? lockUntil(lockKey);
+    if (lock) throw locked(lock);
     if (!(await verifyPassword(password, u.password_hash))) {
       throttleHit(this.d.db, ipKey, DAY, now);
       if (throttleCount(this.d.db, ipKey, DAY, now) >= LOCK_AFTER) {
@@ -218,8 +222,10 @@ export class AuthService {
       }
       const accountKey = `login-fail:${u.id}`;
       throttleHit(this.d.db, accountKey, DAY, now);
-      if (throttleCount(this.d.db, accountKey, DAY, now) >= LOGIN_CEILING)
-        this.d.db.prepare('UPDATE users SET failed_logins = ? WHERE id = ?').run(LOGIN_CEILING, u.id);
+      if (throttleCount(this.d.db, accountKey, DAY, now) >= LOGIN_CEILING) {
+        throttleClear(this.d.db, accountKey);
+        throttleHit(this.d.db, accountLockKey, DAY, now);
+      }
       throw new ApiError(401, 'invalid_credentials', 'Email or password is incorrect.');
     }
     throttleClear(this.d.db, ipKey);
@@ -298,6 +304,7 @@ export class AuthService {
       )
       .run(hash, now, now, u.id);
     throttleClear(this.d.db, `login-fail:${u.id}`);
+    throttleClear(this.d.db, `login-lock:${u.id}`);
     this.revokeAll(u.id);
     await this.notifyPasswordChanged(email);
   }

@@ -153,13 +153,15 @@ describe('login & sessions', () => {
     expect((await loginFrom('198.51.100.7', PW)).statusCode).toBe(200);
   });
 
-  it('100 failures a day across IPs require a password reset', async () => {
+  it('100 failures a day across IPs lock password sign-in for a day; a reset reopens it', async () => {
     await signUp();
     for (let i = 0; i < 100; i++) expect((await loginFrom(`203.0.113.${i}`, 'wrong-password!')).statusCode).toBe(401);
     const r = await loginFrom('198.51.100.7', PW);
     expect(r.statusCode).toBe(429);
-    expect(r.json()).toMatchObject({ error: 'account_locked', lockedUntil: null });
-    advance(2 * 86_400_000);
+    expect(r.json()).toMatchObject({ error: 'account_locked', lockedUntil: new Date(clock.getTime() + 86_400_000).toISOString() });
+    advance(86_400_000 + 1000);
+    expect((await loginFrom('198.51.100.7', PW)).statusCode).toBe(200);
+    for (let i = 0; i < 100; i++) await loginFrom(`203.0.113.${i}`, 'wrong-password!');
     expect((await loginFrom('198.51.100.7', PW)).json().error).toBe('account_locked');
     await post('/v1/auth/password/forgot', { email: EMAIL });
     const next = 'another-long-password';

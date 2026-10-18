@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { randomToken, sha256 } from '../crypto.ts';
 import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
-import { deletedField, notDeleted, recordTombstone, sinceQuery } from './sync.ts';
+import { deletedField, reviveUploaded, recordTombstone, sinceQuery } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
 
 /** Other sport sessions (#416): snowboard, MTB, Hyrox… Synced like climbs (upsert by client id). */
@@ -26,7 +26,7 @@ const upsert = (db: DB, userId: string, upload: z.infer<typeof sport>[], ts: str
   );
   /** Rows written: another account's ids are skipped by the WHERE. */
   return tx(db, () => {
-    const sports = notDeleted(db, userId, 'sports', upload);
+    const sports = reviveUploaded(db, userId, 'sports', upload);
     assertRowQuota(db, 'sports', userId, sports.map((c) => c.id));
     let count = 0;
     for (const c of sports) {

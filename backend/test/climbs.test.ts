@@ -119,7 +119,7 @@ describe('climbs sync (#312)', () => {
     expect((await post('/v1/me/climbs', { climbs: [{ ...a, effort: 9 }] }, t)).json().saved).toBe(1);
   });
 
-  it('a delete reaches other devices as deleted and a stale re-upload is ignored (#432)', async () => {
+  it('a delete reaches other devices as deleted; a re-upload (Undo) brings it back (#432)', async () => {
     const t = await signUp('climber@example.com');
     const a = sample();
     const b = sample();
@@ -137,12 +137,12 @@ describe('climbs sync (#312)', () => {
     expect(pull.deleted).toEqual([a.id]);
     expect(pull.climbs).toEqual([]);
 
-    // Device B hasn't pulled yet and pushes its old copy: skipped, still deleted.
-    const stale = await post('/v1/me/climbs', { climbs: [{ ...a, effort: 3 }, { ...b, effort: 4 }] }, t);
-    expect(stale.json().saved).toBe(1);
-    expect((await get('/v1/me/climbs', t)).json().climbs.map((x: { id: string }) => x.id)).toEqual([b.id]);
-    // Also when the id comes back in another letter case.
-    expect((await post('/v1/me/climbs', { climbs: [{ ...a, id: a.id.toLowerCase() }] }, t)).json().saved).toBe(0);
+    // Undo on device A re-uploads the same id (any letter case): it's back and no longer reported as deleted.
+    advance(1000);
+    expect((await post('/v1/me/climbs', { climbs: [{ ...a, id: a.id.toLowerCase() }] }, t)).json().saved).toBe(1);
+    expect((await get(`/v1/me/climbs?since=${encodeURIComponent(lastPullB)}`, t)).json().deleted).toEqual([]);
+    await del(`/v1/me/climbs/${a.id}`, t);
+    advance(1000);
 
     // Later pulls don't repeat it; tombstones go after 180 days.
     expect((await get(`/v1/me/climbs?since=${encodeURIComponent(clock.toISOString())}`, t)).json().deleted).toEqual([]);
@@ -162,8 +162,6 @@ describe('climbs sync (#312)', () => {
     await del(`/v1/me/workouts/${w.id}`, t);
     expect((await get(`/v1/me/logs?since=${encodeURIComponent(since)}`, t)).json().deleted).toEqual([log.id]);
     expect((await get(`/v1/me/workouts?since=${encodeURIComponent(since)}`, t)).json().deleted).toEqual([w.id]);
-    expect((await post('/v1/me/logs', { logs: [log] }, t)).json().saved).toBe(0);
-    expect((await post('/v1/me/workouts', { workouts: [w] }, t)).json().saved).toBe(0);
     db.prepare('DELETE FROM users').run();
     expect(db.prepare('SELECT COUNT(*) AS n FROM sync_tombstones').get()).toEqual({ n: 0 });
   });

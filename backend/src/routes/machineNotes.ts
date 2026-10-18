@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { sanitizeJpeg } from '../community/image.ts';
 import { type DB, tx } from '../db.ts';
-import { deletedField, notDeleted, recordTombstone, sinceQuery } from './sync.ts';
+import { deletedField, reviveUploaded, recordTombstone, sinceQuery } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
 import { ApiError } from '../errors.ts';
 
@@ -65,7 +65,7 @@ export const machineNoteRoutes = (r: FastifyInstance, db: DB, now: () => Date) =
        WHERE machine_notes.user_id = excluded.user_id`,
     );
     const saved = tx(db, () => {
-      const notes = notDeleted(db, req.userId!, 'machine-notes', b.notes);
+      const notes = reviveUploaded(db, req.userId!, 'machine-notes', b.notes);
       assertRowQuota(db, 'machine_notes', req.userId!, notes.map((n) => n.id));
       let count = 0;
       for (const n of notes) {
