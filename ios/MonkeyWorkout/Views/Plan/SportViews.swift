@@ -101,7 +101,7 @@ struct LogSportButton: View {
     }
 }
 
-// MARK: - Log sport (design A)
+// MARK: - Log sport (design A; sheet layout B + card C, #435)
 
 /// Sheet: what did you do (bold sport grid), when, how long, how hard. Climbing opens the climb log.
 struct LogSportView: View {
@@ -112,6 +112,9 @@ struct LogSportView: View {
     @State private var picked: Bool
     @State private var climbing = false
     @State private var distanceText: String
+    @State private var allSports = false
+    @State private var showDistance: Bool
+    @State private var showNotes: Bool
     @State private var closeGuard = CloseGuard()
     private let initial: SportLog
 
@@ -121,6 +124,8 @@ struct LogSportView: View {
         _log = State(initialValue: restoring ?? initial)
         _picked = State(initialValue: picked || restoring != nil)
         _distanceText = State(initialValue: (restoring ?? initial).distanceKm.map { String(format: "%g", $0) } ?? "")
+        _showDistance = State(initialValue: (restoring ?? initial).distanceKm != nil)
+        _showNotes = State(initialValue: (restoring ?? initial).notes != nil)
     }
 
     private var notes: Binding<String> {
@@ -138,26 +143,42 @@ struct LogSportView: View {
     private var form: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    Text("What did you do?").eyebrow()
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                        ForEach(model.sportOrder) { s in
-                            SportTile(sport: s, selected: picked && log.sport == s) {
-                                if s == .climbing {
-                                    climbing = true
-                                } else {
-                                    log.sport = s
-                                    picked = true
-                                }
+                VStack(alignment: .leading, spacing: 16) {
+                    if picked && !allSports {
+                        // Design B (#435): the grid folds into a strip, the details card sits right under it.
+                        strip
+                        card
+                        Text(health.connected && health.writeWorkouts
+                             ? "Also saved to Apple Health. Gym days around it are planned to spare \(log.sport.loadLabel)."
+                             : "Saved in MonkeyWorkout. Connect Apple Health in Progress → Body & Health to also save it there.")
+                            .font(.footnote).foregroundStyle(Theme.muted)
+                    } else {
+                        Text("What did you do?").eyebrow()
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+                            ForEach(model.sportOrder) { s in
+                                SportTile(sport: s, selected: picked && log.sport == s) { pick(s) }
                             }
                         }
                     }
-                    if picked { details }
                 }
                 .padding(16)
+                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: picked)
+                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: allSports)
             }
+            .scrollDismissesKeyboard(.interactively)
             .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
+            .safeAreaInset(edge: .bottom) {
+                if picked && !allSports {
+                    Button { save() } label: {
+                        Label("Save \(log.sport.short) · \(Climbs.duration(log.minutes)) · \(log.effort)", systemImage: "checkmark")
+                    }
+                    .buttonStyle(LimeButtonStyle())
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Theme.bg.opacity(0.95).ignoresSafeArea())
+                }
+            }
             .navigationTitle(picked ? "Log \(log.sport.short)" : "Log sport")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }
@@ -166,53 +187,137 @@ struct LogSportView: View {
         .undoableClose(closeGuard, offer: undoOffer)
     }
 
-    @ViewBuilder private var details: some View {
-        Text("When").eyebrow()
-        DatePicker("Started", selection: $log.start, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
-            .font(.body.weight(.semibold))
-            .card(padding: 14)
-
-        Text("Duration").eyebrow()
-        HStack {
-            SportStepButton(symbol: "minus") { log.minutes = max(15, log.minutes - 15) }
-            Spacer()
-            Text(Climbs.duration(log.minutes)).font(Theme.display(44)).monospacedDigit()
-            Spacer()
-            SportStepButton(symbol: "plus") { log.minutes = min(16 * 60, log.minutes + 15) }
+    private func pick(_ s: Sport) {
+        if s == .climbing {
+            climbing = true
+        } else {
+            log.sport = s
+            picked = true
+            allSports = false
         }
-        .card(padding: 14)
+    }
 
-        HStack {
-            Text("How hard").eyebrow()
-            Spacer()
-            Text("\(log.effort) · \(ClimbLog.effortLabel(log.effort))").font(Theme.label(13)).foregroundStyle(Theme.heat(Double(log.effort - 1) / 9))
-        }
-        SportEffortPicker(effort: $log.effort)
-
-        if log.sport.hasDistance {
-            Text("Distance (optional)").eyebrow()
-            HStack {
-                TextField("0", text: $distanceText).keyboardType(.decimalPad).font(Theme.display(28))
-                    .onChange(of: distanceText) { _, t in
-                        log.distanceKm = Double(t.replacingOccurrences(of: ",", with: ".")).map { min(max($0, 0), 1000) }
+    /// The picked sport first, then the member's order; "All" opens the full grid again.
+    private var strip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach([log.sport] + model.sportOrder.filter { $0 != log.sport }.prefix(7)) { s in
+                    SportTile(sport: s, selected: log.sport == s) { pick(s) }
+                        .frame(width: 74)
+                        .opacity(log.sport == s ? 1 : 0.55)
+                }
+                Button { allSports = true } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: "square.grid.3x3.fill").font(.system(size: 22, weight: .bold)).frame(height: 28)
+                        Text("All").font(Theme.label(12))
                     }
-                Text("km").font(Theme.label(15)).foregroundStyle(Theme.muted)
+                    .foregroundStyle(.white)
+                    .frame(width: 74, height: 74)
+                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.cardStrong))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("All sports")
             }
-            .card(padding: 14)
+            .padding(.vertical, 3)
         }
+        .scrollClipDisabled()
+    }
 
-        Text("Notes (optional)").eyebrow()
-        TextField("Where, conditions, how legs felt", text: notes, axis: .vertical)
-            .lineLimit(2...5)
-            .card(padding: 14)
+    private static let feels: [(String, Int)] = [("Easy", 3), ("Solid", 6), ("Hard", 8), ("Wrecked", 10)]
 
-        Button { save() } label: { Label("Save \(log.sport.short)", systemImage: "checkmark") }
-            .buttonStyle(LimeButtonStyle())
+    /// Design C card (#435): the sport's own colours hold when, how long and how hard.
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    DatePicker("Started", selection: $log.start, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
+                        .labelsHidden()
+                        .colorScheme(.dark)
+                    Text(log.sport.label).font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.6)
+                }
+                Spacer()
+                Image(systemName: log.sport.symbol).font(.system(size: 40, weight: .bold))
+            }
 
-        Text(health.connected && health.writeWorkouts
-             ? "Also saved to Apple Health. Gym days around it are planned to spare \(log.sport.loadLabel)."
-             : "Saved in MonkeyWorkout. Connect Apple Health in Progress → Body & Health to also save it there.")
-            .font(.footnote).foregroundStyle(Theme.muted)
+            HStack {
+                cardStep("minus") { log.minutes = max(15, log.minutes - 15) }
+                Spacer()
+                Text(Climbs.duration(log.minutes)).font(Theme.display(44)).monospacedDigit()
+                    .contentTransition(.numericText())
+                Spacer()
+                cardStep("plus") { log.minutes = min(16 * 60, log.minutes + 15) }
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.black.opacity(0.25)))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Duration \(Climbs.duration(log.minutes))")
+
+            Text("How hard · \(log.effort) \(ClimbLog.effortLabel(log.effort))")
+                .font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.9)
+            HStack(spacing: 6) {
+                ForEach(Self.feels.indices, id: \.self) { i in
+                    let f = Self.feels[i]
+                    let on = abs(log.effort - f.1) <= 1
+                    Button { log.effort = f.1 } label: {
+                        Text(f.0).font(Theme.label(14)).lineLimit(1).minimumScaleFactor(0.8)
+                            .frame(maxWidth: .infinity, minHeight: 42)
+                            .foregroundStyle(on ? Theme.ink : .white)
+                            .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(on ? AnyShapeStyle(.white) : AnyShapeStyle(.black.opacity(0.25))))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                }
+            }
+
+            if log.sport.hasDistance {
+                if showDistance {
+                    HStack {
+                        TextField("0", text: $distanceText).keyboardType(.decimalPad).font(Theme.display(28))
+                            .onChange(of: distanceText) { _, t in
+                                log.distanceKm = Double(t.replacingOccurrences(of: ",", with: ".")).map { min(max($0, 0), 1000) }
+                            }
+                        Text("km").font(Theme.label(15)).opacity(0.8)
+                    }
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.black.opacity(0.25)))
+                }
+            }
+            if showNotes {
+                TextField("Where, conditions, how legs felt", text: notes, axis: .vertical)
+                    .lineLimit(2...5)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.black.opacity(0.25)))
+            }
+            HStack(spacing: 8) {
+                if log.sport.hasDistance && !showDistance { addChip("Distance") { showDistance = true } }
+                if !showNotes { addChip("Notes") { showNotes = true } }
+            }
+        }
+        .gradientCard(log.sport.gradient, padding: 18)
+        .shadow(color: log.sport.colors[0].opacity(0.35), radius: 16, y: 8)
+    }
+
+    private func cardStep(_ symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 20, weight: .heavy))
+                .frame(width: 50, height: 50)
+                .background(Circle().fill(.white.opacity(0.22)))
+                .foregroundStyle(.white)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(symbol == "plus" ? "15 minutes more" : "15 minutes less")
+    }
+
+    private func addChip(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: "plus").font(Theme.label(13))
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(Capsule().fill(.black.opacity(0.25)))
+                .foregroundStyle(.white)
+        }
+        .buttonStyle(.plain)
     }
 
     private var undoOffer: UndoOffer? {
@@ -259,42 +364,6 @@ private struct SportTile: View {
         .buttonStyle(.plain)
         .accessibilityLabel(sport.label)
         .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-}
-
-private struct SportEffortPicker: View {
-    @Binding var effort: Int
-
-    var body: some View {
-        HStack(spacing: 5) {
-            ForEach(1...10, id: \.self) { e in
-                Button { effort = e } label: {
-                    Text("\(e)")
-                        .font(Theme.label(15))
-                        .frame(maxWidth: .infinity, minHeight: 42)
-                        .foregroundStyle(e == effort ? Theme.ink : .white)
-                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(e <= effort ? Theme.heat(Double(e - 1) / 9).opacity(e == effort ? 1 : 0.35) : Theme.card))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-}
-
-private struct SportStepButton: View {
-    let symbol: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 20, weight: .heavy))
-                .frame(width: 52, height: 52)
-                .background(Circle().fill(Theme.cardStrong))
-                .foregroundStyle(.white)
-        }
-        .buttonStyle(.plain)
     }
 }
 
