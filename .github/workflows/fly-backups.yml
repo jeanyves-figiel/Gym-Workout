@@ -86,7 +86,7 @@ jobs:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       FLY_APP: ${{ matrix.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
     steps:
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master, pinned (#432)
       - name: Newest volume snapshot younger than 36 h
         run: |
           vol=$(flyctl volumes list -a "$FLY_APP" --json | jq -r '.[0].id')
@@ -120,7 +120,7 @@ jobs:
           email=$(jq -r '.inputs.email // ""' "$GITHUB_EVENT_PATH"); confirm=$(jq -r '.inputs.confirm // ""' "$GITHUB_EVENT_PATH")
           for v in "$email" "$confirm"; do [ -n "$v" ] && echo "::add-mask::$v"; done
           { echo "EMAIL=$email"; echo "CONFIRM=$confirm"; } >> "$GITHUB_ENV"
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master, pinned (#432)
       - name: Check inputs
         run: |
           case "$ACTION" in

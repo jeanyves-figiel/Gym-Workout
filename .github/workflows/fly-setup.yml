@@ -39,7 +39,7 @@ jobs:
       HOSTNAME: ${{ inputs.environment == 'production' && 'workout.monkeygrade.cloud' || 'workout-staging.monkeygrade.cloud' }}
       ORG: ${{ inputs.org }}
     steps:
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master, pinned (#432)
       - name: App
         run: |
           if flyctl status -a "$FLY_APP" >/dev/null 2>&1; then echo "app exists"

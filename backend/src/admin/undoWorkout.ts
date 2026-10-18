@@ -122,8 +122,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   db.exec('PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
   if (input.apply && input.workoutId) {
     const r = undoWorkout(db, input, join(dirname(path), 'backups'));
+    // Summary only: the run log is public (#432); the full workout is in backupFile.
     console.log(JSON.stringify({ removed: r.removed, workout: summary(r.workout), backupFile: r.backup }, null, 2));
-    console.log('BACKUP ' + JSON.stringify(r.workout));
   } else {
     const { candidates } = findCandidates(db, input);
     console.log(JSON.stringify({ dryRun: true, candidates: candidates.map(summary) }, null, 2));
