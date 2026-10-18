@@ -735,14 +735,18 @@ final class AppModel {
         let pending = state.logs.filter { state.pendingLogIds.contains($0.id) }
         guard !pending.isEmpty else { return }
         try await api.pushLogs(pending)
-        state.pendingLogIds.subtract(pending.map(\.id))
+        // Only clear what is unchanged since the push started (a set re-logged meanwhile stays queued).
+        let current = Dictionary(state.logs.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
+        for l in pending where current[l.id].map({ $0 == l }) ?? true { state.pendingLogIds.remove(l.id) }
     }
 
     private func pushHistory() async throws {
         let pendingRecords = state.history.filter { state.pendingHistoryIds.contains($0.id) }
         guard !pendingRecords.isEmpty else { return }
         try await api.pushWorkouts(pendingRecords)
-        state.pendingHistoryIds.subtract(pendingRecords.map(\.id))
+        // Heart rate attached while the push was in flight stays queued for the next sync.
+        let current = Dictionary(state.history.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
+        for r in pendingRecords where current[r.id].map({ $0 == r }) ?? true { state.pendingHistoryIds.remove(r.id) }
     }
 
     /// Server deletes queued by Undo workout (#133) and PR-attempt removal; each id is dropped once the server
