@@ -43,6 +43,8 @@ export interface Config {
     productIds: string[];
     /** SUBSCRIPTION_TESTS=on (staging only): fake purchases without Apple and a per-account mode, for testing Pro. */
     tests: boolean;
+    /** Sandbox / TestFlight purchases unlock Pro (#432). SUBSCRIPTION_SANDBOX=on|off; default off on production without tests. */
+    sandbox: boolean;
   };
   /** Who runs the app, shown on /privacy, /terms and /support (#125). Unset → placeholder text the owner must fill. */
   legal: { operator?: string; address?: string; email?: string; law: string; venue?: string };
@@ -143,6 +145,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
         .map((s) => s.trim())
         .filter(Boolean),
       tests: env.SUBSCRIPTION_TESTS === 'on',
+      sandbox: env.SUBSCRIPTION_SANDBOX ? env.SUBSCRIPTION_SANDBOX === 'on' : !prod || env.SUBSCRIPTION_TESTS === 'on',
     },
     legal: {
       operator: env.LEGAL_OPERATOR || undefined,
