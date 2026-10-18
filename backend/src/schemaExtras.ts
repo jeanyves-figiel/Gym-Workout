@@ -77,6 +77,23 @@ export const ensureSchemaExtras = (db: DB): void => {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS machine_note_photos_note ON machine_note_photos(user_id, note_id);
+    -- Member problem reports (#467): private; screenshots never leave the server except by email to the team.
+    CREATE TABLE IF NOT EXISTS member_reports (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      data TEXT NOT NULL,
+      issue_number INTEGER,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS member_reports_user ON member_reports(user_id, created_at);
+    CREATE TABLE IF NOT EXISTS member_report_shots (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      report_id TEXT NOT NULL,
+      data BLOB NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS member_report_shots_report ON member_report_shots(user_id, report_id);
     -- Sync deletes (#432): ids a member deleted, so other devices drop them ('deleted' in since pulls) and a
     -- stale device can't upload them back. Purged after 180 days (purge.ts).
     CREATE TABLE IF NOT EXISTS sync_tombstones (

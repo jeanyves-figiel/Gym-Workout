@@ -63,22 +63,25 @@ export const signV4 = (i: SignInput): string => {
 
 const encodeHeader = (s: string) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${Buffer.from(s, 'utf8').toString('base64')}?=`);
 
-/** Minimal text/plain MIME message. */
+const b64 = (b: Buffer) => b.toString('base64').replace(/.{76}/g, '$&\r\n');
+
+/** Minimal text/plain MIME message; multipart/mixed when it carries attachments. */
 export const buildMime = (from: string, mail: Mail, date = new Date()): string => {
-  const body = Buffer.from(mail.text, 'utf8')
-    .toString('base64')
-    .replace(/.{76}/g, '$&\r\n');
-  return [
-    `From: ${from}`,
-    `To: ${mail.to}`,
-    `Subject: ${encodeHeader(mail.subject)}`,
-    `Date: ${date.toUTCString()}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=UTF-8',
-    'Content-Transfer-Encoding: base64',
-    '',
-    body,
-  ].join('\r\n');
+  const head = [`From: ${from}`, `To: ${mail.to}`, `Subject: ${encodeHeader(mail.subject)}`, `Date: ${date.toUTCString()}`, 'MIME-Version: 1.0'];
+  const text = ['Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', b64(Buffer.from(mail.text, 'utf8'))];
+  if (!mail.attachments?.length) return [...head, ...text].join('\r\n');
+  const boundary = `mw-${date.getTime().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  const parts = mail.attachments.map((a) =>
+    [
+      `--${boundary}`,
+      `Content-Type: ${a.contentType}; name="${a.filename}"`,
+      `Content-Disposition: attachment; filename="${a.filename}"`,
+      'Content-Transfer-Encoding: base64',
+      '',
+      b64(a.content),
+    ].join('\r\n'),
+  );
+  return [...head, `Content-Type: multipart/mixed; boundary="${boundary}"`, '', `--${boundary}`, ...text, ...parts, `--${boundary}--`, ''].join('\r\n');
 };
 
 export class SesMailer implements Mailer {
