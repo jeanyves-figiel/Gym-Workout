@@ -260,17 +260,19 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
             : "\(Set(groupSize.values).contains { $0 > 2 } ? "Circuits" : "Supersets"): same-letter exercises back to back (A1 → A2), rest after the round."
         let main = Block(kind: kind, title: kind.category.label, targetMin: est, items: planned, note: note)
         // Flow blocks (#198) around the member's exercises, in session order; ids prefixed so ticks stay per workout.
-        let extras = flow.map { b in
+        // Moves this app doesn't know (a newer version's, another device's custom one) are left out, never played.
+        let extras = flow.map { b -> Block in
             var b = b
+            b.items = b.items.filter { Exercise.find($0.exerciseId) != nil }
             for i in b.items.indices { b.items[i].uid = "\(sessionId)-\(b.items[i].uid)" }
             return b
-        }
+        }.filter { !$0.items.isEmpty }
         let blocks = planned.isEmpty ? [main] : extras.filter { $0.kind.order < BlockKind.strength.order } + [main]
             + extras.filter { $0.kind.order > BlockKind.strength.order }
-        let total = est + flow.reduce(0) { $0 + $1.targetMin }
+        let total = est + extras.reduce(0) { $0 + $1.targetMin }
         let estTotal = Int(blocks.reduce(0) { $0 + $1.estMin }.rounded())
         return Session(id: sessionId, index: 0, focus: Self.focus(exercises), title: name, targetMin: total,
-                       estMin: flow.isEmpty ? est : estTotal, blocks: blocks)
+                       estMin: extras.isEmpty ? est : estTotal, blocks: blocks)
     }
 
     /// Superset / circuit labels by item ("A1", "A2", "B1", …): letters renumbered in order of appearance,
