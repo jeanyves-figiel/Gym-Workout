@@ -97,8 +97,18 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: $(APP_BUNDLE_ID)
             CFBundleURLSchemes: [monkeyworkout]
+        # Plain-HTTP local API for DEV only (http://localhost:7443): removed from Staging/Release builds below (#432).
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+    postBuildScripts:
+      # After Info.plist processing (declared input), before code signing (always last for the app).
+      - name: Drop local networking (Staging/Release)
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+        script: |
+          if [ "$CONFIGURATION" = "Debug" ]; then exit 0; fi
+          /usr/libexec/PlistBuddy -c "Delete :NSAppTransportSecurity:NSAllowsLocalNetworking" "${TARGET_BUILD_DIR}/${INFOPLIST_PATH}" || true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
