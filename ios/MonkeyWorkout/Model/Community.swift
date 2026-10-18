@@ -169,6 +169,8 @@ final class Community {
         mine.removeAll { $0.id == post.id }
         feed.removeAll { $0.id == post.id }
         mine.insert(post, at: 0)
+        // Shared by hand counts too, so auto-share never re-posts it over the caption (#479).
+        if !demo, let ref = post.refId, let ownerId { remember("\(post.kind):\(ref)", userId: ownerId) }
         if post.visibility != .onlyMe { feed.insert(post, at: 0) }
         if !existed, post.visibility != .onlyMe { profile?.sharedPosts += 1 }
     }
@@ -200,17 +202,49 @@ final class Community {
         profile?.following += 1
     }
 
-    /// Auto-share (profile setting): posts a finished workout with the profile's default visibility.
-    func didRecord(_ record: WorkoutRecord, api: APIClient, userId: String?) {
-        guard !demo, let p = profile, p.autoShare, ownerId == userId, record.totalSets > 0 else { return }
-        Task {
-            do {
-                let w = WinCard.workout(record)
-                insert(try await api.sharePost(kind: w.kind, refId: w.refId, visibility: nil, caption: nil, card: w.card))
-            } catch {
-                self.error = error.localizedDescription
+    /// Auto-share (profile setting, #479): posts finished workouts, sports and climbs of the last 24 h with the
+    /// profile's default visibility. Loads the profile first when it isn't yet (a Watch-finished workout can land
+    /// before the Community screen ever loaded). Each win is posted once: ids already in Mine or posted before are
+    /// skipped, so a post the member deleted stays deleted; a failed post is retried on the next call.
+    func autoShare(_ wins: [WinCard], api: APIClient, userId: String?, now: Date = Date()) async {
+        guard !demo, let userId else { return }
+        if sharing { shareAgain = true; return }
+        sharing = true
+        defer { sharing = false }
+        repeat {
+            shareAgain = false
+            if ownerId != userId || !loaded { await load(api: api, userId: userId) }
+            guard ownerId == userId, profile?.autoShare == true else { return }
+            let posted = Set(mine.map { "\($0.kind):\($0.refId ?? "")" })
+            let done = Set(autoShared(userId))
+            let due = wins.filter { w in
+                guard let d = w.date, now.timeIntervalSince(d) < Self.autoShareWindow, d <= now.addingTimeInterval(3600) else { return false }
+                return !posted.contains(w.id) && !done.contains(w.id)
             }
-        }
+            for w in due {
+                do {
+                    insert(try await api.sharePost(kind: w.postKind, refId: w.refId, visibility: nil, caption: nil, card: w.card))
+                    remember(w.id, userId: userId)
+                } catch {
+                    self.error = error.localizedDescription
+                }
+            }
+        } while shareAgain
+    }
+
+    /// Wins older than this are never auto-shared (turning auto-share on doesn't post the past).
+    static let autoShareWindow: TimeInterval = 24 * 3600
+    private var sharing = false
+    private var shareAgain = false
+    private static func autoSharedKey(_ userId: String) -> String { "community.autoShared.\(userId)" }
+    private func autoShared(_ userId: String) -> [String] {
+        UserDefaults.standard.stringArray(forKey: Self.autoSharedKey(userId)) ?? []
+    }
+    private func remember(_ id: String, userId: String) {
+        var done = autoShared(userId)
+        guard !done.contains(id) else { return }
+        done.append(id)
+        UserDefaults.standard.set(Array(done.suffix(200)), forKey: Self.autoSharedKey(userId))
     }
 
     /// Removes the workout's auto-shared post when the workout is undone (#133).
@@ -269,7 +303,9 @@ struct WinCard: Identifiable {
     var card: CommunityCard
     var symbol: String
     var date: Date?
-    var id: String { "\(kind):\(refId)" }
+    /// Kind sent to the server: sports post as workouts (refId "sport-<id>"), so no server change is needed (#479).
+    var postKind: String { kind == "sport" ? "workout" : kind }
+    var id: String { "\(postKind):\(refId)" }
 
     static func workout(_ r: WorkoutRecord) -> WinCard {
         let minutes = max(1, r.durationSec / 60)
@@ -287,6 +323,43 @@ struct WinCard: Identifiable {
         return WinCard(kind: "workout", refId: r.id.uuidString.lowercased(),
                        card: CommunityCard(title: r.title, subtitle: subtitle, metric: metric, style: top.rawValue, stats: stats),
                        symbol: top.symbol, date: r.startedAt)
+    }
+
+    /// A finished workout worth posting: sets ticked, or at least 10 minutes in the player (#479: a workout
+    /// tracked without ticking sets was left out of Share a win and auto-share).
+    static func shareable(_ r: WorkoutRecord) -> Bool { r.totalSets > 0 || r.durationSec >= 600 }
+
+    /// Another sport (#479): logged here, tracked on the Watch or read from Apple Health.
+    static func sport(_ e: SportEntry) -> WinCard {
+        let big: CommunityCard.Metric = if let d = e.distanceKm, d >= 1 {
+            .init(value: d >= 10 ? "\(Int(d.rounded()))" : String(format: "%.1f", d), unit: "km")
+        } else {
+            .init(value: "\(max(1, e.minutes))", unit: "min")
+        }
+        var stats: [CommunityCard.Stat] = [.init(label: "min", value: "\(e.minutes)")]
+        if let m = e.elevationM, m >= 10 { stats.append(.init(label: "m up", value: "\(Int(m.rounded()))")) }
+        if let hr = e.avgHR { stats.append(.init(label: "bpm", value: "\(Int(hr.rounded()))")) }
+        if let k = e.kcal, k > 0 { stats.append(.init(label: "kcal", value: "\(Int(k.rounded()))")) }
+        return WinCard(kind: "sport", refId: "sport-\(e.id.uuidString.lowercased())",
+                       card: CommunityCard(title: e.sport.label, subtitle: e.start.formatted(.dateTime.weekday(.wide).day().month()),
+                                           metric: big, style: "sport:\(e.sport.rawValue)", stats: Array(stats.prefix(4))),
+                       symbol: e.sport.symbol, date: e.start)
+    }
+
+    /// A climbing session (#479): logged here or read from Apple Health.
+    static func climb(_ e: ClimbEntry) -> WinCard {
+        let metric: CommunityCard.Metric = if let g = e.topGrade, !g.isEmpty, g.count <= 12 {
+            .init(value: g, unit: "top grade")
+        } else {
+            .init(value: "\(max(1, e.minutes))", unit: "min")
+        }
+        var stats: [CommunityCard.Stat] = [.init(label: "min", value: "\(e.minutes)")]
+        if let x = e.effort { stats.append(.init(label: "effort", value: "\(x)/10")) }
+        return WinCard(kind: "climb", refId: e.id.uuidString.lowercased(),
+                       card: CommunityCard(title: e.kind.map { "\($0.label) climbing" } ?? "Climbing",
+                                           subtitle: e.start.formatted(.dateTime.weekday(.wide).day().month()),
+                                           metric: metric, style: "sport:climbing", stats: stats),
+                       symbol: e.kind?.symbol ?? Sport.climbing.symbol, date: e.start)
     }
 
     static func badge(_ b: Badge) -> WinCard {
@@ -315,5 +388,16 @@ struct WinCard: Identifiable {
                        card: CommunityCard(title: "\(name) best", subtitle: "New personal best", metric: .init(value: kg, unit: "kg"),
                                            style: WorkoutEngine.Category.strength.rawValue),
                        symbol: "trophy.fill", date: pr.date)
+    }
+}
+
+extension AppModel {
+    /// What auto-share may post (#479): finished workouts, sports logged here (or tracked on the Watch, from Health)
+    /// and climbs logged here. `Community.autoShare` keeps the last 24 h and skips what's already posted.
+    func autoShareWins(healthSports: [SportEntry] = []) -> [WinCard] {
+        let workouts = state.history.filter(WinCard.shareable).map(WinCard.workout)
+        let sports = Sports.merged(local: sportLogs, health: healthSports.filter { $0.tracked == true }).map(WinCard.sport)
+        let climbs = climbLogs.map { WinCard.climb(ClimbEntry($0)) }
+        return workouts + sports + climbs
     }
 }

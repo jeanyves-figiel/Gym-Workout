@@ -37,6 +37,8 @@ struct SportEntry: Identifiable, Equatable, Codable, Sendable {
     var kcal: Double?
     /// True when logged in this app (can be deleted here).
     var local = false
+    /// Recorded live by the MonkeyWorkout Watch app (#479: auto-shared like a logged session).
+    var tracked: Bool?
 
     var minutes: Int { max(0, Int(end.timeIntervalSince(start) / 60)) }
 
@@ -53,7 +55,7 @@ struct SportEntry: Identifiable, Equatable, Codable, Sendable {
     }
 
     init(id: UUID, sport: Sport, start: Date, end: Date, source: String, effort: Int? = nil, distanceKm: Double? = nil,
-         elevationM: Double? = nil, avgHR: Double? = nil, maxHR: Double? = nil, kcal: Double? = nil, local: Bool = false) {
+         elevationM: Double? = nil, avgHR: Double? = nil, maxHR: Double? = nil, kcal: Double? = nil, local: Bool = false, tracked: Bool? = nil) {
         self.id = id
         self.sport = sport
         self.start = start
@@ -66,6 +68,7 @@ struct SportEntry: Identifiable, Equatable, Codable, Sendable {
         self.maxHR = maxHR
         self.kcal = kcal
         self.local = local
+        self.tracked = tracked
     }
 
     init(_ log: SportLog) {
