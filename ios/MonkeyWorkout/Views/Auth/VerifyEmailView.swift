@@ -2,6 +2,8 @@ import SwiftUI
 
 struct VerifyEmailView: View {
     let email: String
+    /// Typed at sign-up/sign-in: whoever proves the inbox sets the password (#432). Nil in demo.
+    var password: String? = nil
     @Environment(AppModel.self) private var model
     @State private var code = ""
     @State private var task = FormTask()
@@ -40,7 +42,7 @@ struct VerifyEmailView: View {
 
     private func submit() {
         task.run {
-            let user = try await model.api.verifyEmail(email: email, code: code)
+            let user = try await model.api.verifyEmail(email: email, code: code, password: password)
             await model.didAuthenticate(user)
         }
     }

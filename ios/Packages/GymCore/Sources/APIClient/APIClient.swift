@@ -66,9 +66,10 @@ public actor APIClient {
         _ = try await send("POST", "/v1/auth/register", Body(email: email, password: password, name: name, acceptedTerms: acceptedTerms))
     }
 
-    public func verifyEmail(email: String, code: String) async throws -> User {
-        struct Body: Encodable { var email, code: String }
-        return try await authenticate("/v1/auth/verify-email", Body(email: email, code: code))
+    /// `password`: whoever proves the inbox sets it (#432); left out of the body when nil.
+    public func verifyEmail(email: String, code: String, password: String? = nil) async throws -> User {
+        struct Body: Encodable { var email, code: String; var password: String? }
+        return try await authenticate("/v1/auth/verify-email", Body(email: email, code: code, password: password))
     }
 
     public func resendVerification(email: String) async throws {

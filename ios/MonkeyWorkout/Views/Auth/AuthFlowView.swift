@@ -4,7 +4,7 @@ import SwiftUI
 import WorkoutEngine
 
 enum AuthRoute: Hashable {
-    case signIn, signUp, verify(email: String), forgot, reset(email: String), privacy, twoStep(token: String)
+    case signIn, signUp, verify(email: String, password: String? = nil), forgot, reset(email: String), privacy, twoStep(token: String)
 }
 
 struct AuthFlowView: View {
@@ -31,7 +31,7 @@ struct AuthFlowView: View {
                     switch route {
                     case .signIn: SignInView(path: $path)
                     case .signUp: SignUpView(path: $path)
-                    case let .verify(email): VerifyEmailView(email: email)
+                    case let .verify(email, password): VerifyEmailView(email: email, password: password)
                     case .forgot: ForgotPasswordView(path: $path)
                     case let .reset(email): ResetPasswordView(email: email, path: $path)
                     case .privacy: PrivacyNoticeView()
