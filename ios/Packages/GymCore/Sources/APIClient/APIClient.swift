@@ -404,7 +404,12 @@ public actor APIClient {
     struct ProfileBody<T: Encodable>: Encodable { var data: T }
     struct PrefsBody<T: Encodable>: Encodable { var prefs: T }
     struct WorkoutsBody<T: Encodable>: Encodable { var workouts: [T] }
-    struct WorkoutsResponse<T: Decodable>: Decodable { var workouts: [T] }
+    /// Lossy: an undecodable workout is skipped, not the whole list.
+    struct WorkoutsResponse<T: Decodable>: Decodable {
+        private var list: LossyArray<T>
+        var workouts: [T] { list.elements }
+        enum CodingKeys: String, CodingKey { case list = "workouts" }
+    }
     struct ExercisesBody<T: Encodable>: Encodable { var exercises: [T] }
     struct ExercisesResponse<T: Decodable>: Decodable { var exercises: [T] }
     struct AttemptsBody<T: Encodable>: Encodable { var attempts: [T] }
