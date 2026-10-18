@@ -255,7 +255,7 @@ private struct DemoScreen: View {
         case "paywall", "pro": NavigationStack { ProView() }
         case "pro-offer": NavigationStack { ProView(context: .onboarding) {} }
         case "pro-gate": ProPaywallSheet(gate: .variation)
-        case "account-profile": NavigationStack { PublicProfileView() }
+        case "account-profile": NavigationStack { ProfileView() }
         case "account-password": NavigationStack { ChangePasswordView(hasPassword: true) }
         case "account-email": NavigationStack { ChangeEmailView(currentEmail: Demo.user?.email) }
         // Account security (#257).
