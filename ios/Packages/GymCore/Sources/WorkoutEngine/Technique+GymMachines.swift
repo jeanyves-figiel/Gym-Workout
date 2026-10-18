@@ -25,6 +25,17 @@ extension Technique {
             mistakes: ["Twisting the torso to finish the rep", "Pulling with the biceps only", "Short range at the front"],
             breathing: "Exhale as you pull, inhale on the way back"
         ),
+        "plate-loaded-pulldown": Technique(
+            setup: ["Set the seat so the thighs lock under the pad", "Reach up for the handles, arms long, plates on the horns"],
+            position: [
+                Checkpoint(.back, "Chest up, slight lean back"),
+                Checkpoint(.elbows, "Drive down and in toward the ribs"),
+                Checkpoint(.shoulders, "Down, away from the ears at the bottom"),
+                Checkpoint(.core, "Braced, no rocking to move the lever"),
+            ],
+            mistakes: ["Leaning far back to move the weight", "Letting the lever yank the arms up", "Short range at the top"],
+            breathing: "Exhale as you pull down, inhale as the arms rise"
+        ),
         // MARK: Hinge machines
         "back-extension-machine": Technique(
             setup: ["Sit with the hips against the back of the seat, feet on the platform", "Set the pad high across the shoulder blades, arms crossed on the chest"],

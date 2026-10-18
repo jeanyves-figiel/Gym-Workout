@@ -5,7 +5,7 @@ own art (#170): a shaded anatomical figure in 17 to 49 frames (start to end of t
 worked muscles in the app's load colours (primary red, secondary amber), the machine or equipment drawn
 in the scene, and a small front/back muscle map. No third-party images or video.
 
-Illustrations: 434 · Total: 434
+Illustrations: 435 · Total: 435
 
 | Id | Exercise | Media | Source | License |
 |---|---|---|---|---|
@@ -357,6 +357,7 @@ Illustrations: 434 · Total: 434
 | `lizard-stretch` | Lizard stretch | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `machine-row` | Seated row machine | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `machine-row-single` | Single-arm machine row | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `plate-loaded-pulldown` | Plate-loaded lat pulldown | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `back-extension-machine` | Seated back extension machine | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `machine-squat` | Machine squat | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `pendulum-squat` | Pendulum squat | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
