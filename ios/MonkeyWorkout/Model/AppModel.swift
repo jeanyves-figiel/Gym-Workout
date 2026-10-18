@@ -133,6 +133,7 @@ final class AppModel {
             replanCurrentWeek()
             Demo.programme(self)
             Demo.missed(self)
+            Demo.sportTrips(self)
             if Demo.screen == "workout-style", let id = state.plan?.sessions.dropFirst().first?.id {
                 setSessionStyle(id, SessionStyle(rest: .short, grouping: .supersets))
             }

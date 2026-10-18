@@ -137,6 +137,12 @@ public enum PlanCalendar {
         return away.contains { $0.start <= keys[6] && $0.end >= keys[0] }
     }
 
+    /// Whether any dated sport day or trip overlaps the week starting at `weekStart` (#474).
+    public static func touches(_ trips: [SportTrip], weekStart: Date, _ cal: Calendar) -> Bool {
+        let keys = dayKeys(weekStart: weekStart, cal)
+        return trips.contains { $0.start <= keys[6] && $0.end >= keys[0] }
+    }
+
     // MARK: Adapting a week
 
     public struct Week: Sendable, Identifiable {
@@ -148,8 +154,10 @@ public enum PlanCalendar {
         public var off: [Int: AwayPeriod]
         /// Weekdays spent at a temporary location.
         public var travel: [Int: AwayPeriod]
-        /// Climbing weekdays still on (off / travel days removed).
+        /// Climbing weekdays still on (off / travel / sport trip days removed).
         public var climbing: [Int]
+        /// Weekdays of a dated sport day or trip (#474): no gym, shown in the sport's colour.
+        public var trips: [Int: SportTrip] = [:]
         /// Sessions that no longer fit this week.
         public var dropped: Int
         /// Sessions placed on other days than the regular plan.
@@ -179,33 +187,39 @@ public enum PlanCalendar {
                 travel[wd] = a
             }
         }
+        var sportTrips: [Int: SportTrip] = [:]
+        for wd in WeekSchedule.weekdays where off[wd] == nil {
+            if let t = profile.sportTrip(on: days[wd - 1]) { sportTrips[wd] = t }
+        }
+        // No gym on can't-train days or sport trip days.
+        let blocked = Set(off.keys).union(sportTrips.keys)
         // No climbing at home while away.
-        let climbing = profile.climbingDays.filter { off[$0] == nil && travel[$0] == nil }
+        let climbing = profile.climbingDays.filter { !blocked.contains($0) && travel[$0] == nil }
         let unmoved = base ?? Generator.generateWeek(profile, week: week, seed: seed)
         var plan = unmoved.pinning(fixed)
-        let untouched = off.isEmpty && travel.isEmpty && firstDay <= 1
+        let untouched = blocked.isEmpty && travel.isEmpty && firstDay <= 1
         // Library extras without a day stay unscheduled (no tile) rather than re-planning the week.
         if untouched && plan.sessions.allSatisfy({ $0.weekday != nil || $0.isPlanInsert }) {
-            return Week(start: weekStart, days: days, plan: plan, off: off, travel: travel, climbing: climbing, dropped: 0,
-                        adapted: plan != unmoved)
+            return Week(start: weekStart, days: days, plan: plan, off: off, travel: travel, climbing: climbing, trips: sportTrips,
+                        dropped: 0, adapted: plan != unmoved)
         }
 
         // Done sessions, moved ones and library workouts placed on a day keep it (unless it became a day off).
         var pinned = plan.sessions.filter { s in
-            done.contains(s.id) || ((fixed[s.id] != nil || s.isPlanInsert) && s.weekday.map { off[$0] == nil } ?? false)
+            done.contains(s.id) || ((fixed[s.id] != nil || s.isPlanInsert) && s.weekday.map { !blocked.contains($0) } ?? false)
         }
         let pinnedIds = Set(pinned.map(\.id))
         var taken = Set(pinned.compactMap(\.weekday))
         // Done sessions of an unscheduled plan (no weekday) get a day too, so every session the week counts has a
         // tile: past days first (that's when they were done), else the first day still open.
         for i in pinned.indices where pinned[i].weekday == nil {
-            let open = WeekSchedule.weekdays.filter { off[$0] == nil && !taken.contains($0) }
+            let open = WeekSchedule.weekdays.filter { !blocked.contains($0) && !taken.contains($0) }
             if let wd = open.first(where: { $0 < firstDay }) ?? open.first {
                 pinned[i].weekday = wd
                 taken.insert(wd)
             }
         }
-        let free = WeekSchedule.weekdays.filter { $0 >= firstDay && off[$0] == nil && !taken.contains($0) }
+        let free = WeekSchedule.weekdays.filter { $0 >= firstDay && !blocked.contains($0) && !taken.contains($0) }
         let regular = Dictionary(plan.sessions.map { ($0.id, $0.weekday) }, uniquingKeysWith: { a, _ in a })
         var used = profile
         var movable = plan.sessions.filter { !pinnedIds.contains($0.id) }
@@ -225,8 +239,11 @@ public enum PlanCalendar {
         }
 
         let preferred = Set(profile.gymDays).intersection(free)
+        // Sport days of this week (seasons, dated days and trips), not today's.
+        var prefs = profile.climbPrefs
+        prefs.sports = profile.sportDays(on: weekStart, calendar: cal)
         let slots = place(movable.map(\.focus), on: free, climbing: Set(climbing),
-                          gym: preferred.count >= movable.count ? preferred : [], prefs: profile.climbPrefs)
+                          gym: preferred.count >= movable.count ? preferred : [], prefs: prefs)
         var trips: [UUID: WeekPlan] = [:]
         var placed: [Session] = []
         var remaining = movable
@@ -251,7 +268,7 @@ public enum PlanCalendar {
         }
         let moved = unmoved.pinning(fixed) != unmoved || placed.contains { s in regular[s.id].flatMap { $0 }.map { $0 != s.weekday } ?? false }
         plan.sessions = (pinned + placed).sorted { ($0.weekday ?? 0, $0.index) < ($1.weekday ?? 0, $1.index) }
-        return Week(start: weekStart, days: days, plan: plan, off: off, travel: travel, climbing: climbing,
+        return Week(start: weekStart, days: days, plan: plan, off: off, travel: travel, climbing: climbing, trips: sportTrips,
                     dropped: dropped, adapted: resplit || moved || dropped > 0 || !travel.isEmpty)
     }
 
@@ -287,7 +304,7 @@ public enum PlanCalendar {
             let start = cal.date(byAdding: .weekOfYear, value: offset, to: thisMonday)!
             if offset == 0 {
                 // An untouched weekday plan is shown as is (missed sessions stay where they were).
-                let touched = touches(away, weekStart: start, cal)
+                let touched = touches(away, weekStart: start, cal) || touches(profile.sportTrips ?? [], weekStart: start, cal)
                     || current?.sessions.contains { $0.weekday == nil && !$0.isPlanInsert && fixed[$0.id] == nil } ?? true
                 return adapt(profile, week: currentWeek, seed: seed, weekStart: start, away: away,
                              base: current, done: done, firstDay: touched ? today : 1, fixed: fixed, calendar: cal)

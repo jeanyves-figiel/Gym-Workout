@@ -751,6 +751,18 @@ private struct RestDayCard: View {
     @State private var logging: ClimbLog?
     @State private var loggingSport: SportLog?
     @State private var trackingSport: SportLog?
+    /// Plan sport (#474): a sport once, every week or a trip from this day; or the dated day / trip on it.
+    @State private var planningSport = false
+    @State private var editingTrip: SportTrip?
+
+    /// This day's key ("2026-10-21") in the current week.
+    private var dayKey: String {
+        let cal = model.planCalendar
+        let day = cal.date(byAdding: .day, value: weekday - 1, to: Progression.weekStart(Date(), cal)) ?? Date()
+        return PlanCalendar.key(day, cal)
+    }
+    /// A dated sport day or trip on this day.
+    private var trip: SportTrip? { model.profile?.sportTrip(on: dayKey) }
 
     /// Climbers get Log climb next to Add workout on every rest day (#304).
     private var climber: Bool { model.profile.map(Generator.isClimber) ?? false }
@@ -772,10 +784,21 @@ private struct RestDayCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             WeekDayStrip(selected: weekday, onPick: onPick)
-            Text("\(WeekSchedule.name(weekday)) · \(climbing ? "climbing day" : "rest day")").font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
+            Text("\(WeekSchedule.name(weekday)) · \(trip.map { $0.isTrip ? "sport trip" : "sport day" } ?? (climbing ? "climbing day" : "rest day"))").font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
             VStack(spacing: 6) {
-                Text(climbing ? "Climbing day 🧗" : "Rest day 😴").font(Theme.display(26)).foregroundStyle(.white)
-                Text(ahead ? (climbing ? "Climb planned. Log it on the day, or plan a workout." : "Nothing planned. Plan a workout?")
+                if let trip {
+                    Button { editingTrip = trip } label: {
+                        Label(trip.title, systemImage: trip.sport.symbol).font(Theme.display(24)).foregroundStyle(.white)
+                            .padding(.horizontal, 16).padding(.vertical, 8)
+                            .background(Capsule().fill(trip.sport.gradient))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Edit this sport day")
+                } else {
+                    Text(climbing ? "Climbing day 🧗" : "Rest day 😴").font(Theme.display(26)).foregroundStyle(.white)
+                }
+                Text(trip != nil ? (ahead ? "No gym that day. Log or track it on the day." : "No gym today. Log or track it.")
+                     : ahead ? (climbing ? "Climb planned. Log it on the day, or plan a workout." : "Nothing planned. Plan a workout or a sport?")
                      : climbing ? "No gym session planned. Log your climb, or add a workout."
                      : climber ? "Nothing planned. Train or climb?" : "Nothing planned. Fancy a session?")
                     .font(.footnote).foregroundStyle(.white.opacity(0.8)).multilineTextAlignment(.center)
@@ -787,6 +810,15 @@ private struct RestDayCard: View {
                     }
                 }
                 .padding(.top, 6)
+                if trip == nil && weekday >= model.todayWeekday {
+                    // Plan sport (#474): once, every week or a trip from this day.
+                    Button { planningSport = true } label: {
+                        Label("Plan sport", systemImage: "figure.mixed.cardio").font(Theme.label(14)).foregroundStyle(.white)
+                            .padding(.horizontal, 16).padding(.vertical, 10)
+                            .background(Capsule().fill(Color.white.opacity(0.16)))
+                    }
+                    .buttonStyle(.plain)
+                }
                 if !climbing && !ahead {
                     // Any other sport (#416), dated like a climb; Track live with a Watch (#462, design C).
                     SportSplitPill(onLog: { loggingSport = SportLog(start: climbStart()) },
@@ -812,6 +844,8 @@ private struct RestDayCard: View {
         .sheet(item: $logging) { LogClimbView(initial: $0) }
         .sheet(item: $loggingSport) { LogSportView(initial: $0) }
         .sheet(item: $trackingSport) { LogSportView(initial: $0, live: true) }
+        .sheet(isPresented: $planningSport) { PlanSportSheet(day: dayKey, sport: model.profile?.otherSports.first?.sport) }
+        .sheet(item: $editingTrip) { PlanSportSheet(day: $0.start, editing: $0) }
     }
 }
 
