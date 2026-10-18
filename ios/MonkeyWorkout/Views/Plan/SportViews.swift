@@ -98,44 +98,39 @@ extension AppModel {
     }
 }
 
-/// Lime-row button beside Start workout (#277 slot): opens the sport grid.
-struct LogSportButton: View {
-    let action: () -> Void
+/// Under Start workout on Train (#462, design C from `other-sports/row-proposals.png`): one pill split in two, Log sport
+/// (a past session) and Track live (on the Watch). Without a paired Watch that has MonkeyWorkout, only Log sport.
+struct SportSplitPill: View {
+    let onLog: () -> Void
+    let onTrack: () -> Void
+    @State private var link = WatchLink.shared
 
     var body: some View {
+        HStack(spacing: 0) {
+            half("Log sport", detail: "past session", symbol: "plus.circle.fill", ink: .white, action: onLog)
+                .background(LinearGradient(colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)], startPoint: .leading, endPoint: .trailing))
+                .accessibilityHint("Log a sport session you already did: snowboard, bike, Hyrox…")
+            if link.ready {
+                half("Track live", detail: "on your Watch", symbol: "applewatch.radiowaves.left.and.right", ink: Theme.ink, action: onTrack)
+                    .background(Theme.lime)
+                    .accessibilityHint("Start a sport on your Apple Watch now")
+            }
+        }
+        .clipShape(Capsule())
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: link.ready)
+    }
+
+    private func half(_ title: String, detail: String, symbol: String, ink: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Label("Log sport", systemImage: "plus.circle.fill")
-                .font(Theme.label(15))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .fixedSize()
-                .padding(.horizontal, 16)
-                .padding(.vertical, 18)
-                .background(Capsule().fill(LinearGradient(colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)],
-                                                          startPoint: .leading, endPoint: .trailing)))
+            VStack(spacing: 1) {
+                Label(title, systemImage: symbol).font(Theme.label(15)).lineLimit(1).minimumScaleFactor(0.8)
+                Text(detail).font(Theme.label(10)).opacity(0.85).lineLimit(1)
+            }
+            .foregroundStyle(ink)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityHint("Log a sport session: snowboard, bike, Hyrox, climbing…")
-    }
-}
-
-/// Round lime Watch button beside Log sport (#439, design C): opens the sheet in Track live mode. Only with a Watch.
-struct TrackOnWatchButton: View {
-    let action: () -> Void
-
-    var body: some View {
-        if WatchSync.shared.watchReady {
-            Button(action: action) {
-                Image(systemName: "applewatch.radiowaves.left.and.right")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(Theme.ink)
-                    .frame(width: 56, height: 56)
-                    .background(Circle().fill(Theme.lime))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Track on Watch")
-            .accessibilityHint("Start a sport on your Apple Watch: snowboard, bike, run, Hyrox…")
-        }
     }
 }
 
@@ -159,6 +154,9 @@ struct LogSportView: View {
     @State private var saver = false
     @State private var hyroxFormat: HyroxFormat = .full
     @State private var sent = false
+    /// The Watch could not be woken: off the wrist, locked or out of reach (#462).
+    @State private var noWatch = false
+    @State private var link = WatchLink.shared
     private let initial: SportLog
 
     /// `restoring`: the session brought back by Undo (#285). `live`: opened from Track on Watch (#439).
@@ -194,6 +192,11 @@ struct LogSportView: View {
                         if canTrack { modeSwitch }
                         if live && canTrack {
                             liveCard
+                            if noWatch {
+                                Label("Your Watch didn't answer. Put it on, unlock it, then tap Start again. Or start it on the Watch: Track a sport.",
+                                      systemImage: "exclamationmark.applewatch")
+                                    .font(.footnote.weight(.semibold)).foregroundStyle(Theme.lime)
+                            }
                             Text("Your Watch opens \(log.sport.short) and records it: heart rate, route, kcal. Keep it on your wrist; it saves to Apple Health and shows up here after.")
                                 .font(.footnote).foregroundStyle(Theme.muted)
                         } else {
@@ -253,8 +256,8 @@ struct LogSportView: View {
         live ? model.sportOrder.filter(\.watchTrackable) : model.sportOrder
     }
 
-    /// The Watch can record this sport now.
-    private var canTrack: Bool { log.sport.watchTrackable && WatchSync.shared.watchReady }
+    /// A paired Watch with MonkeyWorkout records this sport (#462: `WatchLink` redraws when the link comes up).
+    private var canTrack: Bool { log.sport.watchTrackable && link.ready }
 
     /// Track live / Log past (#439, design A).
     private var modeSwitch: some View {
@@ -321,16 +324,21 @@ struct LogSportView: View {
     }
 
     private func startOnWatch() {
-        if log.sport == .hyrox {
-            WatchSync.shared.startHyrox(hyroxFormat)
-        } else {
-            WatchSync.shared.startSport(log.sport, saver: saver)
-        }
+        noWatch = false
         sent = true
-        closeGuard.done()
-        Task {
-            try? await Task.sleep(for: .seconds(1.5))
+        let done: (Bool) -> Void = { ok in
+            guard ok else {
+                sent = false
+                noWatch = true
+                return
+            }
+            closeGuard.done()
             dismiss()
+        }
+        if log.sport == .hyrox {
+            WatchSync.shared.startHyrox(hyroxFormat, done: done)
+        } else {
+            WatchSync.shared.startSport(log.sport, saver: saver, done: done)
         }
     }
 
