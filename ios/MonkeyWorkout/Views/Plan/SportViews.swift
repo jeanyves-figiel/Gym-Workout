@@ -119,23 +119,22 @@ struct LogSportButton: View {
     }
 }
 
-/// Round lime Watch button beside Log sport (#439, design C): opens the sheet in Track live mode. Only with a Watch.
+/// Round lime Watch button beside Log sport (#439, design C): opens the sheet in Track live mode. Always shown: the
+/// Watch link (WCSession) is often not ready yet when Train first draws, and nothing redraws it after (#462).
 struct TrackOnWatchButton: View {
     let action: () -> Void
 
     var body: some View {
-        if WatchSync.shared.watchReady {
-            Button(action: action) {
-                Image(systemName: "applewatch.radiowaves.left.and.right")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(Theme.ink)
-                    .frame(width: 56, height: 56)
-                    .background(Circle().fill(Theme.lime))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Track on Watch")
-            .accessibilityHint("Start a sport on your Apple Watch: snowboard, bike, run, Hyrox…")
+        Button(action: action) {
+            Image(systemName: "applewatch.radiowaves.left.and.right")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(Theme.ink)
+                .frame(width: 56, height: 56)
+                .background(Circle().fill(Theme.lime))
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Track on Watch")
+        .accessibilityHint("Start a sport on your Apple Watch: snowboard, bike, run, Hyrox…")
     }
 }
 
@@ -159,6 +158,8 @@ struct LogSportView: View {
     @State private var saver = false
     @State private var hyroxFormat: HyroxFormat = .full
     @State private var sent = false
+    /// Start tapped without a paired Watch that has MonkeyWorkout (#462).
+    @State private var noWatch = false
     private let initial: SportLog
 
     /// `restoring`: the session brought back by Undo (#285). `live`: opened from Track on Watch (#439).
@@ -194,6 +195,11 @@ struct LogSportView: View {
                         if canTrack { modeSwitch }
                         if live && canTrack {
                             liveCard
+                            if noWatch {
+                                Label("No Apple Watch with MonkeyWorkout found. Pair your Watch, install MonkeyWorkout from the Watch app on this iPhone (My Watch → Available apps), then tap Start again. Or start it on the Watch: Track a sport.",
+                                      systemImage: "exclamationmark.applewatch")
+                                    .font(.footnote.weight(.semibold)).foregroundStyle(Theme.lime)
+                            }
                             Text("Your Watch opens \(log.sport.short) and records it: heart rate, route, kcal. Keep it on your wrist; it saves to Apple Health and shows up here after.")
                                 .font(.footnote).foregroundStyle(Theme.muted)
                         } else {
@@ -253,8 +259,8 @@ struct LogSportView: View {
         live ? model.sportOrder.filter(\.watchTrackable) : model.sportOrder
     }
 
-    /// The Watch can record this sport now.
-    private var canTrack: Bool { log.sport.watchTrackable && WatchSync.shared.watchReady }
+    /// The Watch records this sport; whether a Watch is reachable is checked on Start (#462).
+    private var canTrack: Bool { log.sport.watchTrackable }
 
     /// Track live / Log past (#439, design A).
     private var modeSwitch: some View {
@@ -321,6 +327,11 @@ struct LogSportView: View {
     }
 
     private func startOnWatch() {
+        guard WatchSync.shared.watchReady else {
+            noWatch = true
+            return
+        }
+        noWatch = false
         if log.sport == .hyrox {
             WatchSync.shared.startHyrox(hyroxFormat)
         } else {
