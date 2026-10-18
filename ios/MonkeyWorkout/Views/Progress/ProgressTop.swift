@@ -1,9 +1,7 @@
 import SwiftUI
 import WorkoutEngine
 
-/// Progress page structure (#243, design A + B): a page map of section cards at the top, then a section bar
-/// that pins under the title and lights up the section on screen. Replaces the three top layouts of #238.
-/// Page sections, in page order: map cards, bar chips and scroll targets.
+/// Progress parts (#243): each has a board tile (#444) and its own page.
 enum ProgressSection: String, CaseIterable, Identifiable, Hashable {
     case training, programmes, body, records, badges, muscles, history
 
@@ -101,32 +99,19 @@ extension BodyMetric {
     }
 }
 
-// MARK: - B · Page map
+// MARK: - Section tile
 
-/// Six section cards, each with its key number; tap one to jump to that section.
-struct ProgressMap: View {
+/// A Progress part as a bold tile with its key number (board widget, #444); tap opens its page.
+struct ProgressSectionTile: View {
     let h: ProgressHighlights
-    let open: (ProgressSection) -> Void
+    let section: ProgressSection
 
     var body: some View {
-        Grid(horizontalSpacing: 10, verticalSpacing: 10) {
-            GridRow { card(.training); card(.body) }
-            GridRow { card(.records); card(.badges) }
-            GridRow { card(.muscles); card(.history) }
-            GridRow { card(.programmes).gridCellColumns(2) }
+        HubTile(symbol: section.symbol, colors: section.colors, label: section.title, ink: section.ink) {
+            content(section)
+        } corner: {
+            Image(systemName: "chevron.right").font(.system(size: 11, weight: .heavy)).foregroundStyle(section.ink).opacity(0.7)
         }
-    }
-
-    private func card(_ s: ProgressSection) -> some View {
-        Button { open(s) } label: {
-            HubTile(symbol: s.symbol, colors: s.colors, label: s.title, ink: s.ink) {
-                content(s)
-            } corner: {
-                Image(systemName: "arrow.down").font(.system(size: 11, weight: .heavy)).foregroundStyle(s.ink).opacity(0.7)
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint("Jumps to \(s.title)")
     }
 
     @ViewBuilder
@@ -180,56 +165,6 @@ struct ProgressMap: View {
     }
 }
 
-// MARK: - A · Section bar
-
-/// Chip per section; pinned under the title while scrolling, the section on screen lit lime.
-struct ProgressSectionBar: View {
-    let active: ProgressSection?
-    let open: (ProgressSection) -> Void
-    @Namespace private var pill
-
-    var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(ProgressSection.allCases) { s in
-                        Button { open(s) } label: { chip(s) }
-                            .buttonStyle(.plain)
-                            .id(s)
-                            .accessibilityAddTraits(active == s ? .isSelected : [])
-                    }
-                }
-                .padding(.horizontal, 16)
-            }
-            .onChange(of: active) { _, a in
-                guard let a else { return }
-                withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(a, anchor: .center) }
-            }
-        }
-        .padding(.vertical, 8)
-        .background(Theme.bg.opacity(0.96))
-        .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1) }
-        .padding(.horizontal, -16)
-    }
-
-    private func chip(_ s: ProgressSection) -> some View {
-        let on = active == s
-        return Label(s.title, systemImage: s.symbol)
-            .font(Theme.label(13))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .foregroundStyle(on ? Theme.ink : .white.opacity(0.8))
-            .background {
-                if on {
-                    Capsule().fill(Theme.lime).matchedGeometryEffect(id: "chip", in: pill)
-                } else {
-                    Capsule().fill(Color.white.opacity(0.08))
-                }
-            }
-            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: active)
-    }
-}
-
 /// Bold header opening each section: colour icon tile + title.
 struct ProgressSectionHeader: View {
     let section: ProgressSection
@@ -250,30 +185,6 @@ struct ProgressSectionHeader: View {
         .padding(.top, 10)
         .accessibilityAddTraits(.isHeader)
     }
-}
-
-/// Section tops (in the page scroll space) and the bar's bottom edge, for lighting the current chip.
-struct SectionTopsKey: PreferenceKey {
-    static let defaultValue: [ProgressSection: CGFloat] = [:]
-    static func reduce(value: inout [ProgressSection: CGFloat], nextValue: () -> [ProgressSection: CGFloat]) {
-        value.merge(nextValue()) { $1 }
-    }
-}
-
-struct SectionBarBottomKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
-}
-
-/// Progress scroll view height and the page end (bottom marker, absent while lazily unloaded = far away).
-struct ViewportHeightKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
-}
-
-struct PageEndKey: PreferenceKey {
-    static let defaultValue: CGFloat = .infinity
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = min(value, nextValue()) }
 }
 
 /// Slim lime streak row (was the big hero): streak, best, this week vs goal.

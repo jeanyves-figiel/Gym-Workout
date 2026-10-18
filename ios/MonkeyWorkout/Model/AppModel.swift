@@ -90,6 +90,7 @@ final class AppModel {
             state.history = demo.records
             state.logs = demo.logs
             state.climbs = Demo.climbs()
+            if ["history-page", "progress-sports"].contains(Demo.screen) { state.sportLogs = Demo.sportLogs() }
             state.customWorkoutList = Demo.customWorkouts
             sharedLibrary = Demo.sharedWorkouts
             state.prAttempts = Demo.prAttempts()
@@ -115,6 +116,12 @@ final class AppModel {
                 state.synced?.trainLayout = TrainLayout([
                     TrainWidget(.calendar, size: .large, look: .month), TrainWidget(.volume, size: .wide, look: .minutes),
                     TrainWidget(.records, size: .wide), TrainWidget(.muscles, size: .large), TrainWidget(.lastWorkout, size: .wide),
+                ])
+            // Customised Progress (#444): sport cards for snowboard, Hyrox and running.
+            case "progress-sports":
+                state.synced?.progressBoard = ProgressBoard([
+                    .sport(.snowboard, size: .large), .sport(.hyrox, size: .wide), .sport(.run),
+                    ProgressWidget(.streak), ProgressWidget(.history), ProgressWidget(.training), ProgressWidget(.records),
                 ])
             default: break
             }
@@ -336,6 +343,7 @@ final class AppModel {
                                sessionFoci: newWeek ? nil : state.synced?.sessionFoci,
                                savedGyms: state.synced?.savedGyms, programme: state.synced?.programme,
                                programmeHistory: state.synced?.programmeHistory, trainLayout: state.synced?.trainLayout,
+                               progressBoard: state.synced?.progressBoard,
                                customProgrammes: state.synced?.customProgrammes,
                                weekOf: state.synced?.weekOf,
                                // Exercise edits (#295): library workouts keep theirs; this week's plan days only within the week.

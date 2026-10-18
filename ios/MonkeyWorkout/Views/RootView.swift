@@ -223,9 +223,12 @@ private struct DemoScreen: View {
         case "pr-result": PRAttemptView(exerciseId: "bench-press", showing: Demo.prResult)
         case "technique": FormSheet(exercise: Exercise.get("leg-press"))
         case "progress", "progress-empty": NavigationStack { ProgressTabView() }
-        case "progress-flipped": NavigationStack { ProgressTabView(demoFlipped: .volume) }
+        case "progress-flipped": NavigationStack { ProgressTabView(demoFlipped: .volume, demoSection: .training) }
         case "progress-records": NavigationStack { ProgressTabView(demoSection: .records) }
+        case "progress-edit": NavigationStack { ProgressTabView(demoEditing: true) }
+        case "progress-sports": NavigationStack { ProgressTabView() }
         case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
+        case "history-page": NavigationStack { HistoryView() }
         case "body": NavigationStack { BodyHealthView() }
         case "body-talk": NavigationStack { TalkToYouDemo() }
         case "measurements": NavigationStack { MeasurementsView() }
