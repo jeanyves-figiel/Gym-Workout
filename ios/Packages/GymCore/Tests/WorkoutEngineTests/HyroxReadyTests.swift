@@ -71,7 +71,7 @@ import Testing
         let run = pinned.flatMap(\.blocks).flatMap(\.items).first { $0.exerciseId == "treadmill-run" }
         #expect(run == nil || run?.prescription.intensity == "Race pace 4:55 /km")
         // Race and recovery weeks pin nothing.
-        #expect(!p.previewWeek(9, member: member, seed: 1, starting: true).sessions.contains(where: \.isPlanInsert))
+        #expect(!p.previewWeek(9, member: member, seed: 1, starting: true).sessions.contains { $0.isPlanInsert })
     }
 
     @Test func racesAreKeptOnTheRunningProgramme() throws {
