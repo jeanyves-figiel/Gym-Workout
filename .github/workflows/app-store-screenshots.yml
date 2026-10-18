@@ -21,7 +21,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Select newest Xcode
         run: |
           ls -d /Applications/Xcode* || true
@@ -93,7 +93,7 @@ jobs:
           git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "App Store screenshots for ${GITHUB_SHA}"
           git push -qf "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/app-store-screenshots"
           echo "Screenshots on branch \`app-store-screenshots\`" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: app-store-screenshots
           path: out

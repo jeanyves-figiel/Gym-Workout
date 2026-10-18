@@ -338,6 +338,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - API container: entrypoint fixes ownership of root-owned `/data` mounts (Fly volumes) before dropping to the `node` user (#3).
 
 ### Security
+- **Dependency updates** (Dependabot #317–#326): passkey library `@simplewebauthn/server` 13 → 14 (type `AuthenticatorTransportFuture` → `AuthenticatorTransport`), `@fastify/rate-limit` 11.2.1, `nodemailer` 10.1.0, `zod` 4.6.7; GitHub Actions `checkout`, `setup-node`, `upload-artifact` v4 → v7, `docker/login-action` and `docker/setup-buildx-action` v3 → v4. `@types/node` stays on 22 to match the Node 22 runtime (#324 not taken).
 - **Fly backups: member emails masked in the log** (#333): `member-restore` / `member-delete` printed the member's email in the public Actions log (job env). Email and confirm are now read from the event file and masked before any step prints, as is the encoded restore request.
 - **Fly backups: Tigris keys kept out of the log** (#327): `offsite-setup` printed the new Tigris bucket keys (from `flyctl storage create`) into the public Actions log on its first staging run; the log was deleted within minutes. Its output is now hidden, a new `offsite-rotate` action destroys and recreates the bucket to issue new keys (run on staging), and setting `BACKUP_KEY` retries on Fly API errors. A failed bucket create shows its error with key lines removed; `backup-now` also uploads the encrypted off-site copy; rotate destroys every `<app>-backups*` bucket and creates one under a fresh name.
 
