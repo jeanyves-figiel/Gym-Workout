@@ -139,6 +139,14 @@ final class WatchLiftPref {
     }
 }
 
+/// A paired Watch with MonkeyWorkout installed, observable so Train and Log sport redraw when the Watch link comes
+/// up after they first drew (#462). Whether the Watch is on the wrist can't be read from the iPhone: the start fails then.
+@MainActor @Observable
+final class WatchLink {
+    static let shared = WatchLink()
+    var ready = false
+}
+
 /// iPhone side of the Watch companion (#56): sends plan/progress snapshots and the live player state,
 /// applies sets and workouts logged on the Watch, and forwards Watch remote-control commands to the player.
 @MainActor
@@ -184,6 +192,8 @@ final class WatchSync: NSObject {
     func push() {
         // Home Screen widgets (#297) follow the same changes.
         HomeWidgetSync.shared.push()
+        // Pairing or installing the Watch app while the app runs shows Track on Watch without a restart (#462).
+        if WatchLink.shared.ready != watchReady { WatchLink.shared.ready = watchReady }
         guard let model, let session, session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
         for s in model.plan?.sessions ?? [] { knownSessions[s.id] = s }
         var snap = Self.snapshot(model, readiness: health.flatMap { Readiness.assess($0.snapshot)?.0.title })
@@ -235,10 +245,10 @@ final class WatchSync: NSObject {
     }
 
     /// "Start race on Watch" (#426): the format goes with the snapshot, then the Watch app is woken for cross training.
-    func startHyrox(_ format: HyroxFormat) {
+    func startHyrox(_ format: HyroxFormat, done: ((Bool) -> Void)? = nil) {
         hyroxStart = (format, Date())
         push()
-        health?.startWatchApp(activity: .crossTraining)
+        health?.startWatchApp(activity: .crossTraining, done: done)
     }
 
     /// A paired Watch with MonkeyWorkout installed: "Start on Watch" can reach it (#439).
@@ -249,10 +259,11 @@ final class WatchSync: NSObject {
 
     /// "Start on Watch" for another sport (#439): same path as Hyrox, the sport goes with the snapshot, then the
     /// Watch app is woken with the sport's workout type.
-    func startSport(_ sport: Sport, saver: Bool) {
+    /// `done`: false when the Watch could not be woken (not on the wrist, locked, out of reach).
+    func startSport(_ sport: Sport, saver: Bool, done: ((Bool) -> Void)? = nil) {
         sportStart = WSportStart(sport: sport.rawValue, saver: saver, at: Date())
         push()
-        health?.startWatchApp(activity: HealthManager.activityType(for: sport))
+        health?.startWatchApp(activity: HealthManager.activityType(for: sport), done: done)
     }
 
     /// The Watch tracks heart rate for this iPhone workout, so the Watch saves its Health workout (#347).
@@ -409,7 +420,10 @@ final class WatchSync: NSObject {
 
 extension WatchSync: WCSessionDelegate {
     nonisolated func session(_ session: WCSession, activationDidCompleteWith state: WCSessionActivationState, error: Error?) {
-        Task { @MainActor in self.push() }
+        Task { @MainActor in
+            WatchLink.shared.ready = self.watchReady
+            self.push()
+        }
     }
 
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
@@ -421,6 +435,7 @@ extension WatchSync: WCSessionDelegate {
 
     nonisolated func sessionWatchStateDidChange(_ session: WCSession) {
         Task { @MainActor in
+            WatchLink.shared.ready = self.watchReady
             self.lastSnapshot = nil
             self.push()
         }

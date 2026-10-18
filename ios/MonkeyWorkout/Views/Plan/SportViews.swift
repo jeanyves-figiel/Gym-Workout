@@ -119,22 +119,25 @@ struct LogSportButton: View {
     }
 }
 
-/// Round lime Watch button beside Log sport (#439, design C): opens the sheet in Track live mode. Always shown: the
-/// Watch link (WCSession) is often not ready yet when Train first draws, and nothing redraws it after (#462).
+/// Round lime Watch button beside Log sport (#439, design C): opens the sheet in Track live mode. Only with a paired
+/// Watch that has MonkeyWorkout; `WatchLink` redraws it once the Watch link is up (#462).
 struct TrackOnWatchButton: View {
     let action: () -> Void
+    @State private var link = WatchLink.shared
 
     var body: some View {
-        Button(action: action) {
-            Image(systemName: "applewatch.radiowaves.left.and.right")
-                .font(.system(size: 20, weight: .bold))
-                .foregroundStyle(Theme.ink)
-                .frame(width: 56, height: 56)
-                .background(Circle().fill(Theme.lime))
+        if link.ready {
+            Button(action: action) {
+                Image(systemName: "applewatch.radiowaves.left.and.right")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: 56, height: 56)
+                    .background(Circle().fill(Theme.lime))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Track on Watch")
+            .accessibilityHint("Start a sport on your Apple Watch: snowboard, bike, run, Hyrox…")
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Track on Watch")
-        .accessibilityHint("Start a sport on your Apple Watch: snowboard, bike, run, Hyrox…")
     }
 }
 
@@ -158,8 +161,9 @@ struct LogSportView: View {
     @State private var saver = false
     @State private var hyroxFormat: HyroxFormat = .full
     @State private var sent = false
-    /// Start tapped without a paired Watch that has MonkeyWorkout (#462).
+    /// The Watch could not be woken: off the wrist, locked or out of reach (#462).
     @State private var noWatch = false
+    @State private var link = WatchLink.shared
     private let initial: SportLog
 
     /// `restoring`: the session brought back by Undo (#285). `live`: opened from Track on Watch (#439).
@@ -196,7 +200,7 @@ struct LogSportView: View {
                         if live && canTrack {
                             liveCard
                             if noWatch {
-                                Label("No Apple Watch with MonkeyWorkout found. Pair your Watch, install MonkeyWorkout from the Watch app on this iPhone (My Watch → Available apps), then tap Start again. Or start it on the Watch: Track a sport.",
+                                Label("Your Watch didn't answer. Put it on, unlock it, then tap Start again. Or start it on the Watch: Track a sport.",
                                       systemImage: "exclamationmark.applewatch")
                                     .font(.footnote.weight(.semibold)).foregroundStyle(Theme.lime)
                             }
@@ -259,8 +263,8 @@ struct LogSportView: View {
         live ? model.sportOrder.filter(\.watchTrackable) : model.sportOrder
     }
 
-    /// The Watch records this sport; whether a Watch is reachable is checked on Start (#462).
-    private var canTrack: Bool { log.sport.watchTrackable }
+    /// A paired Watch with MonkeyWorkout records this sport (#462: `WatchLink` redraws when the link comes up).
+    private var canTrack: Bool { log.sport.watchTrackable && link.ready }
 
     /// Track live / Log past (#439, design A).
     private var modeSwitch: some View {
@@ -327,21 +331,21 @@ struct LogSportView: View {
     }
 
     private func startOnWatch() {
-        guard WatchSync.shared.watchReady else {
-            noWatch = true
-            return
-        }
         noWatch = false
-        if log.sport == .hyrox {
-            WatchSync.shared.startHyrox(hyroxFormat)
-        } else {
-            WatchSync.shared.startSport(log.sport, saver: saver)
-        }
         sent = true
-        closeGuard.done()
-        Task {
-            try? await Task.sleep(for: .seconds(1.5))
+        let done: (Bool) -> Void = { ok in
+            guard ok else {
+                sent = false
+                noWatch = true
+                return
+            }
+            closeGuard.done()
             dismiss()
+        }
+        if log.sport == .hyrox {
+            WatchSync.shared.startHyrox(hyroxFormat, done: done)
+        } else {
+            WatchSync.shared.startSport(log.sport, saver: saver, done: done)
         }
     }
 
