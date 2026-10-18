@@ -273,6 +273,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       const voices = deps.config.coachVoices;
       coachVoiceRoutes(r, deps.synth ?? (voices.polly ? pollySynthesizer(voices.polly, outbound, now) : undefined), voices.cacheDir, {
         warm: deps.config.env === 'production',
+        db: deps.db,
+        now,
       });
     },
     { prefix: '/v1' },
