@@ -4,7 +4,7 @@ import WorkoutEngine
 /// "Explore" tab: exercises by body map / muscle group or training category, and the workout library.
 struct LibraryView: View {
     enum Mode: String, CaseIterable, Identifiable {
-        case muscles = "Muscles", categories = "Categories", workouts = "Workouts", programmes = "Programmes"
+        case muscles = "Muscles", machines = "Machines", categories = "Categories", workouts = "Workouts", programmes = "Programmes"
         var id: String { rawValue }
     }
 
@@ -20,6 +20,8 @@ struct LibraryView: View {
     }
     /// Muscle tapped on the body map; pushes its page.
     @State private var tapped: Muscle?
+    /// Machine chip on Muscles (#456), shared with the muscle page.
+    @AppStorage(MachineFilterStore.key) private var machineFilter = MachineFilter.all.key
 
     var body: some View {
         // Reading the model's list re-renders counts and lists when custom exercises change.
@@ -30,6 +32,9 @@ struct LibraryView: View {
                 GradientSegments(selection: $mode, items: [
                     SegmentItem(value: .muscles, title: "Muscles", symbol: "figure.strengthtraining.traditional",
                                 detail: "\(Muscle.allCases.count) muscles"),
+                    // Explore by machine (#456).
+                    SegmentItem(value: .machines, title: "Machines", symbol: "gearshape.2.fill",
+                                detail: "\(GymArea.allCases.reduce(0) { $0 + $1.browsable().count }) machines"),
                     SegmentItem(value: .categories, title: "Categories", symbol: "square.grid.2x2.fill",
                                 detail: "\(WorkoutEngine.Category.allCases.count + 1) types"),
                     SegmentItem(value: .workouts, title: "Workouts", symbol: "list.bullet.rectangle.fill",
@@ -42,6 +47,7 @@ struct LibraryView: View {
 
                 switch mode {
                 case .muscles: muscles
+                case .machines: MachinesSection()
                 case .categories: categories
                 case .workouts: WorkoutLibrarySection()
                 case .programmes: ProgrammeLibrarySection()
@@ -64,6 +70,7 @@ struct LibraryView: View {
         .navigationTitle("Explore")
         .toolbarTitleDisplayMode(.inlineLarge)
         .navigationDestination(for: Muscle.self) { MuscleDetailView(muscle: $0) }
+        .navigationDestination(for: Equipment.self) { MachineDetailView(item: $0) }
         .navigationDestination(for: WorkoutEngine.Category.self) { CategoryDetailView(category: $0) }
         .navigationDestination(for: ClimbingRoute.self) { _ in ClimbingCategoryView() }
         .navigationDestination(for: String.self) { SessionView(sessionId: $0) }
@@ -74,26 +81,35 @@ struct LibraryView: View {
     private var muscles: some View {
         VStack(alignment: .leading, spacing: 20) {
             BodyMapCard(heat: model.weekHeat, sets: model.weeklyWorkingSets) { tapped = $0 }
+            // Machine chips (#456): muscle cards count only exercises on the picked kit; muscles with none hide.
+            MachineChips()
             NewExerciseButton()
 
             let heat = model.weekHeat, hard = model.weeklyHardSets, last = model.lastTrained, planned = model.plan != nil
+            let filter = MachineFilter(key: machineFilter), gym = model.exploreGym
+            let counts = Dictionary(uniqueKeysWithValues: Muscle.allCases.map { m in
+                (m, Exercise.working(m, filter: filter, gym: gym).reduce(0) { $0 + $1.1.count })
+            })
             ForEach(MuscleGroup.allCases) { g in
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(g.label).eyebrow()
-                    ForEach(g.muscles) { m in
-                        let target = model.volumeTarget(for: m)
-                        NavigationLink(value: m) {
-                            MuscleCard(
-                                muscle: m, heat: heat[m] ?? 0,
-                                sets: !planned ? nil : target != nil ? Int((hard[m] ?? 0).rounded()) : model.weeklySets(for: m),
-                                target: target,
-                                exercises: Exercise.working(m).reduce(0) { $0 + $1.1.count },
-                                last: last[m])
+                let shown = g.muscles.filter { filter == .all || counts[$0, default: 0] > 0 }
+                if !shown.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(g.label).eyebrow()
+                        ForEach(shown) { m in
+                            let target = model.volumeTarget(for: m)
+                            NavigationLink(value: m) {
+                                MuscleCard(
+                                    muscle: m, heat: heat[m] ?? 0,
+                                    sets: !planned ? nil : target != nil ? Int((hard[m] ?? 0).rounded()) : model.weeklySets(for: m),
+                                    target: target,
+                                    exercises: counts[m, default: 0],
+                                    last: last[m])
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .id(g)
                 }
-                .id(g)
             }
         }
     }
@@ -316,6 +332,7 @@ struct MuscleDetailView: View {
     let muscle: Muscle
     @Environment(AppModel.self) private var model
     @State private var open: ExerciseRef?
+    @AppStorage(MachineFilterStore.key) private var machineFilter = MachineFilter.all.key
 
     var body: some View {
         let _ = model.customExercises.count
@@ -337,8 +354,14 @@ struct MuscleDetailView: View {
                     }
                     .frame(width: 130)
                 }
+                MachineChips()
                 NewExerciseButton(prefill: CustomExercise(primary: [muscle]))
-                ForEach(Exercise.working(muscle), id: \.0) { category, hits in
+                let filtered = Exercise.working(muscle, filter: MachineFilter(key: machineFilter), gym: model.exploreGym)
+                if filtered.isEmpty {
+                    Text("No \(muscle.name.lowercased()) exercise with \(MachineFilter(key: machineFilter).label.lowercased()). Pick another chip.")
+                        .font(.body.weight(.medium)).foregroundStyle(Theme.muted)
+                }
+                ForEach(filtered, id: \.0) { category, hits in
                     let main = Set(hits.filter(\.primary).map(\.exercise.id))
                     GradientSection(symbol: category.symbol, title: category.label, gradient: category.gradient) {
                         // Variations fold under their base (#174); the exercise page lists them.
@@ -449,7 +472,7 @@ struct VariationCount: View {
 
 /// Explore (#142): "New exercise" card opening the custom exercise builder (#52), prefilled with the
 /// muscle or category it is added from; the saved exercise then shows in that list.
-private struct NewExerciseButton: View {
+struct NewExerciseButton: View {
     var prefill: CustomExercise?
     @State private var building = false
     @State private var gate: ProGate?
