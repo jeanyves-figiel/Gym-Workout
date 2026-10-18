@@ -26,6 +26,12 @@
       "body": "The Watch button and Track live show up as soon as your Watch is connected, under a full-width Start workout."
     },
     {
+      "symbol": "figure.run",
+      "tint": "warmup",
+      "title": "Pick your sport faster",
+      "body": "Your sports sit on top as big cards, the rest in bold colour groups, in Log sport and Track on Watch."
+    },
+    {
       "symbol": "exclamationmark.bubble.fill",
       "tint": "power",
       "title": "Report a problem",
