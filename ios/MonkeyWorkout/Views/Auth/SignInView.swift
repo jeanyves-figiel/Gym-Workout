@@ -46,7 +46,7 @@ struct SignInView: View {
                 let user = try await model.api.login(email: email, password: password)
                 await model.didAuthenticate(user)
             } catch let e as APIError where e.code == "email_not_verified" {
-                path.append(.verify(email: email))
+                path.append(.verify(email: email, password: password))
             } catch let e as TwoStepRequired {
                 path.append(.twoStep(token: e.token)) // 2-step on (#257)
             }

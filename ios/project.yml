@@ -97,12 +97,24 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: $(APP_BUNDLE_ID)
             CFBundleURLSchemes: [monkeyworkout]
+        # Plain-HTTP local API for DEV only (http://localhost:7443): removed from Staging/Release builds below (#432).
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+    postBuildScripts:
+      # After Info.plist processing (declared input), before code signing (always last for the app).
+      - name: Drop local networking (Staging/Release)
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+        script: |
+          if [ "$CONFIGURATION" = "Debug" ]; then exit 0; fi
+          /usr/libexec/PlistBuddy -c "Delete :NSAppTransportSecurity:NSAllowsLocalNetworking" "${TARGET_BUILD_DIR}/${INFOPLIST_PATH}" || true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
         PRODUCT_NAME: MonkeyWorkout
+        # The local-networking script above edits the built Info.plist (#432).
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
         # iPhone + iPad (#120).
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -149,7 +161,10 @@ targets:
     platform: watchOS
     sources:
       - path: MonkeyWorkoutWatch
-        excludes: [MonkeyWorkoutWatch.entitlements]
+        excludes: [MonkeyWorkoutWatch.entitlements, PrivacyInfo.xcprivacy]
+      # Own privacy manifest: the Watch app reads UserDefaults and posts Hyrox races itself (#426).
+      - path: MonkeyWorkoutWatch/PrivacyInfo.xcprivacy
+        buildPhase: resources
       - path: WatchShared
       - path: MonkeyWorkoutWatchComplications/SharedSnapshot.swift
     dependencies:

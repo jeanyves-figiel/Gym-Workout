@@ -26,8 +26,10 @@ jobs:
       FLY_APP: ${{ inputs.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
       FILTER: ${{ inputs.filter }}
     steps:
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master, pinned (#432)
       - name: Recent logs
         run: |
           flyctl logs -a "$FLY_APP" --no-tail > logs.txt || true
+          # The repo is public (#432): emails and 6-digit codes (mail subjects) are redacted before printing.
+          sed -E -i 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/<email>/g; s/\b[0-9]{6}\b/<code>/g' logs.txt
           if [ -n "$FILTER" ]; then grep -E "$FILTER" logs.txt | tail -n 200 || echo "(no matching lines)"; else tail -n 300 logs.txt; fi

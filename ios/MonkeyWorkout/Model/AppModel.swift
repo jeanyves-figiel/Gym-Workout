@@ -19,6 +19,9 @@ final class AppModel {
         }
     }
     var syncError: String?
+    /// Upload-only key the Watch uses to send a Hyrox race straight to the server (#426). In this device's
+    /// Keychain, not state.json (#432); see `AppModel+Hyrox`.
+    var watchUploadKey: String?
     /// Variation before the last one applied this launch (#98); set while Train offers Undo.
     var variationUndo: VariationUndo?
     /// Pro offer after the first plan (#126); not persisted, so it shows once.
@@ -137,7 +140,9 @@ final class AppModel {
             return
         }
         #endif
+        await forgetTokensAfterReinstall()
         state = store.load()
+        loadWatchUploadKey()
         startConnectivityWatch()
         await api.setOnSignedOut { [weak self] in
             Task { @MainActor in self?.sessionExpired() }
@@ -146,10 +151,46 @@ final class AppModel {
             phase = .signedOut
             return
         }
-        phase = .signedIn // optimistic: works offline at the gym
-        await refreshUser()
+        if state.synced == nil {
+            // No plan on this device (state.json lost or never synced): fetch the account and its profile first, so
+            // onboarding never replaces a plan the server has. The launch spinner stays meanwhile.
+            await refreshUser()
+            guard await api.hasSession else {
+                phase = .signedOut
+                return
+            }
+            claimOwnerIfNeeded()
+            await pullProfile()
+            phase = .signedIn
+        } else {
+            phase = .signedIn // optimistic: works offline at the gym
+            await refreshUser()
+            claimOwnerIfNeeded()
+        }
         await sync()
         await ProStore.shared.start(api: api, userId: user?.id)
+    }
+
+    /// State written without an owner (lost state.json, older build) belongs to the signed-in account.
+    private func claimOwnerIfNeeded() {
+        guard state.ownerId == nil, let user else { return }
+        state.ownerId = user.id
+        persist()
+    }
+
+    private static let installedKey = "app.installed"
+
+    /// The Keychain survives uninstall, UserDefaults don't: first launch of a new install drops tokens left from
+    /// the old one. An update from a build before this flag already has its state.json and stays signed in.
+    private func forgetTokensAfterReinstall() async {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: Self.installedKey) else { return }
+        if !store.exists {
+            await api.forgetTokens()
+            MonkeyGradeLink.shared.disconnect()
+            clearWatchUploadKey()
+        }
+        defaults.set(true, forKey: Self.installedKey)
     }
 
     func refreshUser() async {
@@ -162,6 +203,8 @@ final class AppModel {
             store.wipe()
             state = LocalState()
             state.ownerId = user.id
+            // The previous account's key.
+            clearWatchUploadKey()
         }
         self.user = user
         phase = .signedIn
@@ -217,6 +260,9 @@ final class AppModel {
         phase = .signedOut
         // Personal copies outside state.json: cached Health readings, the data export, HTTP responses.
         HealthManager.clearCache()
+        // The MonkeyGrade sign-in and the Watch upload key live in this device's Keychain, not in state.json.
+        MonkeyGradeLink.shared.disconnect()
+        clearWatchUploadKey()
         try? FileManager.default.removeItem(at: Self.exportFileURL)
         URLCache.shared.removeAllCachedResponses()
         // Signed-out snapshots for the Watch and the Home Screen widgets (WatchSync.push refreshes both).
@@ -631,15 +677,18 @@ final class AppModel {
 
     // MARK: Sync
 
+    /// Server profile replaces the local one unless a local edit is still unsaved (the next push sends it).
+    /// Unchanged → nothing, so this week's one-off swaps stay; done and running sessions keep their content.
     private func pullProfile() async {
         guard let remote = try? await api.fetchProfile(SyncedProfile.self) else { return }
-        if state.synced == nil || !state.profileDirty {
-            state.synced = remote
-            state.plan = Generator.generateWeek(remote.planProfile, week: remote.week, seed: remote.seed)
-            replanCurrentWeek()
-            state.profileDirty = false
-            persist()
-        }
+        guard state.synced == nil || !state.profileDirty, remote != state.synced else { return }
+        let sameWeek = state.synced.map { $0.week == remote.week && $0.seed == remote.seed && $0.weekOf == remote.weekOf } ?? false
+        let kept = sameWeek ? doneIds.union([state.activeWorkout?.sessionId].compactMap { $0 }) : []
+        state.synced = remote
+        state.plan = Generator.generateWeek(remote.planProfile, week: remote.week, seed: remote.seed).keeping(kept, from: state.plan)
+        replanCurrentWeek()
+        state.profileDirty = false
+        persist()
     }
 
     /// Something not yet on the server: edits, new records or queued deletes.
@@ -673,6 +722,8 @@ final class AppModel {
         // the first error is the one shown.
         var firstError: Error?
         guard await runSyncStep(&firstError, { try await self.pushProfile() }),
+              // Edits from another device; skipped while a local edit is still unsaved.
+              await runSyncStep(&firstError, { if !self.state.profileDirty { await self.pullProfile() } }),
               await runSyncStep(&firstError, { try await self.pushLogs() }),
               await runSyncStep(&firstError, { try await self.pushHistory() }),
               await runSyncStep(&firstError, { try await self.pushQueuedDeletes() }),
@@ -735,14 +786,18 @@ final class AppModel {
         let pending = state.logs.filter { state.pendingLogIds.contains($0.id) }
         guard !pending.isEmpty else { return }
         try await api.pushLogs(pending)
-        state.pendingLogIds.subtract(pending.map(\.id))
+        // Only clear what is unchanged since the push started (a set re-logged meanwhile stays queued).
+        let current = Dictionary(state.logs.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
+        for l in pending where current[l.id].map({ $0 == l }) ?? true { state.pendingLogIds.remove(l.id) }
     }
 
     private func pushHistory() async throws {
         let pendingRecords = state.history.filter { state.pendingHistoryIds.contains($0.id) }
         guard !pendingRecords.isEmpty else { return }
         try await api.pushWorkouts(pendingRecords)
-        state.pendingHistoryIds.subtract(pendingRecords.map(\.id))
+        // Heart rate attached while the push was in flight stays queued for the next sync.
+        let current = Dictionary(state.history.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
+        for r in pendingRecords where current[r.id].map({ $0 == r }) ?? true { state.pendingHistoryIds.remove(r.id) }
     }
 
     /// Server deletes queued by Undo workout (#133) and PR-attempt removal; each id is dropped once the server
@@ -795,10 +850,14 @@ final class AppModel {
     private func pullLogs() async throws {
         // 5 min overlap absorbs clock skew; merge is idempotent by id.
         let since = state.lastLogPull?.addingTimeInterval(-300)
-        let remote = try await api.fetchLogs(since: since)
+        let changes = try await api.fetchLogChanges(since: since)
         let deleted = state.deletedLogIds ?? []
         var byId = Dictionary(state.logs.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
-        for l in remote where !state.pendingLogIds.contains(l.id) && !deleted.contains(l.id) { byId[l.id] = l }
+        for l in changes.logs where !state.pendingLogIds.contains(l.id) && !deleted.contains(l.id) { byId[l.id] = l }
+        // Deleted on the server since the last pull (undo on another device): drop here too, even with a local
+        // edit still queued, since the server ignores re-uploads of deleted ids (#432).
+        for id in changes.deleted { byId[id] = nil }
+        state.pendingLogIds.subtract(changes.deleted)
         state.logs = byId.values.sorted { $0.date < $1.date }
         state.lastLogPull = Date()
     }

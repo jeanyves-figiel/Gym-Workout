@@ -9,6 +9,7 @@
 import { parseArgs } from 'node:util';
 import { loadConfig } from './config.ts';
 import { openDb } from './db.ts';
+import { maskEmail } from './emailChange.ts';
 import { SubscriptionService } from './subscriptions/service.ts';
 
 const { positionals, values } = parseArgs({
@@ -59,7 +60,8 @@ switch (cmd) {
     console.log(subs.revoke(userId()) ? `Revoked free access for ${email}.` : `${email} had no free access.`);
     break;
   case 'list':
-    console.table(subs.grants());
+    // Masked: the workflow log is public (#432).
+    console.table(subs.grants().map((g) => ({ ...g, email: g.email ? maskEmail(g.email) : null })));
     break;
   default:
     fail('Usage: node src/admin.ts grant <email> [--until YYYY-MM-DD] [--note text] | grant-all --until YYYY-MM-DD [--before YYYY-MM-DD] | revoke <email> | list');

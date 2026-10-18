@@ -166,6 +166,19 @@ private func tokensJSON(_ n: Int) -> String {
         #expect(logs.first?.date == date)
     }
 
+    @Test func logChangesDecodeDeletedIds() async throws {
+        let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
+        StubProtocol.register("logs-deleted.test") { req, _ in
+            req.url!.query?.contains("since=") == true
+                ? (200, #"{"logs":[],"deleted":["6f9619ff-8b86-d011-b42d-00c04fc964ff","not-a-uuid"],"serverTime":"x"}"#)
+                : (200, #"{"logs":[],"serverTime":"x"}"#)
+        }
+        let api = makeClient("logs-deleted.test", tokens: store)
+        let changes = try await api.fetchLogChanges(since: Date())
+        #expect(changes.deleted == [UUID(uuidString: "6F9619FF-8B86-D011-B42D-00C04FC964FF")!])
+        #expect(try await api.fetchLogChanges().deleted.isEmpty)
+    }
+
     @Test func workoutsRoundTrip() async throws {
         struct W: Codable, Sendable, Equatable { var id: UUID; var startedAt: Date; var title: String }
         let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
@@ -182,6 +195,23 @@ private func tokensJSON(_ n: Int) -> String {
         let got = try await api.fetchWorkouts(W.self)
         #expect(got.first?.title == "Legs")
         #expect(got.first?.startedAt == date)
+    }
+
+    @Test func undecodableWorkoutsAndLogsAreSkipped() async throws {
+        struct W: Codable, Sendable, Equatable { var id: UUID; var startedAt: Date; var title: String }
+        let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
+        StubProtocol.register("lossy.test") { req, _ in
+            if req.url!.path == "/v1/me/logs" {
+                return (200, #"{"logs":[{"id":"bad"},{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","date":"2026-10-07T10:00:00Z","exerciseId":"back-squat","weightKg":80}],"serverTime":"x"}"#)
+            }
+            // Missing title, a number, null and a bad date around one good record.
+            return (200, #"{"workouts":[{"id":"6F9619FF-8B86-4011-B42D-00C04FC964FF","startedAt":"2026-10-07T10:00:00Z"},7,null,{"id":"6F9619FF-8B86-4011-B42D-00C04FC964FE","startedAt":"yesterday","title":"x"},{"id":"6F9619FF-8B86-4011-B42D-00C04FC964FD","startedAt":"2026-10-07T10:00:00Z","title":"Legs"}],"serverTime":"x"}"#)
+        }
+        let api = makeClient("lossy.test", tokens: store)
+        let got = try await api.fetchWorkouts(W.self)
+        #expect(got.map(\.title) == ["Legs"])
+        let logs = try await api.fetchLogs()
+        #expect(logs.map(\.exerciseId) == ["back-squat"])
     }
 
     @Test func customWorkoutsRoundTrip() async throws {

@@ -96,6 +96,43 @@ describe('workout chat (#381)', () => {
     expect(status.json().remainingToday).toBe(1);
   });
 
+  it('parallel messages cannot pass the daily cap, and 2 run at once at most (#432)', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    let running = 0;
+    start({
+      coach: async () => {
+        running++;
+        await gate;
+        return legs;
+      },
+      env: { COACH_CHAT_DAILY_LIMIT: '1' },
+    });
+    const t = await signUp('p@example.com');
+    const turns = [{ role: 'member', text: 'legs' }];
+    const first = chat(t, { turns });
+    const second = chat(t, { turns });
+    await new Promise((r) => setTimeout(r, 50));
+    release();
+    const codes = (await Promise.all([first, second])).map((r) => r.statusCode).sort();
+    expect(codes).toEqual([200, 429]);
+    expect(running).toBe(1);
+
+    let release2!: () => void;
+    const gate2 = new Promise<void>((r) => (release2 = r));
+    await app.close();
+    start({ coach: async () => (await gate2, legs), env: { COACH_CHAT_DAILY_LIMIT: '10' } });
+    const u = await signUp('q@example.com');
+    const three = [chat(u, { turns }), chat(u, { turns }), chat(u, { turns })];
+    await new Promise((r) => setTimeout(r, 50));
+    release2();
+    const res = await Promise.all(three);
+    expect(res.map((r) => r.statusCode).sort()).toEqual([200, 200, 429]);
+    expect(res.find((r) => r.statusCode === 429)!.json().error).toBe('busy');
+    const status = await app.inject({ method: 'GET', url: '/v1/me/coach-chat', headers: { authorization: `Bearer ${u}` } });
+    expect(status.json().remainingToday).toBe(8);
+  });
+
   it('is off without an API key', async () => {
     start({ coach: null });
     const t = await signUp('d@example.com');

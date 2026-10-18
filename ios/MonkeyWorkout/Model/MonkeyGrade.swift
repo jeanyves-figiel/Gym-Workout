@@ -1,5 +1,5 @@
+import APIClient
 import Foundation
-import Security
 
 /// Read-only link to the user's MonkeyGrade account (#48): climbing sessions with sends, grades and RPE.
 /// Uses MonkeyGrade's existing native API (Bearer token from email + password). The token stays in this
@@ -208,34 +208,13 @@ final class MonkeyGradeLink {
     }
 }
 
-/// Small generic-password Keychain wrapper (this device only).
+/// The MonkeyGrade link in this device's Keychain.
 private struct Keychain {
-    let service: String
-    private let account = "link"
+    private let item: KeychainItem
 
-    private var query: [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
-    }
+    init(service: String) { item = KeychainItem(service: service, account: "link") }
 
-    func load() -> MonkeyGradeLink.Stored? {
-        var q = query
-        q[kSecReturnData as String] = true
-        q[kSecMatchLimit as String] = kSecMatchLimitOne
-        var out: AnyObject?
-        guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess, let data = out as? Data else { return nil }
-        return try? JSONDecoder().decode(MonkeyGradeLink.Stored.self, from: data)
-    }
-
-    func save(_ value: MonkeyGradeLink.Stored) {
-        guard let data = try? JSONEncoder().encode(value) else { return }
-        let attrs: [String: Any] = [
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
-        ]
-        if SecItemUpdate(query as CFDictionary, attrs as CFDictionary) == errSecItemNotFound {
-            _ = SecItemAdd(query.merging(attrs) { $1 } as CFDictionary, nil)
-        }
-    }
-
-    func clear() { _ = SecItemDelete(query as CFDictionary) }
+    func load() -> MonkeyGradeLink.Stored? { item.loadJSON(MonkeyGradeLink.Stored.self) }
+    func save(_ value: MonkeyGradeLink.Stored) { item.saveJSON(value) }
+    func clear() { item.clear() }
 }

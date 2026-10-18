@@ -7,6 +7,7 @@ import { ensurePushSchema } from './push/schema.ts';
 import { ensureSchemaExtras } from './schemaExtras.ts';
 import { ensureSecuritySchema } from './security.ts';
 import { ensureSubscriptionSchema } from './subscriptions/schema.ts';
+import { ensureThrottleSchema } from './throttle.ts';
 
 export type DB = DatabaseSync;
 
@@ -128,6 +129,7 @@ export const openDb = (path: string): DB => {
   ensureSubscriptionSchema(db);
   ensureGymSchema(db);
   ensureSecuritySchema(db);
+  ensureThrottleSchema(db);
   return db;
 };
 

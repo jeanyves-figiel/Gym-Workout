@@ -3,6 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { type DB, tx } from '../db.ts';
+import { recordTombstone } from '../routes/sync.ts';
 
 /**
  * Ops: remove one recorded workout from a user's account as if it never happened (e.g. ended by mistake).
@@ -92,12 +93,19 @@ export const undoWorkout = (db: DB, input: UndoInput, backupDir: string, now = n
   const backup = join(backupDir, `undo-workout-${String(c.workout.id)}-${now.toISOString().replace(/[:.]/g, '-')}.json`);
   writeFileSync(backup, JSON.stringify({ user, removedAt: now.toISOString(), ...c }, null, 2));
   const ids = (rows: Row[]) => rows.map((r) => String(r.id));
-  const counts = tx(db, () => ({
-    workouts: Number(db.prepare('DELETE FROM workouts WHERE id = ? AND user_id = ?').run(String(c.workout.id), user.id).changes),
-    workout_logs: ids(c.logs).reduce((n, id) => n + Number(db.prepare('DELETE FROM workout_logs WHERE id = ? AND user_id = ?').run(id, user.id).changes), 0),
-    pr_attempts: ids(c.prAttempts).reduce((n, id) => n + Number(db.prepare('DELETE FROM pr_attempts WHERE id = ? AND user_id = ?').run(id, user.id).changes), 0),
-    community_posts: ids(c.posts).reduce((n, id) => n + Number(db.prepare('DELETE FROM community_posts WHERE id = ? AND user_id = ?').run(id, user.id).changes), 0),
-  }));
+  const at = now.toISOString();
+  const counts = tx(db, () => {
+    // Tombstones (#432): the member's other devices drop these on their next pull instead of uploading them back.
+    recordTombstone(db, user.id, 'workouts', String(c.workout.id), at);
+    for (const id of ids(c.logs)) recordTombstone(db, user.id, 'logs', id, at);
+    for (const id of ids(c.prAttempts)) recordTombstone(db, user.id, 'pr-attempts', id, at);
+    return {
+      workouts: Number(db.prepare('DELETE FROM workouts WHERE id = ? AND user_id = ?').run(String(c.workout.id), user.id).changes),
+      workout_logs: ids(c.logs).reduce((n, id) => n + Number(db.prepare('DELETE FROM workout_logs WHERE id = ? AND user_id = ?').run(id, user.id).changes), 0),
+      pr_attempts: ids(c.prAttempts).reduce((n, id) => n + Number(db.prepare('DELETE FROM pr_attempts WHERE id = ? AND user_id = ?').run(id, user.id).changes), 0),
+      community_posts: ids(c.posts).reduce((n, id) => n + Number(db.prepare('DELETE FROM community_posts WHERE id = ? AND user_id = ?').run(id, user.id).changes), 0),
+    };
+  });
   return { backup, removed: { ...counts, community_reactions: c.reactions.length }, workout: c };
 };
 
@@ -122,8 +130,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   db.exec('PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
   if (input.apply && input.workoutId) {
     const r = undoWorkout(db, input, join(dirname(path), 'backups'));
+    // Summary only: the run log is public (#432); the full workout is in backupFile.
     console.log(JSON.stringify({ removed: r.removed, workout: summary(r.workout), backupFile: r.backup }, null, 2));
-    console.log('BACKUP ' + JSON.stringify(r.workout));
   } else {
     const { candidates } = findCandidates(db, input);
     console.log(JSON.stringify({ dryRun: true, candidates: candidates.map(summary) }, null, 2));

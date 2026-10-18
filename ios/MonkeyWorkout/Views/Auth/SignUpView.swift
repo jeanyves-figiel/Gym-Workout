@@ -76,7 +76,7 @@ struct SignUpView: View {
                 let name = name.trimmingCharacters(in: .whitespaces)
                 task.run {
                     try await model.api.register(email: email, password: password, name: name.isEmpty ? nil : name, acceptedTerms: accepted)
-                    path.append(.verify(email: email))
+                    path.append(.verify(email: email, password: password))
                 }
             }
             .padding(.top, 6)

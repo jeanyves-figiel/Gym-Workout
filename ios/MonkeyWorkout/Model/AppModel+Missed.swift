@@ -80,8 +80,11 @@ extension AppModel {
 
     /// A new calendar week moves the plan on (#266): next cycle week, this week's ticks, moves, library inserts,
     /// variation and per-workout styles cleared. A running programme sets its weeks itself.
+    /// Never under a workout in progress (saved in the last few hours): it rolls on the next foreground or Train visit
+    /// after the finish. A workout paused long ago doesn't hold the week back.
     func rollWeekIfNeeded(now: Date = Date()) {
-        guard runningProgramme == nil, let sp = state.synced else { return }
+        let inProgress = state.activeWorkout.map { now.timeIntervalSince($0.updatedAt) < Self.interruptedWindow } ?? false
+        guard runningProgramme == nil, !inProgress, let sp = state.synced else { return }
         let cal = planCalendar
         let monday = Progression.weekStart(now, cal)
         let key = PlanCalendar.key(monday, cal)

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ChatTurn, CoachModel } from '../coach/chat.ts';
 import type { DB } from '../db.ts';
 import { ApiError } from '../errors.ts';
+import { inFlight, refundDaily, reserveDaily } from '../quota.ts';
 
 const turn = z.object({ role: z.enum(['member', 'coach']), text: z.string().trim().min(1).max(600) });
 const body = z.object({
@@ -53,6 +54,8 @@ export const coachChatRoutes = (
       | { count: number }
       | undefined)?.count ?? 0;
 
+  const busy = inFlight(2);
+
   /** Whether the chat is switched on, and messages left today. */
   r.get('/me/coach-chat', async (req) => ({ available: !!coach, remainingToday: Math.max(0, dailyLimit - usedToday(req.userId!)) }));
 
@@ -63,20 +66,23 @@ export const coachChatRoutes = (
     const turns = modelTurns(b.turns);
     if (turns.at(-1)?.role !== 'member') throw new ApiError(400, 'bad_request', 'The last message must be from the member.');
     const day = now().toISOString().slice(0, 10);
-    const used = usedToday(req.userId!);
-    if (used >= dailyLimit) throw new ApiError(429, 'daily_limit', `That's ${dailyLimit} messages today. Coach is back tomorrow!`);
+    if (!busy.enter(req.userId!)) throw new ApiError(429, 'busy', 'Coach is still answering your last message.');
     let answer;
+    let count: number | undefined;
     try {
-      answer = await coach(turns, b.context);
-    } catch (e) {
-      req.log.warn(`coach chat failed: ${(e as Error).message}`);
-      throw new ApiError(502, 'coach_failed', 'Coach is catching breath. Try again in a moment.');
+      // Slot taken before the call, given back if it fails: a failed call doesn't use up the member's messages.
+      count = reserveDaily(db, 'coach_chat_usage', req.userId!, day, dailyLimit);
+      if (count === undefined) throw new ApiError(429, 'daily_limit', `That's ${dailyLimit} messages today. Coach is back tomorrow!`);
+      try {
+        answer = await coach(turns, b.context);
+      } catch (e) {
+        refundDaily(db, 'coach_chat_usage', req.userId!, day);
+        req.log.warn(`coach chat failed: ${(e as Error).message}`);
+        throw new ApiError(502, 'coach_failed', 'Coach is catching breath. Try again in a moment.');
+      }
+    } finally {
+      busy.leave(req.userId!);
     }
-    // Counted once answered: a failed call doesn't use up the member's messages.
-    db.prepare(
-      `INSERT INTO coach_chat_usage (user_id, day, count) VALUES (?, ?, 1)
-       ON CONFLICT(user_id, day) DO UPDATE SET count = count + 1`,
-    ).run(req.userId!, day);
-    return { ...answer, remainingToday: Math.max(0, dailyLimit - used - 1) };
+    return { ...answer, remainingToday: Math.max(0, dailyLimit - count) };
   });
 };

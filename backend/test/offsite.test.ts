@@ -64,6 +64,8 @@ describe('encrypted off-site copy (#313)', () => {
     const dest = join(root, 'restored.db');
     await store.download('2026-10-15', dest);
     expect(readFileSync(dest, 'utf8')).toBe('backup bytes');
+    // Never overwrites a file already there (#432).
+    await expect(store.download('2026-10-15', dest)).rejects.toThrow(/EEXIST/);
   });
 
   it('is off unless the bucket secrets and BACKUP_KEY are all set', () => {
