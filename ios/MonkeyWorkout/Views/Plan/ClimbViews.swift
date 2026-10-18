@@ -153,7 +153,8 @@ private struct HardClimbNote: View {
     }
 }
 
-/// Sheet for logging a climb: type, start, duration, effort, top grade, notes.
+/// Sheet for logging a climb, laid out like Log sport (#460, design C): sport strip, one card in the type's colours
+/// (type, start, duration, how hard, top grade as chips from recent climbs, notes), Save pinned.
 struct LogClimbView: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
@@ -163,6 +164,12 @@ struct LogClimbView: View {
     /// Typing kept on the device until saved (#437).
     @State private var draftKey: String?
     @State private var draftRestored = false
+    @State private var showNotes: Bool
+    /// "Other" picked: the grade is typed instead of tapped.
+    @State private var typingGrade = false
+    /// Another sport picked in the strip (or All): the sheet becomes Log sport.
+    @State private var otherSport: SportLog?
+    @FocusState private var gradeFocused: Bool
     private let initial: ClimbLog
     private let restoring: ClimbLog?
 
@@ -171,6 +178,7 @@ struct LogClimbView: View {
         self.initial = initial
         self.restoring = restoring
         _log = State(initialValue: restoring ?? initial)
+        _showNotes = State(initialValue: (restoring ?? initial).notes != nil)
     }
 
     private var grade: Binding<String> {
@@ -182,90 +190,54 @@ struct LogClimbView: View {
     }
 
     var body: some View {
+        if let otherSport {
+            LogSportView(initial: otherSport, picked: otherSport.sport != .climbing)
+        } else {
+            form
+        }
+    }
+
+    private var form: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 16) {
                     if draftRestored {
                         DraftRestoredStrip {
                             if let draftKey { DraftStore.clear(draftKey) }
                             log = initial
+                            showNotes = initial.notes != nil
                             draftRestored = false
                         }
                     }
-                    Text("Type").eyebrow()
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                        ForEach(ClimbKind.allCases) { k in
-                            KindTile(kind: k, selected: log.kind == k) { log.kind = k }
-                        }
+                    SportStrip(selected: .climbing, sports: model.sportOrder) { s in
+                        if s != .climbing { switchTo(s) }
+                    } all: {
+                        switchTo(.climbing)
                     }
-
-                    Text("When").eyebrow()
-                    DatePicker("Started", selection: $log.start, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
-                        .font(.body.weight(.semibold))
-                        .card(padding: 14)
-
-                    Text("Duration").eyebrow()
-                    HStack {
-                        StepButton(symbol: "minus") { log.minutes = max(15, log.minutes - 15) }
-                        Spacer()
-                        Text(Climbs.duration(log.minutes)).font(Theme.display(44)).monospacedDigit()
-                        Spacer()
-                        StepButton(symbol: "plus") { log.minutes = min(360, log.minutes + 15) }
-                    }
-                    .card(padding: 14)
-
-                    HStack {
-                        Text("Effort").eyebrow()
-                        Spacer()
-                        Text("\(log.effort) · \(ClimbLog.effortLabel(log.effort))").font(Theme.label(13)).foregroundStyle(Theme.heat(Double(log.effort - 1) / 9))
-                    }
-                    HStack(spacing: 5) {
-                        ForEach(1...10, id: \.self) { e in
-                            Button { log.effort = e } label: {
-                                Text("\(e)")
-                                    .font(Theme.label(15))
-                                    .frame(maxWidth: .infinity, minHeight: 42)
-                                    .foregroundStyle(e == log.effort ? Theme.ink : .white)
-                                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(e <= log.effort ? Theme.heat(Double(e - 1) / 9).opacity(e == log.effort ? 1 : 0.35) : Theme.card))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-
-                    Text("Top grade (optional)").eyebrow()
-                    TextField("e.g. 6B+, V5 or 7a", text: grade)
-                        .font(Theme.display(22))
-                        .textInputAutocapitalization(.characters)
-                        .autocorrectionDisabled()
-                        .card(padding: 14)
-
-                    Text("Notes (optional)").eyebrow()
-                    TextField("Projects, beta, how fingers felt", text: notes, axis: .vertical)
-                        .lineLimit(2...5)
-                        .card(padding: 14)
-
-                    Button {
-                        save()
-                    } label: {
-                        Label("Save climb", systemImage: "checkmark")
-                    }
-                    .buttonStyle(LimeButtonStyle())
-
+                    card
                     Text(health.connected && health.writeWorkouts
                          ? "Also saved to Apple Health as a Climbing workout."
                          : "Saved in MonkeyWorkout. Connect Apple Health in Progress → Body & Health to also save it there.")
                         .font(.footnote).foregroundStyle(Theme.muted)
                 }
                 .padding(16)
+                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: log.kind)
             }
+            .scrollDismissesKeyboard(.interactively)
             .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
+            .safeAreaInset(edge: .bottom) {
+                Button { save() } label: {
+                    Label("Save \(log.kind.label) · \(Climbs.duration(log.minutes)) · \(log.effort)", systemImage: "checkmark")
+                }
+                .buttonStyle(LimeButtonStyle())
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Theme.bg.opacity(0.95).ignoresSafeArea())
+            }
             .navigationTitle("Log climb")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                CloseToolbarItem { dismiss() }
-            }
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
         .preferredColorScheme(.dark)
         .undoableClose(closeGuard, offer: undoOffer)
@@ -273,8 +245,111 @@ struct LogClimbView: View {
         .onAppear {
             guard draftKey == nil, restoring == nil else { return }
             draftKey = "climb"
-            if let d = DraftStore.load("climb", as: ClimbLog.self), d != initial { log = d; draftRestored = true }
+            if let d = DraftStore.load("climb", as: ClimbLog.self), d != initial {
+                log = d
+                showNotes = d.notes != nil
+                draftRestored = true
+            }
         }
+    }
+
+    /// Design C card: type chips, start, duration, how hard, grade chips, notes, all in the type's colours.
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    DatePicker("Started", selection: $log.start, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
+                        .labelsHidden()
+                        .colorScheme(.dark)
+                    Text(log.kind.label).font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.6)
+                }
+                Spacer()
+                Image(systemName: log.kind.symbol).font(.system(size: 40, weight: .bold))
+            }
+
+            HStack(spacing: 6) {
+                ForEach(ClimbKind.allCases) { k in
+                    CardChip(title: k.label, on: log.kind == k) { log.kind = k }
+                }
+            }
+
+            CardDuration(minutes: $log.minutes, max: 360)
+
+            Text("How hard · \(log.effort) \(ClimbLog.effortLabel(log.effort))")
+                .font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.9)
+            FeelChips(effort: $log.effort)
+
+            Text("Top grade").font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.9)
+            gradePicker
+
+            if showNotes {
+                TextField("Projects, beta, how fingers felt", text: notes, axis: .vertical)
+                    .lineLimit(2...5)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.black.opacity(0.25)))
+            } else {
+                AddChip(title: "Notes") { showNotes = true }
+            }
+        }
+        .gradientCard(log.kind.gradient, padding: 18)
+        .shadow(color: log.kind.colors[0].opacity(0.35), radius: 16, y: 8)
+    }
+
+    /// Grades of the member's recent climbs as chips (tap again to clear); "Other" types one. No history: the field.
+    @ViewBuilder private var gradePicker: some View {
+        let recent = recentGrades
+        if recent.isEmpty || typingGrade {
+            TextField("e.g. 6B+, V5 or 7a", text: grade)
+                .font(Theme.display(22))
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+                .focused($gradeFocused)
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.black.opacity(0.25)))
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(recent, id: \.self) { g in
+                        gradeChip(g, on: log.topGrade == g) { log.topGrade = log.topGrade == g ? nil : g }
+                    }
+                    gradeChip("Other", on: false) {
+                        typingGrade = true
+                        gradeFocused = true
+                    }
+                }
+            }
+            .scrollClipDisabled()
+        }
+    }
+
+    private func gradeChip(_ title: String, on: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(Theme.label(15)).lineLimit(1)
+                .padding(.horizontal, 14).frame(minHeight: 40)
+                .foregroundStyle(on ? Theme.ink : .white)
+                .background(Capsule().fill(on ? AnyShapeStyle(.white) : AnyShapeStyle(.black.opacity(0.25))))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    /// Last few distinct grades logged here (newest first), plus the one in this log if typed.
+    private var recentGrades: [String] {
+        var seen = Set<String>()
+        var list: [String] = []
+        for g in ([log.topGrade] + model.climbLogs.map(\.topGrade)).compactMap({ $0 }) where seen.insert(g.uppercased()).inserted {
+            list.append(g)
+            if list.count == 5 { break }
+        }
+        return list
+    }
+
+    /// Another sport in the strip: the sheet turns into Log sport for it, same start time (#460).
+    /// `.climbing` (All): Log sport's full grid.
+    private func switchTo(_ sport: Sport) {
+        if let draftKey { DraftStore.clear(draftKey) }
+        closeGuard.done()
+        otherSport = SportLog(sport: sport, start: log.start)
     }
 
     /// Undo bar when anything was changed since the sheet opened (#285).
@@ -301,47 +376,6 @@ struct LogClimbView: View {
         }
         closeGuard.done()
         dismiss()
-    }
-}
-
-private struct KindTile: View {
-    let kind: ClimbKind
-    let selected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Image(systemName: kind.symbol)
-                    .font(.system(size: 20, weight: .bold))
-                    .frame(width: 40, height: 40)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.2)))
-                Text(kind.label).font(Theme.display(18)).lineLimit(1).minimumScaleFactor(0.8)
-                Spacer(minLength: 0)
-            }
-            .foregroundStyle(.white)
-            .padding(12)
-            .selectableGradient(kind.gradient, selected: selected, cornerRadius: 20)
-            .scaleEffect(selected ? 1 : 0.97)
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-}
-
-private struct StepButton: View {
-    let symbol: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 20, weight: .heavy))
-                .frame(width: 52, height: 52)
-                .background(Circle().fill(Theme.cardStrong))
-                .foregroundStyle(.white)
-        }
-        .buttonStyle(.plain)
     }
 }
 

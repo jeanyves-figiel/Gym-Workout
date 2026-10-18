@@ -336,6 +336,8 @@ struct LogSportView: View {
 
     private func pick(_ s: Sport) {
         if s == .climbing {
+            // Switching to the climb log isn't closing: no "… closed" Undo bar over it (#460).
+            closeGuard.done()
             climbing = true
         } else {
             log.sport = s
@@ -344,33 +346,9 @@ struct LogSportView: View {
         }
     }
 
-    /// The picked sport first, then the member's order; "All" opens the full grid again.
     private var strip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach([log.sport] + gridSports.filter { $0 != log.sport }.prefix(7)) { s in
-                    SportTile(sport: s, selected: log.sport == s) { pick(s) }
-                        .frame(width: 74)
-                        .opacity(log.sport == s ? 1 : 0.55)
-                }
-                Button { allSports = true } label: {
-                    VStack(spacing: 6) {
-                        Image(systemName: "square.grid.3x3.fill").font(.system(size: 22, weight: .bold)).frame(height: 28)
-                        Text("All").font(Theme.label(12))
-                    }
-                    .foregroundStyle(.white)
-                    .frame(width: 74, height: 74)
-                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.cardStrong))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("All sports")
-            }
-            .padding(.vertical, 3)
-        }
-        .scrollClipDisabled()
+        SportStrip(selected: log.sport, sports: gridSports, pick: pick) { allSports = true }
     }
-
-    private static let feels: [(String, Int)] = [("Easy", 3), ("Solid", 6), ("Hard", 8), ("Wrecked", 10)]
 
     /// Design C card (#435): the sport's own colours hold when, how long and how hard.
     private var card: some View {
@@ -386,36 +364,11 @@ struct LogSportView: View {
                 Image(systemName: log.sport.symbol).font(.system(size: 40, weight: .bold))
             }
 
-            HStack {
-                cardStep("minus") { log.minutes = max(15, log.minutes - 15) }
-                Spacer()
-                Text(Climbs.duration(log.minutes)).font(Theme.display(44)).monospacedDigit()
-                    .contentTransition(.numericText())
-                Spacer()
-                cardStep("plus") { log.minutes = min(16 * 60, log.minutes + 15) }
-            }
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.black.opacity(0.25)))
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Duration \(Climbs.duration(log.minutes))")
+            CardDuration(minutes: $log.minutes, max: 16 * 60)
 
             Text("How hard · \(log.effort) \(ClimbLog.effortLabel(log.effort))")
                 .font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.9)
-            HStack(spacing: 6) {
-                ForEach(Self.feels.indices, id: \.self) { i in
-                    let f = Self.feels[i]
-                    let on = abs(log.effort - f.1) <= 1
-                    Button { log.effort = f.1 } label: {
-                        Text(f.0).font(Theme.label(14)).lineLimit(1).minimumScaleFactor(0.8)
-                            .frame(maxWidth: .infinity, minHeight: 42)
-                            .foregroundStyle(on ? Theme.ink : .white)
-                            .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(on ? AnyShapeStyle(.white) : AnyShapeStyle(.black.opacity(0.25))))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(on ? .isSelected : [])
-                }
-            }
+            FeelChips(effort: $log.effort)
 
             if log.sport.hasDistance {
                 if showDistance {
@@ -437,34 +390,12 @@ struct LogSportView: View {
                     .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.black.opacity(0.25)))
             }
             HStack(spacing: 8) {
-                if log.sport.hasDistance && !showDistance { addChip("Distance") { showDistance = true } }
-                if !showNotes { addChip("Notes") { showNotes = true } }
+                if log.sport.hasDistance && !showDistance { AddChip(title: "Distance") { showDistance = true } }
+                if !showNotes { AddChip(title: "Notes") { showNotes = true } }
             }
         }
         .gradientCard(log.sport.gradient, padding: 18)
         .shadow(color: log.sport.colors[0].opacity(0.35), radius: 16, y: 8)
-    }
-
-    private func cardStep(_ symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 20, weight: .heavy))
-                .frame(width: 50, height: 50)
-                .background(Circle().fill(.white.opacity(0.22)))
-                .foregroundStyle(.white)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(symbol == "plus" ? "15 minutes more" : "15 minutes less")
-    }
-
-    private func addChip(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: "plus").font(Theme.label(13))
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(Capsule().fill(.black.opacity(0.25)))
-                .foregroundStyle(.white)
-        }
-        .buttonStyle(.plain)
     }
 
     private var undoOffer: UndoOffer? {
@@ -491,8 +422,125 @@ struct LogSportView: View {
     }
 }
 
+/// The picked sport first, then the member's order; "All" opens the full grid again. Shared by Log sport and Log climb (#460).
+struct SportStrip: View {
+    let selected: Sport
+    let sports: [Sport]
+    let pick: (Sport) -> Void
+    let all: () -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach([selected] + sports.filter { $0 != selected }.prefix(7)) { s in
+                    SportTile(sport: s, selected: selected == s) { pick(s) }
+                        .frame(width: 74)
+                        .opacity(selected == s ? 1 : 0.55)
+                }
+                Button(action: all) {
+                    VStack(spacing: 6) {
+                        Image(systemName: "square.grid.3x3.fill").font(.system(size: 22, weight: .bold)).frame(height: 28)
+                        Text("All").font(Theme.label(12))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(width: 74, height: 74)
+                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.cardStrong))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("All sports")
+            }
+            .padding(.vertical, 3)
+        }
+        .scrollClipDisabled()
+    }
+}
+
+/// Duration stepper inside a sport-coloured log card (#435), 15 min steps.
+struct CardDuration: View {
+    @Binding var minutes: Int
+    let max: Int
+
+    var body: some View {
+        HStack {
+            step("minus") { minutes = Swift.max(15, minutes - 15) }
+            Spacer()
+            Text(Climbs.duration(minutes)).font(Theme.display(44)).monospacedDigit()
+                .contentTransition(.numericText())
+            Spacer()
+            step("plus") { minutes = Swift.min(max, minutes + 15) }
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.black.opacity(0.25)))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Duration \(Climbs.duration(minutes))")
+    }
+
+    private func step(_ symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 20, weight: .heavy))
+                .frame(width: 50, height: 50)
+                .background(Circle().fill(.white.opacity(0.22)))
+                .foregroundStyle(.white)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(symbol == "plus" ? "15 minutes more" : "15 minutes less")
+    }
+}
+
+/// How hard as four feel chips (Easy 3, Solid 6, Hard 8, Wrecked 10) inside a log card (#435).
+struct FeelChips: View {
+    @Binding var effort: Int
+    static let feels: [(String, Int)] = [("Easy", 3), ("Solid", 6), ("Hard", 8), ("Wrecked", 10)]
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Self.feels.indices, id: \.self) { i in
+                let f = Self.feels[i]
+                let on = abs(effort - f.1) <= 1
+                CardChip(title: f.0, on: on) { effort = f.1 }
+            }
+        }
+    }
+}
+
+/// White-when-picked chip inside a log card.
+struct CardChip: View {
+    let title: String
+    let on: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title).font(Theme.label(14)).lineLimit(1).minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, minHeight: 42)
+                .foregroundStyle(on ? Theme.ink : .white)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(on ? AnyShapeStyle(.white) : AnyShapeStyle(.black.opacity(0.25))))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+/// "+ Notes" style chip that opens an optional field in a log card.
+struct AddChip: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: "plus").font(Theme.label(13))
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(Capsule().fill(.black.opacity(0.25)))
+                .foregroundStyle(.white)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 /// Bold square sport tile: icon on top, name under it.
-private struct SportTile: View {
+struct SportTile: View {
     let sport: Sport
     let selected: Bool
     let action: () -> Void
@@ -532,8 +580,6 @@ struct SportSessionSheet: View {
     @State private var colour: RouteColour = .speed
     @State private var runs: [SportTrack.Run] = []
 
-    private static let feels: [(String, Int)] = [("Easy", 3), ("Solid", 6), ("Hard", 8), ("Wrecked", 10)]
-
     /// Today's workout, when not started or done, and the type that spares what this session loaded.
     private var swap: (Session, Focus)? {
         guard let s = model.nextSession, s.weekday == model.todayWeekday, model.canChangeFocus(s),
@@ -561,8 +607,8 @@ struct SportSessionSheet: View {
                     SportSection(entry: entry, track: track, runs: runs, selected: $selectedRun)
                     Text("How did it feel?").eyebrow()
                     HStack(spacing: 8) {
-                        ForEach(Self.feels.indices, id: \.self) { i in
-                            let f = Self.feels[i]
+                        ForEach(FeelChips.feels.indices, id: \.self) { i in
+                            let f = FeelChips.feels[i]
                             let on = (effort ?? entry.effort).map { abs($0 - f.1) <= 1 } ?? false
                             Button { rate(f.1) } label: {
                                 Text(f.0).font(Theme.label(14)).frame(maxWidth: .infinity, minHeight: 44)
