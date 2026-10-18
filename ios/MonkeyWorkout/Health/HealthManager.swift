@@ -161,6 +161,8 @@ final class HealthManager {
     var error: String?
     /// Connected before body measurements (#185) were asked for: Health needs one more permission sheet.
     private(set) var needsMeasurementAccess = false
+    /// Connected before Daily Move (#454): steps and floors need one more permission sheet.
+    private(set) var needsMoveAccess = false
 
     var available: Bool { HKHealthStore.isHealthDataAvailable() }
 
@@ -176,6 +178,8 @@ final class HealthManager {
             snapshot = cached
             loaded = true
         }
+        // Background delivery needs its observer set up on every launch, including the background ones it causes.
+        startMoveObserver()
     }
 
     /// Sign-out / account deletion: drop the cached readings file (the next refresh writes a fresh one).
@@ -205,6 +209,8 @@ final class HealthManager {
             HKQuantityType(.bodyFatPercentage), HKQuantityType(.leanBodyMass), HKQuantityType(.waistCircumference),
             // Sport session page (#416): the route of workouts recorded by the Watch or other apps.
             HKSeriesType.workoutRoute(),
+            // Daily Move (#454): walking and stairs count toward the level.
+            HKQuantityType(.stepCount), HKQuantityType(.flightsClimbed),
         ]
         if let dob = HKObjectType.characteristicType(forIdentifier: .dateOfBirth) { s.insert(dob) }
         if let sex = HKObjectType.characteristicType(forIdentifier: .biologicalSex) { s.insert(sex) }
@@ -230,6 +236,7 @@ final class HealthManager {
             try await store.requestAuthorization(toShare: shareTypes, read: readTypes)
             connected = true
             UserDefaults.standard.set(true, forKey: HealthManager.connectedKey)
+            startMoveObserver()
             await refresh()
         } catch {
             self.error = error.localizedDescription
@@ -271,6 +278,7 @@ final class HealthManager {
         async let recentClimbs = climbs(from: fourWeeks, to: now)
         async let recentSports = sports(from: fourWeeks, to: now)
         async let measurementStatus = requestStatus()
+        async let moveStatus = moveRequestStatus()
 
         s.birthYear = (try? store.dateOfBirthComponents())?.year
         switch (try? store.biologicalSex())?.biologicalSex {
@@ -303,12 +311,105 @@ final class HealthManager {
         s.climbingPerWeek4w = past > 0 ? Double(past) / 4 : nil
         s.recentClimbs = await recentClimbs
         s.recentSports = await recentSports
-        needsMeasurementAccess = await measurementStatus == .shouldRequest
+        needsMoveAccess = await moveStatus == .shouldRequest
+        // Steps and floors only ask for themselves, so the body-measurement prompt doesn't show for them.
+        needsMeasurementAccess = await measurementStatus == .shouldRequest && !needsMoveAccess
         cache(s)
+        await refreshMove()
     }
 
     private func requestStatus() async -> HKAuthorizationRequestStatus? {
         try? await store.statusForAuthorizationRequest(toShare: shareTypes, read: readTypes)
+    }
+
+    // MARK: Daily Move (#454)
+
+    private static let moveTypes: Set<HKObjectType> = [HKQuantityType(.stepCount), HKQuantityType(.flightsClimbed)]
+    private var moveObserving = false
+
+    private func moveRequestStatus() async -> HKAuthorizationRequestStatus? {
+        try? await store.statusForAuthorizationRequest(toShare: [], read: Self.moveTypes)
+    }
+
+    /// Steps and floors per day (four weeks: two for the usual of each of the last two weeks) and the hour the
+    /// member usually walks (last two weeks), into `MoveStore`.
+    func refreshMove() async {
+        guard connected, available else { return }
+        let cal = Progression.calendar()
+        let now = Date()
+        let today = cal.startOfDay(for: now)
+        guard let from = cal.date(byAdding: .day, value: -27, to: today),
+              let twoWeeks = cal.date(byAdding: .day, value: -14, to: today) else { return }
+        async let steps = sums(.stepCount, from: from, to: now, every: DateComponents(day: 1), anchor: today)
+        async let floors = sums(.flightsClimbed, from: from, to: now, every: DateComponents(day: 1), anchor: today)
+        async let hourly = sums(.stepCount, from: twoWeeks, to: today, every: DateComponents(hour: 1), anchor: today)
+        let s = await steps, f = await floors
+        guard !s.isEmpty || !f.isEmpty else { return }
+        let days = Set(s.keys).union(f.keys).map { DayMove(day: $0, steps: s[$0] ?? 0, floors: f[$0] ?? 0) }
+        var perHour: [Int: Int] = [:]
+        for (date, n) in await hourly { perHour[cal.component(.hour, from: date), default: 0] += n }
+        // Keep older days already read: active weeks and XP since `since` stay put after they leave the window.
+        var merged = Dictionary(MoveStore.shared.saved.days.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
+        for d in days { merged[d.day] = d }
+        MoveStore.shared.update(days: Array(merged.values), hour: perHour.isEmpty ? nil : DailyMove.usualHour(perHour))
+    }
+
+    /// Cumulative sums per interval, keyed by interval start.
+    private func sums(_ id: HKQuantityTypeIdentifier, from: Date, to: Date, every: DateComponents, anchor: Date) async -> [Date: Int] {
+        let pred = HKSamplePredicate.quantitySample(type: HKQuantityType(id), predicate: HKQuery.predicateForSamples(withStart: from, end: to))
+        let d = HKStatisticsCollectionQueryDescriptor(predicate: pred, options: .cumulativeSum, anchorDate: anchor, intervalComponents: every)
+        guard let collection = try? await d.result(for: store) else { return [:] }
+        var out: [Date: Int] = [:]
+        collection.enumerateStatistics(from: from, to: to) { stats, _ in
+            if let q = stats.sumQuantity() { out[stats.startDate] = Int(q.doubleValue(for: .count()).rounded()) }
+        }
+        return out
+    }
+
+    /// New steps wake the app about once an hour, even in the background: refresh and maybe nudge.
+    private func startMoveObserver() {
+        guard connected, available, !moveObserving else { return }
+        moveObserving = true
+        let type = HKQuantityType(.stepCount)
+        let query = HKObserverQuery(sampleType: type, predicate: nil) { [weak self] _, completion, error in
+            guard error == nil else { return completion() }
+            Task { @MainActor in
+                await self?.moveChanged()
+                completion()
+            }
+        }
+        store.execute(query)
+        store.enableBackgroundDelivery(for: type, frequency: .hourly) { _, _ in }
+    }
+
+    private func moveChanged() async {
+        await refreshMove()
+        await checkMoveNudge()
+    }
+
+    /// One nudge on a slow day (#454): from the member's walking hour, only when well behind their usual, never
+    /// after a workout or sport (any app's, in Health), a "Rest day" tap, or in quiet hours.
+    func checkMoveNudge(now: Date = Date()) async {
+        let move = MoveStore.shared
+        let notify = NotificationManager.shared
+        guard connected, available, move.hasData, notify.prefs.moveNudges else { return }
+        let cal = Progression.calendar()
+        let key = move.key(now)
+        let minute = cal.component(.hour, from: now) * 60 + cal.component(.minute, from: now)
+        let today = move.today
+        let usual = move.usual
+        var trained = move.saved.busy == key
+        if !trained { trained = await workoutCount(from: cal.startOfDay(for: now), to: now) > 0 }
+        guard DailyMove.nudge(steps: today.steps, usual: usual, hour: move.hour, nowMinute: minute, trainedToday: trained,
+                              restDay: move.saved.restDay == key, nudgedToday: move.saved.nudged == key, prefs: notify.prefs) == nil
+        else { return }
+        move.markNudged(now)
+        await notify.postMoveNudge(steps: today.steps, usual: usual)
+    }
+
+    private func workoutCount(from: Date, to: Date) async -> Int {
+        let d = HKSampleQueryDescriptor(predicates: [.workout(HKQuery.predicateForSamples(withStart: from, end: to))], sortDescriptors: [], limit: 1)
+        return (try? await d.result(for: store).count) ?? 0
     }
 
     private func latestValue(_ id: HKQuantityTypeIdentifier, unit: HKUnit) async -> (value: Double, date: Date)? {

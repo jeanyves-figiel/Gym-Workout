@@ -12,6 +12,7 @@ enum NotifyStyle {
     static let missed = LinearGradient(colors: [rgb(0xFF8A00), rgb(0xFFC93D)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let follow = LinearGradient(colors: [rgb(0xFF2D55), rgb(0xFF6FB5)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let badge = LinearGradient(colors: [rgb(0xFFB800), rgb(0xFF5E3A)], startPoint: .topLeading, endPoint: .bottomTrailing)
+    static let move = LinearGradient(colors: [rgb(0xFF7A3D), rgb(0xFF3D8A)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let quiet = LinearGradient(colors: [rgb(0x3A2D7A), rgb(0x1E1650)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let today = LinearGradient(colors: [rgb(0x00C9A7), rgb(0x2EC5FF)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let day = LinearGradient(colors: [Color.white.opacity(0.10), Color.white.opacity(0.05)], startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -42,6 +43,10 @@ struct NotificationsHost: ViewModifier {
                 notify.registerRemoteIfNeeded()
                 await notify.syncRemote(model)
                 await notify.announceNewBadges(model)
+                // Daily Move (#454): no slow-day nudge after a workout in this app, even one not saved to Health.
+                if let last = model.state.history.map(\.startedAt).max(), Calendar.current.isDateInToday(last) {
+                    MoveStore.shared.markBusy(last)
+                }
             }
             .onChange(of: scenePhase) { _, phase in
                 guard phase == .active, !model.demo else { return }
@@ -123,6 +128,14 @@ struct NotificationSettingsView: View {
                 NotifyCard(symbol: "trophy.fill", title: "People you follow", detail: "When they set a PR or unlock a badge",
                            gradient: NotifyStyle.follow, trailing: notify.prefs.followAchievements ? "On" : "Off",
                            isOn: $notify.prefs.followAchievements) { EmptyView() }
+
+                NotifyCard(symbol: "figure.walk", title: "Daily Move nudge",
+                           detail: "One nudge on a day well below your usual steps, at the hour you usually walk",
+                           gradient: NotifyStyle.move, trailing: notify.prefs.moveNudges ? NotificationPrefs.clock(MoveStore.shared.hour * 60) : "Off",
+                           isOn: $notify.prefs.moveNudges) {
+                    Text("Skipped when you trained or logged a sport, hit your usual, or tapped Rest day. Steps never leave your iPhone.")
+                        .font(.footnote.weight(.semibold)).opacity(0.9)
+                }
 
                 NotifyCard(symbol: "moon.stars.fill", title: "Quiet hours", detail: "Reminders move out; follow alerts arrive silently",
                            gradient: NotifyStyle.quiet,

@@ -58,6 +58,7 @@ targets:
           - webcredentials:workout-staging.monkeygrade.cloud
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.access: []
+        com.apple.developer.healthkit.background-delivery: true
         # Remote push (#69). Archive/export for TestFlight/App Store switches it to production.
         aps-environment: development
         # Home Screen widgets (#297) read the app's snapshot from this container.
@@ -87,7 +88,7 @@ targets:
         NSCameraUsageDescription: Take photos of machines for your own exercises and scan your gym for its map.
         NSMicrophoneUsageDescription: Talk to Coach in the app and during workouts (say done, a weight, or ask a question).
         NSSpeechRecognitionUsageDescription: Turns what you say to Coach into text, on your iPhone when it can. Only the words are sent to Coach.
-        NSHealthShareUsageDescription: Reads weight, height, body fat, lean body mass, waist circumference, age, sex, resting heart rate, HRV, VO2max, sleep, heart rate during sessions and climbing workouts to estimate calories and starting weights, show readiness and track progress.
+        NSHealthShareUsageDescription: Reads weight, height, body fat, lean body mass, waist circumference, age, sex, resting heart rate, HRV, VO2max, sleep, steps, floors climbed, heart rate during sessions and climbing workouts to estimate calories and starting weights, show readiness, count daily walking and stairs toward your level, and track progress.
         NSLocationWhenInUseUsageDescription: Finds gyms near you. Your location is only used for the search and never leaves this device except to Apple Maps.
         NSHealthUpdateUsageDescription: Saves your gym sessions as workouts, and the weight, height, body fat, lean mass and waist you enter, to Apple Health.
         ITSAppUsesNonExemptEncryption: false

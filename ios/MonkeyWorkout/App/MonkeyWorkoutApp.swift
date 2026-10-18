@@ -32,7 +32,7 @@ struct MonkeyWorkoutApp: App {
                 .task {
                     // Health reads in parallel with sign-in and sync (cached values already shown, #202).
                     #if DEBUG
-                    if Demo.enabled { health.snapshot = Demo.health; return }
+                    if Demo.enabled { health.snapshot = Demo.health; MoveStore.shared.demo(); return }
                     #endif
                     await health.refresh()
                     WatchSync.shared.push()

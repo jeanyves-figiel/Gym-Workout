@@ -260,6 +260,7 @@ final class AppModel {
         phase = .signedOut
         // Personal copies outside state.json: cached Health readings, the data export, HTTP responses.
         HealthManager.clearCache()
+        MoveStore.shared.signOut()
         // The MonkeyGrade sign-in and the Watch upload key live in this device's Keychain, not in state.json.
         MonkeyGradeLink.shared.disconnect()
         clearWatchUploadKey()

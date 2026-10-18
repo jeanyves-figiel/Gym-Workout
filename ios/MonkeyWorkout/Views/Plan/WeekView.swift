@@ -338,6 +338,8 @@ struct WeekView: View {
                     Text("Shows here when you start a programme.").font(.caption.weight(.semibold)).opacity(0.9)
                 }
             }
+        case .move:
+            MoveWidget(size: w.size, arranging: arranging)
         case .thisWeek:
             thisWeek(plan: plan, profile: profile, quest: (w.look ?? (WatchHomePref.shared.style == .deck ? .quest : .list)) == .quest)
         }

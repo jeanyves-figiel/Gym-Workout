@@ -5,10 +5,10 @@ import Testing
 @Suite struct TrainLayoutTests {
     @Test func classicMatchesTodaysTrainScreen() {
         let l = TrainLayout.classic(coach: true, levelBar: false, climber: true)
-        #expect(l.widgets.map(\.kind) == [.actions, .coach, .programme, .week, .nextUp, .climbing, .thisWeek])
+        #expect(l.widgets.map(\.kind) == [.actions, .coach, .programme, .week, .nextUp, .move, .climbing, .thisWeek])
         #expect(l.widgets.first { $0.kind == .nextUp }?.size == .large)
         let rings = TrainLayout.classic(coach: false, levelBar: true, climber: false)
-        #expect(rings.widgets.map(\.kind) == [.actions, .programme, .week, .level, .nextUp, .thisWeek])
+        #expect(rings.widgets.map(\.kind) == [.actions, .programme, .week, .level, .nextUp, .move, .thisWeek])
     }
 
     @Test func smallWidgetsPairUp() {
