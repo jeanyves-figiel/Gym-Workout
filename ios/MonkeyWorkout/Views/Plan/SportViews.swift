@@ -51,6 +51,24 @@ extension Sport {
 
     var gradient: LinearGradient { LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing) }
 
+    /// The Watch records it live (#418; Hyrox has its race mode, #426). Same list as the Watch's `TrackedSport`.
+    var watchTrackable: Bool {
+        [.hyrox, .snowboard, .ski, .crossCountrySki, .mountainBike, .roadBike, .run, .trailRun, .hike, .mountaineering,
+         .crossfit, .rowing, .football, .tennis, .padel, .surf, .skate, .other].contains(self)
+    }
+
+    /// What the Watch dashboard shows for it (#418 design B).
+    var watchShows: String {
+        switch self {
+        case .hyrox: "Every run and station, split by itself"
+        case .snowboard, .ski: "Speed · top speed · vertical · runs"
+        case .hike, .mountaineering, .trailRun: "Ascent · km · summit"
+        case .mountainBike, .roadBike, .run, .crossCountrySki: "km · speed · ascent"
+        case .crossfit, .rowing: "Heart rate · kcal · laps"
+        default: "Heart rate · kcal"
+        }
+    }
+
     /// Distance is worth asking for.
     var hasDistance: Bool {
         [.snowboard, .ski, .crossCountrySki, .mountainBike, .roadBike, .run, .trailRun, .hike, .mountaineering, .swim, .rowing].contains(self)
@@ -101,6 +119,26 @@ struct LogSportButton: View {
     }
 }
 
+/// Round lime Watch button beside Log sport (#439, design C): opens the sheet in Track live mode. Only with a Watch.
+struct TrackOnWatchButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        if WatchSync.shared.watchReady {
+            Button(action: action) {
+                Image(systemName: "applewatch.radiowaves.left.and.right")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: 56, height: 56)
+                    .background(Circle().fill(Theme.lime))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Track on Watch")
+            .accessibilityHint("Start a sport on your Apple Watch: snowboard, bike, run, Hyrox…")
+        }
+    }
+}
+
 // MARK: - Log sport (design A; sheet layout B + card C, #435)
 
 /// Sheet: what did you do (bold sport grid), when, how long, how hard. Climbing opens the climb log.
@@ -116,11 +154,17 @@ struct LogSportView: View {
     @State private var showDistance: Bool
     @State private var showNotes: Bool
     @State private var closeGuard = CloseGuard()
+    /// Track live on the Watch instead of logging a past session (#439, design A).
+    @State private var live: Bool
+    @State private var saver = false
+    @State private var hyroxFormat: HyroxFormat = .full
+    @State private var sent = false
     private let initial: SportLog
 
-    /// `restoring`: the session brought back by Undo (#285).
-    init(initial: SportLog, picked: Bool = false, restoring: SportLog? = nil) {
+    /// `restoring`: the session brought back by Undo (#285). `live`: opened from Track on Watch (#439).
+    init(initial: SportLog, picked: Bool = false, restoring: SportLog? = nil, live: Bool = false) {
         self.initial = initial
+        _live = State(initialValue: live && restoring == nil)
         _log = State(initialValue: restoring ?? initial)
         _picked = State(initialValue: picked || restoring != nil)
         _distanceText = State(initialValue: (restoring ?? initial).distanceKm.map { String(format: "%g", $0) } ?? "")
@@ -147,15 +191,22 @@ struct LogSportView: View {
                     if picked && !allSports {
                         // Design B (#435): the grid folds into a strip, the details card sits right under it.
                         strip
-                        card
-                        Text(health.connected && health.writeWorkouts
-                             ? "Also saved to Apple Health. Gym days around it are planned to spare \(log.sport.loadLabel)."
-                             : "Saved in MonkeyWorkout. Connect Apple Health in Progress → Body & Health to also save it there.")
-                            .font(.footnote).foregroundStyle(Theme.muted)
+                        if canTrack { modeSwitch }
+                        if live && canTrack {
+                            liveCard
+                            Text("Your Watch opens \(log.sport.short) and records it: heart rate, route, kcal. Keep it on your wrist; it saves to Apple Health and shows up here after.")
+                                .font(.footnote).foregroundStyle(Theme.muted)
+                        } else {
+                            card
+                            Text(health.connected && health.writeWorkouts
+                                 ? "Also saved to Apple Health. Gym days around it are planned to spare \(log.sport.loadLabel)."
+                                 : "Saved in MonkeyWorkout. Connect Apple Health in Progress → Body & Health to also save it there.")
+                                .font(.footnote).foregroundStyle(Theme.muted)
+                        }
                     } else {
-                        Text("What did you do?").eyebrow()
+                        Text(live ? "What are you doing?" : "What did you do?").eyebrow()
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                            ForEach(model.sportOrder) { s in
+                            ForEach(gridSports) { s in
                                 SportTile(sport: s, selected: picked && log.sport == s) { pick(s) }
                             }
                         }
@@ -170,8 +221,17 @@ struct LogSportView: View {
             .background(Theme.bg.ignoresSafeArea())
             .safeAreaInset(edge: .bottom) {
                 if picked && !allSports {
-                    Button { save() } label: {
-                        Label("Save \(log.sport.short) · \(Climbs.duration(log.minutes)) · \(log.effort)", systemImage: "checkmark")
+                    Group {
+                        if live && canTrack {
+                            Button { startOnWatch() } label: {
+                                Label(sent ? "Opening on your Watch…" : "Start on Watch", systemImage: "applewatch.radiowaves.left.and.right")
+                            }
+                            .disabled(sent)
+                        } else {
+                            Button { save() } label: {
+                                Label("Save \(log.sport.short) · \(Climbs.duration(log.minutes)) · \(log.effort)", systemImage: "checkmark")
+                            }
+                        }
                     }
                     .buttonStyle(LimeButtonStyle())
                     .padding(.horizontal, 16)
@@ -179,12 +239,99 @@ struct LogSportView: View {
                     .background(Theme.bg.opacity(0.95).ignoresSafeArea())
                 }
             }
-            .navigationTitle(picked ? "Log \(log.sport.short)" : "Log sport")
+            .navigationTitle(live && (canTrack || !picked) ? (picked ? "Track \(log.sport.short)" : "Track on Watch")
+                             : picked ? "Log \(log.sport.short)" : "Log sport")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }
         }
         .preferredColorScheme(.dark)
         .undoableClose(closeGuard, offer: undoOffer)
+    }
+
+    /// Live mode lists the sports the Watch tracks; logging lists them all.
+    private var gridSports: [Sport] {
+        live ? model.sportOrder.filter(\.watchTrackable) : model.sportOrder
+    }
+
+    /// The Watch can record this sport now.
+    private var canTrack: Bool { log.sport.watchTrackable && WatchSync.shared.watchReady }
+
+    /// Track live / Log past (#439, design A).
+    private var modeSwitch: some View {
+        HStack(spacing: 4) {
+            ForEach([true, false], id: \.self) { on in
+                Button { live = on } label: {
+                    Label(on ? "Track live" : "Log past", systemImage: on ? "applewatch" : "pencil")
+                        .font(Theme.label(14))
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                        .foregroundStyle(live == on ? Theme.ink : .white)
+                        .background(Capsule().fill(live == on ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Color.clear)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(live == on ? .isSelected : [])
+            }
+        }
+        .padding(4)
+        .background(Capsule().fill(Theme.card))
+    }
+
+    /// What the Watch shows for the picked sport, then battery (or the Hyrox race / sim).
+    private var liveCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("On your Watch").font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.9)
+                    Text(log.sport.label).font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.6)
+                    Text(log.sport.watchShows).font(.subheadline.weight(.semibold)).opacity(0.9)
+                }
+                Spacer()
+                Image(systemName: log.sport.symbol).font(.system(size: 40, weight: .bold))
+            }
+            if log.sport == .hyrox {
+                Text("Race or sim").font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.9)
+                chips([(HyroxFormat.full, "Full race"), (HyroxFormat.half(second: false), "First half"), (HyroxFormat.half(second: true), "Second half")],
+                      selected: hyroxFormat) { hyroxFormat = $0 }
+                Text("Steps record themselves; double tap or the big button moves on.").font(.footnote).opacity(0.9)
+            } else {
+                Text("Battery").font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.9)
+                chips([(false, "Full GPS"), (true, "Saver")], selected: saver) { saver = $0 }
+                Text(saver ? "GPS about once a minute: long days on one charge." : "GPS every few metres: best map and speed.")
+                    .font(.footnote).opacity(0.9)
+            }
+        }
+        .gradientCard(log.sport.gradient, padding: 18)
+        .shadow(color: log.sport.colors[0].opacity(0.35), radius: 16, y: 8)
+    }
+
+    private func chips<T: Equatable>(_ options: [(T, String)], selected: T, pick: @escaping (T) -> Void) -> some View {
+        HStack(spacing: 6) {
+            ForEach(options.indices, id: \.self) { i in
+                let on = options[i].0 == selected
+                Button { pick(options[i].0) } label: {
+                    Text(options[i].1).font(Theme.label(14)).lineLimit(1).minimumScaleFactor(0.8)
+                        .frame(maxWidth: .infinity, minHeight: 42)
+                        .foregroundStyle(on ? Theme.ink : .white)
+                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(on ? AnyShapeStyle(.white) : AnyShapeStyle(.black.opacity(0.25))))
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+    }
+
+    private func startOnWatch() {
+        if log.sport == .hyrox {
+            WatchSync.shared.startHyrox(hyroxFormat)
+        } else {
+            WatchSync.shared.startSport(log.sport, saver: saver)
+        }
+        sent = true
+        closeGuard.done()
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            dismiss()
+        }
     }
 
     private func pick(_ s: Sport) {
@@ -201,7 +348,7 @@ struct LogSportView: View {
     private var strip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach([log.sport] + model.sportOrder.filter { $0 != log.sport }.prefix(7)) { s in
+                ForEach([log.sport] + gridSports.filter { $0 != log.sport }.prefix(7)) { s in
                     SportTile(sport: s, selected: log.sport == s) { pick(s) }
                         .frame(width: 74)
                         .opacity(log.sport == s ? 1 : 0.55)
@@ -321,7 +468,7 @@ struct LogSportView: View {
     }
 
     private var undoOffer: UndoOffer? {
-        guard picked, log != initial else { return nil }
+        guard picked, !(live && canTrack), log != initial else { return nil }
         let kept = log
         let original = initial
         return UndoOffer(title: "\(kept.sport.short) closed", detail: undoDetail(kept.sport.label, Climbs.duration(kept.minutes)),

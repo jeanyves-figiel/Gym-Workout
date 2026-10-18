@@ -53,6 +53,35 @@ struct HyroxHubCard: View {
     }
 }
 
+/// Explore → Hyrox (#439, design C): the hub for everyone, not only members with Hyrox in My sports.
+struct HyroxExploreCard: View {
+    @State private var open = false
+
+    var body: some View {
+        Button { open = true } label: {
+            HStack(spacing: 16) {
+                Image(systemName: "flag.checkered")
+                    .font(.system(size: 28, weight: .bold))
+                    .frame(width: 60, height: 60)
+                    .background(RoundedRectangle(cornerRadius: 18).fill(.white.opacity(0.2)))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Hyrox").font(Theme.display(24))
+                    Text("Race mode on your Watch, pacing plan, sims and race reports.")
+                        .font(.footnote.weight(.medium)).opacity(0.85).multilineTextAlignment(.leading)
+                }
+                Spacer()
+                Text("16").font(Theme.display(22)).opacity(0.8)
+            }
+            .foregroundStyle(.white)
+            .padding(18)
+            .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(HyroxColors.race))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens the Hyrox page")
+        .sheet(isPresented: $open) { HyroxHubView() }
+    }
+}
+
 /// B · Hyrox hub: division and goal, pacing plan per split, sims for this week, Start race on Watch, past races.
 struct HyroxHubView: View {
     @Environment(AppModel.self) private var model

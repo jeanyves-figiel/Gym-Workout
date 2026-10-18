@@ -4,16 +4,36 @@ import WatchKit
 
 /// The iPhone wakes the Watch app with a workout configuration when a workout starts there (#347).
 final class WatchAppDelegate: NSObject, WKApplicationDelegate {
+    /// Starts already handled, so a later wake-up does not start them again.
+    @MainActor private static var handled: Set<Date> = []
+
+    /// The newest start asked on the iPhone in the last 5 minutes, if any; true when one started.
+    @MainActor private static func startFromPhone() async -> Bool {
+        guard let snap = WatchStore.current?.snapshot else { return false }
+        let fresh = { (at: Date?) in at.map { Date().timeIntervalSince($0) < 300 && !handled.contains($0) } ?? false }
+        let hyroxAt = fresh(snap.hyrox?.startAt) ? snap.hyrox?.startAt : nil
+        let sportAt = fresh(snap.sportStart?.at) ? snap.sportStart?.at : nil
+        if let h = snap.hyrox, let format = h.start, let at = hyroxAt, at >= (sportAt ?? .distantPast) {
+            handled.insert(at)
+            await HyroxTracker.shared.start(format, settings: h)
+            return true
+        }
+        if let s = snap.sportStart, let at = sportAt, let sport = TrackedSport(rawValue: s.sport) {
+            handled.insert(at)
+            await SportTracker.shared.start(sport, power: s.saver ? .saver : .full)
+            return true
+        }
+        return false
+    }
+
     func handle(_ workoutConfiguration: HKWorkoutConfiguration) {
         Task { @MainActor in
-            // "Start race on Watch" in the iPhone's Hyrox hub (#426) uses cross training.
-            // The snapshot with the format may land just after the wake-up: wait a few seconds for it.
-            if workoutConfiguration.activityType == .crossTraining {
+            // "Start race on Watch" (#426) and "Start on Watch" for another sport (#439) on the iPhone: the snapshot with
+            // what to start may land just after the wake-up, so wait a few seconds for it. A gym workout wakes with
+            // functional strength training and goes to the player as before.
+            if workoutConfiguration.activityType != .functionalStrengthTraining {
                 for _ in 0..<10 {
-                    if let h = WatchStore.current?.snapshot.hyrox, let format = h.start, let at = h.startAt, Date().timeIntervalSince(at) < 300 {
-                        await HyroxTracker.shared.start(format, settings: h)
-                        return
-                    }
+                    if await Self.startFromPhone() { return }
                     try? await Task.sleep(for: .milliseconds(500))
                 }
             }
