@@ -58,6 +58,12 @@ export interface Config {
   offsite?: OffsiteConfig;
 }
 
+/** Whole number ≥ 1, else `dflt`: a typo must not turn into NaN days and prune every backup (#432). */
+export const positiveInt = (v: string | undefined, dflt: number): number => {
+  const n = Number(v);
+  return v !== undefined && v.trim() !== '' && Number.isInteger(n) && n >= 1 ? n : dflt;
+};
+
 const required = (name: string, env: NodeJS.ProcessEnv, prod: boolean, dev: string): string => {
   const v = env[name];
   if (v) return v;
@@ -164,7 +170,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
     appleTeamId: env.APPLE_TEAM_ID || undefined,
     backup: {
       dir: backupDir(env, prod, env.DB_PATH ?? (prod ? '/data/app.db' : './data/dev.db')),
-      keepDays: Math.max(1, Number(env.BACKUP_KEEP_DAYS ?? 7)),
+      keepDays: positiveInt(env.BACKUP_KEEP_DAYS, 7),
     },
     offsite:
       env.AWS_ENDPOINT_URL_S3 && env.BUCKET_NAME && env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY && env.BACKUP_KEY
@@ -175,7 +181,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
             accessKeyId: env.AWS_ACCESS_KEY_ID,
             secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
             passphrase: env.BACKUP_KEY,
-            keepDays: Math.max(1, Number(env.BACKUP_OFFSITE_DAYS ?? 30)),
+            keepDays: positiveInt(env.BACKUP_OFFSITE_DAYS, 30),
           }
         : undefined,
   };

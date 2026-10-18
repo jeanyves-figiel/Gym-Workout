@@ -31,7 +31,9 @@ type Row = Record<string, unknown>;
 
 const columns = (db: DatabaseSync, t: string) => (db.prepare(`PRAGMA table_info(${t})`).all() as { name: string }[]).map((c) => c.name);
 const hasTable = (db: DatabaseSync, t: string) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(t);
-const same = (a: Row, b: Row, cols: string[]) => cols.every((c) => c === 'updated_at' || a[c] === b[c]);
+// BLOB columns come back as fresh Uint8Arrays: compare bytes, not references (#432).
+const eq = (x: unknown, y: unknown) => (x instanceof Uint8Array && y instanceof Uint8Array ? Buffer.compare(x, y) === 0 : x === y);
+const same = (a: Row, b: Row, cols: string[]) => cols.every((c) => c === 'updated_at' || eq(a[c], b[c]));
 
 export const restoreMember = (live: DB, backup: DatabaseSync, input: MemberRestoreInput, saveDir: string, now = new Date()) => {
   const email = input.email.trim().toLowerCase();
@@ -87,7 +89,7 @@ export const restoreMember = (live: DB, backup: DatabaseSync, input: MemberResto
 // CLI: node src/admin/restoreMember.ts <backup file name> <base64 JSON MemberRestoreInput>
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [file, b64] = process.argv.slice(2);
-  if (!file || !/^app-\d{4}-\d{2}-\d{2}\.db$/.test(file) || !b64) {
+  if (!file || !/^app-\d{4}-\d{2}-\d{2}(\.offsite)?\.db$/.test(file) || !b64) {
     console.error('usage: restoreMember.ts app-YYYY-MM-DD.db <base64 JSON {email, apply, overwrite, profile}>');
     process.exit(2);
   }
