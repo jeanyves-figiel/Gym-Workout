@@ -1,6 +1,25 @@
 {
   "releases": [
     {
+      "id": "2026-10-18.2",
+      "build": 45,
+      "date": "2026-10-18",
+      "items": [
+        {
+          "symbol": "figure.walk",
+          "tint": "cardio",
+          "title": "Every step counts",
+          "body": "Walking and stairs from Apple Health now earn XP toward your level, with a gentle nudge on quiet days."
+        },
+        {
+          "symbol": "dumbbell.fill",
+          "tint": "strength",
+          "title": "Explore by machine",
+          "body": "A new Machines tab lists every machine with its exercises, and machine chips filter the muscle lists. Switch on \"in my gym\" to see only yours."
+        }
+      ]
+    },
+    {
       "id": "2026-10-18.1",
       "build": 44,
       "date": "2026-10-18",

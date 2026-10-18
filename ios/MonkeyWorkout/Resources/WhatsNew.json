@@ -1,17 +1,35 @@
 {
-  "id": "2026-10-18.2",
+  "id": "2026-10-18.3",
   "items": [
     {
-      "symbol": "figure.walk",
-      "tint": "cardio",
-      "title": "Every step counts",
-      "body": "Walking and stairs from Apple Health now earn XP toward your level, with a gentle nudge on quiet days."
+      "symbol": "square.grid.2x2.fill",
+      "tint": "strength",
+      "title": "A livelier Explore",
+      "body": "A big colour card shows what's new in each section, from this week's sets to your last workout, and colourful icons switch between them."
     },
     {
-      "symbol": "dumbbell.fill",
-      "tint": "strength",
-      "title": "Explore by machine",
-      "body": "A new Machines tab lists every machine with its exercises, and machine chips filter the muscle lists. Switch on \"in my gym\" to see only yours."
+      "symbol": "calendar",
+      "tint": "cardio",
+      "title": "Swipe through your weeks",
+      "body": "Today sits in the middle of the week strip on Train. Swipe back a week or two weeks ahead."
+    },
+    {
+      "symbol": "figure.climbing",
+      "tint": "warmup",
+      "title": "Log a climb like any sport",
+      "body": "Logging a climb now looks like Log sport, with quick grade chips."
+    },
+    {
+      "symbol": "exclamationmark.bubble.fill",
+      "tint": "power",
+      "title": "Report a problem",
+      "body": "Shake your phone or go to Settings to tell us what went wrong, with a screenshot. We read every report."
+    },
+    {
+      "symbol": "lock.shield.fill",
+      "tint": "stretch",
+      "title": "Stay signed in",
+      "body": "Fixed random sign-outs when the connection dropped at the wrong moment."
     }
   ]
 }
