@@ -203,64 +203,160 @@ enum MissedStyle {
 struct WeekDayStrip: View {
     /// Day the Next up card shows (#277), white in the strip; nil = the next session's.
     var selected: Int? = nil
-    /// Tap on a day that isn't missed (#277): the Next up card follows it. Missed days open the catch-up sheet.
+    /// Tap on a day of this week that isn't missed (#277): the Next up card follows it. Missed days open the catch-up sheet.
     var onPick: (Int) -> Void = { _ in }
     @Environment(AppModel.self) private var model
+    @Environment(HealthManager.self) private var health
     @State private var catchUp: DayPick?
+    /// Swipe pages of 7 days (#464): page 0 has today in the middle.
+    @State private var page: Int? = 0
+    @State private var laterDay: DaySelection?
+    @State private var editingAway: AwayPeriod?
+    @State private var awayIsNew = false
+    @State private var showsHistory = false
 
     struct DayPick: Identifiable { let id: Int }
+
+    /// One page back, two ahead (#464); days shown are at most 1 week back and 2 weeks ahead.
+    static let pages = Array(-1...2)
+    static let daysBack = 7
+    static let daysAhead = 14
 
     var body: some View {
         let sessions = model.plan?.sessions ?? []
         if sessions.contains(where: { $0.weekday != nil }) {
-            let missed = model.missedSessions
-            let skipped = model.skippedIds
-            let done = model.doneIds
-            let today = model.todayWeekday
-            // Climbing days of a climber show orange (#277).
-            let climbDays = model.profile.map { Generator.isClimber($0) ? $0.climbingDays : [] } ?? []
-            // Other sports' days (#416) show their icon.
-            let sportDays = model.profile?.sportDays() ?? []
-            HStack(spacing: 5) {
-                ForEach(WeekSchedule.weekdays, id: \.self) { wd in
-                    let day = sessions.filter { $0.weekday == wd }
-                    let dayMissed = missed.filter { $0.weekday == wd }
-                    if !dayMissed.isEmpty {
-                        // A day whose missed sessions were all skipped (#340) is picked like any other day.
-                        let allSkipped = dayMissed.allSatisfy { skipped.contains($0.id) }
-                        Button { if allSkipped { onPick(wd) } else { catchUp = DayPick(id: wd) } } label: {
-                            cell(wd, today: today, state: .missed(skipped: allSkipped), picked: allSkipped && selected == wd)
+            let cal = model.planCalendar
+            let weekStart = Progression.weekStart(Date(), cal)
+            let todayOffset = model.todayWeekday - 1
+            // Coming weeks as the calendar plans them (index 0 = this week).
+            let weeks = model.calendarWeeks(count: 3)
+            let pastDays = Set(model.historyItems(health: health).map { cal.startOfDay(for: $0.start) })
+            VStack(spacing: 7) {
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 0) {
+                            ForEach(Self.pages, id: \.self) { p in
+                                HStack(spacing: 5) {
+                                    ForEach(-3...3, id: \.self) { o in
+                                        day(p * 7 + o, todayOffset: todayOffset, weekStart: weekStart, weeks: weeks, pastDays: pastDays, cal: cal)
+                                    }
+                                }
+                                .containerRelativeFrame(.horizontal)
+                                .id(p)
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("\(WeekSchedule.name(wd)): \(dayMissed.map(\.displayTitle).joined(separator: ", ")) \(allSkipped ? "skipped" : "missed")")
-                        .accessibilityHint(allSkipped ? "" : "Log it, mark it done, do it today or skip")
-                    } else if let s = day.first {
-                        let allDone = day.allSatisfy { done.contains($0.id) }
-                        Button { onPick(wd) } label: { cell(wd, today: today, state: allDone ? .done : .planned, picked: selected == wd) }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("\(WeekSchedule.name(wd)): \(s.displayTitle)\(allDone ? ", done" : "")")
-                            .accessibilityAddTraits(selected == wd ? .isSelected : [])
-                    } else {
-                        let climb = climbDays.contains(wd)
-                        let sport = climb ? nil : sportDays.first { $0.weekday == wd }?.sport
-                        Button { onPick(wd) } label: {
-                            cell(wd, today: today, state: climb ? .climb : sport.map { DayState.sport($0) } ?? .rest, picked: selected == wd)
-                        }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("\(WeekSchedule.name(wd)): \(climb ? "climbing day" : sport.map { "\($0.label) day" } ?? "rest day")")
-                            .accessibilityHint("Add a workout")
-                            .accessibilityAddTraits(selected == wd ? .isSelected : [])
+                        .scrollTargetLayout()
+                    }
+                    .scrollTargetBehavior(.paging)
+                    .scrollIndicators(.hidden)
+                    .scrollPosition(id: $page)
+                    // Opens on today's page, not the first (last week).
+                    .onAppear { proxy.scrollTo(page ?? 0) }
+                }
+                HStack(spacing: 5) {
+                    ForEach(Self.pages, id: \.self) { p in
+                        Capsule().fill(p == (page ?? 0) ? Theme.lime : .white.opacity(0.3))
+                            .frame(width: p == (page ?? 0) ? 14 : 5, height: 5)
                     }
                 }
+                .animation(.snappy, value: page)
+                .accessibilityHidden(true)
             }
             .sheet(item: $catchUp) { MissedCatchUpSheet(weekday: $0.id) }
+            .sheet(item: $laterDay) { s in
+                DaySheet(selection: s) { kind, key in
+                    laterDay = nil
+                    awayIsNew = true
+                    editingAway = AwayPeriod(kind: kind, start: key, end: key, setup: kind == .travel ? .hotelGym : nil)
+                } onEdit: { a in
+                    laterDay = nil
+                    awayIsNew = false
+                    editingAway = a
+                }
+            }
+            .sheet(item: $editingAway) { a in
+                AwayEditorView(initial: a, isNew: awayIsNew) { saved in
+                    if let saved { model.saveAway(saved) } else { model.deleteAway(a.id) }
+                    editingAway = nil
+                }
+            }
+            .sheet(isPresented: $showsHistory) {
+                NavigationStack { HistoryView().toolbar { CloseToolbarItem { showsHistory = false } } }
+            }
+        }
+    }
+
+    /// The day `offset` days from today (#464): this week as before, later weeks from the calendar, last week from History.
+    @ViewBuilder
+    private func day(_ offset: Int, todayOffset: Int, weekStart: Date, weeks: [PlanCalendar.Week], pastDays: Set<Date>, cal: Calendar) -> some View {
+        let fromMonday = todayOffset + offset
+        let week = Int((Double(fromMonday) / 7).rounded(.down))
+        let wd = fromMonday - week * 7 + 1
+        let date = cal.date(byAdding: .day, value: fromMonday, to: weekStart) ?? Date()
+        let n = cal.component(.day, from: date)
+        let isToday = offset == 0
+        let label = date.formatted(.dateTime.weekday(.wide).day().month(.wide))
+        if offset < -Self.daysBack || offset > Self.daysAhead {
+            cell(wd, day: n, isToday: false, state: .rest).opacity(0.25).accessibilityHidden(true)
+        } else if week == 0 {
+            thisWeek(wd, day: n, isToday: isToday)
+        } else if week > 0, week < weeks.count {
+            let w = weeks[week]
+            let session = w.plan.sessions.first { $0.weekday == wd }
+            let climb = w.climbing.contains(wd)
+            let sport = model.profile?.sportDays(on: date).first { $0.weekday == wd }?.sport
+            let state: DayState = session != nil ? .planned : climb ? .climb : sport.map { DayState.sport($0) } ?? .rest
+            Button { laterDay = DaySelection(week: w, weekday: wd, current: false) } label: { cell(wd, day: n, isToday: false, state: state) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(label): \(session?.displayTitle ?? (climb ? "climbing day" : sport.map { "\($0.label) day" } ?? "rest day"))")
+        } else if week < 0 {
+            let trained = pastDays.contains(cal.startOfDay(for: date))
+            Button { showsHistory = true } label: { cell(wd, day: n, isToday: false, state: trained ? .done : .rest).opacity(trained ? 1 : 0.6) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(label): \(trained ? "trained" : "no session")")
+                .accessibilityHint("Open History")
+        } else {
+            cell(wd, day: n, isToday: false, state: .rest).opacity(0.25).accessibilityHidden(true)
+        }
+    }
+
+    @ViewBuilder
+    private func thisWeek(_ wd: Int, day n: Int, isToday: Bool) -> some View {
+        let sessions = model.plan?.sessions ?? []
+        let day = sessions.filter { $0.weekday == wd }
+        let dayMissed = model.missedSessions.filter { $0.weekday == wd }
+        if !dayMissed.isEmpty {
+            // A day whose missed sessions were all skipped (#340) is picked like any other day.
+            let allSkipped = dayMissed.allSatisfy { model.skippedIds.contains($0.id) }
+            Button { if allSkipped { onPick(wd) } else { catchUp = DayPick(id: wd) } } label: {
+                cell(wd, day: n, isToday: isToday, state: .missed(skipped: allSkipped), picked: allSkipped && selected == wd)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(WeekSchedule.name(wd)): \(dayMissed.map(\.displayTitle).joined(separator: ", ")) \(allSkipped ? "skipped" : "missed")")
+            .accessibilityHint(allSkipped ? "" : "Log it, mark it done, do it today or skip")
+        } else if let s = day.first {
+            let allDone = day.allSatisfy { model.doneIds.contains($0.id) }
+            Button { onPick(wd) } label: { cell(wd, day: n, isToday: isToday, state: allDone ? .done : .planned, picked: selected == wd) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(WeekSchedule.name(wd)): \(s.displayTitle)\(allDone ? ", done" : "")")
+                .accessibilityAddTraits(selected == wd ? .isSelected : [])
+        } else {
+            // Climbing days of a climber show orange (#277); other sports' days (#416) show their icon.
+            let climb = model.profile.map { Generator.isClimber($0) && $0.climbingDays.contains(wd) } ?? false
+            let sport = climb ? nil : model.profile?.sportDays().first { $0.weekday == wd }?.sport
+            Button { onPick(wd) } label: {
+                cell(wd, day: n, isToday: isToday, state: climb ? .climb : sport.map { DayState.sport($0) } ?? .rest, picked: selected == wd)
+            }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(WeekSchedule.name(wd)): \(climb ? "climbing day" : sport.map { "\($0.label) day" } ?? "rest day")")
+                .accessibilityHint("Add a workout")
+                .accessibilityAddTraits(selected == wd ? .isSelected : [])
         }
     }
 
     private enum DayState: Equatable { case missed(skipped: Bool), done, planned, rest, climb, sport(Sport) }
 
-    private func cell(_ wd: Int, today: Int, state: DayState, picked: Bool = false) -> some View {
-        let isToday = wd == today
+    private func cell(_ wd: Int, day: Int, isToday: Bool, state: DayState, picked: Bool = false) -> some View {
         let base: AnyShapeStyle = switch state {
         case .missed: AnyShapeStyle(MissedStyle.gradient)
         case .done: AnyShapeStyle(Theme.lime)
@@ -279,13 +375,14 @@ struct WeekDayStrip: View {
         case .climb: "figure.climbing"
         case .sport(let sp): sp.symbol
         }
-        return VStack(spacing: 4) {
+        return VStack(spacing: 2) {
             Text(WeekSchedule.shortName(wd).uppercased()).font(Theme.label(9)).tracking(0.5)
+            Text("\(day)").font(Theme.display(15)).monospacedDigit()
             Image(systemName: symbol).font(.system(size: state == .planned ? 7 : 11, weight: .black)).frame(height: 12)
         }
         .foregroundStyle(isToday && state == .planned && !picked ? Theme.lime : ink)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(fill).opacity(state == .missed(skipped: true) ? 0.5 : 1))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.lime, lineWidth: isToday ? 2 : 0))
     }
