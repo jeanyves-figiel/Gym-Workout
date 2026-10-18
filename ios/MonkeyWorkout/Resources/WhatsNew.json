@@ -1,47 +1,29 @@
 {
-  "id": "2026-10-18.3",
+  "id": "2026-10-18.4",
   "items": [
     {
-      "symbol": "square.grid.2x2.fill",
+      "symbol": "figure.snowboarding",
+      "tint": "cardio",
+      "title": "Plan your sports",
+      "body": "Climbing, snowboard, bike… each sport is a card with its days in Your week. Tap a coming day to plan a sport once, every week or a whole trip: no gym those days."
+    },
+    {
+      "symbol": "calendar.badge.clock",
       "tint": "strength",
-      "title": "A livelier Explore",
-      "body": "A big colour card shows what's new in each section, from this week's sets to your last workout, and colourful icons switch between them."
+      "title": "Next up looks ahead",
+      "body": "Week done? The Train card shows next week's first workout instead of Week complete."
     },
     {
-      "symbol": "calendar",
-      "tint": "cardio",
-      "title": "Swipe through your weeks",
-      "body": "Today sits in the middle of the week strip on Train. Swipe back a week or two weeks ahead."
-    },
-    {
-      "symbol": "figure.climbing",
+      "symbol": "gift.fill",
       "tint": "warmup",
-      "title": "Log a climb like any sport",
-      "body": "Logging a climb now looks like Log sport, with quick grade chips."
+      "title": "Never miss a chest",
+      "body": "Finished your week on the Watch? The chest still opens on Train. Progress now shows your week's XP and every chest."
     },
     {
-      "symbol": "applewatch",
-      "tint": "cardio",
-      "title": "Track on your Watch from Train",
-      "body": "The Watch button and Track live show up as soon as your Watch is connected, under a full-width Start workout."
-    },
-    {
-      "symbol": "figure.run",
-      "tint": "warmup",
-      "title": "Pick your sport faster",
-      "body": "Your sports sit on top as big cards, the rest in bold colour groups, in Log sport and Track on Watch."
-    },
-    {
-      "symbol": "exclamationmark.bubble.fill",
+      "symbol": "square.and.arrow.up.fill",
       "tint": "power",
-      "title": "Report a problem",
-      "body": "Shake your phone or go to Settings to tell us what went wrong, with a screenshot. We read every report."
-    },
-    {
-      "symbol": "lock.shield.fill",
-      "tint": "stretch",
-      "title": "Stay signed in",
-      "body": "Fixed random sign-outs when the connection dropped at the wrong moment."
+      "title": "Share any sport",
+      "body": "Runs, rides, ski days and climbs now go to Community, and auto share never misses a workout."
     }
   ]
 }

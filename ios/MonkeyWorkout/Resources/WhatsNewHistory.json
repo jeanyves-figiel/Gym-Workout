@@ -1,6 +1,55 @@
 {
   "releases": [
     {
+      "id": "2026-10-18.3",
+      "build": 46,
+      "date": "2026-10-18",
+      "items": [
+        {
+          "symbol": "square.grid.2x2.fill",
+          "tint": "strength",
+          "title": "A livelier Explore",
+          "body": "A big colour card shows what's new in each section, from this week's sets to your last workout, and colourful icons switch between them."
+        },
+        {
+          "symbol": "calendar",
+          "tint": "cardio",
+          "title": "Swipe through your weeks",
+          "body": "Today sits in the middle of the week strip on Train. Swipe back a week or two weeks ahead."
+        },
+        {
+          "symbol": "figure.climbing",
+          "tint": "warmup",
+          "title": "Log a climb like any sport",
+          "body": "Logging a climb now looks like Log sport, with quick grade chips."
+        },
+        {
+          "symbol": "applewatch",
+          "tint": "cardio",
+          "title": "Track on your Watch from Train",
+          "body": "The Watch button and Track live show up as soon as your Watch is connected, under a full-width Start workout."
+        },
+        {
+          "symbol": "figure.run",
+          "tint": "warmup",
+          "title": "Pick your sport faster",
+          "body": "Your sports sit on top as big cards, the rest in bold colour groups, in Log sport and Track on Watch."
+        },
+        {
+          "symbol": "exclamationmark.bubble.fill",
+          "tint": "power",
+          "title": "Report a problem",
+          "body": "Shake your phone or go to Settings to tell us what went wrong, with a screenshot. We read every report."
+        },
+        {
+          "symbol": "lock.shield.fill",
+          "tint": "stretch",
+          "title": "Stay signed in",
+          "body": "Fixed random sign-outs when the connection dropped at the wrong moment."
+        }
+      ]
+    },
+    {
       "id": "2026-10-18.2",
       "build": 45,
       "date": "2026-10-18",
