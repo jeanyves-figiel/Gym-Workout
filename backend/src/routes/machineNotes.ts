@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { sanitizeJpeg } from '../community/image.ts';
 import { type DB, tx } from '../db.ts';
+import { sinceQuery } from './sync.ts';
 import { ApiError } from '../errors.ts';
 
 /**
@@ -32,7 +33,7 @@ const toNote = (r: Row) => ({ ...(JSON.parse(r.data) as object), photoId: r.phot
 export const listMachineNotes = (db: DB, userId: string, since?: string) =>
   (
     (since
-      ? db.prepare('SELECT data, photo_id, updated_at FROM machine_notes WHERE user_id = ? AND updated_at > ? ORDER BY updated_at').all(userId, since)
+      ? db.prepare('SELECT data, photo_id, updated_at FROM machine_notes WHERE user_id = ? AND updated_at >= ? ORDER BY updated_at').all(userId, since)
       : db.prepare('SELECT data, photo_id, updated_at FROM machine_notes WHERE user_id = ? ORDER BY updated_at').all(userId)) as unknown as Row[]
   ).map(toNote);
 
@@ -50,7 +51,7 @@ export const machineNoteRoutes = (r: FastifyInstance, db: DB, now: () => Date) =
     db.prepare('SELECT photo_id FROM machine_notes WHERE id = ? AND user_id = ?').get(id, userId) as { photo_id: string | null } | undefined;
 
   r.get('/me/machine-notes', async (req) => {
-    const q = z.object({ since: z.iso.datetime({ offset: true }).optional() }).parse(req.query);
+    const q = sinceQuery.parse(req.query);
     return { notes: listMachineNotes(db, req.userId!, q.since), serverTime: now().toISOString() };
   });
 
@@ -62,15 +63,17 @@ export const machineNoteRoutes = (r: FastifyInstance, db: DB, now: () => Date) =
        ON CONFLICT(id) DO UPDATE SET gym_id = excluded.gym_id, exercise_id = excluded.exercise_id, data = excluded.data, updated_at = excluded.updated_at
        WHERE machine_notes.user_id = excluded.user_id`,
     );
-    tx(db, () => {
+    const saved = tx(db, () => {
+      let count = 0;
       for (const n of b.notes) {
         const { photoId: _p, updatedAt: _u, ...rest } = n as typeof n & { photoId?: unknown; updatedAt?: unknown };
         const json = JSON.stringify(rest);
         if (json.length > 10_000) throw Object.assign(new Error('Note too large'), { statusCode: 413 });
-        up.run(n.id, req.userId!, n.gymId, n.exerciseId, json, ts);
+        count += Number(up.run(n.id, req.userId!, n.gymId, n.exerciseId, json, ts).changes);
       }
+      return count;
     });
-    return { saved: b.notes.length, serverTime: ts };
+    return { saved, serverTime: ts };
   });
 
   r.delete('/me/machine-notes/:id', async (req, reply) => {

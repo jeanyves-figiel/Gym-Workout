@@ -84,6 +84,24 @@ describe('climbs sync (#312)', () => {
     expect(db.prepare('SELECT COUNT(*) AS n FROM climbs').get()).toEqual({ n: 0 });
   });
 
+  it('since without milliseconds or with an offset, or equal to updated_at, keeps the rows of that moment (#432)', async () => {
+    const t = await signUp('climber@example.com');
+    clock = new Date('2026-10-07T10:00:00.300Z');
+    const a = sample();
+    await post('/v1/me/climbs', { climbs: [a] }, t);
+    for (const since of ['2026-10-07T10:00:00Z', '2026-10-07T12:00:00+02:00', '2026-10-07T10:00:00.300Z'])
+      expect((await get(`/v1/me/climbs?since=${encodeURIComponent(since)}`, t)).json().climbs.map((x: { id: string }) => x.id)).toEqual([a.id]);
+    expect((await get(`/v1/me/climbs?since=${encodeURIComponent('2026-10-07T10:00:01Z')}`, t)).json().climbs).toEqual([]);
+  });
+
+  it('saved counts only rows written, not ids of another account (#432)', async () => {
+    const t = await signUp('climber@example.com');
+    const a = sample();
+    await post('/v1/me/climbs', { climbs: [a] }, t);
+    const t2 = await signUp('other@example.com');
+    expect((await post('/v1/me/climbs', { climbs: [{ ...a, effort: 1 }, sample()] }, t2)).json().saved).toBe(1);
+  });
+
   it('rejects malformed climbs', async () => {
     const t = await signUp('climber@example.com');
     for (const c of [{ ...sample(), id: 'x' }, { ...sample(), effort: 11 }, { ...sample(), start: 'today' }, { ...sample(), minutes: -5 }])

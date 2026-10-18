@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type DB, tx } from '../db.ts';
+import { sinceQuery } from './sync.ts';
 
 /** Body measurements (#185): one dated entry of girths (cm), weight and body fat; extra app fields kept as is. */
 const cm = z.number().min(5).max(300);
@@ -17,7 +18,7 @@ const bodyMeasurement = z
 export const listBodyMeasurements = (db: DB, userId: string, since?: string) =>
   (
     (since
-      ? db.prepare('SELECT data, updated_at FROM body_measurements WHERE user_id = ? AND updated_at > ? ORDER BY date').all(userId, since)
+      ? db.prepare('SELECT data, updated_at FROM body_measurements WHERE user_id = ? AND updated_at >= ? ORDER BY date').all(userId, since)
       : db.prepare('SELECT data, updated_at FROM body_measurements WHERE user_id = ? ORDER BY date').all(userId)) as unknown as {
       data: string;
       updated_at: string;
@@ -26,7 +27,7 @@ export const listBodyMeasurements = (db: DB, userId: string, since?: string) =>
 
 export const bodyMeasurementRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/me/body-measurements', async (req) => {
-    const q = z.object({ since: z.iso.datetime({ offset: true }).optional() }).parse(req.query);
+    const q = sinceQuery.parse(req.query);
     return { measurements: listBodyMeasurements(db, req.userId!, q.since), serverTime: now().toISOString() };
   });
 
@@ -38,14 +39,16 @@ export const bodyMeasurementRoutes = (r: FastifyInstance, db: DB, now: () => Dat
        ON CONFLICT(id) DO UPDATE SET date = excluded.date, data = excluded.data, updated_at = excluded.updated_at
        WHERE body_measurements.user_id = excluded.user_id`,
     );
-    tx(db, () => {
+    const saved = tx(db, () => {
+      let count = 0;
       for (const m of b.measurements) {
         const json = JSON.stringify(m);
         if (json.length > 5_000) throw Object.assign(new Error('Measurement too large'), { statusCode: 413 });
-        up.run(m.id, req.userId!, m.date, json, ts);
+        count += Number(up.run(m.id, req.userId!, m.date, json, ts).changes);
       }
+      return count;
     });
-    return { saved: b.measurements.length, serverTime: ts };
+    return { saved, serverTime: ts };
   });
 
   r.delete('/me/body-measurements/:id', async (req, reply) => {

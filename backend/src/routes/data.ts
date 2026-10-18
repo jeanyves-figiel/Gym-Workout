@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type AuthService, publicUser } from '../auth.ts';
 import { type DB, tx } from '../db.ts';
+import { sinceQuery } from './sync.ts';
 import { pushExport } from '../push/schema.ts';
 import { communityExport } from './community.ts';
 import { gymExport, gymMapExport } from './gyms.ts';
@@ -74,10 +75,10 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
   });
 
   r.get('/me/logs', async (req) => {
-    const q = z.object({ since: z.iso.datetime({ offset: true }).optional() }).parse(req.query);
+    const q = sinceQuery.parse(req.query);
     const rows = (
       q.since
-        ? db.prepare('SELECT * FROM workout_logs WHERE user_id = ? AND updated_at > ? ORDER BY updated_at').all(req.userId!, q.since)
+        ? db.prepare('SELECT * FROM workout_logs WHERE user_id = ? AND updated_at >= ? ORDER BY updated_at').all(req.userId!, q.since)
         : db.prepare('SELECT * FROM workout_logs WHERE user_id = ? ORDER BY updated_at').all(req.userId!)
     ) as unknown as LogRow[];
     return { logs: rows.map(toLog), serverTime: now().toISOString() };
@@ -94,13 +95,15 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
          updated_at = excluded.updated_at
        WHERE workout_logs.user_id = excluded.user_id`,
     );
-    tx(db, () => {
-      for (const l of b.logs) up.run(
+    const saved = tx(db, () => {
+      let count = 0;
+      for (const l of b.logs) count += Number(up.run(
           l.id, req.userId!, l.date, l.exerciseId, l.sessionId ?? null, l.weightKg ?? null, l.reps ?? null,
           l.setIndex ?? null, l.rir ?? null, ts,
-        );
+        ).changes);
+      return count;
     });
-    return { saved: b.logs.length, serverTime: ts };
+    return { saved, serverTime: ts };
   });
 
   r.delete('/me/logs/:id', async (req, reply) => {
@@ -117,7 +120,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
   const listWorkouts = (userId: string, since?: string) =>
     (
       (since
-        ? db.prepare('SELECT data, updated_at FROM workouts WHERE user_id = ? AND updated_at > ? ORDER BY started_at').all(userId, since)
+        ? db.prepare('SELECT data, updated_at FROM workouts WHERE user_id = ? AND updated_at >= ? ORDER BY started_at').all(userId, since)
         : db.prepare('SELECT data, updated_at FROM workouts WHERE user_id = ? ORDER BY started_at').all(userId)) as unknown as {
         data: string;
         updated_at: string;
@@ -125,7 +128,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
     ).map((r) => ({ ...(JSON.parse(r.data) as object), updatedAt: r.updated_at }));
 
   r.get('/me/workouts', async (req) => {
-    const q = z.object({ since: z.iso.datetime({ offset: true }).optional() }).parse(req.query);
+    const q = sinceQuery.parse(req.query);
     return { workouts: listWorkouts(req.userId!, q.since), serverTime: now().toISOString() };
   });
 
@@ -137,14 +140,16 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
        ON CONFLICT(id) DO UPDATE SET started_at = excluded.started_at, data = excluded.data, updated_at = excluded.updated_at
        WHERE workouts.user_id = excluded.user_id`,
     );
-    tx(db, () => {
+    const saved = tx(db, () => {
+      let count = 0;
       for (const w of b.workouts) {
         const json = JSON.stringify(w);
         if (json.length > 100_000) throw Object.assign(new Error('Workout too large'), { statusCode: 413 });
-        up.run(w.id, req.userId!, w.startedAt, json, ts);
+        count += Number(up.run(w.id, req.userId!, w.startedAt, json, ts).changes);
       }
+      return count;
     });
-    return { saved: b.workouts.length, serverTime: ts };
+    return { saved, serverTime: ts };
   });
 
   r.delete('/me/workouts/:id', async (req, reply) => {

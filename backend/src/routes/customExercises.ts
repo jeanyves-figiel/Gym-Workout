@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type DB, tx } from '../db.ts';
+import { sinceQuery } from './sync.ts';
 
 /** Max stored size of one exercise record (photo is a base64 JPEG the app keeps under ~300 KB). */
 export const MAX_CUSTOM_EXERCISE_BYTES = 450_000;
@@ -20,7 +21,7 @@ const customExercise = z
 export const listCustomExercises = (db: DB, userId: string, since?: string) =>
   (
     (since
-      ? db.prepare('SELECT data, updated_at FROM custom_exercises WHERE user_id = ? AND updated_at > ? ORDER BY updated_at').all(userId, since)
+      ? db.prepare('SELECT data, updated_at FROM custom_exercises WHERE user_id = ? AND updated_at >= ? ORDER BY updated_at').all(userId, since)
       : db.prepare('SELECT data, updated_at FROM custom_exercises WHERE user_id = ? ORDER BY updated_at').all(userId)) as unknown as {
       data: string;
       updated_at: string;
@@ -29,7 +30,7 @@ export const listCustomExercises = (db: DB, userId: string, since?: string) =>
 
 export const customExerciseRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/me/custom-exercises', async (req) => {
-    const q = z.object({ since: z.iso.datetime({ offset: true }).optional() }).parse(req.query);
+    const q = sinceQuery.parse(req.query);
     return { exercises: listCustomExercises(db, req.userId!, q.since), serverTime: now().toISOString() };
   });
 
@@ -44,15 +45,17 @@ export const customExerciseRoutes = (r: FastifyInstance, db: DB, now: () => Date
     );
     const count = db.prepare('SELECT COUNT(*) AS n FROM custom_exercises WHERE user_id = ?');
     const exists = db.prepare('SELECT 1 FROM custom_exercises WHERE id = ? AND user_id = ?');
-    tx(db, () => {
+    const saved = tx(db, () => {
+      let written = 0;
       for (const e of b.exercises) {
         const json = JSON.stringify(e);
         if (json.length > MAX_CUSTOM_EXERCISE_BYTES) throw Object.assign(new Error('Exercise too large'), { statusCode: 413 });
         if (!exists.get(e.id, req.userId!) && (count.get(req.userId!) as { n: number }).n >= MAX_CUSTOM_EXERCISES)
           throw Object.assign(new Error('Too many custom exercises'), { statusCode: 409 });
-        up.run(e.id, req.userId!, json, ts);
+        written += Number(up.run(e.id, req.userId!, json, ts).changes);
       }
+      return written;
     });
-    return { saved: b.exercises.length, serverTime: ts };
+    return { saved, serverTime: ts };
   });
 };

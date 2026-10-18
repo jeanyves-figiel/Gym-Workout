@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type DB, tx } from '../db.ts';
+import { sinceQuery } from './sync.ts';
 
 /** Personal-record attempts (#60): app-defined records; the typed fields are what a future community feed reads. */
 const prAttempt = z
@@ -19,7 +20,7 @@ const prAttempt = z
 export const listPrAttempts = (db: DB, userId: string, since?: string) =>
   (
     (since
-      ? db.prepare('SELECT data, updated_at FROM pr_attempts WHERE user_id = ? AND updated_at > ? ORDER BY date').all(userId, since)
+      ? db.prepare('SELECT data, updated_at FROM pr_attempts WHERE user_id = ? AND updated_at >= ? ORDER BY date').all(userId, since)
       : db.prepare('SELECT data, updated_at FROM pr_attempts WHERE user_id = ? ORDER BY date').all(userId)) as unknown as {
       data: string;
       updated_at: string;
@@ -28,7 +29,7 @@ export const listPrAttempts = (db: DB, userId: string, since?: string) =>
 
 export const prAttemptRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/me/pr-attempts', async (req) => {
-    const q = z.object({ since: z.iso.datetime({ offset: true }).optional() }).parse(req.query);
+    const q = sinceQuery.parse(req.query);
     return { attempts: listPrAttempts(db, req.userId!, q.since), serverTime: now().toISOString() };
   });
 
@@ -40,14 +41,16 @@ export const prAttemptRoutes = (r: FastifyInstance, db: DB, now: () => Date) => 
        ON CONFLICT(id) DO UPDATE SET exercise_id = excluded.exercise_id, date = excluded.date, data = excluded.data, updated_at = excluded.updated_at
        WHERE pr_attempts.user_id = excluded.user_id`,
     );
-    tx(db, () => {
+    const saved = tx(db, () => {
+      let count = 0;
       for (const a of b.attempts) {
         const json = JSON.stringify(a);
         if (json.length > 20_000) throw Object.assign(new Error('Attempt too large'), { statusCode: 413 });
-        up.run(a.id, req.userId!, a.exerciseId, a.date, json, ts);
+        count += Number(up.run(a.id, req.userId!, a.exerciseId, a.date, json, ts).changes);
       }
+      return count;
     });
-    return { saved: b.attempts.length, serverTime: ts };
+    return { saved, serverTime: ts };
   });
 
   r.delete('/me/pr-attempts/:id', async (req, reply) => {
