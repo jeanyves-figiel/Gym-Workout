@@ -231,7 +231,7 @@ struct MeasurementLogSheet: View {
     var restoring: Draft?
 
     /// What's typed, kept for Undo (#285).
-    struct Draft: Equatable {
+    struct Draft: Equatable, Codable {
         var date: Date
         var text: [String: String]
         var perSide: Bool
@@ -247,7 +247,11 @@ struct MeasurementLogSheet: View {
     @State private var guiding = false
     @State private var start: Draft?
     @State private var closeGuard = CloseGuard()
+    /// A new entry's typing kept from last time (#437).
+    @State private var draftRestored = false
     @FocusState private var focus: String?
+
+    private static let draftKey = "measurement"
 
     /// The ? on a card (#220).
     private struct HelpTopic: Identifiable {
@@ -266,6 +270,14 @@ struct MeasurementLogSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
+                    if draftRestored {
+                        DraftRestoredStrip {
+                            DraftStore.clear(Self.draftKey)
+                            date = Date(); text = [:]; perSide = false
+                            start = draft
+                            draftRestored = false
+                        }
+                    }
                     Button { focus = nil; guiding = true } label: {
                         AccountCard(symbol: "ruler.fill", title: "Measure with me", subtitle: "Step by step, a picture for each one",
                                     gradient: LinearGradient(colors: [Theme.lime, Color(red: 0.31, green: 0.88, blue: 0.63)],
@@ -312,8 +324,12 @@ struct MeasurementLogSheet: View {
                         .card(padding: 16)
                     }
 
-                    LimeActionButton(title: "Save", disabled: entry.isEmpty && isNew) { save() }
-                        .padding(.top, 14)
+                    if isNew {
+                        LimeActionButton(title: "Save", disabled: entry.isEmpty) { save() }
+                            .padding(.top, 14)
+                    } else {
+                        AccountNote(text: "Changes save on their own.").padding(.top, 8)
+                    }
                     if !isNew {
                         AccountPillButton(title: "Delete this entry", role: .destructive) { confirmDelete = true }
                     }
@@ -326,8 +342,16 @@ struct MeasurementLogSheet: View {
             .navigationTitle(isNew ? "Log measurements" : "Edit measurements")
             .toolbarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                if isNew {
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                } else {
+                    CloseToolbarItem { dismiss() }
+                }
             }
+            // Editing an entry saves on its own (#437); a deleted one is never written back.
+            .autoSave(!isNew && start != nil && !entry.isEmpty ? entry : nil, title: "Measurements", symbol: "ruler.fill",
+                      detail: Self.detail,
+                      save: { [model] m in if model.measurements.contains(where: { $0.id == m.id }) { model.saveMeasurement(m) } })
             .sheet(item: $help) { MeasurementHowToSheet(metric: $0.metric, side: $0.side) }
             .fullScreenCover(isPresented: $guiding) { MeasureGuideView(steps: guideSteps, text: $text) }
             .confirmationDialog("Delete this entry?", isPresented: $confirmDelete, titleVisibility: .visible) {
@@ -340,13 +364,23 @@ struct MeasurementLogSheet: View {
         }
         .onAppear(perform: load)
         .undoableClose(closeGuard, offer: undoOffer)
+        .onChange(of: draft) { _, d in
+            guard isNew, start != nil else { return }
+            if d.text.isEmpty { DraftStore.clear(Self.draftKey) } else { DraftStore.save(Self.draftKey, d) }
+        }
+    }
+
+    private static func detail(_ m: BodyMeasurement) -> String {
+        let girths = m.girthsCm?.count ?? 0
+        return undoDetail(m.weightKg.map { "\(MeasureFormat.value($0)) kg" }, m.bodyFatPct.map { "\(MeasureFormat.value($0)) %" },
+                          girths > 0 ? "\(girths) girth\(girths == 1 ? "" : "s")" : nil)
     }
 
     private var draft: Draft { Draft(date: date, text: text.filter { !$0.value.trimmingCharacters(in: .whitespaces).isEmpty }, perSide: perSide) }
 
     /// Undo bar when something was typed or changed since the sheet opened (#285).
     private var undoOffer: UndoOffer? {
-        guard let start, draft != start else { return nil }
+        guard isNew, let start, draft != start else { return nil }
         let kept = draft
         let m = entry
         let girths = m.girthsCm?.count ?? 0
@@ -419,7 +453,12 @@ struct MeasurementLogSheet: View {
         for (k, v) in initial.girthsCm ?? [:] { t[k] = MeasureFormat.value(v) }
         let sides = GirthSite.allCases.contains { p in p.bilateral && LimbSide.allCases.contains { initial.girth(p, side: $0) != nil } }
         start = Draft(date: initial.date, text: t, perSide: sides)
-        let shown = restoring ?? start!
+        var kept: Draft?
+        if isNew, restoring == nil, let d = DraftStore.load(Self.draftKey, as: Draft.self), !d.text.isEmpty {
+            kept = d
+            draftRestored = true
+        }
+        let shown = restoring ?? kept ?? start!
         date = shown.date
         text = shown.text
         perSide = shown.perSide
@@ -451,6 +490,7 @@ struct MeasurementLogSheet: View {
         let m = entry
         model.saveMeasurement(m)
         if health.connected && toHealth && isNew { Task { await health.saveMeasurement(m) } }
+        if isNew { DraftStore.clear(Self.draftKey) }
         closeGuard.done()
         dismiss()
     }
