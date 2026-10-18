@@ -487,6 +487,7 @@ public enum ExerciseIllustrations {
         "pinch-block-lift",
         "pistol-squat",
         "plank",
+        "plate-loaded-pulldown",
         "plyo-push-up",
         "power-clean",
         "pronation-supination",

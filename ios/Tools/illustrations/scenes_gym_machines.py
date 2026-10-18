@@ -629,3 +629,66 @@ DBP = [db_pullover_pose(a) for a in (-84, -132, -178)]
 SCENES["db-bench-pullover"] = (db_pullover_scene, DBP, fit(DBP, (DP_BENCH[0] - 30, DP_BENCH[1], DP_BENCH[0] + 30, GROUND),
                                                             lambda j: [(j["handN"][0] - 24, j["handN"][1] - 24,
                                                                         j["handN"][0] + 24, j["handN"][1] + 24)]))
+
+
+# ==== plate-loaded lat pulldown ====================================================================
+
+PP_HIP = (150, 200)
+PP_T = -96
+PP_SEAT = 212
+PP_SH = shoulder(PP_HIP, PP_T)
+PP_A = (PP_SH[0] + 20, PP_SH[1] - 80)  # arms long overhead, handle a little in front
+PP_B = (PP_SH[0] + 18, PP_SH[1] + 4)   # elbows down, handle by the upper chest
+PP_PIV = bisect_pivot(PP_A, PP_B, x=62)  # lever pivots high behind the seat, handles swing down in front
+
+
+def pp_grip(k):
+    a0 = math.degrees(math.atan2(PP_A[1] - PP_PIV[1], PP_A[0] - PP_PIV[0]))
+    a1 = math.degrees(math.atan2(PP_B[1] - PP_PIV[1], PP_B[0] - PP_PIV[0]))
+    return art.ang_pt(PP_PIV, a0 + (a1 - a0) * k, math.dist(PP_A, PP_PIV))
+
+
+def pp_lever(doc, g, plate=True):
+    """Straight lever from the pivot to the handle, plate horn on the short end behind the pivot."""
+    d = art.norm(art.sub(g, PP_PIV))
+    if plate:
+        horn = art.add(PP_PIV, d, -34)
+        art.tube(doc, PP_PIV, horn, 8)
+        art.tube(doc, horn, (horn[0], horn[1] + 14), 5)
+        art.plate(doc, (horn[0], horn[1] + 12), 20)
+    art.tube(doc, PP_PIV, art.add(g, d, 6), 8)
+    art.tube(doc, (g[0] - 3, g[1] - 10), (g[0] + 3, g[1] + 10), 5)
+
+
+def plate_pulldown_scene(doc, j, layer):
+    gN, gF = grip(j, "N"), grip(j, "F")
+    if layer == "back":
+        floor(doc, 170, 130)
+        kit.feet(doc, PP_PIV[0] - 26, PP_HIP[0] + 90)
+        # Upright to the pivot, seat, knee-pad post.
+        art.tube(doc, (PP_PIV[0], GROUND - 2), PP_PIV, 11, "butt")
+        art.tube(doc, (PP_PIV[0], PP_SEAT + 30), (PP_HIP[0] + 60, PP_SEAT + 30), 8)
+        seat(doc, PP_HIP[0] - 30, PP_HIP[0] + 26, PP_SEAT)
+        k = j["kneeN"]
+        art.tube(doc, (k[0] + 4, k[1] - 14), (k[0] + 4, PP_SEAT + 30), 6)
+        pp_lever(doc, gF, plate=False)
+        # Foot plate.
+        art.tube(doc, (j["ankleN"][0] + 10, GROUND - 14), (j["ankleN"][0] + 10, GROUND - 2), 6, "butt")
+    else:
+        k = j["kneeN"]
+        doc.add(f'<circle cx="{k[0]:.1f}" cy="{k[1] - 14:.1f}" r="9.5" fill="#1C1F24" stroke="#0A0B0D" stroke-width="0.9"/>'
+                f'<circle cx="{k[0]:.1f}" cy="{k[1] - 14:.1f}" r="3" fill="#6D7681"/>')
+        pp_lever(doc, gN)
+        hub(doc, PP_PIV, 8)
+        hand_dot(doc, gN)
+
+
+def plate_pulldown_pose(k):
+    g = pp_grip(k)
+    return body(PP_HIP, PP_T, h=PP_T + 6, ankN=(PP_HIP[0] + 70, ANK), ankF=(PP_HIP[0] + 64, ANK),
+                gN=g, gF=(g[0] - 2, g[1] - 1), eN=1, eF=1)
+
+
+PPD = [plate_pulldown_pose(k) for k in (0, 0.5, 1)]
+PP_BOX = (PP_PIV[0] - 60, PP_A[1] - 14, PP_HIP[0] + 96, GROUND)
+SCENES["plate-loaded-pulldown"] = (plate_pulldown_scene, PPD, fit(PPD, PP_BOX))
