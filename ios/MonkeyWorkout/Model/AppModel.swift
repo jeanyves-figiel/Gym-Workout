@@ -217,6 +217,8 @@ final class AppModel {
         phase = .signedOut
         // Personal copies outside state.json: cached Health readings, the data export, HTTP responses.
         HealthManager.clearCache()
+        // The MonkeyGrade sign-in lives in this device's Keychain, not in state.json.
+        MonkeyGradeLink.shared.disconnect()
         try? FileManager.default.removeItem(at: Self.exportFileURL)
         URLCache.shared.removeAllCachedResponses()
         // Signed-out snapshots for the Watch and the Home Screen widgets (WatchSync.push refreshes both).
