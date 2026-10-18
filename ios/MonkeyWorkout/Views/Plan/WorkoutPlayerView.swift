@@ -975,6 +975,7 @@ struct WorkoutPlayerView: View {
             record = r
             coach.say(.finish(sets: r.totalSets, volumeKg: r.volumeKg, minutes: max(1, r.durationSec / 60)), once: "finish")
             reward = GameReward(before: before.game, after: model.game, badgesBefore: before.badges, badgesAfter: model.badges)
+            if reward?.weekCleared == true { model.markChestSeen() }
             // A Watch tracking this workout saves the Health workout with its heart rate (#347).
             if !WatchSync.shared.watchTracks(sessionId) {
                 Task {

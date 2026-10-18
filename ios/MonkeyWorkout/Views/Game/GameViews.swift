@@ -559,15 +559,25 @@ private struct QuestStage: View {
     }
 }
 
-/// The week's chest: opens (+200 XP) when the session goal is met.
+/// The week's chest: opens (+200 XP) when the session goal is met. Tap an open chest to replay its reveal (#476).
 private struct QuestChestView: View {
     let done: Int
     let target: Int
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var wiggle = false
+    @State private var replaying = false
 
     var body: some View {
         let open = done >= target
+        Button { if open { replaying = true } } label: { chest(open) }
+            .buttonStyle(.plain)
+            .disabled(!open)
+            .fullScreenCover(isPresented: $replaying) {
+                ChestReveal(sessions: done) { replaying = false }.presentationBackground(.clear)
+            }
+    }
+
+    private func chest(_ open: Bool) -> some View {
         VStack(spacing: 6) {
             Image(systemName: open ? "gift.fill" : "shippingbox.fill")
                 .font(.system(size: 34, weight: .bold))
@@ -584,6 +594,68 @@ private struct QuestChestView: View {
             guard !open, !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) { wiggle = true }
         }
+    }
+}
+
+/// Full-screen week chest opening (#476): the closed chest shakes, bursts open, +200 XP counts up.
+/// Shown on Train when the goal-meeting workout came from the Watch or was logged later, and on a chest tap.
+struct ChestReveal: View {
+    let sessions: Int
+    var onDone: () -> Void = {}
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shake = false
+    @State private var open = false
+
+    private static let burst: [(emoji: String, x: CGFloat, y: CGFloat)] =
+        [("✨", -110, -70), ("🎉", 112, -60), ("⭐", -130, 30), ("🍌", 126, 40), ("🎊", 0, -120), ("💰", -60, 100), ("✨", 70, 104)]
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.9).ignoresSafeArea()
+            VStack(spacing: 14) {
+                ZStack {
+                    ForEach(Array(Self.burst.enumerated()), id: \.offset) { _, b in
+                        Text(b.emoji).font(.system(size: 30))
+                            .offset(x: open ? b.x : 0, y: open ? b.y : 0)
+                            .opacity(open ? 1 : 0)
+                            .scaleEffect(open ? 1 : 0.2)
+                    }
+                    Image(systemName: open ? "gift.fill" : "shippingbox.fill")
+                        .font(.system(size: 72, weight: .bold))
+                        .foregroundStyle(Theme.ink)
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 150, height: 150)
+                        .background(Circle().fill(GameTint.quest))
+                        .shadow(color: Color(hex: 0xFFC23D).opacity(open ? 0.9 : 0.4), radius: open ? 40 : 12)
+                        .rotationEffect(.degrees(open ? 0 : shake ? 9 : -9))
+                        .scaleEffect(open ? 1.08 : 0.92)
+                }
+                .frame(height: 260)
+                Text(open ? "Chest opened!" : "Week chest").font(Theme.display(40))
+                Text("+\(open ? GameProgress.weekBonus : 0) XP")
+                    .font(Theme.display(54)).foregroundStyle(Theme.lime)
+                    .contentTransition(.numericText()).monospacedDigit()
+                Text("Week goal met · \(sessions) sessions").font(Theme.label(15)).opacity(0.8)
+                Text("Tap to continue").font(.system(size: 13, weight: .semibold)).opacity(0.6).padding(.top, 12)
+            }
+            .foregroundStyle(.white)
+            .multilineTextAlignment(.center)
+            .padding()
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onDone)
+        .onAppear {
+            if reduceMotion { open = true; return }
+            withAnimation(.easeInOut(duration: 0.12).repeatCount(7, autoreverses: true)) { shake = true }
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.5).delay(0.9)) { open = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Chest opened. Plus \(GameProgress.weekBonus) XP. Week goal met.")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Closes the celebration")
     }
 }
 
@@ -676,7 +748,26 @@ struct GameRewardView: View {
                 .contentTransition(.numericText())
                 .monospacedDigit()
             if reward.weekCleared {
-                gameChip("🎁 Week goal met · +\(GameProgress.weekBonus) XP bonus", fill: Color(hex: 0xFFC23D), ink: Theme.ink)
+                // Every look shows the chest (#476); the Quest map look already leads with it.
+                if style == .deck {
+                    gameChip("🎁 Week goal met · +\(GameProgress.weekBonus) XP bonus", fill: Color(hex: 0xFFC23D), ink: Theme.ink)
+                } else {
+                    HStack(spacing: 12) {
+                        Image(systemName: "gift.fill")
+                            .font(.system(size: 26, weight: .bold))
+                            .frame(width: 56, height: 56)
+                            .background(Circle().fill(.white.opacity(0.3)))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Week goal met").font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.85)
+                            Text("Chest opened · +\(GameProgress.weekBonus) XP").font(Theme.display(20))
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(Theme.ink)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(GameTint.quest))
+                    .rotationEffect(.degrees(dance ? 1.5 : -1.5))
+                }
             }
             levelCard
             ForEach(reward.badges) { b in
