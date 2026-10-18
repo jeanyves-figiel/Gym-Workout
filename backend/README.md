@@ -83,13 +83,13 @@ Sender: `MAIL_FROM` in `fly.*.toml` (`no-reply@monkeygrade.cloud`). Console mode
 | DELETE | `/me/workouts/:id` | ✓ | |
 | GET / POST | `/me/custom-workouts` | ✓ | user-built workouts (opaque JSON with `id`, `name`, `items[].exerciseId`); `?since=ISO` delta; upsert ≤100 |
 | DELETE | `/me/custom-workouts/:id` | ✓ | |
-| GET | `/library/shared` | ✓ | workout library (#62): members' shared custom workouts (`visibility` members/public on upsert), newest first; `?q=` name, `?before=`, `?limit=`; needs community profile; blocks + auto-hidden excluded |
+| GET | `/library/shared` | ✓ | workout library (#62): members' shared custom workouts (`visibility` members/public on upsert), newest first; `?q=` name, `?before=` + `beforeId=` (the page's `nextBefore` / `nextBeforeId`), `?limit=`; needs community profile; blocks + auto-hidden excluded |
 | GET | `/library/shared/:id` | ✓ | one shared workout |
 | POST | `/library/shared/:id/save` | ✓ | count a copy into "My workouts" |
 | POST | `/library/shared/:id/report` | ✓ | `{reason, details?}`; auto-hides after 3 distinct reporters |
 | GET / PUT / DELETE | `/community/me` | ✓ | community profile (`nickname`, `bio`, `defaultVisibility` private\|members\|public, `autoShare`; joining needs `acceptGuidelines: true`); DELETE = leave (profile, photo, posts, cheers) |
 | PUT / DELETE | `/community/me/avatar` | ✓ | raw `image/jpeg` ≤512 KB, 64–1024 px; APPn/comment segments (EXIF, GPS, XMP) stripped |
-| GET | `/community/feed?scope=members\|following\|mine&before=ISO&limit=` | ✓ | newest first, `nextBefore` cursor; blocks applied both ways |
+| GET | `/community/feed?scope=members\|following\|mine&before=ISO&limit=` | ✓ | newest first, `nextBefore` + `nextBeforeId` cursor (pass back as `before` + `beforeId`; `before` alone still works but can skip posts of the same moment); blocks applied both ways |
 | POST | `/community/posts` | ✓ | share a win (`kind` workout\|badge\|record\|climb\|note, `refId` dedupes, `payload` card, `caption`, `visibility`) |
 | PATCH / DELETE | `/community/posts/:id` | ✓ | own posts: visibility / caption |
 | PUT / DELETE | `/community/posts/:id/reactions/:kind` | ✓ | like\|strong\|fire\|clap, not on own posts |

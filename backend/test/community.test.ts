@@ -316,6 +316,19 @@ describe('community feed', () => {
     expect(p2.nextBefore).toBeNull();
   });
 
+  it('pages through posts of the same moment with beforeId (#432)', async () => {
+    const a = await join('a@example.com', 'bea');
+    for (let i = 0; i < 5; i++) await share(a.t);
+    const p1 = (await req('GET', '/v1/community/feed?scope=mine&limit=3', a.t)).json();
+    expect(p1.nextBeforeId).toBe(p1.posts[2].id);
+    // Old apps (before alone) still get a valid page.
+    expect((await req('GET', `/v1/community/feed?scope=mine&limit=3&before=${encodeURIComponent(p1.nextBefore)}`, a.t)).statusCode).toBe(200);
+    const p2 = (await req('GET', `/v1/community/feed?scope=mine&limit=3&before=${encodeURIComponent(p1.nextBefore)}&beforeId=${p1.nextBeforeId}`, a.t)).json();
+    const ids = [...p1.posts, ...p2.posts].map((p: { id: string }) => p.id);
+    expect(new Set(ids).size).toBe(5);
+    expect(p2.nextBefore).toBeNull();
+  });
+
   it('reports notify moderation and auto-hide after 3 reporters', async () => {
     const a = await join('a@example.com', 'bea', { defaultVisibility: 'public' });
     const post = (await share(a.t)).json().post;

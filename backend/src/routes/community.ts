@@ -16,6 +16,7 @@ import {
 import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
 import type { Mailer } from '../mailer.ts';
+import { beforeSql, pageCursor } from './sync.ts';
 
 /** Community (#61): profiles, shared progress posts, cheers, report + block. */
 
@@ -432,28 +433,30 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     const q = z
       .object({
         scope: z.enum(['members', 'mine', 'following']).default('members'),
-        before: z.iso.datetime({ offset: true }).optional(),
+        ...pageCursor,
         limit: z.coerce.number().int().min(1).max(50).default(20),
       })
       .parse(req.query);
     const viewer = req.userId!;
     requireProfile(viewer);
-    const before = q.before ?? '9999';
+    const page = beforeSql('p.created_at', 'p.id', q);
+    const order = `${page.sql} ORDER BY p.created_at DESC, p.id DESC LIMIT ?`;
     const rows = (
       q.scope === 'mine'
-        ? db.prepare(`${SELECT_POSTS} WHERE p.user_id = ? AND p.created_at < ? ORDER BY p.created_at DESC LIMIT ?`).all(viewer, before, q.limit)
+        ? db.prepare(`${SELECT_POSTS} WHERE p.user_id = ? AND ${order}`).all(viewer, ...page.args, q.limit)
         : q.scope === 'following'
           ? db
               .prepare(
                 `${SELECT_POSTS} WHERE p.user_id IN (SELECT followed_id FROM community_follows WHERE follower_id = ?) AND ${VISIBLE_TO_OTHERS}
-                 AND p.created_at < ? ORDER BY p.created_at DESC LIMIT ?`,
+                 AND ${order}`,
               )
-              .all(viewer, viewer, viewer, before, q.limit)
+              .all(viewer, viewer, viewer, ...page.args, q.limit)
           : db
-            .prepare(`${SELECT_POSTS} WHERE (p.user_id = ? AND p.visibility != 'private' OR (${VISIBLE_TO_OTHERS})) AND p.created_at < ? ORDER BY p.created_at DESC LIMIT ?`)
-            .all(viewer, viewer, viewer, before, q.limit)
+            .prepare(`${SELECT_POSTS} WHERE (p.user_id = ? AND p.visibility != 'private' OR (${VISIBLE_TO_OTHERS})) AND ${order}`)
+            .all(viewer, viewer, viewer, ...page.args, q.limit)
     ) as unknown as PostRow[];
-    return { posts: toPosts(rows, viewer), nextBefore: rows.length === q.limit ? rows.at(-1)!.created_at : null };
+    const last = rows.length === q.limit ? rows.at(-1)! : undefined;
+    return { posts: toPosts(rows, viewer), nextBefore: last?.created_at ?? null, nextBeforeId: last?.id ?? null };
   });
 
   r.post('/community/posts', async (req) => {

@@ -4,6 +4,7 @@ import { AUTO_HIDE_REPORTS, hasAcceptedGuidelines, REPORT_REASONS, reportContent
 import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
 import type { Mailer } from '../mailer.ts';
+import { beforeSql, pageCursor } from './sync.ts';
 
 /**
  * Workout library (#62): custom workouts other members shared (visibility members/public), with the
@@ -58,7 +59,7 @@ export const libraryRoutes = (r: FastifyInstance, db: DB, now: () => Date, maile
   r.get('/library/shared', async (req) => {
     const q = z
       .object({
-        before: z.iso.datetime({ offset: true }).optional(),
+        ...pageCursor,
         limit: z.coerce.number().int().min(1).max(50).default(30),
         q: z.string().trim().max(60).optional(),
       })
@@ -66,13 +67,15 @@ export const libraryRoutes = (r: FastifyInstance, db: DB, now: () => Date, maile
     const viewer = req.userId!;
     requireProfile(viewer);
     const like = q.q ? `%${q.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : '%';
+    const page = beforeSql('w.shared_at', 'w.id', q);
     const rows = db
       .prepare(
-        `${SELECT_SHARED} WHERE w.user_id != ? AND ${VISIBLE} AND w.shared_at < ?
-         AND json_extract(w.data, '$.name') LIKE ? ESCAPE '\\' ORDER BY w.shared_at DESC LIMIT ?`,
+        `${SELECT_SHARED} WHERE w.user_id != ? AND ${VISIBLE} AND ${page.sql}
+         AND json_extract(w.data, '$.name') LIKE ? ESCAPE '\\' ORDER BY w.shared_at DESC, w.id DESC LIMIT ?`,
       )
-      .all(viewer, viewer, viewer, q.before ?? '9999', like, q.limit) as unknown as SharedRow[];
-    return { workouts: rows.map(toShared), nextBefore: rows.length === q.limit ? rows.at(-1)!.shared_at : null };
+      .all(viewer, viewer, viewer, ...page.args, like, q.limit) as unknown as SharedRow[];
+    const last = rows.length === q.limit ? rows.at(-1)! : undefined;
+    return { workouts: rows.map(toShared), nextBefore: last?.shared_at ?? null, nextBeforeId: last?.id ?? null };
   });
 
   r.get('/library/shared/:id', async (req) => {

@@ -60,6 +60,21 @@ type Shared = { id: string; name: string; author: { nickname: string }; saves: n
 const shared = async (t: string, q = '') => (await req('GET', `/v1/library/shared${q}`, t)).json() as { workouts: Shared[] };
 
 describe('workout library', () => {
+  it('pages through workouts shared at the same moment with beforeId (#432)', async () => {
+    const a = await member('a@example.com', 'alice');
+    const b = await member('b@example.com', 'bob');
+    await req('POST', '/v1/me/custom-workouts', a.t, { workouts: Array.from({ length: 5 }, () => workout('members')) });
+    const seen: string[] = [];
+    let url = '/v1/library/shared?limit=2';
+    for (let i = 0; i < 5 && url; i++) {
+      const page = (await req('GET', url, b.t)).json() as { workouts: Shared[]; nextBefore: string | null; nextBeforeId: string | null };
+      seen.push(...page.workouts.map((w) => w.id));
+      url = page.nextBefore ? `/v1/library/shared?limit=2&before=${encodeURIComponent(page.nextBefore)}&beforeId=${page.nextBeforeId}` : '';
+    }
+    expect(new Set(seen).size).toBe(5);
+    expect(seen).toHaveLength(5);
+  });
+
   it('shares members/public workouts, hides private ones and own ones', async () => {
     const a = await member('a@example.com', 'alice');
     const b = await member('b@example.com', 'bob');
