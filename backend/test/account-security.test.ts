@@ -290,9 +290,10 @@ describe('purge job', () => {
     expect(r.codes).toBe(2); // the verification code + the pending sign-up code, both > 15 min old
     expect(r.refreshTokens).toBe(1); // logged-out family only
     expect(count('refresh_tokens')).toBe(2);
-    // replay of the rotated-away token still revokes the live family
+    // once its replacement is used, replay of the rotated-away token still revokes the live family
+    const used = (await post('/v1/auth/refresh', { refreshToken: rotated.refreshToken })).json();
     expect((await post('/v1/auth/refresh', { refreshToken: a.tokens.refreshToken })).statusCode).toBe(401);
-    expect((await post('/v1/auth/refresh', { refreshToken: rotated.refreshToken })).statusCode).toBe(401);
+    expect((await post('/v1/auth/refresh', { refreshToken: used.refreshToken })).statusCode).toBe(401);
 
     advance(61 * 86_400_000);
     purgeExpired(db, clock);

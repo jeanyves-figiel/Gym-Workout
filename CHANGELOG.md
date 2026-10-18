@@ -236,6 +236,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Repository bootstrap (README, CHANGELOG, .gitignore).
 
 ### Fixed
+- **Signed out for no reason** (#469): refresh tokens rotate and replaying a used one revokes the whole session. When the server rotated a token but the answer never reached the app (app suspended, backgrounded or offline mid-refresh), the app kept the old token and its next refresh signed the member out. A replayed token whose replacement was never used is now treated as a lost answer: the unused replacement is revoked and a new pair issued. A token claimed less than 10 s ago (parallel refresh still rotating) gets 401 without ending the session. Real reuse (replacement already used) still revokes the family. Backend only. Tests in `api.test.ts`, `account-security.test.ts`.
 - **Full review #432: sign-in and account security**
   - Rate limits key on the address Fly saw (`Fly-Client-IP`), not a client-supplied `X-Forwarded-For`.
   - One-time codes (verify, reset, re-auth, email change): a code burned by wrong guesses isn't replaced inside the resend minute, at most 5 codes per account per hour, at most 20 wrong guesses per account per day (also for 2-step codes, recovery codes and re-auth passwords). Mails to one recipient ("already have an account", email-change attempts) capped at 3 per hour. New `throttle_hits` table, purged with its window.
