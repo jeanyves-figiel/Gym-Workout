@@ -571,7 +571,6 @@ private struct QuestChestView: View {
         let open = done >= target
         Button { if open { replaying = true } } label: { chest(open) }
             .buttonStyle(.plain)
-            .disabled(!open)
             .fullScreenCover(isPresented: $replaying) {
                 ChestReveal(sessions: done) { replaying = false }.presentationBackground(.clear)
             }
@@ -825,6 +824,80 @@ struct GameRewardView: View {
 
 
 // MARK: - Progress
+
+/// Week chest card (#476, design A from `week-chest/proposals.png`): this week's chest and the XP earned
+/// (workouts, chest, walking), then the last 8 weeks' chests. An open chest replays its opening on tap.
+struct WeekChestCard: View {
+    /// Tap while the chest is still closed: opens Training.
+    var onClosed: () -> Void = {}
+    @Environment(AppModel.self) private var model
+    @State private var replaying = false
+
+    var body: some View {
+        let target = max(1, model.gameTarget)
+        let weeks = GameWeek.recent(records: model.state.history, targetPerWeek: target)
+        let now = weeks.last ?? GameWeek(weekStart: Date(), sessions: 0, workoutXP: 0, chestOpen: false)
+        let move = MoveStore.shared.weekXP
+        let total = now.workoutXP + now.chestXP + move
+        let left = max(0, target - now.sessions)
+        Button { if now.chestOpen { replaying = true } else { onClosed() } } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Week chest").font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.9)
+                HStack(spacing: 12) {
+                    Image(systemName: now.chestOpen ? "gift.fill" : "shippingbox.fill")
+                        .font(.system(size: 30, weight: .bold))
+                        .foregroundStyle(Theme.ink)
+                        .frame(width: 64, height: 64)
+                        .background(Circle().fill(GameTint.quest))
+                        .shadow(color: Color(hex: 0xFFC23D).opacity(now.chestOpen ? 0.8 : 0.3), radius: now.chestOpen ? 14 : 6)
+                    Spacer(minLength: 0)
+                    VStack(alignment: .trailing, spacing: 0) {
+                        Text("+\(total.formatted())").font(Theme.display(40)).monospacedDigit()
+                            .minimumScaleFactor(0.6).lineLimit(1)
+                        Text("XP this week").font(Theme.label(12)).opacity(0.9)
+                    }
+                }
+                Text(now.chestOpen ? "Chest opened · +\(GameProgress.weekBonus) XP"
+                     : "\(now.sessions)/\(target) sessions · \(left) to go")
+                    .font(Theme.display(18))
+                FlowLayout(spacing: 6) {
+                    gameChip("🏋️ \(now.sessions) session\(now.sessions == 1 ? "" : "s") +\(now.workoutXP)", fill: .black.opacity(0.28))
+                    if now.chestOpen { gameChip("🎁 +\(GameProgress.weekBonus)", fill: Theme.lime, ink: Theme.ink) }
+                    if move > 0 { gameChip("👣 +\(move)", fill: .black.opacity(0.28)) }
+                }
+                HStack(spacing: 4) {
+                    ForEach(weeks) { w in
+                        Text(w.chestOpen ? "🎁" : "📦")
+                            .font(.system(size: 16))
+                            .opacity(w.chestOpen ? 1 : 0.4)
+                            .frame(maxWidth: .infinity).padding(.vertical, 5)
+                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(w.chestOpen ? Theme.lime.opacity(0.25) : .black.opacity(0.22)))
+                    }
+                }
+                HStack {
+                    Text(weeks.first.map { "W\(Progression.calendar().component(.weekOfYear, from: $0.weekStart))" } ?? "")
+                    Spacer()
+                    Text("Now")
+                }
+                .font(Theme.label(10)).opacity(0.75)
+            }
+            .foregroundStyle(.white)
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(LinearGradient(colors: [Color(hex: 0xFF7A3D), Color(hex: 0xFF3D8A)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(now.chestOpen
+            ? "Week chest opened. \(total) XP this week. \(weeks.filter(\.chestOpen).count) of the last \(weeks.count) weeks opened."
+            : "Week chest closed. \(now.sessions) of \(target) sessions. \(total) XP this week.")
+        .accessibilityHint(now.chestOpen ? "Replays the chest opening" : "Opens Training")
+        .fullScreenCover(isPresented: $replaying) {
+            ChestReveal(sessions: now.sessions) { replaying = false }.presentationBackground(.clear)
+        }
+    }
+}
 
 /// Level row (#242): rank monkey, level, XP bar and the next unlock; tap opens the ladder.
 /// The Progress page places it (its structure is owned there); this is the whole level section.

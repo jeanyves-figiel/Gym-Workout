@@ -10,6 +10,8 @@ public enum ProgressWidgetKind: String, Codable, CaseIterable, Sendable, Identif
     case level, streak, training, body, records, badges, muscles, history, programmes, consistency, weekly
     /// One sport's sessions (C); the widget carries the sport.
     case sport
+    /// This week's chest and XP earned, and the last 8 weeks' chests (#476).
+    case chest
 
     public var id: String { rawValue }
 
@@ -27,6 +29,7 @@ public enum ProgressWidgetKind: String, Codable, CaseIterable, Sendable, Identif
         case .consistency: "Consistency"
         case .weekly: "Sessions per week"
         case .sport: "Sport"
+        case .chest: "Week chest"
         }
     }
 
@@ -44,12 +47,13 @@ public enum ProgressWidgetKind: String, Codable, CaseIterable, Sendable, Identif
         case .consistency: "12 weeks of training days"
         case .weekly: "Sessions per week with your goal"
         case .sport: "One sport: sessions, time and its best"
+        case .chest: "This week's chest and XP, and the last 8 weeks"
         }
     }
 
     public var sizes: [TrainWidgetSize] {
         switch self {
-        case .level, .streak, .consistency: [.wide]
+        case .level, .streak, .consistency, .chest: [.wide]
         case .training, .body, .records, .badges, .muscles, .programmes: [.small, .wide]
         case .history: [.small, .wide]
         case .weekly: [.wide, .large]
@@ -59,7 +63,7 @@ public enum ProgressWidgetKind: String, Codable, CaseIterable, Sendable, Identif
 
     public var defaultSize: TrainWidgetSize {
         switch self {
-        case .level, .streak, .history, .consistency, .weekly, .programmes: .wide
+        case .level, .streak, .history, .consistency, .weekly, .programmes, .chest: .wide
         default: .small
         }
     }
@@ -232,7 +236,7 @@ public struct ProgressBoard: Codable, Equatable, Sendable {
     /// The default board: today's Progress page as widgets.
     public static var classic: ProgressBoard {
         ProgressBoard([
-            ProgressWidget(.level), ProgressWidget(.streak),
+            ProgressWidget(.level), ProgressWidget(.chest), ProgressWidget(.streak),
             ProgressWidget(.training), ProgressWidget(.body), ProgressWidget(.records), ProgressWidget(.badges),
             ProgressWidget(.muscles), ProgressWidget(.programmes, size: .small),
             ProgressWidget(.history), ProgressWidget(.consistency), ProgressWidget(.weekly),
