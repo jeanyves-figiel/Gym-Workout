@@ -138,7 +138,7 @@ extension AppModel {
     /// What auto-tune changed in today's workout.
     var tuneChanges: [TuneChange] {
         guard let p = uneditedPlan?.applying(edits: state.synced?.sessionEdits ?? []) else { return [] }
-        return tuned(p).changes
+        return tuned(expertPlan(p)).changes
     }
 
     /// nil = Monkey picks.

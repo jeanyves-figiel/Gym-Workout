@@ -315,12 +315,11 @@ final class AppModel {
     /// On a low-readiness day, RIR-autoregulated plans (#156) ease today's session; with daily auto-tune (#495)
     /// today's session follows the tuned level and sore muscles instead.
     var plan: WeekPlan? {
-        guard let p = uneditedPlan?.applying(edits: state.synced?.sessionEdits ?? []) else { return nil }
-        // Daily auto-tune (#495) replaces the low-readiness easing when on.
-        if tuneOn { return tuned(p).plan }
         guard let edited = uneditedPlan?.applying(edits: state.synced?.sessionEdits ?? []) else { return nil }
         // Lift Focus and Pro Sets (#499): the focus lift's block sets, then the member's set styles.
         let p = expertPlan(edited)
+        // Daily auto-tune (#495) replaces the low-readiness easing when on.
+        if tuneOn { return tuned(p).plan }
         return p.easedForReadiness(readinessEasedIds(p))
     }
 
