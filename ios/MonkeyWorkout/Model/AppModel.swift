@@ -89,6 +89,7 @@ final class AppModel {
             let demo = Demo.history()
             state.history = demo.records
             state.logs = demo.logs
+            if ["train-smart", "block-tweak", "auto-tune", "growth-path", "coach-memory"].contains(Demo.screen) { applyDemoGrowth() }
             state.climbs = Demo.climbs()
             if ["history-page", "progress-sports"].contains(Demo.screen) { state.sportLogs = Demo.sportLogs() }
             state.customWorkoutList = Demo.customWorkouts
@@ -294,9 +295,12 @@ final class AppModel {
     var profile: Profile? { state.synced?.profile }
     /// Generated week with kept exercise swaps (#101), the member's variation (#98) on top, and library workouts
     /// placed into it (#62).
-    /// On a low-readiness day, RIR-autoregulated plans (#156) ease today's session.
+    /// On a low-readiness day, RIR-autoregulated plans (#156) ease today's session; with daily auto-tune (#495)
+    /// today's session follows the tuned level and sore muscles instead.
     var plan: WeekPlan? {
         guard let p = uneditedPlan?.applying(edits: state.synced?.sessionEdits ?? []) else { return nil }
+        // Daily auto-tune (#495) replaces the low-readiness easing when on.
+        if tuneOn { return tuned(p).plan }
         return p.easedForReadiness(readinessEasedIds(p))
     }
 
@@ -318,7 +322,7 @@ final class AppModel {
     }
 
     /// Whether today's session is eased for low readiness (#156).
-    var readinessEased: Bool { plan.map { !readinessEasedIds($0).isEmpty } ?? false }
+    var readinessEased: Bool { !tuneOn && (plan.map { !readinessEasedIds($0).isEmpty } ?? false) }
     /// Generated week with kept exercise swaps only: what a variation is made from.
     /// Variation rotation (#182) comes first so kept swaps still find the exercise they replace.
     var swappedPlan: WeekPlan? {
@@ -353,10 +357,13 @@ final class AppModel {
                                // Learned tastes (#299) shape the plan from the next new week on.
                                taste: state.synced?.taste,
                                weekTaste: newWeek ? freshWeekTaste : state.synced?.weekTaste)
+        let keptGrowth = state.synced?.growth
         let learning = (tasteOff: state.synced?.tasteOff, recap: newWeek ? nil : state.synced?.tasteRecap)
         state.synced = sp
         state.synced?.tasteOff = learning.tasteOff
         state.synced?.tasteRecap = learning.recap
+        // Growing with the member (#495) outlives every week and profile edit.
+        state.synced?.growth = keptGrowth
         // A profile edit (goal, days, gym…) re-plans the rest of this week (#194): sessions already done and the
         // one in progress keep their content; everything else follows the new profile.
         let kept = newWeek ? [] : doneIds.union([state.activeWorkout?.sessionId].compactMap { $0 })

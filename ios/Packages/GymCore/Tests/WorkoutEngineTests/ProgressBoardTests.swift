@@ -5,8 +5,8 @@ import Testing
 @Suite struct ProgressBoardTests {
     @Test func classicIsTodaysPage() {
         let b = ProgressBoard.classic
-        #expect(b.widgets.map(\.kind) == [.level, .chest, .streak, .training, .body, .records, .badges, .muscles, .programmes, .history, .consistency, .weekly])
-        #expect(b.rows.count == 9)
+        #expect(b.widgets.map(\.kind) == [.level, .chest, .streak, .growth, .training, .body, .records, .badges, .muscles, .programmes, .history, .consistency, .weekly])
+        #expect(b.rows.count == 10)
     }
 
     @Test func sportWidgetsOnePerSport() {

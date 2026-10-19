@@ -245,6 +245,17 @@ describe('pronouns and call name (#415)', () => {
     expect(describeMember({ callName: '{name}' })).toContain('write {name} where you use it');
   });
 
+  it('passes what the coach remembers into the prompt (#495)', async () => {
+    start();
+    const t = await signUp('m@example.com');
+    const memory = ['Working toward Barbell bench press 80 kg est. 1RM', 'Left knee: no deep lunges'];
+    const res = await chat(t, { turns: [{ role: 'member', text: 'Leg day ideas?' }], context: { memory } });
+    expect(res.statusCode).toBe(200);
+    expect(calls[0]!.context).toEqual({ memory });
+    expect(describeMember({ memory })).toContain('Left knee: no deep lunges');
+    expect(describeMember({}).includes('remember')).toBe(false);
+  });
+
   it('asks for neutral wording when pronouns are not set', () => {
     expect(describeMember({})).toContain('use neutral wording');
     expect(describeMember({}).includes('Likes to be called')).toBe(false);

@@ -34,6 +34,8 @@ export interface ChatContext {
   pronouns?: string;
   /** What the member likes to be called (#415): a first name, "Champ", "Queen"… */
   callName?: string;
+  /** What the coach remembers about the member (#495): goal, likes, the member's own notes. */
+  memory?: string[];
 }
 
 export interface CoachAction {
@@ -158,6 +160,7 @@ export const describeMember = (c: ChatContext) =>
     !c.pronouns && 'Pronouns: not set (use neutral wording; never guess a gender)',
     c.callName === NAME_SLOT && `Likes to be called by first name: write ${NAME_SLOT} where you use it, the app fills it in (now and then, not in every reply)`,
     c.callName && c.callName !== NAME_SLOT && `Likes to be called: ${c.callName} (use it now and then, not in every reply)`,
+    c.memory?.length && `What you remember about the member (use it when it helps, never recite the list): ${c.memory.join('; ')}`,
   ]
     .filter(Boolean)
     .join('\n');

@@ -37,7 +37,8 @@ struct CoachChatMessage: Identifiable, Equatable {
 }
 
 extension AppModel {
-    /// What the coach knows about the member: goal, level, method, session length, gym, readiness, today's plan, pronouns.
+    /// What the coach knows about the member: goal, level, method, session length, gym, readiness, today's plan, pronouns,
+    /// and what it remembers (#495).
     /// `focus`: the screen the member asks from (#412).
     func coachChatContext(readiness: String?, focus: CoachFocus? = nil) -> CoachChatContext {
         // How we talk to you (#415): the coach uses the member's pronouns and calls them what they picked.
@@ -49,7 +50,9 @@ extension AppModel {
         let today = nextSession.flatMap { $0.weekday == todayWeekday ? $0.displayTitle : nil }
         return CoachChatContext(goal: p.goal.rawValue, level: p.experience.rawValue, sessionMinutes: Generator.sessionMinutes(p),
                                 equipment: p.equipment.map(\.rawValue), readiness: readiness, todayPlanned: today,
-                                method: p.trainingMethod.rawValue, screen: focus?.screen, focus: focus?.text, pronouns: pronouns, callName: call)
+                                method: p.trainingMethod.rawValue, screen: focus?.screen, focus: focus?.text, pronouns: pronouns, callName: call,
+                                // What the coach remembers (#495), within the server's limits.
+                                memory: coachFacts.isEmpty ? nil : coachFacts.prefix(20).map { String($0.prefix(120)) })
     }
 
     func coachChatStatus() async -> CoachChatStatus? {

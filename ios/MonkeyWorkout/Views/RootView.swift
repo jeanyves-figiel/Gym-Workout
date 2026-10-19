@@ -385,6 +385,12 @@ private struct DemoScreen: View {
             }
         case "readiness":
             ReadinessSheet(snapshot: Demo.health, readiness: Readiness.assess(Demo.health)?.0 ?? .normal, flags: Readiness.assess(Demo.health)?.1 ?? [])
+        // Growing with the member (#495).
+        case "train-smart": NavigationStack { WeekView() }
+        case "block-tweak": if let r = model.makeBlockReview() { BlockReviewSheet(review: r) }
+        case "auto-tune": AutoTuneSheet()
+        case "growth-path": NavigationStack { GrowthPathView() }
+        case "coach-memory": NavigationStack { CoachMemoryView() }
         case "cycle": WeekPhaseSheet(week: model.plan?.week ?? 1)
         case "library": NavigationStack { WorkoutLibraryView().navigationDestination(for: String.self) { SessionView(sessionId: $0) } }
         case "library-plan": AddToPlanSheet(workout: model.libraryWorkout(for: WorkoutTemplate.all[0].session) ?? Demo.customWorkouts[0])
