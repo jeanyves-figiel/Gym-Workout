@@ -29,7 +29,7 @@ struct LibraryView: View {
         ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Live hero + colour dock (#459).
+                // Card bar menu (#483).
                 ExploreMenu(mode: $mode)
 
                 switch mode {
