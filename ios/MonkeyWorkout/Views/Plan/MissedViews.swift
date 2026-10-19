@@ -209,15 +209,17 @@ struct WeekDayStrip: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @State private var catchUp: DayPick?
-    /// Swipe pages of 7 days (#464): page 0 has today in the middle.
-    @State private var page: Int? = 0
+    /// Leftmost day shown, in days from today (#486): -3 = today in the middle. Kept across cards so a pick doesn't jump back.
+    @State private var first: Int? = Self.lastFirst
 
     struct DayPick: Identifiable { let id: Int }
 
-    /// One page back, two ahead (#464); days shown are at most 1 week back and 2 weeks ahead.
-    static let pages = Array(-1...2)
+    /// Days shown are at most 1 week back and 2 weeks ahead (#464); the strip slides day by day (#486).
     static let daysBack = 7
     static let daysAhead = 14
+    static let visible = 7
+    /// Where the last strip was left (#486): each card builds its own strip, the new one opens where the old one was.
+    @MainActor static var lastFirst: Int? = -3
 
     var body: some View {
         let sessions = model.plan?.sessions ?? []
@@ -228,39 +230,56 @@ struct WeekDayStrip: View {
             // Coming weeks as the calendar plans them (index 0 = this week).
             let weeks = model.calendarWeeks(count: 3)
             let pastDays = Set(model.historyItems(health: health).map { cal.startOfDay(for: $0.start) })
+            let span = Self.daysBack + Self.daysAhead + 1
             VStack(spacing: 7) {
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal) {
-                        HStack(spacing: 0) {
-                            ForEach(Self.pages, id: \.self) { p in
-                                HStack(spacing: 5) {
-                                    ForEach(-3...3, id: \.self) { o in
-                                        day(p * 7 + o, todayOffset: todayOffset, weekStart: weekStart, weeks: weeks, pastDays: pastDays, cal: cal)
-                                    }
-                                }
-                                .containerRelativeFrame(.horizontal)
-                                .id(p)
+                        HStack(spacing: 5) {
+                            ForEach(-Self.daysBack...Self.daysAhead, id: \.self) { o in
+                                day(o, todayOffset: todayOffset, weekStart: weekStart, weeks: weeks, pastDays: pastDays, cal: cal)
+                                    .containerRelativeFrame(.horizontal, count: Self.visible, spacing: 5)
+                                    .id(o)
                             }
                         }
                         .scrollTargetLayout()
                     }
-                    .scrollTargetBehavior(.paging)
+                    .scrollTargetBehavior(.viewAligned)
                     .scrollIndicators(.hidden)
-                    .scrollPosition(id: $page)
-                    // Opens on today's page, not the first (last week).
-                    .onAppear { proxy.scrollTo(page ?? 0) }
-                }
-                HStack(spacing: 5) {
-                    ForEach(Self.pages, id: \.self) { p in
-                        Capsule().fill(p == (page ?? 0) ? Theme.lime : .white.opacity(0.3))
-                            .frame(width: p == (page ?? 0) ? 14 : 5, height: 5)
+                    .scrollPosition(id: $first, anchor: .leading)
+                    .onAppear {
+                        let start = opening(todayOffset: todayOffset)
+                        first = start
+                        proxy.scrollTo(start, anchor: .leading)
                     }
+                    .onChange(of: first) { _, f in if let f { Self.lastFirst = f } }
                 }
-                .animation(.snappy, value: page)
+                // Thin range line (#486): where the 7 days shown sit in the 3 weeks.
+                GeometryReader { g in
+                    let w = g.size.width
+                    let left = Double((first ?? -3) + Self.daysBack) / Double(span)
+                    Capsule().fill(.white.opacity(0.2))
+                        .overlay(alignment: .leading) {
+                            Capsule().fill(Theme.lime)
+                                .frame(width: w * Double(Self.visible) / Double(span))
+                                .offset(x: w * left)
+                        }
+                }
+                .frame(width: 120, height: 3)
+                .animation(.snappy, value: first)
                 .accessibilityHidden(true)
             }
             .sheet(item: $catchUp) { MissedCatchUpSheet(weekday: $0.id) }
         }
+    }
+
+    /// Leftmost day to open on (#486): where the last strip was left, with the picked day in view; today centred when nothing is picked.
+    private func opening(todayOffset: Int) -> Int {
+        let range = -Self.daysBack...(Self.daysAhead - Self.visible + 1)
+        guard let selected else { return -3 }
+        let pick = selected - 1 - todayOffset
+        var start = Self.lastFirst ?? -3
+        if pick < start || pick >= start + Self.visible { start = pick - 3 }
+        return min(max(start, range.lowerBound), range.upperBound)
     }
 
     /// The day `offset` days from today (#464): this week as before, later weeks from the calendar, last week from History.
