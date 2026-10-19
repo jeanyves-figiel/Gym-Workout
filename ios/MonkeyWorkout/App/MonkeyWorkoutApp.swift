@@ -19,6 +19,7 @@ struct MonkeyWorkoutApp: App {
                 .environment(\.bodyFigure, model.bodyFigure)
                 .task {
                     model.health = health
+                    FuelStore.shared.health = health
                     // Screens reopened by Undo (#285) live outside this tree: give them the same environment.
                     UndoCloseCenter.shared.environment = { [model, lock, health] view in
                         AnyView(view.environment(model).environment(lock).environment(health)
@@ -32,7 +33,12 @@ struct MonkeyWorkoutApp: App {
                 .task {
                     // Health reads in parallel with sign-in and sync (cached values already shown, #202).
                     #if DEBUG
-                    if Demo.enabled { health.snapshot = Demo.health; MoveStore.shared.demo(); return }
+                    if Demo.enabled {
+                        health.snapshot = Demo.health
+                        MoveStore.shared.demo()
+                        FuelStore.shared.demo(layout: Demo.screen == "fuel-timeline" ? .timeline : Demo.screen == "fuel-portions" ? .portions : .dashboard)
+                        return
+                    }
                     #endif
                     await health.refresh()
                     WatchSync.shared.push()

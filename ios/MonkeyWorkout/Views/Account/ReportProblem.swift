@@ -42,15 +42,15 @@ struct ReportDraft: Identifiable {
     var error: String?
     var shots: [UIImage] = []
 
-    static let areas = ["Train", "Workout player", "Explore", "Progress", "History", "Community", "Apple Watch", "Sync & account", "Settings", "Other"]
+    static let areas = ["Train", "Workout player", "Explore", "Progress", "History", "Fuel", "Community", "Apple Watch", "Sync & account", "Settings", "Other"]
 
     static func areaName(for tab: MainTab) -> String {
         switch tab {
         case .train: "Train"
         case .explore: "Explore"
         case .progress: "Progress"
+        case .fuel: "Fuel"
         case .community: "Community"
-        case .account: "Settings"
         }
     }
 }

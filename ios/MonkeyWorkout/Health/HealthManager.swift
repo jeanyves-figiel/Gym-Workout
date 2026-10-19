@@ -219,7 +219,8 @@ final class HealthManager {
 
     private var shareTypes: Set<HKSampleType> {
         [HKObjectType.workoutType(), HKQuantityType(.activeEnergyBurned), HKQuantityType(.bodyMass), HKQuantityType(.height),
-         HKQuantityType(.bodyFatPercentage), HKQuantityType(.leanBodyMass), HKQuantityType(.waistCircumference)]
+         HKQuantityType(.bodyFatPercentage), HKQuantityType(.leanBodyMass), HKQuantityType(.waistCircumference),
+         HKQuantityType(.dietaryWater)]
     }
 
     func setWriteWorkouts(_ on: Bool) {
@@ -784,6 +785,15 @@ final class HealthManager {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    /// Glasses tapped in Fuel (#496), as dietary water. Silent when water sharing wasn't allowed (asked again on the
+    /// next connect from Settings).
+    func saveWater(ml: Double, at date: Date = Date()) async {
+        guard connected, available, ml > 0 else { return }
+        let sample = HKQuantitySample(type: HKQuantityType(.dietaryWater), quantity: HKQuantity(unit: .literUnit(with: .milli), doubleValue: ml),
+                                      start: date, end: date)
+        try? await store.save(sample)
     }
 
     /// Writes body metrics entered in-app back to Apple Health.

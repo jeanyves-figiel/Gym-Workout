@@ -29,6 +29,13 @@ struct LibraryView: View {
         ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                // In-content title with the settings avatar, like the other tabs (#496).
+                HStack(spacing: 10) {
+                    Text("Explore").font(Theme.display(34)).lineLimit(1)
+                    Spacer()
+                    SettingsAvatar()
+                }
+                .padding(.top, 4)
                 // Card bar menu (#483).
                 ExploreMenu(mode: $mode)
 
@@ -55,7 +62,7 @@ struct LibraryView: View {
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Explore")
-        .toolbarTitleDisplayMode(.inlineLarge)
+        .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(for: Muscle.self) { MuscleDetailView(muscle: $0) }
         .navigationDestination(for: Equipment.self) { MachineDetailView(item: $0) }
         .navigationDestination(for: WorkoutEngine.Category.self) { CategoryDetailView(category: $0) }

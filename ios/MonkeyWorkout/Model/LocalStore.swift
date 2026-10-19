@@ -35,6 +35,10 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var progressBoard: ProgressBoard?
     /// Programmes the member made or copied (#269).
     var customProgrammes: [Programme]?
+    /// Lift Focus block in progress (#499).
+    var liftFocus: LiftFocus?
+    /// Set style per exercise id (#499, Pro Sets); missing = straight sets.
+    var setStyles: [String: SetStyle]?
     /// Monday ("yyyy-MM-dd") of the calendar week the plan belongs to (#266); a new calendar week moves the plan on.
     var weekOf: String?
     /// Exercise lists the member edited before starting (#295): plan sessions of this week and library workouts.
@@ -48,6 +52,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var tasteOff: Bool?
     /// What this week's plan changed because of learned tastes, for the coach's new-week card (#299).
     var tasteRecap: TasteRecap?
+    /// Growing with the member (#495): level, block reviews, long-term goal, weekly notices, the coach's memory.
+    var growth: GrowthState?
 
     /// Training profile with this week's learned tastes (#299): quick sessions and plan variations.
     var tasteProfile: Profile {
@@ -67,6 +73,33 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     }
 }
 
+/// Growing with the member (#495). Every field optional so older profiles still decode.
+struct GrowthState: Codable, Equatable, Sendable {
+    /// Growth level; nil = the start of the member's experience band.
+    var level: Int?
+    /// Blocks reviewed so far.
+    var blocks: Int?
+    /// Monday ("yyyy-MM-dd") of the last block reviewed, applied or closed.
+    var reviewedBlock: String?
+    /// Long-term goal; nil = the suggested one.
+    var goal: GrowthGoal?
+    /// Monday of the week whose "Monkey noticed" bar was closed.
+    var noticedClosed: String?
+    /// What the member asked the coach to remember.
+    var notes: [String]?
+    /// Daily auto-tune off.
+    var tuneOff: Bool?
+}
+
+/// Today's auto-tune choices (#495), on this device only: a picked level, sore muscle groups, undone changes.
+struct DayTune: Codable, Equatable {
+    /// "yyyy-MM-dd"; another day's choices don't apply.
+    var day: String
+    var level: TuneLevel?
+    var sore: [MuscleGroup] = []
+    var undone: [String] = []
+}
+
 struct LocalState: Codable {
     var ownerId: String?
     var synced: SyncedProfile?
@@ -75,6 +108,8 @@ struct LocalState: Codable {
     var ticked: [String: Bool] = [:]
     /// Missed sessions the member chose to skip this week (#266). Optional so older state files still decode.
     var skipped: [String: Bool]?
+    /// Today's auto-tune choices (#495).
+    var dayTune: DayTune?
     var logs: [LogEntry] = []
     var pendingLogIds: Set<UUID> = []
     var lastLogPull: Date?
@@ -127,6 +162,8 @@ struct LocalState: Codable {
     var busyTaps: [BusyTap]?
     /// Build as I go (#490): the empty-start workout being built in the player, kept until the next one. Local only.
     var freestyle: Session?
+    /// How the member felt after each workout (#501), `Feel` raw values by record id. Local only.
+    var feels: [UUID: Int]?
 }
 
 /// Where the player stopped: exercise index, sets done per item and active time so far.
@@ -221,5 +258,6 @@ extension LocalState {
         deletedLogIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedLogIds)
         busyTaps = try? c.decodeIfPresent([BusyTap].self, forKey: .busyTaps)
         freestyle = try? c.decodeIfPresent(Session.self, forKey: .freestyle)
+        dayTune = try? c.decodeIfPresent(DayTune.self, forKey: .dayTune)
     }
 }

@@ -23,6 +23,7 @@ extension TrainWidgetKind {
         case .thisWeek: "list.bullet.rectangle.fill"
         case .programme: "flag.checkered"
         case .move: "figure.walk"
+        case .fuel: "fork.knife"
         }
     }
 
@@ -36,6 +37,7 @@ extension TrainWidgetKind {
         case .volume, .body, .thisWeek: .power
         case .programme: .strength
         case .move: .warmup
+        case .fuel: .cardio
         }
     }
 }
@@ -774,5 +776,63 @@ struct MoveSheet: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
+    }
+}
+
+// MARK: - Fuel (#496)
+
+/// Today's Fuel: the day's load, protein palms and glasses against the plan, the next meal. Tap → Fuel tab.
+struct FuelWidget: View {
+    let size: TrainWidgetSize
+    @Environment(AppModel.self) private var model
+    @State private var store = FuelStore.shared
+
+    var body: some View {
+        let now = Date()
+        let plan = model.fuelPlan(on: now)
+        let log = store.log(now)
+        let minute = Calendar.current.component(.hour, from: now) * 60 + Calendar.current.component(.minute, from: now)
+        let next = plan.slots.first { $0.minute >= minute && log.ticks[$0.id] == nil }
+        Button { model.tab = .fuel } label: {
+            WidgetTile(kind: .fuel, title: "Fuel · \(plan.headline)") {
+                if size == .small {
+                    bigNumber("\(log.eaten.palms)/\(plan.portions.palms)", unit: "✋")
+                    caption(next.map { "Next: \($0.title) \($0.time)" } ?? "💧 \(log.glasses)/\(plan.glasses) glasses")
+                } else {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(FuelPalette.loadEmoji(plan.load)).font(.system(size: 26))
+                        Spacer(minLength: 0)
+                        VStack(alignment: .trailing, spacing: 0) {
+                            bigNumber("\(log.eaten.palms)/\(plan.portions.palms)")
+                            Text("protein palms today").font(Theme.label(11)).opacity(0.85)
+                        }
+                    }
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 6) {
+                            FuelChip(text: "💧 \(log.glasses)/\(plan.glasses)")
+                            if let next { FuelChip(text: "\(next.kind.emoji) \(next.title) \(next.time)", lime: true) }
+                        }
+                        HStack(spacing: 6) {
+                            FuelChip(text: "💧 \(log.glasses)/\(plan.glasses)")
+                            if let next { FuelChip(text: "\(next.kind.emoji) \(next.time)", lime: true) }
+                        }
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens Fuel")
+    }
+}
+
+private struct FuelChip: View {
+    let text: String
+    var lime = false
+
+    var body: some View {
+        Text(text).font(Theme.label(11)).lineLimit(1).fixedSize()
+            .foregroundStyle(lime ? Theme.ink : .white)
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(Capsule().fill(lime ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(.black.opacity(0.28))))
     }
 }

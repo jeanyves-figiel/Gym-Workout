@@ -43,6 +43,9 @@ struct WatchSnapshot: Codable, Equatable {
     /// "Start on Watch" for another sport on the iPhone (#439); used for a few minutes after `at`.
     var sportStart: WSportStart?
 
+    /// Today's water from Fuel (#496); a tap on the Watch adds a glass.
+    var water: WWater?
+
     func session(_ id: String) -> WSession? { (sessions + extras).first { $0.id == id } }
 }
 
@@ -484,6 +487,24 @@ struct WLiftPracticeState: Codable, Equatable {
     var marks: [Int]
 }
 
+/// Fuel water (#496): glasses counted today against the day's target.
+struct WWater: Codable, Equatable {
+    /// `PlanCalendar` day key the counts belong to.
+    var day: String
+    var glasses: Int
+    var target: Int
+    var glassMl: Int
+
+    /// Same format as `PlanCalendar.key` (the Watch has no WorkoutEngine).
+    static func key(_ date: Date, _ cal: Calendar = .current) -> String {
+        let c = cal.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
+
+    /// Glasses for today; a snapshot from yesterday counts as 0.
+    func today(_ now: Date = Date()) -> Int { day == Self.key(now) ? glasses : 0 }
+}
+
 /// Watch → phone remote control of the iPhone player.
 enum WCommand: String, Codable {
     case main, skipRest, addRest, effort0, effort1, effort2, effort3, effort4, next, previous
@@ -506,6 +527,8 @@ enum WatchKeys {
     /// Practice mode (#410): `WLiftPracticeCommand` phone → Watch, `WLiftPracticeState` Watch → phone.
     static let practice = "practice"
     static let practiceState = "practiceState"
+    /// Watch → phone: one glass of water for this day key (#496), sent with `transferUserInfo`.
+    static let water = "water"
 }
 
 extension JSONEncoder {

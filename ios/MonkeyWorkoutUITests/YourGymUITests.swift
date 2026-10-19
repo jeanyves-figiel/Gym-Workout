@@ -13,8 +13,12 @@ final class YourGymUITests: XCTestCase {
     }
 
     private func openYourGym() {
-        let tab = app.tabBars.buttons["Settings"]
-        if tab.waitForExistence(timeout: 10) { tab.tap() } else { app.buttons["Settings"].firstMatch.tap() }
+        // Settings opens from the avatar on every tab (#496); after SAVE or back the sheet is still open.
+        if !app.navigationBars["Settings"].exists {
+            let avatar = app.buttons["settings.avatar"].firstMatch
+            XCTAssertTrue(avatar.waitForExistence(timeout: 10), "Settings avatar")
+            avatar.tap()
+        }
         let card = app.buttons.containing(NSPredicate(format: "label CONTAINS[c] %@", "Fitnesspark")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10), "Your gym card")
         card.tap()
@@ -25,7 +29,7 @@ final class YourGymUITests: XCTestCase {
 
     private func save() {
         app.buttons["SAVE"].tap()
-        XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
     }
 
     func testAddAllSticksAfterSave() {
@@ -60,7 +64,7 @@ final class YourGymUITests: XCTestCase {
         sleep(2)
         XCTAssertTrue(count(49).exists, "count stays after Done")
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
         openYourGym()
         XCTAssertTrue(count(49).waitForExistence(timeout: 5), "saved list reopened")
     }

@@ -160,6 +160,7 @@ struct ProgressTabView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Edit Progress")
                 .accessibilityHint("Add, remove, resize and reorder the widgets on this screen")
+                SettingsAvatar()
             }
         }
         .padding(.top, 4)
@@ -191,8 +192,12 @@ struct ProgressTabView: View {
             } else {
                 WeekChestCard { opened = .training }
             }
+        case .growth:
+            // Growth path (#495): goal, its date and what Monkey noticed; opens the page.
+            GrowthWidget()
         case .streak:
-            StreakRow(current: s.currentStreakWeeks, best: s.bestStreakWeeks, thisWeek: s.thisWeek, target: target, fresh: fresh)
+            StreakRow(current: s.currentStreakWeeks, best: s.bestStreakWeeks, thisWeek: s.thisWeek, target: target, fresh: fresh,
+                      shields: s.streakShields)
         case .training, .body, .records, .badges, .muscles, .programmes:
             let section = w.kind.section
             Button {

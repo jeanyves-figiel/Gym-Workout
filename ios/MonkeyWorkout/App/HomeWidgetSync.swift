@@ -109,6 +109,14 @@ final class HomeWidgetSync {
 
         s.climbing = .init(thisWeek: climbedDays.count, lastDate: climbs.first?.start,
                            lastKind: climbs.first?.kind.label, lastGrade: climbs.first?.topGrade)
+        // Fuel (#496): today's plan against what was counted.
+        let now = Date()
+        let fuel = model.fuelPlan(on: now)
+        let log = FuelStore.shared.log(now)
+        let minute = Calendar.current.component(.hour, from: now) * 60 + Calendar.current.component(.minute, from: now)
+        let next = fuel.slots.first { $0.minute >= minute && log.ticks[$0.id] == nil }
+        s.fuel = .init(headline: fuel.headline, palms: log.eaten.palms, palmsTarget: fuel.portions.palms,
+                       glasses: log.glasses, glassesTarget: fuel.glasses, next: next?.title, nextTime: next?.time)
         return s
     }
 }
@@ -125,6 +133,8 @@ enum HomeWidgetRouter {
             if model.session(id) != nil { NotificationManager.shared.route = .session(id) }
         case "progress", "level":
             model.tab = .progress
+        case "fuel":
+            model.tab = .fuel
         default:
             model.tab = .train
         }

@@ -132,6 +132,7 @@ enum Demo {
         s.progress = WProgress(streakWeeks: 5, bestStreakWeeks: 5, thisWeek: 1, target: 4,
                                records: [WRecord(name: "Bench Press", kg: 92.5), WRecord(name: "Squat", kg: 130)],
                                recent: [WRecent(title: "Lower Power", date: Date().addingTimeInterval(-86400), minutes: 47, sets: 18)])
+        s.water = WWater(day: WWater.key(Date()), glasses: 6, target: 12, glassMl: 250)
         return s
     }
 }

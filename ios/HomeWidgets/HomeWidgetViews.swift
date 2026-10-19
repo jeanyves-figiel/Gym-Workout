@@ -58,6 +58,10 @@ enum HomeWidgetNudge {
         case .records: return s.records.first.map { "Best \($0.name): \(HomeWidgetFormat.kg($0.kg)) kg. Beat it?" } ?? "Log a heavy set to set your first record."
         case .lastWorkout, .volume: return s.last.map { "Last: \($0.title), \($0.sets) sets. Nice work!" } ?? "Your first workout is waiting."
         case .climbing: return s.climbing.thisWeek > 0 ? "\(s.climbing.thisWeek) climbing days this week. Strong fingers!" : "No climbing yet this week. Log one from Train."
+        case .fuel:
+            guard let f = s.fuel else { return "Open Fuel to see today's pointers." }
+            if let n = f.next { return "\(f.headline). Next: \(n)\(f.nextTime.map { " at \($0)" } ?? "")." }
+            return f.glasses < f.glassesTarget ? "\(f.glassesTarget - f.glasses) more glasses of water today." : "Day fuelled. Nice work!"
         case .nextUp, .week, .dashboard:
             if s.weekDone { return "Week cleared! Rest up or add a bonus session." }
             if let n = s.next { return n.day == "Today" ? "Ready to roll! \(n.title), \(n.minutes) min." : "Next: \(n.title) on \(n.day). \(s.toGoal) to go this week." }
@@ -139,6 +143,11 @@ struct HomeWidgetStat {
             value = "\(s.climbing.thisWeek)"
             caption = s.climbing.thisWeek == 1 ? "day this week" : "days this week"
             detail = s.climbing.lastDate.map { "Last \(HomeWidgetFormat.day($0, now: now))\(s.climbing.lastGrade.map { " · \($0)" } ?? "")" } ?? "Log a climb in Train"
+        case .fuel:
+            kicker = "Fuel · \(s.fuel?.headline ?? "Today")"
+            value = s.fuel.map { "\($0.palms)/\($0.palmsTarget)" } ?? "–"
+            caption = s.fuel == nil ? "Open Fuel" : "protein palms"
+            detail = s.fuel.map { f in "💧 \(f.glasses)/\(f.glassesTarget)\(f.next.map { " · \($0)" } ?? "")" } ?? ""
         }
     }
 }
@@ -624,7 +633,7 @@ private struct DataFace: View {
         switch t {
         case .readiness, .week, .dashboard, .nextUp: lime
         case .volume, .lastWorkout: Color(hex: 0x57B8FF)
-        case .streak, .records, .climbing: Color(hex: 0xFF9A3C)
+        case .streak, .records, .climbing, .fuel: Color(hex: 0xFF9A3C)
         case .level: Color(hex: 0xFF5F9E)
         }
     }
@@ -820,6 +829,7 @@ extension HomeWidgetSnapshot {
         s.last = Last(title: "Legs · Lower B", date: Date().addingTimeInterval(-86_400), minutes: 58, sets: 22, volumeKg: 6_400)
         s.volumeWeeks = [3_900, 4_600, 4_300, 5_600]
         s.climbing = Climbing(thisWeek: 2, lastDate: Date().addingTimeInterval(-2 * 86_400), lastKind: "Boulder", lastGrade: "6B+")
+        s.fuel = Fueling(headline: "Big day", palms: 4, palmsTarget: 7, glasses: 6, glassesTarget: 12, next: "Recovery meal", nextTime: "18:30")
         return s
     }
 }

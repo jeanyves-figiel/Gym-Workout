@@ -6,7 +6,7 @@ extension AppModel {
     var gameTarget: Int { profile?.sessionsPerWeek ?? 3 }
 
     /// Walking and stairs (Daily Move, #454) add their XP on top of the workouts.
-    var game: GameProgress { GameProgress.evaluate(records: state.history, targetPerWeek: gameTarget, moveXP: MoveStore.shared.xp) }
+    var game: GameProgress { GameProgress.evaluate(records: state.history, targetPerWeek: gameTarget, moveXP: MoveStore.shared.xp + FuelStore.shared.xp) }
 
     /// Rank on the level ladder (#242).
     var rank: GameRank { .of(level: game.level) }
@@ -42,5 +42,29 @@ extension AppModel {
 
     func markChestSeen() {
         UserDefaults.standard.set(thisWeekStart.timeIntervalSince1970, forKey: Self.chestSeenKey)
+    }
+}
+
+// MARK: - Kind streaks + Wins you missed (#501)
+
+extension AppModel {
+    /// "Welcome back" after a break, or the Comeback quest still running.
+    var comeback: Comeback? { Comeback.current(records: state.history) }
+
+    func feel(of id: UUID) -> Feel? { state.feels?[id].flatMap(Feel.init(rawValue:)) }
+
+    func setFeel(_ f: Feel, for id: UUID) {
+        var all = state.feels ?? [:]
+        all[id] = f.rawValue
+        state.feels = all
+        persist()
+    }
+
+    /// Three personal wins for a finished workout.
+    func wins(for r: WorkoutRecord) -> [Win] {
+        let feels = state.history.filter { $0.id != r.id && $0.startedAt < r.startedAt }
+            .sorted { $0.startedAt < $1.startedAt }
+            .compactMap { feel(of: $0.id) }
+        return Wins.find(record: r, history: state.history, weights: weightEntries, targetPerWeek: gameTarget, feels: feels)
     }
 }

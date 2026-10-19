@@ -87,6 +87,20 @@ final class WatchStore: NSObject {
         if case let .finished(f) = event { markDone(f) }
     }
 
+    /// Fuel (#496): one glass of water, shown at once and queued to the iPhone (works with the phone away).
+    func addGlass() {
+        guard var water = snapshot.water else { return }
+        let today = WWater.key(Date())
+        water.glasses = water.today() + 1
+        water.day = today
+        snapshot.water = water
+        #if DEBUG
+        if Demo.on { return }
+        #endif
+        guard WCSession.isSupported() else { return }
+        WCSession.default.transferUserInfo([WatchKeys.water: today])
+    }
+
     func send(_ command: WCommand) {
         guard WCSession.isSupported(), WCSession.default.isReachable else { return }
         WCSession.default.sendMessage([WatchKeys.command: command.rawValue], replyHandler: nil, errorHandler: nil)

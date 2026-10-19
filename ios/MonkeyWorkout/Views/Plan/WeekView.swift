@@ -43,6 +43,15 @@ struct WeekView: View {
                     }
                     // New week made with what the app learned (#299): the coach says what changed.
                     if !arranging, let recap = model.tasteRecap { TasteRecapCard(recap: recap) }
+                    // A new block (#495): what the last 4 weeks brought and what the next block changes.
+                    if !arranging, let review = model.blockReview { BlockReviewCard(review: review) }
+                    // What Monkey noticed this week (#495): one slim bar, the growth path behind it.
+                    if !arranging {
+                        let notices = model.noticedBar
+                        if !notices.isEmpty { NoticedBar(insights: notices) }
+                    }
+                    // Kind streaks (#501): welcome back, Comeback quest, a shield that saved last week.
+                    if !arranging { KindStreakCards() }
                     // The member's widgets (#260); the default layout is the Train screen as it always was.
                     let layout = model.trainLayout
                     if !layout.contains(.nextUp), !arranging { notices(plan: plan, profile: profile) }
@@ -270,6 +279,7 @@ struct WeekView: View {
                     .accessibilityLabel("Edit Train")
                     .accessibilityHint("Add, remove, resize and reorder the widgets on this screen")
                 LevelChip()
+                SettingsAvatar()
             }
         }
         .padding(.top, 4)
@@ -389,6 +399,8 @@ struct WeekView: View {
             }
         case .move:
             MoveWidget(size: w.size, arranging: arranging)
+        case .fuel:
+            FuelWidget(size: w.size)
         case .thisWeek:
             thisWeek(plan: plan, profile: profile, quest: (w.look ?? (WatchHomePref.shared.style == .deck ? .quest : .list)) == .quest)
         }
@@ -517,6 +529,8 @@ private struct WeekHero: View {
     @Environment(HealthManager.self) private var health
     @State private var explainingPhase = false
     @State private var explainingReadiness = false
+    /// Daily auto-tune (#495): today's score, level, sore muscles and changes.
+    @State private var tuning = false
 
     /// Explore-style colour per cycle phase, its one-word job and its rule.
     private var phase: (palette: WorkoutEngine.Category, title: String, rule: String) {
@@ -551,9 +565,11 @@ private struct WeekHero: View {
                 .accessibilityHint("Explains this week's training phase")
                 if let assessed = readiness {
                     let r = assessed.0
-                    let markers = Text(model.readinessEased ? "Today's session eased: −1 RPE, 1 set less" : r.markers(health.snapshot))
+                    let tuned = model.tuneOn ? model.tuneChanges.count : 0
+                    let markers = Text(tuned > 0 ? "Monkey tuned today: \(tuned) change\(tuned == 1 ? "" : "s") ›"
+                                       : model.readinessEased ? "Today's session eased: −1 RPE, 1 set less" : r.markers(health.snapshot))
                         .font(.caption.weight(.semibold)).monospacedDigit().lineLimit(1)
-                    Button { explainingReadiness = true } label: {
+                    Button { if model.tuneOn { tuning = true } else { explainingReadiness = true } } label: {
                         // Verdict and markers on one line when they fit (#337), else stacked.
                         ViewThatFits(in: .horizontal) {
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -570,7 +586,7 @@ private struct WeekHero: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Readiness: \(r.title)")
-                    .accessibilityHint("Explains readiness and each marker")
+                    .accessibilityHint(model.tuneOn ? "Shows today's ready score and what Monkey tuned" : "Explains readiness and each marker")
                     .sheet(isPresented: $explainingReadiness) {
                         ReadinessSheet(snapshot: health.snapshot, readiness: r, flags: assessed.1).presentationDetents([.large])
                     }
@@ -584,6 +600,15 @@ private struct WeekHero: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityHint("Asks Apple Health for heart rate variability, resting heart rate and sleep")
+                    } else if model.tuneOn {
+                        Button { tuning = true } label: {
+                            let n = model.tuneChanges.count
+                            Text("\(plan.sessions.count) sessions · " + (n > 0 ? "tuned: \(n) change\(n == 1 ? "" : "s") ›" : "Tune today ›"))
+                                .font(.caption.weight(.bold)).lineLimit(1).minimumScaleFactor(0.75)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Tap sore muscles or pick light, medium or push for today's workout")
                     } else {
                         Text("\(plan.sessions.count) sessions · \(plan.sessionMinutes) min").font(.caption.weight(.semibold))
                     }
@@ -613,6 +638,7 @@ private struct WeekHero: View {
         .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(
             LinearGradient(colors: p.palette.colors + (readiness?.0.colors ?? []), startPoint: .leading, endPoint: .trailing)))
         .sheet(isPresented: $explainingPhase) { WeekPhaseSheet(week: plan.week).presentationDetents([.large]) }
+        .sheet(isPresented: $tuning) { AutoTuneSheet().presentationDetents([.large]) }
     }
 }
 

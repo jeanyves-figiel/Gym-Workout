@@ -30,6 +30,8 @@ final class AppModel {
     var finishedProgramme: ProgrammeRecord?
     /// Selected tab, so Train widgets (#260) can open Progress.
     var tab: MainTab = .train
+    /// Settings sheet, opened from the avatar on every tab (#496).
+    var settingsOpen = false
     /// Progress section to scroll to when Progress opens from a Train widget (#260).
     var progressJump: ProgressSection?
     /// Explore mode to show when Explore opens from elsewhere, e.g. Progress → Programmes with none started (#345).
@@ -89,6 +91,16 @@ final class AppModel {
             let demo = Demo.history()
             state.history = demo.records
             state.logs = demo.logs
+            if ["train-smart", "block-tweak", "auto-tune", "growth-path", "coach-memory"].contains(Demo.screen) { applyDemoGrowth() }
+            // Kind streaks (#501): 16 days away, then the first session back today (Comeback quest 1/3).
+            if Demo.screen == "train-comeback", let last = state.history.max(by: { $0.startedAt < $1.startedAt }) {
+                let cut = Date().addingTimeInterval(-16 * 86_400)
+                state.history.removeAll { $0.startedAt > cut }
+                var back = last
+                back.id = UUID()
+                back.startedAt = Date().addingTimeInterval(-3 * 3600)
+                state.history.append(back)
+            }
             state.climbs = Demo.climbs()
             if ["history-page", "progress-sports"].contains(Demo.screen) { state.sportLogs = Demo.sportLogs() }
             state.customWorkoutList = Demo.customWorkouts
@@ -123,6 +135,11 @@ final class AppModel {
                     .sport(.snowboard, size: .large), .sport(.hyrox, size: .wide), .sport(.run),
                     ProgressWidget(.streak), ProgressWidget(.history), ProgressWidget(.training), ProgressWidget(.records),
                 ])
+            // Lift Focus (#499): week 5 of a 10-week bench block.
+            case "lift-focus", "lift-lab":
+                state.synced?.liftFocus = LiftFocus(exerciseId: "bench-press", targetKg: 120,
+                                                    start: Date().addingTimeInterval(-28 * 86400), weeks: 10, template: .monkeyPeak,
+                                                    startOneRepMax: 105, weakPoint: .lockout)
             default: break
             }
             // Gym zones (#274): supersets kept in one zone.
@@ -269,6 +286,7 @@ final class AppModel {
         // Personal copies outside state.json: cached Health readings, the data export, HTTP responses.
         HealthManager.clearCache()
         MoveStore.shared.signOut()
+        FuelStore.shared.signOut()
         // The MonkeyGrade sign-in and the Watch upload key live in this device's Keychain, not in state.json.
         MonkeyGradeLink.shared.disconnect()
         clearWatchUploadKey()
@@ -294,9 +312,14 @@ final class AppModel {
     var profile: Profile? { state.synced?.profile }
     /// Generated week with kept exercise swaps (#101), the member's variation (#98) on top, and library workouts
     /// placed into it (#62).
-    /// On a low-readiness day, RIR-autoregulated plans (#156) ease today's session.
+    /// On a low-readiness day, RIR-autoregulated plans (#156) ease today's session; with daily auto-tune (#495)
+    /// today's session follows the tuned level and sore muscles instead.
     var plan: WeekPlan? {
-        guard let p = uneditedPlan?.applying(edits: state.synced?.sessionEdits ?? []) else { return nil }
+        guard let edited = uneditedPlan?.applying(edits: state.synced?.sessionEdits ?? []) else { return nil }
+        // Lift Focus and Pro Sets (#499): the focus lift's block sets, then the member's set styles.
+        let p = expertPlan(edited)
+        // Daily auto-tune (#495) replaces the low-readiness easing when on.
+        if tuneOn { return tuned(p).plan }
         return p.easedForReadiness(readinessEasedIds(p))
     }
 
@@ -318,7 +341,7 @@ final class AppModel {
     }
 
     /// Whether today's session is eased for low readiness (#156).
-    var readinessEased: Bool { plan.map { !readinessEasedIds($0).isEmpty } ?? false }
+    var readinessEased: Bool { !tuneOn && (plan.map { !readinessEasedIds($0).isEmpty } ?? false) }
     /// Generated week with kept exercise swaps only: what a variation is made from.
     /// Variation rotation (#182) comes first so kept swaps still find the exercise they replace.
     var swappedPlan: WeekPlan? {
@@ -347,16 +370,20 @@ final class AppModel {
                                programmeHistory: state.synced?.programmeHistory, trainLayout: state.synced?.trainLayout,
                                progressBoard: state.synced?.progressBoard,
                                customProgrammes: state.synced?.customProgrammes,
+                               liftFocus: state.synced?.liftFocus, setStyles: state.synced?.setStyles,
                                weekOf: state.synced?.weekOf,
                                // Exercise edits (#295): library workouts keep theirs; this week's plan days only within the week.
                                sessionEdits: state.synced?.sessionEdits.map { list in list.filter { $0.week == nil || !newWeek } }.flatMap { $0.isEmpty ? nil : $0 },
                                // Learned tastes (#299) shape the plan from the next new week on.
                                taste: state.synced?.taste,
                                weekTaste: newWeek ? freshWeekTaste : state.synced?.weekTaste)
+        let keptGrowth = state.synced?.growth
         let learning = (tasteOff: state.synced?.tasteOff, recap: newWeek ? nil : state.synced?.tasteRecap)
         state.synced = sp
         state.synced?.tasteOff = learning.tasteOff
         state.synced?.tasteRecap = learning.recap
+        // Growing with the member (#495) outlives every week and profile edit.
+        state.synced?.growth = keptGrowth
         // A profile edit (goal, days, gym…) re-plans the rest of this week (#194): sessions already done and the
         // one in progress keep their content; everything else follows the new profile.
         let kept = newWeek ? [] : doneIds.union([state.activeWorkout?.sessionId].compactMap { $0 })
