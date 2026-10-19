@@ -34,11 +34,13 @@ struct ExercisePickerView: View {
     }
 
     /// `restoring`: the selection brought back by Undo (#285). `category`: filter the grid starts on (e.g. warm-up
-    /// drills when adding a warm-up move, #293).
-    init(limit: Int, selected: [String] = [], restoring: [String]? = nil, category: WorkoutEngine.Category? = nil, onAdd: @escaping ([Exercise]) -> Void) {
+    /// drills when adding a warm-up move, #293). `group`: muscle chip it starts on (Build as I go's muscle tiles, #490).
+    init(limit: Int, selected: [String] = [], restoring: [String]? = nil, category: WorkoutEngine.Category? = nil,
+         group: MuscleGroup? = nil, onAdd: @escaping ([Exercise]) -> Void) {
         self.limit = limit
         self.onAdd = onAdd
         _category = State(initialValue: category)
+        _group = State(initialValue: group)
         let first = Array(selected.prefix(max(0, limit)))
         initialSelection = first
         _selected = State(initialValue: restoring ?? first)

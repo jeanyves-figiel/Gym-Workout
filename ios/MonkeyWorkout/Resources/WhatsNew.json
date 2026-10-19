@@ -6,6 +6,12 @@
       "tint": "strength",
       "title": "Hold a day",
       "body": "Touch and hold a workout day in the week strip on Train to move it, swap it with another workout, edit it or plan a sport that day."
+    },
+    {
+      "symbol": "plus.rectangle.on.rectangle",
+      "tint": "strength",
+      "title": "Build as I go",
+      "body": "Unplanned session? Start empty and add exercises as you train. Coach suggests what's next."
     }
   ]
 }

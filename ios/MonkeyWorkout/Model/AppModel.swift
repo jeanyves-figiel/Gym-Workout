@@ -411,7 +411,8 @@ final class AppModel {
 
     /// An example, own or shared library workout opened on its own (not part of this week's plan), unedited.
     func standaloneSession(_ id: String) -> Session? {
-        WorkoutTemplate.find(sessionId: id)?.session ?? customWorkout(sessionId: id)?.session ?? sharedWorkout(sessionId: id)?.workout.session
+        freestyleSession(id) ?? WorkoutTemplate.find(sessionId: id)?.session ?? customWorkout(sessionId: id)?.session
+            ?? sharedWorkout(sessionId: id)?.workout.session
     }
 
     /// First session not yet completed from today on, by day (moved and extra sessions included). Sessions of

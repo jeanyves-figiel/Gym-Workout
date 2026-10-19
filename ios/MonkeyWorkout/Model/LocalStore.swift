@@ -125,6 +125,8 @@ struct LocalState: Codable {
     var activeWorkout: ActiveWorkout?
     /// "Taken?" taps in the player (#406): learns when each gym zone is busy. Local only.
     var busyTaps: [BusyTap]?
+    /// Build as I go (#490): the empty-start workout being built in the player, kept until the next one. Local only.
+    var freestyle: Session?
 }
 
 /// Where the player stopped: exercise index, sets done per item and active time so far.
@@ -218,5 +220,6 @@ extension LocalState {
         deletedWorkoutIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedWorkoutIds)
         deletedLogIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedLogIds)
         busyTaps = try? c.decodeIfPresent([BusyTap].self, forKey: .busyTaps)
+        freestyle = try? c.decodeIfPresent(Session.self, forKey: .freestyle)
     }
 }
