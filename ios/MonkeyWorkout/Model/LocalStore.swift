@@ -162,6 +162,8 @@ struct LocalState: Codable {
     var busyTaps: [BusyTap]?
     /// Build as I go (#490): the empty-start workout being built in the player, kept until the next one. Local only.
     var freestyle: Session?
+    /// How the member felt after each workout (#501), `Feel` raw values by record id. Local only.
+    var feels: [UUID: Int]?
 }
 
 /// Where the player stopped: exercise index, sets done per item and active time so far.

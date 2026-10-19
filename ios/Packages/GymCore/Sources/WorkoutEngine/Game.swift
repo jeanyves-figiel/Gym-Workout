@@ -4,9 +4,11 @@ import Foundation
 /// Badges are `Achievements` (one set on both devices). Pure and deterministic.
 public struct GameProgress: Sendable, Equatable {
     public static let perLevel = 500
-    /// XP for one workout: 50 + 5 per set done.
+    /// XP for one workout: 50 + 5 per set done, never under `minWorkoutXP`.
     public static let perWorkout = 50
     public static let perSet = 5
+    /// Short sessions count (#501): a 20-minute Express earns as much as a 10-set session.
+    public static let minWorkoutXP = 100
     /// Extra XP the first time a week's session goal is met (quest chest).
     public static let weekBonus = 200
 
@@ -17,6 +19,8 @@ public struct GameProgress: Sendable, Equatable {
     public var weeksCleared = 0
     /// Part of `xp` earned by walking and stairs (Daily Move, #454).
     public var moveXP = 0
+    /// Part of `xp` earned by Comeback quest sessions (#501).
+    public var comebackXP = 0
 
     public init(xp: Int = 0, workouts: Int = 0, totalSets: Int = 0, weeksCleared: Int = 0, moveXP: Int = 0) {
         self.xp = xp
@@ -26,7 +30,7 @@ public struct GameProgress: Sendable, Equatable {
         self.weeksCleared = weeksCleared
     }
 
-    public static func xp(sets: Int) -> Int { perWorkout + perSet * max(0, sets) }
+    public static func xp(sets: Int) -> Int { max(minWorkoutXP, perWorkout + perSet * max(0, sets)) }
 
     public var level: Int { xp / Self.perLevel + 1 }
     public var xpInLevel: Int { xp % Self.perLevel }
@@ -58,6 +62,8 @@ public struct GameProgress: Sendable, Equatable {
         }
         g.weeksCleared = perWeek.values.filter { $0 >= max(1, targetPerWeek) }.count
         g.xp += weekBonus * g.weeksCleared
+        g.comebackXP = Comeback.questIds(records).count * Comeback.xpPerSession
+        g.xp += g.comebackXP
         g.moveXP = max(0, moveXP)
         g.xp += g.moveXP
         return g

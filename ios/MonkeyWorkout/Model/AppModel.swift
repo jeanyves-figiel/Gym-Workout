@@ -92,6 +92,15 @@ final class AppModel {
             state.history = demo.records
             state.logs = demo.logs
             if ["train-smart", "block-tweak", "auto-tune", "growth-path", "coach-memory"].contains(Demo.screen) { applyDemoGrowth() }
+            // Kind streaks (#501): 16 days away, then the first session back today (Comeback quest 1/3).
+            if Demo.screen == "train-comeback", let last = state.history.max(by: { $0.startedAt < $1.startedAt }) {
+                let cut = Date().addingTimeInterval(-16 * 86_400)
+                state.history.removeAll { $0.startedAt > cut }
+                var back = last
+                back.id = UUID()
+                back.startedAt = Date().addingTimeInterval(-3 * 3600)
+                state.history.append(back)
+            }
             state.climbs = Demo.climbs()
             if ["history-page", "progress-sports"].contains(Demo.screen) { state.sportLogs = Demo.sportLogs() }
             state.customWorkoutList = Demo.customWorkouts

@@ -196,7 +196,8 @@ struct ProgressTabView: View {
             // Growth path (#495): goal, its date and what Monkey noticed; opens the page.
             GrowthWidget()
         case .streak:
-            StreakRow(current: s.currentStreakWeeks, best: s.bestStreakWeeks, thisWeek: s.thisWeek, target: target, fresh: fresh)
+            StreakRow(current: s.currentStreakWeeks, best: s.bestStreakWeeks, thisWeek: s.thisWeek, target: target, fresh: fresh,
+                      shields: s.streakShields)
         case .training, .body, .records, .badges, .muscles, .programmes:
             let section = w.kind.section
             Button {

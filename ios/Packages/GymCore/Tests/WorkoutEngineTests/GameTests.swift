@@ -23,7 +23,10 @@ private func record(_ s: Session, at date: Date) -> WorkoutRecord {
     }
 
     @Test func workoutXPIsFiftyPlusFivePerSet() {
-        #expect(GameProgress.xp(sets: 0) == 50)
+        // Short sessions count (#501): never under 100.
+        #expect(GameProgress.xp(sets: 0) == GameProgress.minWorkoutXP)
+        #expect(GameProgress.xp(sets: 4) == 100)
+        #expect(GameProgress.xp(sets: 12) == 110)
         #expect(GameProgress.xp(sets: 18) == 140)
         let r = record(plan.sessions[0], at: monday)
         let g = GameProgress.evaluate(records: [r], targetPerWeek: 2, calendar: utc)

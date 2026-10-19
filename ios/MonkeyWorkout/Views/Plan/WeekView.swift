@@ -50,6 +50,8 @@ struct WeekView: View {
                         let notices = model.noticedBar
                         if !notices.isEmpty { NoticedBar(insights: notices) }
                     }
+                    // Kind streaks (#501): welcome back, Comeback quest, a shield that saved last week.
+                    if !arranging { KindStreakCards() }
                     // The member's widgets (#260); the default layout is the Train screen as it always was.
                     let layout = model.trainLayout
                     if !layout.contains(.nextUp), !arranging { notices(plan: plan, profile: profile) }
