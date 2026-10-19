@@ -62,6 +62,8 @@ struct WorkoutPlayerView: View {
     @State private var groupChoice: SupersetFixSheet.Choice?
     @State private var swapPartner: PlannedExercise?
     @State private var zonesOpen = false
+    /// Build as I go (#490): the catalog open to add exercises, and whether the pick is played at once.
+    @State private var freeBrowse: FreeBrowse?
     @State private var zoneDraft: (layout: GymLayout?, equipment: [Equipment]) = (nil, [])
     /// Workout map (#361): what's done and what's left, read-only.
     @State private var mapOpen = false
@@ -131,6 +133,8 @@ struct WorkoutPlayerView: View {
         return out
     }
     private var steps: [Step] { session?.blocks.flatMap { b in b.items.map { Step(item: $0, block: b) } } ?? [] }
+    /// Build as I go (#490): started empty, exercises added in the player.
+    private var isFree: Bool { Freestyle.isFreestyle(sessionId) }
 
     var body: some View {
         ZStack {
@@ -144,11 +148,22 @@ struct WorkoutPlayerView: View {
                     .transition(.scale.combined(with: .opacity))
                 } else if ready, steps.indices.contains(index) {
                     player(steps[index], session: session)
+                } else if ready, isFree, steps.isEmpty {
+                    let picks = model.freestylePicks(sessionId)
+                    FreestyleStartView(
+                        started: started, picks: picks,
+                        recent: model.recentExerciseIds(limit: 6).compactMap(Exercise.find).filter { e in !picks.contains { $0.id == e.id } },
+                        onPick: { addFree([$0], jump: true) },
+                        onBrowse: { freeBrowse = FreeBrowse(group: $0, jump: true) },
+                        onClose: discard)
                 }
             }
         }
         .preferredColorScheme(.dark)
         .sheet(item: $formFor) { FormSheet(exercise: $0) }
+        .sheet(item: $freeBrowse) { b in
+            ExercisePickerView(limit: 10, group: b.group) { addFree($0, jump: b.jump) }
+        }
         .sheet(item: $notHereFor) { NotHereSheet(exerciseId: $0.exerciseId, uid: $0.uid) }
         .sheet(item: $changeFor, onDismiss: runChange) { item in
             if let step = steps.first(where: { $0.item.uid == item.uid }) {
@@ -344,7 +359,8 @@ struct WorkoutPlayerView: View {
                                  onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
                                  onSetupPhoto: { setupPhotoFor = setup },
                                  onSplit: canSplit(step) ? { split(step) } : nil,
-                                 onGroup: canSplit(step) ? { groupFix = step.item } : nil) { formFor = step.exercise }
+                                 onGroup: canSplit(step) ? { groupFix = step.item } : nil,
+                                 onAdd: isFree ? { freeBrowse = FreeBrowse(group: nil, jump: false) } : nil) { formFor = step.exercise }
                     .id(step.item.uid)
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
                     .layoutPriority(1)
@@ -458,6 +474,7 @@ struct WorkoutPlayerView: View {
                                      onSetupPhoto: { setupPhotoFor = setup },
                                      onSplit: canSplit(step) ? { split(step) } : nil,
                                      onGroup: canSplit(step) ? { groupFix = step.item } : nil,
+                                     onAdd: isFree ? { freeBrowse = FreeBrowse(group: nil, jump: false) } : nil,
                                      compact: true) { formFor = step.exercise }
                         .id(step.item.uid)
                         .transition(.opacity)
@@ -560,15 +577,22 @@ struct WorkoutPlayerView: View {
     }
 
     /// The smart Up next bar (#373), same in both orientations: the next set or exercise, the two after it, what's left.
+    @ViewBuilder
     private func upNextBar(_ step: Step, done: Int, sets: Int, session: Session) -> some View {
         let next = upNext(after: step, done: done, sets: sets, includeSets: false)
         let items = OverviewItem.list(session.blocks, setsDone: setsDone, current: step.item.uid)
-        return SmartUpNextBar(next: next,
+        if isFree, !steps.indices.contains(index + 1) {
+            // Build as I go (#490 B): nothing queued, so the Coach's next picks take Up next's place.
+            FreestyleNextBar(picks: model.freestylePicks(sessionId), onPick: { addFree([$0], jump: true) },
+                             onMore: { freeBrowse = FreeBrowse(group: nil, jump: true) })
+        } else {
+            SmartUpNextBar(next: next,
                               then: SmartUpNextBar.after(items, current: step.item.uid, next: next?.exercise),
                               left: items.filter { $0.state == .left }.count,
                               doneBy: OverviewItem.doneBy(session.blocks, setsDone: setsDone, current: step.item.uid),
                               fallback: step.category.colors,
                               walk: walk(from: step.exercise, to: next?.exercise)) { mapOpen = true }
+        }
     }
 
     /// Gym Map (#406): the walk to the next exercise's zone, drawn in Up next when the member has a floor plan.
@@ -921,6 +945,8 @@ struct WorkoutPlayerView: View {
 
     /// After an exercise's last set: straight on, a "Next in N" countdown, or wait for NEXT (Settings, #357).
     private func nextExercise(_ step: Step) {
+        // Build as I go (#490): nothing queued, so wait for the next pick or FINISH.
+        if isFree, !steps.indices.contains(index + 1) { return }
         switch autoNextSec {
         case ..<0: return
         case 0: advance(step)
@@ -966,6 +992,8 @@ struct WorkoutPlayerView: View {
     }
 
     private func finish() {
+        // Build as I go (#490): nothing done, nothing to keep.
+        if isFree, record == nil, setsDone.values.reduce(0, +) == 0 { return discard() }
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         if let session, record == nil {
             let before = (game: model.game, badges: model.badges)
@@ -1104,6 +1132,42 @@ struct WorkoutPlayerView: View {
         }
     }
 
+    // MARK: Build as I go (#490)
+
+    struct FreeBrowse: Identifiable {
+        let id = UUID()
+        let group: MuscleGroup?
+        /// Play the first pick at once when the current exercise is done; otherwise it waits in Up next.
+        let jump: Bool
+    }
+
+    /// Adds the picks at the end of the workout, in order. The first exercise opens at once; later ones are played at
+    /// once when `jump` and the current exercise is done, otherwise they queue in Up next.
+    private func addFree(_ picked: [Exercise], jump: Bool) {
+        guard isFree, !picked.isEmpty else { return }
+        let wasEmpty = steps.isEmpty
+        let current = steps.indices.contains(index) ? steps[index] : nil
+        let currentDone = current.map { (setsDone[$0.item.uid] ?? 0) >= $0.sets } ?? true
+        var first: String?
+        for e in picked {
+            let id = UUID()
+            let uid = model.addToFreestyle(sessionId, e, id: id)
+            if let f = fitted { fitted = Freestyle.adding(e, to: f, sessionId: sessionId, id: id).blocks }
+            if first == nil { first = uid }
+        }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        guard let first else { return }
+        if wasEmpty {
+            setStart = Date()
+            relocate(first)
+        } else if jump, currentDone {
+            autoNext = nil
+            if let i = steps.firstIndex(where: { $0.item.uid == first }) { go(i) }
+        } else {
+            updateLive()
+        }
+    }
+
     // MARK: Change: swap / remove / not here (#391)
 
     /// The workout's list can change (saved as its edit), or the gym's equipment can still be reported missing.
@@ -1195,7 +1259,7 @@ struct WorkoutPlayerView: View {
         } else {
             model.beginWorkout(session)
             started = Date()
-            coach.say(.start(exercises: steps.count), once: "start")
+            if !steps.isEmpty { coach.say(.start(exercises: steps.count), once: "start") }
         }
         reloadLog()
         if steps.filter({ (setsDone[$0.item.uid] ?? 0) >= $0.sets }).count * 2 >= steps.count { coach.markSaid("half") }

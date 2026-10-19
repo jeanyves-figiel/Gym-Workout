@@ -21,7 +21,8 @@ extension AppModel {
         uneditedSession(id).map { $0.applying(sessionEdit(id)).blocks }
     }
 
-    func isEdited(_ id: String) -> Bool { sessionEdit(id) != nil }
+    /// A freestyle workout (#490) is all the member's own: Undo puts its list back as it was.
+    func isEdited(_ id: String) -> Bool { sessionEdit(id) != nil || freestyleSession(id) != nil }
 
     /// Exercises can change until the workout starts; a finished one stays as it was done.
     func canEditExercises(_ s: Session) -> Bool {
@@ -30,6 +31,7 @@ extension AppModel {
 
     /// Saves the edited exercise list; the unedited list back clears the edit.
     func saveSessionEdit(_ id: String, blocks: [Block]) {
+        if freestyleSession(id) != nil { return saveFreestyle(id, blocks: blocks) }
         guard let base = uneditedSession(id) else { return }
         if let before = editableBlocks(id) { learnTaste { $0.learn(edit: before, blocks, at: Date()) } }
         guard var sp = state.synced else { return }

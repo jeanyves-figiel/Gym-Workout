@@ -286,6 +286,8 @@ struct WorkoutLibraryView: View {
     @State private var memberState: AppModel.SharedLibraryLoad?
     @State private var editing: CustomWorkout?
     @State private var gate: ProGate?
+    /// Build as I go (#490): the empty workout open in the player.
+    @State private var freestyle: Session?
     /// Pick mode (#178, Add workout → Browse library): tapping a workout hands it over instead of opening it.
     private let onPick: ((LibraryEntry) -> Void)?
 
@@ -309,6 +311,11 @@ struct WorkoutLibraryView: View {
                             }
                             .buttonStyle(.plain)
                         }
+                    }
+                }
+                if onPick == nil, query.isEmpty {
+                    FreestyleCard(resuming: model.freestyleInProgress != nil) {
+                        freestyle = model.freestyleInProgress ?? model.startFreestyle()
                     }
                 }
                 if filter == .all || filter == .mine {
@@ -355,6 +362,7 @@ struct WorkoutLibraryView: View {
             }
         }
         .sheet(item: $editing) { w in CustomWorkoutEditor(initial: w) }
+        .fullScreenCover(item: $freestyle) { s in WorkoutPlayerView(sessionId: s.id) }
         .proPaywall($gate)
     }
 

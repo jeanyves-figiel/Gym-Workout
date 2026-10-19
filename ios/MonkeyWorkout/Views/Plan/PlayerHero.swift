@@ -51,6 +51,8 @@ struct ExerciseHeroCard: View {
     var onSplit: (() -> Void)?
     /// Superset / circuit (#352): the machines-not-next-to-each-other choices.
     var onGroup: (() -> Void)?
+    /// Build as I go (#490 C): add an exercise to the queue at any time.
+    var onAdd: (() -> Void)?
     /// Landscape player (#362, #373 design A): smaller type, the picture takes all the height left with Form /
     /// Change / Setup stacked beside it, no note.
     var compact = false
@@ -161,7 +163,7 @@ struct ExerciseHeroCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
-    /// Form, Change and the add-setup chip, each in its own slot.
+    /// Form, Change, Add (freestyle) and the add-setup chip, each in its own slot.
     @ViewBuilder
     private var actionButtons: some View {
         Button(action: onForm) {
@@ -184,6 +186,7 @@ struct ExerciseHeroCard: View {
             .accessibilityLabel("Change exercise")
             .accessibilityIdentifier("player.change")
         }
+        if let onAdd { FreestyleAddChip(action: onAdd) }
         if setup == nil, let onSetup {
             MachineNoteAddChip(action: onSetup)
         }

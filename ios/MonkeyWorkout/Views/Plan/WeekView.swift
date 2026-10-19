@@ -653,6 +653,8 @@ private struct NextUpCard: View {
     @Environment(\.trainCompact) private var compact
     @State private var logging: SportLog?
     @State private var trackingSport: SportLog?
+    /// Build as I go (#490): the empty workout open in the player.
+    @State private var freestyle: Session?
     @State private var laterDay: DaySelection?
     @State private var moving = false
     /// Plan sport on a later day with a workout (#481); or the dated sport day / trip on it.
@@ -708,6 +710,7 @@ private struct NextUpCard: View {
         .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Color.white.opacity(0.15)))
         .sheet(item: $logging) { LogSportView(initial: $0) }
         .sheet(item: $trackingSport) { LogSportView(initial: $0, live: true) }
+        .fullScreenCover(item: $freestyle) { WorkoutPlayerView(sessionId: $0.id) }
         .modifier(LaterDaySheets(day: $laterDay))
         .sheet(isPresented: $moving) { MoveSessionSheet(sessionId: session.id) }
         .sheet(isPresented: $planningSport) { PlanSportSheet(day: dayKey ?? PlanCalendar.key(Date(), model.planCalendar), sport: model.profile?.otherSports.first?.sport) }
@@ -792,7 +795,9 @@ private struct NextUpCard: View {
             }
             // Start workout gets the full width; sports sit under it in one split pill (#462, design C).
             if !ahead {
-                SportSplitPill(onLog: { logging = SportLog(start: Date().addingTimeInterval(-120 * 60)) },
+                SportSplitPill(onFree: { freestyle = model.freestyleInProgress ?? model.startFreestyle() },
+                               freeResumes: model.freestyleInProgress != nil,
+                               onLog: { logging = SportLog(start: Date().addingTimeInterval(-120 * 60)) },
                                onTrack: { trackingSport = SportLog(start: Date()) })
             } else if !done {
                 // A later day with a workout (#481, design A): plan a sport there too, or move the workout (this week).
@@ -913,6 +918,8 @@ private struct RestDayCard: View {
     @State private var logging: ClimbLog?
     @State private var loggingSport: SportLog?
     @State private var trackingSport: SportLog?
+    /// Build as I go (#490): the empty workout open in the player.
+    @State private var freestyle: Session?
     /// Plan sport (#474): a sport once, every week or a trip from this day; or the dated day / trip on it.
     @State private var planningSport = false
     @State private var editingTrip: SportTrip?
@@ -992,7 +999,9 @@ private struct RestDayCard: View {
                 }
                 if !climbing && !ahead {
                     // Any other sport (#416), dated like a climb; Track live with a Watch (#462, design C).
-                    SportSplitPill(onLog: { loggingSport = SportLog(start: climbStart()) },
+                    SportSplitPill(onFree: { freestyle = model.freestyleInProgress ?? model.startFreestyle() },
+                                   freeResumes: model.freestyleInProgress != nil,
+                                   onLog: { loggingSport = SportLog(start: climbStart()) },
                                    onTrack: { trackingSport = SportLog(start: Date()) })
                 }
             }
@@ -1015,6 +1024,7 @@ private struct RestDayCard: View {
         .sheet(item: $logging) { LogClimbView(initial: $0) }
         .sheet(item: $loggingSport) { LogSportView(initial: $0) }
         .sheet(item: $trackingSport) { LogSportView(initial: $0, live: true) }
+        .fullScreenCover(item: $freestyle) { WorkoutPlayerView(sessionId: $0.id) }
         .sheet(isPresented: $planningSport) { PlanSportSheet(day: dayKey, sport: model.profile?.otherSports.first?.sport) }
         .sheet(item: $editingTrip) { PlanSportSheet(day: $0.start, editing: $0) }
     }
