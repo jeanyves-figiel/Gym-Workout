@@ -21,12 +21,15 @@ private func workout(_ at: Date, _ lifts: [(String, Int, Double)], deload: Bool 
 
     /// Previous block (weeks −4…−1) and this block (weeks 0…3), 3 workouts a week.
     func history(benchStart: Double, benchStep: Double, row: Double = 50) -> [WorkoutRecord] {
-        (0..<8).flatMap { w in
-            [0, 2, 4].map { d in
-                workout(day(7 * (w - 4) + d), [("bench-press", 4, benchStart + benchStep * Double(w)), ("barbell-row", 4, row),
-                                               ("back-squat", 4, 80 + Double(w) * 2.5)])
+        var out: [WorkoutRecord] = []
+        for w in 0..<8 {
+            let bench: Double = benchStart + benchStep * Double(w)
+            let squat: Double = 80 + Double(w) * 2.5
+            for d in [0, 2, 4] {
+                out.append(workout(day(7 * (w - 4) + d), [("bench-press", 4, bench), ("barbell-row", 4, row), ("back-squat", 4, squat)]))
             }
         }
+        return out
     }
 
     @Test func strongerConsistentBlockLevelsUp() throws {
@@ -65,7 +68,8 @@ private func workout(_ at: Date, _ lifts: [(String, Int, Double)], deload: Bool 
     }
 
     @Test func laggingGroupAgainstItsCounterpart() throws {
-        let recs = (0..<4).flatMap { w in [0, 2].map { d in workout(day(7 * w + d), [("bench-press", 5, 60), ("barbell-row", 2, 50)]) } }
+        var recs: [WorkoutRecord] = []
+        for w in 0..<4 { for d in [0, 2] { recs.append(workout(day(7 * w + d), [("bench-press", 5, 60), ("barbell-row", 2, 50)])) } }
         let r = try #require(Growth.review(records: recs, blockStart: monday, profile: profile, level: 1, number: 1, calendar: utc))
         #expect(r.lagging == .back)
         #expect(r.laggingVs == .chest)
@@ -131,7 +135,8 @@ private func workout(_ at: Date, _ lifts: [(String, Int, Double)], deload: Bool 
         var p = Profile(sessionsPerWeek: 3, climbingDaysPerWeek: 0)
         p.gymWeekdays = [1, 3, 5]
         // 5 weeks before day(35): Mon, Wed and Sat trained; Friday never.
-        let recs = (0..<5).flatMap { w in [0, 2, 5].map { d in workout(day(7 * w + d), [("bench-press", 3, 60)]) } }
+        var recs: [WorkoutRecord] = []
+        for w in 0..<5 { for d in [0, 2, 5] { recs.append(workout(day(7 * w + d), [("bench-press", 3, 60)])) } }
         let ins = try #require(Noticed.skippedDay(records: recs, profile: p, now: day(36), calendar: utc))
         #expect(ins.weekday == 5)
         #expect(ins.toWeekday == 6)
@@ -147,7 +152,7 @@ private func workout(_ at: Date, _ lifts: [(String, Int, Double)], deload: Bool 
     }
 
     @Test func untrainedGroup() throws {
-        let recs = (0..<3).map { workout(day(10 + $0), [("bench-press", 3, 60), ("barbell-row", 3, 50)]) }
+        let recs: [WorkoutRecord] = (0..<3).map { workout(day(10 + $0), [("bench-press", 3, 60), ("barbell-row", 3, 50)]) }
         let ins = try #require(Noticed.untrained(records: recs, now: day(14), calendar: utc))
         #expect(ins.group == .legs)
     }

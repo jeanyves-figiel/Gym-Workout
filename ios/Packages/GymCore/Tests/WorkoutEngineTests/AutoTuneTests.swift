@@ -6,6 +6,12 @@ import Testing
     let profile = Profile(goal: .balanced, sessionsPerWeek: 3, experience: .intermediate, climbingDaysPerWeek: 0)
     var session: Session { Generator.generateWeek(profile, week: 2, seed: 3).sessions[0] }
 
+    func totalSets(_ s: Session) -> Int {
+        var n = 0
+        for b in s.blocks { for it in b.items { n += it.prescription.sets } }
+        return n
+    }
+
     @Test func shortSleepAndLowHRVGoMediumOrLight() {
         let v = AutoTune.assess(TuneInputs(hrv: 41, hrvBaseline: 54, sleepHours: 5.7))
         // 80 − 24 (HRV) − 13 (sleep) = 43.
@@ -34,8 +40,9 @@ import Testing
         let t = s.autoTuned(.light, sore: [], profile: profile)
         #expect(!t.changes.isEmpty)
         #expect(t.changes.contains { $0.kind == .dropSet })
-        #expect(t.session.blocks.flatMap(\.items).map(\.prescription.sets).reduce(0, +)
-                < s.blocks.flatMap(\.items).map(\.prescription.sets).reduce(0, +))
+        let tunedSets: Int = totalSets(t.session)
+        let plannedSets: Int = totalSets(s)
+        #expect(tunedSets < plannedSets)
         #expect(t.session.estMin <= s.estMin)
     }
 
