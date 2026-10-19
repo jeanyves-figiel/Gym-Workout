@@ -171,7 +171,10 @@ struct WeekView: View {
             withAnimation(.snappy) { pickedDay = pickedDay == wd || (pickedDay == nil && next?.weekday == wd) ? nil : wd }
         }
         let back = { withAnimation(.snappy) { pickedDay = nil } }
-        if let d = pickedDay, let s = plan.sessions.first(where: { $0.weekday == d }) {
+        if let d = pickedDay, !(1...7).contains(d) {
+            // A day of another week (#481) shows in the card too, never as a pop-up.
+            otherWeekCard(d, pick: pick, back: back)
+        } else if let d = pickedDay, let s = plan.sessions.first(where: { $0.weekday == d }) {
             NextUpCard(session: s, picked: d, onPick: pick, onBack: back) { playing = s }
         } else if let d = pickedDay {
             RestDayCard(weekday: d, onPick: pick, onBack: back) { addingDay = d; adding = true }
@@ -182,6 +185,25 @@ struct WeekView: View {
             NextUpCard(session: later.session, later: later.day, onPick: pick, onBack: back) {}
         } else {
             WeekCompleteCard(missed: model.missedToHandle.count, onPick: pick)
+        }
+    }
+
+    /// Day `d` of a later week (planned session or rest day) or of last week (#481); `d` counts from this week's Monday.
+    @ViewBuilder private func otherWeekCard(_ d: Int, pick: @escaping (Int) -> Void, back: @escaping () -> Void) -> some View {
+        let cal = model.planCalendar
+        let date = cal.date(byAdding: .day, value: d - 1, to: Progression.weekStart(Date(), cal)) ?? Date()
+        let week = Int((Double(d - 1) / 7).rounded(.down))
+        let wd = d - week * 7
+        if week > 0 {
+            let weeks = model.calendarWeeks(count: 3)
+            if week < weeks.count, let s = weeks[week].plan.sessions.first(where: { $0.weekday == wd }) {
+                NextUpCard(session: s, picked: d, later: DaySelection(week: weeks[week], weekday: wd, current: false),
+                           onPick: pick, onBack: back) {}
+            } else {
+                RestDayCard(weekday: wd, day: d, date: date, onPick: pick, onBack: back) {}
+            }
+        } else {
+            PastDayCard(day: d, date: date, onPick: pick, onBack: back)
         }
     }
 
@@ -632,8 +654,29 @@ private struct NextUpCard: View {
     @State private var logging: SportLog?
     @State private var trackingSport: SportLog?
     @State private var laterDay: DaySelection?
+    @State private var moving = false
+    /// Plan sport on a later day with a workout (#481); or the dated sport day / trip on it.
+    @State private var planningSport = false
+    @State private var editingTrip: SportTrip?
     /// A later day picked in the strip (#343): nothing can be started or logged in advance.
     private var ahead: Bool { later != nil || (picked.map { $0 > model.todayWeekday } ?? false) }
+
+    /// This card's day counted from this week's Monday (#481), for the strip.
+    private var stripDay: Int? {
+        if let picked { return picked }
+        guard let later else { return session.weekday }
+        let cal = model.planCalendar
+        let weeks = cal.dateComponents([.day], from: Progression.weekStart(Date(), cal), to: later.week.start).day.map { Int((Double($0) / 7).rounded()) } ?? 0
+        return weeks * 7 + later.weekday
+    }
+
+    /// Day key of the session's day ("2026-10-22").
+    private var dayKey: String? {
+        let cal = model.planCalendar
+        if let later { return later.week.days[later.weekday - 1] }
+        guard let wd = session.weekday, let day = cal.date(byAdding: .day, value: wd - 1, to: Progression.weekStart(Date(), cal)) else { return nil }
+        return PlanCalendar.key(day, cal)
+    }
 
     private var lead: WorkoutEngine.Category {
         session.blocks.first { $0.kind == .strength }?.kind.category ?? .strength
@@ -642,7 +685,7 @@ private struct NextUpCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             // The week at a glance (#266): missed days red (tap to catch up), today ringed; any other day shows here (#277).
-            WeekDayStrip(selected: later == nil ? picked ?? session.weekday : nil, onPick: onPick)
+            WeekDayStrip(selected: stripDay, onPick: onPick)
             // Tapping the card opens the session page, same as the list button (#150).
             if let later {
                 Button { laterDay = later } label: { summary }
@@ -666,6 +709,9 @@ private struct NextUpCard: View {
         .sheet(item: $logging) { LogSportView(initial: $0) }
         .sheet(item: $trackingSport) { LogSportView(initial: $0, live: true) }
         .modifier(LaterDaySheets(day: $laterDay))
+        .sheet(isPresented: $moving) { MoveSessionSheet(sessionId: session.id) }
+        .sheet(isPresented: $planningSport) { PlanSportSheet(day: dayKey ?? PlanCalendar.key(Date(), model.planCalendar), sport: model.profile?.otherSports.first?.sport) }
+        .sheet(item: $editingTrip) { PlanSportSheet(day: $0.start, editing: $0) }
     }
 
     /// Slim (#337, design A): muscle chips sit in the text column beside a smaller figure, so Start workout stays
@@ -713,7 +759,8 @@ private struct NextUpCard: View {
 
     private var eyebrow: String {
         if let later, let date = later.week.date(later.weekday, model.planCalendar) {
-            return "Next up · \(date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))"
+            let day = date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+            return picked == nil ? "Next up · \(day)" : "\(day) · planned"
         }
         guard let d = picked else { return "Next up · \(model.upcomingDayLabel(session))" }
         let state = done ? "done" : model.skippedIds.contains(session.id) ? "skipped"
@@ -747,12 +794,84 @@ private struct NextUpCard: View {
             if !ahead {
                 SportSplitPill(onLog: { logging = SportLog(start: Date().addingTimeInterval(-120 * 60)) },
                                onTrack: { trackingSport = SportLog(start: Date()) })
+            } else if !done {
+                // A later day with a workout (#481, design A): plan a sport there too, or move the workout (this week).
+                HStack(spacing: 10) {
+                    if let trip = dayKey.flatMap({ model.profile?.sportTrip(on: $0) }) {
+                        Button { editingTrip = trip } label: {
+                            Label(trip.title, systemImage: trip.sport.symbol).lineLimit(1).minimumScaleFactor(0.7)
+                                .font(Theme.label(14)).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(.vertical, 12)
+                                .background(Capsule().fill(trip.sport.gradient))
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        Button { planningSport = true } label: {
+                            Label("Plan a sport", systemImage: "figure.skiing.downhill").lineLimit(1).minimumScaleFactor(0.7)
+                                .font(Theme.label(14)).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(.vertical, 12)
+                                .background(Capsule().fill(LinearGradient(colors: [Color(hex: 0xFF5F8F), Color(hex: 0xFF9A5C)], startPoint: .leading, endPoint: .trailing)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if later == nil {
+                        Button { moving = true } label: {
+                            Label("Move", systemImage: "arrow.left.arrow.right").lineLimit(1)
+                                .font(Theme.label(14)).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(.vertical, 12)
+                                .background(Capsule().fill(Color.white.opacity(0.15)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
             if picked != nil && !isNext, let next = model.nextSession {
                 BackToNextUpButton(label: backLabel(next), action: onBack)
             } else if picked != nil && !isNext {
                 BackToNextUpButton(label: "Back to this week", action: onBack)
             }
+        }
+    }
+}
+
+/// A day of last week picked in the strip (#481): what was trained that day, with History one tap away.
+private struct PastDayCard: View {
+    /// Strip day counted from this week's Monday (0 and below).
+    let day: Int
+    let date: Date
+    var onPick: (Int) -> Void = { _ in }
+    var onBack: () -> Void = {}
+    @Environment(AppModel.self) private var model
+    @Environment(HealthManager.self) private var health
+    @State private var showsHistory = false
+
+    var body: some View {
+        let cal = model.planCalendar
+        let items = model.historyItems(health: health).filter { cal.isDate($0.start, inSameDayAs: date) }
+        VStack(alignment: .leading, spacing: 14) {
+            WeekDayStrip(selected: day, onPick: onPick)
+            Text("\(date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated))) · \(items.isEmpty ? "rest day" : "done")")
+                .font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
+            if items.isEmpty {
+                Text("Rest day 😴").font(Theme.display(26)).foregroundStyle(.white)
+            } else {
+                ForEach(items) { it in
+                    Text(it.title).font(Theme.display(26)).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.7)
+                }
+            }
+            Button { showsHistory = true } label: { Label("See in History", systemImage: "clock.arrow.circlepath") }
+                .buttonStyle(LimeButtonStyle())
+            BackToNextUpButton(label: model.nextSession.map(backLabel) ?? "Back to this week", action: onBack)
+        }
+        .padding(20)
+        .background {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(LinearGradient(colors: [Color(hex: 0x3D4BD6).opacity(0.85), Color(hex: 0x5A2FA0).opacity(0.6), Theme.bg],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+        }
+        .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Color.white.opacity(0.15)))
+        .sheet(isPresented: $showsHistory) {
+            NavigationStack { HistoryView().toolbar { CloseToolbarItem { showsHistory = false } } }
         }
     }
 }
@@ -783,6 +902,10 @@ private struct BackToNextUpButton: View {
 /// A rest day picked in the strip (#277): nothing planned, offer to add a workout.
 private struct RestDayCard: View {
     let weekday: Int
+    /// Strip day counted from this week's Monday (#481); this week's weekday by default.
+    var day: Int? = nil
+    /// Date of a day in a later week (#481); nil = this week's weekday.
+    var date: Date? = nil
     var onPick: (Int) -> Void = { _ in }
     var onBack: () -> Void = {}
     let onAdd: () -> Void
@@ -797,6 +920,7 @@ private struct RestDayCard: View {
     /// This day's key ("2026-10-21") in the current week.
     private var dayKey: String {
         let cal = model.planCalendar
+        if let date { return PlanCalendar.key(date, cal) }
         let day = cal.date(byAdding: .day, value: weekday - 1, to: Progression.weekStart(Date(), cal)) ?? Date()
         return PlanCalendar.key(day, cal)
     }
@@ -808,7 +932,12 @@ private struct RestDayCard: View {
     /// One of the climber's planned climbing days.
     private var climbing: Bool { climber && (model.profile?.climbingDays.contains(weekday) ?? false) }
     /// A later day (#343): a workout can be planned, a climb is only logged on or after its day.
-    private var ahead: Bool { weekday > model.todayWeekday }
+    private var ahead: Bool { date != nil || weekday > model.todayWeekday }
+    /// A day of a later week (#481): Add workout only plans this week, so it's left out.
+    private var laterWeek: Bool { date != nil }
+    private var title: String {
+        date.map { $0.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)) } ?? WeekSchedule.name(weekday)
+    }
 
     /// A climb logged from an earlier day this week is dated that day (18:00); otherwise it just ended.
     private func climbStart(now: Date = Date()) -> Date {
@@ -822,8 +951,8 @@ private struct RestDayCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            WeekDayStrip(selected: weekday, onPick: onPick)
-            Text("\(WeekSchedule.name(weekday)) · \(trip.map { $0.isTrip ? "sport trip" : "sport day" } ?? (climbing ? "climbing day" : "rest day"))").font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
+            WeekDayStrip(selected: day ?? weekday, onPick: onPick)
+            Text("\(title) · \(trip.map { $0.isTrip ? "sport trip" : "sport day" } ?? (climbing ? "climbing day" : "rest day"))").font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
             VStack(spacing: 6) {
                 if let trip {
                     Button { editingTrip = trip } label: {
@@ -837,19 +966,22 @@ private struct RestDayCard: View {
                     Text(climbing ? "Climbing day 🧗" : "Rest day 😴").font(Theme.display(26)).foregroundStyle(.white)
                 }
                 Text(trip != nil ? (ahead ? "No gym that day. Log or track it on the day." : "No gym today. Log or track it.")
+                     : laterWeek ? (climbing ? "Climb planned. Log it on the day." : "Nothing planned. Plan a sport?")
                      : ahead ? (climbing ? "Climb planned. Log it on the day, or plan a workout." : "Nothing planned. Plan a workout or a sport?")
                      : climbing ? "No gym session planned. Log your climb, or add a workout."
                      : climber ? "Nothing planned. Train or climb?" : "Nothing planned. Fancy a session?")
                     .font(.footnote).foregroundStyle(.white.opacity(0.8)).multilineTextAlignment(.center)
                 HStack(spacing: 10) {
-                    Button(action: onAdd) { Label("Add workout", systemImage: "plus").lineLimit(1).minimumScaleFactor(0.75) }
-                        .buttonStyle(LimeButtonStyle())
+                    if !laterWeek {
+                        Button(action: onAdd) { Label("Add workout", systemImage: "plus").lineLimit(1).minimumScaleFactor(0.75) }
+                            .buttonStyle(LimeButtonStyle())
+                    }
                     if climbing && !ahead {
                         LogClimbButton { logging = ClimbLog(start: climbStart()) }
                     }
                 }
                 .padding(.top, 6)
-                if trip == nil && weekday >= model.todayWeekday {
+                if trip == nil && (laterWeek || weekday >= model.todayWeekday) {
                     // Plan sport (#474): once, every week or a trip from this day.
                     Button { planningSport = true } label: {
                         Label("Plan sport", systemImage: "figure.mixed.cardio").font(Theme.label(14)).foregroundStyle(.white)

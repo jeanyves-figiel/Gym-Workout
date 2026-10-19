@@ -202,16 +202,15 @@ enum MissedStyle {
 /// A missed day opens the catch-up sheet; any other day is picked and the Next up card follows it (#277).
 struct WeekDayStrip: View {
     /// Day the Next up card shows (#277), white in the strip; nil = the next session's.
+    /// Days count from this week's Monday (#481): 1…7 = this week's weekday, 8… later weeks, 0 and below last week.
     var selected: Int? = nil
-    /// Tap on a day of this week that isn't missed (#277): the Next up card follows it. Missed days open the catch-up sheet.
+    /// Tap on any day that isn't missed (#277, #481): the Next up card follows it. Missed days open the catch-up sheet.
     var onPick: (Int) -> Void = { _ in }
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @State private var catchUp: DayPick?
     /// Swipe pages of 7 days (#464): page 0 has today in the middle.
     @State private var page: Int? = 0
-    @State private var laterDay: DaySelection?
-    @State private var showsHistory = false
 
     struct DayPick: Identifiable { let id: Int }
 
@@ -261,10 +260,6 @@ struct WeekDayStrip: View {
                 .accessibilityHidden(true)
             }
             .sheet(item: $catchUp) { MissedCatchUpSheet(weekday: $0.id) }
-            .modifier(LaterDaySheets(day: $laterDay))
-            .sheet(isPresented: $showsHistory) {
-                NavigationStack { HistoryView().toolbar { CloseToolbarItem { showsHistory = false } } }
-            }
         }
     }
 
@@ -288,15 +283,19 @@ struct WeekDayStrip: View {
             let climb = w.climbing.contains(wd)
             let sport = model.profile?.sportDays(on: date).first { $0.weekday == wd }?.sport
             let state: DayState = session != nil ? .planned : climb ? .climb : sport.map { DayState.sport($0) } ?? .rest
-            Button { laterDay = DaySelection(week: w, weekday: wd, current: false) } label: { cell(wd, day: n, isToday: false, state: state) }
+            Button { onPick(fromMonday + 1) } label: { cell(wd, day: n, isToday: false, state: state, picked: selected == fromMonday + 1) }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(selected == fromMonday + 1 ? .isSelected : [])
                 .accessibilityLabel("\(label): \(session?.displayTitle ?? (climb ? "climbing day" : sport.map { "\($0.label) day" } ?? "rest day"))")
         } else if week < 0 {
             let trained = pastDays.contains(cal.startOfDay(for: date))
-            Button { showsHistory = true } label: { cell(wd, day: n, isToday: false, state: trained ? .done : .rest).opacity(trained ? 1 : 0.6) }
+            let picked = selected == fromMonday + 1
+            Button { onPick(fromMonday + 1) } label: {
+                cell(wd, day: n, isToday: false, state: trained ? .done : .rest, picked: picked).opacity(trained || picked ? 1 : 0.6)
+            }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(label): \(trained ? "trained" : "no session")")
-                .accessibilityHint("Open History")
+                .accessibilityAddTraits(picked ? .isSelected : [])
         } else {
             cell(wd, day: n, isToday: false, state: .rest).opacity(0.25).accessibilityHidden(true)
         }
