@@ -41,6 +41,8 @@ struct TrainingProfileView: View {
                                 .buttonStyle(.plain)
                         }
                     }
+                    // Lift Focus (#499): peak one lift for a target.
+                    LiftFocusCard()
                     // Start fresh (#492): a brand new plan, history kept.
                     FreshStartCard()
                 }

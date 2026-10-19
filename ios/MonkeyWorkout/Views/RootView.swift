@@ -331,6 +331,10 @@ private struct DemoScreen: View {
             }
         case "profile": NavigationStack { TrainingProfileView().navigationTitle("Training profile") }
         case "fresh-start": FreshStartSheet()
+        case "lift-lab": NavigationStack { LiftLabView(exerciseId: "bench-press") }
+        case "lift-focus": NavigationStack { LiftFocusView() }
+        case "lift-focus-setup": LiftFocusSheet(exerciseId: "bench-press")
+        case "set-style": SetStyleSheet(exercise: Exercise.get("bench-press"))
         case "taste": NavigationStack { TasteView() }
         case "profile-gym", "profile-gym-add": NavigationStack { ProfileSectionView(section: .gym) }
         case "profile-goal", "profile-goal-focus":

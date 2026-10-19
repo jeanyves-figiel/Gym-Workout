@@ -83,6 +83,11 @@ struct ExerciseDetailView: View {
                 }
                 ExerciseProgressCard(exerciseId: e.id, plannedUid: plannedUid)
                 PRCard(exerciseId: e.id)
+                // Lift Lab and Pro Sets (#499).
+                if ProSets.eligible(e) {
+                    LiftLabCard(exercise: e)
+                    SetStyleCard(exercise: e)
+                }
                 BarSpeedSection(exercise: e)
 
                 EquipmentSection(equipment: e.equipment)

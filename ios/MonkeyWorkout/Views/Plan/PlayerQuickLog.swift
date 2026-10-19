@@ -242,8 +242,16 @@ struct CurrentSetCard: View {
                         .background(Capsule().fill(.white.opacity(0.12)))
                 }
             }
-            if editing == nil, done == 0, let s = state.suggestion, state.rows.first?.logged == false {
+            // Pro Sets (#499): warm-up ramp before the first set, then each set's role and the plates to load.
+            let warmups = editing == nil && done == 0 && state.rows.first?.logged == false ? state.warmups : []
+            if !warmups.isEmpty {
+                WarmupLine(steps: warmups)
+            } else if editing == nil, done == 0, let s = state.suggestion, state.rows.first?.logged == false {
                 Text(s.reason).font(.caption).foregroundStyle(Theme.muted).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            if !allDone, state.rows.indices.contains(i) {
+                ProSetLine(set: state.plannedSet(i), kg: SetLogState.parseKg(state.rows[i].kg),
+                           bar: state.item.flatMap { Exercise.find($0.exerciseId) }.flatMap(Plates.barKg), color: color)
             }
             if !allDone {
                 HStack(spacing: 10) {

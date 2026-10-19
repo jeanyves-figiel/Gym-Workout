@@ -35,6 +35,10 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var progressBoard: ProgressBoard?
     /// Programmes the member made or copied (#269).
     var customProgrammes: [Programme]?
+    /// Lift Focus block in progress (#499).
+    var liftFocus: LiftFocus?
+    /// Set style per exercise id (#499, Pro Sets); missing = straight sets.
+    var setStyles: [String: SetStyle]?
     /// Monday ("yyyy-MM-dd") of the calendar week the plan belongs to (#266); a new calendar week moves the plan on.
     var weekOf: String?
     /// Exercise lists the member edited before starting (#295): plan sessions of this week and library workouts.
