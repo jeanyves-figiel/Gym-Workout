@@ -5,7 +5,7 @@ import Foundation
 
 /// What a widget shows.
 enum HomeWidgetTopic: String, Codable, CaseIterable, Identifiable, Sendable {
-    case nextUp, week, streak, readiness, level, records, lastWorkout, volume, climbing, dashboard
+    case nextUp, week, streak, readiness, level, records, lastWorkout, volume, climbing, fuel, dashboard
 
     var id: String { rawValue }
 
@@ -20,6 +20,7 @@ enum HomeWidgetTopic: String, Codable, CaseIterable, Identifiable, Sendable {
         case .lastWorkout: "Last workout"
         case .volume: "Volume"
         case .climbing: "Climbing"
+        case .fuel: "Fuel"
         case .dashboard: "Week dashboard"
         }
     }
@@ -35,6 +36,7 @@ enum HomeWidgetTopic: String, Codable, CaseIterable, Identifiable, Sendable {
         case .lastWorkout: "clock.arrow.circlepath"
         case .volume: "chart.bar.fill"
         case .climbing: "figure.climbing"
+        case .fuel: "fork.knife"
         case .dashboard: "square.grid.2x2.fill"
         }
     }
@@ -51,6 +53,7 @@ enum HomeWidgetTopic: String, Codable, CaseIterable, Identifiable, Sendable {
         case .lastWorkout: (0x11998E, 0x38EF7D)
         case .volume: (0x1E9BFF, 0x3DFFB0)
         case .climbing: (0xFF7A18, 0xAF002D)
+        case .fuel: (0xFF8A3D, 0xFF3D7F)
         case .dashboard: (0xFF3CAC, 0x784BA0)
         }
     }
@@ -62,7 +65,7 @@ enum HomeWidgetTopic: String, Codable, CaseIterable, Identifiable, Sendable {
     static func offered(for size: HomeWidgetSize) -> [HomeWidgetTopic] {
         switch size {
         case .large: allCases
-        case .lock: [.nextUp, .week, .streak, .readiness, .level, .climbing]
+        case .lock: [.nextUp, .week, .streak, .readiness, .level, .climbing, .fuel]
         default: allCases.filter { $0 != .dashboard }
         }
     }
@@ -244,6 +247,17 @@ struct HomeWidgetSnapshot: Codable, Equatable, Sendable {
         var volumeKg: Double
     }
 
+    /// Today's Fuel (#496): the day's load, protein portions and glasses against the plan, the next meal.
+    struct Fueling: Codable, Equatable, Sendable {
+        var headline: String
+        var palms: Int
+        var palmsTarget: Int
+        var glasses: Int
+        var glassesTarget: Int
+        var next: String?
+        var nextTime: String?
+    }
+
     struct Climbing: Codable, Equatable, Sendable {
         var thisWeek: Int
         var lastDate: Date?
@@ -281,6 +295,8 @@ struct HomeWidgetSnapshot: Codable, Equatable, Sendable {
     /// Kg lifted in each of the last 4 weeks, oldest first.
     var volumeWeeks: [Double] = []
     var climbing = Climbing(thisWeek: 0)
+    /// Optional so a file written before Fuel still decodes.
+    var fuel: Fueling?
 
     var weekDone: Bool { target > 0 && done >= target }
     var toGoal: Int { max(0, target - done) }
@@ -352,6 +368,7 @@ enum HomeWidgetLink {
         switch topic {
         case .nextUp, .dashboard, .week: snap.next.map { session($0.id) } ?? tab("train")
         case .climbing: tab("climbing")
+        case .fuel: tab("fuel")
         case .level: tab("level")
         case .readiness: tab("readiness")
         case .streak, .records, .lastWorkout, .volume: tab("progress")

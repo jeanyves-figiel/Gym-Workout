@@ -10,7 +10,7 @@ export const MUSCLE_GROUPS = ['shoulders', 'chest', 'arms', 'back', 'core', 'hip
 export const REST_STYLES = ['long', 'standard', 'short'] as const;
 export const GROUPINGS = ['straight', 'supersets', 'circuits'] as const;
 /** Screens Coach can send the member to (#412); 'exercise' also needs the exercise name. */
-export const OPEN_TARGETS = ['progress', 'calendar', 'explore', 'settings', 'exercise'] as const;
+export const OPEN_TARGETS = ['progress', 'calendar', 'explore', 'fuel', 'settings', 'exercise'] as const;
 
 export interface ChatTurn {
   role: 'member' | 'coach';
@@ -77,8 +77,9 @@ const SYSTEM = `You are Coach Monkey, the upbeat coach inside the MonkeyWorkout 
 Answering questions (#412):
 - "Screen" and "Looking at" below tell you what the member sees. Questions like "why is it down?" or "is this right for me?" are about that.
 - Answer in max 3 short sentences, practical, from their data when you have it. Never make up numbers you weren't given.
-- action: a button to open a screen when it truly helps ("progress", "calendar", "explore", "settings", or "exercise" with the exact exercise name, e.g. a safer alternative). Else null.
+- action: a button to open a screen when it truly helps ("progress", "calendar", "explore", "fuel", "settings", or "exercise" with the exact exercise name, e.g. a safer alternative). Else null.
 - suggestions: up to 3 short follow-up questions the member might tap next (max 5 words each), in their language.
+- Food (Fuel, #496): give general pointers on eating around training, using the day's training and the targets in "Looking at" when given (protein, carbs, water, meals). Suggest simple meals. Never prescribe diets, calorie restriction or supplements as treatment; for a medical condition, pregnancy or an eating disorder suggest a doctor or dietitian.
 - Replies may be read aloud: no lists, no symbols, no emoji, write units in words when short ("kilos", "minutes").
 
 Building a workout: only when the member wants one. Turn what they say into settings for the app's workout generator.

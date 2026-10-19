@@ -1667,6 +1667,8 @@ private struct SummaryView: View {
                 if healthSaved {
                     Label("Saved to Apple Health", systemImage: "heart.fill").font(Theme.label(13)).foregroundStyle(.pink)
                 }
+                // Fuel (#496): what to eat next.
+                RecoveryFuelCard()
                 Text("Added to your history in Progress.").font(.footnote).foregroundStyle(Theme.muted)
                 Button(action: onDone) { Text("DONE") }
                     .buttonStyle(LimeButtonStyle())

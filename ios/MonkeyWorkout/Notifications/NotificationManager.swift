@@ -190,6 +190,31 @@ final class NotificationManager: NSObject {
                        trigger: UNTimeIntervalNotificationTrigger(timeInterval: 3600, repeats: false))
     }
 
+    // MARK: Fuel (#496)
+
+    /// One refuel reminder a day, 90 min after a workout, unless the recovery meal was counted (then cancelled)
+    /// or it would land in quiet hours or after 22:00.
+    func scheduleRefuel(dayKey: String, now: Date = Date()) async {
+        await refreshAuthorization()
+        guard allowed else { return }
+        let at = now.addingTimeInterval(90 * 60)
+        let cal = Calendar.current
+        let minute = cal.component(.hour, from: at) * 60 + cal.component(.minute, from: at)
+        guard cal.isDate(at, inSameDayAs: now), minute < 22 * 60, !prefs.isQuiet(minute) else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Refuel time 🍽️"
+        content.body = "Protein and carbs help you recover. Open Fuel for ideas that fit today."
+        content.sound = .default
+        content.threadIdentifier = "fuel"
+        content.userInfo = ["kind": "fuel"]
+        try? await center.add(UNNotificationRequest(identifier: "fuel|\(dayKey)", content: content,
+                                                    trigger: UNTimeIntervalNotificationTrigger(timeInterval: 90 * 60, repeats: false)))
+    }
+
+    func cancelRefuel(dayKey: String) {
+        center.removePendingNotificationRequests(withIdentifiers: ["fuel|\(dayKey)"])
+    }
+
     private func postMove(id: String, title: String, body: String, trigger: UNNotificationTrigger?) async {
         let content = UNMutableNotificationContent()
         content.title = title

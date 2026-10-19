@@ -160,6 +160,7 @@ struct ProgressTabView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Edit Progress")
                 .accessibilityHint("Add, remove, resize and reorder the widgets on this screen")
+                SettingsAvatar()
             }
         }
         .padding(.top, 4)

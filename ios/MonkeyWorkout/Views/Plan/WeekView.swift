@@ -270,6 +270,7 @@ struct WeekView: View {
                     .accessibilityLabel("Edit Train")
                     .accessibilityHint("Add, remove, resize and reorder the widgets on this screen")
                 LevelChip()
+                SettingsAvatar()
             }
         }
         .padding(.top, 4)
@@ -389,6 +390,8 @@ struct WeekView: View {
             }
         case .move:
             MoveWidget(size: w.size, arranging: arranging)
+        case .fuel:
+            FuelWidget(size: w.size)
         case .thisWeek:
             thisWeek(plan: plan, profile: profile, quest: (w.look ?? (WatchHomePref.shared.style == .deck ? .quest : .list)) == .quest)
         }

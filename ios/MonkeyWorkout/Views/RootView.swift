@@ -43,7 +43,8 @@ struct RootView: View {
     }
 }
 
-enum MainTab: Hashable { case train, explore, progress, community, account }
+/// Settings left the tab bar for the avatar (#496): iOS shows 5 tabs, Fuel took its place.
+enum MainTab: Hashable { case train, explore, progress, fuel, community }
 
 struct MainTabView: View {
     @Environment(AppModel.self) private var model
@@ -64,18 +65,24 @@ struct MainTabView: View {
             NavigationStack { ProgressTabView() }
                 .tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
                 .tag(MainTab.progress)
+            NavigationStack { FuelView() }
+                .tabItem { Label("Fuel", systemImage: "fork.knife") }
+                .tag(MainTab.fuel)
             NavigationStack { CommunityView() }
                 .tabItem { Label("Community", systemImage: "person.3.fill") }
                 .tag(MainTab.community)
-            NavigationStack { AccountView() }
-                .tabItem { Label("Settings", systemImage: "gearshape.fill") }
-                .tag(MainTab.account)
         }
         .toolbarBackground(Theme.bg, for: .tabBar)
         .sidebarAdaptableTabs()
         // Ask Coach everywhere (#412 A): the floating 🐵 and its chat, which knows the screen on top.
         .overlay { if coachBubble { AskCoachBubble() } }
         .sheet(item: $ask.request) { r in CoachChatView(ask: r) }
+        // Settings (#496): the avatar at the top right of every tab.
+        .sheet(isPresented: Bindable(model).settingsOpen) {
+            NavigationStack {
+                AccountView().toolbar { CloseToolbarItem { model.settingsOpen = false } }
+            }
+        }
         // Community profile early so auto-share works for the first workout of the session.
         .task(id: model.user?.id) {
             await Community.shared.load(api: model.api, userId: model.user?.id)
@@ -396,6 +403,22 @@ private struct DemoScreen: View {
         case "train-customise": TrainCustomiseSheet()
         case "gyms": GymFinderView(place: "Zürich")
         case "move": MoveSessionSheet(sessionId: second)
+        // Fuel (#496).
+        case "fuel", "fuel-timeline", "fuel-portions": NavigationStack { FuelView() }
+        case "fuel-recipes": NavigationStack { RecipeBrowserView() }
+        case "recipe": NavigationStack { RecipeDetailView(recipe: RecipeBook.catalog[0]) }
+        case "cook-mode": CookModeView(recipe: RecipeBook.catalog[0], servings: RecipeBook.catalog[0].servings)
+        case "fuel-pantry": NavigationStack { PantryView() }
+        case "meal-plan":
+            NavigationStack { MealPlanView() }
+                .onAppear { if FuelStore.shared.saved.plan.isEmpty { model.planMeals() } }
+        case "groceries":
+            NavigationStack { GroceriesView() }
+                .onAppear { if FuelStore.shared.saved.plan.isEmpty { model.planMeals() } }
+        case "fuel-week": NavigationStack { FuelWeekView() }
+        case "fuel-learn": NavigationStack { FuelLearnView() }
+        case "fuel-setup": NavigationStack { FuelSetupView(sheet: true) }
+        case "share-recipe": ShareRecipeSheet(recipe: RecipeBook.catalog[0])
         case "whats-new": if let n = WhatsNew.current { WhatsNewView(notes: n) }
         case "whats-new-history": NavigationStack { WhatsNewHistoryView(latest: WhatsNew.current, history: WhatsNew.history) }
         case "add-workout": AddWorkoutSheet()

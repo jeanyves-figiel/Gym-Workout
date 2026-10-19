@@ -56,6 +56,16 @@ struct HomeStatRows: View {
                         value: p.records.isEmpty ? "›" : "\(p.records.count) PR", tint: (0x3D5AFF, 0x7B3DFF))
             }
             .buttonStyle(.plain)
+            // Fuel water (#496): a tap adds a glass on the iPhone too.
+            if let water = snap.water {
+                Button { store.addGlass() } label: {
+                    HomeRow(symbol: "drop.fill", title: "Water +1", value: "\(water.today())/\(water.target)", tint: (0x1E9BFF, 0x3DD9FF))
+                }
+                .buttonStyle(.plain)
+                .sensoryFeedback(.increase, trigger: water.today())
+                .accessibilityLabel("Add a glass of water")
+                .accessibilityValue("\(water.today()) of \(water.target) glasses today")
+            }
             // Other sports (#418): snowboard, MTB, hike, Hyrox… tracked in the background with GPS.
             NavigationLink { SportPickerView() } label: {
                 HomeRow(symbol: "figure.mixed.cardio", title: "Track a sport", value: "›", tint: (0x00A3C4, 0x7DF9FF))

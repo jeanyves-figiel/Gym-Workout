@@ -46,5 +46,12 @@ export const ensureGymSchema = (db: DB): void => {
       count INTEGER NOT NULL,
       PRIMARY KEY (user_id, day)
     );
+    -- Food scan (#496): fridge / receipt photos per member per day (the photo itself is never kept).
+    CREATE TABLE IF NOT EXISTS food_scan_usage (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      count INTEGER NOT NULL,
+      PRIMARY KEY (user_id, day)
+    );
   `);
 };

@@ -58,6 +58,7 @@ struct CommunityView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Your community profile")
             }
+            SettingsAvatar()
         }
         .padding(.top, 4)
     }

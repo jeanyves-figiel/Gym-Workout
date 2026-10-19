@@ -274,7 +274,10 @@ struct CoachChatView: View {
         switch a.target {
         case "progress": go(.progress)
         case "explore": go(.explore)
-        case "settings": go(.account)
+        case "settings":
+            dismiss()
+            Task { try? await Task.sleep(for: .milliseconds(450)); model.settingsOpen = true }
+        case "fuel": go(.fuel)
         case "calendar": opening = .calendar
         default:
             if let e = a.exercise.flatMap({ Exercise.named($0) }) { opening = .exercise(e.id) }

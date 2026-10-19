@@ -41,6 +41,7 @@ struct AccountView: View {
         static let coach = "Workout coach voice monkey hype chill drill haptics ask coach bubble microphone talk mic hands-free"
         static let reminders = "Reminders alerts notifications quiet hours check-in achievements"
         static let climbing = "Around climbing days climbing wall session before after"
+        static let fuel = "Fuel nutrition food diet meals protein water allergies vegan vegetarian halal recipes no numbers"
         static let watchStart = "Start from iPhone apple watch ask auto"
         static let action = "Action button apple watch ultra"
         static let lift = "Lift sensor beta apple watch reps bar speed velocity"
@@ -62,7 +63,7 @@ struct AccountView: View {
         static let report = "Report a problem bug feedback broken idea shake screenshot"
 
         static let you = [pro, profile, gym, body]
-        static let training = [method, flow, coach, reminders, climbing]
+        static let training = [method, flow, coach, reminders, climbing, fuel]
         static let watch = [watchStart, action, lift]
         static let look = [style, widgets, monkeyGrade]
         static let account = [password, email, security, devices, lock, export, signOut, delete]
@@ -234,6 +235,13 @@ struct AccountView: View {
                 if search.matches(Find.reminders) {
                     NavigationLink { NotificationSettingsView() } label: {
                         SettingsRow(symbol: "bell.badge.fill", title: "Reminders & alerts")
+                    }
+                    .buttonStyle(.plain)
+                }
+                // Fuel (#496): goal, diet, avoid list, meals, day times, No numbers.
+                if search.matches(Find.fuel) {
+                    NavigationLink { FuelSetupView() } label: {
+                        SettingsRow(symbol: "fork.knife", title: "Fuel")
                     }
                     .buttonStyle(.plain)
                 }

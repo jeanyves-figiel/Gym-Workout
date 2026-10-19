@@ -372,6 +372,10 @@ final class WatchSync: NSObject {
         s.liftLearned = LiftLearning.shared.levels
         s.hyrox = model.watchHyrox(start: WatchSync.shared.hyroxStart)
         s.sportStart = WatchSync.shared.sportStart
+        let today = Date()
+        let fuel = FuelStore.shared
+        s.water = WWater(day: fuel.key(today), glasses: fuel.log(today).glasses, target: model.fuelPlan(on: today).glasses,
+                         glassMl: fuel.prefs.glassMl)
         let target = model.profile?.sessionsPerWeek ?? 3
         let stats = Progression.stats(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
         s.progress = WProgress(
@@ -448,6 +452,13 @@ extension WatchSync: WCSessionDelegate {
     }
 
     nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        if let day = userInfo[WatchKeys.water] as? String {
+            Task { @MainActor in
+                guard let model = self.model, let date = PlanCalendar.date(day, Progression.calendar()) else { return }
+                FuelStore.shared.addGlass(dayKey: day, plan: model.fuelPlan(on: date))
+            }
+            return
+        }
         guard let data = userInfo[WatchKeys.event] as? Data, let event = try? JSONDecoder.watch.decode(WatchEvent.self, from: data) else { return }
         Task { @MainActor in self.apply(event) }
     }

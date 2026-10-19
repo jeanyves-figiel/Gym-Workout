@@ -30,6 +30,8 @@ final class AppModel {
     var finishedProgramme: ProgrammeRecord?
     /// Selected tab, so Train widgets (#260) can open Progress.
     var tab: MainTab = .train
+    /// Settings sheet, opened from the avatar on every tab (#496).
+    var settingsOpen = false
     /// Progress section to scroll to when Progress opens from a Train widget (#260).
     var progressJump: ProgressSection?
     /// Explore mode to show when Explore opens from elsewhere, e.g. Progress → Programmes with none started (#345).
@@ -269,6 +271,7 @@ final class AppModel {
         // Personal copies outside state.json: cached Health readings, the data export, HTTP responses.
         HealthManager.clearCache()
         MoveStore.shared.signOut()
+        FuelStore.shared.signOut()
         // The MonkeyGrade sign-in and the Watch upload key live in this device's Keychain, not in state.json.
         MonkeyGradeLink.shared.disconnect()
         clearWatchUploadKey()
