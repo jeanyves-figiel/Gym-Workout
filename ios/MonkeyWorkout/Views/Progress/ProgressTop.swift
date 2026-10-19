@@ -194,6 +194,8 @@ struct StreakRow: View {
     let thisWeek: Int
     let target: Int
     let fresh: Bool
+    /// Streak shields held (#501).
+    var shields = 0
 
     var body: some View {
         HStack(spacing: 12) {
@@ -223,7 +225,7 @@ struct StreakRow: View {
     private var caption: String {
         if fresh { return "Your streak starts with session one · goal \(target) a week" }
         let left = max(0, target - thisWeek)
-        return "Best \(best) wk · " + (left == 0 ? "Week goal hit" : "\(left) more this week")
+        return "Best \(best) wk · " + (shields > 0 ? "🛡 \(shields) · " : "") + (left == 0 ? "Week goal hit" : "\(left) more this week")
     }
 }
 

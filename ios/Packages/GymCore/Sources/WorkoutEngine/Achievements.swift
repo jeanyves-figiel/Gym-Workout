@@ -123,15 +123,8 @@ public enum Achievements {
         }
     }
 
-    /// Consecutive weeks meeting the target, ending with the week containing `date`
-    /// (that week counts only if already met).
+    /// Week streak (with shields, #501) at the week containing `date`; that week counts only if already met.
     private static func streak(endingAt date: Date, counts: [Date: Int], target: Int, cal: Calendar) -> Int {
-        var w = Progression.weekStart(date, cal)
-        var n = 0
-        while (counts[w] ?? 0) >= target {
-            n += 1
-            w = cal.date(byAdding: .weekOfYear, value: -1, to: w)!
-        }
-        return n
+        StreakRun.evaluate(counts: counts, target: target, through: Progression.weekStart(date, cal), calendar: cal).current
     }
 }

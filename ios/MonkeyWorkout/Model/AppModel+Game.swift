@@ -44,3 +44,27 @@ extension AppModel {
         UserDefaults.standard.set(thisWeekStart.timeIntervalSince1970, forKey: Self.chestSeenKey)
     }
 }
+
+// MARK: - Kind streaks + Wins you missed (#501)
+
+extension AppModel {
+    /// "Welcome back" after a break, or the Comeback quest still running.
+    var comeback: Comeback? { Comeback.current(records: state.history) }
+
+    func feel(of id: UUID) -> Feel? { state.feels?[id].flatMap(Feel.init(rawValue:)) }
+
+    func setFeel(_ f: Feel, for id: UUID) {
+        var all = state.feels ?? [:]
+        all[id] = f.rawValue
+        state.feels = all
+        persist()
+    }
+
+    /// Three personal wins for a finished workout.
+    func wins(for r: WorkoutRecord) -> [Win] {
+        let feels = state.history.filter { $0.id != r.id && $0.startedAt < r.startedAt }
+            .sorted { $0.startedAt < $1.startedAt }
+            .compactMap { feel(of: $0.id) }
+        return Wins.find(record: r, history: state.history, weights: weightEntries, targetPerWeek: gameTarget, feels: feels)
+    }
+}

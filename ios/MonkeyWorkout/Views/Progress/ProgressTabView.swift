@@ -192,7 +192,8 @@ struct ProgressTabView: View {
                 WeekChestCard { opened = .training }
             }
         case .streak:
-            StreakRow(current: s.currentStreakWeeks, best: s.bestStreakWeeks, thisWeek: s.thisWeek, target: target, fresh: fresh)
+            StreakRow(current: s.currentStreakWeeks, best: s.bestStreakWeeks, thisWeek: s.thisWeek, target: target, fresh: fresh,
+                      shields: s.streakShields)
         case .training, .body, .records, .badges, .muscles, .programmes:
             let section = w.kind.section
             Button {

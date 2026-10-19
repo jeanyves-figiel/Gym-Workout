@@ -37,6 +37,9 @@ public struct ProgressStats: Sendable {
     public var totalSets = 0
     public var currentStreakWeeks = 0
     public var bestStreakWeeks = 0
+    /// Streak shields held (#501) and whether one saved last week.
+    public var streakShields = 0
+    public var shieldSavedLastWeek = false
     public var thisWeek = 0
     /// Last 12 weeks, oldest first.
     public var weeks: [WeekBucket] = []
@@ -87,26 +90,12 @@ public enum Progression {
             let w = cal.date(byAdding: .weekOfYear, value: -i, to: thisWeek)!
             return perWeek[w] ?? WeekBucket(weekStart: w, workouts: 0, minutes: 0, volumeKg: 0)
         }
-        let target = max(1, targetPerWeek)
-        let met = { (w: Date) in (perWeek[w]?.workouts ?? 0) >= target }
-        // Current streak: completed past weeks meeting target, plus this week if already met.
-        var streak = met(thisWeek) ? 1 : 0
-        var w = cal.date(byAdding: .weekOfYear, value: -1, to: thisWeek)!
-        while met(w) {
-            streak += 1
-            w = cal.date(byAdding: .weekOfYear, value: -1, to: w)!
-        }
-        s.currentStreakWeeks = streak
-        if let first = sorted.first {
-            var best = 0, run = 0
-            var cursor = weekStart(first.startedAt, cal)
-            while cursor <= thisWeek {
-                run = met(cursor) ? run + 1 : 0
-                best = max(best, run)
-                cursor = cal.date(byAdding: .weekOfYear, value: 1, to: cursor)!
-            }
-            s.bestStreakWeeks = best
-        }
+        // Streaks with shields (#501): a missed past week uses a shield instead of resetting the streak.
+        let run = StreakRun.evaluate(counts: perWeek.mapValues(\.workouts), target: targetPerWeek, through: thisWeek, calendar: cal)
+        s.currentStreakWeeks = run.current
+        s.bestStreakWeeks = run.best
+        s.streakShields = run.shields
+        s.shieldSavedLastWeek = run.savedWeekBefore(thisWeek, calendar: cal)
 
         // PRs: heaviest logged weight per exercise.
         var best: [String: PersonalRecord] = [:]

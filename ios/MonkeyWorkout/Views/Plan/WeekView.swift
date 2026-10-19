@@ -43,6 +43,8 @@ struct WeekView: View {
                     }
                     // New week made with what the app learned (#299): the coach says what changed.
                     if !arranging, let recap = model.tasteRecap { TasteRecapCard(recap: recap) }
+                    // Kind streaks (#501): welcome back, Comeback quest, a shield that saved last week.
+                    if !arranging { KindStreakCards() }
                     // The member's widgets (#260); the default layout is the Train screen as it always was.
                     let layout = model.trainLayout
                     if !layout.contains(.nextUp), !arranging { notices(plan: plan, profile: profile) }

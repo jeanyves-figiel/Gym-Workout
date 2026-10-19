@@ -19,6 +19,8 @@ struct WorkoutPlayerView: View {
     @State private var record: WorkoutRecord?
     /// What this workout earned (#227): XP, level-up, week chest, new badges.
     @State private var reward: GameReward?
+    /// Wins you missed (#501) on the finish sheet.
+    @State private var wins: [Win] = []
 
     @State private var index = 0
     @State private var setsDone: [String: Int] = [:]
@@ -142,7 +144,8 @@ struct WorkoutPlayerView: View {
             if let session {
                 if finished {
                     SummaryView(session: session, elapsed: Date().timeIntervalSince(started), setsDone: setsDone.values.reduce(0, +),
-                                kcal: record?.kcal, healthSaved: health.connected && health.writeWorkouts, reward: reward) {
+                                kcal: record?.kcal, healthSaved: health.connected && health.writeWorkouts, reward: reward,
+                                wins: wins, recordId: record?.id) {
                         dismiss()
                     }
                     .transition(.scale.combined(with: .opacity))
@@ -1004,6 +1007,7 @@ struct WorkoutPlayerView: View {
             coach.say(.finish(sets: r.totalSets, volumeKg: r.volumeKg, minutes: max(1, r.durationSec / 60)), once: "finish")
             reward = GameReward(before: before.game, after: model.game, badgesBefore: before.badges, badgesAfter: model.badges)
             if reward?.weekCleared == true { model.markChestSeen() }
+            wins = model.wins(for: r)
             // A Watch tracking this workout saves the Health workout with its heart rate (#347).
             if !WatchSync.shared.watchTracks(sessionId) {
                 Task {
@@ -1303,6 +1307,7 @@ struct WorkoutPlayerView: View {
         }
         if demoMode == "done" {
             reward = Demo.reward
+            wins = Demo.wins
             finished = true
         }
         if demoMode == "next", let s = steps.firstIndex(where: { $0.loggable }), s < steps.count - 1 {
@@ -1634,6 +1639,8 @@ private struct SummaryView: View {
     let kcal: Double?
     let healthSaved: Bool
     var reward: GameReward?
+    var wins: [Win] = []
+    var recordId: UUID?
     let onDone: () -> Void
     @State private var pop = false
 
@@ -1652,6 +1659,8 @@ private struct SummaryView: View {
                         .padding(.top, 30)
                     Text("Session\ncomplete").font(Theme.display(48)).multilineTextAlignment(.center)
                 }
+                // Wins you missed (#501): three personal wins, even on a weak day, and how you feel now.
+                if !wins.isEmpty { WinsCard(wins: wins, recordId: recordId) }
                 HStack(spacing: 10) {
                     GradientStat(symbol: "stopwatch.fill", value: Format.elapsed(elapsed), label: "Time", gradient: WorkoutEngine.Category.cardio.gradient)
                     GradientStat(symbol: "square.stack.3d.up.fill", value: "\(setsDone)", label: "Sets", gradient: WorkoutEngine.Category.strength.gradient)
