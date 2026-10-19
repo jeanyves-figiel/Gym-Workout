@@ -41,6 +41,8 @@ struct TrainingProfileView: View {
                                 .buttonStyle(.plain)
                         }
                     }
+                    // Start fresh (#492): a brand new plan, history kept.
+                    FreshStartCard()
                 }
                 .padding(16)
             }
