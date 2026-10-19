@@ -1,6 +1,37 @@
 {
   "releases": [
     {
+      "id": "2026-10-18.4",
+      "build": 47,
+      "date": "2026-10-19",
+      "items": [
+        {
+          "symbol": "figure.snowboarding",
+          "tint": "cardio",
+          "title": "Plan your sports",
+          "body": "Climbing, snowboard, bike… each sport is a card with its days in Your week. Tap a coming day to plan a sport once, every week or a whole trip: no gym those days."
+        },
+        {
+          "symbol": "calendar.badge.clock",
+          "tint": "strength",
+          "title": "Next up looks ahead",
+          "body": "Week done? The Train card shows next week's first workout instead of Week complete."
+        },
+        {
+          "symbol": "gift.fill",
+          "tint": "warmup",
+          "title": "Never miss a chest",
+          "body": "Finished your week on the Watch? The chest still opens on Train. Progress now shows your week's XP and every chest."
+        },
+        {
+          "symbol": "square.and.arrow.up.fill",
+          "tint": "power",
+          "title": "Share any sport",
+          "body": "Runs, rides, ski days and climbs now go to Community, and auto share never misses a workout."
+        }
+      ]
+    },
+    {
       "id": "2026-10-18.3",
       "build": 46,
       "date": "2026-10-18",

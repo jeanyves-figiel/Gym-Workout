@@ -1,29 +1,17 @@
 {
-  "id": "2026-10-18.4",
+  "id": "2026-10-19.1",
   "items": [
     {
-      "symbol": "figure.snowboarding",
+      "symbol": "hand.tap.fill",
       "tint": "cardio",
-      "title": "Plan your sports",
-      "body": "Climbing, snowboard, bike… each sport is a card with its days in Your week. Tap a coming day to plan a sport once, every week or a whole trip: no gym those days."
+      "title": "Any day, right in the card",
+      "body": "Tap any day in the week strip on Train and it opens in the card, last week and coming weeks included. Coming workout days let you plan a sport or move the workout."
     },
     {
-      "symbol": "calendar.badge.clock",
+      "symbol": "square.grid.2x2.fill",
       "tint": "strength",
-      "title": "Next up looks ahead",
-      "body": "Week done? The Train card shows next week's first workout instead of Week complete."
-    },
-    {
-      "symbol": "gift.fill",
-      "tint": "warmup",
-      "title": "Never miss a chest",
-      "body": "Finished your week on the Watch? The chest still opens on Train. Progress now shows your week's XP and every chest."
-    },
-    {
-      "symbol": "square.and.arrow.up.fill",
-      "tint": "power",
-      "title": "Share any sport",
-      "body": "Runs, rides, ski days and climbs now go to Community, and auto share never misses a workout."
+      "title": "Cleaner Explore menu",
+      "body": "One bar: tap a section and it lights up in its colour."
     }
   ]
 }
