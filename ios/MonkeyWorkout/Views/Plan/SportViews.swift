@@ -106,13 +106,23 @@ extension AppModel {
 
 /// Under Start workout on Train (#462, design C from `other-sports/row-proposals.png`): one pill split in two, Log sport
 /// (a past session) and Track live (on the Watch). Without a paired Watch that has MonkeyWorkout, only Log sport.
+/// Build as I go (#490): `onFree` adds a first part that opens an empty workout in the player.
 struct SportSplitPill: View {
+    var onFree: (() -> Void)? = nil
+    var freeResumes = false
     let onLog: () -> Void
     let onTrack: () -> Void
     @State private var link = WatchLink.shared
 
     var body: some View {
         HStack(spacing: 0) {
+            if let onFree {
+                half(freeResumes ? "Freestyle" : "Build as I go", detail: freeResumes ? "resume" : "add as you train",
+                     symbol: "plus.square.on.square", ink: .white, action: onFree)
+                    .background(LinearGradient.freestyle)
+                    .accessibilityHint("Start an empty workout and add exercises as you train")
+                    .accessibilityIdentifier("train.freestyle")
+            }
             half("Log sport", detail: "past session", symbol: "plus.circle.fill", ink: .white, action: onLog)
                 .background(LinearGradient(colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)], startPoint: .leading, endPoint: .trailing))
                 .accessibilityHint("Log a sport session you already did: snowboard, bike, Hyrox…")
