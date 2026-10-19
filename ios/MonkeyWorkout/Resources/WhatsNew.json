@@ -1,17 +1,11 @@
 {
-  "id": "2026-10-19.1",
+  "id": "2026-10-19.2",
   "items": [
     {
-      "symbol": "hand.tap.fill",
+      "symbol": "arrow.left.and.right",
       "tint": "cardio",
-      "title": "Any day, right in the card",
-      "body": "Tap any day in the week strip on Train and it opens in the card, last week and coming weeks included. Coming workout days let you plan a sport or move the workout."
-    },
-    {
-      "symbol": "square.grid.2x2.fill",
-      "tint": "strength",
-      "title": "Cleaner Explore menu",
-      "body": "One bar: tap a section and it lights up in its colour."
+      "title": "Smooth week strip",
+      "body": "Slide the week strip on Train day by day. The day in the middle is magnified and opens in the card, and the strip stays where you left it."
     }
   ]
 }

@@ -209,15 +209,19 @@ struct WeekDayStrip: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @State private var catchUp: DayPick?
-    /// Swipe pages of 7 days (#464): page 0 has today in the middle.
-    @State private var page: Int? = 0
+    /// Leftmost cell in view (#486), in days from today; the day under the lens is `first + 3`.
+    @State private var first: Int?
+    @State private var width: CGFloat = 0
+    /// Pick after the strip settles (#486), so the card doesn't rebuild under the finger.
+    @State private var settle: Task<Void, Never>?
 
     struct DayPick: Identifiable { let id: Int }
 
-    /// One page back, two ahead (#464); days shown are at most 1 week back and 2 weeks ahead.
-    static let pages = Array(-1...2)
+    /// Days shown are at most 1 week back and 2 weeks ahead (#464); 3 blank cells each side let the end days reach the lens (#486).
     static let daysBack = 7
     static let daysAhead = 14
+    static let visible = 7
+    static let spacing: CGFloat = 5
 
     var body: some View {
         let sessions = model.plan?.sessions ?? []
@@ -228,39 +232,69 @@ struct WeekDayStrip: View {
             // Coming weeks as the calendar plans them (index 0 = this week).
             let weeks = model.calendarWeeks(count: 3)
             let pastDays = Set(model.historyItems(health: health).map { cal.startOfDay(for: $0.start) })
-            VStack(spacing: 7) {
-                ScrollViewReader { proxy in
-                    ScrollView(.horizontal) {
-                        HStack(spacing: 0) {
-                            ForEach(Self.pages, id: \.self) { p in
-                                HStack(spacing: 5) {
-                                    ForEach(-3...3, id: \.self) { o in
-                                        day(p * 7 + o, todayOffset: todayOffset, weekStart: weekStart, weeks: weeks, pastDays: pastDays, cal: cal)
-                                    }
+            let w = width
+            let step = (w - Self.spacing * CGFloat(Self.visible - 1)) / CGFloat(Self.visible) + Self.spacing
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal) {
+                    HStack(spacing: Self.spacing) {
+                        ForEach((-Self.daysBack - 3)...(Self.daysAhead + 3), id: \.self) { o in
+                            Group {
+                                if o < -Self.daysBack || o > Self.daysAhead {
+                                    Color.clear.accessibilityHidden(true)
+                                } else {
+                                    day(o, todayOffset: todayOffset, weekStart: weekStart, weeks: weeks, pastDays: pastDays, cal: cal)
                                 }
-                                .containerRelativeFrame(.horizontal)
-                                .id(p)
                             }
+                            .containerRelativeFrame(.horizontal, count: Self.visible, spacing: Self.spacing)
+                            // Centre lens (#486, design B): the middle day is big, neighbours shrink and fade.
+                            .visualEffect { content, geo in
+                                let d = step > 0 ? abs(geo.frame(in: .scrollView).midX - w / 2) / step : 0
+                                let scale = 1.18 - min(d, 1) * 0.22 - max(0, min(d, 4) - 1) * 0.08
+                                return content.scaleEffect(scale).opacity(max(0.35, 1 - max(0, d - 1) * 0.22))
+                            }
+                            .id(o)
                         }
-                        .scrollTargetLayout()
                     }
-                    .scrollTargetBehavior(.paging)
-                    .scrollIndicators(.hidden)
-                    .scrollPosition(id: $page)
-                    // Opens on today's page, not the first (last week).
-                    .onAppear { proxy.scrollTo(page ?? 0) }
+                    .padding(.vertical, 5)
+                    .scrollTargetLayout()
                 }
-                HStack(spacing: 5) {
-                    ForEach(Self.pages, id: \.self) { p in
-                        Capsule().fill(p == (page ?? 0) ? Theme.lime : .white.opacity(0.3))
-                            .frame(width: p == (page ?? 0) ? 14 : 5, height: 5)
+                .scrollTargetBehavior(.viewAligned)
+                .scrollIndicators(.hidden)
+                .scrollPosition(id: $first, anchor: .leading)
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+                .onAppear {
+                    let start = lensStart(todayOffset: todayOffset)
+                    first = start
+                    proxy.scrollTo(start, anchor: .leading)
+                }
+                // A tap or the card picking another day glides it under the lens.
+                .onChange(of: selected) {
+                    let start = lensStart(todayOffset: todayOffset)
+                    if first != start { withAnimation(.snappy) { proxy.scrollTo(start, anchor: .leading) } }
+                }
+                // Slide = pick (#486): the day that settles under the lens shows in the card.
+                .onChange(of: first) { _, f in
+                    settle?.cancel()
+                    guard let f else { return }
+                    let centre = min(max(f + 3, -Self.daysBack), Self.daysAhead)
+                    let pickDay = todayOffset + centre + 1
+                    guard pickDay != (selected ?? todayOffset + 1) else { return }
+                    settle = Task {
+                        try? await Task.sleep(for: .milliseconds(220))
+                        guard !Task.isCancelled else { return }
+                        onPick(pickDay)
                     }
                 }
-                .animation(.snappy, value: page)
-                .accessibilityHidden(true)
+                .onDisappear { settle?.cancel() }
             }
             .sheet(item: $catchUp) { MissedCatchUpSheet(weekday: $0.id) }
         }
+    }
+
+    /// Leftmost cell that puts the selected day (today when none) under the lens (#486).
+    private func lensStart(todayOffset: Int) -> Int {
+        let pick = selected.map { $0 - 1 - todayOffset } ?? 0
+        return min(max(pick, -Self.daysBack), Self.daysAhead) - 3
     }
 
     /// The day `offset` days from today (#464): this week as before, later weeks from the calendar, last week from History.
