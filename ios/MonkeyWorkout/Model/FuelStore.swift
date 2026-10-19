@@ -38,6 +38,8 @@ final class FuelStore {
         var lessWaste = true
         /// The member's own prices, CHF per kg (or litre), by food id.
         var prices: [String: Double] = [:]
+        /// `FuelMarket` id picked by the member (currency + local price level); nil = the phone's region.
+        var market: String?
     }
 
     private(set) var saved = Saved()
@@ -169,6 +171,12 @@ final class FuelStore {
     func setBudget(_ chf: Double?) {
         var s = saved
         s.budget = chf.map { max(10, min(1000, $0)) }
+        save(s)
+    }
+
+    func setMarket(_ id: String?) {
+        var s = saved
+        s.market = id
         save(s)
     }
 

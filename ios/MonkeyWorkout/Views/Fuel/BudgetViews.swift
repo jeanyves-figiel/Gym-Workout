@@ -35,9 +35,70 @@ enum BudgetLevel: String, CaseIterable, Identifiable {
     }
 }
 
+/// Where the member shops: the currency and how local grocery prices compare with the Swiss estimates.
+/// `factor` = local money for what costs CHF 1 in a Swiss supermarket (exchange rate × price level, 2026 averages).
+struct FuelMarket: Identifiable, Hashable {
+    let id: String
+    let currency: String
+    let label: String
+    let factor: Double
+
+    static let all: [FuelMarket] = [
+        .init(id: "CH", currency: "CHF", label: "Switzerland", factor: 1),
+        .init(id: "DE", currency: "EUR", label: "Germany", factor: 0.62),
+        .init(id: "FR", currency: "EUR", label: "France", factor: 0.72),
+        .init(id: "IT", currency: "EUR", label: "Italy", factor: 0.68),
+        .init(id: "AT", currency: "EUR", label: "Austria", factor: 0.72),
+        .init(id: "ES", currency: "EUR", label: "Spain", factor: 0.58),
+        .init(id: "NL", currency: "EUR", label: "Netherlands", factor: 0.65),
+        .init(id: "BE", currency: "EUR", label: "Belgium", factor: 0.70),
+        .init(id: "LI", currency: "CHF", label: "Liechtenstein", factor: 1),
+        .init(id: "GB", currency: "GBP", label: "United Kingdom", factor: 0.55),
+        .init(id: "US", currency: "USD", label: "United States", factor: 0.85),
+        .init(id: "CA", currency: "CAD", label: "Canada", factor: 1.05),
+        .init(id: "AU", currency: "AUD", label: "Australia", factor: 1.15),
+        .init(id: "SE", currency: "SEK", label: "Sweden", factor: 7.2),
+        .init(id: "NO", currency: "NOK", label: "Norway", factor: 8.5),
+        .init(id: "DK", currency: "DKK", label: "Denmark", factor: 5.0),
+        .init(id: "PL", currency: "PLN", label: "Poland", factor: 2.6),
+        .init(id: "CZ", currency: "CZK", label: "Czechia", factor: 15),
+        .init(id: "JP", currency: "JPY", label: "Japan", factor: 120),
+    ]
+
+    /// The member's pick, else the phone's region, else its currency, else Switzerland.
+    static func current(_ picked: String?) -> FuelMarket {
+        if let picked, let m = all.first(where: { $0.id == picked }) { return m }
+        if let region = Locale.current.region?.identifier, let m = all.first(where: { $0.id == region }) { return m }
+        if let code = Locale.current.currency?.identifier, let m = all.first(where: { $0.currency == code }) { return m }
+        return all[0]
+    }
+
+    /// Slider and level steps in this money.
+    var step: Double { max(1, (5 * factor).rounded()) }
+}
+
+/// Amounts are kept in CHF (the price estimates' money) and shown in the member's money.
+@MainActor
 enum BudgetFormat {
-    static func chf(_ v: Double) -> String { v >= 100 ? "CHF \(Int(v.rounded()))" : String(format: "CHF %.2f", v) }
-    static func short(_ v: Double) -> String { v >= 100 ? "\(Int(v.rounded()))" : String(format: "%.2f", v) }
+    static var market: FuelMarket { FuelMarket.current(FuelStore.shared.saved.market) }
+
+    static func local(_ chf: Double) -> Double { chf * market.factor }
+    static func toCHF(_ local: Double) -> Double { local / market.factor }
+
+    /// "CHF 74", "€4.90".
+    static func money(_ chf: Double) -> String {
+        let v = local(chf)
+        return v.formatted(.currency(code: market.currency).precision(.fractionLength(v >= 100 || market.factor >= 5 ? 0 : 2)))
+    }
+
+    /// Number only ("4.90").
+    static func short(_ chf: Double) -> String {
+        let v = local(chf)
+        return v >= 100 || market.factor >= 5 ? "\(Int(v.rounded()))" : String(format: "%.2f", v)
+    }
+
+    /// Whole amount in local money, rounded to the slider step.
+    static func whole(_ chf: Double) -> Double { (local(chf) / market.step).rounded() * market.step }
 }
 
 /// Top of the meal plan: the week basket.
@@ -57,14 +118,15 @@ struct BasketCard: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("WEEK BASKET").font(Theme.label(10)).tracking(1.2).opacity(0.85)
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text("CHF \(Int(basket.cost.rounded()))").font(Theme.display(32)).monospacedDigit()
-                        if let budget { Text("/ \(Int(budget.rounded()))").font(Theme.display(17)).opacity(0.75) }
+                        Text(BudgetFormat.money(basket.cost.rounded())).font(Theme.display(32)).monospacedDigit()
+                            .lineLimit(1).minimumScaleFactor(0.6)
+                        if let budget { Text("/ \(Int(BudgetFormat.local(budget).rounded()))").font(Theme.display(17)).opacity(0.75) }
                     }
                     Text("\(store.saved.planDays) days · \(store.saved.people) \(store.saved.people == 1 ? "person" : "people") · \(meals) meals")
                         .font(Theme.label(11)).opacity(0.9)
                     if let budget {
                         let over = basket.cost - budget
-                        Text(over > 0 ? "CHF \(Int(over.rounded())) over budget" : "CHF \(Int((-over).rounded())) under budget")
+                        Text(over > 0 ? "\(BudgetFormat.money(over.rounded())) over budget" : "\(BudgetFormat.money((-over).rounded())) under budget")
                             .font(Theme.label(11)).foregroundStyle(over > 0 ? Color(hex: 0xFFE14D) : .white)
                     }
                 }
@@ -133,13 +195,14 @@ struct BudgetSheet: View {
     @State private var store = FuelStore.shared
     @State private var amount: Double = 75
     @State private var limit = true
+    private var market: FuelMarket { FuelMarket.current(store.saved.market) }
 
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 6) {
                     ForEach(BudgetLevel.allCases) { level in
-                        let v = level.weekly(people: store.saved.people, mainOnly: store.saved.mainOnly)
+                        let v = BudgetFormat.whole(level.weekly(people: store.saved.people, mainOnly: store.saved.mainOnly))
                         let on = limit && abs(v - amount) < 0.5
                         Button {
                             amount = v
@@ -147,7 +210,7 @@ struct BudgetSheet: View {
                         } label: {
                             VStack(spacing: 2) {
                                 Text("\(level.emoji) \(level.label)").font(Theme.label(13))
-                                Text("CHF \(Int(v))").font(Theme.label(11)).opacity(0.8)
+                                Text(v.formatted(.currency(code: market.currency).precision(.fractionLength(0)))).font(Theme.label(11)).opacity(0.8)
                             }
                             .foregroundStyle(on ? Theme.ink : .white)
                             .frame(maxWidth: .infinity).padding(.vertical, 10)
@@ -160,14 +223,28 @@ struct BudgetSheet: View {
                 Toggle(isOn: $limit) { Text("Weekly budget").font(Theme.display(17)) }
                     .tint(Theme.lime)
                 if limit {
-                    Text("CHF \(Int(amount)) a week").font(Theme.display(30)).monospacedDigit()
-                    Slider(value: $amount, in: 20...400, step: 5).tint(Theme.lime)
-                    Text("For \(store.saved.people) \(store.saved.people == 1 ? "person" : "people"), \(store.saved.mainOnly ? "lunch and dinner" : "every meal"). Prices are Swiss supermarket averages; change one from the grocery list.")
+                    Text("\(amount.formatted(.currency(code: market.currency).precision(.fractionLength(0)))) a week")
+                        .font(Theme.display(30)).monospacedDigit()
+                    Slider(value: $amount, in: (20 * market.factor).rounded()...(400 * market.factor).rounded(), step: market.step)
+                        .tint(Theme.lime)
+                    Text("For \(store.saved.people) \(store.saved.people == 1 ? "person" : "people"), \(store.saved.mainOnly ? "lunch and dinner" : "every meal"). Prices are estimates for \(market.label); change one from the grocery list.")
                         .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
+                }
+                Menu {
+                    ForEach(FuelMarket.all) { m in
+                        Button("\(m.label) · \(m.currency)") {
+                            let chf = BudgetFormat.toCHF(amount)
+                            store.setMarket(m.id)
+                            amount = BudgetFormat.whole(chf)
+                        }
+                    }
+                } label: {
+                    Label("Prices for \(market.label) · \(market.currency)", systemImage: "globe.europe.africa.fill")
+                        .font(Theme.label(13)).foregroundStyle(Theme.lime)
                 }
                 Spacer()
                 Button("SAVE AND RE-PLAN") {
-                    store.setBudget(limit ? amount : nil)
+                    store.setBudget(limit ? BudgetFormat.toCHF(amount) : nil)
                     replan()
                     dismiss()
                 }
@@ -180,7 +257,7 @@ struct BudgetSheet: View {
             .toolbar { CloseToolbarItem { dismiss() } }
             .onAppear {
                 limit = store.saved.budget != nil
-                amount = store.saved.budget ?? BudgetLevel.normal.weekly(people: store.saved.people, mainOnly: store.saved.mainOnly)
+                amount = BudgetFormat.whole(store.saved.budget ?? BudgetLevel.normal.weekly(people: store.saved.people, mainOnly: store.saved.mainOnly))
             }
         }
         .preferredColorScheme(.dark)
@@ -223,14 +300,20 @@ struct PriceSheet: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 14) {
                 Text("\(food.emoji) \(food.name)").font(Theme.display(22))
-                Text("Estimate: CHF \(BudgetFormat.short(food.price ?? 0)) per \(food.group == .drink ? "litre" : "kg")")
+                Text("Estimate: \(BudgetFormat.money(food.price ?? 0)) per \(food.group == .drink ? "litre" : "kg")")
                     .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
-                TextField("Your price, CHF per \(food.group == .drink ? "litre" : "kg")", text: $text)
+                TextField("Your price, \(BudgetFormat.market.currency) per \(food.group == .drink ? "litre" : "kg")", text: $text)
                     .keyboardType(.decimalPad)
                     .card(padding: 14)
+                if BudgetFormat.market.id == "CH" {
+                    HStack(spacing: 8) {
+                        ShopLink(name: "Migros", food: food)
+                        ShopLink(name: "Coop", food: food)
+                    }
+                }
                 Spacer()
                 Button("SAVE") {
-                    store.setPrice(food.id, Double(text.replacingOccurrences(of: ",", with: ".")))
+                    store.setPrice(food.id, Double(text.replacingOccurrences(of: ",", with: ".")).map(BudgetFormat.toCHF))
                     dismiss()
                 }
                 .buttonStyle(LimeButtonStyle())
@@ -250,5 +333,31 @@ struct PriceSheet: View {
             .onAppear { text = store.saved.prices[food.id].map { BudgetFormat.short($0) } ?? "" }
         }
         .preferredColorScheme(.dark)
+    }
+}
+
+/// Opens the retailer's online shop search for a food (no API: a plain link, nothing is sent from the app).
+struct ShopLink: View {
+    let name: String
+    let food: Food
+
+    static func url(_ name: String, _ food: Food) -> URL? {
+        let q = food.name.replacingOccurrences(of: #"\s*\(.*\)"#, with: "", options: .regularExpression)
+            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        return switch name {
+        case "Migros": URL(string: "https://www.migros.ch/en/search?query=\(q)")
+        default: URL(string: "https://www.coop.ch/en/search/?text=\(q)")
+        }
+    }
+
+    var body: some View {
+        if let url = Self.url(name, food) {
+            Link(destination: url) {
+                Label("Find at \(name)", systemImage: "arrow.up.right.square")
+                    .font(Theme.label(13)).foregroundStyle(Theme.ink)
+                    .frame(maxWidth: .infinity).padding(.vertical, 10)
+                    .background(Capsule().fill(name == "Migros" ? Color(hex: 0xFF8A3D) : Color(hex: 0xFF5A4D)))
+            }
+        }
     }
 }

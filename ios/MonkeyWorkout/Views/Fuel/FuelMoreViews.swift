@@ -279,6 +279,24 @@ struct FuelSetupView: View {
                     }
                     .tint(Theme.lime)
                 }
+                section("🛒", "Prices & currency", FuelPalette.gradient(0x7A3DFF, 0xFF3DA8)) {
+                    let market = FuelMarket.current(store.saved.market)
+                    Menu {
+                        Button("From my iPhone's region") { store.setMarket(nil) }
+                        ForEach(FuelMarket.all) { m in
+                            Button("\(m.label) · \(m.currency)") { store.setMarket(m.id) }
+                        }
+                    } label: {
+                        HStack {
+                            Text("\(market.label) · \(market.currency)").font(.system(size: 15, weight: .heavy, design: .rounded))
+                            Spacer()
+                            Image(systemName: "chevron.up.chevron.down").font(.system(size: 13, weight: .bold))
+                        }
+                        .foregroundStyle(.white)
+                    }
+                    Text(store.saved.market == nil ? "From your iPhone's region. Meal plan prices are local estimates." : "Meal plan prices are local estimates.")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded)).opacity(0.85)
+                }
                 Text(FuelLearn.disclaimer).font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
             }
             .padding(16)

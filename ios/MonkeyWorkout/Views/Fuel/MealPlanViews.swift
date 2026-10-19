@@ -84,7 +84,7 @@ struct MealPlanView: View {
     private func swapTip(_ swap: CheaperSwap) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("💡 Save \(BudgetFormat.chf(swap.saves))").font(Theme.display(15))
+                Text("💡 Save \(BudgetFormat.money(swap.saves))").font(Theme.display(15))
                 Text("\(swap.from.emoji) \(swap.from.name) → \(swap.to.emoji) \(swap.to.name), \(model.fuelDayLabel(swap.meal.day))")
                     .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted).lineLimit(2)
             }
@@ -124,7 +124,7 @@ struct MealPlanView: View {
                         NavigationLink(value: r) {
                             VStack(alignment: .leading, spacing: 4) {
                                 let cost = m.leftover ? 0 : MealPlanner.cost(r, servings: m.servings, prices: store.saved.prices)
-                                Text("\(s.kind.emoji) \(s.title.uppercased()) · \(s.time)\(m.leftover ? " · LEFTOVERS ♻️" : "")\(m.pinned ? " · 📌" : "") · \(BudgetFormat.chf(cost))")
+                                Text("\(s.kind.emoji) \(s.title.uppercased()) · \(s.time)\(m.leftover ? " · LEFTOVERS ♻️" : "")\(m.pinned ? " · 📌" : "") · \(BudgetFormat.money(cost))")
                                     .font(Theme.label(10)).foregroundStyle(Theme.muted)
                                 RecipeRow(recipe: r)
                             }
@@ -260,7 +260,7 @@ struct GroceriesView: View {
                                     .foregroundStyle(store.saved.prices[i.food.id] != nil ? Theme.lime : .white)
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("Price \(BudgetFormat.chf(cost)), change")
+                            .accessibilityLabel("Price \(BudgetFormat.money(cost)), change")
                         }
                     }
                     Text(packText(i)).font(Theme.label(11)).foregroundStyle(Theme.muted)
