@@ -158,7 +158,7 @@ struct WorkoutPlayerView: View {
                         recent: model.recentExerciseIds(limit: 6).compactMap(Exercise.find).filter { e in !picks.contains { $0.id == e.id } },
                         onPick: { addFree([$0], jump: true) },
                         onBrowse: { freeBrowse = FreeBrowse(group: $0, jump: true) },
-                        onClose: discard)
+                        onClose: { closing = true })
                 }
             }
         }
@@ -221,13 +221,18 @@ struct WorkoutPlayerView: View {
             }
         }
         .confirmationDialog("Leave workout?", isPresented: $closing, titleVisibility: .visible) {
-            Button("See what's left") { mapOpen = true }
+            // Build as I go before the first exercise (#490): nothing to see, fit or save yet.
+            if !steps.isEmpty {
+                Button("See what's left") { mapOpen = true }
+            }
             Button("Pause · resume later") { pauseAndClose() }
-            Button("Short on time? Finish early") { finishingEarly = true }
-            Button("Finish & save now") { finish() }
+            if !steps.isEmpty {
+                Button("Short on time? Finish early") { finishingEarly = true }
+                Button("Finish & save now") { finish() }
+            }
             Button("Discard workout", role: .destructive) { discard() }
         } message: {
-            Text("Paused workouts continue at this exercise and set.")
+            Text(steps.isEmpty ? "Paused workouts continue where you left off." : "Paused workouts continue at this exercise and set.")
         }
         .animation(.spring(duration: 0.4), value: index)
         .animation(.spring(duration: 0.5), value: finished)
