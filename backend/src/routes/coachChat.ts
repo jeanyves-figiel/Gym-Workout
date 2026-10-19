@@ -21,6 +21,7 @@ const body = z.object({
       focus: z.string().max(300).optional(),
       pronouns: z.string().trim().max(30).optional(),
       callName: z.string().trim().max(30).optional(),
+      memory: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
     })
     .default({}),
 });

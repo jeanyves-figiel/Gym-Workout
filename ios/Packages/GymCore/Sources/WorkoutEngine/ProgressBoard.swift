@@ -12,6 +12,8 @@ public enum ProgressWidgetKind: String, Codable, CaseIterable, Sendable, Identif
     case sport
     /// This week's chest and XP earned, and the last 8 weeks' chests (#476).
     case chest
+    /// Growth path (#495): goal with its predicted date, milestones, what Monkey noticed.
+    case growth
 
     public var id: String { rawValue }
 
@@ -30,6 +32,7 @@ public enum ProgressWidgetKind: String, Codable, CaseIterable, Sendable, Identif
         case .weekly: "Sessions per week"
         case .sport: "Sport"
         case .chest: "Week chest"
+        case .growth: "Growth path"
         }
     }
 
@@ -48,12 +51,13 @@ public enum ProgressWidgetKind: String, Codable, CaseIterable, Sendable, Identif
         case .weekly: "Sessions per week with your goal"
         case .sport: "One sport: sessions, time and its best"
         case .chest: "This week's chest and XP, and the last 8 weeks"
+        case .growth: "Your goal, its predicted date and what Monkey noticed"
         }
     }
 
     public var sizes: [TrainWidgetSize] {
         switch self {
-        case .level, .streak, .consistency, .chest: [.wide]
+        case .level, .streak, .consistency, .chest, .growth: [.wide]
         case .training, .body, .records, .badges, .muscles, .programmes: [.small, .wide]
         case .history: [.small, .wide]
         case .weekly: [.wide, .large]
@@ -63,7 +67,7 @@ public enum ProgressWidgetKind: String, Codable, CaseIterable, Sendable, Identif
 
     public var defaultSize: TrainWidgetSize {
         switch self {
-        case .level, .streak, .history, .consistency, .weekly, .programmes, .chest: .wide
+        case .level, .streak, .history, .consistency, .weekly, .programmes, .chest, .growth: .wide
         default: .small
         }
     }
@@ -236,7 +240,7 @@ public struct ProgressBoard: Codable, Equatable, Sendable {
     /// The default board: today's Progress page as widgets.
     public static var classic: ProgressBoard {
         ProgressBoard([
-            ProgressWidget(.level), ProgressWidget(.chest), ProgressWidget(.streak),
+            ProgressWidget(.level), ProgressWidget(.chest), ProgressWidget(.streak), ProgressWidget(.growth),
             ProgressWidget(.training), ProgressWidget(.body), ProgressWidget(.records), ProgressWidget(.badges),
             ProgressWidget(.muscles), ProgressWidget(.programmes, size: .small),
             ProgressWidget(.history), ProgressWidget(.consistency), ProgressWidget(.weekly),
@@ -250,7 +254,7 @@ public struct ProgressBoard: Codable, Equatable, Sendable {
             return classic
         case .lifter:
             return ProgressBoard([
-                ProgressWidget(.streak), ProgressWidget(.records), ProgressWidget(.training), ProgressWidget(.weekly, size: .large),
+                ProgressWidget(.streak), ProgressWidget(.growth), ProgressWidget(.records), ProgressWidget(.training), ProgressWidget(.weekly, size: .large),
                 ProgressWidget(.muscles), ProgressWidget(.body), ProgressWidget(.history), ProgressWidget(.programmes, size: .small),
                 ProgressWidget(.badges),
             ])
