@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- **What's new 2026-10-19.3** (build 50): hold a day in the week strip (#488); 2026-10-19.2 moved to history as build 49.
 - **What's new 2026-10-19.2** (build 49): smooth week strip (#486); 2026-10-19.1 moved to history as build 48.
 - **What's new 2026-10-19.1** (build 48): week strip days open in the card (#481), cleaner Explore menu (#483); 2026-10-18.4 moved to history as build 47.
 - **Explore menu as a card bar** (#483, design C from `explore-menu/proposals-c.png`): the round icon dock and the live card above it did not match the app's square cards. Now one rounded bar like the 2D/3D switch: the picked section widens, fills with its colour and shows its name; the others are compact icon tiles in their colour. The top card is gone, so the body map, machines or lists start right under the bar. `ExploreMenu`.
