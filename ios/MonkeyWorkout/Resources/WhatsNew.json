@@ -12,6 +12,12 @@
       "tint": "strength",
       "title": "Build as I go",
       "body": "Unplanned session? Start empty and add exercises as you train. Coach suggests what's next."
+    },
+    {
+      "symbol": "arrow.counterclockwise.circle.fill",
+      "tint": "power",
+      "title": "Start fresh",
+      "body": "Want a totally new plan? Training profile → Start fresh. Keep your answers or answer again; history, PRs and XP stay."
     }
   ]
 }
