@@ -130,4 +130,47 @@ import Testing
         #expect(items.allSatisfy { $0.grams > 0 })
         #expect(!MealPlanner.shareText(items).isEmpty)
     }
+
+    private func week(_ prefs: FuelPrefs) -> [(key: String, plan: FuelPlan)] {
+        (0..<7).map { i in
+            let d = cal.date(byAdding: .day, value: i, to: cal.date(from: DateComponents(year: 2026, month: 10, day: 19))!)!
+            return (PlanCalendar.key(d, cal), Fuel.plan(FuelDayInput(day: d, weightKg: 75), prefs: prefs, calendar: cal))
+        }
+    }
+
+    @Test func budgetMakesThePlanCheaper() {
+        let prefs = FuelPrefs(meals: 4)
+        let days = week(prefs)
+        let kinds: Set<MealKind> = [.lunch, .dinner]
+        let free = MealPlanner.plan(days: days, prefs: prefs, favourites: [], own: [], have: [], kept: [], servings: 2, slots: kinds)
+        let tight = MealPlanner.plan(days: days, prefs: prefs, favourites: [], own: [], have: [], kept: [], servings: 2, slots: kinds,
+                                     shopping: .init(budget: 40))
+        func cost(_ m: [PlannedMeal]) -> Double {
+            MealPlanner.basket(MealPlanner.groceries(m, recipes: [], foods: [], have: [], dayLabel: { $0 })).cost
+        }
+        #expect(cost(tight) < cost(free))
+        #expect(cost(free) > 0)
+    }
+
+    @Test func lessWasteUsesMoreOfThePacks() {
+        let prefs = FuelPrefs(meals: 4)
+        let days = week(prefs)
+        let kinds: Set<MealKind> = [.lunch, .dinner]
+        let plain = MealPlanner.plan(days: days, prefs: prefs, favourites: [], own: [], have: [], kept: [], slots: kinds)
+        let lean = MealPlanner.plan(days: days, prefs: prefs, favourites: [], own: [], have: [], kept: [], slots: kinds,
+                                    shopping: .init(lessWaste: true))
+        func used(_ m: [PlannedMeal]) -> Double {
+            MealPlanner.basket(MealPlanner.groceries(m, recipes: [], foods: [], have: [], dayLabel: { $0 })).used
+        }
+        #expect(used(lean) >= used(plain))
+        let items = MealPlanner.groceries(lean, recipes: [], foods: [], have: [], dayLabel: { $0 })
+        #expect(items.allSatisfy { $0.packs != nil && $0.cost != nil })
+    }
+
+    @Test func ownPriceWins() {
+        let r = RecipeBook.catalog.first { ($0.amounts?["chicken-breast"] ?? 0) > 0 }!
+        let base = MealPlanner.cost(r, servings: 1)
+        let pricey = MealPlanner.cost(r, servings: 1, prices: ["chicken-breast": 200])
+        #expect(pricey > base)
+    }
 }

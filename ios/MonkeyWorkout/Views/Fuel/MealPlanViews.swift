@@ -21,6 +21,11 @@ struct MealPlanView: View {
                     Label(store.saved.plan.isEmpty ? "PLAN MY DAYS" : "RE-PLAN (KEEPS YOUR PICKS)", systemImage: "wand.and.stars")
                 }
                 .buttonStyle(LimeButtonStyle())
+                if !store.saved.plan.isEmpty {
+                    BasketCard(items: items) { withAnimation(.snappy) { model.planMeals() } }
+                    let byKey = Dictionary(zip(days.map { store.key($0) }, plans), uniquingKeysWith: { a, _ in a })
+                    if let swap = CheaperSwap.find(plans: byKey, store: store) { swapTip(swap) }
+                }
                 ForEach(Array(zip(days, plans)), id: \.0) { pair in
                     day(pair.0, plan: pair.1)
                 }
@@ -76,6 +81,31 @@ struct MealPlanView: View {
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
+    private func swapTip(_ swap: CheaperSwap) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("💡 Save \(BudgetFormat.chf(swap.saves))").font(Theme.display(15))
+                Text("\(swap.from.emoji) \(swap.from.name) → \(swap.to.emoji) \(swap.to.name), \(model.fuelDayLabel(swap.meal.day))")
+                    .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted).lineLimit(2)
+            }
+            Spacer(minLength: 4)
+            Button {
+                withAnimation(.snappy) {
+                    store.pin(PlannedMeal(day: swap.meal.day, slot: swap.meal.slot, kind: swap.meal.kind, recipeId: swap.to.id,
+                                          servings: swap.meal.servings))
+                }
+            } label: {
+                Text("SWAP").font(Theme.label(12)).foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(Capsule().fill(Theme.lime))
+            }
+            .buttonStyle(.plain)
+        }
+        .foregroundStyle(.white)
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.card))
+    }
+
     private func day(_ d: Date, plan: FuelPlan) -> some View {
         let key = store.key(d)
         let meals = store.saved.plan.filter { $0.day == key }
@@ -93,7 +123,8 @@ struct MealPlanView: View {
                     HStack(spacing: 8) {
                         NavigationLink(value: r) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("\(s.kind.emoji) \(s.title.uppercased()) · \(s.time)\(m.leftover ? " · LEFTOVERS" : "")\(m.pinned ? " · 📌" : "")")
+                                let cost = m.leftover ? 0 : MealPlanner.cost(r, servings: m.servings, prices: store.saved.prices)
+                                Text("\(s.kind.emoji) \(s.title.uppercased()) · \(s.time)\(m.leftover ? " · LEFTOVERS ♻️" : "")\(m.pinned ? " · 📌" : "") · \(BudgetFormat.chf(cost))")
                                     .font(Theme.label(10)).foregroundStyle(Theme.muted)
                                 RecipeRow(recipe: r)
                             }
@@ -149,6 +180,7 @@ struct SwapMealSheet: View {
 struct GroceriesView: View {
     @Environment(AppModel.self) private var model
     @State private var store = FuelStore.shared
+    @State private var pricing: Food?
 
     var body: some View {
         let items = model.groceries()
@@ -164,8 +196,16 @@ struct GroceriesView: View {
                     .frame(maxWidth: .infinity).padding(.vertical, 40)
                 } else {
                     let bought = items.filter { store.saved.bought.contains($0.id) }.count
-                    FuelTile(emoji: "🛒", label: "Groceries", title: "\(items.count - bought) to buy",
-                             detail: "\(bought) in the basket · for \(store.saved.plan.filter { !$0.leftover }.count) meals", gradient: FuelPalette.hot)
+                    BasketCard(items: items) { withAnimation(.snappy) { model.planMeals() } }
+                    Text("\(items.count - bought) to buy · \(bought) in the basket · tap a price to change it")
+                        .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
+                    let spare = items.filter { $0.food.perishable && $0.spare >= 50 }.sorted { $0.spare > $1.spare }.prefix(2)
+                    ForEach(Array(spare)) { i in
+                        Text("♻️ \(Int(i.spare)) g \(i.food.name.lowercased()) left over after the plan: add a meal with it, or freeze it.")
+                            .font(.caption.weight(.semibold)).foregroundStyle(.white)
+                            .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.card))
+                    }
                     ForEach(MealPlanner.aisles, id: \.id) { a in
                         let group = items.filter { $0.aisle == a.id }
                         if !group.isEmpty {
@@ -186,6 +226,7 @@ struct GroceriesView: View {
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Groceries")
+        .sheet(item: $pricing) { PriceSheet(food: $0).presentationDetents([.medium]) }
         .toolbar {
             if !items.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -194,6 +235,13 @@ struct GroceriesView: View {
                 }
             }
         }
+    }
+
+    private func packText(_ i: GroceryItem) -> String {
+        guard let packs = i.packs, let size = i.food.pack else { return i.amount }
+        let unit = i.food.group == .drink ? "ml" : "g"
+        let pack = size >= 1000 ? String(format: "%g %@", size / 1000, unit == "ml" ? "l" : "kg") : "\(Int(size)) \(unit)"
+        return "\(Int(i.grams.rounded())) \(unit) needed · \(packs)× \(pack)"
     }
 
     private func row(_ i: GroceryItem) -> some View {
@@ -206,8 +254,16 @@ struct GroceriesView: View {
                     HStack {
                         Text("\(i.food.emoji) \(i.food.name)").font(.body.weight(.bold)).strikethrough(on)
                         Spacer()
-                        Text(i.amount).font(Theme.label(12)).foregroundStyle(Theme.muted).multilineTextAlignment(.trailing)
+                        if let cost = i.cost {
+                            Button { pricing = i.food } label: {
+                                Text(BudgetFormat.short(cost)).font(Theme.display(15)).monospacedDigit()
+                                    .foregroundStyle(store.saved.prices[i.food.id] != nil ? Theme.lime : .white)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Price \(BudgetFormat.chf(cost)), change")
+                        }
                     }
+                    Text(packText(i)).font(Theme.label(11)).foregroundStyle(Theme.muted)
                     Text(i.meals.prefix(3).joined(separator: " · ") + (i.meals.count > 3 ? " +\(i.meals.count - 3)" : ""))
                         .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted).lineLimit(2)
                 }

@@ -99,6 +99,13 @@ public struct Food: Codable, Hashable, Sendable, Identifiable {
     public var aisle: String?
     /// Scanned barcode (Open Food Facts), kept on the device.
     public var barcode: String?
+    /// Swiss supermarket average, CHF per kg (per litre for drinks and liquids), for the meal plan budget (#496).
+    public var price: Double?
+    /// Usual pack size in g (ml), so the grocery list buys whole packs and the planner can use them up.
+    public var pack: Double?
+
+    /// Goes off within a week once bought or opened: what "less waste" plans around.
+    public var perishable: Bool { ["fruit-veg", "meat-fish", "dairy-eggs", "bakery"].contains(aisle ?? "pantry") }
 
     public init(id: String, name: String, emoji: String, group: FoodGroup, per100: Macros, portion: Serving, base: RecipeBase,
                 contains: [Allergen] = [], aliases: [String] = [], barcode: String? = nil) {

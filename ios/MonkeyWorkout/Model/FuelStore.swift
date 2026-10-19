@@ -32,6 +32,12 @@ final class FuelStore {
         var bought: Set<String> = []
         /// Refuel reminder sent (day key).
         var nudged: String?
+        /// Meal plan budget, CHF a week for everyone fed; nil = no limit.
+        var budget: Double?
+        /// Plan to finish fresh packs (spinach bag, feta…) across meals.
+        var lessWaste = true
+        /// The member's own prices, CHF per kg (or litre), by food id.
+        var prices: [String: Double] = [:]
     }
 
     private(set) var saved = Saved()
@@ -150,12 +156,31 @@ final class FuelStore {
         save(s)
     }
 
-    func setPlanOptions(people: Int? = nil, days: Int? = nil, mainOnly: Bool? = nil) {
+    func setPlanOptions(people: Int? = nil, days: Int? = nil, mainOnly: Bool? = nil, lessWaste: Bool? = nil) {
         var s = saved
         if let people { s.people = max(1, min(8, people)) }
         if let days { s.planDays = days }
         if let mainOnly { s.mainOnly = mainOnly }
+        if let lessWaste { s.lessWaste = lessWaste }
         save(s)
+    }
+
+    /// Weekly budget in CHF (nil = no limit).
+    func setBudget(_ chf: Double?) {
+        var s = saved
+        s.budget = chf.map { max(10, min(1000, $0)) }
+        save(s)
+    }
+
+    /// The member's price for a food (CHF per kg); nil goes back to the estimate.
+    func setPrice(_ foodId: String, _ chf: Double?) {
+        var s = saved
+        s.prices[foodId] = chf.flatMap { $0 > 0 ? $0 : nil }
+        save(s)
+    }
+
+    var shopping: MealPlanner.Shopping {
+        MealPlanner.Shopping(budget: saved.budget, lessWaste: saved.lessWaste, prices: saved.prices)
     }
 
     func pin(_ meal: PlannedMeal) {

@@ -120,7 +120,8 @@ extension AppModel {
         }
         let kinds: Set<MealKind> = store.saved.mainOnly ? [.lunch, .dinner] : Set(MealKind.allCases)
         let meals = MealPlanner.plan(days: days, prefs: store.prefs, favourites: store.saved.favourites, own: store.saved.recipes,
-                                     have: store.pantryIds, kept: store.saved.plan, servings: store.saved.people, slots: kinds)
+                                     have: store.pantryIds, kept: store.saved.plan, servings: store.saved.people, slots: kinds,
+                                     shopping: store.shopping)
         store.setPlan(meals)
     }
 
@@ -137,7 +138,7 @@ extension AppModel {
         let store = FuelStore.shared
         let today = PlanCalendar.key(Date(), planCalendar)
         return MealPlanner.groceries(store.saved.plan.filter { $0.day >= today }, recipes: store.saved.recipes, foods: store.saved.foods,
-                                     have: store.saved.pantry, dayLabel: fuelDayLabel)
+                                     have: store.saved.pantry, prices: store.saved.prices, dayLabel: fuelDayLabel)
     }
 
     /// Foods seen on a photo of the fridge, a cupboard, shopping or a receipt (Pro).
