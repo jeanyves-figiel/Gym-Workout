@@ -1,11 +1,11 @@
 {
-  "id": "2026-10-19.2",
+  "id": "2026-10-19.3",
   "items": [
     {
-      "symbol": "arrow.left.and.right",
-      "tint": "cardio",
-      "title": "Smooth week strip",
-      "body": "Slide the week strip on Train day by day. The day in the middle is magnified and opens in the card, and the strip stays where you left it."
+      "symbol": "hand.point.up.left.fill",
+      "tint": "strength",
+      "title": "Hold a day",
+      "body": "Touch and hold a workout day in the week strip on Train to move it, swap it with another workout, edit it or plan a sport that day."
     }
   ]
 }

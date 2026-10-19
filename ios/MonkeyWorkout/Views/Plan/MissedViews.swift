@@ -214,8 +214,14 @@ struct WeekDayStrip: View {
     @State private var width: CGFloat = 0
     /// Pick after the strip settles (#486), so the card doesn't rebuild under the finger.
     @State private var settle: Task<Void, Never>?
+    /// Long press on a workout day (#488, design A): the same moves as This week's stages, plus Edit and Plan a sport.
+    @State private var moving: SessionPick?
+    @State private var editing: String?
+    @State private var planningSport: String?
+    @State private var addingDay: DayPick?
 
     struct DayPick: Identifiable { let id: Int }
+    struct SessionPick: Identifiable { let id: String }
 
     /// Days shown are at most 1 week back and 2 weeks ahead (#464); 3 blank cells each side let the end days reach the lens (#486).
     static let daysBack = 7
@@ -288,7 +294,53 @@ struct WeekDayStrip: View {
                 .onDisappear { settle?.cancel() }
             }
             .sheet(item: $catchUp) { MissedCatchUpSheet(weekday: $0.id) }
+            .sheet(item: $moving) { MoveSessionSheet(sessionId: $0.id) }
+            .sheet(item: Binding(get: { planningSport.map { SessionPick(id: $0) } }, set: { planningSport = $0?.id })) {
+                PlanSportSheet(day: $0.id, sport: model.profile?.otherSports.first?.sport)
+            }
+            .sheet(item: $addingDay) { AddWorkoutSheet(weekday: $0.id) }
+            .navigationDestination(item: $editing) { SessionView(sessionId: $0) }
         }
+    }
+
+    /// Long-press menu of a workout day this week (#488): Move, Swap with, Edit workout, Plan a sport, Add workout.
+    @ViewBuilder
+    private func workoutMenu(_ s: Session, wd: Int, date: Date) -> some View {
+        let done = model.state.done[s.id] ?? false
+        if !done {
+            Button("Move to…", systemImage: "arrow.left.arrow.right") { moving = SessionPick(id: s.id) }
+            let swaps = model.swapDayTargets(s)
+            if !swaps.isEmpty {
+                Menu("Swap with…", systemImage: "arrow.up.arrow.down") {
+                    ForEach(swaps, id: \.id) { o in
+                        Button("\(o.displayTitle) · \(o.weekday.map(WeekSchedule.name) ?? "")") { model.swapDays(s, with: o) }
+                    }
+                }
+            }
+        }
+        Button("Edit workout", systemImage: "slider.horizontal.3") { editing = s.id }
+        if wd >= model.todayWeekday {
+            Button("Plan a sport", systemImage: "figure.snowboarding") { planningSport = PlanCalendar.key(date, model.planCalendar) }
+        }
+        Button("Add workout this day", systemImage: "plus") { addingDay = DayPick(id: wd) }
+    }
+
+    /// What the long press lifts (#488): the day's workout as a gradient card.
+    private func workoutPreview(_ s: Session, date: Date) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)).uppercased())
+                .font(Theme.label(11)).tracking(1.2).opacity(0.85)
+            Text(s.displayTitle).font(Theme.display(26)).lineLimit(1).minimumScaleFactor(0.7)
+            HStack(spacing: 10) {
+                Label("\(s.estMin) min", systemImage: "clock.fill")
+                Text("+\(model.xp(for: s)) XP").foregroundStyle(Theme.lime)
+            }
+            .font(Theme.label(13))
+        }
+        .foregroundStyle(.white)
+        .padding(18)
+        .frame(width: 280, alignment: .leading)
+        .background(s.palette.gradient)
     }
 
     /// Leftmost cell that puts the selected day (today when none) under the lens (#486).
@@ -310,7 +362,7 @@ struct WeekDayStrip: View {
         if offset < -Self.daysBack || offset > Self.daysAhead {
             cell(wd, day: n, isToday: false, state: .rest).opacity(0.25).accessibilityHidden(true)
         } else if week == 0 {
-            thisWeek(wd, day: n, isToday: isToday)
+            thisWeek(wd, day: n, isToday: isToday, date: date)
         } else if week > 0, week < weeks.count {
             let w = weeks[week]
             let session = w.plan.sessions.first { $0.weekday == wd }
@@ -319,6 +371,13 @@ struct WeekDayStrip: View {
             let state: DayState = session != nil ? .planned : climb ? .climb : sport.map { DayState.sport($0) } ?? .rest
             Button { onPick(fromMonday + 1) } label: { cell(wd, day: n, isToday: false, state: state, picked: selected == fromMonday + 1) }
                 .buttonStyle(.plain)
+                // Later weeks follow the plan (#488): moves are this week only, so show the day or plan a sport there.
+                .contextMenu {
+                    if session != nil {
+                        Button("Show in card", systemImage: "rectangle.on.rectangle") { onPick(fromMonday + 1) }
+                        Button("Plan a sport", systemImage: "figure.snowboarding") { planningSport = PlanCalendar.key(date, cal) }
+                    }
+                }
                 .accessibilityAddTraits(selected == fromMonday + 1 ? .isSelected : [])
                 .accessibilityLabel("\(label): \(session?.displayTitle ?? (climb ? "climbing day" : sport.map { "\($0.label) day" } ?? "rest day"))")
         } else if week < 0 {
@@ -336,7 +395,7 @@ struct WeekDayStrip: View {
     }
 
     @ViewBuilder
-    private func thisWeek(_ wd: Int, day n: Int, isToday: Bool) -> some View {
+    private func thisWeek(_ wd: Int, day n: Int, isToday: Bool, date: Date) -> some View {
         let sessions = model.plan?.sessions ?? []
         let day = sessions.filter { $0.weekday == wd }
         let dayMissed = model.missedSessions.filter { $0.weekday == wd }
@@ -353,6 +412,7 @@ struct WeekDayStrip: View {
             let allDone = day.allSatisfy { model.doneIds.contains($0.id) }
             Button { onPick(wd) } label: { cell(wd, day: n, isToday: isToday, state: allDone ? .done : .planned, picked: selected == wd) }
                 .buttonStyle(.plain)
+                .contextMenu { workoutMenu(s, wd: wd, date: date) } preview: { workoutPreview(s, date: date) }
                 .accessibilityLabel("\(WeekSchedule.name(wd)): \(s.displayTitle)\(allDone ? ", done" : "")")
                 .accessibilityAddTraits(selected == wd ? .isSelected : [])
         } else {

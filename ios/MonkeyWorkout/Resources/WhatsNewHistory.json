@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "id": "2026-10-19.2",
+      "build": 49,
+      "date": "2026-10-19",
+      "items": [
+        {
+          "symbol": "arrow.left.and.right",
+          "tint": "cardio",
+          "title": "Smooth week strip",
+          "body": "Slide the week strip on Train day by day. The day in the middle is magnified and opens in the card, and the strip stays where you left it."
+        }
+      ]
+    },
+    {
       "id": "2026-10-19.1",
       "build": 48,
       "date": "2026-10-19",
