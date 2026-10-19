@@ -29,7 +29,7 @@ struct MealPlanView: View {
                 ForEach(Array(zip(days, plans)), id: \.0) { pair in
                     day(pair.0, plan: pair.1)
                 }
-                NavigationLink { GroceriesView() } label: {
+                NavigationLink(value: FuelRoute.groceries) {
                     FuelTile(emoji: "🛒", label: "Groceries", title: items.isEmpty ? "Nothing to buy yet" : "\(items.count) items to buy",
                              detail: "By aisle, minus what you have", gradient: FuelPalette.hot) {
                         Image(systemName: "chevron.right").font(.system(size: 15, weight: .heavy))
@@ -190,7 +190,7 @@ struct GroceriesView: View {
                     VStack(spacing: 12) {
                         Text("🛒").font(.system(size: 50))
                         Text("Plan some meals and the list fills itself.").font(.headline).multilineTextAlignment(.center)
-                        NavigationLink { MealPlanView() } label: { Text("OPEN MEAL PLAN") }
+                        NavigationLink(value: FuelRoute.mealPlan) { Text("OPEN MEAL PLAN") }
                             .buttonStyle(LimeButtonStyle())
                     }
                     .frame(maxWidth: .infinity).padding(.vertical, 40)
