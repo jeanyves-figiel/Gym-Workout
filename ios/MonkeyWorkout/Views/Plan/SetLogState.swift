@@ -23,6 +23,8 @@ final class SetLogState {
     private(set) var sessionId = ""
     var rows: [Row] = []
     private(set) var suggestion: LoadSuggestion?
+    /// Lift Focus block or Pro Sets style sets (#499), one per row; nil = straight sets.
+    private(set) var planned: [PlannedSet]?
 
     /// Weight step of the kg stepper (equipment-aware: 2.5 barbell, 1 dumbbell, …).
     var kgStep: Double {
@@ -40,11 +42,16 @@ final class SetLogState {
         let kg = s.map { LoadAdvisor.formatKg($0.kg) } ?? model.lastWeight(item.exerciseId).map { LoadAdvisor.formatKg($0) } ?? ""
         var reps = ""
         if let r = s?.reps ?? item.prescription.repRange?.low { reps = String(r) }
+        let sets = model.plannedSets(for: item, sessionId: sessionId, workingKg: Self.parseKg(kg))
+        planned = sets
         rows = (0..<max(1, item.prescription.sets)).map { i in
-            guard let l = logged[i] else { return Row(kg: kg, reps: reps) }
+            let p = sets?.indices.contains(i) == true ? sets?[i] : nil
+            let rowKg = p?.kg.map { LoadAdvisor.formatKg($0) } ?? kg
+            let rowReps = p?.reps.map { String($0) } ?? reps
+            guard let l = logged[i] else { return Row(kg: rowKg, reps: rowReps) }
             return Row(
-                kg: l.weightKg.map { LoadAdvisor.formatKg($0) } ?? kg,
-                reps: l.reps.map { String($0) } ?? reps,
+                kg: l.weightKg.map { LoadAdvisor.formatKg($0) } ?? rowKg,
+                reps: l.reps.map { String($0) } ?? rowReps,
                 rir: l.rir.map { String($0) } ?? "",
                 logged: true)
         }
@@ -67,8 +74,35 @@ final class SetLogState {
         guard let item, let v = values(i) else { return false }
         model.logSet(exerciseId: item.exerciseId, sessionId: sessionId, setIndex: i, kg: v.kg, reps: v.reps, rir: v.rir)
         rows[i].logged = true
-        for j in rows.indices where j > i && !rows[j].logged { rows[j].kg = rows[i].kg }
+        if let planned {
+            // Pro Sets: later sets keep their own loads; back-offs follow the top set's weight and effort.
+            if planned.indices.contains(i), planned[i].role == .top {
+                let e = Exercise.get(item.exerciseId)
+                for j in rows.indices where j > i && !rows[j].logged && planned.indices.contains(j) && planned[j].role == .backoff {
+                    let kg = ProSets.backoffKg(topKg: v.kg, topReps: v.reps, topRIR: v.rir,
+                                               backoffReps: planned[j].reps ?? v.reps, exercise: e)
+                    rows[j].kg = LoadAdvisor.formatKg(kg)
+                }
+            }
+        } else {
+            for j in rows.indices where j > i && !rows[j].logged { rows[j].kg = rows[i].kg }
+        }
         return true
+    }
+
+    /// Planned set of row `i` (#499).
+    func plannedSet(_ i: Int) -> PlannedSet? {
+        guard let planned, planned.indices.contains(i) else { return nil }
+        return planned[i]
+    }
+
+    /// Rest after row `i`: the planned set's own (drops and minis are short), else `fallback`.
+    func restAfter(_ i: Int, fallback: Int) -> Int { plannedSet(i)?.restSec ?? fallback }
+
+    /// Warm-up ramp toward the first working set of a heavy barbell lift (#499).
+    var warmups: [RampStep] {
+        guard let item, let first = rows.first, let kg = Self.parseKg(first.kg) else { return [] }
+        return ProSets.warmups(to: kg, exercise: Exercise.get(item.exerciseId))
     }
 
     /// One-tap effort for a set: stores RIR and re-saves the row.

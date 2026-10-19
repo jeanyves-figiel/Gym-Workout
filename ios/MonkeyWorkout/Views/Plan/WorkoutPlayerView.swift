@@ -927,7 +927,9 @@ struct WorkoutPlayerView: View {
         // Superset/circuit: on to the next member without rest, rest after the round (#78).
         let jump = groupJump(step, done: now)
         let target = jump.flatMap { $0.index == index ? nil : $0.index }
-        let rest = jump?.rest ?? (now < sets ? step.timedSpec?.easySec ?? step.item.prescription.restSec : 0)
+        // Pro Sets (#499): drops and minis have their own short rest.
+        let planRest = onScreen ? log.restAfter(done, fallback: step.item.prescription.restSec) : step.item.prescription.restSec
+        let rest = jump?.rest ?? (now < sets ? step.timedSpec?.easySec ?? planRest : 0)
         // No rest: the next group member at once, or after the last set the "Next in" countdown (#357).
         guard rest > 0 else {
             if let target { return moveTo(target) }

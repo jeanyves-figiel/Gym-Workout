@@ -126,6 +126,11 @@ final class AppModel {
                     .sport(.snowboard, size: .large), .sport(.hyrox, size: .wide), .sport(.run),
                     ProgressWidget(.streak), ProgressWidget(.history), ProgressWidget(.training), ProgressWidget(.records),
                 ])
+            // Lift Focus (#499): week 5 of a 10-week bench block.
+            case "lift-focus", "lift-lab":
+                state.synced?.liftFocus = LiftFocus(exerciseId: "bench-press", targetKg: 120,
+                                                    start: Date().addingTimeInterval(-28 * 86400), weeks: 10, template: .monkeyPeak,
+                                                    startOneRepMax: 105, weakPoint: .lockout)
             default: break
             }
             // Gym zones (#274): supersets kept in one zone.
@@ -304,6 +309,9 @@ final class AppModel {
         guard let p = uneditedPlan?.applying(edits: state.synced?.sessionEdits ?? []) else { return nil }
         // Daily auto-tune (#495) replaces the low-readiness easing when on.
         if tuneOn { return tuned(p).plan }
+        guard let edited = uneditedPlan?.applying(edits: state.synced?.sessionEdits ?? []) else { return nil }
+        // Lift Focus and Pro Sets (#499): the focus lift's block sets, then the member's set styles.
+        let p = expertPlan(edited)
         return p.easedForReadiness(readinessEasedIds(p))
     }
 
@@ -354,6 +362,7 @@ final class AppModel {
                                programmeHistory: state.synced?.programmeHistory, trainLayout: state.synced?.trainLayout,
                                progressBoard: state.synced?.progressBoard,
                                customProgrammes: state.synced?.customProgrammes,
+                               liftFocus: state.synced?.liftFocus, setStyles: state.synced?.setStyles,
                                weekOf: state.synced?.weekOf,
                                // Exercise edits (#295): library workouts keep theirs; this week's plan days only within the week.
                                sessionEdits: state.synced?.sessionEdits.map { list in list.filter { $0.week == nil || !newWeek } }.flatMap { $0.isEmpty ? nil : $0 },
