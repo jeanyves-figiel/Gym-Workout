@@ -41,7 +41,7 @@ import Testing
         let normal = Fuel.plan(FuelDayInput(day: day, weightKg: 70), prefs: FuelPrefs(goal: .perform), calendar: cal)
         let loading = Fuel.plan(input, prefs: FuelPrefs(goal: .perform), calendar: cal)
         #expect(loading.carbs > normal.carbs)
-        #expect(!(loading.event?.pointers ?? []).isEmpty)
+        #expect(loading.event?.pointers.isEmpty == false)
     }
 
     @Test func logTicksAndXP() {
