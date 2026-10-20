@@ -132,18 +132,23 @@ struct SportSplitPill: View {
                     .accessibilityHint("Start a sport on your Apple Watch now")
             }
         }
-        .clipShape(Capsule())
+        .frame(maxWidth: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: link.ready)
     }
 
     private func half(_ title: String, detail: String, symbol: String, ink: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
+            // Icon over the title so three parts fit the card at any width (#526: the inline labels overflowed).
             VStack(spacing: 1) {
-                Label(title, systemImage: symbol).font(Theme.label(15)).lineLimit(1).minimumScaleFactor(0.8)
-                Text(detail).font(Theme.label(10)).opacity(0.85).lineLimit(1)
+                Image(systemName: symbol).font(.system(size: 14, weight: .bold))
+                Text(title).font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.6)
+                Text(detail).font(Theme.label(9)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.7)
             }
             .foregroundStyle(ink)
-            .frame(maxWidth: .infinity, minHeight: 52)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 56)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
