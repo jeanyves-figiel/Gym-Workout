@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import WorkoutEngine
 
 /// Bold, dark-first visual language: near-black canvas, heavy rounded type, one signature lime,
