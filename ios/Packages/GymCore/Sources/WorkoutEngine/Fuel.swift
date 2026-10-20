@@ -425,6 +425,8 @@ public struct FuelPlan: Codable, Hashable, Sendable {
     public var tips: [String]
     /// Race or event within 2 days.
     public var event: FuelEvent?
+    /// The member's supplements placed on the day (#514).
+    public var supplements: [SupplementDose] = []
 
     /// "Legs + Hyrox", or the load when nothing is planned.
     public var headline: String {
