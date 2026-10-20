@@ -148,7 +148,7 @@ struct ProPaywallSheet: View {
     var body: some View {
         NavigationStack {
             ProView(context: .gate(gate))
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+                .toolbar { CloseToolbarItem { dismiss() } }
         }
         .presentationDetents([.large])
         .presentationBackground(Theme.bg)

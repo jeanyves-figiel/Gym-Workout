@@ -324,7 +324,7 @@ struct SessionFlowSheet: View {
                 }
                 .readableWidth()
                 .background(Theme.bg.ignoresSafeArea())
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+                .toolbar { CloseToolbarItem { dismiss() } }
                 .onAppear {
                     guard !loaded else { return }
                     loaded = true
@@ -525,7 +525,7 @@ struct BlockPicksSheet: View {
             }
             .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .toolbar { CloseToolbarItem { dismiss() } }
             .sheet(isPresented: $adding) {
                 ExercisePickerView(limit: Self.maxItems - picks.items.count) { exs in
                     let have = Set(picks.items.map(\.exerciseId))

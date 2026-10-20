@@ -72,7 +72,7 @@ struct ExerciseDetailView: View {
             if let custom, !custom.archived {
                 ToolbarItem(placement: .topBarLeading) { Button("Edit") { editing = custom } }
             }
-            ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            CloseToolbarItem { dismiss() }
         }
         .sheet(item: $muscle) { m in NavigationStack { MuscleDetailView(muscle: m) } }
         .sheet(item: $editing) { c in CustomExerciseBuilderView(existing: c) }

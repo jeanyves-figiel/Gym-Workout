@@ -59,11 +59,15 @@ struct NotificationsHost: ViewModifier {
             .sheet(item: $notify.route) { route in
                 switch route {
                 case let .session(id):
-                    NavigationStack { SessionView(sessionId: id) }
+                    // Standard chrome (#539): the X closes the session opened from a notification.
+                    NavigationStack { SessionView(sessionId: id).toolbar { CloseToolbarItem { notify.route = nil } } }
                 case let .reschedule(id, day):
                     MissedSessionSheet(sessionId: id, day: day)
                 case let .member(userId, nickname):
-                    NavigationStack { MemberView(author: CommunityAuthor(userId: userId, nickname: nickname)) }
+                    NavigationStack {
+                        MemberView(author: CommunityAuthor(userId: userId, nickname: nickname))
+                            .toolbar { CloseToolbarItem { notify.route = nil } }
+                    }
                 case let .badge(id):
                     if let b = Achievements.evaluate(records: model.state.history, weights: model.weightEntries,
                                                      targetPerWeek: model.profile?.sessionsPerWeek ?? 3).first(where: { $0.id == id }) {

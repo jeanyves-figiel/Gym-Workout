@@ -89,7 +89,7 @@ struct ReadinessSheet: View {
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Readiness")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
         .preferredColorScheme(.dark)
     }
@@ -244,7 +244,7 @@ struct WeekPhaseSheet: View {
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Training cycle")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
         .preferredColorScheme(.dark)
     }

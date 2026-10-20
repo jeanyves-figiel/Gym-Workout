@@ -168,7 +168,7 @@ struct MeasurementDetailView: View {
             VStack(alignment: .leading, spacing: 12) {
                 // Explore-style hero: gradient, icon tile, latest value big on the right.
                 AccountHeader(symbol: metric.symbol, title: metric.label, subtitle: heroSubtitle(points),
-                              gradient: metric.category.gradient) {
+                              gradient: metric.category.gradient, ink: metric.category.isLight) {
                     if let v = points.last?.value { AccountValue(value: MeasureFormat.value(v), unit: metric.unit) }
                 }
                 if points.count > 1 {
@@ -242,7 +242,6 @@ struct MeasurementLogSheet: View {
     @State private var perSide = false
     @State private var toHealth = true
     @State private var loaded = false
-    @State private var confirmDelete = false
     @State private var help: HelpTopic?
     @State private var guiding = false
     @State private var start: Draft?
@@ -270,6 +269,8 @@ struct MeasurementLogSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
+                    ContentTitle(title: isNew ? "Log measurements" : "Edit measurements",
+                                 subtitle: isNew ? "New entry · Save to keep" : "Saved entry · changes save on their own")
                     if draftRestored {
                         DraftRestoredStrip {
                             DraftStore.clear(Self.draftKey)
@@ -331,7 +332,7 @@ struct MeasurementLogSheet: View {
                         AccountNote(text: "Changes save on their own.").padding(.top, 8)
                     }
                     if !isNew {
-                        AccountPillButton(title: "Delete this entry", role: .destructive) { confirmDelete = true }
+                        AccountPillButton(title: "Delete this entry", role: .destructive) { delete() }
                     }
                 }
                 .padding(16)
@@ -339,14 +340,13 @@ struct MeasurementLogSheet: View {
             }
             .readableWidth()
             .themedForm()
-            .navigationTitle(isNew ? "Log measurements" : "Edit measurements")
-            .toolbarTitleDisplayMode(.inline)
+            .titleInContent(isNew ? "Log measurements" : "Edit measurements")
             .toolbar {
+                // Standard chrome (#539): Save beside the X for a new entry; an existing one saves on its own.
                 if isNew {
-                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                } else {
-                    CloseToolbarItem { dismiss() }
+                    SaveToolbarItem(disabled: entry.isEmpty) { save() }
                 }
+                CloseToolbarItem { dismiss() }
             }
             // Editing an entry saves on its own (#437); a deleted one is never written back.
             .autoSave(!isNew && start != nil && !entry.isEmpty ? entry : nil, title: "Measurements", symbol: "ruler.fill",
@@ -354,19 +354,25 @@ struct MeasurementLogSheet: View {
                       save: { [model] m in if model.measurements.contains(where: { $0.id == m.id }) { model.saveMeasurement(m) } })
             .sheet(item: $help) { MeasurementHowToSheet(metric: $0.metric, side: $0.side) }
             .fullScreenCover(isPresented: $guiding) { MeasureGuideView(steps: guideSteps, text: $text) }
-            .confirmationDialog("Delete this entry?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("Delete", role: .destructive) {
-                    closeGuard.done()
-                    model.deleteMeasurement(initial.id)
-                    dismiss()
-                }
-            }
         }
         .onAppear(perform: load)
         .undoableClose(closeGuard, offer: undoOffer)
         .onChange(of: draft) { _, d in
             guard isNew, start != nil else { return }
             if d.text.isEmpty { DraftStore.clear(Self.draftKey) } else { DraftStore.save(Self.draftKey, d) }
+        }
+    }
+
+    /// Deleted at once (#539); Undo puts the entry back (as a new entry, so a queued server delete can't remove it).
+    private func delete() {
+        let stored = model.measurements.first { $0.id == initial.id } ?? entry
+        closeGuard.done()
+        model.deleteMeasurement(initial.id)
+        dismiss()
+        UndoCloseCenter.shared.deleted("Measurements deleted", detail: Self.detail(stored), symbol: "ruler.fill") { [model] in
+            var m = stored
+            m.id = UUID()
+            model.saveMeasurement(m)
         }
     }
 
@@ -402,11 +408,11 @@ struct MeasurementLogSheet: View {
         // How-to first; the last value is the field's placeholder, so it only shows as text when there's no tip.
         let subtitle = howTo ?? hint.map { "Last \(MeasureFormat.value($0)) \(metric.unit)" }
         return AccountCard(symbol: metric.symbol, title: title ?? metric.label, subtitle: subtitle,
-                           gradient: metric.category.gradient) {
+                           gradient: metric.category.gradient, ink: metric.category.isLight) {
             HStack(spacing: 10) {
                 VStack(alignment: .trailing, spacing: 0) {
                     TextField(title ?? metric.label, text: Binding(get: { text[key] ?? "" }, set: { text[key] = $0 }),
-                              prompt: Text(hint.map(MeasureFormat.value) ?? "–").foregroundStyle(.white.opacity(0.55)))
+                              prompt: Text(hint.map(MeasureFormat.value) ?? "–").foregroundStyle(metric.category.ink.opacity(0.55)))
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
                         .font(Theme.display(24).monospacedDigit())
@@ -415,12 +421,14 @@ struct MeasurementLogSheet: View {
                     Text(metric.unit.uppercased()).font(Theme.label(9)).tracking(1).opacity(0.8)
                 }
                 Button { help = HelpTopic(metric: metric, side: side) } label: {
+                    // Rounded square (#541) in a 44 pt hit area (#540).
                     Image(systemName: "questionmark")
                         .font(.system(size: 13, weight: .heavy))
                         .frame(width: 30, height: 30)
-                        .background(Circle().fill(.black.opacity(0.2)))
-                        .overlay(Circle().strokeBorder(.white.opacity(0.75), lineWidth: 1.5))
-                        .contentShape(Circle())
+                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.black.opacity(0.2)))
+                        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(.primary.opacity(0.75), lineWidth: 1.5))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("How to measure \(title ?? metric.label)")

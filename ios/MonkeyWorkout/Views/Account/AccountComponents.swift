@@ -106,6 +106,8 @@ struct AccountHeader<Trailing: View>: View {
     let title: String
     var subtitle: String?
     let gradient: LinearGradient
+    /// Dark type and tile on a light gradient (#540).
+    var ink = false
     @ViewBuilder var trailing: () -> Trailing
 
     var body: some View {
@@ -113,7 +115,7 @@ struct AccountHeader<Trailing: View>: View {
             Image(systemName: symbol)
                 .font(.system(size: 28, weight: .bold))
                 .frame(width: 60, height: 60)
-                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.white.opacity(0.2)))
+                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(ink ? Theme.ink.opacity(0.12) : .white.opacity(0.2)))
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(Theme.display(24)).lineLimit(2).minimumScaleFactor(0.8)
                 if let subtitle {
@@ -123,7 +125,7 @@ struct AccountHeader<Trailing: View>: View {
             Spacer(minLength: 0)
             trailing()
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(ink ? Theme.ink : .white)
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(gradient))
@@ -131,8 +133,8 @@ struct AccountHeader<Trailing: View>: View {
 }
 
 extension AccountHeader where Trailing == EmptyView {
-    init(symbol: String, title: String, subtitle: String? = nil, gradient: LinearGradient) {
-        self.init(symbol: symbol, title: title, subtitle: subtitle, gradient: gradient) { EmptyView() }
+    init(symbol: String, title: String, subtitle: String? = nil, gradient: LinearGradient, ink: Bool = false) {
+        self.init(symbol: symbol, title: title, subtitle: subtitle, gradient: gradient, ink: ink) { EmptyView() }
     }
 }
 

@@ -125,7 +125,7 @@ struct EquipmentSheet: View {
             .autocorrectionDisabled()
             .navigationTitle("Equipment")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
         .preferredColorScheme(.dark)
     }

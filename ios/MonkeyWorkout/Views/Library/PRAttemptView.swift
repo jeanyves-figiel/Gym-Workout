@@ -70,11 +70,12 @@ struct PRAttemptView: View {
             }
             .background(Theme.bg.ignoresSafeArea())
             .toolbar {
-                if stage != .result {
-                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                }
+                // Standard chrome (#539): Finish beside the X top right; the X closes with Undo for a live attempt.
                 if stage == .live && !tries.isEmpty && kind != .maxReps {
-                    ToolbarItem(placement: .confirmationAction) { Button("Finish") { finish() }.bold() }
+                    SaveToolbarItem(title: "Finish") { finish() }
+                }
+                if stage != .result {
+                    CloseToolbarItem { dismiss() }
                 }
             }
         }
