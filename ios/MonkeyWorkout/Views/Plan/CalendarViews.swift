@@ -65,15 +65,16 @@ struct CalendarView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                if !model.upcomingAway.isEmpty {
-                    Text("Away").eyebrow().padding(.top, 4)
-                    ForEach(model.upcomingAway) { a in
-                        Button { edit(a) } label: { AwayRow(period: a) }.buttonStyle(.plain)
-                    }
-                }
+                // Away periods live in their week cards as tappable strips; no separate list.
                 ForEach(Array(weeks.enumerated()), id: \.element.id) { i, w in
                     Text(header(i, w)).eyebrow().padding(.top, 4)
-                    WeekCalendarCard(week: w, current: i == 0) { wd in selected = DaySelection(week: w, weekday: wd, current: i == 0) }
+                    WeekCalendarCard(week: w, current: i == 0, onAway: { edit($0) }) { wd in selected = DaySelection(week: w, weekday: wd, current: i == 0) }
+                }
+                // Periods starting after the last week shown keep a way in.
+                let later = laterAway(weeks)
+                if !later.isEmpty {
+                    Text("Later").eyebrow().padding(.top, 4)
+                    ForEach(later) { a in AwayStrip(period: a) { edit(a) } }
                 }
                 Text("The 4-week cycle moves on one week each Monday here. Days off move sessions to free days that week; with too few free days you get fewer, fuller sessions. Travel days are rebuilt for the equipment there.")
                     .font(.footnote).foregroundStyle(Theme.muted)
@@ -142,6 +143,11 @@ struct CalendarView: View {
         }
     }
 
+    private func laterAway(_ weeks: [PlanCalendar.Week]) -> [AwayPeriod] {
+        guard let last = weeks.last?.days.last else { return model.upcomingAway }
+        return model.upcomingAway.filter { $0.start > last }
+    }
+
     private func start(_ kind: AwayKind, day: String? = nil) {
         let today = day ?? PlanCalendar.key(Date(), model.planCalendar)
         editingIsNew = true
@@ -165,6 +171,7 @@ struct DaySelection: Identifiable {
 struct WeekCalendarCard: View {
     let week: PlanCalendar.Week
     let current: Bool
+    let onAway: (AwayPeriod) -> Void
     let onDay: (Int) -> Void
     @Environment(AppModel.self) private var model
 
@@ -183,35 +190,26 @@ struct WeekCalendarCard: View {
                         .buttonStyle(.plain)
                 }
             }
-            ForEach(notes, id: \.self) { n in
-                Text(n).font(.caption).foregroundStyle(Theme.muted)
+            ForEach(periods) { p in AwayStrip(period: p) { onAway(p) } }
+            if week.dropped > 0 {
+                Text("\(week.dropped) session\(week.dropped == 1 ? "" : "s") skipped: not enough free days")
+                    .font(.caption).foregroundStyle(Theme.muted)
             }
         }
         .card(padding: 12)
+    }
+
+    /// Away periods touching this week, earliest first.
+    private var periods: [AwayPeriod] {
+        Dictionary(grouping: Array(week.off.values) + Array(week.travel.values), by: \.id)
+            .compactMap { $0.value.first }
+            .sorted { $0.start < $1.start }
     }
 
     private var summary: String {
         let n = week.plan.sessions.count
         let trips = week.plan.sessions.filter { $0.weekday.map { week.travel[$0] != nil } ?? false }.count
         return "\(n) session\(n == 1 ? "" : "s")" + (trips > 0 ? " · \(trips) away" : "")
-    }
-
-    private var notes: [String] {
-        var out: [String] = []
-        let periods = Dictionary(grouping: Array(week.off.values) + Array(week.travel.values), by: \.id).compactMap { $0.value.first }
-        for p in periods.sorted(by: { $0.start < $1.start }) {
-            out.append("\(p.kind == .travel ? "✈︎" : "⛔︎") \(p.title)" + (p.kind == .travel ? " · \(equipmentLine(p))" : ""))
-        }
-        if week.dropped > 0 { out.append("\(week.dropped) session\(week.dropped == 1 ? "" : "s") skipped: not enough free days") }
-        return out
-    }
-
-    private func equipmentLine(_ p: AwayPeriod) -> String {
-        // Same list and count as the away editor ("7 items"); a mat alone is still bodyweight.
-        let items = p.travelEquipment
-        if items.allSatisfy({ $0 == .mat }) { return "bodyweight" }
-        if items.count > 5 { return "\(items.count) items" }
-        return items.map { $0.label.lowercased() }.joined(separator: ", ")
     }
 
     private func range(_ cal: Calendar) -> String {
@@ -327,6 +325,41 @@ struct AwayRow: View {
         guard let a = PlanCalendar.date(period.start, cal), let b = PlanCalendar.date(period.end, cal) else { return "" }
         let days = (cal.dateComponents([.day], from: a, to: b).day ?? 0) + 1
         return a == b ? a.formatted(dayFormat) : "\(a.formatted(dayFormat)) – \(b.formatted(dayFormat)) · \(days) days"
+    }
+}
+
+/// Away period as a slim gradient strip in a week card; tap to edit.
+struct AwayStrip: View {
+    let period: AwayPeriod
+    let onTap: () -> Void
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let text = ([period.title] + [dates(model.planCalendar)].compactMap { $0 }).joined(separator: " · ")
+        Button(action: onTap) {
+            HStack(spacing: 8) {
+                Image(systemName: period.kind == .travel ? (period.setup ?? .hotelGym).symbol : period.kind.symbol)
+                    .font(.caption.weight(.heavy))
+                Text(text).font(.system(.caption, design: .rounded).weight(.heavy)).lineLimit(1)
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right").font(.caption2.bold()).opacity(0.75)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .frame(minHeight: 44)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(period.kind.gradient))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Edit \(text)")
+    }
+
+    /// "23 Nov" or "1–8 Nov" / "28 Oct – 3 Nov".
+    private func dates(_ cal: Calendar) -> String? {
+        guard let a = PlanCalendar.date(period.start, cal), let b = PlanCalendar.date(period.end, cal) else { return nil }
+        let short: Date.FormatStyle = .dateTime.day().month(.abbreviated)
+        if a == b { return a.formatted(short) }
+        if cal.isDate(a, equalTo: b, toGranularity: .month) { return "\(cal.component(.day, from: a))–\(b.formatted(short))" }
+        return "\(a.formatted(short)) – \(b.formatted(short))"
     }
 }
 
