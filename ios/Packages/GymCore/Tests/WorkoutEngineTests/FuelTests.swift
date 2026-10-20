@@ -174,3 +174,62 @@ import Testing
         #expect(pricey > base)
     }
 }
+
+@Suite struct SupplementTests {
+    private let cal = Progression.calendar()
+    private var day: Date { cal.date(from: DateComponents(year: 2026, month: 10, day: 19))! }
+    private let boost = Supplement(id: "boost", name: "Boost", kind: .preWorkout, dose: "1 sachet", caffeineMg: 105, creatineG: 3, proteinG: 3.5)
+    private let shake = Supplement(id: "shake", name: "Meal shake", kind: .mealReplacement, dose: "1 bottle", proteinG: 40, carbsG: 24, fatG: 17,
+                                   restDays: true)
+
+    private func plan(trainingAt hour: Int?) -> FuelPlan {
+        let acts = hour.map { [FuelActivity(id: "g", kind: .gym, title: "Legs", start: cal.date(byAdding: .hour, value: $0, to: day)!,
+                                            minutes: 60, done: false)] } ?? []
+        return Fuel.plan(FuelDayInput(day: day, weightKg: 75, activities: acts), prefs: FuelPrefs(), calendar: cal)
+    }
+
+    @Test func preWorkoutGoesBeforeTrainingAndSkipsRestDays() {
+        let doses = Supplements.schedule([boost], plan: plan(trainingAt: 12), prefs: FuelPrefs(), calendar: cal)
+        #expect(doses.count == 1)
+        #expect(doses.first?.minute == 11 * 60 + 30)
+        #expect(doses.first?.late == false)
+        #expect(Supplements.schedule([boost], plan: plan(trainingAt: nil), prefs: FuelPrefs(), calendar: cal).isEmpty)
+    }
+
+    @Test func lateCaffeineWarns() {
+        var p = plan(trainingAt: 20)
+        Supplements.apply([boost], to: &p, prefs: FuelPrefs(), calendar: cal)
+        #expect(p.supplements.first?.late == true)
+        #expect(p.tips.first?.contains("cut-off") == true)
+    }
+
+    @Test func creatineAddsAGlass() {
+        let base = plan(trainingAt: 18)
+        var p = base
+        Supplements.apply([boost], to: &p, prefs: FuelPrefs(), calendar: cal)
+        #expect(p.glasses == base.glasses + 1)
+    }
+
+    @Test func mealShakeFillsBreakfast() {
+        var p = plan(trainingAt: nil)
+        Supplements.apply([shake], to: &p, prefs: FuelPrefs(), calendar: cal)
+        let dose = p.supplements[0]
+        #expect(dose.replaces == "breakfast")
+        var log = FuelDayLog()
+        log.tick(dose)
+        #expect(log.ticks["breakfast"] != nil)
+        #expect(log.eaten.palms == 2)
+        log.untick(dose)
+        #expect(log.ticks.isEmpty)
+        #expect(log.eaten.total == 0)
+    }
+
+    @Test func readsTheLabel() {
+        let text = "Creapure Kreatin-Monohydrat 3000 mg\nEssentielle Aminosäuren (EAA) 3500 mg\nKoffein 105 mg"
+        let found = Supplements.parse(label: text)
+        #expect(found?.caffeineMg == 105)
+        #expect(found?.creatineG == 3)
+        #expect(found?.proteinG == 3.5)
+        #expect(Supplements.parse(label: "Shake well before use") == nil)
+    }
+}

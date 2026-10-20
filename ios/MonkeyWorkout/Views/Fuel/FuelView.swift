@@ -129,6 +129,7 @@ struct FuelView: View {
                 case .timeline: FuelTimeline(plan: plan, log: log, day: day, open: { slot = $0 })
                 case .portions: FuelPortionsView(plan: plan, log: log, day: day, open: { slot = $0 })
                 }
+                FuelStackCard(plan: plan, log: log, day: day)
                 FuelTools(plan: plan)
                 Text(FuelLearn.disclaimer)
                     .font(.caption2.weight(.semibold)).foregroundStyle(Theme.muted)
@@ -482,22 +483,27 @@ struct FuelTimeline: View {
     private enum Row: Identifiable {
         case meal(FuelSlot)
         case training(FuelActivity)
+        case supplement(SupplementDose)
         var id: String {
             switch self {
             case .meal(let s): "m-\(s.id)"
             case .training(let a): "t-\(a.id)"
+            case .supplement(let d): "s-\(d.id)"
             }
         }
         var minute: Int {
             switch self {
             case .meal(let s): s.minute
+            case .supplement(let d): d.minute
             case .training(let a): Calendar.current.component(.hour, from: a.start) * 60 + Calendar.current.component(.minute, from: a.start)
             }
         }
     }
 
     var body: some View {
-        let rows = (plan.slots.map(Row.meal) + plan.activities.map(Row.training)).sorted { $0.minute < $1.minute }
+        // Supplements sit between meals (#514); a meal shake shows in its meal's row instead.
+        let rows = (plan.slots.map(Row.meal) + plan.activities.map(Row.training)
+            + plan.supplements.filter { $0.replaces == nil }.map(Row.supplement)).sorted { $0.minute < $1.minute }
         VStack(spacing: 8) {
             FuelCoachCard(plan: plan)
             ForEach(rows) { row in
@@ -508,6 +514,11 @@ struct FuelTimeline: View {
                     switch row {
                     case .meal(let s): meal(s)
                     case .training(let a): training(a)
+                    case .supplement(let d):
+                        SupplementDoseRow(dose: d, plan: plan, log: log, day: day)
+                            .foregroundStyle(.white)
+                            .padding(10)
+                            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(SupplementsView.gradient(d.supplement.kind)))
                     }
                 }
             }
@@ -515,13 +526,14 @@ struct FuelTimeline: View {
     }
 
     private func meal(_ s: FuelSlot) -> some View {
-        let done = log.ticks[s.id] != nil
+        let shake = plan.supplements.first { $0.replaces == s.id }
+        let done = shake.map { log.taken($0) } ?? (log.ticks[s.id] != nil)
         let kind = s.afterTraining ? MealKind.recovery : s.kind
         return HStack(spacing: 10) {
             Button { open(s) } label: {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("\(s.kind.emoji) \(s.title.uppercased())").font(Theme.label(10)).tracking(1).opacity(0.9)
-                    Text(ideaName(s) ?? s.hint).font(Theme.display(15)).lineLimit(2).minimumScaleFactor(0.8)
+                    Text(shake.map { "\($0.supplement.emoji) \($0.supplement.name)" } ?? ideaName(s) ?? s.hint).font(Theme.display(15)).lineLimit(2).minimumScaleFactor(0.8)
                         .multilineTextAlignment(.leading)
                     Text(store.prefs.noNumbers ? "✋ \(s.portions.palms) · 🤲 \(s.portions.cups) · ✊ \(s.portions.fists)"
                          : "\(s.protein) g protein · \(s.carbs) g carbs")
@@ -531,7 +543,9 @@ struct FuelTimeline: View {
             }
             .buttonStyle(.plain)
             Button {
-                store.update(day, plan: plan) { l in if done { l.untick(s.id) } else { l.tick(s) } }
+                store.update(day, plan: plan) { l in
+                    if let shake { if done { l.untick(shake) } else { l.tick(shake) } } else if done { l.untick(s.id) } else { l.tick(s) }
+                }
             } label: {
                 Image(systemName: done ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 26, weight: .bold))
@@ -692,7 +706,7 @@ struct FuelPortionsView: View {
 /// Fuel screens, pushed by value like the recipes inside them: a value link inside a screen pushed with a
 /// destination link popped the recipe straight back (#508).
 enum FuelRoute: Hashable {
-    case pantry, mealPlan, groceries, recipes(MealKind?), week, learn
+    case pantry, mealPlan, groceries, recipes(MealKind?), week, learn, supplements
 }
 
 extension View {
@@ -705,6 +719,7 @@ extension View {
             case .recipes(let slot): RecipeBrowserView(slot: slot)
             case .week: FuelWeekView()
             case .learn: FuelLearnView()
+            case .supplements: SupplementsView()
             }
         }
     }
