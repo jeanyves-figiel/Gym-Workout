@@ -635,7 +635,8 @@ public enum Fuel {
                 drafts[j].after = true
             }
         }
-        drafts.removeAll { d in d.kind == .recovery && drafts.contains { $0.kind != .recovery && $0.after && abs($0.minute - d.minute) < 60 } }
+        let recovered = drafts.filter { $0.kind != .recovery && $0.after }
+        drafts.removeAll { d in d.kind == .recovery && recovered.contains { abs($0.minute - d.minute) < 60 } }
         let wanted = max(3, min(6, prefs.meals))
         let extras: [(String, MealKind, Int)] = [("snack-pm", .snack, 16 * 60), ("bedtime", .bedtime, sleep - 60), ("snack-am", .snack, 10 * 60)]
         for (id, kind, m) in extras where drafts.count < wanted {
