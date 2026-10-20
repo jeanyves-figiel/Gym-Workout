@@ -140,6 +140,7 @@ struct GymSetupView: View {
                 case .result: resultStep
                 }
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)

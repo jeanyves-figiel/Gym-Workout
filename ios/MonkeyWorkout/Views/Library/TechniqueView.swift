@@ -61,7 +61,8 @@ struct EquipmentSection: View {
     let equipment: [Equipment]
 
     var body: some View {
-        GradientSection(symbol: "dumbbell.fill", title: "Equipment", gradient: WorkoutEngine.Category.warmup.gradient) {
+        GradientSection(symbol: "dumbbell.fill", title: "Equipment", gradient: WorkoutEngine.Category.warmup.gradient,
+                        ink: WorkoutEngine.Category.warmup.ink) {
             if equipment.isEmpty {
                 row(symbol: "figure.stand", title: "Bodyweight", zone: "Anywhere with space", text: "No equipment needed — a mat if you're on the floor.")
             }
@@ -73,7 +74,7 @@ struct EquipmentSection: View {
 
     private func row(symbol: String, title: String, zone: String, text: String) -> some View {
         HStack(alignment: .top, spacing: 14) {
-            IconTile(symbol: symbol, size: 44)
+            IconTile(symbol: symbol, size: 44, ink: true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).font(.system(.headline, design: .rounded).weight(.heavy))
                 Text(zone.uppercased()).font(Theme.label(10)).tracking(1).opacity(0.85)
@@ -96,21 +97,21 @@ struct TechniqueView: View {
                 breathe(t)
             }
         } else {
-            GradientSection(symbol: "text.bubble.fill", title: "Key cues", gradient: exercise.category.gradient) {
+            GradientSection(symbol: "text.bubble.fill", title: "Key cues", gradient: exercise.category.gradient, ink: exercise.category.ink) {
                 ForEach(exercise.cues, id: \.self) { Text("• \($0)").font(.body.weight(.medium)) }
             }
         }
     }
 
     private func setup(_ t: Technique) -> some View {
-        GradientSection(symbol: "list.number", title: "Set up", gradient: exercise.category.gradient) {
+        GradientSection(symbol: "list.number", title: "Set up", gradient: exercise.category.gradient, ink: exercise.category.ink) {
             ForEach(Array(t.setup.enumerated()), id: \.offset) { i, step in
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     Text("\(i + 1)")
                         .font(Theme.display(16))
-                        .foregroundStyle(exercise.category.color)
+                        .foregroundStyle(exercise.category.isLight ? Color.white : exercise.category.color)
                         .frame(width: 26, height: 26)
-                        .background(Circle().fill(.white))
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(exercise.category.isLight ? Theme.ink : .white))
                     Text(step).font(.body.weight(.medium)).fixedSize(horizontal: false, vertical: true)
                 }
             }

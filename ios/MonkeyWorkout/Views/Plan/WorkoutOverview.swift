@@ -184,6 +184,7 @@ struct WorkoutMapSheet: View {
             }
             .onAppear { proxy.scrollTo(current, anchor: .center) }
         }
+        .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .foregroundStyle(.white)
         .preferredColorScheme(.dark)

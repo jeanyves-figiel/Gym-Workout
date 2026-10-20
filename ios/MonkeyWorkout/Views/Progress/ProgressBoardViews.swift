@@ -219,6 +219,7 @@ struct ProgressWidgetGallery: View {
                 }
                 .padding(16)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Add widget")
             .navigationBarTitleDisplayMode(.inline)

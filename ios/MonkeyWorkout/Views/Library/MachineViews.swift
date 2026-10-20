@@ -188,7 +188,7 @@ struct MachineDetailView: View {
 
                 NewExerciseButton(prefill: CustomExercise(equipment: [item]))
                 ForEach(Exercise.using(item, byCategory: .shared), id: \.0) { category, list in
-                    GradientSection(symbol: category.symbol, title: category.label, gradient: category.gradient) {
+                    GradientSection(symbol: category.symbol, title: category.label, gradient: category.gradient, ink: category.ink) {
                         ForEach(Exercise.folded(list), id: \.exercise.id) { family in
                             let ex = family.exercise
                             Button { open = ExerciseRef(exerciseId: ex.id) } label: {

@@ -281,7 +281,7 @@ struct MuscleDetailView: View {
                 }
                 ForEach(filtered, id: \.0) { category, hits in
                     let main = Set(hits.filter(\.primary).map(\.exercise.id))
-                    GradientSection(symbol: category.symbol, title: category.label, gradient: category.gradient) {
+                    GradientSection(symbol: category.symbol, title: category.label, gradient: category.gradient, ink: category.ink) {
                         // Variations fold under their base (#174); the exercise page lists them.
                         ForEach(Exercise.folded(hits.map(\.exercise)), id: \.exercise.id) { family in
                             let ex = family.exercise
@@ -291,11 +291,11 @@ struct MuscleDetailView: View {
                                     Text(isMain ? "MAIN" : "ASSIST")
                                         .font(Theme.label(9))
                                         .tracking(1)
-                                        .foregroundStyle(isMain ? Theme.ink : .white)
+                                        .foregroundStyle(isMain ? (category.isLight ? Color.white : Theme.ink) : category.ink)
                                         .frame(width: 52)
                                         .padding(.vertical, 4)
                                         .background {
-                                            if isMain { Capsule().fill(.white) } else { Capsule().strokeBorder(Color.white.opacity(0.6)) }
+                                            if isMain { Capsule().fill(category.isLight ? Theme.ink : .white) } else { Capsule().strokeBorder(category.ink.opacity(0.6)) }
                                         }
                                     ExerciseThumbnail(exercise: ex, size: 48)
                                     VStack(alignment: .leading, spacing: 2) {

@@ -992,6 +992,7 @@ struct LevelLadderSheet: View {
                 }
                 .onAppear { proxy.scrollTo(current, anchor: .center) }
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Levels")
             .navigationBarTitleDisplayMode(.inline)

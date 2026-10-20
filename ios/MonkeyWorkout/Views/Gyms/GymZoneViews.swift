@@ -427,6 +427,7 @@ struct FloorPlanSheet: View {
                 }
                 .padding(16)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Gym map")
             .navigationBarTitleDisplayMode(.inline)

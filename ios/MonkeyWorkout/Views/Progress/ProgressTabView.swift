@@ -903,7 +903,7 @@ struct HistoryDetailView: View {
                     ForEach(WorkoutEngine.Category.allCases) { cat in
                         let items = r.exercises.filter { $0.category == cat }
                         if !items.isEmpty {
-                            GradientSection(symbol: cat.symbol, title: cat.label, gradient: cat.gradient) {
+                            GradientSection(symbol: cat.symbol, title: cat.label, gradient: cat.gradient, ink: cat.ink) {
                                 ForEach(items) { e in
                                     HStack {
                                         Image(systemName: e.setsDone >= e.setsPlanned ? "checkmark.circle.fill" : (e.setsDone > 0 ? "circle.lefthalf.filled" : "circle"))

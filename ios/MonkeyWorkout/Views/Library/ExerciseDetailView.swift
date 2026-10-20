@@ -240,7 +240,7 @@ struct ExerciseDetailView: View {
         let family = custom == nil ? e.relatives : []
         if !family.isEmpty {
             GradientSection(symbol: "square.stack.3d.down.right.fill", title: e.baseId == nil ? "Variations" : "Same family",
-                            gradient: e.category.gradient) {
+                            gradient: e.category.gradient, ink: e.category.ink) {
                 ForEach(family) { a in
                     NavigationLink { ExerciseDetailView(exerciseId: a.id) } label: { alternativeRow(a) }
                         .buttonStyle(.plain)
@@ -257,7 +257,7 @@ struct ExerciseDetailView: View {
         let family = Set(e.family.map(\.id))
         let others = alts.filter { !family.contains($0.id) }
         if !others.isEmpty {
-            GradientSection(symbol: "square.grid.2x2.fill", title: "Similar exercises", gradient: e.category.gradient) {
+            GradientSection(symbol: "square.grid.2x2.fill", title: "Similar exercises", gradient: e.category.gradient, ink: e.category.ink) {
                 ForEach(others.prefix(8)) { a in
                     NavigationLink { ExerciseDetailView(exerciseId: a.id) } label: { alternativeRow(a) }
                         .buttonStyle(.plain)
