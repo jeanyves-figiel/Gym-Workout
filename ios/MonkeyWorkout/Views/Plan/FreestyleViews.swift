@@ -20,11 +20,11 @@ struct FreestyleStartView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Button(action: onClose) {
-                    Image(systemName: "xmark").font(.system(size: 16, weight: .heavy))
+                    Image(systemName: "pause.fill").font(.system(size: 16, weight: .heavy))
                         .frame(width: 40, height: 40)
                         .background(Circle().fill(Theme.cardStrong))
                 }
-                .accessibilityLabel("Close")
+                .accessibilityLabel("Pause or leave workout")
                 Spacer()
                 TimelineView(.periodic(from: started, by: 1)) { ctx in
                     Text(Format.elapsed(ctx.date.timeIntervalSince(started))).font(Theme.label(14)).monospacedDigit()
