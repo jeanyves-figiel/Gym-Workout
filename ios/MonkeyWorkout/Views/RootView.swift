@@ -90,7 +90,12 @@ struct MainTabView: View {
         }
         // Auto-share catch-up (#479): a workout finished on the Watch while the app was closed, a failed post or
         // a sport the Watch tracked (it reaches the iPhone through Health) is posted when the app opens.
-        .onChange(of: scenePhase) { _, p in if p == .active { Task { await autoShare() } } }
+        .onChange(of: scenePhase) { _, p in
+            guard p == .active else { return }
+            Task { await autoShare() }
+            // Workouts and sets from a Garmin watch (#550).
+            Task { await GarminSync.shared.pull() }
+        }
         .onChange(of: health.snapshot.recentSports.count) { Task { await autoShare() } }
         // Coach voice (#402, C): the best matching studio voice, downloaded once in the background.
         .task(id: model.user?.id) { await CoachVoiceStore.shared.prepare(model: model) }

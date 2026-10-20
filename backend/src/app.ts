@@ -29,6 +29,7 @@ import { customWorkoutRoutes } from './routes/customWorkouts.ts';
 import { bodyMeasurementRoutes } from './routes/bodyMeasurements.ts';
 import { climbRoutes } from './routes/climbs.ts';
 import { sportRoutes, watchSportRoutes } from './routes/sports.ts';
+import { garminRoutes, garminWatchRoutes } from './routes/garmin.ts';
 import { machineNoteRoutes } from './routes/machineNotes.ts';
 import { reportRoutes } from './routes/reports.ts';
 import { prAttemptRoutes } from './routes/prAttempts.ts';
@@ -175,6 +176,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   legalRoutes(app, deps.config);
   securityPublicRoutes(app, security, deps.config.authRateLimitPerMin);
   watchSportRoutes(app, deps.db, deps.now ?? (() => new Date()));
+  garminWatchRoutes(app, deps.db, deps.now ?? (() => new Date()));
 
   const authenticate = async (req: FastifyRequest) => {
     const h = req.headers.authorization;
@@ -292,6 +294,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       prAttemptRoutes(r, deps.db, deps.now ?? (() => new Date()));
       climbRoutes(r, deps.db, deps.now ?? (() => new Date()));
       sportRoutes(r, deps.db, deps.now ?? (() => new Date()));
+      garminRoutes(r, deps.db, deps.now ?? (() => new Date()));
       machineNoteRoutes(r, deps.db, deps.now ?? (() => new Date()));
       reportRoutes(r, { db: deps.db, now, mailer: deps.mailer, to: deps.config.legal.email, fetch: outbound, config: deps.config.reports, log: warn });
       bodyMeasurementRoutes(r, deps.db, deps.now ?? (() => new Date()));
