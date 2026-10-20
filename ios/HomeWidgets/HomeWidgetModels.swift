@@ -256,6 +256,14 @@ struct HomeWidgetSnapshot: Codable, Equatable, Sendable {
         var glassesTarget: Int
         var next: String?
         var nextTime: String?
+        /// The day these counts are for; glasses from yesterday's snapshot count as 0 (#520).
+        var day: Date? = nil
+        var glassMl: Int? = nil
+
+        func glassesToday(_ date: Date, calendar cal: Calendar = .current) -> Int {
+            guard let day else { return glasses }
+            return cal.isDate(day, inSameDayAs: date) ? glasses : 0
+        }
     }
 
     struct Climbing: Codable, Equatable, Sendable {

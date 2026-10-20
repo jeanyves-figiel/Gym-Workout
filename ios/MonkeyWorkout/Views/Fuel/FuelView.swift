@@ -411,17 +411,7 @@ struct FuelDashboard: View {
                 .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(FuelPalette.violet))
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("WATER · TAP A GLASS").font(Theme.label(10)).tracking(1.2).opacity(0.85)
-                    Spacer()
-                    Text("\(log.glasses)/\(plan.glasses)").font(Theme.display(17)).monospacedDigit()
-                }
-                WaterGlasses(filled: log.glasses, target: plan.glasses) { n in store.update(day, plan: plan) { $0.glasses = n } }
-            }
-            .foregroundStyle(.white)
-            .padding(14)
-            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(FuelPalette.water))
+            FuelWaterCard(plan: plan, log: log, day: day, title: "WATER · TAP A GLASS")
 
             FuelCoachCard(plan: plan)
         }
@@ -639,17 +629,7 @@ struct FuelPortionsView: View {
             Text("Tap a tile for each portion you ate. Hold to take one back.")
                 .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("💧 WATER").font(Theme.label(10)).tracking(1.2).opacity(0.85)
-                    Spacer()
-                    Text("\(log.glasses)/\(plan.glasses)").font(Theme.display(17)).monospacedDigit()
-                }
-                WaterGlasses(filled: log.glasses, target: plan.glasses) { n in store.update(day, plan: plan) { $0.glasses = n } }
-            }
-            .foregroundStyle(.white)
-            .padding(14)
-            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(FuelPalette.water))
+            FuelWaterCard(plan: plan, log: log, day: day)
 
             if let line = coachLine {
                 Button { if let s = nextSlot { open(s) } } label: {

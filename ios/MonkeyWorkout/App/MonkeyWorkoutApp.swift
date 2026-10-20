@@ -20,12 +20,14 @@ struct MonkeyWorkoutApp: App {
                 .task {
                     model.health = health
                     FuelStore.shared.health = health
+                    FuelStore.shared.planFor = { [model] in model.fuelPlan(on: $0) }
                     // Screens reopened by Undo (#285) live outside this tree: give them the same environment.
                     UndoCloseCenter.shared.environment = { [model, lock, health] view in
                         AnyView(view.environment(model).environment(lock).environment(health)
                             .environment(\.bodyFigure, model.bodyFigure).preferredColorScheme(.dark).tint(Theme.lime))
                     }
                     await model.bootstrap()
+                    FuelStore.shared.applyWidgetGlasses()
                     WatchSync.shared.start(model: model, health: health)
                     HomeWidgetSync.shared.start(model: model, health: health)
                     await AppleCredentialCheck.verify(model)
@@ -73,6 +75,8 @@ struct MonkeyWorkoutApp: App {
                         // A new programme week (#255), or a new calendar week for the plan (#266).
                         model.syncProgramme()
                         model.rollWeekIfNeeded()
+                        // Glasses tapped on the water widget (#520).
+                        FuelStore.shared.applyWidgetGlasses()
                         Task {
                             await AppleCredentialCheck.verify(model)
                             await model.sync()
