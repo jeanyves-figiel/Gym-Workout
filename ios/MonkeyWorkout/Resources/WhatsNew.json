@@ -1,47 +1,23 @@
 {
-  "id": "2026-10-20.2",
+  "id": "2026-10-20.3",
   "items": [
-    {
-      "symbol": "bolt.fill",
-      "tint": "cardio",
-      "title": "Smoother everywhere",
-      "body": "Screens, date bars and exercise animations glide, and your data is kept safe even when you edit during a sync."
-    },
     {
       "symbol": "calendar",
       "tint": "strength",
       "title": "Train opens on today",
-      "body": "Today and Start are always on your first screen. Recaps and tips take turns in one card under Next up."
+      "body": "Train always opens on today, and today's card has Build as I go, Log sport and Track live, climbing days too."
     },
     {
-      "symbol": "play.fill",
-      "tint": "power",
-      "title": "Only today starts",
-      "body": "Only today's workout has Start. Missed days say Log it, upcoming ones show when they're planned."
-    },
-    {
-      "symbol": "xmark.square.fill",
-      "tint": "strength",
-      "title": "Step out, Undo back",
-      "body": "Tap ✕ to step out of a workout: it's paused, and Undo brings you right back. Finish and Discard live in the workout map."
-    },
-    {
-      "symbol": "timer",
-      "tint": "warmup",
-      "title": "Rest in its place",
-      "body": "Rest shows a big timer and bar in the set card's spot, with +15 s and Skip rest right there."
-    },
-    {
-      "symbol": "arrow.uturn.backward",
-      "tint": "stretch",
-      "title": "Undo, not \"Are you sure?\"",
-      "body": "Deleting a measurement, recipe, workout or plan item happens at once, with Undo."
-    },
-    {
-      "symbol": "textformat.size",
+      "symbol": "airplane",
       "tint": "cardio",
-      "title": "Easier to read",
-      "body": "Text follows your iPhone's text size, light cards use dark text, and buttons are easier to tap."
+      "title": "Away days in their week",
+      "body": "Trips and can't-train days sit in their week on the Calendar. Tap the strip to edit."
+    },
+    {
+      "symbol": "clock",
+      "tint": "warmup",
+      "title": "Clear log times",
+      "body": "Log a climb or sport with Started → Ended times, and one How hard chip."
     }
   ]
 }
