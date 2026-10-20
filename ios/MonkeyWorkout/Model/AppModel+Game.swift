@@ -6,12 +6,25 @@ extension AppModel {
     var gameTarget: Int { profile?.sessionsPerWeek ?? 3 }
 
     /// Walking and stairs (Daily Move, #454) add their XP on top of the workouts.
-    var game: GameProgress { GameProgress.evaluate(records: state.history, targetPerWeek: gameTarget, moveXP: MoveStore.shared.xp + FuelStore.shared.xp) }
+    var game: GameProgress {
+        let version = observedStateVersion
+        let moveXP = MoveStore.shared.xp + FuelStore.shared.xp
+        if let c = derived.game, c.key == version, c.moveXP == moveXP { return c.value }
+        let g = GameProgress.evaluate(records: state.history, targetPerWeek: gameTarget, moveXP: moveXP)
+        derived.game = (version, moveXP, g)
+        return g
+    }
 
     /// Rank on the level ladder (#242).
     var rank: GameRank { .of(level: game.level) }
 
-    var badges: [Badge] { Achievements.evaluate(records: state.history, weights: weightEntries, targetPerWeek: gameTarget) }
+    var badges: [Badge] {
+        let version = observedStateVersion
+        if let c = derived.badges, c.key == version { return c.value }
+        let b = Achievements.evaluate(records: state.history, weights: weightEntries, targetPerWeek: gameTarget)
+        derived.badges = (version, b)
+        return b
+    }
 
     /// XP a planned session earns with every set done.
     func xp(for session: Session) -> Int {

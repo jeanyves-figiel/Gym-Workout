@@ -12,6 +12,8 @@ final class AppModel {
     var user: User?
     var state = LocalState() {
         didSet {
+            // Derived values (plan, calendar, game…) are cached until the state changes (`AppModel+Cache`).
+            stateVersion &+= 1
             // Custom exercises resolve through `Exercise.find` everywhere (picker, sessions, history).
             if state.customExerciseList != oldValue.customExerciseList {
                 CustomExercises.shared.replaceAll(state.customExerciseList ?? [])
@@ -41,6 +43,9 @@ final class AppModel {
     /// Gym Map (#406): the plan other members at the home gym agree with, and its live crowd; loaded on demand.
     var sharedGymMap: SharedGymMap<GymLayout>?
     var gymCrowd: GymCrowd?
+    /// Bumped on every change to `state`: keys the derived-value caches (`AppModel+Cache`).
+    @ObservationIgnored private(set) var stateVersion = 0
+    @ObservationIgnored var derived = DerivedCache()
     /// Gym zones changed from the player (#352): the plan follows once the running workout is over; not persisted.
     @ObservationIgnored var replanAfterWorkout = false
     /// Apple Health readings for first-time load estimates (#115); set at launch.
@@ -315,6 +320,14 @@ final class AppModel {
     /// On a low-readiness day, RIR-autoregulated plans (#156) ease today's session; with daily auto-tune (#495)
     /// today's session follows the tuned level and sore muscles instead.
     var plan: WeekPlan? {
+        let key = derivedKey
+        if let c = derived.plan, c.key == key { return c.value }
+        let p = makePlan()
+        derived.plan = (key, p)
+        return p
+    }
+
+    private func makePlan() -> WeekPlan? {
         guard let edited = uneditedPlan?.applying(edits: state.synced?.sessionEdits ?? []) else { return nil }
         // Lift Focus and Pro Sets (#499): the focus lift's block sets, then the member's set styles.
         let p = expertPlan(edited)
@@ -604,7 +617,14 @@ final class AppModel {
     /// Pronouns shown next to your nickname (#415): only when turned on in How we talk to you.
     var communityPronouns: String? { body.showPronouns == true ? body.pronounsText : nil }
 
-    var history: [WorkoutRecord] { state.history.sorted { $0.startedAt > $1.startedAt } }
+    /// Newest first.
+    var history: [WorkoutRecord] {
+        let version = observedStateVersion
+        if let c = derived.history, c.key == version { return c.value }
+        let sorted = state.history.sorted { $0.startedAt > $1.startedAt }
+        derived.history = (version, sorted)
+        return sorted
+    }
 
     var weightEntries: [WeightEntry] {
         state.logs.compactMap { l in l.weightKg.map { WeightEntry(exerciseId: l.exerciseId, date: l.date, kg: $0, reps: l.reps) } }

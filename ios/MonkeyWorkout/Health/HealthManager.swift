@@ -155,7 +155,11 @@ final class HealthManager {
 
     private(set) var connected = UserDefaults.standard.bool(forKey: HealthManager.connectedKey)
     private(set) var writeWorkouts = UserDefaults.standard.object(forKey: HealthManager.writeKey) as? Bool ?? true
-    var snapshot = HealthSnapshot()
+    var snapshot = HealthSnapshot() {
+        didSet { snapshotVersion &+= 1 }
+    }
+    /// Bumped on every new snapshot: keys `AppModel`'s plan cache.
+    @ObservationIgnored private(set) var snapshotVersion = 0
     /// Health values known (cached or read). Until then "Connect Apple Health" prompts stay hidden for connected users.
     private(set) var loaded = false
     var error: String?
