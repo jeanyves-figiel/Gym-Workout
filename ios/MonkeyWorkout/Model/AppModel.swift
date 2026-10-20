@@ -869,19 +869,30 @@ final class AppModel {
     private func pushLogs() async throws {
         let pending = state.logs.filter { state.pendingLogIds.contains($0.id) }
         guard !pending.isEmpty else { return }
-        try await api.pushLogs(pending)
+        let epoch = accountEpoch
+        let result = try await api.pushLogs(pending)
         // Only clear what is unchanged since the push started (a set re-logged meanwhile stays queued).
         let current = Dictionary(state.logs.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
         for l in pending where current[l.id].map({ $0 == l }) ?? true { state.pendingLogIds.remove(l.id) }
+        // Changed on another device since this edit's base: the server copy wins. Written ones keep their new version.
+        guard accountEpoch == epoch, !result.isEmpty else { return }
+        let applied = result.applied(to: state.logs, pending: state.pendingLogIds)
+        state.logs = applied.list
+        state.pendingLogIds = applied.pending
     }
 
     private func pushHistory() async throws {
         let pendingRecords = state.history.filter { state.pendingHistoryIds.contains($0.id) }
         guard !pendingRecords.isEmpty else { return }
-        try await api.pushWorkouts(pendingRecords)
+        let epoch = accountEpoch
+        let result = try await api.pushWorkouts(pendingRecords)
         // Heart rate attached while the push was in flight stays queued for the next sync.
         let current = Dictionary(state.history.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
         for r in pendingRecords where current[r.id].map({ $0 == r }) ?? true { state.pendingHistoryIds.remove(r.id) }
+        guard accountEpoch == epoch, !result.isEmpty else { return }
+        let applied = result.applied(to: state.history, pending: state.pendingHistoryIds)
+        state.history = applied.list
+        state.pendingHistoryIds = applied.pending
     }
 
     /// Server deletes queued by Undo workout (#133) and PR-attempt removal; each id is dropped once the server
@@ -937,10 +948,22 @@ final class AppModel {
         // 5 min overlap absorbs clock skew; merge is idempotent by id.
         let since = state.lastLogPull?.addingTimeInterval(-300)
         let epoch = accountEpoch
-        let changes = try await api.fetchLogChanges(since: since)
+        var changes = try await api.fetchLogChanges(since: since)
         guard accountEpoch == epoch else { return }
+        // The last pull is older than the server keeps deletes for: some may be missing, so pull everything and
+        // take that list as the truth (like `pullHistory`). A failure keeps the old cursor, so the next sync asks again.
+        let resync = changes.fullResync
+        if resync {
+            changes = try await api.fetchLogChanges()
+            guard accountEpoch == epoch else { return }
+        }
         let deleted = state.deletedLogIds ?? []
         var byId = Dictionary(state.logs.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
+        if resync {
+            // Unsent local edits stay; everything else comes from the server list below.
+            let pendingIds = state.pendingLogIds
+            byId = byId.filter { pendingIds.contains($0.key) }
+        }
         for l in changes.logs where !state.pendingLogIds.contains(l.id) && !deleted.contains(l.id) { byId[l.id] = l }
         // Deleted on the server since the last pull (undo on another device): drop here too, even with a local
         // edit still queued, since the server ignores re-uploads of deleted ids (#432).
@@ -1026,3 +1049,14 @@ final class AppModel {
         persistNow()
     }
 }
+
+// Synced records remember the server version their edit started from, sent as `baseUpdatedAt` on upload so an
+// offline edit never overwrites a newer copy from another device (the server returns its copy as a conflict).
+extension WorkoutRecord: @retroactive ServerVersioned {}
+extension CustomWorkout: @retroactive ServerVersioned {}
+extension CustomExercise: @retroactive ServerVersioned {}
+extension PRAttempt: @retroactive ServerVersioned {}
+extension BodyMeasurement: @retroactive ServerVersioned {}
+extension ClimbLog: ServerVersioned {}
+extension SportLog: ServerVersioned {}
+extension MachineNote: ServerVersioned {}

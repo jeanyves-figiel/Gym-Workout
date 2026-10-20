@@ -58,9 +58,15 @@ extension AppModel {
         let pendingIds = state.pendingMeasurementIds ?? []
         let pending = (state.measurements ?? []).filter { pendingIds.contains($0.id) }
         if !pending.isEmpty {
-            try await api.pushBodyMeasurements(pending)
+            let result = try await api.pushBodyMeasurements(pending)
             // Only clear what is unchanged since the push started (an edit made meanwhile stays queued).
             for m in pending where state.measurements?.first(where: { $0.id == m.id }) == m { state.pendingMeasurementIds?.remove(m.id) }
+            // Changed on another device since this edit's base: the server copy wins. Written ones keep their new version.
+            if accountEpoch == epoch, !result.isEmpty {
+                let applied = result.applied(to: state.measurements ?? [], pending: state.pendingMeasurementIds ?? [])
+                state.measurements = applied.list
+                state.pendingMeasurementIds = applied.pending
+            }
         }
         let remote = try await api.fetchBodyMeasurements(BodyMeasurement.self)
         // Signed out or another account signed in meanwhile: the list belongs to the previous account.

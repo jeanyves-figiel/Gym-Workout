@@ -36,6 +36,8 @@ struct ClimbLog: Codable, Identifiable, Equatable, Sendable {
     /// Free text, any scale (6B+, V5, 7a).
     var topGrade: String?
     var notes: String?
+    /// Server version this copy was pulled or saved as (`ServerVersioned`); nil until the server has it.
+    var updatedAt: String?
 
     var end: Date { start.addingTimeInterval(Double(minutes) * 60) }
 

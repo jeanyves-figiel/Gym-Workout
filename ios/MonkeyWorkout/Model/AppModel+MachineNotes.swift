@@ -92,9 +92,21 @@ extension AppModel {
         let pendingIds = state.pendingMachineNoteIds ?? []
         let pending = (state.machineNotes ?? []).filter { pendingIds.contains($0.id) }
         if !pending.isEmpty {
-            try await api.pushMachineNotes(pending)
+            let result = try await api.pushMachineNotes(pending)
             // Only clear what is unchanged since the push started (an edit made meanwhile stays queued).
             for n in pending where state.machineNotes?.first(where: { $0.id == n.id }) == n { state.pendingMachineNoteIds?.remove(n.id) }
+            // Changed on another device since this edit's base: the server copy wins. Written ones keep their new version.
+            if accountEpoch == epoch, !result.isEmpty {
+                // Its photo changed there too: drop the stale local file (downloaded again when shown), unless a new
+                // photo from this device is still waiting to go up.
+                let photosQueued = state.pendingMachinePhotoIds ?? []
+                for n in result.conflicts where !photosQueued.contains(n.id) && state.machineNotes?.first(where: { $0.id == n.id })?.photoId != n.photoId {
+                    MachineNotePhotos.remove(n.id)
+                }
+                let applied = result.applied(to: state.machineNotes ?? [], pending: state.pendingMachineNoteIds ?? [])
+                state.machineNotes = applied.list
+                state.pendingMachineNoteIds = applied.pending
+            }
         }
         // Photos once their note is on the server.
         for id in state.pendingMachinePhotoIds ?? [] where !(state.pendingMachineNoteIds ?? []).contains(id) {

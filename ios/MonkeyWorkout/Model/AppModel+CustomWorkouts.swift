@@ -70,8 +70,9 @@ extension AppModel {
         state.pendingCustomWorkoutIds = Set(pending.map(\.id))
         if !pending.isEmpty {
             // Failure keeps them queued (offline at the gym); `sync()` surfaces the error.
+            var result: UploadResult<CustomWorkout>
             do {
-                try await api.pushCustomWorkouts(pending)
+                result = try await api.pushCustomWorkouts(pending)
             } catch let APIError.server(_, code, message) where ["community_profile_required", "objectionable_content"].contains(code) {
                 // Sharing refused (#62): keep the workouts, make them private again so the queue can drain.
                 unshare(pending.filter { $0.visibility != .private }.map(\.id))
@@ -80,6 +81,14 @@ extension AppModel {
             }
             // Only clear what is unchanged since the push started (an edit made meanwhile stays queued).
             for w in pending where customWorkout(w.id) == w { state.pendingCustomWorkoutIds?.remove(w.id) }
+            // Changed on another device since this edit's base: the server copy wins (sanitized like a pull).
+            // Written ones keep their new version.
+            if accountEpoch == epoch, !result.isEmpty {
+                result.conflicts = result.conflicts.map(\.sanitized)
+                let applied = result.applied(to: state.customWorkoutList ?? [], pending: state.pendingCustomWorkoutIds ?? [])
+                state.customWorkoutList = applied.list
+                state.pendingCustomWorkoutIds = applied.pending
+            }
         }
 
         let remote = try await api.fetchCustomWorkouts(CustomWorkout.self)

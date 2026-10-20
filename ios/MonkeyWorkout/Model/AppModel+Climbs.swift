@@ -42,9 +42,15 @@ extension AppModel {
         let pendingIds = state.pendingClimbIds ?? []
         let pending = (state.climbs ?? []).filter { pendingIds.contains($0.id) }
         if !pending.isEmpty {
-            try await api.pushClimbs(pending)
+            let result = try await api.pushClimbs(pending)
             // Only clear what is unchanged since the push started (an edit made meanwhile stays queued).
             for c in pending where state.climbs?.first(where: { $0.id == c.id }) == c { state.pendingClimbIds?.remove(c.id) }
+            // Changed on another device since this edit's base: the server copy wins. Written ones keep their new version.
+            if accountEpoch == epoch, !result.isEmpty {
+                let applied = result.applied(to: state.climbs ?? [], pending: state.pendingClimbIds ?? [])
+                state.climbs = applied.list
+                state.pendingClimbIds = applied.pending
+            }
         }
         let remote = try await api.fetchClimbs(ClimbLog.self)
         // Signed out or another account signed in meanwhile: the list belongs to the previous account.

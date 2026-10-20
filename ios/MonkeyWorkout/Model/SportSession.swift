@@ -17,6 +17,8 @@ struct SportLog: Codable, Identifiable, Equatable, Sendable {
     var fromHealth: Bool?
     /// Hyrox race or sim recorded on the Watch (#426): splits, Roxzone, division and goal.
     var hyrox: HyroxRace?
+    /// Server version this copy was pulled or saved as (`ServerVersioned`); nil until the server has it.
+    var updatedAt: String?
 
     var end: Date { start.addingTimeInterval(Double(minutes) * 60) }
 }

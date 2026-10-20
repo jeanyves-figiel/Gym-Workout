@@ -44,8 +44,14 @@ extension AppModel {
         state.pendingCustomExerciseIds = Set(pending.map(\.id))
         if !pending.isEmpty {
             // Failure keeps them queued (offline at the gym); `sync()` surfaces the error.
-            try await api.pushCustomExercises(pending)
+            let result = try await api.pushCustomExercises(pending)
             for e in pending where customExercise(e.id) == e { state.pendingCustomExerciseIds?.remove(e.id) }
+            // Changed on another device since this edit's base: the server copy wins. Written ones keep their new version.
+            if accountEpoch == epoch, !result.isEmpty {
+                let applied = result.applied(to: state.customExerciseList ?? [], pending: state.pendingCustomExerciseIds ?? [])
+                state.customExerciseList = applied.list
+                state.pendingCustomExerciseIds = applied.pending
+            }
         }
 
         let remote = try await api.fetchCustomExercises(CustomExercise.self)
