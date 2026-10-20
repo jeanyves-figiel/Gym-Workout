@@ -46,7 +46,7 @@ struct ResetPasswordView: View {
             if done {
                 AccountHeader(symbol: "checkmark.seal.fill", title: "Password updated",
                               subtitle: "All devices were signed out. Sign in with your new password.",
-                              gradient: AccountTint.export)
+                              gradient: AccountTint.export, ink: true)
                 LimeActionButton(title: "Sign in") { path = [.signIn] }
                     .padding(.top, 6)
             } else {
@@ -94,7 +94,7 @@ struct PrivacyNoticeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 AccountHeader(symbol: "hand.raised.fill", title: "Privacy notice",
-                              subtitle: "Only what the app needs to work.", gradient: AccountTint.export)
+                              subtitle: "Only what the app needs to work.", gradient: AccountTint.export, ink: true)
                     .padding(.bottom, 4)
                 Text("MonkeyWorkout is a personal app. It stores only what it needs to work:")
                 Text("• **Account** — email, optional name, password hash (never the password), Sign in with Apple identifier.")

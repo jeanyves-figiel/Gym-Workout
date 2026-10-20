@@ -555,17 +555,19 @@ struct GradientStat: View {
     let value: String
     let label: String
     let gradient: LinearGradient
+    /// Type colour: `Theme.ink` on light gradients (#540).
+    var ink: Color = .white
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: symbol)
                 .font(.system(size: 18, weight: .bold))
                 .frame(width: 40, height: 40)
-                .background(RoundedRectangle(cornerRadius: 13).fill(.white.opacity(0.2)))
+                .background(RoundedRectangle(cornerRadius: 13).fill(ink == .white ? Color.white.opacity(0.2) : ink.opacity(0.12)))
             Text(value).font(Theme.display(30)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
             Text(label).font(Theme.label(11)).tracking(1).textCase(.uppercase).opacity(0.85).lineLimit(1).minimumScaleFactor(0.7)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(ink)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(gradient))
@@ -888,7 +890,7 @@ struct HistoryDetailView: View {
                         GradientStat(symbol: "scalemass.fill", value: r.volumeKg > 0 ? Format.volume(r.volumeKg) : "—", label: "Volume",
                                      gradient: WorkoutEngine.Category.strength.gradient)
                         GradientStat(symbol: "flame.fill", value: r.kcal.map { "\(Int($0))" } ?? "—", label: "kcal (est.)",
-                                     gradient: WorkoutEngine.Category.warmup.gradient)
+                                     gradient: WorkoutEngine.Category.warmup.gradient, ink: WorkoutEngine.Category.warmup.ink)
                         if let a = r.avgHeartRate {
                             GradientStat(symbol: "heart.fill", value: "\(Int(a))", label: "Avg bpm", gradient: WorkoutEngine.Category.power.gradient)
                         }

@@ -94,7 +94,7 @@ struct BodyHealthView: View {
                            text: $height, health: snap.heightCm.map { String(format: "%.0f", $0) })
                 metricCard(.weight, title: "Weight", symbol: "scalemass.fill", unit: "kg", gradient: WorkoutEngine.Category.cardio.gradient,
                            text: $weight, health: snap.weightKg.map { String(format: "%.1f", $0) })
-                metricCard(.birthYear, title: "Birth year", symbol: "birthday.cake.fill", unit: "", gradient: WorkoutEngine.Category.warmup.gradient,
+                metricCard(.birthYear, title: "Birth year", symbol: "birthday.cake.fill", unit: "", gradient: WorkoutEngine.Category.warmup.gradient, ink: true,
                            text: $birthYear, health: snap.birthYear.map(String.init))
                 if health.connected && (snap.heightCm == nil || snap.weightKg == nil) {
                     Toggle(isOn: $writeToHealth) {
@@ -112,7 +112,7 @@ struct BodyHealthView: View {
                 section("For estimates (optional)")
                 if let healthSex = snap.sex {
                     AccountCard(symbol: "figure.stand", title: "Sex", subtitle: "From Apple Health",
-                                gradient: WorkoutEngine.Category.stretch.gradient) {
+                                gradient: WorkoutEngine.Category.stretch.gradient, ink: true) {
                         HStack(spacing: 6) {
                             Image(systemName: "heart.fill").font(.caption)
                             Text(healthSex.label).font(Theme.label(15))
@@ -126,7 +126,7 @@ struct BodyHealthView: View {
                         }
                     } label: {
                         AccountCard(symbol: "figure.stand", title: "Sex", subtitle: sex?.label ?? "Not set",
-                                    gradient: WorkoutEngine.Category.stretch.gradient) {
+                                    gradient: WorkoutEngine.Category.stretch.gradient, ink: true) {
                             menuChevron
                         }
                     }
@@ -168,10 +168,10 @@ struct BodyHealthView: View {
 
     /// Explore-style metric card: gradient, icon tile, big value on the right. Health values win and are
     /// read-only; otherwise the big number is the input and tapping anywhere on the card focuses it.
-    private func metricCard(_ metric: Metric, title: String, symbol: String, unit: String, gradient: LinearGradient,
+    private func metricCard(_ metric: Metric, title: String, symbol: String, unit: String, gradient: LinearGradient, ink: Bool = false,
                             text: Binding<String>, health value: String?) -> some View {
         AccountCard(symbol: symbol, title: title, subtitle: value != nil ? "From Apple Health" : text.wrappedValue.isEmpty ? "Tap to enter" : "Tap to edit",
-                    gradient: gradient) {
+                    gradient: gradient, ink: ink) {
             if let value {
                 HStack(spacing: 6) {
                     Image(systemName: "heart.fill").font(.caption)
@@ -181,7 +181,7 @@ struct BodyHealthView: View {
                 .accessibilityLabel((unit.isEmpty ? value : "\(value) \(unit)") + ", from Apple Health")
             } else {
                 VStack(alignment: .trailing, spacing: 0) {
-                    TextField(title, text: text, prompt: Text(unit.isEmpty ? "1990" : "–").foregroundStyle(.white.opacity(0.6)))
+                    TextField(title, text: text, prompt: Text(unit.isEmpty ? "1990" : "–").foregroundStyle((ink ? Theme.ink : .white).opacity(0.6)))
                         .keyboardType(unit.isEmpty ? .numberPad : .decimalPad)
                         .multilineTextAlignment(.trailing)
                         .font(Theme.display(24).monospacedDigit())
