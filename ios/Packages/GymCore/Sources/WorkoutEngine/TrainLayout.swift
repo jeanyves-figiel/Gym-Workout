@@ -309,14 +309,17 @@ public struct TrainLayout: Codable, Equatable, Sendable {
 
     /// The default Train screen for a game look (#227): coach monkey with Monkey coach, level bar with
     /// Charge & go (This week follows the look itself: quest map with Crown deck). Climbing only for climbers.
+    /// One coach card, then Next up (#538): its Start workout stays on the first screen. With the coach monkey the
+    /// week card moves under Next up; the level bar always sits under it.
     public static func classic(coach: Bool, levelBar: Bool, climber: Bool) -> TrainLayout {
         var w: [TrainWidget] = [TrainWidget(.actions)]
         if coach { w.append(TrainWidget(.coach)) }
         // Shows only while a programme runs (#255).
         w.append(TrainWidget(.programme))
-        w.append(TrainWidget(.week))
-        if levelBar { w.append(TrainWidget(.level, size: .wide)) }
+        if !coach { w.append(TrainWidget(.week)) }
         w.append(TrainWidget(.nextUp, size: .large))
+        if coach { w.append(TrainWidget(.week)) }
+        if levelBar { w.append(TrainWidget(.level, size: .wide)) }
         // Below Next up so Start stays on the first screen; shows only with steps from Health (#454).
         w.append(TrainWidget(.move))
         w.append(TrainWidget(.fuel))
