@@ -382,6 +382,24 @@ describe('account deletion, data sync & export', () => {
     expect(mailer.outbox.at(-1)!.subject).toContain('account deleted');
   });
 
+  it('streams the export as one JSON document, three times an hour at most', async () => {
+    const t = (await signUp()).tokens.accessToken;
+    const r = await get('/v1/me/export', t);
+    expect(r.statusCode).toBe(200);
+    expect(r.headers['content-type']).toBe('application/json; charset=utf-8');
+    expect(r.headers['content-disposition']).toBe('attachment; filename="gym-workout-export.json"');
+    expect(r.headers['cache-control']).toBe('no-store');
+    const exp = r.json();
+    // same document as JSON.stringify of the whole object, key order kept
+    expect(r.body).toBe(JSON.stringify(exp));
+    expect(Object.keys(exp).slice(0, 4)).toEqual(['exportedAt', 'user', 'profile', 'logs']);
+    expect((await get('/v1/me/export', t)).statusCode).toBe(200);
+    expect((await get('/v1/me/export', t)).statusCode).toBe(200);
+    const limited = await get('/v1/me/export', t);
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json().error).toBe('rate_limited');
+  });
+
   it('stores per-set fields (setIndex, rir) and keeps legacy logs working', async () => {
     const { tokens } = await signUp();
     const t = tokens.accessToken;

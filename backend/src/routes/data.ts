@@ -1,9 +1,12 @@
+import { Readable } from 'node:stream';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type AuthService, publicUser } from '../auth.ts';
 import { type DB, tx } from '../db.ts';
 import { deletedField, reviveUploaded, recordTombstone, sinceQuery } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
+import { ApiError } from '../errors.ts';
+import { HOUR, throttleTake } from '../throttle.ts';
 import { pushExport } from '../push/schema.ts';
 import { communityExport } from './community.ts';
 import { gymExport, gymMapExport } from './gyms.ts';
@@ -53,6 +56,9 @@ const toLog = (r: LogRow) => ({
   rir: r.rir,
   updatedAt: r.updated_at,
 });
+
+/** Full data exports per member per hour: each one reads every row the member has. */
+const EXPORTS_PER_HOUR = 3;
 
 /** Profile (opaque JSON owned by the app) + workout log sync + export. */
 export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: AuthService, subscriptions?: (userId: string) => unknown) => {
@@ -170,29 +176,47 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
     return reply.status(204).send();
   });
 
+  // Lazily built sections, serialised one at a time: photos in custom exercises and community posts can make
+  // the whole document large, so it never sits in memory as one object plus one string.
+  const exportSections = (userId: string): [string, () => unknown][] => [
+    ['exportedAt', () => now().toISOString()],
+    ['user', () => publicUser(auth.userById(userId)!)],
+    ['profile', () => getProfile(userId)],
+    ['logs', () => (db.prepare('SELECT * FROM workout_logs WHERE user_id = ? ORDER BY date').all(userId) as unknown as LogRow[]).map(toLog)],
+    ['workouts', () => listWorkouts(userId)],
+    ['customWorkouts', () => listCustomWorkouts(db, userId)],
+    ['community', () => communityExport(db, userId)],
+    ['customExercises', () => listCustomExercises(db, userId)],
+    ['prAttempts', () => listPrAttempts(db, userId)],
+    ['climbs', () => listClimbs(db, userId)],
+    ['sports', () => listSports(db, userId)],
+    ['machineNotes', () => machineNoteExport(db, userId)],
+    ['problemReports', () => reportExport(db, userId)],
+    ['bodyMeasurements', () => listBodyMeasurements(db, userId)],
+    ['gyms', () => gymExport(db, userId)],
+    ['gymMap', () => gymMapExport(db, userId)],
+    ['notifications', () => pushExport(db, userId)],
+    ['subscriptions', () => subscriptions?.(userId)],
+    ['sessions', () => auth.sessions(userId)],
+  ];
+
   r.get('/me/export', async (req, reply) => {
-    const logs = (db.prepare('SELECT * FROM workout_logs WHERE user_id = ? ORDER BY date').all(req.userId!) as unknown as LogRow[]).map(toLog);
+    if (!throttleTake(db, `export:${req.userId!}`, EXPORTS_PER_HOUR, HOUR, now()))
+      throw new ApiError(429, 'rate_limited', 'You just exported your data. Try again in an hour.');
+    const sections = exportSections(req.userId!);
+    // Same bytes as JSON.stringify of the whole object: undefined members are left out.
+    async function* body() {
+      let first = true;
+      for (const [key, build] of sections) {
+        const json = JSON.stringify(build());
+        if (json === undefined) continue;
+        yield `${first ? '{' : ','}${JSON.stringify(key)}:${json}`;
+        first = false;
+      }
+      yield first ? '{}' : '}';
+    }
     reply.header('Content-Disposition', 'attachment; filename="gym-workout-export.json"');
-    return {
-      exportedAt: now().toISOString(),
-      user: publicUser(auth.userById(req.userId!)!),
-      profile: getProfile(req.userId!),
-      logs,
-      workouts: listWorkouts(req.userId!),
-      customWorkouts: listCustomWorkouts(db, req.userId!),
-      community: communityExport(db, req.userId!),
-      customExercises: listCustomExercises(db, req.userId!),
-      prAttempts: listPrAttempts(db, req.userId!),
-      climbs: listClimbs(db, req.userId!),
-      sports: listSports(db, req.userId!),
-      machineNotes: machineNoteExport(db, req.userId!),
-      problemReports: reportExport(db, req.userId!),
-      bodyMeasurements: listBodyMeasurements(db, req.userId!),
-      gyms: gymExport(db, req.userId!),
-      gymMap: gymMapExport(db, req.userId!),
-      notifications: pushExport(db, req.userId!),
-      subscriptions: subscriptions?.(req.userId!),
-      sessions: auth.sessions(req.userId!),
-    };
+    reply.type('application/json; charset=utf-8');
+    return reply.send(Readable.from(body()));
   });
 };
