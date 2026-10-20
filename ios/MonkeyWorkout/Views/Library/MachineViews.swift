@@ -38,8 +38,8 @@ struct MachineChips: View {
                         .font(Theme.label(13))
                         .foregroundStyle(on ? Theme.ink : .white)
                         .padding(.horizontal, 13).padding(.vertical, 8)
-                        .background(Capsule().fill(on ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Theme.card)))
-                        .overlay(Capsule().strokeBorder(on ? Color.clear : Theme.stroke, lineWidth: 1))
+                        .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(on ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Theme.card)))
+                        .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(on ? Color.clear : Theme.stroke, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(on ? .isSelected : [])
