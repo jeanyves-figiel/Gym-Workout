@@ -505,7 +505,7 @@ struct CardDuration: View {
             Image(systemName: symbol)
                 .font(.system(size: 20, weight: .heavy))
                 .frame(width: 50, height: 50)
-                .background(Circle().fill(.white.opacity(0.22)))
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.22)))
                 .foregroundStyle(.white)
         }
         .buttonStyle(.plain)

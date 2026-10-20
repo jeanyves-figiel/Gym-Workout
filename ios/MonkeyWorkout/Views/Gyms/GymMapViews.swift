@@ -162,7 +162,7 @@ struct GymMiniMap: View {
                 ForEach(Array(points.dropFirst().enumerated()), id: \.offset) { i, pt in
                     Text("\(i + 1)").font(Theme.label(11)).foregroundStyle(Theme.ink)
                         .frame(width: 20, height: 20)
-                        .background(Circle().fill(Theme.lime))
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
                         .position(pt)
                 }
             }
@@ -212,7 +212,7 @@ struct GymRouteCard: View {
                 ForEach(Array(route.stops.enumerated()), id: \.offset) { i, s in
                     HStack(spacing: 10) {
                         Text("\(i + 1)").font(Theme.label(13)).foregroundStyle(Theme.ink)
-                            .frame(width: 24, height: 24).background(Circle().fill(Theme.lime))
+                            .frame(width: 24, height: 24).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
                         VStack(alignment: .leading, spacing: 1) {
                             Text(s.zone.name).font(Theme.label(14))
                             Text(names(s)).font(.caption.weight(.semibold)).opacity(0.85).lineLimit(1)

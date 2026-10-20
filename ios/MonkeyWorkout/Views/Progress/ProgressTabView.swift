@@ -156,7 +156,7 @@ struct ProgressTabView: View {
                         .font(.system(size: 15, weight: .heavy))
                         .foregroundStyle(.white)
                         .frame(width: 36, height: 36)
-                        .background(Circle().fill(Color.white.opacity(0.14)))
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.14)))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Edit Progress")
@@ -815,11 +815,13 @@ struct BadgeView: View {
     var body: some View {
         VStack(spacing: 8) {
             ZStack {
+                // Rounded-square badge tile (#541), its progress drawn around it by `ProgressRing`.
                 if badge.unlocked {
-                    Circle().fill(LinearGradient(colors: badge.tier.colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+                    RoundedRectangle(cornerRadius: 19, style: .continuous)
+                        .fill(LinearGradient(colors: badge.tier.colors, startPoint: .topLeading, endPoint: .bottomTrailing))
                         .shadow(color: badge.tier.colors[0].opacity(0.5), radius: 8)
                 } else {
-                    Circle().fill(Color.white.opacity(0.06))
+                    RoundedRectangle(cornerRadius: 19, style: .continuous).fill(Color.white.opacity(0.06))
                     ProgressRing(progress: badge.progress, lineWidth: 4, colors: badge.tier.colors)
                 }
                 Image(systemName: badge.symbol)

@@ -206,7 +206,7 @@ struct RecipeDetailView: View {
                     ForEach(Array(recipe.steps.enumerated()), id: \.offset) { i, step in
                         HStack(alignment: .top, spacing: 12) {
                             Text("\(i + 1)").font(Theme.display(15)).foregroundStyle(Theme.ink)
-                                .frame(width: 28, height: 28).background(Circle().fill(Theme.lime))
+                                .frame(width: 28, height: 28).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
                             Text(step).font(.body.weight(.medium)).fixedSize(horizontal: false, vertical: true)
                         }
                     }

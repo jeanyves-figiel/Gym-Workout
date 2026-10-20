@@ -209,12 +209,15 @@ struct StreakRow: View {
                 Text(caption).font(.caption.weight(.semibold)).opacity(0.75).lineLimit(1).minimumScaleFactor(0.8)
             }
             Spacer(minLength: 0)
-            ZStack {
-                ProgressRing(progress: Double(thisWeek) / Double(max(1, target)), lineWidth: 6,
-                             colors: [Theme.ink, Theme.ink.opacity(0.8)])
-                Text("\(thisWeek)/\(target)").font(Theme.display(13)).monospacedDigit()
+            // This week as a segmented bar (#541), one segment per planned session.
+            VStack(alignment: .trailing, spacing: 5) {
+                Text("\(thisWeek)/\(target)").font(Theme.display(17)).monospacedDigit()
+                ProgressBar(progress: Double(thisWeek) / Double(max(1, target)), height: 6, segments: min(max(1, target), 7),
+                            fill: Theme.ink, track: Theme.ink.opacity(0.18))
+                    .frame(width: 56)
             }
-            .frame(width: 50, height: 50)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(thisWeek) of \(target) sessions this week")
         }
         .foregroundStyle(Theme.ink)
         .padding(14)

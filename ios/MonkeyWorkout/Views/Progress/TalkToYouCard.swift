@@ -83,7 +83,7 @@ struct TalkToYouCard: View {
     private func step(_ n: Int, _ title: String, hint: String? = nil) -> some View {
         HStack(spacing: 8) {
             Text("\(n)").font(.system(size: 12, weight: .black)).foregroundStyle(Color(red: 0.55, green: 0.24, blue: 0.94))
-                .frame(width: 22, height: 22).background(Circle().fill(.white))
+                .frame(width: 22, height: 22).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white))
             Text(title).font(Theme.label(14))
             if let hint { Text(hint).font(.caption.weight(.semibold)).opacity(0.75) }
         }

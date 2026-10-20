@@ -172,7 +172,7 @@ struct AutoNextBar: View {
                         Image(systemName: "pause.fill").font(.system(size: 14, weight: .heavy)).foregroundStyle(Theme.lime)
                     }
                     .frame(width: 40, height: 40)
-                    .background(Circle().fill(.black))
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.black))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Stay on this exercise")

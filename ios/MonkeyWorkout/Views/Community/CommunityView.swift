@@ -47,7 +47,7 @@ struct CommunityView: View {
                     .font(.system(size: 18, weight: .heavy))
                     .foregroundStyle(.black)
                     .frame(width: 40, height: 40)
-                    .background(Circle().fill(Theme.lime))
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Share a win")

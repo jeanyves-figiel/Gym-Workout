@@ -84,7 +84,7 @@ struct FinishEarlySheet: View {
             Button { dismiss() } label: {
                 Image(systemName: "xmark").font(.system(size: 14, weight: .heavy))
                     .frame(width: 34, height: 34)
-                    .background(Circle().fill(Theme.cardStrong))
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.cardStrong))
             }
             .accessibilityLabel("Close")
         }

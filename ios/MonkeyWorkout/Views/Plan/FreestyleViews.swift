@@ -22,7 +22,7 @@ struct FreestyleStartView: View {
                 Button(action: onClose) {
                     Image(systemName: "pause.fill").font(.system(size: 16, weight: .heavy))
                         .frame(width: 40, height: 40)
-                        .background(Circle().fill(Theme.cardStrong))
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.cardStrong))
                 }
                 .accessibilityLabel("Pause or leave workout")
                 Spacer()

@@ -403,7 +403,7 @@ struct NewExerciseButton: View {
                     .font(.system(size: 24, weight: .heavy))
                     .foregroundStyle(Theme.ink)
                     .frame(width: 52, height: 52)
-                    .background(Circle().fill(Theme.lime))
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
                 VStack(alignment: .leading, spacing: 3) {
                     Text("New exercise").font(Theme.display(20))
                     Text("Your own machine, photo or pose").font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted)

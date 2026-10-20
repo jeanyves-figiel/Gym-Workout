@@ -123,7 +123,7 @@ struct ProfileView: View {
                     AvatarView(url: model.api.resolve(community.me.avatarUrl), nickname: nickname.isEmpty ? (name.isEmpty ? "?" : name) : nickname,
                                size: 76, ring: Theme.lime)
                     Image(systemName: "camera.fill").font(.caption.bold()).foregroundStyle(Theme.ink)
-                        .padding(6).background(Circle().fill(Theme.lime))
+                        .padding(6).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
                 }
             }
             .accessibilityLabel("Choose profile photo")

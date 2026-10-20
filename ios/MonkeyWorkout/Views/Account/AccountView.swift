@@ -465,7 +465,7 @@ struct AccountView: View {
                             .font(Theme.display(24))
                             .foregroundStyle(Theme.ink)
                             .frame(width: 64, height: 64)
-                            .background(Circle().fill(Theme.lime))
+                            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
                         // Profile photo (#108), same as in Community.
                         if let url = model.api.resolve(Community.shared.me.avatarUrl) {
                             AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }

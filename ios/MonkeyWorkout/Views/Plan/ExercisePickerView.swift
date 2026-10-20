@@ -336,7 +336,7 @@ private struct NewExerciseCard: View {
                 .font(.system(size: 26, weight: .heavy))
                 .foregroundStyle(Theme.ink)
                 .frame(width: 54, height: 54)
-                .background(Circle().fill(Theme.lime))
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
             Text("New exercise").font(.system(size: 15, weight: .heavy, design: .rounded))
             Text("Your own machine,\nphoto or pose").font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)

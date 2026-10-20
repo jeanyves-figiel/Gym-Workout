@@ -107,7 +107,7 @@ struct PantryView: View {
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.25)))
                 Button(action: addTyped) {
                     Image(systemName: "plus").font(.system(size: 18, weight: .heavy)).foregroundStyle(Theme.ink)
-                        .frame(width: 44, height: 44).background(Circle().fill(Theme.lime))
+                        .frame(width: 44, height: 44).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
                 }
                 .buttonStyle(.plain)
                 .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)

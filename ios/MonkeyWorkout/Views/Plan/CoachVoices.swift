@@ -280,7 +280,7 @@ struct CoachVoicePicker: View {
         let picked = studio == v.id && isReady
         return HStack(spacing: 10) {
             Image(systemName: "waveform").font(.system(size: 15, weight: .heavy))
-                .frame(width: 34, height: 34).background(Circle().fill(.white.opacity(0.25)))
+                .frame(width: 34, height: 34).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.25)))
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(v.name).font(Theme.label(15))
@@ -322,7 +322,7 @@ struct CoachVoicePicker: View {
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 Image(systemName: "iphone").font(.system(size: 15, weight: .heavy))
-                    .frame(width: 34, height: 34).background(Circle().fill(.white.opacity(0.25)))
+                    .frame(width: 34, height: 34).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.25)))
                 VStack(alignment: .leading, spacing: 1) {
                     Text("iPhone voice · \(best?.name ?? "System")").font(Theme.label(15)).lineLimit(1)
                     Text(best.map(CoachVoicePref.qualityTitle) ?? "Basic").font(.caption).opacity(0.85)
@@ -346,7 +346,7 @@ struct CoachVoicePicker: View {
 
     private var playIcon: some View {
         Image(systemName: "play.fill").font(.system(size: 13, weight: .heavy)).foregroundStyle(Theme.ink)
-            .frame(width: 34, height: 34).background(Circle().fill(Theme.lime))
+            .frame(width: 34, height: 34).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
     }
 
     private func preview(studio voice: String) {
@@ -427,7 +427,7 @@ struct CoachVoiceSetupSheet: View {
         let on = (picked ?? store.suggestions().first?.id) == v.id
         return HStack(spacing: 10) {
             Image(systemName: "waveform").font(.system(size: 15, weight: .heavy))
-                .frame(width: 34, height: 34).background(Circle().fill(.white.opacity(0.25)))
+                .frame(width: 34, height: 34).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.25)))
             VStack(alignment: .leading, spacing: 1) {
                 Text(v.name).font(Theme.label(15))
                 Text("\(v.label) · \(v.gender)").font(.caption).opacity(0.85)
@@ -444,7 +444,7 @@ struct CoachVoiceSetupSheet: View {
                 Group {
                     if loading == v.id { ProgressView().tint(Theme.ink) } else { Image(systemName: "play.fill").font(.system(size: 13, weight: .heavy)) }
                 }
-                .foregroundStyle(Theme.ink).frame(width: 34, height: 34).background(Circle().fill(Theme.lime))
+                .foregroundStyle(Theme.ink).frame(width: 34, height: 34).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Hear \(v.name)")
@@ -466,7 +466,7 @@ struct CoachVoiceToast: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "waveform").font(.system(size: 13, weight: .heavy))
-                .frame(width: 30, height: 30).background(Circle().fill(.white.opacity(0.25)))
+                .frame(width: 30, height: 30).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.25)))
             VStack(alignment: .leading, spacing: 0) {
                 Text("Coach voice: \(name)").font(Theme.label(14))
                 Text("studio, downloaded").font(.caption).opacity(0.85)

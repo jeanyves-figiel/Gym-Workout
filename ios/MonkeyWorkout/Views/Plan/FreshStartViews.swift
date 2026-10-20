@@ -108,7 +108,7 @@ struct FreshStartSheet: View {
             Button { dismiss() } label: {
                 Image(systemName: "xmark").font(.system(size: 14, weight: .heavy))
                     .frame(width: 34, height: 34)
-                    .background(Circle().fill(.white.opacity(0.25)))
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.25)))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Close")

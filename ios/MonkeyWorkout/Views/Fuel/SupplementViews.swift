@@ -33,7 +33,7 @@ struct FuelStackCard: View {
                         if !doses.isEmpty { Text("\(taken)/\(doses.count)").font(Theme.display(17)).monospacedDigit() }
                         NavigationLink(value: FuelRoute.supplements) {
                             Image(systemName: "slider.horizontal.3").font(.system(size: 14, weight: .heavy))
-                                .frame(width: 30, height: 30).background(Circle().fill(.white.opacity(0.2)))
+                                .frame(width: 30, height: 30).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.2)))
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Edit supplements")

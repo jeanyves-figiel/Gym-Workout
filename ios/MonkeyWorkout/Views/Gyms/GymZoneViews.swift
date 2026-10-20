@@ -553,7 +553,7 @@ struct FloorPlanSheet: View {
             .font(.system(size: 13, weight: .heavy))
             .foregroundStyle(Theme.ink)
             .frame(width: 32, height: 32)
-            .background(Circle().fill(Theme.lime))
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
             .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
             .padding(3)
             .highPriorityGesture(DragGesture(minimumDistance: 1).onChanged { g in

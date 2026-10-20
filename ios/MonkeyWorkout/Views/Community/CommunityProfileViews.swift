@@ -249,7 +249,7 @@ struct CommunityProfileForm: View {
                                    nickname: nickname.isEmpty ? "?" : nickname, size: 84, ring: Theme.lime)
                     }
                     Image(systemName: "camera.fill").font(.caption.bold()).foregroundStyle(Theme.ink)
-                        .padding(7).background(Circle().fill(Theme.lime))
+                        .padding(7).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
                 }
             }
             .accessibilityLabel("Choose profile photo")

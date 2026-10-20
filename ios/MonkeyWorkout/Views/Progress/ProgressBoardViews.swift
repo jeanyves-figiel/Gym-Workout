@@ -105,8 +105,8 @@ struct ProgressWidgetEditChrome<Content: View>: View {
                 .font(.system(size: 14, weight: .black))
                 .foregroundStyle(.white)
                 .frame(width: 28, height: 28)
-                .background(Circle().fill(Color(white: 0.3)))
-                .overlay(Circle().strokeBorder(Theme.bg, lineWidth: 2))
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(white: 0.3)))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.bg, lineWidth: 2))
         }
         .buttonStyle(.plain)
         .offset(x: -8, y: -8)

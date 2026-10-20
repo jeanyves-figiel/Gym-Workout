@@ -341,7 +341,7 @@ struct ProgrammeEditorView: View {
                             Button { remove(sig) } label: {
                                 Image(systemName: "xmark").font(.system(size: 13, weight: .heavy))
                                     .frame(width: 32, height: 32)
-                                    .background(Circle().fill(.white.opacity(0.2)))
+                                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.2)))
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Remove \(sig.name)")
@@ -648,7 +648,7 @@ struct ProgrammeBuilderView: View {
                         Text(days[i] == nil ? "AUTO" : "SIGNATURE").font(Theme.label(10)).tracking(1).opacity(0.85)
                         if days[i] != nil {
                             Image(systemName: "xmark").font(.system(size: 12, weight: .heavy))
-                                .frame(width: 28, height: 28).background(Circle().fill(.white.opacity(0.2)))
+                                .frame(width: 28, height: 28).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.2)))
                                 .onTapGesture { days[i] = nil }
                                 .accessibilityLabel("Back to auto")
                         }

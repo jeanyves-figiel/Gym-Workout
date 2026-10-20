@@ -54,7 +54,7 @@ struct BodyHealthView: View {
                             Image(systemName: "arrow.clockwise")
                                 .font(.system(size: 17, weight: .heavy))
                                 .frame(width: 44, height: 44)
-                                .background(Circle().fill(Color.pink.opacity(0.15)))
+                                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.pink.opacity(0.15)))
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Refresh Health data")
@@ -325,7 +325,7 @@ struct HealthAccessSheet: View {
                                 .font(.system(size: 17, weight: .black))
                                 .foregroundStyle(Color(red: 1, green: 0.18, blue: 0.46))
                                 .frame(width: 34, height: 34)
-                                .background(Circle().fill(.white))
+                                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white))
                             Text(step).font(.body.weight(.semibold))
                             Spacer(minLength: 0)
                         }

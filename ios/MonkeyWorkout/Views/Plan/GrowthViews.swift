@@ -103,7 +103,7 @@ struct BlockReviewCard: View {
                 Spacer(minLength: 8)
                 Button { withAnimation { model.closeBlockReview(review) } } label: {
                     Image(systemName: "xmark").font(.system(size: 13, weight: .heavy))
-                        .frame(width: 30, height: 30).background(Circle().fill(.black.opacity(0.25)))
+                        .frame(width: 30, height: 30).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.black.opacity(0.25)))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Close the block review")
@@ -512,7 +512,7 @@ struct NoticedBar: View {
             .accessibilityHint("Opens your growth path")
             Button { withAnimation { model.closeNoticed() } } label: {
                 Image(systemName: "xmark").font(.system(size: 12, weight: .heavy))
-                    .frame(width: 28, height: 28).background(Circle().fill(.black.opacity(0.25)))
+                    .frame(width: 28, height: 28).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.black.opacity(0.25)))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Hide until next week")
@@ -767,7 +767,7 @@ struct CoachMemoryView: View {
                     SmartRow(symbol: "note.text", title: n, detail: "You told the coach", colors: SmartColors.warmup, compact: true) {
                         Button { withAnimation { model.removeCoachNote(n) } } label: {
                             Image(systemName: "trash.fill").font(.system(size: 13, weight: .bold))
-                                .frame(width: 32, height: 32).background(Circle().fill(.black.opacity(0.25)))
+                                .frame(width: 32, height: 32).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.black.opacity(0.25)))
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Forget: \(n)")

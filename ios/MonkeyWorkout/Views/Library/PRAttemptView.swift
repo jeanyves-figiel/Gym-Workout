@@ -216,7 +216,7 @@ struct PRAttemptView: View {
             Image(systemName: symbol)
                 .font(.system(size: 18, weight: .heavy))
                 .frame(width: 44, height: 44)
-                .background(Circle().fill(.white.opacity(0.2)))
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.2)))
         }
         .buttonStyle(.plain)
     }
