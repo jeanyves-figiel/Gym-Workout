@@ -722,6 +722,9 @@ private struct NextUpCard: View {
     @State private var logging: SportLog?
     /// A missed day's session logged after the fact (#537).
     @State private var loggingMissed: Session?
+    /// Sets logged for a workout recorded on another watch (#549).
+    @State private var loggingHealth: GymEntry?
+    @Environment(HealthManager.self) private var health
     @State private var trackingSport: SportLog?
     /// Build as I go (#490): the empty workout open in the player.
     @State private var freestyle: Session?
@@ -785,6 +788,7 @@ private struct NextUpCard: View {
         .sheet(item: $logging) { LogSportView(initial: $0) }
         .sheet(item: $trackingSport) { LogSportView(initial: $0, live: true) }
         .sheet(item: $loggingMissed) { MissedLogSheet(session: $0) }
+        .sheet(item: $loggingHealth) { MissedLogSheet(session: session, fromHealth: $0) }
         .fullScreenCover(item: $freestyle) { WorkoutPlayerView(sessionId: $0.id) }
         .modifier(LaterDaySheets(day: $laterDay))
         .sheet(isPresented: $moving) { MoveSessionSheet(sessionId: session.id) }
@@ -861,6 +865,10 @@ private struct NextUpCard: View {
                     // A later day (#343): only its overview.
                     NavigationLink(value: session.id) { Label("See workout", systemImage: "list.bullet") }
                         .buttonStyle(LimeButtonStyle())
+                } else if model.activeWorkout(session.id) == nil, let match = model.healthMatch(for: session, in: health.snapshot.recentGym) {
+                    // Recorded on another watch (#549, design A): mark it done or log its sets.
+                    HealthMatchBox(entry: match, onDone: { withAnimation { model.markDone(session, from: match) } },
+                                   onLog: { loggingHealth = match })
                 } else if let onStart, model.activeWorkout(session.id) != nil || !past && (day == nil || day == model.todayWeekday) {
                     // Only today's session starts (#537); one in progress always resumes.
                     Button(action: onStart) {
@@ -923,6 +931,55 @@ private struct NextUpCard: View {
                 BackToNextUpButton(label: "Back to this week", action: onBack)
             }
         }
+    }
+}
+
+/// A gym workout another watch wrote to Apple Health on this session's day (#549, design A): source, length, heart
+/// rate and calories, with Mark done and Log sets.
+private struct HealthMatchBox: View {
+    let entry: GymEntry
+    let onDone: () -> Void
+    let onLog: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Label("Found in Health · \(entry.label)", systemImage: "applewatch.radiowaves.left.and.right")
+                    .font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.7)
+                Text("\(entry.source) · \(entry.start.formatted(date: .omitted, time: .shortened))–\(entry.end.formatted(date: .omitted, time: .shortened))")
+                    .font(.caption.weight(.semibold)).opacity(0.8)
+            }
+            HStack(spacing: 6) {
+                stat("\(entry.minutes)", "min")
+                stat(entry.avgHR.map { "\(Int($0.rounded()))" } ?? "–", "avg ♥")
+                stat(entry.maxHR.map { "\(Int($0.rounded()))" } ?? "–", "max ♥")
+                stat(entry.kcal.map { "\(Int($0.rounded()))" } ?? "–", "kcal")
+            }
+            HStack(spacing: 8) {
+                Button(action: onDone) { Label("Mark done", systemImage: "checkmark").lineLimit(1).minimumScaleFactor(0.8) }
+                    .buttonStyle(LimeButtonStyle())
+                Button(action: onLog) {
+                    Label("Log sets", systemImage: "square.and.pencil").lineLimit(1).minimumScaleFactor(0.8)
+                        .font(Theme.label(15)).foregroundStyle(.white)
+                        .frame(maxWidth: .infinity).padding(.vertical, 14)
+                        .background(Capsule().fill(Color.white.opacity(0.18)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Logs the sets you did, with this workout's time and heart rate")
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Theme.ink.opacity(0.55)))
+    }
+
+    private func stat(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 1) {
+            Text(value).font(Theme.display(17)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
+            Text(label).font(Theme.label(9)).opacity(0.8)
+        }
+        .frame(maxWidth: .infinity).padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.1)))
     }
 }
 
