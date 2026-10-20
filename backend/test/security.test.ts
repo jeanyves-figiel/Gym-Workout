@@ -166,6 +166,25 @@ describe('2-step sign-in (TOTP)', () => {
     expect((await req('POST', '/v1/auth/login', { email: EMAIL, password: PW })).statusCode).toBe(200);
   });
 
+  it('with APPLE_TWO_STEP=on, Apple sign-in asks for the code only when 2-step is on', async () => {
+    setup({ APPLE_TWO_STEP: 'on' });
+    appleIds.set('tok-apple-dddd', { sub: 'apple-d', email: 'apple-only@privaterelay.appleid.com', emailVerified: true });
+    expect((await req('POST', '/v1/auth/apple', { identityToken: 'tok-apple-dddd' })).statusCode).toBe(200);
+    const t = await signUp();
+    const grant = await passwordGrant(t);
+    const secret = (await req('POST', '/v1/me/mfa/totp/setup', {}, t, grant)).json().secret as string;
+    expect((await req('POST', '/v1/me/mfa/totp/enable', { code: codeFor(secret) }, t, grant)).statusCode).toBe(200);
+    appleIds.set('tok-apple-eeee', { sub: 'apple-e', email: EMAIL, emailVerified: true });
+    const r = await req('POST', '/v1/auth/apple', { identityToken: 'tok-apple-eeee' });
+    expect(r.statusCode).toBe(403);
+    expect(r.json()).toMatchObject({ error: 'mfa_required', methods: ['totp', 'recovery'] });
+    expect(r.json().tokens).toBeUndefined();
+    advance(30_000);
+    expect((await req('POST', '/v1/auth/mfa', { mfaToken: r.json().mfaToken, code: codeFor(secret) })).statusCode).toBe(200);
+    // the Apple-only account (no 2-step) still signs straight in
+    expect((await req('POST', '/v1/auth/apple', { identityToken: 'tok-apple-dddd' })).statusCode).toBe(200);
+  });
+
   it('burns the challenge after 5 wrong codes', async () => {
     setup();
     const t = await signUp();

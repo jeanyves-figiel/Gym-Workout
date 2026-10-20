@@ -292,6 +292,8 @@ export class AuthService {
     });
     // Refresh token needed to revoke Sign in with Apple at account deletion (#13). Never fails sign-in.
     if (authorizationCode && this.d.appleTokens) await this.d.appleTokens.storeFromCode(userId, authorizationCode, identity.audience);
+    // Same second step as password sign-in for members with 2-step on (no-op otherwise, so new accounts are unaffected).
+    if (this.d.config.appleSignIn.twoStep) this.secondFactor(userId, device);
     return { user: publicUser(this.userById(userId)!), tokens: await this.issueTokens(userId, device), created };
   }
 
