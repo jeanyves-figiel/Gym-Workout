@@ -435,56 +435,68 @@ private struct RoundIcon: View {
     }
 }
 
-/// Swipe right from the workout page: pause / resume, end & save (3 s to cancel), back / skip, discard (confirmed).
+/// Swipe right from the workout page: pause / resume, end & save (3 s to cancel), back / skip, discard (5 s to undo).
+/// One screen, no scrolling (#538): the tiles share the height there is.
 private struct ControlsPage: View {
     let player: WatchPlayer
     let onEnd: () -> Void
     let onDiscard: () -> Void
     let onBack: () -> Void
     @Environment(WorkoutManager.self) private var workout
-    @State private var confirmDiscard = false
     /// Set while the End countdown runs; a mistaken tap can still be cancelled (#133).
     @State private var endingAt: Date?
+    /// Set while the Discard countdown runs (#538): no dialog, an Undo tile for a few seconds instead.
+    @State private var discardingAt: Date?
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 5) {
-                TimelineView(.periodic(from: player.started, by: 1)) { ctx in
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(WatchPlayer.clock(ctx.date.timeIntervalSince(player.started))).font(W.display(20)).foregroundStyle(W.lime)
-                        Spacer(minLength: 0)
-                        Text(workout.heartRate.map { "♥ \(Int($0))" } ?? "♥ --").font(W.label(11)).foregroundStyle(W.color(0xFF5A75))
-                        Text("\(Int(workout.activeKcal))kcal").font(W.label(11))
-                    }
-                    .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
+        VStack(spacing: 5) {
+            TimelineView(.periodic(from: player.started, by: 1)) { ctx in
+                HStack(alignment: .firstTextBaseline) {
+                    Text(WatchPlayer.clock(ctx.date.timeIntervalSince(player.started))).font(W.display(20)).foregroundStyle(W.lime)
+                    Spacer(minLength: 0)
+                    Text(workout.heartRate.map { "♥ \(Int($0))" } ?? "♥ --").font(W.label(11)).foregroundStyle(W.color(0xFF5A75))
+                    Text("\(Int(workout.activeKcal))kcal").font(W.label(11))
                 }
-                .padding(.horizontal, 4)
-                Grid(horizontalSpacing: 5, verticalSpacing: 5) {
-                    GridRow {
-                        tile(workout.paused ? "play.fill" : "pause.fill", workout.paused ? "Resume" : "Pause", 0xFFC23D, 0xFF7A3D, height: 62) {
-                            workout.paused ? workout.resume() : workout.pause()
-                        }
-                        tile("stop.fill", "End", 0xFF3D5A, 0xB0105A, height: 62) {
-                            endingAt = Date().addingTimeInterval(3)
-                            WKInterfaceDevice.current().play(.click)
-                        }
-                    }
-                    GridRow {
-                        tile("backward.end.fill", "Back", 0x3D5AFF, 0x7B3DFF, height: 50) { player.back(); onBack() }
-                        tile("forward.end.fill", "Skip", 0x1E9BFF, 0x3DFFB0, height: 50) { _ = player.advance(); onBack() }
-                    }
-                }
-                Button { confirmDiscard = true } label: {
-                    Label("Discard workout", systemImage: "xmark").font(W.label(11)).foregroundStyle(W.color(0xFF6D85))
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 2)
+                .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
             }
-            .watchMargins()
+            .padding(.horizontal, 4)
+            HStack(spacing: 5) {
+                tile(workout.paused ? "play.fill" : "pause.fill", workout.paused ? "Resume" : "Pause", 0xFFC23D, 0xFF7A3D) {
+                    workout.paused ? workout.resume() : workout.pause()
+                }
+                tile("stop.fill", "End", 0xFF3D5A, 0xB0105A) {
+                    endingAt = Date().addingTimeInterval(3)
+                    WKInterfaceDevice.current().play(.click)
+                }
+            }
+            .frame(maxHeight: .infinity)
+            HStack(spacing: 5) {
+                tile("backward.end.fill", "Back", 0x3D5AFF, 0x7B3DFF) { player.back(); onBack() }
+                tile("forward.end.fill", "Skip", 0x1E9BFF, 0x3DFFB0) { _ = player.advance(); onBack() }
+            }
+            .frame(maxHeight: .infinity)
+            Button {
+                discardingAt = Date().addingTimeInterval(Self.discardSeconds)
+                WKInterfaceDevice.current().play(.click)
+            } label: {
+                Label("Discard workout", systemImage: "xmark").font(W.label(11)).foregroundStyle(W.color(0xFF6D85))
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                    .frame(maxWidth: .infinity, minHeight: 26)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
+        .watchMargins()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(RadialGradient(colors: [W.color(0x3A1030), .black], center: .top, startRadius: 0, endRadius: 170).ignoresSafeArea())
         .overlay {
-            if let endingAt { EndCountdown(end: endingAt) { self.endingAt = nil } }
+            if let endingAt {
+                EndCountdown(end: endingAt) { self.endingAt = nil }
+            } else if let discardingAt {
+                EndCountdown(end: discardingAt, title: "Discarding", button: "UNDO", seconds: Self.discardSeconds) {
+                    self.discardingAt = nil
+                }
+            }
         }
         .task(id: endingAt) {
             guard let end = endingAt else { return }
@@ -494,17 +506,20 @@ private struct ControlsPage: View {
             WKInterfaceDevice.current().play(.stop)
             onEnd()
         }
-        .confirmationDialog("Discard this workout?", isPresented: $confirmDiscard) {
-            Button("Discard", role: .destructive, action: onDiscard)
-            Button("Keep going", role: .cancel) {}
-        } message: {
-            Text("Not saved to Apple Health.")
+        .task(id: discardingAt) {
+            guard let end = discardingAt else { return }
+            try? await Task.sleep(for: .seconds(max(0, end.timeIntervalSinceNow)))
+            guard !Task.isCancelled, discardingAt == end else { return }
+            discardingAt = nil
+            WKInterfaceDevice.current().play(.stop)
+            onDiscard()
         }
     }
 
-    /// Explore-style tile: icon tile top left, heavy label bottom left, vivid gradient.
-    private func tile(_ symbol: String, _ title: String, _ a: UInt32, _ b: UInt32, height: CGFloat,
-                      action: @escaping () -> Void) -> some View {
+    private static let discardSeconds: Double = 5
+
+    /// Explore-style tile: icon tile top left, heavy label bottom left, vivid gradient; as tall as its row.
+    private func tile(_ symbol: String, _ title: String, _ a: UInt32, _ b: UInt32, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(alignment: .leading) {
                 Image(systemName: symbol).font(.system(size: 12, weight: .heavy))
@@ -515,16 +530,19 @@ private struct ControlsPage: View {
             }
             .foregroundStyle(.white)
             .padding(7)
-            .frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 44, maxHeight: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(W.gradient(a, b)))
         }
         .buttonStyle(.plain)
     }
 }
 
-/// "Ending in 3 · 2 · 1" with a big Cancel, shown after End is tapped.
+/// "Ending in 3 · 2 · 1" with a big Cancel, shown after End is tapped; "Discarding" with Undo after Discard (#538).
 private struct EndCountdown: View {
     let end: Date
+    var title = "Ending"
+    var button = "CANCEL"
+    var seconds: Double = 3
     let onCancel: () -> Void
 
     var body: some View {
@@ -533,17 +551,17 @@ private struct EndCountdown: View {
                 let left = max(0, end.timeIntervalSince(ctx.date))
                 ZStack {
                     Circle().stroke(W.color(0xFF3D5A).opacity(0.18), lineWidth: 10)
-                    Circle().trim(from: 0, to: left / 3)
+                    Circle().trim(from: 0, to: left / max(1, seconds))
                         .stroke(W.color(0xFF3D5A), style: StrokeStyle(lineWidth: 10, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                     VStack(spacing: 0) {
-                        Eyebrow(text: "Ending", color: W.light(0xFF3D5A))
+                        Eyebrow(text: title, color: W.light(0xFF3D5A))
                         Text("\(Int(left.rounded(.up)))").font(W.display(38)).monospacedDigit()
                     }
                 }
                 .frame(width: 104, height: 104)
             }
-            LimeButton(title: "CANCEL", action: onCancel)
+            LimeButton(title: button, action: onCancel)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RadialGradient(colors: [W.color(0x5A0A20), .black], center: UnitPoint(x: 0.5, y: 0.35), startRadius: 0, endRadius: 150)
@@ -551,7 +569,8 @@ private struct EndCountdown: View {
     }
 }
 
-/// After a set: one-tap effort, gradient rest ring with haptic at 0, next set or exercise as a card.
+/// After a set (#538): one fixed screen, no scrolling. A gradient rest tile (time, +15 / Skip, a bar that drains) with
+/// a haptic at 0, then the one-tap effort or what's next.
 struct RestOverlay: View {
     let end: Date?
     let total: Int
@@ -569,53 +588,36 @@ struct RestOverlay: View {
     let onSkip: () -> Void
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 6) {
-                if effort {
-                    Text("How hard?").font(W.display(16))
-                    EffortGrid(onEffort: onEffort)
-                }
-                if let end {
-                    TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
-                        let left = max(0, end.timeIntervalSince(ctx.date))
-                        ZStack {
-                            Circle().stroke(W.lime.opacity(0.12), lineWidth: 11)
-                            Circle().trim(from: 0, to: left / Double(max(1, total)))
-                                .stroke(LinearGradient(colors: [W.lime, W.color(0x3DFFB0)], startPoint: .topLeading, endPoint: .bottomTrailing),
-                                        style: StrokeStyle(lineWidth: 11, lineCap: .round))
-                                .rotationEffect(.degrees(-90))
-                            VStack(spacing: 0) {
-                                Eyebrow(text: left > 0 ? "Rest" : "Go!", color: W.lime)
-                                Text(WatchPlayer.clock(left)).font(W.display(30)).monospacedDigit()
-                            }
-                        }
-                        .frame(width: 118, height: 118)
-                    }
-                    HStack(spacing: 5) {
-                        pill("+15 s", fill: .white.opacity(0.16), text: .white, action: onAdd)
-                        pill("Skip", fill: W.lime, text: W.ink, action: onSkip)
-                    }
-                } else {
-                    pill("Continue", fill: W.lime, text: W.ink, action: onSkip)
-                }
+        VStack(spacing: 5) {
+            if let end {
+                restTile(end)
+            } else {
+                if effort { Text("How hard?").font(W.display(14)).lineLimit(1) }
+                pill("Continue", fill: W.lime, text: W.ink, action: onSkip)
+            }
+            if effort {
+                EffortGrid(onEffort: onEffort, rowHeight: 28)
+            } else {
                 if note != nil || heartRate != nil {
                     VStack(spacing: 1) {
-                        if let note { Text(note).font(W.label(10)).multilineTextAlignment(.center).lineLimit(3) }
+                        if let note { Text(note).font(W.label(10)).multilineTextAlignment(.center).lineLimit(2).minimumScaleFactor(0.8) }
                         if let heartRate { Text("♥ \(Int(heartRate))").font(W.label(10)).foregroundStyle(W.color(0xFF5A75)).monospacedDigit() }
                     }
                     .frame(maxWidth: .infinity)
                 }
                 VStack(alignment: .leading, spacing: 1) {
                     Text("NEXT").font(W.label(8)).tracking(1).opacity(0.85)
-                    Text(next).font(W.label(12)).lineLimit(2)
+                    Text(next).font(W.label(12)).lineLimit(2).minimumScaleFactor(0.8)
                 }
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 8).padding(.vertical, 5)
-                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(W.gradient(tint, tint2)))
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(0.12)))
             }
-            .watchMargins()
+            Spacer(minLength: 0)
         }
+        .watchMargins()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(RadialGradient(colors: [W.color(effort ? 0x24301A : 0x1D3A10), .black], center: UnitPoint(x: 0.5, y: 0.35),
                                    startRadius: 0, endRadius: 160).ignoresSafeArea())
         .task(id: end) {
@@ -623,6 +625,49 @@ struct RestOverlay: View {
             try? await Task.sleep(for: .seconds(max(0, end.timeIntervalSinceNow)))
             if !Task.isCancelled { WKInterfaceDevice.current().play(.notification) }
         }
+    }
+
+    /// Rest as a block-coloured tile (#538): time left, +15 and Skip as squares, a bar draining underneath.
+    private func restTile(_ end: Date) -> some View {
+        TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
+            let left = max(0, end.timeIntervalSince(ctx.date))
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .center, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Eyebrow(text: left > 0 ? "Rest" : "Go!", color: .white.opacity(0.85))
+                        Text(WatchPlayer.clock(left)).font(W.display(26)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Rest")
+                    .accessibilityValue("\(Int(left.rounded(.up))) seconds left")
+                    Spacer(minLength: 2)
+                    square("+15", fill: .black.opacity(0.28), text: .white, action: onAdd)
+                        .accessibilityLabel("Add 15 seconds")
+                    square("Skip", fill: W.lime, text: W.ink, action: onSkip)
+                        .accessibilityLabel("Skip rest")
+                }
+                GeometryReader { g in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2).fill(.black.opacity(0.3))
+                        RoundedRectangle(cornerRadius: 2).fill(.white)
+                            .frame(width: g.size.width * min(1, left / Double(max(1, total))))
+                    }
+                }
+                .frame(height: 5)
+            }
+            .foregroundStyle(.white)
+            .padding(7)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(W.gradient(tint, tint2)))
+        }
+    }
+
+    private func square(_ title: String, fill: Color, text: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(W.label(12)).foregroundStyle(text).lineLimit(1).minimumScaleFactor(0.7)
+                .frame(width: 40, height: 34)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(fill))
+        }
+        .buttonStyle(.plain)
     }
 
     private func pill(_ title: String, fill: Color, text: Color, action: @escaping () -> Void) -> some View {
@@ -638,6 +683,8 @@ struct RestOverlay: View {
 /// Fail / 1 / 2 / 3 left in two columns, "4+ easy" full width.
 struct EffortGrid: View {
     let onEffort: (Int) -> Void
+    /// Tile height; the rest screen uses shorter tiles so everything fits without scrolling (#538).
+    var rowHeight: CGFloat = 36
 
     var body: some View {
         Grid(horizontalSpacing: 4, verticalSpacing: 4) {
@@ -653,7 +700,7 @@ struct EffortGrid: View {
         let dark = i >= 2
         return Button { onEffort(e.rir) } label: {
             Text(i == 4 ? "\(e.title) 😎" : e.title).font(W.display(13)).foregroundStyle(dark ? W.ink : .white)
-                .frame(maxWidth: .infinity, minHeight: 36)
+                .frame(maxWidth: .infinity, minHeight: rowHeight)
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(LinearGradient(colors: [e.color, W.effortEnd[i]], startPoint: .topLeading, endPoint: .bottomTrailing)))
         }

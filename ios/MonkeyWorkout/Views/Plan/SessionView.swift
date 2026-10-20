@@ -19,6 +19,8 @@ struct SessionView: View {
     /// Gym map opened from the route card (#406); saved when it closes.
     @State private var mapDraft: GymLayout?
     @State private var mapOpen = false
+    /// A missed day's session logged after the fact (#537).
+    @State private var loggingMissed = false
 
     private var session: Session? { model.session(sessionId) }
 
@@ -39,8 +41,10 @@ struct SessionView: View {
                         }
                     }
                     exercisesHeader(session)
-                    ForEach(session.blocks) { block in
+                    ForEach(Array(session.blocks.enumerated()), id: \.element.id) { i, block in
                         BlockSection(block: block, sessionId: session.id,
+                                     firstNumber: session.blocks.prefix(i).reduce(0) { $0 + $1.items.count } + 1,
+                                     sessionDone: model.state.done[session.id] ?? false,
                                      canSwap: { model.swapsThroughPlan(session, uid: $0.uid) || model.canEditExercises(session) },
                                      onRemove: canRemove(session) ? { remove($0, from: session) } : nil) { item in
                             // Example and custom workouts are fixed lists: no planned item behind them.
@@ -60,21 +64,11 @@ struct SessionView: View {
             // The big display title below is the page's one title (#88); the bar stays clear.
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .safeAreaInset(edge: .bottom) {
-                Button { playing = true } label: {
-                    Label(model.activeWorkout(session.id) == nil ? "Start workout" : "Resume workout", systemImage: "play.fill")
-                }
-                    .buttonStyle(LimeButtonStyle())
-                    .disabled(session.blocks.allSatisfy { $0.items.isEmpty })
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .readableColumn()
-                    // Opaque bar (as on the profile form): content ends above the button instead of sliding under it.
-                    .background(Theme.bg.ignoresSafeArea())
-            }
+            .safeAreaInset(edge: .bottom) { bottomBar(session) }
             .standaloneWorkoutActions(session)
             .task { if model.profile?.gymLayout != nil { await model.refreshGymCrowd() } }
             .fullScreenCover(isPresented: $playing) { WorkoutPlayerView(sessionId: session.id) }
+            .sheet(isPresented: $loggingMissed) { MissedLogSheet(session: session) }
             .sheet(item: $detail) { ref in
                 NavigationStack { ExerciseDetailView(exerciseId: ref.exerciseId, plannedUid: ref.uid) }
                     .presentationDetents([.large])
@@ -109,6 +103,43 @@ struct SessionView: View {
         } else {
             ContentUnavailableView("Session not found", systemImage: "questionmark")
         }
+    }
+
+    /// Only today's session starts (#537): an earlier day not done is logged (Log it), a later day shows when it's
+    /// planned, a done day has no button.
+    @ViewBuilder
+    private func bottomBar(_ s: Session) -> some View {
+        if model.startableToday(s) {
+            bar {
+                Button { playing = true } label: {
+                    Label(model.activeWorkout(s.id) == nil ? "Start workout" : "Resume workout", systemImage: "play.fill")
+                        .lineLimit(1).minimumScaleFactor(0.9)
+                }
+                .buttonStyle(LimeButtonStyle())
+                .disabled(s.blocks.allSatisfy { $0.items.isEmpty })
+            }
+        } else if !(model.state.done[s.id] ?? false), let wd = s.weekday {
+            if wd < model.todayWeekday {
+                bar {
+                    Button { loggingMissed = true } label: {
+                        Label("Log it", systemImage: "square.and.pencil").lineLimit(1).minimumScaleFactor(0.9)
+                    }
+                    .buttonStyle(LimeButtonStyle(fill: .white))
+                    .accessibilityHint("Logs this workout on \(WeekSchedule.name(wd)) with what you did")
+                }
+            } else {
+                bar { PlannedDayBadge(weekday: wd) }
+            }
+        }
+    }
+
+    /// Opaque bar (as on the profile form): content ends above the button instead of sliding under it.
+    private func bar<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .readableColumn()
+            .background(Theme.bg.ignoresSafeArea())
     }
 
     /// Remove from the long-press menu (#391): gone at once, Undo bar puts it back (no confirmation, #285).
@@ -311,6 +342,10 @@ private struct FlowOverview: View {
 private struct BlockSection: View {
     let block: Block
     let sessionId: String
+    /// Number of the block's first exercise in the session (#537).
+    var firstNumber = 1
+    /// The session is done: exercises not ticked were skipped.
+    var sessionDone = false
     let canSwap: (PlannedExercise) -> Bool
     var onRemove: ((PlannedExercise) -> Void)? = nil
     let onOpen: (PlannedExercise) -> Void
@@ -324,8 +359,8 @@ private struct BlockSection: View {
                 Text("\(block.targetMin) min").font(Theme.label(13)).foregroundStyle(Theme.muted)
             }
             if let note = block.note { Text(note).font(.footnote).foregroundStyle(Theme.muted) }
-            ForEach(block.items) { item in
-                ExerciseCard(item: item, block: block, sessionId: sessionId,
+            ForEach(Array(block.items.enumerated()), id: \.element.id) { i, item in
+                ExerciseCard(item: item, block: block, sessionId: sessionId, number: firstNumber + i, sessionDone: sessionDone,
                              onOpen: { onOpen(item) }, onSwap: canSwap(item) ? { onSwap(item) } : nil,
                              onRemove: onRemove.map { r in { r(item) } })
             }
@@ -338,6 +373,10 @@ struct ExerciseCard: View {
     let item: PlannedExercise
     let block: Block
     let sessionId: String
+    /// Position in the session, on the status square (#537).
+    var number = 1
+    /// The session is done: an exercise not ticked was skipped.
+    var sessionDone = false
     let onOpen: () -> Void
     var onSwap: (() -> Void)? = nil
     /// Long-press "Remove from workout" (#391); nil once the workout started or when it's the last exercise.
@@ -346,14 +385,34 @@ struct ExerciseCard: View {
 
     private var exercise: Exercise { Exercise.get(item.exerciseId) }
     private var ticked: Bool { model.state.ticked[item.uid] ?? false }
+    private var skipped: Bool { sessionDone && !ticked }
+
+    private var statusSquare: some View {
+        let shape = RoundedRectangle(cornerRadius: 9, style: .continuous)
+        return Group {
+            if ticked {
+                Image(systemName: "checkmark").font(.system(size: 14, weight: .black)).foregroundStyle(Theme.ink)
+                    .frame(width: 30, height: 30)
+                    .background(shape.fill(Theme.lime))
+            } else if skipped {
+                Image(systemName: "minus").font(.system(size: 14, weight: .black)).foregroundStyle(Color(hex: 0xFF5F6D))
+                    .frame(width: 30, height: 30)
+                    .background(shape.fill(Color(hex: 0xFF3D6E).opacity(0.22)))
+            } else {
+                Text("\(number)").font(Theme.display(15)).monospacedDigit().foregroundStyle(.white)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .frame(width: 30, height: 30)
+                    .background(shape.fill(block.kind.category.gradient))
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(ticked ? "Done" : skipped ? "Skipped" : "Exercise \(number), planned")
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            // Status only: set by the workout player (#57).
-            Image(systemName: ticked ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 26, weight: .bold))
-                .foregroundStyle(ticked ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Color.white.opacity(0.15)))
-                .accessibilityLabel(ticked ? "Done" : "Not done yet")
+            // Status only, set by the workout player (#57): numbered square planned, lime ✓ done, red – skipped (#537).
+            statusSquare
 
             ExerciseThumbnail(exercise: exercise, size: 52)
 

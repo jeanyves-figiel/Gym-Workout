@@ -134,6 +134,16 @@ enum HomeWidgetRouter {
             let id = url.lastPathComponent.removingPercentEncoding ?? url.lastPathComponent
             model.tab = .train
             if model.session(id) != nil { NotificationManager.shared.route = .session(id) }
+        case "start":
+            // Start on the widget (#537): today's session opens in the player on Train; any other day its page.
+            let id = url.lastPathComponent.removingPercentEncoding ?? url.lastPathComponent
+            model.tab = .train
+            guard let s = model.session(id) else { return }
+            if model.startableToday(s) {
+                PlayerLaunch.shared.sessionId = id
+            } else {
+                NotificationManager.shared.route = .session(id)
+            }
         case "progress", "level":
             model.tab = .progress
         case "fuel":
@@ -142,4 +152,12 @@ enum HomeWidgetRouter {
             model.tab = .train
         }
     }
+}
+
+/// A workout to open in the player from outside Train (#537: Start on a Home Screen widget). Train presents it and
+/// clears it.
+@MainActor @Observable
+final class PlayerLaunch {
+    static let shared = PlayerLaunch()
+    var sessionId: String?
 }

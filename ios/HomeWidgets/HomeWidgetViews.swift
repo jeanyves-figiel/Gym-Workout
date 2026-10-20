@@ -269,6 +269,13 @@ private struct WeekStrip: View {
     }
 }
 
+extension HomeWidgetLink {
+    /// Today's session straight into the workout player (#537); the app falls back to its page on another day.
+    static func start(_ id: String) -> URL {
+        URL(string: "\(scheme)://start/\(id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id)")!
+    }
+}
+
 private struct StartButton: View {
     let s: HomeWidgetSnapshot
     var fill: Color = .white
@@ -276,8 +283,10 @@ private struct StartButton: View {
 
     var body: some View {
         if let n = s.next {
-            Link(destination: HomeWidgetLink.session(n.id)) {
-                Label("Start", systemImage: "play.fill")
+            // Only today's session starts (#537): Start opens it straight in the player; a later day's says Open (its page).
+            let today = n.date == nil || n.day == "Today"
+            Link(destination: today ? HomeWidgetLink.start(n.id) : HomeWidgetLink.session(n.id)) {
+                Label(today ? "Start" : "Open", systemImage: today ? "play.fill" : "arrow.up.right")
                     .font(label(12 * k))
                     .foregroundStyle(Color(hex: 0x111111))
                     .padding(.horizontal, 11 * k).padding(.vertical, 6 * k)
