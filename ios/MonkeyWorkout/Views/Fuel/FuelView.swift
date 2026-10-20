@@ -178,7 +178,9 @@ struct FuelView: View {
     }
 }
 
-/// Seven days around the picked one: past days show what was counted, coming days the plan.
+/// Days slide under a centre lens like Train's week strip (#510, design B): 1 week back to 2 weeks ahead,
+/// the day that settles under the lens is shown. Past days show what was counted, coming days the plan;
+/// each day is tinted by its load (big hot, training violet, rest dark).
 struct FuelDayStrip: View {
     @Binding var day: Date
     @Environment(AppModel.self) private var model
@@ -186,29 +188,28 @@ struct FuelDayStrip: View {
     var body: some View {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        HStack(spacing: 6) {
-            ForEach(-3...3, id: \.self) { i in
-                if let d = cal.date(byAdding: .day, value: i, to: today) {
-                    let on = cal.isDate(d, inSameDayAs: day)
-                    let load = Fuel.load(model.fuelActivities(on: d), weightKg: model.fuelWeightKg ?? Fuel.typicalKg)
-                    Button { withAnimation(.snappy) { day = d } } label: {
-                        VStack(spacing: 3) {
-                            Text(d.formatted(.dateTime.weekday(.narrow))).font(Theme.label(10)).opacity(0.75)
-                            Text(d.formatted(.dateTime.day())).font(Theme.display(17))
-                            Text(FuelPalette.loadEmoji(load)).font(.system(size: 11))
-                        }
-                        .foregroundStyle(on ? Theme.ink : .white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 7)
-                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(on ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Theme.card)))
-                        .overlay(alignment: .top) {
-                            if cal.isDateInToday(d) && !on { Capsule().fill(Theme.lime).frame(width: 14, height: 3).padding(.top, 2) }
-                        }
+        let picked = cal.dateComponents([.day], from: today, to: cal.startOfDay(for: day)).day ?? 0
+        LensDayStrip(range: -7...14, selected: picked, onPick: { o in
+            if let d = cal.date(byAdding: .day, value: o, to: today) { withAnimation(.snappy) { day = d } }
+        }) { o in
+            if let d = cal.date(byAdding: .day, value: o, to: today) {
+                let on = o == picked
+                let load = Fuel.load(model.fuelActivities(on: d), weightKg: model.fuelWeightKg ?? Fuel.typicalKg)
+                Button { withAnimation(.snappy) { day = d } } label: {
+                    VStack(spacing: 2) {
+                        Text(d.formatted(.dateTime.weekday(.narrow))).font(Theme.label(9)).opacity(0.75)
+                        Text(d.formatted(.dateTime.day())).font(Theme.display(15)).monospacedDigit()
+                        Text(FuelPalette.loadEmoji(load)).font(.system(size: 10))
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("\(d.formatted(.dateTime.weekday(.wide).day().month())), \(load.label)")
-                    .accessibilityAddTraits(on ? .isSelected : [])
+                    .foregroundStyle(on ? Theme.ink : .white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(on ? AnyShapeStyle(Theme.lime) : load == .rest ? AnyShapeStyle(Theme.card) : AnyShapeStyle(FuelPalette.load(load))))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.lime, lineWidth: o == 0 && !on ? 2 : 0))
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(d.formatted(.dateTime.weekday(.wide).day().month())), \(load.label)")
+                .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
     }
