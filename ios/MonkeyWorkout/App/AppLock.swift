@@ -7,7 +7,13 @@ final class AppLock {
     private static let key = "appLockEnabled"
     private(set) var enabled: Bool
     var locked: Bool
+    /// Inactive (app switcher, Control Center): content hidden so the app switcher snapshot shows nothing.
+    private(set) var covered = false
     var error: String?
+    /// The Face ID / passcode sheet is up (it makes the app inactive, then active again).
+    @ObservationIgnored private var prompting = false
+    /// The member cancelled the prompt: wait for the Unlock button instead of asking again on every activation.
+    @ObservationIgnored private var cancelled = false
 
     init() {
         let on = UserDefaults.standard.bool(forKey: AppLock.key)
@@ -34,11 +40,21 @@ final class AppLock {
         }
     }
 
-    func didEnterBackground() { if enabled { locked = true } }
+    func didEnterBackground() {
+        if enabled { locked = true }
+        // Back from the background later: ask again.
+        cancelled = false
+    }
 
-    func didBecomeActive() { if locked { Task { await unlock() } } }
+    func didResignActive() { if enabled { covered = true } }
+
+    func didBecomeActive() {
+        covered = false
+        if locked, !prompting, !cancelled { Task { await unlock() } }
+    }
 
     func unlock() async {
+        guard !prompting else { return }
         let ctx = LAContext()
         var err: NSError?
         guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else {
@@ -46,12 +62,16 @@ final class AppLock {
             locked = false
             return
         }
+        prompting = true
+        defer { prompting = false }
         do {
             if try await ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Unlock MonkeyWorkout") {
                 locked = false
+                cancelled = false
                 error = nil
             }
         } catch {
+            if let code = (error as? LAError)?.code, [LAError.Code.userCancel, .appCancel, .systemCancel].contains(code) { cancelled = true }
             self.error = error.localizedDescription
         }
     }

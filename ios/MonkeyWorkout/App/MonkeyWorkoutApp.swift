@@ -71,6 +71,9 @@ struct MonkeyWorkoutApp: App {
                         model.flushPersist()
                         lock.didEnterBackground()
                         HomeWidgetSync.shared.push()
+                    case .inactive:
+                        // App switcher snapshot: hide content when the lock is on.
+                        lock.didResignActive()
                     case .active:
                         lock.didBecomeActive()
                         // A new programme week (#255), or a new calendar week for the plan (#266).
