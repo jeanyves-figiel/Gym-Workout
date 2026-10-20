@@ -429,7 +429,7 @@ private struct RoundIcon: View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: 13, weight: .heavy))
                 .frame(width: 28, height: 28)
-                .background(Circle().fill(.white.opacity(0.2)))
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.white.opacity(0.2)))
         }
         .buttonStyle(.plain)
     }
@@ -549,11 +549,12 @@ private struct EndCountdown: View {
         VStack(spacing: 8) {
             TimelineView(.periodic(from: .now, by: 0.1)) { ctx in
                 let left = max(0, end.timeIntervalSince(ctx.date))
+                // Rounded square with square ends (#541), like the other rings.
+                let shape = RoundedRectangle(cornerRadius: 30, style: .continuous)
                 ZStack {
-                    Circle().stroke(W.color(0xFF3D5A).opacity(0.18), lineWidth: 10)
-                    Circle().trim(from: 0, to: left / max(1, seconds))
-                        .stroke(W.color(0xFF3D5A), style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
+                    shape.stroke(W.color(0xFF3D5A).opacity(0.18), lineWidth: 10)
+                    shape.trim(from: 0, to: left / max(1, seconds))
+                        .stroke(W.color(0xFF3D5A), style: StrokeStyle(lineWidth: 10, lineCap: .butt))
                     VStack(spacing: 0) {
                         Eyebrow(text: title, color: W.light(0xFF3D5A))
                         Text("\(Int(left.rounded(.up)))").font(W.display(38)).monospacedDigit()
@@ -634,7 +635,7 @@ struct RestOverlay: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .center, spacing: 4) {
                     VStack(alignment: .leading, spacing: 0) {
-                        Eyebrow(text: left > 0 ? "Rest" : "Go!", color: .white.opacity(0.85))
+                        Eyebrow(text: left > 0 ? "Rest" : "Go!", color: ink.opacity(0.85))
                         Text(WatchPlayer.clock(left)).font(W.display(26)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
                     }
                     .accessibilityElement(children: .ignore)
@@ -649,16 +650,22 @@ struct RestOverlay: View {
                 GeometryReader { g in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 2).fill(.black.opacity(0.3))
-                        RoundedRectangle(cornerRadius: 2).fill(.white)
+                        RoundedRectangle(cornerRadius: 2).fill(ink)
                             .frame(width: g.size.width * min(1, left / Double(max(1, total))))
                     }
                 }
                 .frame(height: 5)
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(ink)
             .padding(7)
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(W.gradient(tint, tint2)))
         }
+    }
+
+    /// Type on the rest tile (#540): dark on a light block colour (warm-up yellow, lime), white on the rest.
+    private var ink: Color {
+        let r = Double((tint >> 16) & 0xFF) / 255, g = Double((tint >> 8) & 0xFF) / 255, b = Double(tint & 0xFF) / 255
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.6 ? W.ink : .white
     }
 
     private func square(_ title: String, fill: Color, text: Color, action: @escaping () -> Void) -> some View {
