@@ -742,14 +742,15 @@ struct WorkoutPlayerView: View {
 
     private func topBar(_ session: Session) -> some View {
         HStack(spacing: 10) {
-            // Pause: the workout map with Finish, Finish early and Discard (#538).
+            // Workout menu: the workout map with Finish, Finish early and Discard (#538). Not a pause icon:
+            // the ✕ is what pauses (#556, design A from `player-topbar/proposals.png`).
             Button { mapOpen = true } label: {
-                Image(systemName: "pause.fill").font(.system(size: 16, weight: .heavy))
+                Image(systemName: "ellipsis").font(.system(size: 16, weight: .heavy))
                     .frame(width: 44, height: 44)
                     .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(Theme.cardStrong))
             }
             .disabled(steps.isEmpty)
-            .accessibilityLabel("Pause")
+            .accessibilityLabel("Workout menu")
             .accessibilityHint("Finish, finish early or discard the workout")
             // Tap the dots for the workout map (#361).
             Button { mapOpen = true } label: {
