@@ -1,6 +1,31 @@
 {
   "releases": [
     {
+      "id": "2026-10-20.3",
+      "build": 54,
+      "date": "2026-10-20",
+      "items": [
+        {
+          "symbol": "calendar",
+          "tint": "strength",
+          "title": "Train opens on today",
+          "body": "Train always opens on today, and today's card has Build as I go, Log sport and Track live, climbing days too."
+        },
+        {
+          "symbol": "airplane",
+          "tint": "cardio",
+          "title": "Away days in their week",
+          "body": "Trips and can't-train days sit in their week on the Calendar. Tap the strip to edit."
+        },
+        {
+          "symbol": "clock",
+          "tint": "warmup",
+          "title": "Clear log times",
+          "body": "Log a climb or sport with Started → Ended times, and one How hard chip."
+        }
+      ]
+    },
+    {
       "id": "2026-10-20.2",
       "build": 53,
       "date": "2026-10-20",
