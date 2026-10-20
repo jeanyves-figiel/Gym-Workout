@@ -288,7 +288,7 @@ struct PlayerView: View {
             if case let .rest(end, total, effortSet) = player.phase {
                 RestOverlay(end: end, total: total, effort: effortSet != nil, next: player.upNext,
                             tint: block?.tint ?? 0xCCFF3D, tint2: block?.tint2 ?? 0x7B3DFF,
-                            note: restNote, heartRate: workout.heartRate) { rir in
+                            note: restNote) { rir in
                     send(player.effort(rir))
                 } onAdd: {
                     player.addRest()
@@ -561,8 +561,10 @@ struct RestOverlay: View {
     var tint2: UInt32 = 0x7B3DFF
     /// Lift sensor (#383): the set just measured, machine → wrist reminder.
     var note: String?
-    var heartRate: Double?
     let onEffort: (Int) -> Void
+    /// Read here, not passed in, so each heart rate sample redraws this overlay instead of the whole player.
+    @Environment(WorkoutManager.self) private var workout
+    private var heartRate: Double? { workout.heartRate }
     let onAdd: () -> Void
     let onSkip: () -> Void
 
