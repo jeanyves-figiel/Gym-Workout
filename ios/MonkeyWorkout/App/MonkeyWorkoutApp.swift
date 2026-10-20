@@ -62,7 +62,7 @@ struct MonkeyWorkoutApp: App {
                     }
                 }
                 // Plan, completion, history or custom workouts changed: refresh the Watch.
-                .onChange(of: WatchSync.changeKey(model)) { WatchSync.shared.push() }
+                .onChange(of: WatchSync.changeKey(model)) { WatchSync.shared.schedulePush() }
                 // Home Screen widget taps (#297).
                 .onOpenURL { HomeWidgetRouter.open($0, model: model) }
                 .onChange(of: scenePhase) { _, phase in

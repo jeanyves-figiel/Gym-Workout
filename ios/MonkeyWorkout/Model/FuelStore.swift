@@ -327,8 +327,8 @@ final class FuelStore {
 
     private func save(_ s: Saved) {
         saved = s
-        // Today's water and meals on the Watch and the Home Screen widgets.
-        WatchSync.shared.push()
+        // Today's water and meals on the Watch and the Home Screen widgets (coalesced: a burst of taps sends once).
+        WatchSync.shared.schedulePush()
         guard let data = try? JSONEncoder().encode(s) else { return }
         let url = Self.url
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
