@@ -118,6 +118,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       | undefined;
   push.setFollowersProvider((id) => (sharing(id) ? followerIds(deps.db, id) : []));
   app.decorate('push', push);
+  app.addHook('onClose', () => push.idle());
   const subscriptions = new SubscriptionService({
     db: deps.db,
     decode: deps.appStore ?? createAppStoreDecoder({ now }),

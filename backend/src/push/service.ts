@@ -5,6 +5,18 @@ import { defaultPrefs, inQuietHours, NotificationPrefs } from './prefs.ts';
 /** Kinds of remote notifications. Each maps to a preference toggle. */
 export type PushKind = 'follow_achievement' | 'test';
 
+/** Pushes to followers in flight at once per fan-out, so a member with many followers can't flood APNs or the loop. */
+const FAN_OUT_CONCURRENCY = 5;
+
+/** Runs `fn` over `items` with at most `limit` running at once. */
+const forEachLimit = async <T>(items: readonly T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> => {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) await fn(items[next++]!);
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+};
+
 export interface Achievement {
   /** Stable id of the achievement (dedupes repeated sends, used as collapse id). */
   id: string;
@@ -42,6 +54,7 @@ export class PushService {
   private readonly d: PushServiceDeps;
   private followersOf: (userId: string) => string[];
   private warned = false;
+  private readonly pending = new Set<Promise<void>>();
 
   constructor(d: PushServiceDeps) {
     this.d = d;
@@ -91,11 +104,16 @@ export class PushService {
     return p;
   }
 
+  /** Resolves once the background fan-outs started so far are done (tests, shutdown). */
+  async idle(): Promise<void> {
+    while (this.pending.size) await Promise.all([...this.pending]);
+  }
+
   /**
    * Announces achievements the device just unlocked (each id once per user) to followers.
-   * Returns the ids that were new.
+   * Returns the ids that were new at once; the pushes go out in the background (see `idle`).
    */
-  async announce(actorId: string, actorName: string, list: Achievement[]): Promise<string[]> {
+  announce(actorId: string, actorName: string, list: Achievement[]): string[] {
     const fresh: Achievement[] = [];
     const ts = this.d.now().toISOString();
     for (const a of list) {
@@ -104,7 +122,14 @@ export class PushService {
         .run(actorId, a.id, ts);
       if (Number(r.changes) > 0) fresh.push(a);
     }
-    for (const a of fresh) await this.notifyFollowers(actorId, actorName, a);
+    if (fresh.length) {
+      const job = (async () => {
+        for (const a of fresh) await this.notifyFollowers(actorId, actorName, a);
+      })()
+        .catch((e: Error) => this.d.log(`push: announce failed: ${e.message}`))
+        .finally(() => this.pending.delete(job));
+      this.pending.add(job);
+    }
     return fresh.map((a) => a.id);
   }
 
@@ -118,14 +143,18 @@ export class PushService {
       return 0;
     }
     let sent = 0;
-    for (const f of followers) {
-      sent += await this.notifyUser(f, 'follow_achievement', {
-        title: `${actorName} 🏆`,
-        body: a.text,
-        data: { kind: 'follow_achievement', actorId, actorName, achievementId: a.id, type: a.type },
-        collapseId: `ach-${a.id}`.slice(0, 64),
-      });
-    }
+    await forEachLimit(followers, FAN_OUT_CONCURRENCY, async (f) => {
+      try {
+        sent += await this.notifyUser(f, 'follow_achievement', {
+          title: `${actorName} 🏆`,
+          body: a.text,
+          data: { kind: 'follow_achievement', actorId, actorName, achievementId: a.id, type: a.type },
+          collapseId: `ach-${a.id}`.slice(0, 64),
+        });
+      } catch (e) {
+        this.d.log(`push: follower notify failed: ${(e as Error).message}`);
+      }
+    });
     return sent;
   }
 
