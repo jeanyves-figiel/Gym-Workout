@@ -44,7 +44,17 @@ extension AppModel {
     var doneIds: Set<String> { Set(state.done.filter(\.value).keys) }
 
     /// This week (as on the Train tab) and the coming weeks, dated and adapted around away periods.
+    /// Cached per `count` and day of `now` (`AppModel+Cache`).
     func calendarWeeks(count: Int = PlanCalendar.horizonWeeks, now: Date = Date()) -> [PlanCalendar.Week] {
+        let key = derivedKey
+        let day = Calendar.current.startOfDay(for: now)
+        if let c = derived.weeks[count], c.key == key, c.day == day { return c.value }
+        let weeks = makeCalendarWeeks(count: count, now: now)
+        derived.weeks[count] = (key, day, weeks)
+        return weeks
+    }
+
+    private func makeCalendarWeeks(count: Int, now: Date) -> [PlanCalendar.Week] {
         guard let sp = state.synced else { return [] }
         // Library extras and one-off moves (#113) show on their day this week.
         return PlanCalendar.weeks(sp.profile, seed: sp.seed, currentWeek: sp.week, current: plan, done: doneIds,

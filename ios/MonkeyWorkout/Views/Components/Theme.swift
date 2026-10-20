@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import WorkoutEngine
 
 /// Bold, dark-first visual language: near-black canvas, heavy rounded type, one signature lime,
@@ -14,8 +15,16 @@ enum Theme {
     /// Widest content column on iPad and the unfolded iPhone Duo; narrower screens use their full width.
     static let readableWidth: CGFloat = 720
 
-    static func display(_ size: CGFloat) -> Font { .system(size: size, weight: .black, design: .rounded) }
-    static func label(_ size: CGFloat = 12) -> Font { .system(size: size, weight: .heavy, design: .rounded) }
+    /// Heavy display and label type follow Dynamic Type (#540): the default text size keeps `size` exactly,
+    /// larger settings grow it, capped so headlines and tiles still fit at the accessibility sizes.
+    static func display(_ size: CGFloat) -> Font { .system(size: scaled(size, cap: 1.6), weight: .black, design: .rounded) }
+    static func label(_ size: CGFloat = 12) -> Font { .system(size: scaled(size, cap: 1.8), weight: .heavy, design: .rounded) }
+
+    /// `size` scaled for the person's text size. Big type scales like the large text styles (less than body).
+    static func scaled(_ size: CGFloat, cap: CGFloat) -> CGFloat {
+        let style: UIFont.TextStyle = size >= 28 ? .largeTitle : size >= 20 ? .title2 : size >= 15 ? .body : .footnote
+        return min(UIFontMetrics(forTextStyle: style).scaledValue(for: size), size * cap)
+    }
 
     /// 0 → cool lime, 1 → hot red. Used for muscle heat.
     static func heat(_ v: Double) -> Color {
@@ -42,6 +51,9 @@ extension WorkoutEngine.Category {
 
     var color: Color { colors[0] }
     var gradient: LinearGradient { LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing) }
+    /// Type on this gradient (#540): dark ink on the light warm-up and stretch gradients, white on the rest.
+    var ink: Color { isLight ? Theme.ink : .white }
+    var isLight: Bool { self == .warmup || self == .stretch }
 
     var symbol: String {
         switch self {
@@ -100,9 +112,10 @@ extension View {
         modifier(SelectableGradient(fill: AnyShapeStyle(fill), selected: selected, cornerRadius: cornerRadius, ring: ring))
     }
 
-    /// Explore-style card: vivid gradient fill, white type. The gradient counterpart of `card()`.
-    func gradientCard(_ gradient: LinearGradient, padding: CGFloat = 16) -> some View {
-        foregroundStyle(.white)
+    /// Explore-style card: vivid gradient fill, white type (dark `ink` on light gradients, #540).
+    /// The gradient counterpart of `card()`.
+    func gradientCard(_ gradient: LinearGradient, padding: CGFloat = 16, ink: Color = .white) -> some View {
+        foregroundStyle(ink)
             .padding(padding)
             .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(gradient))
     }
@@ -177,20 +190,61 @@ struct MuscleChips: View {
     }
 }
 
+/// Progress around a timer or badge. A rounded square with square ends (#541): the app's tiles are squares, not circles.
 struct ProgressRing: View {
     let progress: Double
     var lineWidth: CGFloat = 10
     var colors: [Color] = [Theme.lime, Color(red: 0.2, green: 0.9, blue: 0.6)]
 
     var body: some View {
-        ZStack {
-            Circle().stroke(Color.white.opacity(0.08), lineWidth: lineWidth)
-            Circle()
-                .trim(from: 0, to: max(0.001, min(1, progress)))
-                .stroke(AngularGradient(colors: colors + [colors[0]], center: .center), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .animation(.spring(duration: 0.6), value: progress)
+        GeometryReader { geo in
+            let shape = RoundedRectangle(cornerRadius: min(geo.size.width, geo.size.height) * 0.28, style: .continuous)
+            ZStack {
+                shape.stroke(Color.white.opacity(0.08), lineWidth: lineWidth)
+                shape
+                    .trim(from: 0, to: max(0.001, min(1, progress)))
+                    .stroke(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing),
+                            style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt))
+                    .animation(.spring(duration: 0.6), value: progress)
+            }
+            .padding(lineWidth / 2)
         }
+    }
+}
+
+/// Square-ended progress bar (#541): the standalone counterpart of `ProgressRing`, optionally in segments.
+struct ProgressBar: View {
+    let progress: Double
+    var height: CGFloat = 8
+    /// Segments (e.g. sessions this week); 0 draws one continuous bar.
+    var segments = 0
+    var fill: Color = Theme.lime
+    var track: Color = .white.opacity(0.12)
+
+    var body: some View {
+        let p = max(0, min(1, progress))
+        Group {
+            if segments > 0 {
+                HStack(spacing: 3) {
+                    ForEach(0..<segments, id: \.self) { i in
+                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                            .fill(Double(i) < p * Double(segments) ? fill : track)
+                    }
+                }
+            } else {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2, style: .continuous).fill(track)
+                        RoundedRectangle(cornerRadius: 2, style: .continuous).fill(fill)
+                            .frame(width: geo.size.width * p)
+                    }
+                }
+            }
+        }
+        .frame(height: height)
+        .animation(.spring(duration: 0.6), value: p)
+        .accessibilityElement()
+        .accessibilityValue("\(Int((p * 100).rounded())) percent")
     }
 }
 
@@ -229,16 +283,19 @@ struct StatTile: View {
     }
 }
 
-/// White ~20 % rounded tile holding an icon, left of Explore-style gradient cards.
+/// White ~20 % rounded tile holding an icon, left of Explore-style gradient cards. `ink`: dark tile for light
+/// gradients (#540).
 struct IconTile: View {
     let symbol: String
     var size: CGFloat = 48
+    var ink = false
 
     var body: some View {
         Image(systemName: symbol)
             .font(.system(size: size * 0.45, weight: .bold))
             .frame(width: size, height: size)
-            .background(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).fill(.white.opacity(0.2)))
+            .background(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)
+                .fill(ink ? Theme.ink.opacity(0.12) : .white.opacity(0.2)))
     }
 }
 
@@ -247,18 +304,20 @@ struct GradientSection<Content: View>: View {
     let symbol: String
     let title: String
     let gradient: LinearGradient
+    /// Type colour: `Theme.ink` on light gradients (#540).
+    var ink: Color = .white
     @ViewBuilder var content: () -> Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                IconTile(symbol: symbol, size: 40)
+                IconTile(symbol: symbol, size: 40, ink: ink != .white)
                 Text(title).font(Theme.display(20)).lineLimit(2).minimumScaleFactor(0.8)
             }
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .gradientCard(gradient)
+        .gradientCard(gradient, ink: ink)
     }
 }
 

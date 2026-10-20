@@ -15,7 +15,6 @@ private struct StandaloneWorkoutActions: ViewModifier {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var editing: CustomWorkout?
-    @State private var confirmDelete = false
     @State private var gate: ProGate?
 
     func body(content: Content) -> some View {
@@ -25,15 +24,15 @@ private struct StandaloneWorkoutActions: ViewModifier {
             }
             .sheet(item: $editing) { w in CustomWorkoutEditor(initial: w) }
             .proPaywall($gate)
-            .confirmationDialog("Delete this workout?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("Delete", role: .destructive) {
-                    guard let w = model.customWorkout(sessionId: session.id) else { return }
-                    dismiss()
-                    model.deleteCustomWorkout(w.id)
-                }
-            } message: {
-                Text("Past sessions stay in your history.")
-            }
+    }
+
+    /// Deleted at once (#539); Undo saves it back. Past sessions stay in history either way.
+    private func delete(_ w: CustomWorkout) {
+        dismiss()
+        model.deleteCustomWorkout(w.id)
+        UndoCloseCenter.shared.deleted("\(w.name) deleted", detail: "Past sessions stay in your history", symbol: "dumbbell.fill") { [model] in
+            model.saveCustomWorkout(w)
+        }
     }
 
     @ViewBuilder
@@ -42,7 +41,7 @@ private struct StandaloneWorkoutActions: ViewModifier {
             Menu {
                 Button("Edit", systemImage: "pencil") { editing = w }
                 Button("Duplicate", systemImage: "plus.square.on.square") { ProStore.shared.run(.buildWorkout, $gate) { editing = w.duplicated() } }
-                Button("Delete", systemImage: "trash", role: .destructive) { confirmDelete = true }
+                Button("Delete", systemImage: "trash", role: .destructive) { delete(w) }
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
@@ -225,24 +224,17 @@ struct CustomWorkoutEditor: View {
             .toolbar {
                 // Closes at once; with unsaved changes the Undo bar brings them back (#285). The old "Discard changes?"
                 // dialog didn't show on iOS 26, so Cancel did nothing and swipe-down was blocked.
-                if autoSaving == true {
-                    CloseToolbarItem { dismiss() }
-                } else {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(onSave == nil ? "Save" : "Add") {
+                // Standard chrome (#539): a new workout has Save (Add) beside the X; a saved one saves on its own.
+                if autoSaving != true {
+                    SaveToolbarItem(title: onSave == nil ? "Save" : "Add", disabled: !canSave) {
                         if let draftKey { DraftStore.clear(draftKey) }
                         closeGuard.done()
                         model.saveCustomWorkout(draft)
                         onSave?(draft)
                         dismiss()
                     }
-                    .bold()
-                    .disabled(!canSave)
                 }
-                }
+                CloseToolbarItem { dismiss() }
             }
             // Edits to a saved workout save on their own (#437); an empty name or no exercises waits.
             .autoSave(autoSaving == true && canSave ? draft : nil, title: "Workout", symbol: "dumbbell.fill",
@@ -370,8 +362,8 @@ private struct QuickActionCard: View {
     }
 }
 
-private extension View {
-    /// List row without system chrome, so the content's own card shows.
+extension View {
+    /// List row without system chrome, so the content's own card shows. Shared by the gradient-row lists (#539).
     func cardRow() -> some View {
         listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
@@ -389,7 +381,7 @@ private struct CustomItemRow: View {
         if let e = item.exercise {
             let measure = CustomWorkout.Measure(e)
             HStack(spacing: 14) {
-                IconTile(symbol: e.category.symbol, size: 44)
+                IconTile(symbol: e.category.symbol, size: 44, ink: e.category.isLight)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         if let group {
@@ -414,7 +406,7 @@ private struct CustomItemRow: View {
                 Spacer(minLength: 4)
                 AccountChevron()
             }
-            .gradientCard(e.category.gradient, padding: 14)
+            .gradientCard(e.category.gradient, padding: 14, ink: e.category.ink)
         } else {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Unavailable exercise").font(.body.weight(.semibold)).foregroundStyle(Theme.muted)

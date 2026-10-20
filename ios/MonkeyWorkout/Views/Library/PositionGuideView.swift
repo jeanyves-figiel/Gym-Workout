@@ -289,7 +289,7 @@ struct PositionGuideView: View {
                     Text(pinned ? "\(n)" : "•")
                         .font(.system(size: 13, weight: .black, design: .rounded))
                         .frame(width: 26, height: 26)
-                        .background(Circle().fill(.white.opacity(0.25)))
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.25)))
                     VStack(alignment: .leading, spacing: 1) {
                         Text(c.part.label.uppercased()).font(Theme.label(10)).tracking(1).opacity(0.85)
                         Text(c.cue).font(.subheadline.weight(.bold)).fixedSize(horizontal: false, vertical: true)
@@ -309,7 +309,7 @@ struct PositionGuideView: View {
             icon.font(.system(size: 14, weight: .black, design: .rounded))
                 .foregroundStyle(Theme.ink)
                 .frame(width: 26, height: 26)
-                .background(Circle().fill(iconColor))
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(iconColor))
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).font(.subheadline.weight(.bold))
                 Text(detail).font(.caption.weight(.semibold)).opacity(0.75)

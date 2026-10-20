@@ -16,7 +16,7 @@ let mailer: ConsoleMailer;
 let clock: Date;
 let db: DB;
 let sent: ApnsMessage[];
-let reply: (m: ApnsMessage) => ApnsResult;
+let reply: (m: ApnsMessage) => ApnsResult | Promise<ApnsResult>;
 
 beforeEach(() => {
   clock = new Date('2026-10-07T10:00:00Z');
@@ -132,20 +132,69 @@ describe('push devices and prefs', () => {
     await put('/v1/me/push-device', device(TOKEN_A), fan.token);
     const priv = { achievements: [{ id: 'w1', type: 'badge', text: 'Unlocked First rep' }] };
     await app.inject({ method: 'POST', url: '/v1/me/achievements', payload: priv, headers: auth(actor.token) });
+    await app.push.idle();
     expect(sent).toHaveLength(0); // private profile: nobody is told
     db.prepare("UPDATE community_profiles SET default_visibility = 'members' WHERE user_id = ?").run(actor.id);
     const body = { achievements: [{ id: 'w10', type: 'badge', text: 'Unlocked Committed: 10 sessions' }] };
     const first = await app.inject({ method: 'POST', url: '/v1/me/achievements', payload: body, headers: auth(actor.token) });
     expect(first.json()).toEqual({ announced: ['w10'] });
+    await app.push.idle();
     expect((sent[0]!.payload as { aps: { alert: { title: string } } }).aps.alert.title).toBe('Ann 🏆');
     const again = await app.inject({ method: 'POST', url: '/v1/me/achievements', payload: body, headers: auth(actor.token) });
     expect(again.json()).toEqual({ announced: [] });
+    await app.push.idle();
     expect(sent).toHaveLength(1);
     // Same content filter as community captions (#432).
     const rude = { achievements: [{ id: 'w11', type: 'badge', text: 'shit day' }] };
     const refused = await app.inject({ method: 'POST', url: '/v1/me/achievements', payload: rude, headers: auth(actor.token) });
     expect(refused.json().error).toBe('objectionable_content');
     expect(sent).toHaveLength(1);
+  });
+
+  it('answers before the follower fan-out, which runs 5 at a time and survives failures', async () => {
+    const actor = await signUp('busy@example.com');
+    const fans: { token: string; id: string }[] = [];
+    for (let i = 0; i < 12; i++) fans.push(await signUp(`fan${i}@example.com`));
+    app.push.setFollowersProvider((id) => (id === actor.id ? fans.map((f) => f.id) : []));
+    for (const [i, f] of fans.entries()) await put('/v1/me/push-device', device(i.toString(16).padStart(2, '0').repeat(32)), f.token);
+    let running = 0;
+    let peak = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    // Slow APNs: every send waits for the gate; the 3rd one throws.
+    reply = async () => {
+      running++;
+      peak = Math.max(peak, running);
+      const n = sent.length;
+      await gate;
+      running--;
+      if (n === 3) throw new Error('socket hang up');
+      return { status: 200 };
+    };
+    const body = { achievements: [{ id: 'big', type: 'pr', text: 'New PR' }] };
+    const res = await app.inject({ method: 'POST', url: '/v1/me/achievements', payload: body, headers: auth(actor.token) });
+    expect(res.json()).toEqual({ announced: ['big'] });
+    expect(sent.length).toBeLessThanOrEqual(5);
+    release();
+    await app.push.idle();
+    expect(sent).toHaveLength(12);
+    expect(peak).toBe(5);
+  });
+
+  it('keeps the 10 most recently registered devices per member', async () => {
+    const u = await signUp('many@example.com');
+    const tok = (i: number) => i.toString(16).padStart(2, '0').repeat(32);
+    for (let i = 0; i < 12; i++) {
+      await put('/v1/me/push-device', device(tok(i)), u.token);
+      clock = new Date(clock.getTime() + 1000);
+    }
+    // re-registering an old device refreshes it
+    await put('/v1/me/push-device', device(tok(0)), u.token);
+    const kept = (db.prepare('SELECT token FROM push_devices WHERE user_id = ?').all(u.id) as { token: string }[]).map((r) => r.token);
+    expect(kept).toHaveLength(10);
+    expect(kept).toContain(tok(0));
+    expect(kept).not.toContain(tok(1));
+    expect(kept).not.toContain(tok(2));
   });
 
   it('deletes devices and prefs with the account', async () => {

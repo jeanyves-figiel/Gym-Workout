@@ -1,8 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { DB } from '../db.ts';
+import { BUSY_KEEP_DAYS } from '../gymSchema.ts';
+import { HOUR, throttleTake } from '../throttle.ts';
 import { sameGym } from './community.ts';
 import { assertRowQuota } from '../quota.ts';
+
+/** "Taken?" taps recorded per member per hour; more are dropped (answer `saved: false`). */
+const BUSY_TAPS_PER_HOUR = 60;
 
 /** Gym memory (#162): see `ensureGymSchema`. Only counts are shared, never who reported. */
 interface ReportRow {
@@ -127,7 +132,6 @@ export const consensus = (rows: { layout: Layout; updatedAt: string }[]) => {
 
 /** "Around now" for the live crowd. */
 const LIVE_MIN = 20;
-const BUSY_KEEP_DAYS = 56;
 
 /**
  * Candidate rows for a place (#432): same id, or a name starting with the same first word. SQLite's lower() and LIKE
@@ -202,8 +206,9 @@ export const gymRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
     const recent = db
       .prepare('SELECT 1 FROM gym_busy WHERE user_id = ? AND gym_id = ? AND zone = ? AND at > ?')
       .get(req.userId!, b.gym.id, zone, new Date(t.getTime() - 5 * 60_000).toISOString());
-    if (!recent) db.prepare('INSERT INTO gym_busy (user_id, gym_id, zone, at) VALUES (?, ?, ?, ?)').run(req.userId!, b.gym.id, zone, t.toISOString());
-    db.prepare('DELETE FROM gym_busy WHERE at < ?').run(new Date(t.getTime() - BUSY_KEEP_DAYS * 86_400_000).toISOString());
+    if (recent) return { saved: true };
+    if (!throttleTake(db, `busy:${req.userId!}`, BUSY_TAPS_PER_HOUR, HOUR, t)) return { saved: false };
+    db.prepare('INSERT INTO gym_busy (user_id, gym_id, zone, at) VALUES (?, ?, ?, ?)').run(req.userId!, b.gym.id, zone, t.toISOString());
     return { saved: true };
   });
 

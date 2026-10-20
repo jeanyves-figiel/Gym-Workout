@@ -53,6 +53,28 @@ describe('Food scan (#496)', () => {
     expect((db.prepare('SELECT count FROM food_scan_usage').get() as { count: number }).count).toBe(1);
   });
 
+  it('stops every member once the global AI budget of the day is spent, without using up their own', async () => {
+    const a = await signUp('a@example.com');
+    expect((await scan(a)).statusCode).toBe(200);
+    expect(db.prepare('SELECT count FROM ai_daily_usage WHERE day = ?').get('2026-10-19')).toEqual({ count: 1 });
+    db.prepare('UPDATE ai_daily_usage SET count = 500').run();
+    const res = await scan(a);
+    expect(res.statusCode).toBe(429);
+    expect(res.json().error).toBe('daily_limit');
+    expect((db.prepare('SELECT count FROM food_scan_usage').get() as { count: number }).count).toBe(1);
+    expect(db.prepare('SELECT count FROM ai_daily_usage').get()).toEqual({ count: 500 });
+  });
+
+  it('needs a verified email or an account older than a day', async () => {
+    const a = await signUp('a@example.com');
+    db.prepare("UPDATE users SET email_verified_at = NULL, created_at = '2026-10-19T00:00:00.000Z'").run();
+    const res = await scan(a);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe('verification_required');
+    db.prepare("UPDATE users SET created_at = '2026-10-18T09:00:00.000Z'").run();
+    expect((await scan(a)).statusCode).toBe(200);
+  });
+
   it('rejects anything but a JPEG and stops at the daily cap', async () => {
     const a = await signUp('a@example.com');
     expect((await scan(a, Buffer.alloc(200, 1).toString('base64'))).statusCode).toBe(400);

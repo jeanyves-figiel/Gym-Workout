@@ -104,6 +104,9 @@ export const reportRoutes = (
     { bodyLimit: 2_400_000, config: { rateLimit: { max: 10, timeWindow: '1 hour' } } },
     async (req, reply) => {
       const b = report.parse(req.body);
+      // Nowhere to deliver it: refuse before storing, so the app's retry or the member's email doesn't duplicate it.
+      if (!deps.to && !deps.config.githubToken)
+        throw new ApiError(503, 'reports_off', 'Reports are not switched on. Please email us from Settings → Support.');
       const shots = b.screenshots.map((s) => sanitizeJpeg(Buffer.from(s, 'base64')).data);
       const id = randomUUID();
       const ts = now().toISOString();
@@ -141,7 +144,8 @@ export const reportRoutes = (
           })
           .catch((e: Error) => deps.log(`report ${id} mail: ${e.message}`));
       } else if (!issue) {
-        throw new ApiError(503, 'reports_off', 'Reports are not switched on. Please email us from Settings → Support.');
+        // Stored, so it's not lost (the team reads member_reports); answering an error would only make the app retry.
+        deps.log(`report ${id}: stored but not delivered (GitHub failed, no mail address)`);
       }
       return reply.status(201).send({ id, issueNumber: issue });
     },

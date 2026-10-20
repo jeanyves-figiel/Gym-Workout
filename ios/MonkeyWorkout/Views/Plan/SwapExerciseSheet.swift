@@ -111,7 +111,8 @@ struct SwapExerciseSheet: View {
                         .buttonStyle(.plain)
                     }
                     if !variations.isEmpty {
-                        GradientSection(symbol: "square.stack.3d.down.right.fill", title: "Variations", gradient: exercise.category.gradient) {
+                        GradientSection(symbol: "square.stack.3d.down.right.fill", title: "Variations", gradient: exercise.category.gradient,
+                                        ink: exercise.category.ink) {
                             ForEach(variations) { e in
                                 Button { apply(e.id) } label: { row(e) }
                                     .buttonStyle(.plain)
@@ -119,7 +120,8 @@ struct SwapExerciseSheet: View {
                         }
                     }
                     if !options.isEmpty {
-                        GradientSection(symbol: "arrow.triangle.2.circlepath", title: "Best matches", gradient: exercise.category.gradient) {
+                        GradientSection(symbol: "arrow.triangle.2.circlepath", title: "Best matches", gradient: exercise.category.gradient,
+                                        ink: exercise.category.ink) {
                             ForEach(options) { e in
                                 Button { apply(e.id) } label: { row(e) }
                                     .buttonStyle(.plain)
@@ -168,7 +170,7 @@ struct SwapExerciseSheet: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .gradientCard(exercise.category.gradient)
+        .gradientCard(exercise.category.gradient, ink: exercise.category.ink)
     }
 
     private var keepToggle: some View {

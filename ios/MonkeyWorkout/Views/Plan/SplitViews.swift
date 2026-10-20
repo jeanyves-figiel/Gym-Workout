@@ -193,7 +193,7 @@ struct DayFocusSheet: View {
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("\(weekday.map(WeekSchedule.name) ?? "Day \(index + 1)") focus")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
         .presentationDetents([.large])
     }

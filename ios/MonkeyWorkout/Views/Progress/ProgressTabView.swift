@@ -156,7 +156,7 @@ struct ProgressTabView: View {
                         .font(.system(size: 15, weight: .heavy))
                         .foregroundStyle(.white)
                         .frame(width: 36, height: 36)
-                        .background(Circle().fill(Color.white.opacity(0.14)))
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.14)))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Edit Progress")
@@ -555,17 +555,19 @@ struct GradientStat: View {
     let value: String
     let label: String
     let gradient: LinearGradient
+    /// Type colour: `Theme.ink` on light gradients (#540).
+    var ink: Color = .white
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: symbol)
                 .font(.system(size: 18, weight: .bold))
                 .frame(width: 40, height: 40)
-                .background(RoundedRectangle(cornerRadius: 13).fill(.white.opacity(0.2)))
+                .background(RoundedRectangle(cornerRadius: 13).fill(ink == .white ? Color.white.opacity(0.2) : ink.opacity(0.12)))
             Text(value).font(Theme.display(30)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
             Text(label).font(Theme.label(11)).tracking(1).textCase(.uppercase).opacity(0.85).lineLimit(1).minimumScaleFactor(0.7)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(ink)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(gradient))
@@ -815,11 +817,13 @@ struct BadgeView: View {
     var body: some View {
         VStack(spacing: 8) {
             ZStack {
+                // Rounded-square badge tile (#541), its progress drawn around it by `ProgressRing`.
                 if badge.unlocked {
-                    Circle().fill(LinearGradient(colors: badge.tier.colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+                    RoundedRectangle(cornerRadius: 19, style: .continuous)
+                        .fill(LinearGradient(colors: badge.tier.colors, startPoint: .topLeading, endPoint: .bottomTrailing))
                         .shadow(color: badge.tier.colors[0].opacity(0.5), radius: 8)
                 } else {
-                    Circle().fill(Color.white.opacity(0.06))
+                    RoundedRectangle(cornerRadius: 19, style: .continuous).fill(Color.white.opacity(0.06))
                     ProgressRing(progress: badge.progress, lineWidth: 4, colors: badge.tier.colors)
                 }
                 Image(systemName: badge.symbol)
@@ -867,7 +871,6 @@ struct HistoryDetailView: View {
     let recordId: UUID
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    @State private var confirmDelete = false
 
     var body: some View {
         if let r = model.state.history.first(where: { $0.id == recordId }) {
@@ -886,7 +889,7 @@ struct HistoryDetailView: View {
                         GradientStat(symbol: "scalemass.fill", value: r.volumeKg > 0 ? Format.volume(r.volumeKg) : "—", label: "Volume",
                                      gradient: WorkoutEngine.Category.strength.gradient)
                         GradientStat(symbol: "flame.fill", value: r.kcal.map { "\(Int($0))" } ?? "—", label: "kcal (est.)",
-                                     gradient: WorkoutEngine.Category.warmup.gradient)
+                                     gradient: WorkoutEngine.Category.warmup.gradient, ink: WorkoutEngine.Category.warmup.ink)
                         if let a = r.avgHeartRate {
                             GradientStat(symbol: "heart.fill", value: "\(Int(a))", label: "Avg bpm", gradient: WorkoutEngine.Category.power.gradient)
                         }
@@ -903,7 +906,7 @@ struct HistoryDetailView: View {
                     ForEach(WorkoutEngine.Category.allCases) { cat in
                         let items = r.exercises.filter { $0.category == cat }
                         if !items.isEmpty {
-                            GradientSection(symbol: cat.symbol, title: cat.label, gradient: cat.gradient) {
+                            GradientSection(symbol: cat.symbol, title: cat.label, gradient: cat.gradient, ink: cat.ink) {
                                 ForEach(items) { e in
                                     HStack {
                                         Image(systemName: e.setsDone >= e.setsPlanned ? "checkmark.circle.fill" : (e.setsDone > 0 ? "circle.lefthalf.filled" : "circle"))
@@ -917,7 +920,9 @@ struct HistoryDetailView: View {
                             }
                         }
                     }
-                    AccountPillButton(title: "Undo workout", role: .destructive) { confirmDelete = true }
+                    // Gone at once (#539): the Undo bar puts it back, no confirmation.
+                    AccountPillButton(title: "Undo workout", role: .destructive) { undo(r) }
+                        .accessibilityHint("Removes it from history with its sets, PRs and progress. Undo for a few seconds.")
                 }
                 .padding(16)
             }
@@ -925,16 +930,19 @@ struct HistoryDetailView: View {
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("History")
             .navigationBarTitleDisplayMode(.inline)
-            .confirmationDialog("Undo this workout?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("Undo workout", role: .destructive) {
-                    model.undoWorkout(r.id)
-                    dismiss()
-                }
-            } message: {
-                Text("Removes it from history with its sets, PRs and progress, as if it never happened. This week's session can be done again.")
-            }
         } else {
             ContentUnavailableView("Session not found", systemImage: "clock.arrow.circlepath")
+        }
+    }
+
+    /// Removes the workout as if it never happened (#133) and closes; the Undo bar brings it all back (#539). The
+    /// server delete waits for the bar to go.
+    private func undo(_ r: WorkoutRecord) {
+        guard let removed = model.undoWorkout(r.id, serverAfter: UndoCloseCenter.seconds + 0.5) else { return }
+        dismiss()
+        UndoCloseCenter.shared.deleted("Workout removed", detail: undoDetail(r.title, r.startedAt.formatted(date: .abbreviated, time: .omitted)),
+                                       symbol: "clock.arrow.circlepath") { [model] in
+            model.restoreWorkout(removed)
         }
     }
 }

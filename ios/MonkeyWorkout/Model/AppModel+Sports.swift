@@ -38,6 +38,7 @@ extension AppModel {
     }
 
     func syncSports() async throws {
+        let epoch = accountEpoch
         for id in state.deletedSportIds ?? [] {
             do {
                 try await api.deleteSport(id)
@@ -49,10 +50,19 @@ extension AppModel {
         let pendingIds = state.pendingSportIds ?? []
         let pending = (state.sportLogs ?? []).filter { pendingIds.contains($0.id) }
         if !pending.isEmpty {
-            try await api.pushSports(pending)
-            state.pendingSportIds?.subtract(pending.map(\.id))
+            let result = try await api.pushSports(pending)
+            // Only clear what is unchanged since the push started (an edit made meanwhile stays queued).
+            for l in pending where state.sportLogs?.first(where: { $0.id == l.id }) == l { state.pendingSportIds?.remove(l.id) }
+            // Changed on another device since this edit's base: the server copy wins. Written ones keep their new version.
+            if accountEpoch == epoch, !result.isEmpty {
+                let applied = result.applied(to: state.sportLogs ?? [], pending: state.pendingSportIds ?? [])
+                state.sportLogs = applied.list
+                state.pendingSportIds = applied.pending
+            }
         }
         let remote = try await api.fetchSports(SportLog.self)
+        // Signed out or another account signed in meanwhile: the list belongs to the previous account.
+        guard accountEpoch == epoch else { return }
         let stillPending = state.pendingSportIds ?? []
         let deleted = state.deletedSportIds ?? []
         var merged = remote.filter { !stillPending.contains($0.id) && !deleted.contains($0.id) }

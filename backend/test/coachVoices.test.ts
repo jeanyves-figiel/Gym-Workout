@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
-import { buildApp } from '../src/app.ts';
+import { buildApp, logUrl } from '../src/app.ts';
 import { pollySynthesizer, type Synthesize } from '../src/coach/polly.ts';
 import { KINDS, STUDIO_VOICES, STYLES, VOICE_LINES, voiceLines } from '../src/coach/voiceLines.ts';
 import { loadConfig } from '../src/config.ts';
@@ -136,6 +136,18 @@ describe('coach calls the member by name (#415)', () => {
     expect(calls).toHaveLength(1);
     expect((await get(t, '/v1/me/coach-voices/Joanna/call/chill.mp3?name=Zoë')).statusCode).toBe(200);
     expect(calls[1]!.ssml).toContain('Zoë.');
+  });
+
+  it('takes the name from X-Call-Name (percent-encoded) and keeps it out of the logs', async () => {
+    start();
+    const t = await signUp('h@example.com');
+    const call = (name: string) =>
+      app.inject({ method: 'GET', url: '/v1/me/coach-voices/Joanna/call/hype.mp3', headers: { authorization: `Bearer ${t}`, 'x-call-name': name } });
+    expect((await call(encodeURIComponent('Zoë'))).statusCode).toBe(200);
+    expect(calls[0]!.ssml).toContain('Zoë!');
+    expect((await call('%E0%A4%A')).statusCode).toBe(400);
+    expect(logUrl('/v1/me/coach-voices/Joanna/call/hype.mp3?name=Zo%C3%AB&x=1')).toBe('/v1/me/coach-voices/Joanna/call/hype.mp3?name=[redacted]&x=1');
+    expect(logUrl('/v1/me/logs?since=2026-10-01T00:00:00Z')).toBe('/v1/me/logs?since=2026-10-01T00:00:00Z');
   });
 
   it('rejects names that are not a name, unknown voices and styles', async () => {

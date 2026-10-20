@@ -12,6 +12,8 @@ final class AppModel {
     var user: User?
     var state = LocalState() {
         didSet {
+            // Derived values (plan, calendar, game…) are cached until the state changes (`AppModel+Cache`).
+            stateVersion &+= 1
             // Custom exercises resolve through `Exercise.find` everywhere (picker, sessions, history).
             if state.customExerciseList != oldValue.customExerciseList {
                 CustomExercises.shared.replaceAll(state.customExerciseList ?? [])
@@ -41,6 +43,9 @@ final class AppModel {
     /// Gym Map (#406): the plan other members at the home gym agree with, and its live crowd; loaded on demand.
     var sharedGymMap: SharedGymMap<GymLayout>?
     var gymCrowd: GymCrowd?
+    /// Bumped on every change to `state`: keys the derived-value caches (`AppModel+Cache`).
+    @ObservationIgnored private(set) var stateVersion = 0
+    @ObservationIgnored var derived = DerivedCache()
     /// Gym zones changed from the player (#352): the plan follows once the running workout is over; not persisted.
     @ObservationIgnored var replanAfterWorkout = false
     /// Apple Health readings for first-time load estimates (#115); set at launch.
@@ -50,6 +55,11 @@ final class AppModel {
     private let store: LocalStore
     private var syncing = false
     private var resyncRequested = false
+    /// Bumped whenever this device's data is replaced (sign-out, another account signing in): what a sync fetched
+    /// before then belongs to the previous account and is dropped.
+    @ObservationIgnored private(set) var accountEpoch = 0
+    /// `accountEpoch` when the running sync started.
+    @ObservationIgnored private var syncEpoch = 0
     /// Silent retry after a failed sync: 5 s, 15 s, 1 min, then every 5 min while the app is active; reset on success.
     @ObservationIgnored private var retryTask: Task<Void, Never>?
     @ObservationIgnored private var retryAttempt = 0
@@ -57,6 +67,8 @@ final class AppModel {
     /// Connectivity regained with something unsent → sync.
     @ObservationIgnored private var pathMonitor: NWPathMonitor?
     @ObservationIgnored private var online = true
+    /// Coalesced save waiting to run (`persist()`).
+    @ObservationIgnored private var persistTask: Task<Void, Never>?
 
     init(api: APIClient, store: LocalStore) {
         self.api = api
@@ -228,8 +240,9 @@ final class AppModel {
             store.wipe()
             state = LocalState()
             state.ownerId = user.id
-            // The previous account's key.
-            clearWatchUploadKey()
+            accountEpoch += 1
+            // The previous account's set history, Fuel, Move, Pro, Health cache, prefs and keys.
+            wipeAccountLocalData()
         }
         self.user = user
         phase = .signedIn
@@ -276,31 +289,43 @@ final class AppModel {
 
     private func resetLocal() {
         stopAutoSync()
-        ProStore.shared.reset()
         store.wipe()
-        LiftSets.shared.wipe()
-        LiftLearning.shared.wipe()
         state = LocalState()
+        accountEpoch += 1
         user = nil
         phase = .signedOut
+        wipeAccountLocalData()
+        // Signed-out snapshots for the Watch and the Home Screen widgets (WatchSync.push refreshes both).
+        WatchSync.shared.push()
+    }
+
+    /// The account's data kept outside state.json on this device: wiped on sign-out and when another account signs in.
+    private func wipeAccountLocalData() {
+        ProStore.shared.reset()
+        LiftSets.shared.wipe()
+        LiftLearning.shared.wipe()
         // Personal copies outside state.json: cached Health readings, the data export, HTTP responses.
         HealthManager.clearCache()
         MoveStore.shared.signOut()
         FuelStore.shared.signOut()
+        NotificationManager.shared.resetPrefs()
         // The MonkeyGrade sign-in and the Watch upload key live in this device's Keychain, not in state.json.
         MonkeyGradeLink.shared.disconnect()
         clearWatchUploadKey()
         try? FileManager.default.removeItem(at: Self.exportFileURL)
         URLCache.shared.removeAllCachedResponses()
-        // Signed-out snapshots for the Watch and the Home Screen widgets (WatchSync.push refreshes both).
-        WatchSync.shared.push()
     }
 
     /// Before a sign-out wipes this device: one last try (5 s at most) to send what hasn't reached the server.
     private func flushPendingSync() async {
         guard phase == .signedIn, !demo, hasPendingSync else { return }
         await withTaskGroup(of: Void.self) { group in
-            group.addTask { await self.sync() }
+            group.addTask {
+                // A sync already running would only queue this one: let it finish, then send what it didn't.
+                while await self.syncing, !Task.isCancelled { try? await Task.sleep(nanoseconds: 100_000_000) }
+                guard !Task.isCancelled else { return }
+                await self.sync()
+            }
             group.addTask { try? await Task.sleep(nanoseconds: 5_000_000_000) }
             await group.next()
             group.cancelAll()
@@ -315,6 +340,14 @@ final class AppModel {
     /// On a low-readiness day, RIR-autoregulated plans (#156) ease today's session; with daily auto-tune (#495)
     /// today's session follows the tuned level and sore muscles instead.
     var plan: WeekPlan? {
+        let key = derivedKey
+        if let c = derived.plan, c.key == key { return c.value }
+        let p = makePlan()
+        derived.plan = (key, p)
+        return p
+    }
+
+    private func makePlan() -> WeekPlan? {
         guard let edited = uneditedPlan?.applying(edits: state.synced?.sessionEdits ?? []) else { return nil }
         // Lift Focus and Pro Sets (#499): the focus lift's block sets, then the member's set styles.
         let p = expertPlan(edited)
@@ -604,7 +637,14 @@ final class AppModel {
     /// Pronouns shown next to your nickname (#415): only when turned on in How we talk to you.
     var communityPronouns: String? { body.showPronouns == true ? body.pronounsText : nil }
 
-    var history: [WorkoutRecord] { state.history.sorted { $0.startedAt > $1.startedAt } }
+    /// Newest first.
+    var history: [WorkoutRecord] {
+        let version = observedStateVersion
+        if let c = derived.history, c.key == version { return c.value }
+        let sorted = state.history.sorted { $0.startedAt > $1.startedAt }
+        derived.history = (version, sorted)
+        return sorted
+    }
 
     var weightEntries: [WeightEntry] {
         state.logs.compactMap { l in l.weightKg.map { WeightEntry(exerciseId: l.exerciseId, date: l.date, kg: $0, reps: l.reps) } }
@@ -648,24 +688,81 @@ final class AppModel {
     /// Undo a finished workout as if it never happened (#133): removes the record, the sets logged during it
     /// (so progression, PRs, starting loads and progress ignore them), its auto-shared community post, and marks
     /// the session not done so it can be done again. Removed on the server too. Apple Health keeps its workout.
-    func undoWorkout(_ id: UUID) {
-        guard let r = state.history.first(where: { $0.id == id }) else { return }
+    /// `serverAfter` (#539): seconds to wait before the server delete and the post removal, so the Undo bar's
+    /// `restoreWorkout` can put everything back first. Returns what was removed, for that Undo.
+    @discardableResult
+    func undoWorkout(_ id: UUID, serverAfter delay: Double = 0) -> RemovedWorkout? {
+        guard let r = state.history.first(where: { $0.id == id }) else { return nil }
         let logs = setLogs(of: r)
+        var removed = RemovedWorkout(record: r, logs: logs)
         state.history.removeAll { $0.id == id }
         state.pendingHistoryIds.remove(id)
         let logIds = Set(logs.map(\.id))
         state.logs.removeAll { logIds.contains($0.id) }
         state.pendingLogIds.subtract(logIds)
         if r.week == plan?.week, Date().timeIntervalSince(r.startedAt) < 8 * 86_400, let s = plan?.sessions.first(where: { $0.id == r.sessionId }) {
+            removed.sessionId = s.id
+            removed.done = state.done[s.id]
             state.done[s.id] = nil
-            for b in s.blocks { for it in b.items { state.ticked[it.uid] = nil } }
-            if state.activeWorkout?.sessionId == s.id { state.activeWorkout = nil }
+            for b in s.blocks {
+                for it in b.items {
+                    if let t = state.ticked[it.uid] { removed.ticked[it.uid] = t }
+                    state.ticked[it.uid] = nil
+                }
+            }
+            if state.activeWorkout?.sessionId == s.id {
+                removed.active = state.activeWorkout
+                state.activeWorkout = nil
+            }
         }
         // Queued, not fire-and-forget: a failed delete is retried by the next sync, and pulls skip these ids meanwhile.
         state.deletedWorkoutIds = (state.deletedWorkoutIds ?? []).union([id])
         state.deletedLogIds = (state.deletedLogIds ?? []).union(logIds)
         persist()
-        Community.shared.didUndo(r, api: api)
+        guard delay > 0 else {
+            Community.shared.didUndo(r, api: api)
+            Task { await sync() }
+            return removed
+        }
+        let restored = removed.restored
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            // Put back by Undo meanwhile: its post stays and nothing is deleted.
+            guard let self, !restored.value else { return }
+            Community.shared.didUndo(r, api: self.api)
+            await self.sync()
+        }
+        return removed
+    }
+
+    /// Undo of Undo workout (#539): the record and its sets come back as they were, off the delete queues and queued
+    /// for upload again, and this week's session is done again. A copy the server already deleted comes back under a
+    /// new id, since the server ignores re-uploads of deleted ids.
+    func restoreWorkout(_ removed: RemovedWorkout) {
+        var record = removed.record
+        guard !removed.restored.value, !state.history.contains(where: { $0.id == record.id }) else { return }
+        removed.restored.value = true
+        if state.deletedWorkoutIds?.remove(record.id) == nil {
+            record.id = UUID()
+            record.updatedAt = nil
+        }
+        state.history.append(record)
+        state.pendingHistoryIds.insert(record.id)
+        for var log in removed.logs where !state.logs.contains(where: { $0.id == log.id }) {
+            if state.deletedLogIds?.remove(log.id) == nil {
+                log.id = UUID()
+                log.updatedAt = nil
+            }
+            state.logs.append(log)
+            state.pendingLogIds.insert(log.id)
+        }
+        state.logs.sort { $0.date < $1.date }
+        if let sid = removed.sessionId, plan?.sessions.contains(where: { $0.id == sid }) == true {
+            state.done[sid] = removed.done
+            for (uid, t) in removed.ticked { state.ticked[uid] = t }
+            if state.activeWorkout == nil, let a = removed.active { state.activeWorkout = a }
+        }
+        persist()
         Task { await sync() }
     }
 
@@ -718,7 +815,8 @@ final class AppModel {
     /// Server profile replaces the local one unless a local edit is still unsaved (the next push sends it).
     /// Unchanged → nothing, so this week's one-off swaps stay; done and running sessions keep their content.
     private func pullProfile() async {
-        guard let remote = try? await api.fetchProfile(SyncedProfile.self) else { return }
+        let epoch = accountEpoch
+        guard let remote = try? await api.fetchProfile(SyncedProfile.self), accountEpoch == epoch else { return }
         guard state.synced == nil || !state.profileDirty, remote != state.synced else { return }
         let sameWeek = state.synced.map { $0.week == remote.week && $0.seed == remote.seed && $0.weekOf == remote.weekOf } ?? false
         let kept = sameWeek ? doneIds.union([state.activeWorkout?.sessionId].compactMap { $0 }) : []
@@ -749,6 +847,7 @@ final class AppModel {
             return
         }
         syncing = true
+        syncEpoch = accountEpoch
         defer {
             syncing = false
             if resyncRequested {
@@ -775,6 +874,8 @@ final class AppModel {
               await runSyncStep(&firstError, { try await self.syncSports() }),
               await runSyncStep(&firstError, { try await self.syncMachineNotes() })
         else { return sessionExpired() }
+        // Signed out or another account signed in during the sync: nothing of it applies to this state.
+        guard accountEpoch == syncEpoch else { return }
         persist()
         if let firstError {
             syncError = Self.syncMessage(firstError)
@@ -799,14 +900,16 @@ final class AppModel {
     /// One sync step; a failure is remembered (first one wins) and the next steps still run.
     /// Returns false when the session is gone, so the sync stops.
     private func runSyncStep(_ firstError: inout Error?, _ work: () async throws -> Void) async -> Bool {
-        guard !Task.isCancelled else {
+        // Cancelled, or the account changed since the sync started: the remaining steps are skipped.
+        guard !Task.isCancelled, accountEpoch == syncEpoch else {
             if firstError == nil { firstError = CancellationError() }
             return true
         }
         do {
             try await work()
         } catch APIError.signedOut {
-            return false
+            // After a sign-out the old session's calls fail like this: not the current session expiring.
+            return accountEpoch != syncEpoch
         } catch {
             if firstError == nil { firstError = error }
         }
@@ -823,19 +926,30 @@ final class AppModel {
     private func pushLogs() async throws {
         let pending = state.logs.filter { state.pendingLogIds.contains($0.id) }
         guard !pending.isEmpty else { return }
-        try await api.pushLogs(pending)
+        let epoch = accountEpoch
+        let result = try await api.pushLogs(pending)
         // Only clear what is unchanged since the push started (a set re-logged meanwhile stays queued).
         let current = Dictionary(state.logs.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
         for l in pending where current[l.id].map({ $0 == l }) ?? true { state.pendingLogIds.remove(l.id) }
+        // Changed on another device since this edit's base: the server copy wins. Written ones keep their new version.
+        guard accountEpoch == epoch, !result.isEmpty else { return }
+        let applied = result.applied(to: state.logs, pending: state.pendingLogIds)
+        state.logs = applied.list
+        state.pendingLogIds = applied.pending
     }
 
     private func pushHistory() async throws {
         let pendingRecords = state.history.filter { state.pendingHistoryIds.contains($0.id) }
         guard !pendingRecords.isEmpty else { return }
-        try await api.pushWorkouts(pendingRecords)
+        let epoch = accountEpoch
+        let result = try await api.pushWorkouts(pendingRecords)
         // Heart rate attached while the push was in flight stays queued for the next sync.
         let current = Dictionary(state.history.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
         for r in pendingRecords where current[r.id].map({ $0 == r }) ?? true { state.pendingHistoryIds.remove(r.id) }
+        guard accountEpoch == epoch, !result.isEmpty else { return }
+        let applied = result.applied(to: state.history, pending: state.pendingHistoryIds)
+        state.history = applied.list
+        state.pendingHistoryIds = applied.pending
     }
 
     /// Server deletes queued by Undo workout (#133) and PR-attempt removal; each id is dropped once the server
@@ -877,7 +991,9 @@ final class AppModel {
         // Full pull: the server list is the truth, so workouts removed elsewhere (undo on another device,
         // admin undo) drop off this device too instead of lingering in Progress totals (#213).
         // Unsynced local records are kept; workouts whose delete is still queued stay gone.
+        let epoch = accountEpoch
         let remoteHistory = try await api.fetchWorkouts(WorkoutRecord.self)
+        guard accountEpoch == epoch else { return }
         let deleted = state.deletedWorkoutIds ?? []
         var historyById = Dictionary(remoteHistory.filter { !deleted.contains($0.id) }.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
         for r in state.history where state.pendingHistoryIds.contains(r.id) { historyById[r.id] = r }
@@ -888,16 +1004,31 @@ final class AppModel {
     private func pullLogs() async throws {
         // 5 min overlap absorbs clock skew; merge is idempotent by id.
         let since = state.lastLogPull?.addingTimeInterval(-300)
-        let changes = try await api.fetchLogChanges(since: since)
+        let epoch = accountEpoch
+        var changes = try await api.fetchLogChanges(since: since)
+        guard accountEpoch == epoch else { return }
+        // The last pull is older than the server keeps deletes for: some may be missing, so pull everything and
+        // take that list as the truth (like `pullHistory`). A failure keeps the old cursor, so the next sync asks again.
+        let resync = changes.fullResync
+        if resync {
+            changes = try await api.fetchLogChanges()
+            guard accountEpoch == epoch else { return }
+        }
         let deleted = state.deletedLogIds ?? []
         var byId = Dictionary(state.logs.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
+        if resync {
+            // Unsent local edits stay; everything else comes from the server list below.
+            let pendingIds = state.pendingLogIds
+            byId = byId.filter { pendingIds.contains($0.key) }
+        }
         for l in changes.logs where !state.pendingLogIds.contains(l.id) && !deleted.contains(l.id) { byId[l.id] = l }
         // Deleted on the server since the last pull (undo on another device): drop here too, even with a local
         // edit still queued, since the server ignores re-uploads of deleted ids (#432).
         for id in changes.deleted { byId[id] = nil }
         state.pendingLogIds.subtract(changes.deleted)
         state.logs = byId.values.sorted { $0.date < $1.date }
-        state.lastLogPull = Date()
+        // The server's clock, compared with its own timestamps next time; this device's only when it didn't send one.
+        state.lastLogPull = changes.serverTime ?? Date()
     }
 
     // MARK: Automatic retry
@@ -945,8 +1076,61 @@ final class AppModel {
         online = true
     }
 
-    /// Internal (not private) so model extensions in other files can save.
+    /// Internal (not private) so model extensions in other files can save. Coalesced: a burst of changes is encoded
+    /// and written once, off the main thread, shortly after the last one; at once while the app isn't active (it may
+    /// be suspended any moment).
     func persist() {
+        guard !demo else { return }
+        guard UIApplication.shared.applicationState == .active else { return persistNow() }
+        persistTask?.cancel()
+        let wipes = store.wipeCount
+        persistTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            // A sign-out or account switch wiped the file meanwhile: nothing of before goes back to disk.
+            guard !Task.isCancelled, let self, self.store.wipeCount == wipes else { return }
+            self.persistTask = nil
+            self.store.saveInBackground(self.state)
+        }
+    }
+
+    /// Writes the state now, after any write already queued.
+    func persistNow() {
+        persistTask?.cancel()
+        persistTask = nil
         if !demo { store.save(state) }
     }
+
+    /// The app leaves the foreground: a coalesced save still waiting is written now.
+    func flushPersist() {
+        guard persistTask != nil else { return }
+        persistNow()
+    }
 }
+
+/// What Undo workout took away (#539), so its Undo bar can put it back with `AppModel.restoreWorkout`.
+struct RemovedWorkout {
+    let record: WorkoutRecord
+    let logs: [LogEntry]
+    /// This week's plan session the workout marked done, with its done and ticked marks as they were.
+    var sessionId: String?
+    var done: Bool?
+    var ticked: [String: Bool] = [:]
+    var active: ActiveWorkout?
+    /// Set once Undo put it back, so the delayed server delete and post removal skip it.
+    let restored = Flag()
+
+    final class Flag {
+        var value = false
+    }
+}
+
+// Synced records remember the server version their edit started from, sent as `baseUpdatedAt` on upload so an
+// offline edit never overwrites a newer copy from another device (the server returns its copy as a conflict).
+extension WorkoutRecord: @retroactive ServerVersioned {}
+extension CustomWorkout: @retroactive ServerVersioned {}
+extension CustomExercise: @retroactive ServerVersioned {}
+extension PRAttempt: @retroactive ServerVersioned {}
+extension BodyMeasurement: @retroactive ServerVersioned {}
+extension ClimbLog: ServerVersioned {}
+extension SportLog: ServerVersioned {}
+extension MachineNote: ServerVersioned {}

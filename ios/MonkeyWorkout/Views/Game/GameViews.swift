@@ -268,7 +268,7 @@ struct MonkeyCoachCard: View {
                         Image(systemName: "bubble.left.and.text.bubble.right.fill").font(.system(size: 14, weight: .heavy))
                             .foregroundStyle(Theme.ink)
                             .frame(width: 36, height: 36)
-                            .background(Circle().fill(Theme.lime))
+                            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Ask Coach for today's workout")
@@ -277,7 +277,7 @@ struct MonkeyCoachCard: View {
                 Button { poke(by: 1, count: all.count) } label: {
                     Image(systemName: "arrow.clockwise").font(.system(size: 15, weight: .heavy)).foregroundStyle(.white)
                         .frame(width: 36, height: 36)
-                        .background(Circle().fill(.white.opacity(0.28)))
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.28)))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Next tip")
@@ -341,7 +341,9 @@ struct MonkeyCoachCard: View {
 
     private func open(_ action: Action) {
         switch action {
-        case .start(let s): onStart(s)
+        // Only today's session starts (#537); another day's opens its page.
+        case .start(let s):
+            if model.startableToday(s) { onStart(s) } else { NotificationManager.shared.route = .session(s.id) }
         case .catchUp(let wd): catchUp = .init(id: wd)
         case .progress(let section):
             model.progressJump = section
@@ -582,7 +584,7 @@ private struct QuestChestView: View {
                 .font(.system(size: 34, weight: .bold))
                 .foregroundStyle(Theme.ink)
                 .frame(width: 76, height: 76)
-                .background(Circle().fill(GameTint.quest))
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(GameTint.quest))
                 .shadow(color: Color(hex: 0xFFC23D).opacity(open ? 0.8 : 0.3), radius: open ? 18 : 8)
                 .rotationEffect(.degrees(wiggle ? 6 : -6))
             Text(open ? "Chest opened · +\(GameProgress.weekBonus) XP" : "Week chest · \(done)/\(target) stages")
@@ -624,7 +626,7 @@ struct ChestReveal: View {
                         .foregroundStyle(Theme.ink)
                         .contentTransition(.symbolEffect(.replace))
                         .frame(width: 150, height: 150)
-                        .background(Circle().fill(GameTint.quest))
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(GameTint.quest))
                         .shadow(color: Color(hex: 0xFFC23D).opacity(open ? 0.9 : 0.4), radius: open ? 40 : 12)
                         .rotationEffect(.degrees(open ? 0 : shake ? 9 : -9))
                         .scaleEffect(open ? 1.08 : 0.92)
@@ -732,7 +734,7 @@ struct GameRewardView: View {
                 Image(systemName: reward.weekCleared ? "gift.fill" : "flag.checkered")
                     .font(.system(size: 60, weight: .bold)).foregroundStyle(Theme.ink)
                     .frame(width: 120, height: 120)
-                    .background(Circle().fill(GameTint.quest))
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(GameTint.quest))
                     .rotationEffect(.degrees(dance ? 8 : -8))
                 Text(reward.weekCleared ? "Chest opened!" : "Stage cleared!").font(Theme.display(40)).multilineTextAlignment(.center)
             case .rings:
@@ -755,7 +757,7 @@ struct GameRewardView: View {
                         Image(systemName: "gift.fill")
                             .font(.system(size: 26, weight: .bold))
                             .frame(width: 56, height: 56)
-                            .background(Circle().fill(.white.opacity(0.3)))
+                            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.3)))
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Week goal met").font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.85)
                             Text("Chest opened · +\(GameProgress.weekBonus) XP").font(Theme.display(20))
@@ -774,7 +776,7 @@ struct GameRewardView: View {
                     Image(systemName: b.symbol)
                         .font(.system(size: 24, weight: .bold))
                         .frame(width: 56, height: 56)
-                        .background(Circle().fill(LinearGradient(colors: b.tier.colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(LinearGradient(colors: b.tier.colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
                     VStack(alignment: .leading, spacing: 2) {
                         Text("New badge").font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.85)
                         Text(b.title).font(Theme.display(20))
@@ -848,7 +850,7 @@ struct WeekChestCard: View {
                         .font(.system(size: 30, weight: .bold))
                         .foregroundStyle(Theme.ink)
                         .frame(width: 64, height: 64)
-                        .background(Circle().fill(GameTint.quest))
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(GameTint.quest))
                         .shadow(color: Color(hex: 0xFFC23D).opacity(now.chestOpen ? 0.8 : 0.3), radius: now.chestOpen ? 14 : 6)
                     Spacer(minLength: 0)
                     VStack(alignment: .trailing, spacing: 0) {
@@ -990,6 +992,7 @@ struct LevelLadderSheet: View {
                 }
                 .onAppear { proxy.scrollTo(current, anchor: .center) }
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Levels")
             .navigationBarTitleDisplayMode(.inline)

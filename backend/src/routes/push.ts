@@ -20,7 +20,8 @@ export const pushRoutes = (r: FastifyInstance, push: PushService, topics: string
       .parse(req.body);
     // The text goes to followers' lock screens: same filter as community captions (#432).
     assertClean(...b.achievements.map((a) => a.text));
-    const announced = await push.announce(req.userId!, nameOf(req.userId!) ?? 'Someone you follow', b.achievements);
+    // Recorded now; followers are pushed in the background so the member's request doesn't wait on APNs.
+    const announced = push.announce(req.userId!, nameOf(req.userId!) ?? 'Someone you follow', b.achievements);
     return { announced };
   });
 

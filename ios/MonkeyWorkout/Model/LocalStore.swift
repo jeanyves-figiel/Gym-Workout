@@ -187,6 +187,10 @@ struct ActiveWorkout: Codable, Equatable {
 /// JSON file in Application Support, encrypted at rest by iOS data protection.
 struct LocalStore {
     private let url: URL
+    /// Saves and wipes run in order on one queue: a background save never lands after a later save or a wipe.
+    private static let queue = DispatchQueue(label: "LocalStore.io", qos: .utility)
+    private final class Wipes { var count = 0 }
+    private let wipes = Wipes()
 
     init(filename: String = "state.json") {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -201,13 +205,31 @@ struct LocalStore {
         return s
     }
 
+    /// Times this store was wiped (main thread): a save planned before a wipe is dropped (`AppModel.persist`).
+    var wipeCount: Int { wipes.count }
+
+    /// Saves now, after any background save queued before it.
     func save(_ state: LocalState) {
+        let url = url
+        Self.queue.sync { Self.write(state, to: url) }
+    }
+
+    /// Encodes and writes off the calling thread, after any save queued before it.
+    func saveInBackground(_ state: LocalState) {
+        let url = url
+        Self.queue.async { Self.write(state, to: url) }
+    }
+
+    private static func write(_ state: LocalState, to url: URL) {
         guard let data = try? JSONEncoder().encode(state) else { return }
         try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 
     func wipe() {
-        try? FileManager.default.removeItem(at: url)
+        wipes.count += 1
+        let url = url
+        // After any queued save, so none brings the file back.
+        Self.queue.sync { try? FileManager.default.removeItem(at: url) }
         MachineNotePhotos.wipe()
     }
 }
@@ -217,47 +239,55 @@ extension LocalState {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.init()
+        // Lists of records skip one that does not decode instead of losing the whole list.
+        func lossy<T: Decodable>(_ type: T.Type, _ key: CodingKeys) -> LossyArray<T>? {
+            try? c.decodeIfPresent(LossyArray<T>.self, forKey: key)
+        }
         ownerId = try c.decodeIfPresent(String.self, forKey: .ownerId)
         synced = try? c.decodeIfPresent(SyncedProfile.self, forKey: .synced)
         plan = try? c.decodeIfPresent(WeekPlan.self, forKey: .plan)
         done = (try? c.decodeIfPresent([String: Bool].self, forKey: .done)) ?? [:]
         ticked = (try? c.decodeIfPresent([String: Bool].self, forKey: .ticked)) ?? [:]
         skipped = try? c.decodeIfPresent([String: Bool].self, forKey: .skipped)
-        logs = (try? c.decodeIfPresent([LogEntry].self, forKey: .logs)) ?? []
+        let logList = lossy(LogEntry.self, .logs)
+        logs = logList?.elements ?? []
         pendingLogIds = (try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingLogIds)) ?? []
         lastLogPull = try? c.decodeIfPresent(Date.self, forKey: .lastLogPull)
+        // Set logs lost here are still on the server: the next pull fetches them all again, not just the changes.
+        if (logList == nil && c.contains(.logs)) || (logList?.skipped ?? 0) > 0 { lastLogPull = nil }
         profileDirty = (try? c.decodeIfPresent(Bool.self, forKey: .profileDirty)) ?? false
-        history = (try? c.decodeIfPresent([WorkoutRecord].self, forKey: .history)) ?? []
+        history = lossy(WorkoutRecord.self, .history)?.elements ?? []
         pendingHistoryIds = (try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingHistoryIds)) ?? []
         lastHistoryPull = try? c.decodeIfPresent(Date.self, forKey: .lastHistoryPull)
-        customWorkoutList = try? c.decodeIfPresent([CustomWorkout].self, forKey: .customWorkoutList)
+        customWorkoutList = lossy(CustomWorkout.self, .customWorkoutList)?.elements
         pendingCustomWorkoutIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingCustomWorkoutIds)
         deletedCustomWorkoutIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedCustomWorkoutIds)
-        climbs = try? c.decodeIfPresent([ClimbLog].self, forKey: .climbs)
+        climbs = lossy(ClimbLog.self, .climbs)?.elements
         pendingClimbIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingClimbIds)
         deletedClimbIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedClimbIds)
         climbsUploaded = try? c.decodeIfPresent(Bool.self, forKey: .climbsUploaded)
-        sportLogs = try? c.decodeIfPresent([SportLog].self, forKey: .sportLogs)
+        sportLogs = lossy(SportLog.self, .sportLogs)?.elements
         watchUploadKey = try? c.decodeIfPresent(String.self, forKey: .watchUploadKey)
         pendingSportIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingSportIds)
         deletedSportIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedSportIds)
-        machineNotes = try? c.decodeIfPresent([MachineNote].self, forKey: .machineNotes)
+        machineNotes = lossy(MachineNote.self, .machineNotes)?.elements
         pendingMachineNoteIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingMachineNoteIds)
         deletedMachineNoteIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedMachineNoteIds)
         pendingMachinePhotoIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingMachinePhotoIds)
         activeWorkout = try? c.decodeIfPresent(ActiveWorkout.self, forKey: .activeWorkout)
-        customExerciseList = try? c.decodeIfPresent([CustomExercise].self, forKey: .customExerciseList)
+        customExerciseList = lossy(CustomExercise.self, .customExerciseList)?.elements
         pendingCustomExerciseIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingCustomExerciseIds)
-        prAttempts = try? c.decodeIfPresent([PRAttempt].self, forKey: .prAttempts)
+        prAttempts = lossy(PRAttempt.self, .prAttempts)?.elements
         pendingPRAttemptIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingPRAttemptIds)
         deletedPRAttemptIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedPRAttemptIds)
-        measurements = try? c.decodeIfPresent([BodyMeasurement].self, forKey: .measurements)
+        measurements = lossy(BodyMeasurement.self, .measurements)?.elements
         pendingMeasurementIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingMeasurementIds)
         deletedMeasurementIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedMeasurementIds)
         deletedWorkoutIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedWorkoutIds)
         deletedLogIds = try? c.decodeIfPresent(Set<UUID>.self, forKey: .deletedLogIds)
-        busyTaps = try? c.decodeIfPresent([BusyTap].self, forKey: .busyTaps)
+        busyTaps = lossy(BusyTap.self, .busyTaps)?.elements
         freestyle = try? c.decodeIfPresent(Session.self, forKey: .freestyle)
         dayTune = try? c.decodeIfPresent(DayTune.self, forKey: .dayTune)
+        feels = try? c.decodeIfPresent([UUID: Int].self, forKey: .feels)
     }
 }

@@ -1,7 +1,27 @@
 import { createHash, createHmac, randomBytes, randomInt, scrypt as scryptCb, timingSafeEqual, type ScryptOptions } from 'node:crypto';
 
-const scrypt = (pw: string, salt: Buffer, len: number, opts: ScryptOptions) =>
-  new Promise<Buffer>((res, rej) => scryptCb(pw, salt, len, opts, (err, key) => (err ? rej(err) : res(key))));
+/**
+ * Password hashes running at once: each holds ~32 MB and a libuv thread (the pool has 4), so a burst of sign-ins
+ * queues here instead of starving file and zlib work or memory.
+ */
+const MAX_HASHES = 2;
+let running = 0;
+const waiting: (() => void)[] = [];
+
+/** Hashes running and queued (tests). */
+export const hashSlots = () => ({ running, waiting: waiting.length });
+
+const scrypt = async (pw: string, salt: Buffer, len: number, opts: ScryptOptions): Promise<Buffer> => {
+  if (running < MAX_HASHES) running++;
+  else await new Promise<void>((go) => waiting.push(go)); // the finishing hash hands its slot over
+  try {
+    return await new Promise<Buffer>((res, rej) => scryptCb(pw, salt, len, opts, (err, key) => (err ? rej(err) : res(key))));
+  } finally {
+    const next = waiting.shift();
+    if (next) next();
+    else running--;
+  }
+};
 
 const N = 1 << 15;
 const R = 8;

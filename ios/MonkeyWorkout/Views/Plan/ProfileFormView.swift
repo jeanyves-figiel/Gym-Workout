@@ -123,7 +123,8 @@ struct ProfileFormView: View {
                 onSave(p)
                 if isNew { model.setBodyFigure(figure) }
             } label: {
-                Text(section == nil ? "GENERATE PLAN" : "SAVE")
+                // A section edit rebuilds the plan (#539): say so instead of a plain Save.
+                Text(section == nil ? "GENERATE PLAN" : "REBUILD PLAN")
             }
             .buttonStyle(LimeButtonStyle())
             .padding(.horizontal, 16)

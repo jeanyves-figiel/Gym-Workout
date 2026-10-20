@@ -133,7 +133,7 @@ struct CommunityProfileForm: View {
 
     var body: some View {
         joinLayout
-            .sheet(isPresented: $showGuidelines) { NavigationStack { GuidelinesView() } }
+            .sheet(isPresented: $showGuidelines) { NavigationStack { GuidelinesView(sheet: true) } }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
             Task {
@@ -249,7 +249,7 @@ struct CommunityProfileForm: View {
                                    nickname: nickname.isEmpty ? "?" : nickname, size: 84, ring: Theme.lime)
                     }
                     Image(systemName: "camera.fill").font(.caption.bold()).foregroundStyle(Theme.ink)
-                        .padding(7).background(Circle().fill(Theme.lime))
+                        .padding(7).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
                 }
             }
             .accessibilityLabel("Choose profile photo")
@@ -365,11 +365,14 @@ enum Guidelines {
 }
 
 struct GuidelinesView: View {
+    /// Shown as a sheet (X top right, #539) rather than pushed (back button).
+    var sheet = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                ContentTitle(title: "Community guidelines")
                 GuidelinesText()
                 Text("""
                 There is no tolerance for objectionable content or abusive members. Text with offensive words is refused. \
@@ -386,9 +389,8 @@ struct GuidelinesView: View {
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Community guidelines")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        .titleInContent("Community guidelines")
+        .toolbar { if sheet { CloseToolbarItem { dismiss() } } }
     }
 }
 
@@ -425,7 +427,7 @@ struct CommunityProfileView: View {
                             AccountCard(symbol: "hand.raised.fill", title: "Blocked members", gradient: WorkoutEngine.Category.mobility.gradient)
                         }
                         NavigationLink { GuidelinesView() } label: {
-                            AccountCard(symbol: "checkmark.seal.fill", title: "Community guidelines", gradient: WorkoutEngine.Category.stretch.gradient)
+                            AccountCard(symbol: "checkmark.seal.fill", title: "Community guidelines", gradient: WorkoutEngine.Category.stretch.gradient, ink: true)
                         }
                     }
                     .buttonStyle(.plain)
@@ -561,6 +563,7 @@ struct MemberView: View {
                             Button("Block", systemImage: "hand.raised", role: .destructive) { confirmBlock = true }
                         }
                     } label: { Image(systemName: "ellipsis.circle") }
+                    .accessibilityLabel("\(author.nickname) actions")
                 }
             }
         }
@@ -640,33 +643,51 @@ struct BlockedMembersView: View {
     @State private var error: String?
 
     var body: some View {
+        // Explore-style gradient rows (#539) in place of the grey list.
         List {
-            ErrorText(message: error)
+            ContentTitle(title: "Blocked members", subtitle: "They can't see your posts or profile.").cardRow()
+            if let error {
+                InlineErrorCard(title: "Couldn't load", message: error) { Task { await load() } }.cardRow()
+            }
             if let blocked {
-                if blocked.isEmpty { Text("Nobody blocked.").foregroundStyle(Theme.muted) }
+                if blocked.isEmpty {
+                    Text("Nobody blocked.").font(Theme.label(15)).foregroundStyle(Theme.muted).darkCardRow()
+                }
                 ForEach(blocked) { b in
                     HStack(spacing: 12) {
                         AvatarView(url: model.api.resolve(b.avatarUrl), nickname: b.nickname, size: 36)
-                        Text(b.nickname).font(.system(.body, design: .rounded).weight(.bold))
+                        Text(b.nickname).font(Theme.display(17)).lineLimit(1)
                         Spacer()
-                        Button("Unblock") { unblock(b) }.buttonStyle(.bordered)
+                        Button { unblock(b) } label: {
+                            Text("Unblock").font(Theme.label(13)).foregroundStyle(Theme.ink)
+                                .padding(.horizontal, 12).padding(.vertical, 7)
+                                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white))
+                                .frame(minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Unblock \(b.nickname)")
                     }
+                    .gradientRow(AccountTint.profile)
                 }
-            } else {
-                ProgressView()
+            } else if error == nil {
+                ProgressView().frame(maxWidth: .infinity).cardRow()
             }
         }
         .themedForm()
-        .navigationTitle("Blocked members")
-        .task {
-            #if DEBUG
-            if model.demo {
-                blocked = []
-                return
-            }
-            #endif
-            do { blocked = try await model.api.blockedMembers() } catch { self.error = error.localizedDescription }
+        .titleInContent("Blocked members")
+        .task { await load() }
+    }
+
+    private func load() async {
+        error = nil
+        #if DEBUG
+        if model.demo {
+            blocked = []
+            return
         }
+        #endif
+        do { blocked = try await model.api.blockedMembers() } catch { self.error = error.localizedDescription }
     }
 
     private func unblock(_ b: BlockedMember) {
@@ -696,37 +717,44 @@ struct ReportSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            // Gradient rows (#539) in place of the grey form; X top right.
+            List {
+                ContentTitle(title: "Report", subtitle: sent ? nil : postId == nil ? "Why are you reporting \(nickname)?" : "What's wrong with this post?")
+                    .cardRow()
                 if sent {
-                    Section {
-                        Label("Thanks. We review reports within 24 hours.", systemImage: "checkmark.seal.fill")
-                    }
+                    Label("Thanks. We review reports within 24 hours.", systemImage: "checkmark.seal.fill")
+                        .font(Theme.label(15))
+                        .gradientRow(WorkoutEngine.Category.cardio.gradient)
                 } else {
-                    Section(postId == nil ? "Why are you reporting \(nickname)?" : "What's wrong with this post?") {
+                    Section {
                         ForEach(CommunityReportReason.allCases) { r in
                             Button { reason = r } label: {
                                 HStack {
-                                    Text(r.title).foregroundStyle(.white)
+                                    Text(r.title).font(Theme.label(15))
                                     Spacer()
-                                    if reason == r { Image(systemName: "checkmark").foregroundStyle(Theme.lime) }
+                                    SquareToggle(on: reason == r)
                                 }
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
+                            .accessibilityAddTraits(reason == r ? .isSelected : [])
+                            .gradientRow(AccountTint.danger)
+                            .opacity(reason == nil || reason == r ? 1 : 0.6)
                         }
                     }
                     Section("Details (optional)") {
-                        TextField("What happened?", text: $details, axis: .vertical).lineLimit(2...5)
+                        TextField("What happened?", text: $details, axis: .vertical).lineLimit(2...5).darkCardRow()
                     }
                     Section {
-                        Toggle("Also block \(nickname)", isOn: $alsoBlock)
-                        ErrorText(message: task.error)
-                        BusyButton(title: "Send report", busy: task.busy, disabled: reason == nil) { send() }
+                        Toggle("Also block \(nickname)", isOn: $alsoBlock).tint(Theme.lime).font(Theme.label(15)).darkCardRow()
+                        if let error = task.error { ErrorText(message: error).cardRow() }
+                        BusyButton(title: "Send report", busy: task.busy, disabled: reason == nil) { send() }.darkCardRow()
                     }
                 }
             }
             .themedForm()
-            .navigationTitle("Report")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button(sent ? "Done" : "Cancel") { dismiss() } } }
+            .titleInContent("Report")
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
         .preferredColorScheme(.dark)
     }

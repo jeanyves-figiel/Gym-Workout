@@ -298,6 +298,7 @@ struct WorkoutLibraryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                ContentTitle(title: "Workout library")
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(Filter.allCases) { f in
@@ -347,8 +348,8 @@ struct WorkoutLibraryView: View {
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Workout library")
-        .toolbarTitleDisplayMode(.inlineLarge)
+        // Title in the content (#539), not under the toolbar's glass buttons.
+        .titleInContent("Workout library")
         .searchable(text: $query, prompt: "Name, muscle or goal")
         .onSubmit(of: .search) { Task { memberState = await model.loadSharedLibrary(query: query) } }
         .task { memberState = await model.loadSharedLibrary() }

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type DB, tx } from '../db.ts';
-import { deletedField, sinceQuery } from './sync.ts';
+import { baseUpdatedAt, conflictsField, deletedField, opaqueCopy, sinceQuery, takeConflicts } from './sync.ts';
 
 /** Max stored size of one exercise record (photo is a base64 JPEG the app keeps under ~300 KB). */
 export const MAX_CUSTOM_EXERCISE_BYTES = 450_000;
@@ -13,6 +13,7 @@ export const MAX_CUSTOM_EXERCISES = 300;
 const customExercise = z
   .object({
     id: z.uuid(),
+    baseUpdatedAt,
     name: z.string().trim().min(1).max(100),
     photo: z.string().max(MAX_CUSTOM_EXERCISE_BYTES).regex(/^[A-Za-z0-9+/=]*$/).optional(),
   })
@@ -32,7 +33,7 @@ export const customExerciseRoutes = (r: FastifyInstance, db: DB, now: () => Date
   r.get('/me/custom-exercises', async (req) => {
     const q = sinceQuery.parse(req.query);
     // Archived by a flag, never deleted: `deleted` stays empty, kept for the same since-pull shape (#432).
-    return { exercises: listCustomExercises(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'custom-exercises', q.since), serverTime: now().toISOString() };
+    return { exercises: listCustomExercises(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'custom-exercises', q.since, now()), serverTime: now().toISOString() };
   });
 
   r.post('/me/custom-exercises', async (req) => {
@@ -46,17 +47,18 @@ export const customExerciseRoutes = (r: FastifyInstance, db: DB, now: () => Date
     );
     const count = db.prepare('SELECT COUNT(*) AS n FROM custom_exercises WHERE user_id = ?');
     const exists = db.prepare('SELECT 1 FROM custom_exercises WHERE id = ? AND user_id = ?');
-    const saved = tx(db, () => {
+    const { saved, conflicts } = tx(db, () => {
+      const { fresh, conflicts } = takeConflicts(db, 'custom_exercises', req.userId!, b.exercises, opaqueCopy);
       let written = 0;
-      for (const e of b.exercises) {
+      for (const e of fresh) {
         const json = JSON.stringify(e);
         if (json.length > MAX_CUSTOM_EXERCISE_BYTES) throw Object.assign(new Error('Exercise too large'), { statusCode: 413 });
         if (!exists.get(e.id, req.userId!) && (count.get(req.userId!) as { n: number }).n >= MAX_CUSTOM_EXERCISES)
           throw Object.assign(new Error('Too many custom exercises'), { statusCode: 409 });
         written += Number(up.run(e.id, req.userId!, json, ts).changes);
       }
-      return written;
+      return { saved: written, conflicts };
     });
-    return { saved, serverTime: ts };
+    return { saved, serverTime: ts, ...conflictsField(conflicts) };
   });
 };

@@ -37,6 +37,10 @@ import Testing
         #expect(w.items[0].sets == 3 && w.items[0].reps == 10 && w.items[0].restSec == CustomWorkout.defaultRestSec && w.items[0].kcal == nil)
         #expect(w.items[1].sets == 5 && w.items[1].kcal == 30)
         #expect(w.kcal == 30)
+        // The server version is kept (local store too), so the next upload can send it as its base.
+        #expect(w.updatedAt == "2026-10-07T10:00:00.000Z")
+        #expect(try JSONDecoder().decode(CustomWorkout.self, from: JSONEncoder().encode(w)).updatedAt == w.updatedAt)
+        #expect(sample.updatedAt == nil)
     }
 
     @Test func convertsToPlayableSession() {

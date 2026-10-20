@@ -42,7 +42,7 @@ struct WorkoutLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     if let end = s.countdownEnd {
-                        Text(timerInterval: Date.now...end, countsDown: true)
+                        Text(timerInterval: countdownRange(end), countsDown: true)
                             .font(.system(size: 28, weight: .black, design: .rounded))
                             .monospacedDigit()
                             .foregroundStyle(lime)
@@ -74,7 +74,7 @@ struct WorkoutLiveActivity: Widget {
                 .foregroundStyle(resting ? lime : tint)
             } compactTrailing: {
                 if let end = s.countdownEnd {
-                    Text(timerInterval: Date.now...end, countsDown: true)
+                    Text(timerInterval: countdownRange(end), countsDown: true)
                         .monospacedDigit()
                         .foregroundStyle(lime)
                         .frame(maxWidth: 44)
@@ -92,6 +92,12 @@ struct WorkoutLiveActivity: Widget {
 }
 
 private let heart = Color(red: 1.0, green: 0.35, blue: 0.46)
+
+/// `now...end` for a countdown, read once: `end` may pass between `countdownEnd` and here, and an inverted range traps.
+private func countdownRange(_ end: Date) -> ClosedRange<Date> {
+    let now = Date.now
+    return now...max(now, end)
+}
 
 extension WorkoutActivityAttributes.ContentState {
     /// Rest, timed work or "Next in": whichever countdown runs.
@@ -135,7 +141,7 @@ private struct LockScreenView: View {
                 }
                 Spacer(minLength: 4)
                 if let end = state.countdownEnd {
-                    Text(timerInterval: Date.now...end, countsDown: true)
+                    Text(timerInterval: countdownRange(end), countsDown: true)
                         .font(.system(size: 30, weight: .black, design: .rounded))
                         .monospacedDigit()
                         .multilineTextAlignment(.trailing)
@@ -243,7 +249,10 @@ private struct KgButton: View {
             Image(systemName: sign < 0 ? "minus" : "plus")
                 .font(.system(size: 12, weight: .black))
                 .frame(width: 26, height: 26)
-                .background(Circle().fill(.white.opacity(0.2)))
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(0.2)))
+                // Same tile, bigger target (#540): 44 pt tall, 36 pt wide so the weight between them keeps its room.
+                .frame(width: 36, height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(sign < 0 ? "Less weight" : "More weight")

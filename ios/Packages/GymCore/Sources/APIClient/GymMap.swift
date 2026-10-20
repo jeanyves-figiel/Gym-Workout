@@ -98,11 +98,11 @@ extension APIClient {
         try await authorized("GET", "/v1/gyms/crowd?id=\(Self.q(gymId))&tz=\(utcOffsetMinutes)", Empty?.none, as: GymCrowd.self)
     }
 
-    /// Equipment seen on one JPEG photo. Errors: `pro_required` (402), `daily_limit` (429), `scan_unavailable` (503),
-    /// `scan_failed` (502), `bad_photo` (400).
+    /// Equipment seen on one JPEG photo. Errors: `pro_required` (402), `verification_required` (403), `daily_limit` (429),
+    /// `scan_unavailable` (503), `scan_failed` (502), `bad_photo` (400).
     public func gymScan(jpeg: Data, catalog: [GymScanItem]) async throws -> GymScanResult {
         struct Body: Encodable { var photo: String; var catalog: [GymScanItem] }
-        return try await authorized("POST", "/v1/me/gym-scan", Body(photo: jpeg.base64EncodedString(), catalog: catalog), as: GymScanResult.self)
+        return try await scanRequest("/v1/me/gym-scan", Body(photo: jpeg.base64EncodedString(), catalog: catalog), as: GymScanResult.self)
     }
 }
 

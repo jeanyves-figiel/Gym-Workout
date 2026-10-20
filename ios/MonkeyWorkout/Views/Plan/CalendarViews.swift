@@ -45,6 +45,7 @@ struct CalendarView: View {
         let weeks = model.calendarWeeks()
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                ContentTitle(title: "Calendar")
                 hero(weeks)
                 // Training programme (#255): its phases over the coming weeks.
                 if let a = model.activeProgramme, !a.paused, let p = a.programme {
@@ -81,8 +82,8 @@ struct CalendarView: View {
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Calendar")
-        .toolbarTitleDisplayMode(.inlineLarge)
+        // Title in the content (#539), not under the toolbar's glass buttons.
+        .titleInContent("Calendar")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { findingGym = true } label: { Image(systemName: "location.magnifyingglass") }
@@ -755,7 +756,7 @@ struct AwayEditorView: View {
                 Image(systemName: setup.symbol)
                     .font(.system(size: 22, weight: .bold))
                     .frame(width: 50, height: 50)
-                    .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.white.opacity(0.22)))
+                    .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(setup.category.isLight ? Theme.ink.opacity(0.12) : .white.opacity(0.22)))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(setup.label).font(Theme.display(19))
                     Text(setup.blurb).font(.footnote.weight(.medium)).opacity(0.85)
@@ -766,7 +767,7 @@ struct AwayEditorView: View {
                     Text("ITEMS").font(Theme.label(9)).tracking(1.2).opacity(0.8)
                 }
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(setup.category.ink)
             .padding(14)
             .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(setup.category.gradient))
             .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Theme.lime, lineWidth: on ? 3 : 0))

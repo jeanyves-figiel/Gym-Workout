@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -24,6 +24,15 @@ afterEach(() => {
     db.close();
   } catch {}
   rmSync(root, { recursive: true, force: true });
+});
+
+describe('openDb', () => {
+  it('runs in WAL with synchronous NORMAL and waits for a busy writer', () => {
+    const pragma = (name: string) => Object.values(db.prepare(`PRAGMA ${name}`).get() as object)[0];
+    expect(pragma('journal_mode')).toBe('wal');
+    expect(pragma('synchronous')).toBe(1);
+    expect(pragma('busy_timeout')).toBe(5000);
+  });
 });
 
 describe('daily backups (#310)', () => {
@@ -52,6 +61,15 @@ describe('daily backups (#310)', () => {
     expect(users(db)).toEqual(['a']);
     expect(inspectCopy(join(dir, kept!)).counts.users).toBe(2);
     expect(applyPendingRestore(dbPath)).toBeUndefined();
+  });
+
+  it('deletes databases set aside by a restore after 14 days', () => {
+    const dir = backupDirFor(dbPath);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'pre-restore-2026-10-01T05-00-00-000Z.db'), 'old');
+    writeFileSync(join(dir, 'pre-restore-2026-10-10T05-00-00-000Z.db'), 'recent');
+    backupNow(db, dir, { keep: 7, now: new Date('2026-10-20T03:00:00Z') });
+    expect(readdirSync(dir).filter((f) => f.startsWith('pre-restore')).sort()).toEqual(['pre-restore-2026-10-10T05-00-00-000Z.db']);
   });
 
   it('rejects a corrupt staged restore and leaves the live database alone', () => {

@@ -64,6 +64,9 @@ public struct BodyMeasurement: Codable, Hashable, Sendable, Identifiable {
     public var girthsCm: [String: Double]?
     public var weightKg: Double?
     public var bodyFatPct: Double?
+    /// Server version this copy was pulled or saved as, sent back as `baseUpdatedAt` so an edit never overwrites a
+    /// newer copy from another device. Nil until the server has it.
+    public var updatedAt: String?
 
     public init(id: UUID = UUID(), date: Date, girthsCm: [String: Double]? = nil, weightKg: Double? = nil, bodyFatPct: Double? = nil) {
         self.id = id

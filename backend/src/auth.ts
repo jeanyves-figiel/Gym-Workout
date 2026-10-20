@@ -46,7 +46,9 @@ type Purpose = 'verify_email' | 'reset_password';
 
 const CODE_TTL_MIN = 15;
 /** A refresh token claimed this recently is still being rotated by a parallel request (#469). */
-const IN_FLIGHT_MS = 10_000;
+const IN_FLIGHT_MS = 30_000;
+/** A rotated-away token can stand in for its lost, unused replacement only this long after rotation (#469). */
+const LOST_RESPONSE_MS = 5 * 60_000;
 
 interface RefreshRow {
   id: string;
@@ -290,6 +292,8 @@ export class AuthService {
     });
     // Refresh token needed to revoke Sign in with Apple at account deletion (#13). Never fails sign-in.
     if (authorizationCode && this.d.appleTokens) await this.d.appleTokens.storeFromCode(userId, authorizationCode, identity.audience);
+    // Same second step as password sign-in for members with 2-step on (no-op otherwise, so new accounts are unaffected).
+    if (this.d.config.appleSignIn.twoStep) this.secondFactor(userId, device);
     return { user: publicUser(this.userById(userId)!), tokens: await this.issueTokens(userId, device), created };
   }
 
@@ -467,6 +471,7 @@ export class AuthService {
    * Rotating refresh: each token is single-use; replaying a used token revokes the whole family.
    * Exception (#469): a replayed token whose replacement was never used is a lost response (app suspended or offline
    * mid-refresh), not theft: the unused replacement is revoked and a new pair issued, so the member stays signed in.
+   * Only within LOST_RESPONSE_MS of the rotation and while the replayed token itself is unexpired; later it's a replay.
    */
   async refresh(raw: string, device?: string): Promise<TokenPair> {
     const row = this.d.db.prepare('SELECT * FROM refresh_tokens WHERE token_hash = ?').get(sha256(raw)) as RefreshRow | undefined;
@@ -477,7 +482,8 @@ export class AuthService {
       const next = row.replaced_by
         ? (this.d.db.prepare('SELECT * FROM refresh_tokens WHERE id = ?').get(row.replaced_by) as RefreshRow | undefined)
         : undefined;
-      if (next && !next.revoked_at && !next.replaced_by && next.expires_at > now) {
+      const lostResponse = row.expires_at > now && Date.parse(row.revoked_at) > this.d.now().getTime() - LOST_RESPONSE_MS;
+      if (lostResponse && next && !next.revoked_at && !next.replaced_by && next.expires_at > now) {
         if (this.d.db.prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL').run(now, next.id).changes !== 1) throw invalid;
         return this.rotate(row, device);
       }

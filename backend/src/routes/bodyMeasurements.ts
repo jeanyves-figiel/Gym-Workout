@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type DB, tx } from '../db.ts';
-import { deletedField, reviveUploaded, recordTombstone, sinceQuery } from './sync.ts';
+import { baseUpdatedAt, conflictsField, deletedField, opaqueCopy, reviveUploaded, recordTombstone, sinceQuery, takeConflicts } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
 
 /** Body measurements (#185): one dated entry of girths (cm), weight and body fat; extra app fields kept as is. */
@@ -9,6 +9,7 @@ const cm = z.number().min(5).max(300);
 const bodyMeasurement = z
   .object({
     id: z.uuid(),
+    baseUpdatedAt,
     date: z.iso.datetime({ offset: true }),
     girthsCm: z.record(z.string().min(1).max(32), cm).optional(),
     weightKg: z.number().min(20).max(400).optional(),
@@ -31,7 +32,7 @@ export const bodyMeasurementRoutes = (r: FastifyInstance, db: DB, now: () => Dat
     const q = sinceQuery.parse(req.query);
     return {
       measurements: listBodyMeasurements(db, req.userId!, q.since),
-      ...deletedField(db, req.userId!, 'body-measurements', q.since),
+      ...deletedField(db, req.userId!, 'body-measurements', q.since, now()),
       serverTime: now().toISOString(),
     };
   });
@@ -44,8 +45,9 @@ export const bodyMeasurementRoutes = (r: FastifyInstance, db: DB, now: () => Dat
        ON CONFLICT(id) DO UPDATE SET date = excluded.date, data = excluded.data, updated_at = excluded.updated_at
        WHERE body_measurements.user_id = excluded.user_id`,
     );
-    const saved = tx(db, () => {
-      const measurements = reviveUploaded(db, req.userId!, 'body-measurements', b.measurements);
+    const { saved, conflicts } = tx(db, () => {
+      const { fresh, conflicts } = takeConflicts(db, 'body_measurements', req.userId!, b.measurements, opaqueCopy);
+      const measurements = reviveUploaded(db, req.userId!, 'body-measurements', fresh);
       assertRowQuota(db, 'body_measurements', req.userId!, measurements.map((m) => m.id));
       let count = 0;
       for (const m of measurements) {
@@ -53,9 +55,9 @@ export const bodyMeasurementRoutes = (r: FastifyInstance, db: DB, now: () => Dat
         if (json.length > 5_000) throw Object.assign(new Error('Measurement too large'), { statusCode: 413 });
         count += Number(up.run(m.id, req.userId!, m.date, json, ts).changes);
       }
-      return count;
+      return { saved: count, conflicts };
     });
-    return { saved, serverTime: ts };
+    return { saved, serverTime: ts, ...conflictsField(conflicts) };
   });
 
   r.delete('/me/body-measurements/:id', async (req, reply) => {

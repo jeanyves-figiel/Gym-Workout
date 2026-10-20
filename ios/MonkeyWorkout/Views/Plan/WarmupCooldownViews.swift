@@ -273,7 +273,7 @@ struct FlowTweakSheet: View {
 
     private func roundButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol).font(.footnote.bold()).frame(width: 32, height: 32).background(Circle().fill(.black.opacity(0.25)))
+            Image(systemName: symbol).font(.footnote.bold()).frame(width: 32, height: 32).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.black.opacity(0.25)))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)

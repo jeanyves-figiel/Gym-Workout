@@ -324,7 +324,7 @@ struct SessionFlowSheet: View {
                 }
                 .readableWidth()
                 .background(Theme.bg.ignoresSafeArea())
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+                .toolbar { CloseToolbarItem { dismiss() } }
                 .onAppear {
                     guard !loaded else { return }
                     loaded = true
@@ -525,7 +525,7 @@ struct BlockPicksSheet: View {
             }
             .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .toolbar { CloseToolbarItem { dismiss() } }
             .sheet(isPresented: $adding) {
                 ExercisePickerView(limit: Self.maxItems - picks.items.count) { exs in
                     let have = Set(picks.items.map(\.exerciseId))
@@ -548,7 +548,7 @@ struct BlockPicksSheet: View {
             Text("\(item.wrappedValue.minutes)′").font(Theme.display(22)).frame(minWidth: 40)
             stepButton("plus", enabled: item.wrappedValue.minutes < range.upperBound) { item.wrappedValue.minutes += 1 }
             Button { picks.items.removeAll { $0.exerciseId == item.wrappedValue.exerciseId } } label: {
-                Image(systemName: "xmark").font(.footnote.bold()).padding(8).background(Circle().fill(.black.opacity(0.25)))
+                Image(systemName: "xmark").font(.footnote.bold()).padding(8).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.black.opacity(0.25)))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Remove")
@@ -561,7 +561,7 @@ struct BlockPicksSheet: View {
 
     private func stepButton(_ symbol: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol).font(.body.bold()).frame(width: 32, height: 32).background(Circle().fill(.white.opacity(0.22)))
+            Image(systemName: symbol).font(.body.bold()).frame(width: 32, height: 32).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.22)))
         }
         .buttonStyle(.plain)
         .disabled(!enabled)

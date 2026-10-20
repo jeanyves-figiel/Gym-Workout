@@ -78,6 +78,8 @@ final class HomeWidgetSync {
             s.next = .init(id: next.id, title: next.displayTitle, day: day, minutes: next.estMin,
                            exercises: next.blocks.reduce(0) { $0 + $1.items.count },
                            tint: (next.blocks.first { $0.kind == .strength } ?? next.blocks.first)?.kind.category.tintHex ?? 0xCCFF3D)
+            // The widget labels the day from this after midnight, so yesterday's session never reads "Today".
+            s.next?.date = next.weekday.flatMap { cal.date(byAdding: .day, value: $0 - 1, to: weekStart) }
         }
 
         let stats = Progression.stats(records: model.state.history, weights: model.weightEntries,
@@ -132,6 +134,16 @@ enum HomeWidgetRouter {
             let id = url.lastPathComponent.removingPercentEncoding ?? url.lastPathComponent
             model.tab = .train
             if model.session(id) != nil { NotificationManager.shared.route = .session(id) }
+        case "start":
+            // Start on the widget (#537): today's session opens in the player on Train; any other day its page.
+            let id = url.lastPathComponent.removingPercentEncoding ?? url.lastPathComponent
+            model.tab = .train
+            guard let s = model.session(id) else { return }
+            if model.startableToday(s) {
+                PlayerLaunch.shared.sessionId = id
+            } else {
+                NotificationManager.shared.route = .session(id)
+            }
         case "progress", "level":
             model.tab = .progress
         case "fuel":
@@ -140,4 +152,12 @@ enum HomeWidgetRouter {
             model.tab = .train
         }
     }
+}
+
+/// A workout to open in the player from outside Train (#537: Start on a Home Screen widget). Train presents it and
+/// clears it.
+@MainActor @Observable
+final class PlayerLaunch {
+    static let shared = PlayerLaunch()
+    var sessionId: String?
 }

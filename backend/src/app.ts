@@ -1,3 +1,4 @@
+import compress from '@fastify/compress';
 import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { z, ZodError } from 'zod';
@@ -91,8 +92,21 @@ export const clientIp = (req: FastifyRequest): string =>
 
 const device = (req: FastifyRequest) => (req.headers['x-device-name'] as string | undefined) ?? req.headers['user-agent'];
 
+/** Request URL for the logs: the member's call name (`?name=`, coach voices) never lands in them. */
+export const logUrl = (url: string): string => url.replace(/([?&]name=)[^&#]*/g, '$1[redacted]');
+
 export const buildApp = (deps: AppDeps): FastifyInstance => {
-  const app = Fastify({ logger: deps.logger ?? false, trustProxy: true, bodyLimit: 1_000_000 });
+  const app = Fastify({
+    logger: deps.logger
+      ? {
+          serializers: {
+            req: (req) => ({ method: req.method, url: logUrl(req.url), host: req.host, remoteAddress: req.ip, remotePort: req.socket?.remotePort }),
+          },
+        }
+      : false,
+    trustProxy: true,
+    bodyLimit: 1_000_000,
+  });
   const now = deps.now ?? (() => new Date());
   const outbound: Fetch = deps.fetch ?? ((input, init) => globalThis.fetch(input, init));
   const warn = (msg: string) => app.log.warn(msg);
@@ -118,6 +132,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       | undefined;
   push.setFollowersProvider((id) => (sharing(id) ? followerIds(deps.db, id) : []));
   app.decorate('push', push);
+  app.addHook('onClose', () => push.idle());
   const subscriptions = new SubscriptionService({
     db: deps.db,
     decode: deps.appStore ?? createAppStoreDecoder({ now }),
@@ -143,6 +158,9 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
 
   // Key on the address Fly's proxy saw, not the spoofable X-Forwarded-For (#432).
   app.register(rateLimit, { global: false, keyGenerator: clientIp });
+  // gzip/br for JSON bodies over 1 KB when the client asks (URLSession always does); images and bodies that
+  // already carry a content-encoding are left alone by the plugin.
+  app.register(compress, { threshold: 1024 });
 
   // Personal data must not land in HTTP caches on the device or in between (#310).
   app.addHook('onSend', async (req, reply) => {
@@ -282,11 +300,11 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       subscriptionRoutes(r, subscriptions);
       gymRoutes(r, deps.db, now);
       const coach = deps.coach ?? (deps.config.coachChat.apiKey ? claudeCoach(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
-      coachChatRoutes(r, deps.db, now, coach, deps.config.coachChat.dailyLimit, (id) => subscriptions.entitlement(id).access);
+      coachChatRoutes(r, deps.db, now, coach, deps.config.coachChat.dailyLimit, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
       const gymScan = deps.gymScan ?? (deps.config.coachChat.apiKey ? claudeGymScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
-      gymScanRoutes(r, deps.db, now, gymScan, 30, (id) => subscriptions.entitlement(id).access);
+      gymScanRoutes(r, deps.db, now, gymScan, 30, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
       const foodScan = deps.foodScan ?? (deps.config.coachChat.apiKey ? claudeFoodScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
-      foodScanRoutes(r, deps.db, now, foodScan, 20, (id) => subscriptions.entitlement(id).access);
+      foodScanRoutes(r, deps.db, now, foodScan, 20, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
       const voices = deps.config.coachVoices;
       coachVoiceRoutes(r, deps.synth ?? (voices.polly ? pollySynthesizer(voices.polly, outbound, now) : undefined), voices.cacheDir, {
         warm: deps.config.env === 'production',

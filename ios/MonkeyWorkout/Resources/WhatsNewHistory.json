@@ -1,6 +1,67 @@
 {
   "releases": [
     {
+      "id": "2026-10-20.1",
+      "build": 52,
+      "date": "2026-10-20",
+      "items": [
+        {
+          "symbol": "magnifyingglass",
+          "tint": "cardio",
+          "title": "Explore, clearer",
+          "body": "Pick Exercises or Ready-made, then browse by muscle, machine or type. Muscles shows what you worked most this week."
+        },
+        {
+          "symbol": "arrow.up.and.down.text.horizontal",
+          "tint": "strength",
+          "title": "Jump around an exercise",
+          "body": "A sticky bar on each exercise takes you straight to muscles, your stats, setup, form or similar moves."
+        },
+        {
+          "symbol": "arrow.left.and.right",
+          "tint": "cardio",
+          "title": "Fuel days slide",
+          "body": "Slide Fuel's date bar day by day like Train's week strip. Days are coloured by load: big day, training day or rest."
+        },
+        {
+          "symbol": "text.magnifyingglass",
+          "tint": "warmup",
+          "title": "What I have: one box",
+          "body": "Search every food from one box and add what's in your fridge in a few taps."
+        },
+        {
+          "symbol": "pills.fill",
+          "tint": "power",
+          "title": "Supplements and shakes",
+          "body": "Supplements and meal shakes in Fuel: on your timeline, with a caffeine check for your sleep."
+        },
+        {
+          "symbol": "figure.climbing",
+          "tint": "power",
+          "title": "Train is cleaner",
+          "body": "Wall session shows on climbing days only."
+        },
+        {
+          "symbol": "figure.cooldown",
+          "tint": "stretch",
+          "title": "Sport prep",
+          "body": "Sport days get a warm-up and a stretch."
+        },
+        {
+          "symbol": "square.grid.2x2.fill",
+          "tint": "warmup",
+          "title": "Fuel tools at hand",
+          "body": "Fuel tools sit right under the date bar, and your next meal offers recipes from what you have."
+        },
+        {
+          "symbol": "drop.fill",
+          "tint": "cardio",
+          "title": "Water reminders",
+          "body": "Water reminders that follow your training, with +1 right on the banner, widget and Watch."
+        }
+      ]
+    },
+    {
       "id": "2026-10-19.3",
       "build": 50,
       "date": "2026-10-19",

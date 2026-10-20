@@ -170,17 +170,22 @@ private func tokensJSON(_ n: Int) -> String {
         let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
         StubProtocol.register("logs-deleted.test") { req, _ in
             req.url!.query?.contains("since=") == true
-                ? (200, #"{"logs":[],"deleted":["6f9619ff-8b86-d011-b42d-00c04fc964ff","not-a-uuid"],"serverTime":"x"}"#)
+                ? (200, #"{"logs":[],"deleted":["6f9619ff-8b86-d011-b42d-00c04fc964ff","not-a-uuid"],"serverTime":"2026-10-07T10:00:00.250Z"}"#)
                 : (200, #"{"logs":[],"serverTime":"x"}"#)
         }
         let api = makeClient("logs-deleted.test", tokens: store)
         let changes = try await api.fetchLogChanges(since: Date())
         #expect(changes.deleted == [UUID(uuidString: "6F9619FF-8B86-D011-B42D-00C04FC964FF")!])
-        #expect(try await api.fetchLogChanges().deleted.isEmpty)
+        #expect(changes.serverTime == Date(timeIntervalSince1970: 1_791_367_200.25))
+        #expect(!changes.fullResync)
+        let full = try await api.fetchLogChanges()
+        #expect(full.deleted.isEmpty)
+        // A bad server time doesn't fail the pull; the app falls back to its own clock.
+        #expect(full.serverTime == nil)
     }
 
     @Test func workoutsRoundTrip() async throws {
-        struct W: Codable, Sendable, Equatable { var id: UUID; var startedAt: Date; var title: String }
+        struct W: Codable, Sendable, Equatable, ServerVersioned { var id: UUID; var startedAt: Date; var title: String; var updatedAt: String? }
         let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
         StubProtocol.register("workouts.test") { req, body in
             if req.httpMethod == "POST" {
@@ -195,6 +200,7 @@ private func tokensJSON(_ n: Int) -> String {
         let got = try await api.fetchWorkouts(W.self)
         #expect(got.first?.title == "Legs")
         #expect(got.first?.startedAt == date)
+        #expect(got.first?.updatedAt == "2026-10-07T10:00:01.123Z")
     }
 
     @Test func undecodableWorkoutsAndLogsAreSkipped() async throws {
@@ -215,7 +221,7 @@ private func tokensJSON(_ n: Int) -> String {
     }
 
     @Test func customWorkoutsRoundTrip() async throws {
-        struct C: Codable, Sendable, Equatable { var id: UUID; var name: String; var createdAt: Date }
+        struct C: Codable, Sendable, Equatable, ServerVersioned { var id: UUID; var name: String; var createdAt: Date; var updatedAt: String? }
         let id = UUID(uuidString: "6F9619FF-8B86-4011-B42D-00C04FC964FF")!
         let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
         StubProtocol.register("custom.test") { req, body in
@@ -236,9 +242,111 @@ private func tokensJSON(_ n: Int) -> String {
         let date = Date(timeIntervalSince1970: 1_791_367_200)
         try await api.pushCustomWorkouts([C(id: id, name: "Push", createdAt: date)])
         let got = try await api.fetchCustomWorkouts(C.self)
-        #expect(got == [C(id: id, name: "Push", createdAt: date)])
+        #expect(got == [C(id: id, name: "Push", createdAt: date, updatedAt: "2026-10-07T10:00:01.123Z")])
         try await api.deleteCustomWorkout(id)
     }
+
+    @Test func fullResyncIsDecoded() async throws {
+        let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
+        StubProtocol.register("logs-resync.test") { _, _ in
+            (200, #"{"logs":[],"deleted":[],"fullResync":true,"serverTime":"2026-10-07T10:00:00.250Z"}"#)
+        }
+        let api = makeClient("logs-resync.test", tokens: store)
+        #expect(try await api.fetchLogChanges(since: Date(timeIntervalSince1970: 0)).fullResync)
+    }
+
+    @Test func uploadsSendBaseVersionAndReturnConflicts() async throws {
+        let known = UUID(uuidString: "6F9619FF-8B86-4011-B42D-00C04FC964FF")!
+        let fresh = UUID(uuidString: "6F9619FF-8B86-4011-B42D-00C04FC964FE")!
+        let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
+        let bodies = BodyLog()
+        StubProtocol.register("conflicts.test") { _, body in
+            bodies.append(String(decoding: body ?? Data(), as: UTF8.self))
+            return (200, #"{"saved":1,"serverTime":"2026-10-08T09:00:00.500Z","conflicts":[{"id":"\#(known.uuidString)","date":"2026-10-07T10:00:00Z","exerciseId":"back-squat","weightKg":90,"updatedAt":"2026-10-08T08:00:00.000Z"}]}"#)
+        }
+        let api = makeClient("conflicts.test", tokens: store)
+        let date = Date(timeIntervalSince1970: 1_791_367_200)
+        let edited = LogEntry(id: known, date: date, exerciseId: "back-squat", weightKg: 85, updatedAt: "2026-10-07T10:00:01.123Z")
+        let added = LogEntry(id: fresh, date: date, exerciseId: "bench", weightKg: 60)
+        let result = try await api.pushLogs([edited, added])
+        let sent = bodies.all.joined()
+        // The known one carries its base version; the new one has none, so it's written as before.
+        #expect(sent.contains(#""baseUpdatedAt":"2026-10-07T10:00:01.123Z""#))
+        #expect(sent.components(separatedBy: "baseUpdatedAt").count == 2)
+        #expect(result.conflictIds == [known])
+        #expect(result.conflicts.first?.weightKg == 90)
+        #expect(result.versions == [fresh: "2026-10-08T09:00:00.500Z"])
+
+        // Applied: the server copy replaces the edit and leaves the queue; the new one keeps its version.
+        let (list, pending) = result.applied(to: [edited, added], pending: [known, fresh])
+        #expect(list.first { $0.id == known }?.weightKg == 90)
+        #expect(list.first { $0.id == known }?.updatedAt == "2026-10-08T08:00:00.000Z")
+        #expect(list.first { $0.id == fresh }?.updatedAt == "2026-10-08T09:00:00.500Z")
+        #expect(pending == [fresh])
+    }
+
+    @Test func oldServerAnswerAppliesNothing() async throws {
+        struct W: Codable, Sendable, Equatable, ServerVersioned { var id: UUID; var startedAt: Date; var updatedAt: String? }
+        let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
+        StubProtocol.register("old-upload.test") { _, _ in (200, #"{"saved":1}"#) }
+        let api = makeClient("old-upload.test", tokens: store)
+        let w = W(id: UUID(), startedAt: Date(timeIntervalSince1970: 1_791_367_200), updatedAt: "2026-10-07T10:00:01.123Z")
+        let result = try await api.pushWorkouts([w])
+        #expect(result.isEmpty)
+        let (list, pending) = result.applied(to: [w], pending: [w.id])
+        #expect(list == [w])
+        #expect(pending == [w.id])
+    }
+
+    @Test func coachCallNameGoesInHeaderNotURL() async throws {
+        let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
+        StubProtocol.register("call.test") { req, _ in
+            let ok = req.url!.path == "/v1/me/coach-voices/joanna/call/hype.mp3" && req.url!.query == nil
+                && req.value(forHTTPHeaderField: "X-Call-Name") == "Zo%C3%A9%20Lou"
+            return ok ? (200, "mp3") : (400, #"{"error":"x","message":"\#(req.url!.absoluteString)"}"#)
+        }
+        let api = makeClient("call.test", tokens: store)
+        let data = try await api.coachVoiceCall(voice: "joanna", style: "hype", name: "Zoé Lou")
+        #expect(String(decoding: data, as: UTF8.self) == "mp3")
+    }
+
+    @Test func exportAndScanLimitsReadPolitely() async throws {
+        let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
+        StubProtocol.register("limits.test") { req, _ in
+            switch req.url!.path {
+            case "/v1/me/export": return (429, #"{"error":"rate_limited","message":"Too many requests. Slow down."}"#)
+            case "/v1/me/food-scan": return (403, #"{"error":"verification_required","message":"x"}"#)
+            default: return (429, #"{"error":"daily_limit","message":"That's 5 scans today. Scan more tomorrow!"}"#)
+            }
+        }
+        let api = makeClient("limits.test", tokens: store)
+        await #expect(throws: APIError.server(status: 429, code: "rate_limited", message: APIClient.exportLimitMessage)) {
+            _ = try await api.exportData()
+        }
+        await #expect(throws: APIError.server(status: 403, code: "verification_required", message: APIClient.scanVerifyMessage)) {
+            _ = try await api.foodScan(jpeg: Data([0xFF, 0xD8]), catalog: [])
+        }
+        // Daily limits keep the server's own wording.
+        await #expect(throws: APIError.server(status: 429, code: "daily_limit", message: "That's 5 scans today. Scan more tomorrow!")) {
+            _ = try await api.gymScan(jpeg: Data([0xFF, 0xD8]), catalog: [])
+        }
+    }
+
+    @Test func undecodableConflictCopyStillLeavesTheQueue() {
+        let id = UUID()
+        let mine = LogEntry(id: id, date: Date(timeIntervalSince1970: 0), exerciseId: "x", weightKg: 1, updatedAt: "2026-01-01T00:00:00.000Z")
+        let r = UploadResult<LogEntry>(conflictIds: [id])
+        let (list, pending) = r.applied(to: [mine], pending: [id])
+        #expect(list == [mine])
+        #expect(pending.isEmpty)
+    }
+}
+
+final class BodyLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var bodies: [String] = []
+    func append(_ s: String) { lock.withLock { bodies.append(s) } }
+    var all: [String] { lock.withLock { bodies } }
 }
 
 @Suite struct LogEntryCodingTests {
@@ -265,6 +373,17 @@ private func tokensJSON(_ n: Int) -> String {
         let legacy = try String(decoding: enc.encode(LogEntry(date: l.date, exerciseId: "x", weightKg: 1)), as: UTF8.self)
         #expect(!legacy.contains("setIndex"))
         #expect(!legacy.contains("rir"))
+    }
+
+    @Test func lossyArrayCountsSkippedElements() throws {
+        let dec = JSONDecoder()
+        dec.dateDecodingStrategy = .iso8601
+        let json = #"[{"id":"bad"},null,{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","date":"2026-10-07T10:00:00Z","exerciseId":"back-squat"},7]"#
+        let l = try dec.decode(LossyArray<LogEntry>.self, from: Data(json.utf8))
+        #expect(l.elements.map(\.exerciseId) == ["back-squat"])
+        #expect(l.skipped == 2)
+        let clean = try dec.decode(LossyArray<LogEntry>.self, from: Data("[]".utf8))
+        #expect(clean.elements.isEmpty && clean.skipped == 0)
     }
 }
 

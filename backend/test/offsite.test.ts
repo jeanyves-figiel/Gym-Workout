@@ -1,6 +1,8 @@
+import { createDecipheriv, scryptSync } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { gunzipSync } from 'node:zlib';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadConfig } from '../src/config.ts';
 import { decryptBackup, encryptBackup, OffsiteStore } from '../src/offsite.ts';
@@ -35,15 +37,26 @@ const fakeS3 = () => {
 const config = { endpoint: 'https://fly.storage.tigris.dev', bucket: 'bucket', region: 'auto', accessKeyId: 'AK', secretAccessKey: 'SK', passphrase: 'correct horse battery staple', keepDays: 30 };
 
 describe('encrypted off-site copy (#313)', () => {
-  it('encrypts so the bucket never sees plaintext, and only the passphrase opens it', () => {
+  it('encrypts so the bucket never sees plaintext, and only the passphrase opens it', async () => {
     const plain = Buffer.from('SQLite format 3\0 secret member data '.repeat(50));
-    const blob = encryptBackup(plain, 'pw');
+    const blob = await encryptBackup(plain, 'pw');
     expect(blob.includes(Buffer.from('secret member data'))).toBe(false);
-    expect(decryptBackup(blob, 'pw').equals(plain)).toBe(true);
-    expect(() => decryptBackup(blob, 'wrong')).toThrow();
+    expect((await decryptBackup(blob, 'pw')).equals(plain)).toBe(true);
+    await expect(decryptBackup(blob, 'wrong')).rejects.toThrow();
     const tampered = Buffer.from(blob);
     tampered[tampered.length - 1]! ^= 1;
-    expect(() => decryptBackup(tampered, 'pw')).toThrow();
+    await expect(decryptBackup(tampered, 'pw')).rejects.toThrow();
+  });
+
+  it('keeps the MWB1 format: magic, scrypt salt, GCM iv and tag, then gzip ciphertext', async () => {
+    const plain = Buffer.from('backup bytes');
+    const blob = await encryptBackup(plain, 'pw');
+    expect(blob.subarray(0, 4).toString()).toBe('MWB1');
+    // decrypt by hand the way the pre-async code (and any external restore tool) does
+    const key = scryptSync('pw', blob.subarray(4, 20), 32, { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+    const d = createDecipheriv('aes-256-gcm', key, blob.subarray(20, 32));
+    d.setAuthTag(blob.subarray(32, 48));
+    expect(gunzipSync(Buffer.concat([d.update(blob.subarray(48)), d.final()])).equals(plain)).toBe(true);
   });
 
   it('uploads signed, prunes copies older than 30 days, and downloads back', async () => {

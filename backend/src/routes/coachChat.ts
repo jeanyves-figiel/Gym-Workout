@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { ChatTurn, CoachModel } from '../coach/chat.ts';
 import type { DB } from '../db.ts';
 import { ApiError } from '../errors.ts';
-import { inFlight, refundDaily, reserveDaily } from '../quota.ts';
+import { inFlight, refundAiCall, reserveAiCall } from '../quota.ts';
 
 const turn = z.object({ role: z.enum(['member', 'coach']), text: z.string().trim().min(1).max(600) });
 const body = z.object({
@@ -49,6 +49,7 @@ export const coachChatRoutes = (
   coach: CoachModel | undefined,
   dailyLimit: number,
   hasAccess: (userId: string) => boolean,
+  globalLimit: number,
 ) => {
   const usedToday = (userId: string) =>
     (db.prepare('SELECT count FROM coach_chat_usage WHERE user_id = ? AND day = ?').get(userId, now().toISOString().slice(0, 10)) as
@@ -72,12 +73,14 @@ export const coachChatRoutes = (
     let count: number | undefined;
     try {
       // Slot taken before the call, given back if it fails: a failed call doesn't use up the member's messages.
-      count = reserveDaily(db, 'coach_chat_usage', req.userId!, day, dailyLimit);
-      if (count === undefined) throw new ApiError(429, 'daily_limit', `That's ${dailyLimit} messages today. Coach is back tomorrow!`);
+      const slot = reserveAiCall(db, 'coach_chat_usage', req.userId!, day, dailyLimit, globalLimit);
+      if (slot === 'member') throw new ApiError(429, 'daily_limit', `That's ${dailyLimit} messages today. Coach is back tomorrow!`);
+      if (slot === 'all') throw new ApiError(429, 'daily_limit', 'Coach is very busy today. Try again tomorrow!');
+      count = slot;
       try {
         answer = await coach(turns, b.context);
       } catch (e) {
-        refundDaily(db, 'coach_chat_usage', req.userId!, day);
+        refundAiCall(db, 'coach_chat_usage', req.userId!, day);
         req.log.warn(`coach chat failed: ${(e as Error).message}`);
         throw new ApiError(502, 'coach_failed', 'Coach is catching breath. Try again in a moment.');
       }

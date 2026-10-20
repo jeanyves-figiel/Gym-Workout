@@ -141,7 +141,7 @@ struct MoveDayPicker: View {
                     .font(.system(size: 16, weight: .heavy))
                     .foregroundStyle(Theme.ink)
                     .frame(width: 34, height: 34)
-                    .background(Circle().fill(Theme.lime))
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
             } else if own {
                 Image(systemName: "mappin.circle.fill").font(.system(size: 24))
             }

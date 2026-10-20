@@ -316,7 +316,7 @@ struct ReportProblemView: View {
     private var thanks: some View {
         VStack(spacing: 14) {
             Image(systemName: "checkmark.seal.fill").font(.system(size: 56, weight: .bold)).foregroundStyle(Theme.ink)
-                .frame(width: 96, height: 96).background(Circle().fill(Self.send))
+                .frame(width: 96, height: 96).background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(Self.send))
             Text("Thanks, we got it").font(Theme.display(26))
             Text(draft.kind == .idea ? "We look at every idea when we plan the next updates." : "We look into it and ship the fix in a coming update. What's new tells you when.")
                 .font(.subheadline).foregroundStyle(Theme.muted).multilineTextAlignment(.center)

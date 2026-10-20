@@ -70,11 +70,12 @@ struct PRAttemptView: View {
             }
             .background(Theme.bg.ignoresSafeArea())
             .toolbar {
-                if stage != .result {
-                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                }
+                // Standard chrome (#539): Finish beside the X top right; the X closes with Undo for a live attempt.
                 if stage == .live && !tries.isEmpty && kind != .maxReps {
-                    ToolbarItem(placement: .confirmationAction) { Button("Finish") { finish() }.bold() }
+                    SaveToolbarItem(title: "Finish") { finish() }
+                }
+                if stage != .result {
+                    CloseToolbarItem { dismiss() }
                 }
             }
         }
@@ -215,7 +216,7 @@ struct PRAttemptView: View {
             Image(systemName: symbol)
                 .font(.system(size: 18, weight: .heavy))
                 .frame(width: 44, height: 44)
-                .background(Circle().fill(.white.opacity(0.2)))
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.2)))
         }
         .buttonStyle(.plain)
     }

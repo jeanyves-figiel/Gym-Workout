@@ -38,16 +38,25 @@ extension AppModel {
 
     /// Pushes queued edits, then pulls the full list. Called from `sync()` (one sync at a time).
     func syncCustomExercises() async throws {
+        let epoch = accountEpoch
         let pendingIds = state.pendingCustomExerciseIds ?? []
         let pending = (state.customExerciseList ?? []).filter { pendingIds.contains($0.id) }
         state.pendingCustomExerciseIds = Set(pending.map(\.id))
         if !pending.isEmpty {
             // Failure keeps them queued (offline at the gym); `sync()` surfaces the error.
-            try await api.pushCustomExercises(pending)
+            let result = try await api.pushCustomExercises(pending)
             for e in pending where customExercise(e.id) == e { state.pendingCustomExerciseIds?.remove(e.id) }
+            // Changed on another device since this edit's base: the server copy wins. Written ones keep their new version.
+            if accountEpoch == epoch, !result.isEmpty {
+                let applied = result.applied(to: state.customExerciseList ?? [], pending: state.pendingCustomExerciseIds ?? [])
+                state.customExerciseList = applied.list
+                state.pendingCustomExerciseIds = applied.pending
+            }
         }
 
         let remote = try await api.fetchCustomExercises(CustomExercise.self)
+        // Signed out or another account signed in meanwhile: the list belongs to the previous account.
+        guard accountEpoch == epoch else { return }
         let stillPending = state.pendingCustomExerciseIds ?? []
         let local = state.customExerciseList ?? []
         // Server copy wins unless a local edit is still queued. Local-only records are kept (never deleted).

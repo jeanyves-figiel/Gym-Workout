@@ -77,6 +77,8 @@ export const ensureCommunitySchema = (db: DB): void => {
       resolved_at TEXT
     );
     CREATE INDEX IF NOT EXISTS community_reports_target ON community_reports(target_type, target_id);
+    -- Member search hides members with open reports about them as a person (memberNotHiddenSql).
+    CREATE INDEX IF NOT EXISTS community_reports_target_user ON community_reports(target_user_id, target_type);
   `);
   // Show my gym (#152): members opt in to being found by the gym they train at.
   const cols = db.prepare('PRAGMA table_info(community_profiles)').all() as { name: string }[];

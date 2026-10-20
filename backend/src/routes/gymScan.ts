@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { GymScanModel } from '../coach/gymScan.ts';
 import type { DB } from '../db.ts';
 import { ApiError } from '../errors.ts';
-import { inFlight, refundDaily, reserveDaily } from '../quota.ts';
+import { inFlight, refundAiCall, reserveAiCall, trustedAccount } from '../quota.ts';
 
 const MAX_PHOTO = 1_500_000;
 
@@ -27,12 +27,15 @@ export const gymScanRoutes = (
   scan: GymScanModel | undefined,
   dailyLimit: number,
   hasAccess: (userId: string) => boolean,
+  globalLimit: number,
 ) => {
   const busy = inFlight(2);
 
   r.post('/me/gym-scan', { bodyLimit: 2_200_000 }, async (req) => {
     if (!scan) throw new ApiError(503, 'scan_unavailable', 'Gym scan is not available right now.');
     if (!hasAccess(req.userId!)) throw new ApiError(402, 'pro_required', 'Gym scan is part of MonkeyWorkout Pro.');
+    if (!trustedAccount(db, req.userId!, now()))
+      throw new ApiError(403, 'verification_required', 'Verify your email to scan, or try again tomorrow.');
     const b = body.parse(req.body);
     const jpeg = Buffer.from(b.photo, 'base64');
     if (jpeg.length > MAX_PHOTO || jpeg[0] !== 0xff || jpeg[1] !== 0xd8) throw new ApiError(400, 'bad_photo', 'Send one JPEG photo up to 1.5 MB.');
@@ -41,12 +44,14 @@ export const gymScanRoutes = (
     let items: string[];
     let count: number | undefined;
     try {
-      count = reserveDaily(db, 'gym_scan_usage', req.userId!, day, dailyLimit);
-      if (count === undefined) throw new ApiError(429, 'daily_limit', `That's ${dailyLimit} scans today. Scan more tomorrow!`);
+      const slot = reserveAiCall(db, 'gym_scan_usage', req.userId!, day, dailyLimit, globalLimit);
+      if (slot === 'member') throw new ApiError(429, 'daily_limit', `That's ${dailyLimit} scans today. Scan more tomorrow!`);
+      if (slot === 'all') throw new ApiError(429, 'daily_limit', 'Scanning is very busy today. Try again tomorrow!');
+      count = slot;
       try {
         items = await scan(jpeg, b.catalog);
       } catch (e) {
-        refundDaily(db, 'gym_scan_usage', req.userId!, day);
+        refundAiCall(db, 'gym_scan_usage', req.userId!, day);
         req.log.warn(`gym scan failed: ${(e as Error).message}`);
         throw new ApiError(502, 'scan_failed', "Couldn't read that photo. Try again in a moment.");
       }

@@ -206,11 +206,22 @@ public struct SportPlan: Codable, Hashable, Sendable, Identifiable {
     /// The event as a date, when set and valid.
     public var event: Date? {
         guard let eventDate else { return nil }
+        return Self.eventFormatter().date(from: eventDate)
+    }
+
+    /// Made once per time zone (a formatter is slow to make; parsing is thread-safe).
+    nonisolated(unsafe) private static let eventFormatters = NSCache<NSString, DateFormatter>()
+
+    private static func eventFormatter() -> DateFormatter {
+        let zone = TimeZone.current
+        if let f = eventFormatters.object(forKey: zone.identifier as NSString) { return f }
         let f = DateFormatter()
         f.calendar = Calendar(identifier: .gregorian)
         f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = zone
         f.dateFormat = "yyyy-MM-dd"
-        return f.date(from: eventDate)
+        eventFormatters.setObject(f, forKey: zone.identifier as NSString)
+        return f
     }
 }
 

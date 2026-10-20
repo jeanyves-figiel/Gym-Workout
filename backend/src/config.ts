@@ -21,7 +21,11 @@ export interface Config {
   appName: string;
   authRateLimitPerMin: number;
   /** Sign in with Apple server-to-server (code exchange + token revocation). Unset → skipped. */
-  appleSignIn: { teamId?: string; keyId?: string; privateKey?: string; clientId?: string };
+  /**
+   * `twoStep` (APPLE_TWO_STEP=on): Sign in with Apple also asks for the authenticator code when the member turned 2-step
+   * on. Off by default until the app handles `mfa_required` on the Apple path (it does on password sign-in).
+   */
+  appleSignIn: { teamId?: string; keyId?: string; privateKey?: string; clientId?: string; twoStep: boolean };
   /** Reject passwords found in Have I Been Pwned (k-anonymity range API). */
   hibpCheck: boolean;
   /** Interval of the expired codes / refresh tokens purge job (0 disables the timer). */
@@ -32,6 +36,8 @@ export interface Config {
   apns: { teamId?: string; keyId?: string; privateKey?: string };
   /** Workout chat (#381): ANTHROPIC_API_KEY unset → the chat answers 503 and the app hides it. COACH_CHAT_DAILY_LIMIT messages per member per day. */
   coachChat: { apiKey?: string; workspaceId?: string; dailyLimit: number };
+  /** AI_DAILY_LIMIT: paid model calls (coach chat + gym scan + food scan) across all members per UTC day. */
+  aiDailyLimit: number;
   /**
    * Studio coach voices (#395): Amazon Polly neural. POLLY_ACCESS_KEY_ID/POLLY_SECRET_ACCESS_KEY, else the SES keys (the
    * IAM user needs polly:SynthesizeSpeech); POLLY_REGION (default eu-central-1). Recordings cached in `cacheDir`.
@@ -127,6 +133,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
       // .p8 contents; literal "\n" sequences (single-line secrets) are turned back into newlines.
       privateKey: env.APPLE_PRIVATE_KEY ? env.APPLE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined,
       clientId: env.APPLE_CLIENT_ID || undefined,
+      twoStep: env.APPLE_TWO_STEP === 'on',
     },
     // On by default, off in tests; HIBP_CHECK=0 disables, HIBP_CHECK=1 forces on.
     hibpCheck: env.HIBP_CHECK !== undefined ? !['0', 'false', 'off', 'no'].includes(env.HIBP_CHECK.toLowerCase()) : mode !== 'test',
@@ -146,6 +153,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
       workspaceId: env.ANTHROPIC_WORKSPACE_ID || undefined,
       dailyLimit: Number(env.COACH_CHAT_DAILY_LIMIT ?? 20),
     },
+    aiDailyLimit: Number(env.AI_DAILY_LIMIT ?? 500),
     subscriptions: {
       mode: subscriptionMode(env.SUBSCRIPTIONS),
       productIds: (env.SUBSCRIPTION_PRODUCT_IDS ?? 'monkeyworkout.pro.weekly,monkeyworkout.pro.monthly,monkeyworkout.pro.yearly,monkeyworkout.pro.lifetime')

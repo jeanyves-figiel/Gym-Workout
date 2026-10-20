@@ -110,6 +110,9 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
     public var flow: [Block]
     /// Warm-up / cool-down style or exact moves chosen for this workout (#293); nil = the profile's defaults.
     public var flowTweaks: FlowTweaks?
+    /// Server version this copy was pulled or saved as, sent back as `baseUpdatedAt` so an edit never overwrites a
+    /// newer copy from another device. Nil until the server has it.
+    public var updatedAt: String?
 
     public init(id: UUID = UUID(), name: String, items: [Item] = [], createdAt: Date = Date(), visibility: WorkoutVisibility = .private,
                 flow: [Block] = [], flowTweaks: FlowTweaks? = nil) {
@@ -123,7 +126,7 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         self.flowTweaks = flowTweaks
     }
 
-    enum CodingKeys: String, CodingKey { case id, name, items, createdAt, visibility, flow, flowTweaks }
+    enum CodingKeys: String, CodingKey { case id, name, items, createdAt, visibility, flow, flowTweaks, updatedAt }
     private enum ServerKeys: String, CodingKey { case hidden }
 
     public init(from decoder: any Decoder) throws {
@@ -135,6 +138,7 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         visibility = (try? c.decodeIfPresent(WorkoutVisibility.self, forKey: .visibility)) ?? .private
         flow = ((try? c.decodeIfPresent([Block].self, forKey: .flow)) ?? nil) ?? []
         flowTweaks = (try? c.decodeIfPresent(FlowTweaks.self, forKey: .flowTweaks)) ?? nil
+        updatedAt = (try? c.decodeIfPresent(String.self, forKey: .updatedAt)) ?? nil
         hidden = (try? decoder.container(keyedBy: ServerKeys.self).decodeIfPresent(Bool.self, forKey: .hidden)) ?? false
     }
 
@@ -147,6 +151,7 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         try c.encode(visibility, forKey: .visibility)
         if !flow.isEmpty { try c.encode(flow, forKey: .flow) }
         if let flowTweaks, !flowTweaks.isEmpty { try c.encode(flowTweaks, forKey: .flowTweaks) }
+        try c.encodeIfPresent(updatedAt, forKey: .updatedAt)
     }
 
     // MARK: Limits (mirrored by the API: name ≤ 100 chars, ≤ 100 items)

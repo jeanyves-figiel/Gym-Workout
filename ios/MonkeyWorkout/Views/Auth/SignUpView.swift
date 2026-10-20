@@ -59,7 +59,7 @@ struct SignUpView: View {
 
             Button { path.append(.privacy) } label: {
                 AccountCard(symbol: "hand.raised.fill", title: "Privacy notice",
-                            subtitle: "What's stored and why. No tracking, no ads.", gradient: AccountTint.export)
+                            subtitle: "What's stored and why. No tracking, no ads.", gradient: AccountTint.export, ink: true)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Read privacy notice")

@@ -135,7 +135,7 @@ struct MealPlanView: View {
                             Button("Remove", systemImage: "trash", role: .destructive) { store.unplan(m.id) }
                         } label: {
                             Image(systemName: "ellipsis").font(.system(size: 17, weight: .heavy)).foregroundStyle(.white)
-                                .frame(width: 36, height: 36).background(Circle().fill(Theme.cardStrong))
+                                .frame(width: 36, height: 36).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.cardStrong))
                         }
                         .accessibilityLabel("Change \(s.title)")
                     }

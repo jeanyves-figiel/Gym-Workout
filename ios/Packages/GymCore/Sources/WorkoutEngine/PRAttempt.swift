@@ -48,6 +48,9 @@ public struct PRAttempt: Codable, Hashable, Sendable, Identifiable {
     /// Best before this attempt (kg for 1RM / rep max, reps for max reps).
     public var previousBest: Double?
     public var sets: [PRSet]
+    /// Server version this copy was pulled or saved as, sent back as `baseUpdatedAt` so an edit never overwrites a
+    /// newer copy from another device. Nil until the server has it.
+    public var updatedAt: String?
 
     public init(
         id: UUID = UUID(), exerciseId: String, date: Date, kind: PRKind, targetReps: Int?, kg: Double, reps: Int,

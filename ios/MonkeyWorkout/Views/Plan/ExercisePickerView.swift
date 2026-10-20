@@ -85,6 +85,7 @@ struct ExercisePickerView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
+                    ContentTitle(title: "Add exercises").padding(.horizontal, 16)
                     categoryTiles
                     muscleChips
                     Text("\(results.count) exercises").eyebrow().padding(.horizontal, 16).padding(.top, 4)
@@ -135,8 +136,8 @@ struct ExercisePickerView: View {
             .sensoryFeedback(.selection, trigger: selected)
             .background(Theme.bg.ignoresSafeArea())
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Name, muscle or equipment")
-            .navigationTitle("Add exercises")
-            .toolbarTitleDisplayMode(.inlineLarge)
+            // Title in the content (#539), not under the toolbar's glass buttons.
+            .titleInContent("Add exercises")
             .toolbar {
                 CloseToolbarItem { dismiss() }
             }
@@ -167,8 +168,8 @@ struct ExercisePickerView: View {
                 ForEach(WorkoutEngine.Category.allCases) { c in
                     Button { category = category == c ? nil : c } label: {
                         CategoryTile(title: c.label, symbol: c.symbol, count: matches(c).count,
-                                     fill: AnyShapeStyle(c.gradient), iconColor: .white,
-                                     selected: category == c, dimmed: category != nil && category != c)
+                                     fill: AnyShapeStyle(c.gradient), iconColor: category != nil && category != c ? .white : c.ink,
+                                     selected: category == c, dimmed: category != nil && category != c, ink: c.ink)
                     }
                 }
             }
@@ -257,15 +258,19 @@ struct CategoryTile: View {
     let iconColor: Color
     let selected: Bool
     let dimmed: Bool
+    /// Type on the full fill (#540): dark on light gradients. Dimmed tiles keep white over the dark canvas.
+    var ink: Color = .white
 
     var body: some View {
+        let dark = !dimmed && ink != .white
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top) {
                 Image(systemName: symbol)
                     .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(iconColor)
                     .frame(width: 36, height: 36)
-                    .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(.white.opacity(0.2)))
+                    .background(RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(dark ? Theme.ink.opacity(0.12) : .white.opacity(0.2)))
                 Spacer(minLength: 6)
                 if let count {
                     Text("\(count)")
@@ -277,7 +282,7 @@ struct CategoryTile: View {
             Spacer(minLength: 8)
             Text(title).font(Theme.display(17)).lineLimit(1).minimumScaleFactor(0.7)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(dark ? ink : .white)
         .padding(12)
         .frame(width: 118, height: 100)
         // Dimmed tiles dim only the fill (#88): the title stays full white so every category reads.
@@ -331,7 +336,7 @@ private struct NewExerciseCard: View {
                 .font(.system(size: 26, weight: .heavy))
                 .foregroundStyle(Theme.ink)
                 .frame(width: 54, height: 54)
-                .background(Circle().fill(Theme.lime))
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
             Text("New exercise").font(.system(size: 15, weight: .heavy, design: .rounded))
             Text("Your own machine,\nphoto or pose").font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)

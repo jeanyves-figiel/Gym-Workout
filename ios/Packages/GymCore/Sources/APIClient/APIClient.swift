@@ -167,9 +167,25 @@ public actor APIClient {
         reauthGrant = nil
     }
 
-    /// Full JSON export of everything stored for the account.
+    /// Full JSON export of everything stored for the account. At most 3 an hour (`rate_limited`, 429).
     public func exportData() async throws -> Data {
-        try await authorizedRaw("GET", "/v1/me/export", Empty?.none)
+        do {
+            return try await authorizedRaw("GET", "/v1/me/export", Empty?.none)
+        } catch let APIError.server(status, code, _) where code == "rate_limited" {
+            throw APIError.server(status: status, code: code, message: Self.exportLimitMessage)
+        }
+    }
+
+    static let exportLimitMessage = "You can export your data 3 times an hour. Try again a bit later."
+    static let scanVerifyMessage = "Verify your email to use scans, or try again tomorrow."
+
+    /// Scans (gym, food) refuse new accounts until the email is verified (`verification_required`, 403).
+    func scanRequest<T: Decodable>(_ path: String, _ body: some Encodable, as type: T.Type) async throws -> T {
+        do {
+            return try await authorized("POST", path, body, as: type)
+        } catch let APIError.server(status, code, _) where code == "verification_required" {
+            throw APIError.server(status: status, code: code, message: Self.scanVerifyMessage)
+        }
     }
 
     // MARK: Sync
@@ -194,14 +210,15 @@ public actor APIClient {
             path += "?since=\(s.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? s)"
         }
         let r = try await authorized("GET", path, Empty?.none, as: LogsResponse.self)
-        return LogChanges(logs: r.logs, deleted: Set((r.deleted ?? []).compactMap(UUID.init(uuidString:))))
+        return LogChanges(logs: r.logs, deleted: Set((r.deleted ?? []).compactMap(UUID.init(uuidString:))),
+                          serverTime: r.serverTime.flatMap { Self.parseISO($0) }, fullResync: r.fullResync == true)
     }
 
-    public func pushLogs(_ logs: [LogEntry]) async throws {
-        struct Body: Encodable { var logs: [LogEntry] }
-        for chunk in stride(from: 0, to: logs.count, by: 500).map({ Array(logs[$0..<min($0 + 500, logs.count)]) }) {
-            _ = try await authorizedRaw("POST", "/v1/me/logs", Body(logs: chunk))
-        }
+    /// Uploads set logs; ones changed on the server since their `updatedAt` come back as conflicts (not written).
+    @discardableResult
+    public func pushLogs(_ logs: [LogEntry]) async throws -> UploadResult<LogEntry> {
+        struct Body: Encodable { var logs: [VersionedUpload<LogEntry>] }
+        return try await upload("/v1/me/logs", logs, chunk: 500) { Body(logs: $0) }
     }
 
     /// Completed workout records (app-defined, must encode `id` + `startedAt`).
@@ -214,10 +231,9 @@ public actor APIClient {
         return try await authorized("GET", path, Empty?.none, as: WorkoutsResponse<T>.self).workouts
     }
 
-    public func pushWorkouts<T: Encodable & Sendable>(_ workouts: [T]) async throws {
-        for chunk in stride(from: 0, to: workouts.count, by: 100).map({ Array(workouts[$0..<min($0 + 100, workouts.count)]) }) {
-            _ = try await authorizedRaw("POST", "/v1/me/workouts", WorkoutsBody(workouts: chunk))
-        }
+    @discardableResult
+    public func pushWorkouts<T: Codable & Sendable & ServerVersioned>(_ workouts: [T]) async throws -> UploadResult<T> {
+        try await upload("/v1/me/workouts", workouts, chunk: 100) { WorkoutsBody(workouts: $0) }
     }
 
     public func deleteWorkout(_ id: UUID) async throws {
@@ -234,10 +250,9 @@ public actor APIClient {
         return try await authorized("GET", path, Empty?.none, as: WorkoutsResponse<T>.self).workouts
     }
 
-    public func pushCustomWorkouts<T: Encodable & Sendable>(_ workouts: [T]) async throws {
-        for chunk in stride(from: 0, to: workouts.count, by: 100).map({ Array(workouts[$0..<min($0 + 100, workouts.count)]) }) {
-            _ = try await authorizedRaw("POST", "/v1/me/custom-workouts", WorkoutsBody(workouts: chunk))
-        }
+    @discardableResult
+    public func pushCustomWorkouts<T: Codable & Sendable & ServerVersioned>(_ workouts: [T]) async throws -> UploadResult<T> {
+        try await upload("/v1/me/custom-workouts", workouts, chunk: 100) { WorkoutsBody(workouts: $0) }
     }
 
     public func deleteCustomWorkout(_ id: UUID) async throws {
@@ -250,10 +265,9 @@ public actor APIClient {
     }
 
     /// One per request: photos make records large (server body limit 1 MB).
-    public func pushCustomExercises<T: Encodable & Sendable>(_ exercises: [T]) async throws {
-        for e in exercises {
-            _ = try await authorizedRaw("POST", "/v1/me/custom-exercises", ExercisesBody(exercises: [e]))
-        }
+    @discardableResult
+    public func pushCustomExercises<T: Codable & Sendable & ServerVersioned>(_ exercises: [T]) async throws -> UploadResult<T> {
+        try await upload("/v1/me/custom-exercises", exercises, chunk: 1) { ExercisesBody(exercises: $0) }
     }
 
     /// Personal-record attempts (app-defined; must encode `id`, `exerciseId`, `date`, `kind`, `kg`, `reps`, `success`).
@@ -261,10 +275,9 @@ public actor APIClient {
         try await authorized("GET", "/v1/me/pr-attempts", Empty?.none, as: AttemptsResponse<T>.self).attempts
     }
 
-    public func pushPRAttempts<T: Encodable & Sendable>(_ attempts: [T]) async throws {
-        for chunk in stride(from: 0, to: attempts.count, by: 200).map({ Array(attempts[$0..<min($0 + 200, attempts.count)]) }) {
-            _ = try await authorizedRaw("POST", "/v1/me/pr-attempts", AttemptsBody(attempts: chunk))
-        }
+    @discardableResult
+    public func pushPRAttempts<T: Codable & Sendable & ServerVersioned>(_ attempts: [T]) async throws -> UploadResult<T> {
+        try await upload("/v1/me/pr-attempts", attempts, chunk: 200) { AttemptsBody(attempts: $0) }
     }
 
     /// Climbing sessions (#312; app-defined; must encode `id`, `start`, `minutes`, `effort`, `kind`).
@@ -272,10 +285,9 @@ public actor APIClient {
         try await authorized("GET", "/v1/me/climbs", Empty?.none, as: ClimbsResponse<T>.self).climbs
     }
 
-    public func pushClimbs<T: Encodable & Sendable>(_ climbs: [T]) async throws {
-        for chunk in stride(from: 0, to: climbs.count, by: 200).map({ Array(climbs[$0..<min($0 + 200, climbs.count)]) }) {
-            _ = try await authorizedRaw("POST", "/v1/me/climbs", ClimbsBody(climbs: chunk))
-        }
+    @discardableResult
+    public func pushClimbs<T: Codable & Sendable & ServerVersioned>(_ climbs: [T]) async throws -> UploadResult<T> {
+        try await upload("/v1/me/climbs", climbs, chunk: 200) { ClimbsBody(climbs: $0) }
     }
 
     public func deleteClimb(_ id: UUID) async throws {
@@ -287,10 +299,9 @@ public actor APIClient {
         try await authorized("GET", "/v1/me/sports", Empty?.none, as: SportsResponse<T>.self).sports
     }
 
-    public func pushSports<T: Encodable & Sendable>(_ sports: [T]) async throws {
-        for chunk in stride(from: 0, to: sports.count, by: 200).map({ Array(sports[$0..<min($0 + 200, sports.count)]) }) {
-            _ = try await authorizedRaw("POST", "/v1/me/sports", SportsBody(sports: chunk))
-        }
+    @discardableResult
+    public func pushSports<T: Codable & Sendable & ServerVersioned>(_ sports: [T]) async throws -> UploadResult<T> {
+        try await upload("/v1/me/sports", sports, chunk: 200) { SportsBody(sports: $0) }
     }
 
     public func deleteSport(_ id: UUID) async throws {
@@ -309,10 +320,9 @@ public actor APIClient {
         try await authorized("GET", "/v1/me/machine-notes", Empty?.none, as: MachineNotesResponse<T>.self).notes
     }
 
-    public func pushMachineNotes<T: Encodable & Sendable>(_ notes: [T]) async throws {
-        for chunk in stride(from: 0, to: notes.count, by: 200).map({ Array(notes[$0..<min($0 + 200, notes.count)]) }) {
-            _ = try await authorizedRaw("POST", "/v1/me/machine-notes", MachineNotesBody(notes: chunk))
-        }
+    @discardableResult
+    public func pushMachineNotes<T: Codable & Sendable & ServerVersioned>(_ notes: [T]) async throws -> UploadResult<T> {
+        try await upload("/v1/me/machine-notes", notes, chunk: 200) { MachineNotesBody(notes: $0) }
     }
 
     public func deleteMachineNote(_ id: UUID) async throws {
@@ -349,10 +359,9 @@ public actor APIClient {
         try await authorized("GET", "/v1/me/body-measurements", Empty?.none, as: MeasurementsResponse<T>.self).measurements
     }
 
-    public func pushBodyMeasurements<T: Encodable & Sendable>(_ measurements: [T]) async throws {
-        for chunk in stride(from: 0, to: measurements.count, by: 200).map({ Array(measurements[$0..<min($0 + 200, measurements.count)]) }) {
-            _ = try await authorizedRaw("POST", "/v1/me/body-measurements", MeasurementsBody(measurements: chunk))
-        }
+    @discardableResult
+    public func pushBodyMeasurements<T: Codable & Sendable & ServerVersioned>(_ measurements: [T]) async throws -> UploadResult<T> {
+        try await upload("/v1/me/body-measurements", measurements, chunk: 200) { MeasurementsBody(measurements: $0) }
     }
 
     public func deleteBodyMeasurement(_ id: UUID) async throws {
@@ -436,6 +445,22 @@ public actor APIClient {
     struct MeasurementsBody<T: Encodable>: Encodable { var measurements: [T] }
     struct MeasurementsResponse<T: Decodable>: Decodable { var measurements: [T] }
 
+    /// Uploads `items` in chunks of `size`, each with its `baseUpdatedAt`; collects the conflicts and new versions.
+    /// An answer this app can't read doesn't fail the upload (it was written): it just adds nothing.
+    private func upload<T: Codable & Sendable & ServerVersioned, B: Encodable>(
+        _ path: String, _ items: [T], chunk size: Int, body: ([VersionedUpload<T>]) -> B
+    ) async throws -> UploadResult<T> {
+        var result = UploadResult<T>()
+        for start in stride(from: 0, to: items.count, by: size) {
+            let chunk = Array(items[start..<min(start + size, items.count)])
+            let data = try await authorizedRaw("POST", path, body(chunk.map { VersionedUpload(item: $0) }))
+            let response = try? decode(UploadResponse<T>.self, data)
+            let ids = try? decode(UploadConflictIds.self, data)
+            result.add(response, ids: ids, uploaded: chunk)
+        }
+        return result
+    }
+
     func authenticate(_ path: String, _ body: some Encodable) async throws -> User {
         let data = try await send("POST", path, body)
         let r = try decode(AuthResponse.self, data)
@@ -461,15 +486,17 @@ public actor APIClient {
         try decode(type, try await authorizedRaw(method, path, body))
     }
 
-    /// Adds bearer token; refreshes proactively (≤30 s left) and once on 401.
-    func authorizedRaw(_ method: String, _ path: String, _ body: (some Encodable)?, raw: (data: Data, contentType: String)? = nil) async throws -> Data {
+    /// Adds bearer token; refreshes proactively (≤30 s left) and once on 401. `headers`: extra request headers.
+    func authorizedRaw(
+        _ method: String, _ path: String, _ body: (some Encodable)?, raw: (data: Data, contentType: String)? = nil, headers: [String: String] = [:]
+    ) async throws -> Data {
         guard var t = tokens.load() else { throw APIError.signedOut }
         if t.accessExpiresAt.timeIntervalSince(now()) < 30 { t = try await refreshed(t) }
         do {
-            return try await send(method, path, body, bearer: t.accessToken, raw: raw)
+            return try await send(method, path, body, bearer: t.accessToken, raw: raw, headers: headers)
         } catch let APIError.server(status, _, _) where status == 401 {
             t = try await refreshed(t)
-            return try await send(method, path, body, bearer: t.accessToken, raw: raw)
+            return try await send(method, path, body, bearer: t.accessToken, raw: raw, headers: headers)
         }
     }
 
@@ -496,12 +523,14 @@ public actor APIClient {
     }
 
     func send(
-        _ method: String, _ path: String, _ body: (some Encodable)?, bearer: String? = nil, raw: (data: Data, contentType: String)? = nil
+        _ method: String, _ path: String, _ body: (some Encodable)?, bearer: String? = nil, raw: (data: Data, contentType: String)? = nil,
+        headers: [String: String] = [:]
     ) async throws -> Data {
         guard let url = URL(string: path, relativeTo: baseURL) else { throw APIError.network("Bad URL \(path)") }
         var req = URLRequest(url: url)
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Accept")
+        for (field, value) in headers { req.setValue(value, forHTTPHeaderField: field) }
         if let deviceName { req.setValue(deviceName, forHTTPHeaderField: "X-Device-Name") }
         if let bearer {
             req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")

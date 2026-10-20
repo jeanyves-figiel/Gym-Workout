@@ -15,7 +15,6 @@ struct CustomExerciseBuilderView: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var showCamera = false
     @State private var designing = false
-    @State private var confirmArchive = false
     @State private var pickingMuscles = false
     /// What the builder opened with, the Undo baseline (#285).
     @State private var start: CustomExercise
@@ -53,18 +52,10 @@ struct CustomExerciseBuilderView: View {
 
     // Split out of `body` so it type-checks in time.
     @ToolbarContentBuilder private var toolbarItems: some ToolbarContent {
-        // Both on the trailing side: a leading item next to the inline large title gets
-        // collapsed by iOS 26 into an overflow "•••" button whose menu can't show the icon-only X.
+        // Both on the trailing side (#539): a leading item gets collapsed by iOS 26 into an overflow "•••" button
+        // whose menu can't show the icon-only X.
         if existing == nil {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(action: saveNew) {
-                    Text("Save").font(.system(.body, design: .rounded).weight(.heavy))
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.lime)
-                .foregroundStyle(Theme.ink)
-                .disabled(!draft.isComplete)
-            }
+            SaveToolbarItem(disabled: !draft.isComplete, action: saveNew)
         }
         CloseToolbarItem { dismiss() }
     }
@@ -95,6 +86,8 @@ struct CustomExerciseBuilderView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
+                    ContentTitle(title: existing == nil ? "New exercise" : "Edit exercise",
+                                 subtitle: existing == nil ? "New exercise · Save to keep" : "Your exercise · saves as you go")
                     if draftRestored {
                         DraftRestoredStrip {
                             if let draftKey { DraftStore.clear(draftKey) }
@@ -117,8 +110,7 @@ struct CustomExerciseBuilderView: View {
             .readableWidth()
             .scrollDismissesKeyboard(.interactively)
             .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle(existing == nil ? "New exercise" : "Edit exercise")
-            .toolbarTitleDisplayMode(.inlineLarge)
+            .titleInContent(existing == nil ? "New exercise" : "Edit exercise")
             .toolbar { toolbarItems }
             // Editing one of my exercises saves on its own (#437) while it's complete.
             .autoSave(autoSaveValue, title: "Exercise", symbol: "figure.strengthtraining.traditional",
@@ -148,16 +140,6 @@ struct CustomExerciseBuilderView: View {
                     }
                     photoItem = nil
                 }
-            }
-            .confirmationDialog("Remove this exercise?", isPresented: $confirmArchive, titleVisibility: .visible) {
-                Button("Remove", role: .destructive) {
-                    archived.done()
-                    model.archiveCustomExercise(draft.id)
-                    closeGuard.done()
-                    dismiss()
-                }
-            } message: {
-                Text("It disappears from the picker. Workouts and history that use it keep it.")
             }
         }
         .undoableClose(closeGuard, offer: undoOffer)
@@ -217,7 +199,8 @@ struct CustomExerciseBuilderView: View {
                     ForEach(WorkoutEngine.Category.allCases) { c in
                         Button { draft.category = c } label: {
                             CategoryTile(title: c.label, symbol: c.symbol, count: nil, fill: AnyShapeStyle(c.gradient),
-                                         iconColor: .white, selected: draft.category == c, dimmed: draft.category != c)
+                                         iconColor: draft.category == c ? c.ink : .white, selected: draft.category == c, dimmed: draft.category != c,
+                                         ink: c.ink)
                         }
                         .buttonStyle(.plain)
                     }
@@ -390,12 +373,27 @@ struct CustomExerciseBuilderView: View {
         }
     }
 
+    /// Removes at once (#539): it leaves the picker (workouts and history keep it); the Undo bar brings it back.
     private var archiveButton: some View {
-        Button(role: .destructive) { confirmArchive = true } label: {
+        Button(role: .destructive) { archive() } label: {
             Text("Remove exercise").font(.body.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 12)
         }
         .buttonStyle(.bordered)
         .tint(.red)
+    }
+
+    private func archive() {
+        let id = draft.id, name = draft.name
+        archived.done()
+        model.archiveCustomExercise(id)
+        closeGuard.done()
+        dismiss()
+        UndoCloseCenter.shared.deleted("\(name.isEmpty ? "Exercise" : name) removed", detail: "Workouts and history keep it",
+                                       symbol: "figure.strengthtraining.traditional") { [model] in
+            guard var e = model.customExercise(id) else { return }
+            e.archived = false
+            _ = model.saveCustomExercise(e)
+        }
     }
 
     private func section<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {

@@ -1,6 +1,7 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { gunzipSync, gzipSync } from 'node:zlib';
+import { createCipheriv, createDecipheriv, createHash, randomBytes, scrypt as scryptCb, type ScryptOptions } from 'node:crypto';
+import { readFile, writeFile } from 'node:fs/promises';
+import { promisify } from 'node:util';
+import { gunzip as gunzipCb, gzip as gzipCb } from 'node:zlib';
 import { signV4 } from './ses.ts';
 
 /**
@@ -25,24 +26,30 @@ type Fetch = (input: URL, init: RequestInit) => Promise<Response>;
 const MAGIC = Buffer.from('MWB1');
 const PREFIX = 'backups/';
 
-export const encryptBackup = (plain: Buffer, passphrase: string): Buffer => {
+const SCRYPT = { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
+const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number, opts: ScryptOptions) => Promise<Buffer>;
+const gzip = promisify(gzipCb);
+const gunzip = promisify(gunzipCb);
+
+/** Key derivation and (de)compression run off the event loop (libuv pool), so the API keeps serving meanwhile. */
+export const encryptBackup = async (plain: Buffer, passphrase: string): Promise<Buffer> => {
   const salt = randomBytes(16);
   const iv = randomBytes(12);
-  const key = scryptSync(passphrase, salt, 32, { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+  const key = await scrypt(passphrase, salt, 32, SCRYPT);
   const c = createCipheriv('aes-256-gcm', key, iv);
-  const body = Buffer.concat([c.update(gzipSync(plain)), c.final()]);
-  return Buffer.concat([MAGIC, salt, iv, c.getAuthTag(), body]);
+  const body = [c.update(await gzip(plain)), c.final()];
+  return Buffer.concat([MAGIC, salt, iv, c.getAuthTag(), ...body]);
 };
 
-export const decryptBackup = (blob: Buffer, passphrase: string): Buffer => {
+export const decryptBackup = async (blob: Buffer, passphrase: string): Promise<Buffer> => {
   if (!blob.subarray(0, 4).equals(MAGIC)) throw new Error('not an encrypted MonkeyWorkout backup');
   const salt = blob.subarray(4, 20);
   const iv = blob.subarray(20, 32);
   const tag = blob.subarray(32, 48);
-  const key = scryptSync(passphrase, salt, 32, { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+  const key = await scrypt(passphrase, salt, 32, SCRYPT);
   const d = createDecipheriv('aes-256-gcm', key, iv);
   d.setAuthTag(tag);
-  return gunzipSync(Buffer.concat([d.update(blob.subarray(48)), d.final()]));
+  return gunzip(Buffer.concat([d.update(blob.subarray(48)), d.final()]));
 };
 
 export const objectKey = (day: string) => `${PREFIX}app-${day}.db.enc`;
@@ -68,7 +75,8 @@ export class OffsiteStore {
     const res = await this.fetchFn(url, {
       method,
       headers: { 'x-amz-content-sha256': hash, 'x-amz-date': amzDate, authorization },
-      body: method === 'PUT' ? new Uint8Array(body) : undefined,
+      // A view over the same bytes, not a copy of a backup-sized buffer.
+      body: method === 'PUT' ? new Uint8Array(body.buffer as ArrayBuffer, body.byteOffset, body.byteLength) : undefined,
       signal: AbortSignal.timeout(120_000),
     });
     if (!res.ok && !(method === 'DELETE' && res.status === 404)) {
@@ -94,7 +102,7 @@ export class OffsiteStore {
 
   /** Encrypts and uploads a backup file, then deletes copies older than `keepDays`. */
   async upload(file: string, day: string): Promise<{ key: string; bytes: number; pruned: number }> {
-    const blob = encryptBackup(readFileSync(file), this.c.passphrase);
+    const blob = await encryptBackup(await readFile(file), this.c.passphrase);
     const key = objectKey(day);
     await this.request('PUT', key, {}, blob);
     const cutoff = new Date(this.now().getTime() - this.c.keepDays * 86_400_000).toISOString().slice(0, 10);
@@ -110,6 +118,6 @@ export class OffsiteStore {
   /** Downloads and decrypts one day's copy to `dest`; refuses to overwrite an existing file. */
   async download(day: string, dest: string): Promise<void> {
     const res = await this.request('GET', objectKey(day));
-    writeFileSync(dest, decryptBackup(Buffer.from(await res.arrayBuffer()), this.c.passphrase), { mode: 0o600, flag: 'wx' });
+    await writeFile(dest, await decryptBackup(Buffer.from(await res.arrayBuffer()), this.c.passphrase), { mode: 0o600, flag: 'wx' });
   }
 }

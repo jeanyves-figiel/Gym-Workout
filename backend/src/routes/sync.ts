@@ -23,6 +23,38 @@ export const beforeSql = (col: string, idCol: string, q: { before?: string; befo
 };
 
 
+/** Optional on each uploaded item: the server `updatedAt` the device's edit started from (conflict detection). */
+export const baseUpdatedAt = z.iso.datetime({ offset: true }).nullish();
+
+/** Server copy of an opaque synced record, as the pulls send it: stored JSON plus `updatedAt`. */
+export const opaqueCopy = (row: { data: string; updated_at: string }) => ({ ...(JSON.parse(row.data) as object), updatedAt: row.updated_at });
+
+/**
+ * Optimistic concurrency on uploads: an item with `baseUpdatedAt` is only written when the member's server row isn't
+ * newer; otherwise it's left out and its server copy returned in `conflicts` for the app to merge. Items without it
+ * overwrite as before. `baseUpdatedAt` is stripped so it never lands in stored JSON. Call inside the upsert's transaction.
+ */
+export const takeConflicts = <T extends { id: string; baseUpdatedAt?: string | null }, R extends { updated_at: string }>(
+  db: DB,
+  table: string,
+  userId: string,
+  items: T[],
+  serverCopy: (row: R) => unknown,
+): { fresh: T[]; conflicts: unknown[] } => {
+  const get = db.prepare(`SELECT * FROM ${table} WHERE id = ? AND user_id = ?`);
+  const fresh: T[] = [];
+  const conflicts: unknown[] = [];
+  for (const { baseUpdatedAt: base, ...item } of items) {
+    const row = base ? (get.get(item.id, userId) as R | undefined) : undefined;
+    if (row && row.updated_at > new Date(base!).toISOString()) conflicts.push(serverCopy(row));
+    else fresh.push(item as T);
+  }
+  return { fresh, conflicts };
+};
+
+/** `conflicts` on an upload answer, only when there are some (older apps never send `baseUpdatedAt`). */
+export const conflictsField = (conflicts: unknown[]): { conflicts?: unknown[] } => (conflicts.length ? { conflicts } : {});
+
 /** Synced item kinds that keep tombstones (#432); one per `/v1/me/<kind>` route. */
 export type SyncKind =
   | 'logs'
@@ -54,9 +86,22 @@ export const deletedSince = (db: DB, userId: string, kind: SyncKind, since: stri
     }[]
   ).map((r) => r.item_id);
 
-/** `deleted` for a since pull: always present (maybe empty) when `since` was given, absent on a full pull. */
-export const deletedField = (db: DB, userId: string, kind: SyncKind, since: string | undefined): { deleted?: string[] } =>
-  since === undefined ? {} : { deleted: deletedSince(db, userId, kind, since) };
+/**
+ * `deleted` for a since pull: always present (maybe empty) when `since` was given, absent on a full pull. With a
+ * `since` older than the tombstone retention, deletes may have been purged: `fullResync: true` tells the app to pull
+ * everything again (additive; older apps ignore it).
+ */
+export const deletedField = (
+  db: DB,
+  userId: string,
+  kind: SyncKind,
+  since: string | undefined,
+  now: Date,
+): { deleted?: string[]; fullResync?: true } => {
+  if (since === undefined) return {};
+  const horizon = new Date(now.getTime() - TOMBSTONE_KEEP_DAYS * 86_400_000).toISOString();
+  return { deleted: deletedSince(db, userId, kind, since), ...(since < horizon ? { fullResync: true as const } : {}) };
+};
 
 /**
  * An upload of a deleted id brings it back (Undo in the app re-saves the same id): its tombstone goes, so the

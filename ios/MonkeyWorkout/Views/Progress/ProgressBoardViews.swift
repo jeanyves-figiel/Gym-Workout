@@ -105,8 +105,8 @@ struct ProgressWidgetEditChrome<Content: View>: View {
                 .font(.system(size: 14, weight: .black))
                 .foregroundStyle(.white)
                 .frame(width: 28, height: 28)
-                .background(Circle().fill(Color(white: 0.3)))
-                .overlay(Circle().strokeBorder(Theme.bg, lineWidth: 2))
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(white: 0.3)))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.bg, lineWidth: 2))
         }
         .buttonStyle(.plain)
         .offset(x: -8, y: -8)
@@ -219,6 +219,7 @@ struct ProgressWidgetGallery: View {
                 }
                 .padding(16)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Add widget")
             .navigationBarTitleDisplayMode(.inline)
@@ -277,7 +278,11 @@ struct ProgressCustomiseSheet: View {
     var body: some View {
         let board = model.progressBoard
         NavigationStack {
+            // Explore-style gradient rows (#539), as Customise Train: removing is instant with Undo.
             List {
+                ContentTitle(title: "Customise Progress",
+                             subtitle: "Drag ≡ to reorder · swipe left to remove · Add widget adds a card per sport")
+                    .cardRow()
                 Section("Presets") {
                     ForEach(ProgressBoard.Preset.allCases) { p in
                         Button {
@@ -289,24 +294,19 @@ struct ProgressCustomiseSheet: View {
                                     Text(p.detail).font(.caption).foregroundStyle(Theme.muted)
                                 }
                                 Spacer()
-                                if model.progressBoardPreset == p { Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.lime) }
+                                SquareToggle(on: model.progressBoardPreset == p)
                             }
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .accessibilityAddTraits(model.progressBoardPreset == p ? .isSelected : [])
+                        .darkCardRow()
                     }
                 }
-                Section {
-                    ForEach(board.widgets) { w in row(w) }
+                Section("On Progress") {
+                    ForEach(board.widgets) { w in row(w).gradientRow(w.gradient) }
                         .onMove { from, to in model.editProgressBoard { $0.move(fromOffsets: from, toOffset: to) } }
-                        .onDelete { idx in
-                            let ids = idx.map { board.widgets[$0].id }
-                            model.editProgressBoard { b in ids.forEach { b.remove($0) } }
-                        }
-                } header: {
-                    Text("On Progress")
-                } footer: {
-                    Text("Drag ≡ to reorder, swipe left to remove. Add widget adds a card per sport.")
+                        .onDelete { idx in remove(idx.map { board.widgets[$0] }, from: board) }
                 }
                 if !board.addable.isEmpty {
                     Section("Add") {
@@ -318,36 +318,46 @@ struct ProgressCustomiseSheet: View {
                                     icon(ProgressWidget(kind))
                                     VStack(alignment: .leading, spacing: 1) {
                                         Text(kind.title).font(Theme.label(14))
-                                        Text(kind.detail).font(.caption).foregroundStyle(Theme.muted).lineLimit(2)
+                                        Text(kind.detail).font(.caption.weight(.semibold)).opacity(0.8).lineLimit(2)
                                     }
                                     Spacer()
-                                    Image(systemName: "plus.circle.fill").font(.title3).foregroundStyle(Theme.lime)
+                                    SquareToggle(on: false)
                                 }
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Add \(kind.title)")
+                            .gradientRow(ProgressWidget(kind).gradient)
+                            .opacity(0.75)
                         }
                     }
                 }
                 Section {
                     Button("Reset to default") { withAnimation { model.setProgressBoard(nil) } }
+                        .font(Theme.label(15))
                         .foregroundStyle(Theme.lime)
                         .disabled(!model.progressBoardCustomised)
+                        .darkCardRow()
                 }
             }
             .environment(\.editMode, .constant(.active))
             .themedForm()
-            .navigationTitle("Customise Progress")
-            .navigationBarTitleDisplayMode(.inline)
+            .titleInContent("Customise Progress")
             .toolbar { CloseToolbarItem { dismiss() } }
         }
     }
 
+    /// Swipe-removed widgets go at once; the Undo bar puts the board back.
+    private func remove(_ widgets: [ProgressWidget], from board: ProgressBoard) {
+        let ids = widgets.map(\.id)
+        model.editProgressBoard { b in ids.forEach { b.remove($0) } }
+        UndoCloseCenter.shared.deleted("\(widgets.first?.title ?? "Widget") removed", symbol: "rectangle.stack.badge.minus") { [model] in
+            model.setProgressBoard(board)
+        }
+    }
+
     private func icon(_ w: ProgressWidget) -> some View {
-        Image(systemName: w.symbol)
-            .font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
-            .frame(width: 30, height: 30)
-            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(w.gradient))
+        IconTile(symbol: w.symbol, size: 30)
     }
 
     private func row(_ w: ProgressWidget) -> some View {
@@ -366,10 +376,10 @@ struct ProgressCustomiseSheet: View {
                     Text(w.size.title)
                         .font(Theme.label(12)).foregroundStyle(Theme.ink)
                         .padding(.horizontal, 9).padding(.vertical, 4)
-                        .background(Capsule().fill(Theme.lime))
+                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Theme.lime))
                 }
             } else {
-                Text(w.size.title).font(Theme.label(12)).foregroundStyle(Theme.muted)
+                Text(w.size.title).font(Theme.label(12)).opacity(0.7)
             }
         }
     }

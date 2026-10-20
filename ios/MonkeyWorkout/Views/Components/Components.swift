@@ -114,8 +114,9 @@ enum PasswordRules {
     }
 }
 
-/// Round X that closes a sheet (#149): top right, so it never covers the sheet's title.
-/// Sheets with their own Save put it top left (#168) so X and Save don't share one capsule.
+/// X that closes a sheet (#149): top right, so it never covers the sheet's title.
+/// Standard sheet chrome (#539): sheets that create something new put a lime `SaveToolbarItem` just before it;
+/// sheets editing something that exists auto-save (`.autoSave`) and have the X only.
 struct CloseToolbarItem: ToolbarContent {
     var placement: ToolbarItemPlacement = .topBarTrailing
     let action: () -> Void
@@ -158,5 +159,132 @@ struct StackedMenuRow<Content: View>: View {
         .buttonStyle(.plain)
         .accessibilityLabel(title)
         .accessibilityValue(value)
+    }
+}
+
+// MARK: - Standard sheet chrome (#539)
+
+/// Lime Save beside the close X, only on sheets that create something new (existing records auto-save).
+/// Declare it before `CloseToolbarItem` so the X stays in the corner.
+struct SaveToolbarItem: ToolbarContent {
+    var title = "Save"
+    var disabled = false
+    let action: () -> Void
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Button(action: action) {
+                Text(title).font(Theme.label(15)).foregroundStyle(disabled ? Theme.muted : Theme.ink)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(Theme.lime)
+            .disabled(disabled)
+        }
+    }
+}
+
+/// Heavy screen title drawn in the content (#539), so it never sits under the toolbar's glass buttons.
+struct ContentTitle: View {
+    let title: String
+    var subtitle: String? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(Theme.display(30)).foregroundStyle(.white)
+                .lineLimit(2).minimumScaleFactor(0.7)
+            if let subtitle {
+                Text(subtitle).font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
+extension View {
+    /// Pairs with a `ContentTitle` at the top of the content: keeps `title` for the back button and VoiceOver
+    /// but draws nothing in the navigation bar.
+    func titleInContent(_ title: String) -> some View {
+        navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1).accessibilityHidden(true) }
+            }
+    }
+
+    /// List row drawn as an Explore-style gradient card (#539) in place of the grey grouped row.
+    func gradientRow(_ gradient: LinearGradient, ink: Color = .white) -> some View {
+        foregroundStyle(ink)
+            .padding(.vertical, 4)
+            .listRowBackground(
+                RoundedRectangle(cornerRadius: 18, style: .continuous).fill(gradient)
+                    .padding(.vertical, 4).padding(.horizontal, 16)
+            )
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 8, leading: 28, bottom: 8, trailing: 28))
+    }
+
+    /// List row drawn as a dark card (#539), for rows that aren't a coloured item (presets, notes, actions).
+    func darkCardRow() -> some View {
+        padding(.vertical, 2)
+            .listRowBackground(
+                RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.card)
+                    .padding(.vertical, 4).padding(.horizontal, 16)
+            )
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 8, leading: 28, bottom: 8, trailing: 28))
+    }
+}
+
+/// Square on/off mark (#539): the rounded-square toggle on gradient rows. Not a control by itself.
+struct SquareToggle: View {
+    let on: Bool
+    var ink: Color = .white
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .fill(on ? ink : ink.opacity(0.22))
+            .frame(width: 26, height: 26)
+            .overlay {
+                Image(systemName: on ? "checkmark" : "plus")
+                    .font(.system(size: 12, weight: .black))
+                    .foregroundStyle(on ? (ink == .white ? Theme.ink : Color.white) : ink)
+            }
+            .accessibilityHidden(true)
+    }
+}
+
+/// Red gradient card with Retry (#539), in place of a value that didn't load or a request that failed.
+struct InlineErrorCard: View {
+    let title: String
+    var message: String? = nil
+    let retry: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 15, weight: .bold))
+                .frame(width: 34, height: 34)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.2)))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(Theme.label(14))
+                if let message { Text(message).font(.caption.weight(.semibold)).opacity(0.85).lineLimit(2) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: retry) {
+                Text("Retry").font(Theme.label(13)).foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white))
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12).padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(SavedPill.failure))
+        .accessibilityElement(children: .combine)
+        .accessibilityAction(named: "Retry", retry)
     }
 }

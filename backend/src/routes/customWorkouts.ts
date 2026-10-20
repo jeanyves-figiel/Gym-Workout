@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { assertClean, hasAcceptedGuidelines, VISIBILITIES } from '../community/moderation.ts';
 import { type DB, tx } from '../db.ts';
-import { deletedField, reviveUploaded, recordTombstone, sinceQuery } from './sync.ts';
+import { baseUpdatedAt, conflictsField, deletedField, reviveUploaded, recordTombstone, sinceQuery, takeConflicts } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
 import { ApiError } from '../errors.ts';
 
@@ -10,6 +10,7 @@ import { ApiError } from '../errors.ts';
 const customWorkout = z
   .object({
     id: z.uuid(),
+    baseUpdatedAt,
     name: z.string().trim().min(1).max(100),
     items: z.array(z.object({ exerciseId: z.string().min(1).max(128) }).catchall(z.unknown())).max(100),
     /** Workout library (#62): who else can see it; absent = private. */
@@ -46,7 +47,7 @@ export const listCustomWorkouts = (db: DB, userId: string, since?: string) =>
 export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/me/custom-workouts', async (req) => {
     const q = sinceQuery.parse(req.query);
-    return { workouts: listCustomWorkouts(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'custom-workouts', q.since), serverTime: now().toISOString() };
+    return { workouts: listCustomWorkouts(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'custom-workouts', q.since, now()), serverTime: now().toISOString() };
   });
 
   r.post('/me/custom-workouts', async (req) => {
@@ -65,8 +66,9 @@ export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date)
          shared_at = CASE WHEN excluded.visibility = 'private' THEN NULL ELSE COALESCE(custom_workouts.shared_at, excluded.shared_at) END
        WHERE custom_workouts.user_id = excluded.user_id`,
     );
-    const saved = tx(db, () => {
-      const workouts = reviveUploaded(db, userId, 'custom-workouts', b.workouts);
+    const { saved, conflicts } = tx(db, () => {
+      const { fresh, conflicts } = takeConflicts(db, 'custom_workouts', userId, b.workouts, toWorkout);
+      const workouts = reviveUploaded(db, userId, 'custom-workouts', fresh);
       assertRowQuota(db, 'custom_workouts', userId, workouts.map((w) => w.id));
       let count = 0;
       for (const w of workouts) {
@@ -75,9 +77,9 @@ export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date)
         if (json.length > 100_000) throw Object.assign(new Error('Workout too large'), { statusCode: 413 });
         count += Number(up.run(w.id, userId, json, ts, visibility, visibility === 'private' ? null : ts).changes);
       }
-      return count;
+      return { saved: count, conflicts };
     });
-    return { saved, serverTime: ts };
+    return { saved, serverTime: ts, ...conflictsField(conflicts) };
   });
 
   r.delete('/me/custom-workouts/:id', async (req, reply) => {

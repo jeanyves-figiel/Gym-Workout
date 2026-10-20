@@ -23,6 +23,54 @@ export const refundDaily = (db: DB, table: UsageTable, userId: string, day: stri
   db.prepare(`UPDATE ${table} SET count = count - 1 WHERE user_id = ? AND day = ? AND count > 0`).run(userId, day);
 };
 
+/**
+ * Global budget (`AI_DAILY_LIMIT`): one slot of the day's paid model calls across all members, so many accounts at
+ * their own cap can't run up the bill. False when the day is spent.
+ */
+export const reserveGlobal = (db: DB, day: string, limit: number): boolean =>
+  limit > 0 &&
+  !!db
+    .prepare('INSERT INTO ai_daily_usage (day, count) VALUES (?, 1) ON CONFLICT(day) DO UPDATE SET count = count + 1 WHERE count < ? RETURNING count')
+    .get(day, limit);
+
+export const refundGlobal = (db: DB, day: string): void => {
+  db.prepare('UPDATE ai_daily_usage SET count = count - 1 WHERE day = ? AND count > 0').run(day);
+};
+
+/**
+ * Member's slot then a global one (#432 + global budget). The member's new count, `member` when their day is full,
+ * `all` when the global budget is (their slot is given back). Undo a taken pair with `refundAiCall`.
+ */
+export const reserveAiCall = (
+  db: DB,
+  table: UsageTable,
+  userId: string,
+  day: string,
+  limit: number,
+  globalLimit: number,
+): number | 'member' | 'all' => {
+  const count = reserveDaily(db, table, userId, day, limit);
+  if (count === undefined) return 'member';
+  if (!reserveGlobal(db, day, globalLimit)) {
+    refundDaily(db, table, userId, day);
+    return 'all';
+  }
+  return count;
+};
+
+export const refundAiCall = (db: DB, table: UsageTable, userId: string, day: string): void => {
+  refundDaily(db, table, userId, day);
+  refundGlobal(db, day);
+};
+
+/** Scans need a verified email, Sign in with Apple, or an account older than a day: throwaway sign-ups can't farm them. */
+export const trustedAccount = (db: DB, userId: string, now: Date): boolean => {
+  const u = db.prepare('SELECT email_verified_at, apple_sub, created_at FROM users WHERE id = ?').get(userId) as
+    | { email_verified_at: string | null; apple_sub: string | null; created_at: string }
+    | undefined;
+  return !!u && (!!u.email_verified_at || !!u.apple_sub || u.created_at <= new Date(now.getTime() - 86_400_000).toISOString());
+};
+
 /** Per-member cap on model calls running at once; `enter` is false when the member already has `max` in flight. */
 export const inFlight = (max: number) => {
   const running = new Map<string, number>();

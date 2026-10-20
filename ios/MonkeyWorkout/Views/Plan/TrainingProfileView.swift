@@ -87,7 +87,7 @@ struct ProfileSectionCard: View {
             Image(systemName: symbol)
                 .font(.system(size: 22, weight: .bold))
                 .frame(width: 52, height: 52)
-                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.22)))
+                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(light ? Theme.ink.opacity(0.12) : .white.opacity(0.22)))
             VStack(alignment: .leading, spacing: 3) {
                 Text(section.title).font(Theme.display(21)).lineLimit(1).minimumScaleFactor(0.6)
                 Text(value).font(.footnote.weight(.semibold)).opacity(0.88).lineLimit(2)
@@ -102,7 +102,7 @@ struct ProfileSectionCard: View {
             .fixedSize()
             Image(systemName: locked ? "lock.fill" : "chevron.right").font(.footnote.bold()).opacity(0.7)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(light ? Theme.ink : .white)
         .padding(16)
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(gradient))
         .opacity(locked ? 0.55 : 1)
@@ -112,6 +112,16 @@ struct ProfileSectionCard: View {
     }
 
     private var gymName: String { profile.gym?.name ?? Gym.puls5.name }
+
+    /// On the light warm-up gradient: dark type (#540).
+    private var light: Bool {
+        switch section {
+        case .flow: true
+        case .time: WorkoutTimeOfDay(profile.workoutTime) == .morning || WorkoutTimeOfDay(profile.workoutTime) == .unset
+        case .method: profile.trainingMethod == .volume
+        default: false
+        }
+    }
 
     private var symbol: String {
         switch section {

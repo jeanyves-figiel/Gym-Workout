@@ -27,6 +27,15 @@ export const ensureSchemaExtras = (db: DB): void => {
     CREATE INDEX IF NOT EXISTS email_changes_user ON email_changes(user_id);
     CREATE INDEX IF NOT EXISTS codes_expires ON codes(expires_at);
     CREATE INDEX IF NOT EXISTS refresh_expires ON refresh_tokens(expires_at);
+    -- Shared library look-up by id in any letter case (routes/library.ts: lower(w.id) = lower(?)).
+    CREATE INDEX IF NOT EXISTS custom_workouts_lower_id ON custom_workouts(lower(id));
+    -- Who saved which shared workout: a member's repeat saves don't bump the counter again.
+    CREATE TABLE IF NOT EXISTS library_saves (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      workout_id TEXT NOT NULL REFERENCES custom_workouts(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, workout_id)
+    );
     -- Climbing sessions (#312), synced from the app (routes/climbs.ts).
     CREATE TABLE IF NOT EXISTS climbs (
       id TEXT PRIMARY KEY,
@@ -50,6 +59,11 @@ export const ensureSchemaExtras = (db: DB): void => {
       user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       key_hash TEXT NOT NULL UNIQUE,
       created_at TEXT NOT NULL
+    );
+    -- Paid model calls (coach chat, gym scan, food scan) across all members per UTC day: the global budget (quota.ts).
+    CREATE TABLE IF NOT EXISTS ai_daily_usage (
+      day TEXT PRIMARY KEY,
+      count INTEGER NOT NULL
     );
     -- Workout chat (#381): messages per member per UTC day, for the daily cap (routes/coachChat.ts).
     CREATE TABLE IF NOT EXISTS coach_chat_usage (

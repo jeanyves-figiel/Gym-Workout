@@ -149,11 +149,14 @@ struct ExerciseHeroCard: View {
                 Text(n).font(.caption.weight(.semibold)).opacity(0.85).lineLimit(1)
             }
         }
-        .foregroundStyle(.white)
+        // Dark ink on the light warm-up and stretch gradients (#540), white on the rest.
+        .foregroundStyle(cat.ink)
         .padding(compact ? 12 : 16)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(cat.gradient))
-        .shadow(color: cat.color.opacity(0.35), radius: 18, y: 8)
+        // Shadow on the card shape only (the same look: everything sits inside it), so the playing movement isn't
+        // re-shadowed every frame.
+        .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(cat.gradient)
+            .shadow(color: cat.color.opacity(0.35), radius: 18, y: 8))
     }
 
     /// Plays the movement a few times when the exercise shows, then rests on the start; tap replays.
@@ -201,6 +204,7 @@ struct ExerciseHeroCard: View {
             Button { onGroup?() } label: {
                 Label("\(kind) \(labels)", systemImage: "link")
                     .font(Theme.label(12)).lineLimit(1).minimumScaleFactor(0.8)
+                    .foregroundStyle(.white)
                     .padding(.horizontal, 10).padding(.vertical, 6)
                     .background(Capsule().fill(.black.opacity(0.35)))
             }
@@ -229,6 +233,8 @@ private extension View {
         font(Theme.label(11))
             .lineLimit(1)
             .fixedSize()
+            // White on its own dark capsule, whatever the card's ink (#540).
+            .foregroundStyle(.white)
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
             .background(Capsule().fill(.black.opacity(0.45)))

@@ -210,7 +210,7 @@ struct GymFinderView: View {
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Find a gym")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+            .toolbar { CloseToolbarItem { dismiss() } }
             .navigationDestination(item: $selected) { g in
                 GymDetailView(gym: g, onPick: onPick == nil ? nil : { ref in
                     onPick?(ref)

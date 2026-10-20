@@ -104,6 +104,16 @@ describe('Gym Map (#406)', () => {
     expect(((await get(`/v1/gyms/crowd?id=${encodeURIComponent(gym.id)}`, later)).json() as { now: unknown[] }).now).toEqual([]);
   });
 
+  it('drops busy taps past 60 an hour per member', async () => {
+    const a = await signUp('a@example.com');
+    const tap = (zone: string) => send('POST', '/v1/gyms/busy', { gym: { id: gym.id }, zone }, a);
+    for (let i = 0; i < 60; i++) expect((await tap(`zone ${i}`)).json()).toEqual({ saved: true });
+    expect((await tap('zone 60')).json()).toEqual({ saved: false });
+    // a repeat inside 5 minutes is not a new tap
+    expect((await tap('zone 1')).json()).toEqual({ saved: true });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM gym_busy').get()).toEqual({ n: 60 });
+  });
+
   it('scans a photo into known equipment ids and counts the scans', async () => {
     const a = await signUp('a@example.com');
     const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(200, 1)]).toString('base64');

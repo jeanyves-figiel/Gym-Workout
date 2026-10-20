@@ -120,12 +120,13 @@ struct EquipmentSheet: View {
                 .padding(16)
                 .padding(.bottom, 24)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search: rack, swiss ball, rower…")
             .autocorrectionDisabled()
             .navigationTitle("Equipment")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
         .preferredColorScheme(.dark)
     }

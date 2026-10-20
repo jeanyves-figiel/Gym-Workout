@@ -19,6 +19,9 @@ public struct CustomExercise: Codable, Hashable, Sendable, Identifiable {
     public var photo: Data?
     public var drawing: ExerciseDrawing?
     public var archived: Bool
+    /// Server version this copy was pulled or saved as, sent back as `baseUpdatedAt` so an edit never overwrites a
+    /// newer copy from another device. Nil until the server has it.
+    public var updatedAt: String?
 
     public static let idPrefix = "user-"
     public static let maxPhotoBytes = 300_000
@@ -45,7 +48,7 @@ public struct CustomExercise: Codable, Hashable, Sendable, Identifiable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, createdAt, category, primary, secondary, equipment, machine, unit, cues, photo, drawing, archived
+        case id, name, createdAt, category, primary, secondary, equipment, machine, unit, cues, photo, drawing, archived, updatedAt
     }
 
     /// Lenient: records from other app versions may miss fields or carry unknown enum values.
@@ -64,6 +67,7 @@ public struct CustomExercise: Codable, Hashable, Sendable, Identifiable {
         photo = try? c.decodeIfPresent(Data.self, forKey: .photo)
         drawing = try? c.decodeIfPresent(ExerciseDrawing.self, forKey: .drawing)
         archived = (try? c.decodeIfPresent(Bool.self, forKey: .archived)) ?? false
+        updatedAt = (try? c.decodeIfPresent(String.self, forKey: .updatedAt)) ?? nil
     }
 
     private static func lenient(_ c: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) -> [Muscle] {

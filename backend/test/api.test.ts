@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { gunzipSync } from 'node:zlib';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type AppleIdentity, audienceAllowed } from '../src/apple.ts';
@@ -54,6 +55,23 @@ describe('health', () => {
   it('reports mail transport', async () => {
     const r = await app.inject({ method: 'GET', url: '/healthz' });
     expect(r.json()).toEqual({ ok: true, mail: 'console' });
+  });
+});
+
+describe('compression', () => {
+  it('compresses JSON over 1 KB when asked, leaves small and unasked responses alone', async () => {
+    const { tokens } = await signUp();
+    const logs = Array.from({ length: 40 }, () => ({ id: randomUUID(), date: '2026-10-07T18:00:00Z', exerciseId: 'bench', weightKg: 60, reps: 8 }));
+    await post('/v1/me/logs', { logs }, tokens.accessToken);
+    const headers = { authorization: `Bearer ${tokens.accessToken}`, 'accept-encoding': 'gzip' };
+    const big = await app.inject({ method: 'GET', url: '/v1/me/logs', headers });
+    expect(big.headers['content-encoding']).toBe('gzip');
+    expect(JSON.parse(gunzipSync(big.rawPayload).toString()).logs).toHaveLength(40);
+    const exp = await app.inject({ method: 'GET', url: '/v1/me/export', headers });
+    expect(exp.headers['content-encoding']).toBe('gzip');
+    expect(JSON.parse(gunzipSync(exp.rawPayload).toString()).logs).toHaveLength(40);
+    expect((await app.inject({ method: 'GET', url: '/healthz', headers: { 'accept-encoding': 'gzip' } })).headers['content-encoding']).toBeUndefined();
+    expect((await get('/v1/me/logs', tokens.accessToken)).headers['content-encoding']).toBeUndefined();
   });
 });
 
@@ -205,6 +223,25 @@ describe('login & sessions', () => {
     const r = await post('/v1/auth/refresh', { refreshToken: tokens.refreshToken });
     expect(r.statusCode).toBe(200);
     expect((await post('/v1/auth/refresh', { refreshToken: r.json().refreshToken })).statusCode).toBe(200);
+  });
+
+  it('only treats a replay as a lost response shortly after rotation', async () => {
+    const { tokens } = await signUp();
+    const lost = (await post('/v1/auth/refresh', { refreshToken: tokens.refreshToken })).json().refreshToken as string;
+    advance(6 * 60_000);
+    // an old rotated-away token is a replay, even though its replacement was never used
+    expect((await post('/v1/auth/refresh', { refreshToken: tokens.refreshToken })).statusCode).toBe(401);
+    expect((await post('/v1/auth/refresh', { refreshToken: lost })).statusCode).toBe(401);
+  });
+
+  it('does not reissue for a replayed token past its own expiry', async () => {
+    setup({ REFRESH_TTL_DAYS: '1' });
+    const { tokens } = await signUp();
+    advance(86_400_000 - 60_000);
+    const lost = (await post('/v1/auth/refresh', { refreshToken: tokens.refreshToken })).json().refreshToken as string;
+    advance(2 * 60_000);
+    expect((await post('/v1/auth/refresh', { refreshToken: tokens.refreshToken })).statusCode).toBe(401);
+    expect((await post('/v1/auth/refresh', { refreshToken: lost })).statusCode).toBe(401);
   });
 
   it('expires access tokens', async () => {
@@ -361,6 +398,24 @@ describe('account deletion, data sync & export', () => {
     expect((await get('/v1/me', t)).statusCode).toBe(401);
     expect((await post('/v1/auth/login', { email: EMAIL, password: PW })).statusCode).toBe(401);
     expect(mailer.outbox.at(-1)!.subject).toContain('account deleted');
+  });
+
+  it('streams the export as one JSON document, three times an hour at most', async () => {
+    const t = (await signUp()).tokens.accessToken;
+    const r = await get('/v1/me/export', t);
+    expect(r.statusCode).toBe(200);
+    expect(r.headers['content-type']).toBe('application/json; charset=utf-8');
+    expect(r.headers['content-disposition']).toBe('attachment; filename="gym-workout-export.json"');
+    expect(r.headers['cache-control']).toBe('no-store');
+    const exp = r.json();
+    // same document as JSON.stringify of the whole object, key order kept
+    expect(r.body).toBe(JSON.stringify(exp));
+    expect(Object.keys(exp).slice(0, 4)).toEqual(['exportedAt', 'user', 'profile', 'logs']);
+    expect((await get('/v1/me/export', t)).statusCode).toBe(200);
+    expect((await get('/v1/me/export', t)).statusCode).toBe(200);
+    const limited = await get('/v1/me/export', t);
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json().error).toBe('rate_limited');
   });
 
   it('stores per-set fields (setIndex, rir) and keeps legacy logs working', async () => {

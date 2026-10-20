@@ -34,7 +34,7 @@ struct NotHereSheet: View {
                         }
                         Spacer(minLength: 0)
                     }
-                    .gradientCard(exercise.category.gradient)
+                    .gradientCard(exercise.category.gradient, ink: exercise.category.ink)
 
                     Text(candidates.count > 1 ? "What's missing?" : "Missing here").eyebrow()
                     EquipmentPickGrid(items: candidates, picked: $picked)

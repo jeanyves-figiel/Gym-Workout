@@ -1,13 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type DB, tx } from '../db.ts';
-import { deletedField, reviveUploaded, recordTombstone, sinceQuery } from './sync.ts';
+import { baseUpdatedAt, conflictsField, deletedField, opaqueCopy, reviveUploaded, recordTombstone, sinceQuery, takeConflicts } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
 
 /** Personal-record attempts (#60): app-defined records; the typed fields are what a future community feed reads. */
 const prAttempt = z
   .object({
     id: z.uuid(),
+    baseUpdatedAt,
     exerciseId: z.string().min(1).max(128),
     date: z.iso.datetime({ offset: true }),
     kind: z.enum(['oneRepMax', 'repMax', 'maxReps']),
@@ -31,7 +32,7 @@ export const listPrAttempts = (db: DB, userId: string, since?: string) =>
 export const prAttemptRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/me/pr-attempts', async (req) => {
     const q = sinceQuery.parse(req.query);
-    return { attempts: listPrAttempts(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'pr-attempts', q.since), serverTime: now().toISOString() };
+    return { attempts: listPrAttempts(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'pr-attempts', q.since, now()), serverTime: now().toISOString() };
   });
 
   r.post('/me/pr-attempts', async (req) => {
@@ -42,8 +43,9 @@ export const prAttemptRoutes = (r: FastifyInstance, db: DB, now: () => Date) => 
        ON CONFLICT(id) DO UPDATE SET exercise_id = excluded.exercise_id, date = excluded.date, data = excluded.data, updated_at = excluded.updated_at
        WHERE pr_attempts.user_id = excluded.user_id`,
     );
-    const saved = tx(db, () => {
-      const attempts = reviveUploaded(db, req.userId!, 'pr-attempts', b.attempts);
+    const { saved, conflicts } = tx(db, () => {
+      const { fresh, conflicts } = takeConflicts(db, 'pr_attempts', req.userId!, b.attempts, opaqueCopy);
+      const attempts = reviveUploaded(db, req.userId!, 'pr-attempts', fresh);
       assertRowQuota(db, 'pr_attempts', req.userId!, attempts.map((a) => a.id));
       let count = 0;
       for (const a of attempts) {
@@ -51,9 +53,9 @@ export const prAttemptRoutes = (r: FastifyInstance, db: DB, now: () => Date) => 
         if (json.length > 20_000) throw Object.assign(new Error('Attempt too large'), { statusCode: 413 });
         count += Number(up.run(a.id, req.userId!, a.exerciseId, a.date, json, ts).changes);
       }
-      return count;
+      return { saved: count, conflicts };
     });
-    return { saved, serverTime: ts };
+    return { saved, serverTime: ts, ...conflictsField(conflicts) };
   });
 
   r.delete('/me/pr-attempts/:id', async (req, reply) => {

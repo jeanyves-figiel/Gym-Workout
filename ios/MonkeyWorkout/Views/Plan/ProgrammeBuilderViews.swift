@@ -89,6 +89,7 @@ struct ProgrammeWorkoutPicker: View {
                 }
                 .padding(16)
             }
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Pick a workout")
             .navigationBarTitleDisplayMode(.inline)
@@ -287,7 +288,6 @@ struct ProgrammeEditorView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var adding = false
-    @State private var confirmDelete = false
     @State private var start: Programme? = nil
     @State private var closeGuard = CloseGuard()
     /// Set on Delete so a pending auto save doesn't bring it back (#437).
@@ -341,7 +341,7 @@ struct ProgrammeEditorView: View {
                             Button { remove(sig) } label: {
                                 Image(systemName: "xmark").font(.system(size: 13, weight: .heavy))
                                     .frame(width: 32, height: 32)
-                                    .background(Circle().fill(.white.opacity(0.2)))
+                                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.2)))
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Remove \(sig.name)")
@@ -383,7 +383,7 @@ struct ProgrammeEditorView: View {
                         Text("Changes save on their own.").font(.caption).foregroundStyle(Theme.muted)
                     }
                     if !isNew {
-                        Button("Delete programme", role: .destructive) { confirmDelete = true }
+                        Button("Delete programme", role: .destructive) { delete() }
                             .font(.footnote.weight(.bold))
                             .frame(maxWidth: .infinity)
                     }
@@ -391,32 +391,17 @@ struct ProgrammeEditorView: View {
                 .padding(16)
             }
             .scrollDismissesKeyboard(.interactively)
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle(isNew ? "Make it mine" : "Edit programme")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { dismiss() } label: { Image(systemName: "xmark") }.accessibilityLabel("Close")
-                }
-            }
+            .toolbar { CloseToolbarItem { dismiss() } }
             // Editing a saved programme saves on its own (#437).
             .autoSave(isNew || start == nil ? nil : programme, title: "Programme", symbol: programme.symbol,
                       detail: { undoDetail($0.name, $0.plan) },
                       save: { [model, deleted] in if !deleted.saved { model.saveProgramme(Self.cleaned($0)) } })
             .sheet(isPresented: $adding) {
                 ProgrammeWorkoutPicker { programme.signatures.append($0.signature(progression: true)) }
-            }
-            .confirmationDialog("Delete \(programme.name)?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("Delete programme", role: .destructive) {
-                    deleted.done()
-                    closeGuard.done()
-                    model.deleteProgramme(programme.id)
-                    dismiss()
-                }
-            } message: {
-                Text(model.activeProgramme?.programmeId == programme.id
-                     ? "It keeps running until you leave or finish it."
-                     : "Your workouts and history stay.")
             }
         }
         .onAppear {
@@ -468,6 +453,21 @@ struct ProgrammeEditorView: View {
         model.saveProgramme(Self.cleaned(programme))
         closeGuard.done()
         dismiss()
+    }
+
+    /// Deleted at once (#539); Undo saves it back. A running programme keeps running until left or finished.
+    private func delete() {
+        let stored = model.myProgrammes.first { $0.id == programme.id } ?? Self.cleaned(programme)
+        let running = model.activeProgramme?.programmeId == programme.id
+        deleted.done()
+        closeGuard.done()
+        model.deleteProgramme(stored.id)
+        dismiss()
+        UndoCloseCenter.shared.deleted("\(stored.name) deleted",
+                                       detail: running ? "Keeps running until you leave or finish it" : "Your workouts and history stay",
+                                       symbol: stored.symbol) { [model] in
+            model.saveProgramme(stored)
+        }
     }
 }
 
@@ -573,6 +573,7 @@ struct ProgrammeBuilderView: View {
                 .padding(16)
             }
             .scrollDismissesKeyboard(.interactively)
+            .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("New programme")
             .navigationBarTitleDisplayMode(.inline)
@@ -647,7 +648,7 @@ struct ProgrammeBuilderView: View {
                         Text(days[i] == nil ? "AUTO" : "SIGNATURE").font(Theme.label(10)).tracking(1).opacity(0.85)
                         if days[i] != nil {
                             Image(systemName: "xmark").font(.system(size: 12, weight: .heavy))
-                                .frame(width: 28, height: 28).background(Circle().fill(.white.opacity(0.2)))
+                                .frame(width: 28, height: 28).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.2)))
                                 .onTapGesture { days[i] = nil }
                                 .accessibilityLabel("Back to auto")
                         }

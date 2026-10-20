@@ -8,6 +8,8 @@ import WorkoutEngine
 final class LiveWorkout {
     private var activity: Activity<WorkoutActivityAttributes>?
     private static let restNotificationId = "workout.rest.end"
+    /// Last state sent: the player updates on every change, most of which leave the card as it is.
+    private var lastState: WorkoutActivityAttributes.ContentState?
 
     func start(title: String, startedAt: Date, state: WorkoutActivityAttributes.ContentState) {
         #if DEBUG
@@ -34,12 +36,16 @@ final class LiveWorkout {
     }
 
     func update(_ state: WorkoutActivityAttributes.ContentState) {
-        scheduleRestEnd(state)
+        guard state != lastState else { return }
+        // The rest-over buzz only changes with the rest (or what comes next).
+        if state.restEnd != lastState?.restEnd || state.next != lastState?.next { scheduleRestEnd(state) }
+        lastState = state
         guard let activity else { return }
         Task { await activity.update(ActivityContent(state: state, staleDate: state.restEnd)) }
     }
 
     func end() {
+        lastState = nil
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [Self.restNotificationId])
         guard let activity else { return }
         self.activity = nil
@@ -48,6 +54,7 @@ final class LiveWorkout {
 
     /// Finished (#371): the card turns into the workout summary and stays on the lock screen for 15 minutes.
     func finish(_ state: WorkoutActivityAttributes.ContentState) {
+        lastState = nil
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [Self.restNotificationId])
         guard let activity else { return }
         self.activity = nil

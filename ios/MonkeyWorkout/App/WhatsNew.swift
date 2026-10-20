@@ -30,11 +30,22 @@ struct WhatsNew: Decodable, Identifiable {
 
     /// "13 Oct" from `date`, else from the `yyyy-MM-dd` start of `id`.
     var day: String? {
+        guard let d = Self.dayFormatter().date(from: date ?? String(id.prefix(10))) else { return nil }
+        return d.formatted(.dateTime.day().month(.abbreviated))
+    }
+
+    /// Made once per time zone (a formatter is slow to make, and the release list makes one per row).
+    private static let dayFormatters = NSCache<NSString, DateFormatter>()
+
+    private static func dayFormatter() -> DateFormatter {
+        let zone = TimeZone.current
+        if let f = dayFormatters.object(forKey: zone.identifier as NSString) { return f }
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = zone
         f.dateFormat = "yyyy-MM-dd"
-        guard let d = f.date(from: date ?? String(id.prefix(10))) else { return nil }
-        return d.formatted(.dateTime.day().month(.abbreviated))
+        dayFormatters.setObject(f, forKey: zone.identifier as NSString)
+        return f
     }
 
     private static func load<T: Decodable>(_ name: String, as: T.Type) -> T? {

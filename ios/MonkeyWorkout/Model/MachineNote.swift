@@ -39,6 +39,8 @@ struct MachineNote: Codable, Identifiable, Hashable, Sendable {
     var text: String?
     /// Server id of the photo; nil = none on the server.
     var photoId: String?
+    /// Server version this copy was pulled or saved as (`ServerVersioned`); nil until the server has it.
+    var updatedAt: String?
 
     var machine: Equipment? { equipment.flatMap(Equipment.init(rawValue:)) }
     var filledFields: [Field] { fields.filter { !$0.value.trimmingCharacters(in: .whitespaces).isEmpty } }
