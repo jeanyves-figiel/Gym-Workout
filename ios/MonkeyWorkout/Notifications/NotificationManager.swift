@@ -69,6 +69,8 @@ final class NotificationManager: NSObject {
     private var deviceToken: String?
     private var registeredFor: String?
     private var prefsDirty = true
+    /// The latest `reschedule`; the next one waits for it.
+    @ObservationIgnored private var rescheduleTask: Task<Void, Never>?
     private let center = UNUserNotificationCenter.current()
 
     override private init() {
@@ -118,8 +120,19 @@ final class NotificationManager: NSObject {
 
     // MARK: Local reminders
 
-    /// Rebuilds pending session reminders and check-ins from the current plan.
+    /// Rebuilds pending session reminders and check-ins from the current plan. Calls run one after another: two
+    /// rebuilds interleaving at their awaits would leave reminders from the older plan.
     func reschedule(_ model: AppModel, now: Date = Date()) async {
+        let previous = rescheduleTask
+        let task = Task {
+            await previous?.value
+            await self.rebuildReminders(model, now: now)
+        }
+        rescheduleTask = task
+        await task.value
+    }
+
+    private func rebuildReminders(_ model: AppModel, now: Date) async {
         await refreshAuthorization()
         let ours = await center.pendingNotificationRequests().map(\.identifier).filter(Self.isOurs)
         center.removePendingNotificationRequests(withIdentifiers: ours)
@@ -388,10 +401,16 @@ final class NotificationManager: NSObject {
     func signOut(api: APIClient) async {
         if let token = deviceToken { try? await api.unregisterPushDevice(token: token) }
         registeredFor = nil
-        prefsDirty = true
+        resetPrefs()
         center.removeAllPendingNotificationRequests()
         center.removeAllDeliveredNotifications()
         pendingCount = 0
+    }
+
+    /// Back to the defaults (sign-out, another account signing in): one account's choices never reach the next.
+    func resetPrefs() {
+        prefs = NotificationPrefs()
+        prefsDirty = true
     }
 
     // MARK: Storage
