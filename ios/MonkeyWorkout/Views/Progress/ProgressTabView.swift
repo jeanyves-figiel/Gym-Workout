@@ -67,6 +67,7 @@ struct ProgressTabView: View {
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
+        .statusBarScrim()
         .proPaywall($gate)
         .sheet(item: $badge) { b in BadgeSheet(badge: b).presentationDetents([.medium]) }
     }

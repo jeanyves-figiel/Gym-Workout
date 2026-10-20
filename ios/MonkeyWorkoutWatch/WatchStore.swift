@@ -97,6 +97,8 @@ final class WatchStore: NSObject {
         #if DEBUG
         if Demo.on { return }
         #endif
+        // The water complication (#520) shows the new count at once.
+        save()
         guard WCSession.isSupported() else { return }
         WCSession.default.transferUserInfo([WatchKeys.water: today])
     }

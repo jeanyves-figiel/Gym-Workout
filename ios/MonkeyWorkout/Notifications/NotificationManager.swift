@@ -38,6 +38,7 @@ final class NotificationManager: NSObject {
         static let follow = "FOLLOW_ACHIEVEMENT"
         static let badge = "BADGE_UNLOCKED"
         static let move = "MOVE_NUDGE"
+        static let water = "WATER_NUDGE"
     }
 
     enum Action {
@@ -45,6 +46,9 @@ final class NotificationManager: NSObject {
         static let reschedule = "RESCHEDULE"
         static let moveLater = "MOVE_LATER"
         static let moveRest = "MOVE_REST"
+        static let waterOne = "WATER_ONE"
+        static let waterTwo = "WATER_TWO"
+        static let waterLater = "WATER_LATER"
     }
 
     private static let prefsKey = "notifications.prefs"
@@ -82,6 +86,12 @@ final class NotificationManager: NSObject {
             UNNotificationCategory(identifier: Category.missed, actions: [train, move], intentIdentifiers: []),
             UNNotificationCategory(identifier: Category.follow, actions: [], intentIdentifiers: []),
             UNNotificationCategory(identifier: Category.badge, actions: [], intentIdentifiers: []),
+            // Water (#520): counted from the banner or the Watch, without opening the app.
+            UNNotificationCategory(identifier: Category.water, actions: [
+                UNNotificationAction(identifier: Action.waterOne, title: "+1 glass", options: []),
+                UNNotificationAction(identifier: Action.waterTwo, title: "+2", options: []),
+                UNNotificationAction(identifier: Action.waterLater, title: "Later", options: []),
+            ], intentIdentifiers: []),
             UNNotificationCategory(identifier: Category.move, actions: [
                 UNNotificationAction(identifier: Action.moveLater, title: "Later", options: []),
                 UNNotificationAction(identifier: Action.moveRest, title: "Rest day", options: []),
@@ -143,6 +153,7 @@ final class NotificationManager: NSObject {
         let stillMissed = Set(source.plannedSessions(from: from, through: today, calendar: cal).filter { !$0.done }
             .map { "missed|\($0.sessionId)|\(ReminderPlanner.dayKey($0.day, calendar: cal))" })
         center.removeDeliveredNotifications(withIdentifiers: delivered.filter { !stillMissed.contains($0) })
+        await scheduleWater(now: now)
     }
 
     /// Sport-day start nudge (#418, design C): 08:00 on planned sport days, mirrored to the Watch. Dives are left to dive apps.
@@ -209,6 +220,49 @@ final class NotificationManager: NSObject {
         content.userInfo = ["kind": "fuel"]
         try? await center.add(UNNotificationRequest(identifier: "fuel|\(dayKey)", content: content,
                                                     trigger: UNTimeIntervalNotificationTrigger(timeInterval: 90 * 60, repeats: false)))
+    }
+
+    /// Water nudges for the rest of today (#520, design A), on the pace from `WaterPace`: rebuilt whenever a glass is
+    /// counted, the water settings change or the plan is rescheduled.
+    func scheduleWater(now: Date = Date()) async {
+        let old = await center.pendingNotificationRequests().map(\.identifier).filter { $0.hasPrefix("water|") }
+        center.removePendingNotificationRequests(withIdentifiers: old)
+        #if DEBUG
+        if Demo.enabled { return }
+        #endif
+        let store = FuelStore.shared
+        guard allowed, store.saved.setUp, let plan = store.planFor?(now) else { return }
+        let cal = Calendar.current
+        let minute = cal.component(.hour, from: now) * 60 + cal.component(.minute, from: now)
+        let nudges = WaterPace.nudges(plan, glasses: store.log(now).glasses, prefs: store.prefs, water: store.waterPrefs,
+                                      now: minute, quiet: { [prefs] in prefs.isQuiet($0) }, calendar: cal)
+        let day = cal.startOfDay(for: now)
+        for n in nudges {
+            guard let at = cal.date(byAdding: .minute, value: n.minute, to: day), at > now else { continue }
+            await postWater(id: "water|\(store.key(now))|\(n.minute)", title: n.title, body: n.body,
+                            trigger: UNCalendarNotificationTrigger(dateMatching: cal.dateComponents([.year, .month, .day, .hour, .minute], from: at), repeats: false))
+        }
+    }
+
+    /// "Later": one water nudge in an hour, outside quiet hours and before 22:00.
+    func waterLater(now: Date = Date()) async {
+        let at = now.addingTimeInterval(3600)
+        let cal = Calendar.current
+        let minute = cal.component(.hour, from: at) * 60 + cal.component(.minute, from: at)
+        guard cal.isDate(at, inSameDayAs: now), minute < 22 * 60, !prefs.isQuiet(minute) else { return }
+        await postWater(id: "water|later|\(Int(at.timeIntervalSince1970))", title: "Time for a glass 💧",
+                        body: "A glass now keeps you on pace.", trigger: UNTimeIntervalNotificationTrigger(timeInterval: 3600, repeats: false))
+    }
+
+    private func postWater(id: String, title: String, body: String, trigger: UNNotificationTrigger) async {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.threadIdentifier = "water"
+        content.categoryIdentifier = Category.water
+        content.userInfo = ["kind": "water"]
+        try? await center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
     }
 
     func cancelRefuel(dayKey: String) {
@@ -375,6 +429,19 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
                 }
                 Task { @MainActor in
                     if later { await NotificationManager.shared.moveLater() }
+                    completionHandler()
+                }
+            }
+            return
+        }
+        if info["kind"] as? String == "water", [Action.waterOne, Action.waterTwo, Action.waterLater].contains(response.actionIdentifier) {
+            let action = response.actionIdentifier
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    if action != Action.waterLater { FuelStore.shared.addGlasses(action == Action.waterTwo ? 2 : 1) }
+                }
+                Task { @MainActor in
+                    if action == Action.waterLater { await NotificationManager.shared.waterLater() }
                     completionHandler()
                 }
             }

@@ -116,7 +116,8 @@ final class HomeWidgetSync {
         let minute = Calendar.current.component(.hour, from: now) * 60 + Calendar.current.component(.minute, from: now)
         let next = fuel.slots.first { $0.minute >= minute && log.ticks[$0.id] == nil }
         s.fuel = .init(headline: fuel.headline, palms: log.eaten.palms, palmsTarget: fuel.portions.palms,
-                       glasses: log.glasses, glassesTarget: fuel.glasses, next: next?.title, nextTime: next?.time)
+                       glasses: log.glasses, glassesTarget: fuel.glasses, next: next?.title, nextTime: next?.time,
+                       day: now, glassMl: FuelStore.shared.prefs.glassMl)
         return s
     }
 }

@@ -27,12 +27,14 @@ struct StatComplications: WidgetBundle {
         TopLiftWidget()
         LastWorkoutWidget()
         MyStatWidget()
+        WaterWidget()
     }
 }
 
 enum ComplicationKind: String, CaseIterable {
     case next = "NextWorkout", week = "WeekGoal", streak = "Streak", weekStrip = "WeekStrip"
     case readiness = "Readiness", topLift = "TopLift", lastWorkout = "LastWorkout"
+    case water = "Water"
 
     var name: String {
         switch self {
@@ -43,6 +45,7 @@ enum ComplicationKind: String, CaseIterable {
         case .readiness: "Readiness"
         case .topLift: "Top lift"
         case .lastWorkout: "Last workout"
+        case .water: "Water"
         }
     }
 
@@ -55,6 +58,7 @@ enum ComplicationKind: String, CaseIterable {
         case .readiness: "Readiness from Apple Health: push, as planned or easier."
         case .topLift: "Your best lifts, one at a time."
         case .lastWorkout: "When you last trained, minutes and sets."
+        case .water: "Glasses today against Fuel's target (#520). Tap to add one."
         }
     }
 }
@@ -108,6 +112,7 @@ struct WeekStripWidget: Widget { var body: some WidgetConfiguration { mwConfigur
 struct ReadinessWidget: Widget { var body: some WidgetConfiguration { mwConfiguration(.readiness) } }
 struct TopLiftWidget: Widget { var body: some WidgetConfiguration { mwConfiguration(.topLift) } }
 struct LastWorkoutWidget: Widget { var body: some WidgetConfiguration { mwConfiguration(.lastWorkout) } }
+struct WaterWidget: Widget { var body: some WidgetConfiguration { mwConfiguration(.water) } }
 
 // MARK: My stat (pick what it shows)
 
@@ -321,6 +326,19 @@ struct Face {
                 eyebrow = "LAST WORKOUT"; title = "No workout yet"; detail = "Start one today"; value = "–"
                 cornerLabel = "NO WORKOUT YET"; inline = "No workout yet"
             }
+        case .water:
+            symbol = "drop.fill"; tint = (0x2EC5FF, 0x2F6BFF); eyebrow = "WATER"
+            if let w = i.water, w.target > 0 {
+                let g = w.today(entry.date)
+                title = "\(g)/\(w.target) glasses"
+                detail = g >= w.target ? "Target hit 💧" : "\(w.target - g) to go · tap to add"
+                value = "\(g)"; cornerLabel = "WATER \(g)/\(w.target)"; inline = "💧 \(g)/\(w.target) glasses"
+                gauge = min(1, Double(g) / Double(w.target))
+            } else {
+                title = "No target yet"; detail = "Set up Fuel on iPhone"; value = "–"
+                cornerLabel = "WATER"; inline = "💧 Water"
+            }
+            ring = [MW.color(0x2EC5FF), MW.color(0x2F6BFF)]
         }
     }
 }

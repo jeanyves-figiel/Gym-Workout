@@ -296,6 +296,16 @@ struct ReadableWidth: ViewModifier {
 extension View {
     func readableWidth() -> some View { modifier(ReadableWidth()) }
 
+    /// Tab screens without a navigation bar: content scrolling up stops at the status bar and Dynamic Island
+    /// instead of showing through it.
+    func statusBarScrim() -> some View {
+        overlay(alignment: .top) {
+            Color.clear.frame(height: 0)
+                .background(Theme.bg.ignoresSafeArea(edges: .top))
+                .allowsHitTesting(false)
+        }
+    }
+
     /// Fixed (non-scrolling) layouts: caps width at `Theme.readableWidth`, centred.
     func readableColumn() -> some View {
         frame(maxWidth: Theme.readableWidth).frame(maxWidth: .infinity)

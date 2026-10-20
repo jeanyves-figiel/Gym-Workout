@@ -42,11 +42,15 @@ final class FuelStore {
         var market: String?
         /// The member's supplements (#514); optional so older saves still load.
         var supplements: [Supplement]?
+        /// Water reminders (#520); nil = defaults (remind when behind, quiet during training).
+        var water: WaterPrefs?
     }
 
     private(set) var saved = Saved()
     /// Glasses tapped today go to Apple Health as dietary water.
     @ObservationIgnored weak var health: HealthManager?
+    /// The day's plan from the app model, for glasses counted outside Fuel (widgets, notification buttons).
+    @ObservationIgnored var planFor: ((Date) -> FuelPlan)?
 
     private static var url: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("fuel.json")
@@ -70,6 +74,16 @@ final class FuelStore {
         s.prefs = p
         s.setUp = true
         save(s)
+        Task { await NotificationManager.shared.scheduleWater() }
+    }
+
+    var waterPrefs: WaterPrefs { saved.water ?? WaterPrefs() }
+
+    func setWaterPrefs(_ w: WaterPrefs) {
+        var s = saved
+        s.water = w
+        save(s)
+        Task { await NotificationManager.shared.scheduleWater() }
     }
 
     func markSetUp() {
@@ -90,12 +104,15 @@ final class FuelStore {
             let ml = Double((log.glasses - glasses) * s.prefs.glassMl)
             Task { await health.saveWater(ml: ml) }
         }
+        let water = log.glasses != glasses && cal.isDateInToday(day)
         s.logs[k] = log.isEmpty ? nil : log
         if cal.startOfDay(for: day) <= cal.startOfDay(for: Date()) {
             let earned = (log.proteinHit(plan) ? FuelWeek.proteinXP : 0) + (log.waterHit(plan) ? FuelWeek.waterXP : 0)
             s.hits[k] = earned > 0 ? earned : nil
         }
         save(s)
+        // Reminders follow the glasses known now (#520).
+        if water { Task { await NotificationManager.shared.scheduleWater() } }
     }
 
     var stack: [Supplement] { saved.supplements ?? [] }
@@ -249,6 +266,19 @@ final class FuelStore {
     func addGlass(dayKey: String, plan: FuelPlan) {
         guard let day = PlanCalendar.date(dayKey, cal) else { return }
         update(day, plan: plan) { $0.glasses += 1 }
+    }
+
+    /// Glasses from a widget or a notification button.
+    func addGlasses(_ n: Int, on day: Date = Date()) {
+        guard n > 0, let plan = planFor?(day) else { return }
+        update(day, plan: plan) { $0.glasses += n }
+    }
+
+    /// Glasses tapped on the water widget while the app was closed (#520).
+    func applyWidgetGlasses() {
+        guard planFor != nil else { return }
+        let taken = WaterQueue.take()
+        for (day, dates) in Dictionary(grouping: taken, by: { cal.startOfDay(for: $0) }) { addGlasses(dates.count, on: day) }
     }
 
     func markNudged(_ day: Date) {

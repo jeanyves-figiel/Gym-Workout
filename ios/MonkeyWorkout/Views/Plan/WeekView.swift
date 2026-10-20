@@ -103,6 +103,7 @@ struct WeekView: View {
         .environment(\.trainCompact, visibleHeight < 670)
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
+        .statusBarScrim()
         .navigationTitle("Train")
         .toolbarTitleDisplayMode(.inlineLarge)
         .navigationDestination(for: String.self) { id in SessionView(sessionId: id) }

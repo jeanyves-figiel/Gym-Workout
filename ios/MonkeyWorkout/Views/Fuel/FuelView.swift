@@ -123,6 +123,7 @@ struct FuelView: View {
                     SegmentItem(value: $0, title: $0.label, symbol: $0.symbol)
                 }, gradient: FuelPalette.hot)
                 FuelDayStrip(day: $day)
+                FuelToolRow()
                 if let e = plan.event { FuelEventCard(event: e) }
                 switch store.prefs.layout {
                 case .dashboard: FuelDashboard(plan: plan, log: log, day: day, open: { slot = $0 })
@@ -130,7 +131,6 @@ struct FuelView: View {
                 case .portions: FuelPortionsView(plan: plan, log: log, day: day, open: { slot = $0 })
                 }
                 FuelStackCard(plan: plan, log: log, day: day)
-                FuelTools(plan: plan)
                 Text(FuelLearn.disclaimer)
                     .font(.caption2.weight(.semibold)).foregroundStyle(Theme.muted)
                     .padding(.top, 4)
@@ -140,6 +140,7 @@ struct FuelView: View {
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
+        .statusBarScrim()
         .navigationTitle("Fuel")
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $setup) { NavigationStack { FuelSetupView(sheet: true) } }
@@ -402,6 +403,7 @@ struct FuelDashboard: View {
                     }
                     .buttonStyle(.plain)
                     FuelIdeaChips(slot: next, plan: plan)
+                    if Calendar.current.isDateInToday(day) { FuelSlotActions(slot: next, day: day) }
                 }
                 .foregroundStyle(.white)
                 .padding(14)
@@ -409,17 +411,7 @@ struct FuelDashboard: View {
                 .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(FuelPalette.violet))
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("WATER · TAP A GLASS").font(Theme.label(10)).tracking(1.2).opacity(0.85)
-                    Spacer()
-                    Text("\(log.glasses)/\(plan.glasses)").font(Theme.display(17)).monospacedDigit()
-                }
-                WaterGlasses(filled: log.glasses, target: plan.glasses) { n in store.update(day, plan: plan) { $0.glasses = n } }
-            }
-            .foregroundStyle(.white)
-            .padding(14)
-            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(FuelPalette.water))
+            FuelWaterCard(plan: plan, log: log, day: day, title: "WATER · TAP A GLASS")
 
             FuelCoachCard(plan: plan)
         }
@@ -504,6 +496,10 @@ struct FuelTimeline: View {
         // Supplements sit between meals (#514); a meal shake shows in its meal's row instead.
         let rows = (plan.slots.map(Row.meal) + plan.activities.map(Row.training)
             + plan.supplements.filter { $0.replaces == nil }.map(Row.supplement)).sorted { $0.minute < $1.minute }
+        let now = Calendar.current.dateComponents([.hour, .minute], from: Date())
+        let minute = (now.hour ?? 0) * 60 + (now.minute ?? 0)
+        let next = Calendar.current.isDateInToday(day)
+            ? plan.slots.first { s in s.minute >= minute - 30 && log.ticks[s.id] == nil && !plan.supplements.contains { $0.replaces == s.id } }?.id : nil
         VStack(spacing: 8) {
             FuelCoachCard(plan: plan)
             ForEach(rows) { row in
@@ -512,7 +508,7 @@ struct FuelTimeline: View {
                         .font(Theme.label(11)).foregroundStyle(Theme.muted).monospacedDigit()
                         .frame(width: 40, alignment: .trailing).padding(.top, 14)
                     switch row {
-                    case .meal(let s): meal(s)
+                    case .meal(let s): meal(s, next: s.id == next)
                     case .training(let a): training(a)
                     case .supplement(let d):
                         SupplementDoseRow(dose: d, plan: plan, log: log, day: day)
@@ -525,37 +521,43 @@ struct FuelTimeline: View {
         }
     }
 
-    private func meal(_ s: FuelSlot) -> some View {
+    private func meal(_ s: FuelSlot, next: Bool) -> some View {
         let shake = plan.supplements.first { $0.replaces == s.id }
         let done = shake.map { log.taken($0) } ?? (log.ticks[s.id] != nil)
         let kind = s.afterTraining ? MealKind.recovery : s.kind
-        return HStack(spacing: 10) {
-            Button { open(s) } label: {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("\(s.kind.emoji) \(s.title.uppercased())").font(Theme.label(10)).tracking(1).opacity(0.9)
-                    Text(shake.map { "\($0.supplement.emoji) \($0.supplement.name)" } ?? ideaName(s) ?? s.hint).font(Theme.display(15)).lineLimit(2).minimumScaleFactor(0.8)
-                        .multilineTextAlignment(.leading)
-                    Text(store.prefs.noNumbers ? "✋ \(s.portions.palms) · 🤲 \(s.portions.cups) · ✊ \(s.portions.fists)"
-                         : "\(s.protein) g protein · \(s.carbs) g carbs")
-                        .font(.system(size: 11, weight: .bold, design: .rounded)).opacity(0.85)
+        let dark = kind == .pre || kind == .breakfast || kind == .lunch
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Button { open(s) } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("\(s.kind.emoji) \(s.title.uppercased())").font(Theme.label(10)).tracking(1).opacity(0.9)
+                        Text(shake.map { "\($0.supplement.emoji) \($0.supplement.name)" } ?? ideaName(s) ?? s.hint).font(Theme.display(15)).lineLimit(2).minimumScaleFactor(0.8)
+                            .multilineTextAlignment(.leading)
+                        Text(store.prefs.noNumbers ? "✋ \(s.portions.palms) · 🤲 \(s.portions.cups) · ✊ \(s.portions.fists)"
+                             : "\(s.protein) g protein · \(s.carbs) g carbs")
+                            .font(.system(size: 11, weight: .bold, design: .rounded)).opacity(0.85)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .buttonStyle(.plain)
-            Button {
-                store.update(day, plan: plan) { l in
-                    if let shake { if done { l.untick(shake) } else { l.tick(shake) } } else if done { l.untick(s.id) } else { l.tick(s) }
+                .buttonStyle(.plain)
+                Button {
+                    store.update(day, plan: plan) { l in
+                        if let shake { if done { l.untick(shake) } else { l.tick(shake) } } else if done { l.untick(s.id) } else { l.tick(s) }
+                    }
+                } label: {
+                    Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 26, weight: .bold))
                 }
-            } label: {
-                Image(systemName: done ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 26, weight: .bold))
+                .buttonStyle(.plain)
+                .accessibilityLabel(done ? "Eaten, tap to undo" : "Mark eaten")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(done ? "Eaten, tap to undo" : "Mark eaten")
+            // The next meal carries its actions (#525, design C).
+            if next { FuelSlotActions(slot: s, day: day, dark: dark) }
         }
-        .foregroundStyle(kind == .pre || kind == .breakfast || kind == .lunch ? Theme.ink : .white)
+        .foregroundStyle(dark ? Theme.ink : .white)
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(FuelPalette.meal(kind)))
+        .overlay { if next { RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.lime, lineWidth: 2) } }
         .opacity(done ? 0.75 : 1)
     }
 
@@ -627,17 +629,7 @@ struct FuelPortionsView: View {
             Text("Tap a tile for each portion you ate. Hold to take one back.")
                 .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("💧 WATER").font(Theme.label(10)).tracking(1.2).opacity(0.85)
-                    Spacer()
-                    Text("\(log.glasses)/\(plan.glasses)").font(Theme.display(17)).monospacedDigit()
-                }
-                WaterGlasses(filled: log.glasses, target: plan.glasses) { n in store.update(day, plan: plan) { $0.glasses = n } }
-            }
-            .foregroundStyle(.white)
-            .padding(14)
-            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(FuelPalette.water))
+            FuelWaterCard(plan: plan, log: log, day: day)
 
             if let line = coachLine {
                 Button { if let s = nextSlot { open(s) } } label: {
@@ -674,10 +666,11 @@ struct FuelPortionsView: View {
             HStack {
                 Text(k.emoji).font(.system(size: 24))
                 Spacer()
-                Text("\(have)/\(target)").font(Theme.display(22)).monospacedDigit()
+                Text("\(have)/\(target)").font(Theme.display(22)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
             }
             Text("\(k.label.uppercased()) · \(k.food.uppercased())").font(Theme.label(9)).tracking(0.8).lineLimit(1).minimumScaleFactor(0.7)
-            HStack(spacing: 3) {
+            // Big days can ask for 15+ portions: the squares wrap inside the tile instead of pushing it off screen.
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 11, maximum: 11), spacing: 3)], alignment: .leading, spacing: 3) {
                 ForEach(0..<max(target, have), id: \.self) { i in
                     RoundedRectangle(cornerRadius: 3).fill(i < have ? ink : ink.opacity(0.25)).frame(width: 11, height: 11)
                 }
@@ -702,7 +695,6 @@ struct FuelPortionsView: View {
 
 // MARK: - Tools
 
-/// Doors to the rest of Fuel, under every layout.
 /// Fuel screens, pushed by value like the recipes inside them: a value link inside a screen pushed with a
 /// destination link popped the recipe straight back (#508).
 enum FuelRoute: Hashable {
@@ -725,63 +717,83 @@ extension View {
     }
 }
 
-struct FuelTools: View {
-    let plan: FuelPlan
+/// Fuel's tools in one row of square tiles under the date bar (#525, design A): always one tap away, the day below
+/// doesn't move.
+struct FuelToolRow: View {
     @Environment(AppModel.self) private var model
     @State private var store = FuelStore.shared
 
     var body: some View {
         let today = store.key(Date())
         let planned = store.saved.plan.filter { $0.day >= today }.count
-        VStack(spacing: 10) {
-            NavigationLink(value: FuelRoute.pantry) {
-                FuelTile(emoji: "🧊", label: "What I have", title: store.saved.pantry.isEmpty ? "Type, pick or scan your food" : "Meals from your fridge",
-                         detail: store.saved.pantry.isEmpty ? "Get meals that fit your day" : "\(store.saved.pantry.count) foods at home",
-                         gradient: FuelPalette.mint) {
-                    Image(systemName: "camera.viewfinder").font(.system(size: 22, weight: .bold))
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("fuel.pantry")
-            HStack(spacing: 10) {
-                NavigationLink(value: FuelRoute.mealPlan) {
-                    square("🗓️", "Meal plan", planned > 0 ? "\(planned) meals" : "Plan days", FuelPalette.violet)
-                }
-                .buttonStyle(.plain)
-                NavigationLink(value: FuelRoute.groceries) {
-                    square("🛒", "Groceries", planned > 0 ? "\(model.groceries().count) items" : "From your plan", FuelPalette.hot)
-                }
-                .buttonStyle(.plain)
-            }
-            HStack(spacing: 10) {
-                NavigationLink(value: FuelRoute.recipes(nil)) {
-                    square("📖", "Recipes", "\(RecipeBook.catalog.count + store.saved.recipes.count)", FuelPalette.coach)
-                }
-                .buttonStyle(.plain)
-                NavigationLink(value: FuelRoute.week) {
-                    square("📈", "Fuel week", "Streaks", FuelPalette.water)
-                }
-                .buttonStyle(.plain)
-                NavigationLink(value: FuelRoute.learn) {
-                    square("🎓", "Learn", "\(FuelLearn.cards.count) reads", FuelPalette.gradient(0x3D4BFF, 0x8A4DFF))
-                }
-                .buttonStyle(.plain)
-            }
+        let pantry = store.saved.pantry.count
+        HStack(spacing: 6) {
+            tile(.pantry, "🧊", "I have", pantry > 0 ? "\(pantry)" : nil, FuelPalette.mint, name: "What I have", id: "fuel.pantry")
+            tile(.recipes(nil), "📖", "Recipes", nil, FuelPalette.coach, name: "Recipes")
+            tile(.mealPlan, "🗓️", "Plan", planned > 0 ? "\(planned)" : nil, FuelPalette.violet, name: "Meal plan")
+            tile(.groceries, "🛒", "Buy", planned > 0 ? "\(model.groceries().count)" : nil, FuelPalette.hot, name: "Groceries")
+            tile(.week, "📈", "Week", nil, FuelPalette.water, name: "Fuel week")
+            tile(.learn, "🎓", "Learn", nil, FuelPalette.gradient(0x3D4BFF, 0x8A4DFF), name: "Learn")
         }
     }
 
-    private func square(_ emoji: String, _ title: String, _ detail: String, _ g: LinearGradient) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(emoji).font(.system(size: 20))
-                .frame(width: 36, height: 36)
-                .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(.white.opacity(0.2)))
-            Text(title).font(Theme.display(15)).lineLimit(1).minimumScaleFactor(0.7)
-            Text(detail).font(.system(size: 11, weight: .bold, design: .rounded)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.7)
+    private func tile(_ route: FuelRoute, _ emoji: String, _ label: String, _ badge: String?, _ g: LinearGradient,
+                      name: String, id: String? = nil) -> some View {
+        NavigationLink(value: route) {
+            VStack(spacing: 3) {
+                Text(emoji).font(.system(size: 19))
+                Text(label).font(Theme.label(10)).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 54)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(g))
+            .overlay(alignment: .topTrailing) {
+                if let badge {
+                    Text(badge).font(Theme.label(9)).monospacedDigit()
+                        .padding(.horizontal, 4).padding(.vertical, 1)
+                        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(.black.opacity(0.35)))
+                        .foregroundStyle(.white)
+                        .padding(4)
+                }
+            }
         }
-        .foregroundStyle(.white)
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(g))
+        .buttonStyle(.plain)
+        .accessibilityLabel(badge.map { "\(name), \($0)" } ?? name)
+        .accessibilityIdentifier(id ?? "fuel.\(label.lowercased())")
+    }
+}
+
+/// Actions on the next meal's card (#525, design C): cook from what's at home, other recipes, and a planned meal's
+/// missing foods straight to Groceries.
+struct FuelSlotActions: View {
+    let slot: FuelSlot
+    let day: Date
+    var dark = false
+    @State private var store = FuelStore.shared
+
+    var body: some View {
+        let planned = store.saved.plan.first { $0.day == store.key(day) && $0.slot == slot.id }
+            .flatMap { RecipeBook.recipe($0.recipeId, own: store.saved.recipes) }
+        let have = store.pantryIds
+        let missing = have.isEmpty ? [] : (planned?.keys ?? []).filter { !have.contains($0) }
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                chip(.pantry, "🧊 From what I have")
+                chip(.recipes(slot.recipeKind), "📖 Other recipes")
+                if !missing.isEmpty { chip(.groceries, "🛒 \(missing.count) missing · Groceries") }
+            }
+        }
+        .scrollClipDisabled()
+    }
+
+    private func chip(_ route: FuelRoute, _ text: String) -> some View {
+        NavigationLink(value: route) {
+            Text(text).font(Theme.label(11)).lineLimit(1)
+                .padding(.horizontal, 9).padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.black.opacity(dark ? 0.14 : 0.25)))
+        }
+        .buttonStyle(.plain)
     }
 }
 

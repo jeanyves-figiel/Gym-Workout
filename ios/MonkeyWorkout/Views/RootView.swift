@@ -429,6 +429,7 @@ private struct DemoScreen: View {
         case "fuel-week": NavigationStack { FuelWeekView() }
         case "fuel-learn": NavigationStack { FuelLearnView() }
         case "fuel-supplements": NavigationStack { SupplementsView() }
+        case "fuel-water": WaterSheet(plan: model.fuelPlan(on: Date()), glasses: FuelStore.shared.log(Date()).glasses, day: Date())
         case "fuel-setup": NavigationStack { FuelSetupView(sheet: true) }
         case "share-recipe": ShareRecipeSheet(recipe: RecipeBook.catalog[0])
         case "whats-new": if let n = WhatsNew.current { WhatsNewView(notes: n) }

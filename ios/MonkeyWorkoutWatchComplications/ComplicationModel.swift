@@ -26,6 +26,7 @@ struct ComplicationInfo {
     var days: [DayState]?
     var records: [WRecord] = []
     var last: WRecent?
+    var water: WWater?
 
     var progress: Double { target == 0 ? 0 : min(1, Double(done) / Double(target)) }
 
@@ -78,6 +79,7 @@ struct ComplicationInfo {
         readiness = snap.readiness
         records = snap.progress.records
         last = snap.progress.recent.first
+        water = snap.water
 
         let byDay = Dictionary(sessions.compactMap { s in WeekdayName.all.firstIndex(of: s.dayLabel).map { ($0, s) } },
                                uniquingKeysWith: { a, _ in a })
