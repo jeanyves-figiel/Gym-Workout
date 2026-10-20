@@ -27,6 +27,7 @@ export const ensureSubscriptionSchema = (db: DB): void => {
       type TEXT NOT NULL,
       received_at TEXT NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS app_store_notifications_received ON app_store_notifications(received_at);
     CREATE TABLE IF NOT EXISTS access_grants (
       user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       expires_at TEXT,

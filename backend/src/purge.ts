@@ -8,6 +8,9 @@ export interface PurgeResult {
   refreshTokens: number;
 }
 
+/** App Store server notification ids kept for de-duplication. */
+const NOTIFICATION_KEEP_DAYS = 90;
+
 /** Revoked refresh tokens are kept this long so replay detection can still revoke a live family. */
 const REVOKED_GRACE_MS = 24 * 3_600_000;
 
@@ -35,6 +38,8 @@ export const purgeExpired = (db: DB, now: Date = new Date()): PurgeResult => {
     db.prepare(`DELETE FROM ${t} WHERE expires_at <= ?`).run(iso);
   // Sync deletes (#432): old enough that every active device has pulled them.
   db.prepare('DELETE FROM sync_tombstones WHERE deleted_at <= ?').run(new Date(now.getTime() - TOMBSTONE_KEEP_DAYS * 86_400_000).toISOString());
+  // App Store notification ids are kept only to drop Apple's retries, which stop after days.
+  db.prepare('DELETE FROM app_store_notifications WHERE received_at <= ?').run(new Date(now.getTime() - NOTIFICATION_KEEP_DAYS * 86_400_000).toISOString());
   // "Taken?" taps (#406) past the rush-hours window; was done on every tap.
   db.prepare('DELETE FROM gym_busy WHERE at < ?').run(new Date(now.getTime() - BUSY_KEEP_DAYS * 86_400_000).toISOString());
   return { codes, emailChanges, refreshTokens };

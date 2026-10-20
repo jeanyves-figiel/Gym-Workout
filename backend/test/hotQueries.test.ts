@@ -18,6 +18,15 @@ describe('hot queries use an index', () => {
     expect((db.prepare('SELECT at FROM gym_busy').all() as { at: string }[]).map((r) => r.at)).toEqual(['2026-10-01T10:00:00.000Z']);
   });
 
+  it('purges App Store notification ids after 90 days', () => {
+    const db = openDb(':memory:');
+    const add = db.prepare('INSERT INTO app_store_notifications (uuid, type, received_at) VALUES (?, ?, ?)');
+    add.run('old', 'DID_RENEW', '2026-07-01T00:00:00.000Z');
+    add.run('new', 'DID_RENEW', '2026-10-01T00:00:00.000Z');
+    purgeExpired(db, new Date('2026-10-20T10:00:00Z'));
+    expect(db.prepare('SELECT uuid FROM app_store_notifications').all()).toEqual([{ uuid: 'new' }]);
+  });
+
   it('looks up reports about a member by target user', () => {
     const db = openDb(':memory:');
     expect(plan(db, `SELECT 1 FROM users u WHERE ${memberNotHiddenSql('u.id')}`)).toMatch(/INDEX community_reports_target_user/);

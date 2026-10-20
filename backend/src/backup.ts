@@ -10,6 +10,9 @@ import type { DB } from './db.ts';
  */
 
 const FILE = /^app-(\d{4}-\d{2}-\d{2})\.db$/;
+/** Databases set aside by a restore (`applyPendingRestore`); deleted by the daily backup after PRE_RESTORE_KEEP_DAYS. */
+const PRE_RESTORE = /^pre-restore-(\d{4}-\d{2}-\d{2})T[\d-]+Z\.db$/;
+const PRE_RESTORE_KEEP_DAYS = 14;
 /** Daily backups and fetched off-site copies (`app-<day>.offsite.db`, #432) can be restored. */
 const RESTORABLE = /^app-\d{4}-\d{2}-\d{2}(\.offsite)?\.db$/;
 export const RESTORE_FILE = 'restore.db';
@@ -73,6 +76,11 @@ export const backupNow = (db: DB, dir: string, opts: { keep: number; now?: Date 
   }
   renameSync(tmp, join(dir, file));
   for (const old of listBackups(dir).slice(Math.max(1, opts.keep))) rmSync(join(dir, old.file), { force: true });
+  const cutoff = new Date((opts.now ?? new Date()).getTime() - PRE_RESTORE_KEEP_DAYS * 86_400_000).toISOString().slice(0, 10);
+  for (const f of readdirSync(dir)) {
+    const m = PRE_RESTORE.exec(f);
+    if (m && m[1]! < cutoff) rmSync(join(dir, f), { force: true });
+  }
   const info = listBackups(dir).find((b) => b.file === file)!;
   return { ...info, counts: r.counts };
 };
