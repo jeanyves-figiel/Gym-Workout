@@ -98,6 +98,23 @@ describe('member reports (#467)', () => {
     expect(mailer.outbox.some((m) => m.subject.startsWith('Member report'))).toBe(true);
   });
 
+  it('refuses before storing when reports go nowhere, and keeps a report GitHub failed to take', async () => {
+    const count = () => (db.prepare('SELECT COUNT(*) AS n FROM member_reports').get() as { n: number }).n;
+    start({ LEGAL_EMAIL: '' });
+    let t = await signUp('rep@example.com');
+    const off = await send(t);
+    expect(off.statusCode).toBe(503);
+    expect(off.json().error).toBe('reports_off');
+    expect(count()).toBe(0);
+    await app.close();
+    start({ LEGAL_EMAIL: '', GITHUB_REPORTS_TOKEN: 'ghp_test' }, 500);
+    t = await signUp('rep@example.com');
+    const kept = await send(t);
+    expect(kept.statusCode).toBe(201);
+    expect(kept.json().issueNumber).toBeNull();
+    expect(count()).toBe(1);
+  });
+
   it('rejects bad input and non-JPEG screenshots', async () => {
     start();
     const t = await signUp('rep@example.com');
