@@ -172,11 +172,27 @@ struct WeekView: View {
     /// Next up (#266), or the day picked in its strip (#277): that day's workout, or a rest day with Add workout.
     @ViewBuilder private func nextUpCard(_ plan: WeekPlan) -> some View {
         let next = model.nextSession
+        let today = model.todayWeekday
+        // Nothing picked = today (#538 follow-up): the strip and card open on today's date, not on a later session.
+        let opensToday = next.map { $0.weekday != nil && $0.weekday != today } ?? false
+            && plan.sessions.contains { $0.weekday != nil }
         let pick: (Int) -> Void = { wd in
-            withAnimation(.snappy) { pickedDay = pickedDay == wd || (pickedDay == nil && next?.weekday == wd) ? nil : wd }
+            withAnimation(.snappy) {
+                let shown = pickedDay ?? (opensToday ? today : next?.weekday)
+                pickedDay = shown == wd ? nil : wd
+            }
         }
-        let back = { withAnimation(.snappy) { pickedDay = nil } }
-        if let d = pickedDay, !(1...7).contains(d) {
+        // From today's card, "Next up" shows the next session's day; from any other day, back to today.
+        let back = { withAnimation(.snappy) { pickedDay = pickedDay == nil && opensToday ? next?.weekday : nil } }
+        if pickedDay == nil, opensToday {
+            if let s = plan.sessions.first(where: { $0.weekday == today }) {
+                NextUpCard(session: s, picked: today, onPick: pick, onBack: back) { start(s) }
+            } else {
+                RestDayCard(weekday: today, onPick: pick, onBack: back,
+                            onAdd: { addingDay = today; adding = true },
+                            backTitle: next.flatMap { s in s.weekday.map { "Next up · \(WeekSchedule.name($0)) · \(s.displayTitle)" } })
+            }
+        } else if let d = pickedDay, !(1...7).contains(d) {
             // A day of another week (#481) shows in the card too, never as a pop-up.
             otherWeekCard(d, pick: pick, back: back)
         } else if let d = pickedDay, let s = plan.sessions.first(where: { $0.weekday == d }) {
@@ -1002,6 +1018,8 @@ private struct RestDayCard: View {
     var onBack: () -> Void = {}
     /// Plans a workout on this day; nil = not offered (a later week's day, #481).
     var onAdd: (() -> Void)? = nil
+    /// Bottom button title when the card is today's default (#538 follow-up); nil = "Back to next up".
+    var backTitle: String? = nil
     @Environment(AppModel.self) private var model
     @State private var logging: ClimbLog?
     @State private var loggingSport: SportLog?
@@ -1099,7 +1117,7 @@ private struct RestDayCard: View {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.35), style: StrokeStyle(lineWidth: 2, dash: [7, 5]))
             }
-            BackToNextUpButton(label: model.nextSession.map(backLabel) ?? "Back to this week",
+            BackToNextUpButton(label: backTitle ?? model.nextSession.map(backLabel) ?? "Back to this week",
                                action: onBack)
         }
         .padding(20)
