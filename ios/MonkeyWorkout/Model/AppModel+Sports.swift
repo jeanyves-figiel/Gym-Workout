@@ -50,7 +50,8 @@ extension AppModel {
         let pending = (state.sportLogs ?? []).filter { pendingIds.contains($0.id) }
         if !pending.isEmpty {
             try await api.pushSports(pending)
-            state.pendingSportIds?.subtract(pending.map(\.id))
+            // Only clear what is unchanged since the push started (an edit made meanwhile stays queued).
+            for l in pending where state.sportLogs?.first(where: { $0.id == l.id }) == l { state.pendingSportIds?.remove(l.id) }
         }
         let remote = try await api.fetchSports(SportLog.self)
         let stillPending = state.pendingSportIds ?? []

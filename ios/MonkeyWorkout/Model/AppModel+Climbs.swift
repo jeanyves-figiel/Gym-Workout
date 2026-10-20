@@ -42,7 +42,8 @@ extension AppModel {
         let pending = (state.climbs ?? []).filter { pendingIds.contains($0.id) }
         if !pending.isEmpty {
             try await api.pushClimbs(pending)
-            state.pendingClimbIds?.subtract(pending.map(\.id))
+            // Only clear what is unchanged since the push started (an edit made meanwhile stays queued).
+            for c in pending where state.climbs?.first(where: { $0.id == c.id }) == c { state.pendingClimbIds?.remove(c.id) }
         }
         let remote = try await api.fetchClimbs(ClimbLog.self)
         let stillPending = state.pendingClimbIds ?? []

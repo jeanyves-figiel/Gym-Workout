@@ -76,7 +76,8 @@ extension AppModel {
         let pending = (state.prAttempts ?? []).filter { pendingIds.contains($0.id) }
         if !pending.isEmpty {
             try await api.pushPRAttempts(pending)
-            state.pendingPRAttemptIds?.subtract(pending.map(\.id))
+            // Only clear what is unchanged since the push started (an edit made meanwhile stays queued).
+            for a in pending where state.prAttempts?.first(where: { $0.id == a.id }) == a { state.pendingPRAttemptIds?.remove(a.id) }
         }
         let remote = try await api.fetchPRAttempts(PRAttempt.self)
         let stillPending = state.pendingPRAttemptIds ?? []

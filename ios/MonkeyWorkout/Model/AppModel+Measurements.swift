@@ -58,7 +58,8 @@ extension AppModel {
         let pending = (state.measurements ?? []).filter { pendingIds.contains($0.id) }
         if !pending.isEmpty {
             try await api.pushBodyMeasurements(pending)
-            state.pendingMeasurementIds?.subtract(pending.map(\.id))
+            // Only clear what is unchanged since the push started (an edit made meanwhile stays queued).
+            for m in pending where state.measurements?.first(where: { $0.id == m.id }) == m { state.pendingMeasurementIds?.remove(m.id) }
         }
         let remote = try await api.fetchBodyMeasurements(BodyMeasurement.self)
         let stillPending = state.pendingMeasurementIds ?? []

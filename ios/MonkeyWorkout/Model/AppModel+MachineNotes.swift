@@ -92,7 +92,8 @@ extension AppModel {
         let pending = (state.machineNotes ?? []).filter { pendingIds.contains($0.id) }
         if !pending.isEmpty {
             try await api.pushMachineNotes(pending)
-            state.pendingMachineNoteIds?.subtract(pending.map(\.id))
+            // Only clear what is unchanged since the push started (an edit made meanwhile stays queued).
+            for n in pending where state.machineNotes?.first(where: { $0.id == n.id }) == n { state.pendingMachineNoteIds?.remove(n.id) }
         }
         // Photos once their note is on the server.
         for id in state.pendingMachinePhotoIds ?? [] where !(state.pendingMachineNoteIds ?? []).contains(id) {
