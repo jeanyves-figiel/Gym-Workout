@@ -688,24 +688,73 @@ final class AppModel {
     /// Undo a finished workout as if it never happened (#133): removes the record, the sets logged during it
     /// (so progression, PRs, starting loads and progress ignore them), its auto-shared community post, and marks
     /// the session not done so it can be done again. Removed on the server too. Apple Health keeps its workout.
-    func undoWorkout(_ id: UUID) {
-        guard let r = state.history.first(where: { $0.id == id }) else { return }
+    /// `serverAfter` (#539): seconds to wait before the server delete and the post removal, so the Undo bar's
+    /// `restoreWorkout` can put everything back first. Returns what was removed, for that Undo.
+    @discardableResult
+    func undoWorkout(_ id: UUID, serverAfter delay: Double = 0) -> RemovedWorkout? {
+        guard let r = state.history.first(where: { $0.id == id }) else { return nil }
         let logs = setLogs(of: r)
+        var removed = RemovedWorkout(record: r, logs: logs)
         state.history.removeAll { $0.id == id }
         state.pendingHistoryIds.remove(id)
         let logIds = Set(logs.map(\.id))
         state.logs.removeAll { logIds.contains($0.id) }
         state.pendingLogIds.subtract(logIds)
         if r.week == plan?.week, Date().timeIntervalSince(r.startedAt) < 8 * 86_400, let s = plan?.sessions.first(where: { $0.id == r.sessionId }) {
+            removed.sessionId = s.id
+            removed.done = state.done[s.id]
             state.done[s.id] = nil
-            for b in s.blocks { for it in b.items { state.ticked[it.uid] = nil } }
-            if state.activeWorkout?.sessionId == s.id { state.activeWorkout = nil }
+            for b in s.blocks {
+                for it in b.items {
+                    if let t = state.ticked[it.uid] { removed.ticked[it.uid] = t }
+                    state.ticked[it.uid] = nil
+                }
+            }
+            if state.activeWorkout?.sessionId == s.id {
+                removed.active = state.activeWorkout
+                state.activeWorkout = nil
+            }
         }
         // Queued, not fire-and-forget: a failed delete is retried by the next sync, and pulls skip these ids meanwhile.
         state.deletedWorkoutIds = (state.deletedWorkoutIds ?? []).union([id])
         state.deletedLogIds = (state.deletedLogIds ?? []).union(logIds)
         persist()
-        Community.shared.didUndo(r, api: api)
+        guard delay > 0 else {
+            Community.shared.didUndo(r, api: api)
+            Task { await sync() }
+            return removed
+        }
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            // Put back by Undo meanwhile: nothing to delete.
+            guard let self, self.state.deletedWorkoutIds?.contains(id) == true else { return }
+            Community.shared.didUndo(r, api: self.api)
+            await self.sync()
+        }
+        return removed
+    }
+
+    /// Undo of Undo workout (#539): the record and its sets come back as they were, off the delete queues and queued
+    /// for upload again, and this week's session is done again. A copy the server already deleted comes back under a
+    /// new id, since the server ignores re-uploads of deleted ids.
+    func restoreWorkout(_ removed: RemovedWorkout) {
+        var record = removed.record
+        guard !state.history.contains(where: { $0.id == record.id }) else { return }
+        if state.deletedWorkoutIds?.remove(record.id) == nil { record.id = UUID() }
+        state.history.append(record)
+        state.pendingHistoryIds.insert(record.id)
+        for var log in removed.logs where !state.logs.contains(where: { $0.id == log.id }) {
+            if state.deletedLogIds?.remove(log.id) == nil { log.id = UUID() }
+            state.logs.append(log)
+            state.pendingLogIds.insert(log.id)
+        }
+        state.logs.sort { $0.date < $1.date }
+        if let sid = removed.sessionId, plan?.sessions.contains(where: { $0.id == sid }) == true {
+            state.done[sid] = removed.done
+            for (uid, t) in removed.ticked { state.ticked[uid] = t }
+            if state.activeWorkout == nil, let a = removed.active { state.activeWorkout = a }
+        }
+        persist()
         Task { await sync() }
     }
 
@@ -1048,6 +1097,17 @@ final class AppModel {
         guard persistTask != nil else { return }
         persistNow()
     }
+}
+
+/// What Undo workout took away (#539), so its Undo bar can put it back with `AppModel.restoreWorkout`.
+struct RemovedWorkout {
+    let record: WorkoutRecord
+    let logs: [LogEntry]
+    /// This week's plan session the workout marked done, with its done and ticked marks as they were.
+    var sessionId: String?
+    var done: Bool?
+    var ticked: [String: Bool] = [:]
+    var active: ActiveWorkout?
 }
 
 // Synced records remember the server version their edit started from, sent as `baseUpdatedAt` on upload so an

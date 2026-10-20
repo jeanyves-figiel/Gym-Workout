@@ -239,16 +239,14 @@ struct WeekView: View {
         guard let ins = model.planInsert(for: s) else { return }
         let extra = ins.replacing == nil
         withAnimation { model.removePlanInsert(ins.id) }
-        UndoCloseCenter.shared.show(UndoOffer(
-            title: extra ? "\(s.displayTitle) removed" : "Back to planned session",
-            detail: extra ? "This week's plan" : s.displayTitle, symbol: "trash", reopen: { AnyView(EmptyView()) },
-            revert: { [model] in
-                if let generated = ins.generated, let wd = ins.weekday {
-                    model.addExtra(ins.workout, generated: generated, weekday: wd)
-                } else {
-                    model.insertIntoPlan(ins.workout, replacing: ins.replacing, weekday: ins.weekday)
-                }
-            }))
+        UndoCloseCenter.shared.deleted(extra ? "\(s.displayTitle) removed" : "Back to planned session",
+                                       detail: extra ? "This week's plan" : s.displayTitle, symbol: "trash") { [model] in
+            if let generated = ins.generated, let wd = ins.weekday {
+                _ = model.addExtra(ins.workout, generated: generated, weekday: wd)
+            } else {
+                _ = model.insertIntoPlan(ins.workout, replacing: ins.replacing, weekday: ins.weekday)
+            }
+        }
     }
 
     private func swipeToRemove(_ s: Session) -> some Gesture {

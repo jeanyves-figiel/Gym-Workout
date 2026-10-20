@@ -871,7 +871,6 @@ struct HistoryDetailView: View {
     let recordId: UUID
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    @State private var confirmDelete = false
 
     var body: some View {
         if let r = model.state.history.first(where: { $0.id == recordId }) {
@@ -921,7 +920,9 @@ struct HistoryDetailView: View {
                             }
                         }
                     }
-                    AccountPillButton(title: "Undo workout", role: .destructive) { confirmDelete = true }
+                    // Gone at once (#539): the Undo bar puts it back, no confirmation.
+                    AccountPillButton(title: "Undo workout", role: .destructive) { undo(r) }
+                        .accessibilityHint("Removes it from history with its sets, PRs and progress. Undo for a few seconds.")
                 }
                 .padding(16)
             }
@@ -929,16 +930,19 @@ struct HistoryDetailView: View {
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("History")
             .navigationBarTitleDisplayMode(.inline)
-            .confirmationDialog("Undo this workout?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("Undo workout", role: .destructive) {
-                    model.undoWorkout(r.id)
-                    dismiss()
-                }
-            } message: {
-                Text("Removes it from history with its sets, PRs and progress, as if it never happened. This week's session can be done again.")
-            }
         } else {
             ContentUnavailableView("Session not found", systemImage: "clock.arrow.circlepath")
+        }
+    }
+
+    /// Removes the workout as if it never happened (#133) and closes; the Undo bar brings it all back (#539). The
+    /// server delete waits for the bar to go.
+    private func undo(_ r: WorkoutRecord) {
+        guard let removed = model.undoWorkout(r.id, serverAfter: UndoCloseCenter.seconds + 0.5) else { return }
+        dismiss()
+        UndoCloseCenter.shared.deleted("Workout removed", detail: undoDetail(r.title, r.startedAt.formatted(date: .abbreviated, time: .omitted)),
+                                       symbol: "clock.arrow.circlepath") { [model] in
+            model.restoreWorkout(removed)
         }
     }
 }

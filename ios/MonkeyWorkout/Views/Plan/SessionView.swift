@@ -10,7 +10,6 @@ struct SessionView: View {
     @State private var detail: ExerciseRef?
     @State private var muscle: Muscle?
     @State private var swapping: ExerciseRef?
-    @State private var undoing: WorkoutRecord?
     @State private var editingFlow = false
     @State private var editingCustom: CustomWorkout?
     @State private var editingExercises = false
@@ -270,16 +269,18 @@ struct SessionView: View {
         if model.state.done[s.id] ?? false {
             // Recorded this week: undo it completely (#133); otherwise only the done mark.
             if let r = model.recordThisWeek(s.id) {
-                Button("Undo workout") { undoing = r }
+                // Gone at once (#539): the Undo bar puts it back, no confirmation.
+                Button("Undo workout") {
+                    guard let removed = model.undoWorkout(r.id, serverAfter: UndoCloseCenter.seconds + 0.5) else { return }
+                    UndoCloseCenter.shared.deleted("Workout removed", detail: undoDetail(r.title, "you can do it again"),
+                                                   symbol: "clock.arrow.circlepath") { [model] in
+                        model.restoreWorkout(removed)
+                    }
+                }
                     .font(Theme.label(14))
                     .foregroundStyle(Theme.muted)
-                    .frame(maxWidth: .infinity)
-                    .confirmationDialog("Undo this workout?", isPresented: Binding { undoing != nil } set: { if !$0 { undoing = nil } },
-                                        titleVisibility: .visible, presenting: undoing) { r in
-                        Button("Undo workout", role: .destructive) { model.undoWorkout(r.id) }
-                    } message: { _ in
-                        Text("Removes it from history with its sets, PRs and progress, as if it never happened, so you can do it again.")
-                    }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .accessibilityHint("Removes it from history with its sets, PRs and progress. Undo for a few seconds.")
             } else {
                 Button("Mark as not done") { model.toggleDone(s.id) }
                     .font(Theme.label(14))
