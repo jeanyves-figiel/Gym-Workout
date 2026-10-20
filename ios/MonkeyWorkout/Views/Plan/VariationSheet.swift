@@ -33,15 +33,18 @@ extension VaryPart {
         }
     }
 
-    var gradient: LinearGradient {
-        let c: WorkoutEngine.Category = switch self {
+    var gradient: LinearGradient { category.gradient }
+    /// Type on `gradient` (#540): dark on the light warm-up and stretch gradients.
+    var ink: Color { category.ink }
+
+    private var category: WorkoutEngine.Category {
+        switch self {
         case .accessories: .warmup
         case .mainLifts: .power
         case .warmup: .mobility
         case .power: .stretch
         case .cardio: .cardio
         }
-        return c.gradient
     }
 }
 
@@ -94,9 +97,8 @@ struct VariationSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Pick what changes. Each swap uses the same movement, so every day keeps its muscle focus.")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.muted)
+                    ContentTitle(title: "New variation",
+                                 subtitle: "Pick what changes. Each swap uses the same movement, so every day keeps its muscle focus.")
 
                     Text("Days").eyebrow().padding(.top, 6)
                     dayTiles
@@ -140,8 +142,8 @@ struct VariationSheet: View {
             }
             .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle("New variation")
-            .toolbarTitleDisplayMode(.inlineLarge)
+            // Title in the content (#539), not under the toolbar's glass buttons.
+            .titleInContent("New variation")
             .toolbar {
                 CloseToolbarItem { dismiss() }
                 if !model.currentSwaps.isEmpty {
@@ -237,14 +239,14 @@ private struct PartCard: View {
                 Image(systemName: part.symbol)
                     .font(.system(size: 15, weight: .bold))
                     .frame(width: 34, height: 34)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.22)))
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.primary.opacity(on && part.ink != .white ? 0.12 : 0.22)))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(part.title).font(.system(size: 14, weight: .heavy, design: .rounded)).lineLimit(2).minimumScaleFactor(0.8)
                     Text(part.subtitle(on: on)).font(.system(size: 10, weight: .semibold)).opacity(0.8).lineLimit(2)
                 }
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(on ? part.ink : .white)
             .padding(12)
             .frame(maxWidth: .infinity, minHeight: 70, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 18, style: .continuous)

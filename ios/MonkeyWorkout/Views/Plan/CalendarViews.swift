@@ -45,6 +45,7 @@ struct CalendarView: View {
         let weeks = model.calendarWeeks()
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                ContentTitle(title: "Calendar")
                 hero(weeks)
                 // Training programme (#255): its phases over the coming weeks.
                 if let a = model.activeProgramme, !a.paused, let p = a.programme {
@@ -81,8 +82,8 @@ struct CalendarView: View {
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Calendar")
-        .toolbarTitleDisplayMode(.inlineLarge)
+        // Title in the content (#539), not under the toolbar's glass buttons.
+        .titleInContent("Calendar")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { findingGym = true } label: { Image(systemName: "location.magnifyingglass") }
