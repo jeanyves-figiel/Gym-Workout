@@ -26,6 +26,15 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
+describe('openDb', () => {
+  it('runs in WAL with synchronous NORMAL and waits for a busy writer', () => {
+    const pragma = (name: string) => Object.values(db.prepare(`PRAGMA ${name}`).get() as object)[0];
+    expect(pragma('journal_mode')).toBe('wal');
+    expect(pragma('synchronous')).toBe(1);
+    expect(pragma('busy_timeout')).toBe(5000);
+  });
+});
+
 describe('daily backups (#310)', () => {
   it('writes a checked, private copy per day and keeps the newest N', () => {
     addUser('a');
