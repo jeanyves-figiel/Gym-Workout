@@ -92,8 +92,21 @@ export const clientIp = (req: FastifyRequest): string =>
 
 const device = (req: FastifyRequest) => (req.headers['x-device-name'] as string | undefined) ?? req.headers['user-agent'];
 
+/** Request URL for the logs: the member's call name (`?name=`, coach voices) never lands in them. */
+export const logUrl = (url: string): string => url.replace(/([?&]name=)[^&#]*/g, '$1[redacted]');
+
 export const buildApp = (deps: AppDeps): FastifyInstance => {
-  const app = Fastify({ logger: deps.logger ?? false, trustProxy: true, bodyLimit: 1_000_000 });
+  const app = Fastify({
+    logger: deps.logger
+      ? {
+          serializers: {
+            req: (req) => ({ method: req.method, url: logUrl(req.url), host: req.host, remoteAddress: req.ip, remotePort: req.socket?.remotePort }),
+          },
+        }
+      : false,
+    trustProxy: true,
+    bodyLimit: 1_000_000,
+  });
   const now = deps.now ?? (() => new Date());
   const outbound: Fetch = deps.fetch ?? ((input, init) => globalThis.fetch(input, init));
   const warn = (msg: string) => app.log.warn(msg);

@@ -16,7 +16,8 @@ const MEMORY_MAX = 200;
  * Studio coach voices (#395). GET /v1/me/coach-voices lists the voices and every line (id, text, hash);
  * GET /v1/me/coach-voices/:voice/:line returns the MP3. Each recording is made once with Polly and kept on the volume
  * (`<cacheDir>/<voice>/<hash>.mp3`), so a voice pack costs one Polly run per voice for every member together.
- * GET /v1/me/coach-voices/:voice/call/:style?name=Alex returns the short call said before key lines (#415).
+ * GET /v1/me/coach-voices/:voice/call/:style with `X-Call-Name: Alex` (or `?name=Alex`) returns the short call said
+ * before key lines (#415).
  */
 export const coachVoiceRoutes = (
   r: FastifyInstance,
@@ -117,7 +118,16 @@ export const coachVoiceRoutes = (
   r.get('/me/coach-voices/:voice/call/:style', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req, reply) => {
     const { voice, style } = req.params as { voice: string; style: string };
     const s = style.replace(/\.mp3$/, '') as CoachStyle;
-    const name = String((req.query as { name?: unknown }).name ?? '').trim();
+    // `X-Call-Name` (percent-encoded UTF-8) keeps the name out of URLs; `?name=` still works for older apps.
+    const header = req.headers['x-call-name'];
+    let name = String((req.query as { name?: unknown }).name ?? '').trim();
+    if (typeof header === 'string' && header) {
+      try {
+        name = decodeURIComponent(header).trim();
+      } catch {
+        name = '';
+      }
+    }
     if (!voices.has(voice) || !STYLES.includes(s)) throw new ApiError(404, 'not_found', 'No such voice line.');
     if (!CALL_NAME.test(name)) throw new ApiError(400, 'bad_name', 'Letters only, up to 24 characters.');
     if (!synth) throw new ApiError(503, 'voices_unavailable', 'Studio voices are not available right now.');
