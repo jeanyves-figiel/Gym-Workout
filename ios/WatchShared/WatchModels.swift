@@ -385,6 +385,9 @@ struct WFinished: Codable, Equatable {
     var kcal: Double?
     /// The Watch saved the Apple Health workout; the phone must not save another.
     var savedToHealth: Bool
+    /// The session's title, so the phone can still name the workout when the session left its plan. Absent from
+    /// older Watch apps.
+    var title: String? = nil
 }
 
 /// Phone player state mirrored on the Watch while a workout runs on the iPhone.

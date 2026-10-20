@@ -345,11 +345,24 @@ final class WatchSync: NSObject {
             guard let r = awaitingWatch.removeValue(forKey: t.recordId) else { return }
             if t.savedToHealth { model.attachHeartRate(r.id, avg: t.avgHeartRate, max: t.maxHeartRate) } else { saveOnPhone(r) }
         case let .finished(f):
-            guard !handled.contains(f.id), let session = model.session(f.sessionId) ?? knownSessions[f.sessionId] else { return }
+            guard !handled.contains(f.id) else { return }
             handled.insert(f.id)
-            let r = model.recordWorkout(
-                session: session, setsDone: f.setsDone, startedAt: f.start, endedAt: f.end,
-                bodyMassKg: health?.snapshot.weightKg ?? model.body.weightKg)
+            let r: WorkoutRecord
+            if let session = model.session(f.sessionId) ?? knownSessions[f.sessionId] {
+                r = model.recordWorkout(
+                    session: session, setsDone: f.setsDone, startedAt: f.start, endedAt: f.end,
+                    bodyMassKg: health?.snapshot.weightKg ?? model.body.weightKg)
+            } else {
+                // The session left the plan and wasn't sent since the app started: keep the workout with what the
+                // Watch sent rather than drop it.
+                r = WorkoutRecord.watchOnly(
+                    sessionId: f.sessionId, title: f.title, week: model.plan?.week ?? 1, deload: model.plan?.deload ?? false,
+                    startedAt: f.start, endedAt: f.end, kcal: f.kcal, avgHeartRate: f.avgHeartRate, maxHeartRate: f.maxHeartRate)
+                model.state.history.append(r)
+                model.state.pendingHistoryIds.insert(r.id)
+                model.persist()
+                Task { await model.sync() }
+            }
             model.clearActiveWorkout(f.sessionId)
             if f.savedToHealth {
                 model.attachHeartRate(r.id, avg: f.avgHeartRate, max: f.maxHeartRate)

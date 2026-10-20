@@ -82,6 +82,18 @@ public struct WorkoutRecord: Codable, Hashable, Sendable, Identifiable {
             avgHeartRate: nil, maxHeartRate: nil,
             muscleLoad: Dictionary(uniqueKeysWithValues: load.map { ($0.key.rawValue, $0.value) }))
     }
+
+    /// A workout finished on the Watch whose session the phone can't find any more (it left the plan and the app
+    /// restarted since): kept with what the Watch sent, without exercises, instead of being dropped.
+    public static func watchOnly(
+        sessionId: String, title: String?, week: Int, deload: Bool, startedAt: Date, endedAt: Date,
+        kcal: Double?, avgHeartRate: Double?, maxHeartRate: Double?, id: UUID = UUID()
+    ) -> WorkoutRecord {
+        WorkoutRecord(
+            id: id, startedAt: startedAt, durationSec: max(0, Int(endedAt.timeIntervalSince(startedAt))), sessionId: sessionId,
+            week: week, deload: deload, focus: .fullUpper, title: title ?? "Apple Watch workout", exercises: [],
+            kcal: kcal, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, muscleLoad: [:])
+    }
 }
 
 extension Prescription {

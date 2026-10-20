@@ -347,7 +347,7 @@ struct PlayerView: View {
             store.send(.finished(WFinished(
                 sessionId: player.session.id, setsDone: player.setsDone, start: player.started, end: player.endedAt ?? Date(),
                 avgHeartRate: workout.averageHeartRate, maxHeartRate: workout.maxHeartRate,
-                kcal: saved ? workout.activeKcal : nil, savedToHealth: saved)))
+                kcal: saved ? workout.activeKcal : nil, savedToHealth: saved, title: player.session.title)))
         }
     }
 
