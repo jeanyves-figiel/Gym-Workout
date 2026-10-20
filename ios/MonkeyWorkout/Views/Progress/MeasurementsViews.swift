@@ -426,7 +426,7 @@ struct MeasurementLogSheet: View {
                         .font(.system(size: 13, weight: .heavy))
                         .frame(width: 30, height: 30)
                         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.black.opacity(0.2)))
-                        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(.primary.opacity(0.75), lineWidth: 1.5))
+                        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(HierarchicalShapeStyle.primary.opacity(0.75), lineWidth: 1.5))
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }

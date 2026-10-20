@@ -173,7 +173,7 @@ private struct SetsStepper: View {
             step("plus", sets + 1, enabled: sets < CustomWorkout.setsRange.upperBound)
         }
         .padding(2)
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.primary.opacity(0.12)))
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(HierarchicalShapeStyle.primary.opacity(0.12)))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(sets) sets")
         .accessibilityAdjustableAction { dir in

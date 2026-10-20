@@ -239,7 +239,7 @@ private struct PartCard: View {
                 Image(systemName: part.symbol)
                     .font(.system(size: 15, weight: .bold))
                     .frame(width: 34, height: 34)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.primary.opacity(on && part.ink != .white ? 0.12 : 0.22)))
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(HierarchicalShapeStyle.primary.opacity(on && part.ink != .white ? 0.12 : 0.22)))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(part.title).font(.system(size: 14, weight: .heavy, design: .rounded)).lineLimit(2).minimumScaleFactor(0.8)
                     Text(part.subtitle(on: on)).font(.system(size: 10, weight: .semibold)).opacity(0.8).lineLimit(2)
