@@ -36,6 +36,8 @@ export interface Config {
   apns: { teamId?: string; keyId?: string; privateKey?: string };
   /** Workout chat (#381): ANTHROPIC_API_KEY unset → the chat answers 503 and the app hides it. COACH_CHAT_DAILY_LIMIT messages per member per day. */
   coachChat: { apiKey?: string; workspaceId?: string; dailyLimit: number };
+  /** AI_DAILY_LIMIT: paid model calls (coach chat + gym scan + food scan) across all members per UTC day. */
+  aiDailyLimit: number;
   /**
    * Studio coach voices (#395): Amazon Polly neural. POLLY_ACCESS_KEY_ID/POLLY_SECRET_ACCESS_KEY, else the SES keys (the
    * IAM user needs polly:SynthesizeSpeech); POLLY_REGION (default eu-central-1). Recordings cached in `cacheDir`.
@@ -151,6 +153,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
       workspaceId: env.ANTHROPIC_WORKSPACE_ID || undefined,
       dailyLimit: Number(env.COACH_CHAT_DAILY_LIMIT ?? 20),
     },
+    aiDailyLimit: Number(env.AI_DAILY_LIMIT ?? 500),
     subscriptions: {
       mode: subscriptionMode(env.SUBSCRIPTIONS),
       productIds: (env.SUBSCRIPTION_PRODUCT_IDS ?? 'monkeyworkout.pro.weekly,monkeyworkout.pro.monthly,monkeyworkout.pro.yearly,monkeyworkout.pro.lifetime')

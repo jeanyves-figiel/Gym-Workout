@@ -53,6 +53,11 @@ export const ensureSchemaExtras = (db: DB): void => {
       key_hash TEXT NOT NULL UNIQUE,
       created_at TEXT NOT NULL
     );
+    -- Paid model calls (coach chat, gym scan, food scan) across all members per UTC day: the global budget (quota.ts).
+    CREATE TABLE IF NOT EXISTS ai_daily_usage (
+      day TEXT PRIMARY KEY,
+      count INTEGER NOT NULL
+    );
     -- Workout chat (#381): messages per member per UTC day, for the daily cap (routes/coachChat.ts).
     CREATE TABLE IF NOT EXISTS coach_chat_usage (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

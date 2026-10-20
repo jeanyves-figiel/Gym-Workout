@@ -287,11 +287,11 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       subscriptionRoutes(r, subscriptions);
       gymRoutes(r, deps.db, now);
       const coach = deps.coach ?? (deps.config.coachChat.apiKey ? claudeCoach(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
-      coachChatRoutes(r, deps.db, now, coach, deps.config.coachChat.dailyLimit, (id) => subscriptions.entitlement(id).access);
+      coachChatRoutes(r, deps.db, now, coach, deps.config.coachChat.dailyLimit, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
       const gymScan = deps.gymScan ?? (deps.config.coachChat.apiKey ? claudeGymScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
-      gymScanRoutes(r, deps.db, now, gymScan, 30, (id) => subscriptions.entitlement(id).access);
+      gymScanRoutes(r, deps.db, now, gymScan, 30, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
       const foodScan = deps.foodScan ?? (deps.config.coachChat.apiKey ? claudeFoodScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
-      foodScanRoutes(r, deps.db, now, foodScan, 20, (id) => subscriptions.entitlement(id).access);
+      foodScanRoutes(r, deps.db, now, foodScan, 20, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
       const voices = deps.config.coachVoices;
       coachVoiceRoutes(r, deps.synth ?? (voices.polly ? pollySynthesizer(voices.polly, outbound, now) : undefined), voices.cacheDir, {
         warm: deps.config.env === 'production',

@@ -20,6 +20,7 @@ Optional env:
 | `APPLE_PRIVATE_KEY` | – | `.p8` contents, real newlines or `\n` (Fly secret) |
 | `APPLE_CLIENT_ID` | first `APPLE_BUNDLE_IDS` | client_id fallback; the identity token's audience (bundle id) is preferred |
 | `APPLE_TWO_STEP` | off | `on`: Sign in with Apple also asks for the authenticator code when 2-step is on (needs an app that handles `mfa_required` there) |
+| `AI_DAILY_LIMIT` | `500` | paid model calls (coach chat, gym scan, food scan) across all members per UTC day; over it they answer 429 `daily_limit` |
 | `HIBP_CHECK` | on (off when `NODE_ENV=test`) | `0` disables the breached-password check |
 | `PURGE_INTERVAL_MIN` | `60` | purge of expired codes / refresh tokens (also runs at startup; `0` = startup only) |
 | `MODERATION_EMAIL` | – | receives community reports (unset → stored only) |
