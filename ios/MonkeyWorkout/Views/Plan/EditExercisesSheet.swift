@@ -38,15 +38,20 @@ struct EditExercisesSheet: View {
 
     var body: some View {
         NavigationStack {
+            // Explore-style gradient rows per block (#539).
             List {
+                ContentTitle(title: "Edit exercises", subtitle: "This workout only · drag ≡ to reorder, swipe to remove")
+                    .cardRow()
                 ForEach(blocks) { block in
                     Section {
-                        ForEach(block.items) { item in row(item, block: block) }
-                            .onMove { from, to in withAnimation { blocks.move(in: block.kind, from: from, to: to) } }
-                            .onDelete { idx in
-                                let uids = idx.map { block.items[$0].uid }
-                                withAnimation { uids.forEach { blocks.remove($0) } }
-                            }
+                        ForEach(block.items) { item in
+                            row(item, block: block).gradientRow(block.kind.gradient, ink: block.kind.category.ink)
+                        }
+                        .onMove { from, to in withAnimation { blocks.move(in: block.kind, from: from, to: to) } }
+                        .onDelete { idx in
+                            let uids = idx.map { block.items[$0].uid }
+                            withAnimation { uids.forEach { blocks.remove($0) } }
+                        }
                         Button { adding = block } label: {
                             Label("Add to \(block.title)", systemImage: "plus")
                                 .font(Theme.label(14))
@@ -58,6 +63,7 @@ struct EditExercisesSheet: View {
                         }
                         .buttonStyle(.borderless)
                         .accessibilityLabel("Add exercise to \(block.title)")
+                        .cardRow()
                     } header: {
                         HStack {
                             CategoryPill(category: block.kind.category, title: block.title, compact: true)
@@ -77,8 +83,7 @@ struct EditExercisesSheet: View {
             }
             .environment(\.editMode, .constant(.active))
             .themedForm()
-            .navigationTitle("Edit exercises")
-            .navigationBarTitleDisplayMode(.inline)
+            .titleInContent("Edit exercises")
             .toolbar { CloseToolbarItem { dismiss() } }
             .safeAreaInset(edge: .bottom) {
                 Button {
@@ -123,15 +128,15 @@ struct EditExercisesSheet: View {
                     Text(e.name).font(Theme.label(14)).lineLimit(1).minimumScaleFactor(0.8)
                 }
                 HStack(spacing: 6) {
-                    Text(item.prescription.reps).font(.caption.weight(.semibold)).foregroundStyle(block.kind.category.color)
+                    Text(item.prescription.reps).font(.caption.weight(.semibold)).opacity(0.85)
                     // Split a superset / circuit into straight sets (#352), on its first member.
                     if item.group?.hasSuffix("1") == true, item.supersetWith == nil {
                         Button { withAnimation { blocks.split(item.uid) } } label: {
                             Label("Split", systemImage: "scissors")
                                 .font(Theme.label(10))
-                                .foregroundStyle(Theme.lime)
                                 .padding(.horizontal, 7).padding(.vertical, 2)
-                                .background(Capsule().strokeBorder(Theme.lime, style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
+                                .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
                         }
                         .buttonStyle(.borderless)
                         .accessibilityLabel("Split \(item.group?.first.map(String.init) ?? "") into straight sets")
@@ -145,7 +150,9 @@ struct EditExercisesSheet: View {
                     .font(.system(size: 13, weight: .heavy))
                     .foregroundStyle(Theme.ink)
                     .frame(width: 30, height: 30)
-                    .background(Circle().fill(Theme.lime))
+                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Theme.lime))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
             .accessibilityLabel("Swap \(e.name)")
@@ -166,7 +173,7 @@ private struct SetsStepper: View {
             step("plus", sets + 1, enabled: sets < CustomWorkout.setsRange.upperBound)
         }
         .padding(2)
-        .background(Capsule().fill(.white.opacity(0.1)))
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.primary.opacity(0.12)))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(sets) sets")
         .accessibilityAdjustableAction { dir in
@@ -181,9 +188,12 @@ private struct SetsStepper: View {
     private func step(_ symbol: String, _ value: Int, enabled: Bool) -> some View {
         Button { onChange(value) } label: {
             Image(systemName: symbol).font(.system(size: 11, weight: .heavy)).frame(width: 24, height: 24)
+                .frame(height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
-        .foregroundStyle(enabled ? .white : Theme.muted)
+        .opacity(enabled ? 1 : 0.4)
         .disabled(!enabled)
+        .accessibilityLabel(symbol == "minus" ? "One set fewer" : "One set more")
     }
 }

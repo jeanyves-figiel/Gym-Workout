@@ -44,38 +44,42 @@ struct MethodSourcesSheet: View {
 
     var body: some View {
         NavigationStack {
+            // Gradient rows in each method's colours (#539), X top right.
             List {
+                ContentTitle(title: "Sources", subtitle: "Peer-reviewed studies and reviews. Links open a PubMed search for the title.")
+                    .cardRow()
                 ForEach(TrainingMethod.allCases) { m in
                     Section {
                         ForEach(m.sources) { s in
-                            if let url = s.url {
-                                Link(destination: url) { row(s) }
-                            } else {
-                                row(s)
+                            Group {
+                                if let url = s.url {
+                                    Link(destination: url) { row(s, link: true) }.buttonStyle(.plain)
+                                } else {
+                                    row(s, link: false)
+                                }
                             }
+                            .gradientRow(m.gradient, ink: m.ink)
                         }
                     } header: {
                         Label(m.label + (m == selected ? " · yours" : ""), systemImage: m.symbol)
+                            .font(Theme.label(13))
                     }
                 }
-                Section {
-                    Text("Peer-reviewed studies and reviews. Links open a PubMed search for the title.")
-                        .font(.footnote)
-                        .foregroundStyle(Theme.muted)
-                }
             }
-            .navigationTitle("Sources")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
-            }
+            .themedForm()
+            .titleInContent("Sources")
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
     }
 
-    private func row(_ s: MethodSource) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(s.title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-            Text("\(s.short) · \(s.journal)").font(.caption).foregroundStyle(Theme.muted)
+    private func row(_ s: MethodSource, link: Bool) -> some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(s.title).font(.subheadline.weight(.bold))
+                Text("\(s.short) · \(s.journal)").font(.caption.weight(.semibold)).opacity(0.8)
+            }
+            Spacer(minLength: 0)
+            if link { Image(systemName: "arrow.up.right").font(.system(size: 12, weight: .black)).accessibilityHidden(true) }
         }
         .padding(.vertical, 2)
     }
@@ -103,14 +107,17 @@ extension TrainingMethod {
         }
     }
 
-    var gradient: LinearGradient {
-        let c: WorkoutEngine.Category = switch self {
+    var gradient: LinearGradient { category.gradient }
+    /// Type on `gradient` (#540): dark on the light warm-up gradient.
+    var ink: Color { category.ink }
+
+    private var category: WorkoutEngine.Category {
+        switch self {
         case .block: .strength
         case .undulating: .power
         case .autoregulated: .cardio
         case .volume: .warmup
         case .minimal: .mobility
         }
-        return c.gradient
     }
 }
