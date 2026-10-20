@@ -68,6 +68,7 @@ struct PantryView: View {
                     Menu {
                         Button("Clear all", systemImage: "trash", role: .destructive) { store.clearPantry() }
                     } label: { Image(systemName: "ellipsis") }
+                    .accessibilityLabel("More")
                 }
             }
         }

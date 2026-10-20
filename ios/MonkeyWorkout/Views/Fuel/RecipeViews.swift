@@ -413,10 +413,11 @@ struct CookModeView: View {
             HStack(spacing: 10) {
                 Button { withAnimation(.snappy) { step = max(0, step - 1); ends = nil } } label: {
                     Image(systemName: "chevron.left").font(.system(size: 20, weight: .heavy)).frame(width: 64, height: 56)
-                        .background(Capsule().fill(Theme.cardStrong))
+                        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.cardStrong))
                 }
                 .buttonStyle(.plain)
                 .disabled(step == 0)
+                .accessibilityLabel("Previous step")
                 if step < recipe.steps.count - 1 {
                     Button { withAnimation(.snappy) { step += 1; ends = nil } } label: { Text("NEXT STEP") }
                         .buttonStyle(LimeButtonStyle())
@@ -484,6 +485,8 @@ struct AddToPlanView: View {
 }
 
 /// The member's own recipe: name, meals, time, macros per serving, ingredients and steps (one per line).
+/// Standard sheet chrome (#539): a new recipe has Save beside the X and keeps a draft; an existing one saves on its
+/// own, and Delete removes it at once with Undo.
 struct RecipeEditorView: View {
     let recipe: Recipe?
     @Environment(\.dismiss) private var dismiss
@@ -501,32 +504,73 @@ struct RecipeEditorView: View {
     @State private var contains: Set<Allergen> = []
     @State private var ingredients = ""
     @State private var steps = ""
-    @State private var confirmDelete = false
+    @State private var loaded = false
+    @State private var draftRestored = false
+    /// Deleted from this screen: the auto-save on close must not write it back.
+    @State private var removed = CloseGuard()
+
+    private static let draftKey = "recipe-new"
+    private var valid: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty && !slots.isEmpty }
 
     var body: some View {
-        Form {
+        List {
+            ContentTitle(title: recipe == nil ? "New recipe" : "Edit recipe",
+                         subtitle: recipe == nil ? "New recipe · Save to keep" : "Your recipe · saves as you go")
+                .cardRow()
+            if draftRestored {
+                DraftRestoredStrip {
+                    DraftStore.clear(Self.draftKey)
+                    load(Self.blank)
+                    draftRestored = false
+                }
+                .cardRow()
+            }
             Section("Recipe") {
                 HStack {
                     TextField("🍽️", text: $emoji).frame(width: 44).font(.title)
-                    TextField("Name", text: $name).font(.headline)
+                        .accessibilityLabel("Emoji")
+                    TextField("Name", text: $name).font(Theme.display(20))
                 }
+                .darkCardRow()
                 Picker("Main ingredient", selection: $base) { ForEach(RecipeBase.allCases) { Text($0.label).tag($0) } }
+                    .font(Theme.label(15))
+                    .gradientRow(FuelPalette.violet)
                 Stepper("\(minutes) min", value: $minutes, in: 0...240, step: 5)
+                    .font(Theme.label(15))
+                    .gradientRow(FuelPalette.water)
                 Stepper("\(servings) serving\(servings == 1 ? "" : "s")", value: $servings, in: 1...12)
+                    .font(Theme.label(15))
+                    .gradientRow(FuelPalette.mint, ink: Theme.ink)
             }
             Section("Meals") {
                 ForEach(MealKind.allCases) { k in
-                    Toggle("\(k.emoji) \(k.label)", isOn: Binding(get: { slots.contains(k) }, set: { on in
-                        if on { slots.insert(k) } else { slots.remove(k) }
-                    }))
+                    let on = slots.contains(k)
+                    Button {
+                        if on { slots.remove(k) } else { slots.insert(k) }
+                    } label: {
+                        HStack {
+                            Text("\(k.emoji) \(k.label)").font(Theme.label(15))
+                            Spacer()
+                            SquareToggle(on: on)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                    .gradientRow(FuelPalette.hot)
+                    .opacity(on ? 1 : 0.7)
                 }
             }
             Section("Per serving") {
                 Stepper("Protein \(protein) g", value: $protein, in: 0...150, step: 5)
+                    .font(Theme.label(15)).gradientRow(FuelPalette.protein)
                 Stepper("Carbs \(carbs) g", value: $carbs, in: 0...250, step: 5)
+                    .font(Theme.label(15)).gradientRow(FuelPalette.carbs, ink: Theme.ink)
                 Stepper("Fat \(fat) g", value: $fat, in: 0...120, step: 5)
+                    .font(Theme.label(15)).gradientRow(FuelPalette.fats)
                 Stepper("Veg \(veg) fist\(veg == 1 ? "" : "s")", value: $veg, in: 0...4)
-                Text("≈ \(4 * protein + 4 * carbs + 9 * fat) kcal").foregroundStyle(Theme.muted)
+                    .font(Theme.label(15)).gradientRow(FuelPalette.veg, ink: Theme.ink)
+                Text("≈ \(4 * protein + 4 * carbs + 9 * fat) kcal").font(Theme.label(14)).foregroundStyle(Theme.muted).cardRow()
             }
             Section("Contains") {
                 FlowLayout(spacing: 6) {
@@ -535,49 +579,62 @@ struct RecipeEditorView: View {
                         Button { if on { contains.remove(a) } else { contains.insert(a) } } label: {
                             Text(a.label).font(Theme.label(12)).foregroundStyle(on ? Theme.ink : .white)
                                 .padding(.horizontal, 10).padding(.vertical, 6)
-                                .background(Capsule().fill(on ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Theme.card)))
+                                .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                    .fill(on ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Theme.cardStrong)))
                         }
                         .buttonStyle(.plain)
+                        .accessibilityAddTraits(on ? .isSelected : [])
                     }
                 }
+                .cardRow()
             }
             Section("Ingredients · one per line") {
-                TextEditor(text: $ingredients).frame(minHeight: 110)
+                TextEditor(text: $ingredients).frame(minHeight: 110).scrollContentBackground(.hidden).darkCardRow()
             }
             Section("Steps · one per line") {
-                TextEditor(text: $steps).frame(minHeight: 140)
+                TextEditor(text: $steps).frame(minHeight: 140).scrollContentBackground(.hidden).darkCardRow()
             }
             if let recipe {
                 Section {
-                    Button("Delete recipe", role: .destructive) { confirmDelete = true }
-                        .confirmationDialog("Delete \(recipe.name)?", isPresented: $confirmDelete) {
-                            Button("Delete", role: .destructive) {
-                                store.deleteRecipe(recipe.id)
-                                dismiss()
-                            }
-                        }
+                    Button("Delete recipe", role: .destructive) { delete(recipe) }
+                        .font(Theme.label(15))
+                        .darkCardRow()
                 }
             }
         }
         .themedForm()
-        .navigationTitle(recipe == nil ? "New recipe" : "Edit recipe")
-        .navigationBarTitleDisplayMode(.inline)
+        .titleInContent(recipe == nil ? "New recipe" : "Edit recipe")
         .toolbar {
-            CloseToolbarItem(placement: .topBarTrailing) { dismiss() }
-            ToolbarItem(placement: .topBarLeading) {
-                Button("Save") { save() }.bold()
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || slots.isEmpty)
+            if recipe == nil {
+                SaveToolbarItem(disabled: !valid) { saveNew() }
             }
+            CloseToolbarItem { dismiss() }
         }
-        .onAppear(perform: load)
+        // An existing recipe saves on its own (#437); an empty name or no meal waits.
+        .autoSave(recipe != nil && loaded && valid ? edited : nil, title: "Recipe", symbol: "fork.knife",
+                  detail: { $0.name }, save: { [removed] r in if !removed.saved { FuelStore.shared.saveRecipe(Self.withKeys(r)) } })
+        .keepsDraft(recipe == nil && loaded ? Self.draftKey : nil, edited, blank: Self.blank)
+        .onAppear {
+            guard !loaded else { return }
+            if let recipe {
+                load(recipe)
+            } else if let d = DraftStore.load(Self.draftKey, as: Recipe.self) {
+                load(d)
+                draftRestored = true
+            }
+            loaded = true
+        }
     }
 
     private func lines(_ s: String) -> [String] {
         s.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 
-    private func load() {
-        guard let r = recipe else { return }
+    /// A new recipe's empty form, as the draft compares it.
+    private static let blank = Recipe(id: "draft", name: "", slots: [.lunch, .dinner], minutes: 20, servings: 1,
+                                      protein: 30, carbs: 50, fat: 15, veg: 1, base: .poultry)
+
+    private func load(_ r: Recipe) {
         name = r.name
         emoji = r.emoji
         slots = Set(r.slots)
@@ -593,16 +650,40 @@ struct RecipeEditorView: View {
         steps = r.steps.joined(separator: "\n")
     }
 
-    private func save() {
-        let ing = lines(ingredients)
-        let keys = Array(Set(ing.flatMap { FoodBook.find(in: $0).map(\.id) })).sorted()
-        var r = Recipe(name: name.trimmingCharacters(in: .whitespaces), emoji: String(emoji.prefix(2)).isEmpty ? "🍽️" : String(emoji.prefix(2)),
+    /// What's on screen as a recipe (food keys are matched when it's written, see `withKeys`).
+    private var edited: Recipe {
+        var r = Recipe(id: recipe?.id ?? "draft", name: name.trimmingCharacters(in: .whitespaces),
+                       emoji: String(emoji.prefix(2)).isEmpty ? "🍽️" : String(emoji.prefix(2)),
                        slots: MealKind.allCases.filter { slots.contains($0) }, minutes: minutes, servings: servings,
                        protein: protein, carbs: carbs, fat: fat, veg: veg, base: base,
                        contains: Allergen.allCases.filter { contains.contains($0) },
-                       tags: minutes <= 15 ? [.quick] : [], ingredients: ing, steps: lines(steps), keys: keys.isEmpty ? nil : keys)
-        if let recipe { r.id = recipe.id }
+                       tags: minutes <= 15 ? [.quick] : [], ingredients: lines(ingredients), steps: lines(steps))
+        r.keys = recipe?.keys
+        return r
+    }
+
+    private static func withKeys(_ recipe: Recipe) -> Recipe {
+        var r = recipe
+        let keys = Array(Set(r.ingredients.flatMap { FoodBook.find(in: $0).map(\.id) })).sorted()
+        r.keys = keys.isEmpty ? nil : keys
+        return r
+    }
+
+    private func saveNew() {
+        var r = Self.withKeys(edited)
+        r.id = "own-\(UUID().uuidString.lowercased())"
+        DraftStore.clear(Self.draftKey)
         store.saveRecipe(r)
         dismiss()
+    }
+
+    /// Deleted at once (#539); Undo puts the recipe back as it was.
+    private func delete(_ recipe: Recipe) {
+        removed.done()
+        store.deleteRecipe(recipe.id)
+        dismiss()
+        UndoCloseCenter.shared.deleted("\(recipe.name) deleted", symbol: "fork.knife") {
+            FuelStore.shared.saveRecipe(recipe)
+        }
     }
 }
