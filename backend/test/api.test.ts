@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { gunzipSync } from 'node:zlib';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type AppleIdentity, audienceAllowed } from '../src/apple.ts';
@@ -54,6 +55,23 @@ describe('health', () => {
   it('reports mail transport', async () => {
     const r = await app.inject({ method: 'GET', url: '/healthz' });
     expect(r.json()).toEqual({ ok: true, mail: 'console' });
+  });
+});
+
+describe('compression', () => {
+  it('compresses JSON over 1 KB when asked, leaves small and unasked responses alone', async () => {
+    const { tokens } = await signUp();
+    const logs = Array.from({ length: 40 }, () => ({ id: randomUUID(), date: '2026-10-07T18:00:00Z', exerciseId: 'bench', weightKg: 60, reps: 8 }));
+    await post('/v1/me/logs', { logs }, tokens.accessToken);
+    const headers = { authorization: `Bearer ${tokens.accessToken}`, 'accept-encoding': 'gzip' };
+    const big = await app.inject({ method: 'GET', url: '/v1/me/logs', headers });
+    expect(big.headers['content-encoding']).toBe('gzip');
+    expect(JSON.parse(gunzipSync(big.rawPayload).toString()).logs).toHaveLength(40);
+    const exp = await app.inject({ method: 'GET', url: '/v1/me/export', headers });
+    expect(exp.headers['content-encoding']).toBe('gzip');
+    expect(JSON.parse(gunzipSync(exp.rawPayload).toString()).logs).toHaveLength(40);
+    expect((await app.inject({ method: 'GET', url: '/healthz', headers: { 'accept-encoding': 'gzip' } })).headers['content-encoding']).toBeUndefined();
+    expect((await get('/v1/me/logs', tokens.accessToken)).headers['content-encoding']).toBeUndefined();
   });
 });
 

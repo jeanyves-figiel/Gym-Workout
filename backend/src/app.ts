@@ -1,3 +1,4 @@
+import compress from '@fastify/compress';
 import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { z, ZodError } from 'zod';
@@ -144,6 +145,9 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
 
   // Key on the address Fly's proxy saw, not the spoofable X-Forwarded-For (#432).
   app.register(rateLimit, { global: false, keyGenerator: clientIp });
+  // gzip/br for JSON bodies over 1 KB when the client asks (URLSession always does); images and bodies that
+  // already carry a content-encoding are left alone by the plugin.
+  app.register(compress, { threshold: 1024 });
 
   // Personal data must not land in HTTP caches on the device or in between (#310).
   app.addHook('onSend', async (req, reply) => {
