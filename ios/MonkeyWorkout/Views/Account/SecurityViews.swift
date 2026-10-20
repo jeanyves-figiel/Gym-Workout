@@ -34,7 +34,10 @@ final class AuthorizationRunner: NSObject, ASAuthorizationControllerDelegate, AS
     private var controller: ASAuthorizationController?
 
     private func perform(_ request: ASAuthorizationRequest) async throws -> AuthorizationResult {
-        try await withCheckedThrowingContinuation { c in
+        // One request at a time (double tap): a second one would take the first's continuation, which then never
+        // resumes, and the first controller's answer would reach the second.
+        guard continuation == nil else { throw CancellationError() }
+        return try await withCheckedThrowingContinuation { c in
             continuation = c
             let ctl = ASAuthorizationController(authorizationRequests: [request])
             ctl.delegate = self
@@ -147,6 +150,8 @@ final class ReauthGate {
         } catch let e as APIError where e.code == "reauth_required" {
             let m = (try? await api.security().reauthMethods) ?? [.emailCode]
             let ok = await withCheckedContinuation { c in
+                // Another change already waiting on the sheet: it is cancelled, this one takes the sheet.
+                waiter?.resume(returning: false)
                 waiter = c
                 methods = m
             }
