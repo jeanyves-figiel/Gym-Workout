@@ -207,6 +207,25 @@ describe('login & sessions', () => {
     expect((await post('/v1/auth/refresh', { refreshToken: r.json().refreshToken })).statusCode).toBe(200);
   });
 
+  it('only treats a replay as a lost response shortly after rotation', async () => {
+    const { tokens } = await signUp();
+    const lost = (await post('/v1/auth/refresh', { refreshToken: tokens.refreshToken })).json().refreshToken as string;
+    advance(6 * 60_000);
+    // an old rotated-away token is a replay, even though its replacement was never used
+    expect((await post('/v1/auth/refresh', { refreshToken: tokens.refreshToken })).statusCode).toBe(401);
+    expect((await post('/v1/auth/refresh', { refreshToken: lost })).statusCode).toBe(401);
+  });
+
+  it('does not reissue for a replayed token past its own expiry', async () => {
+    setup({ REFRESH_TTL_DAYS: '1' });
+    const { tokens } = await signUp();
+    advance(86_400_000 - 60_000);
+    const lost = (await post('/v1/auth/refresh', { refreshToken: tokens.refreshToken })).json().refreshToken as string;
+    advance(2 * 60_000);
+    expect((await post('/v1/auth/refresh', { refreshToken: tokens.refreshToken })).statusCode).toBe(401);
+    expect((await post('/v1/auth/refresh', { refreshToken: lost })).statusCode).toBe(401);
+  });
+
   it('expires access tokens', async () => {
     const { tokens } = await signUp();
     expect((await get('/v1/me', tokens.accessToken)).statusCode).toBe(200);
