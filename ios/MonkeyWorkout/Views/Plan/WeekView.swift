@@ -15,6 +15,9 @@ struct WeekView: View {
     @State private var addingDay: Int?
     /// Day picked in the Next up strip (#277); nil = the next session.
     @State private var pickedDay: Int?
+    /// Date the pick was made on: a pick from an earlier day is dropped, so the strip reopens on today.
+    @State private var pickedOn: String?
+    @Environment(\.scenePhase) private var scenePhase
     @State private var swipe: (id: String, dx: CGFloat)?
     /// Editing the Train widgets (#260).
     @State private var arranging = false
@@ -121,6 +124,10 @@ struct WeekView: View {
             .presentationBackground(.clear)
         }
         .onChange(of: model.state.history.count) { revealChestIfNeeded() }
+        // A pick never outlives its day: back on today after midnight or when the app comes back.
+        .onChange(of: pickedDay) { pickedOn = pickedDay == nil ? nil : todayKey }
+        .onChange(of: scenePhase) { if scenePhase == .active { dropStalePick() } }
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in dropStalePick() }
         // Start on a Home Screen widget (#537): today's session straight in the player.
         .onChange(of: PlayerLaunch.shared.sessionId, initial: true) { _, id in
             guard let id else { return }
@@ -159,6 +166,13 @@ struct WeekView: View {
         }
     }
 
+    private var todayKey: String { PlanCalendar.key(Date(), model.planCalendar) }
+
+    private func dropStalePick() {
+        guard pickedDay != nil, pickedOn != todayKey else { return }
+        pickedDay = nil
+    }
+
     /// Opens the week chest the member hasn't seen open yet (#476); never over the player.
     private func revealChestIfNeeded() {
         #if DEBUG
@@ -179,7 +193,8 @@ struct WeekView: View {
         let pick: (Int) -> Void = { wd in
             withAnimation(.snappy) {
                 let shown = pickedDay ?? (opensToday ? today : next?.weekday)
-                pickedDay = shown == wd ? nil : wd
+                // Today is the default card: picking it is no pick, so it never sticks to a later date.
+                pickedDay = shown == wd || (opensToday && wd == today) ? nil : wd
             }
         }
         // From today's card, "Next up" shows the next session's day; from any other day, back to today.
@@ -732,6 +747,8 @@ private struct NextUpCard: View {
     @State private var editingTrip: SportTrip?
     /// A later day picked in the strip (#343): nothing can be started or logged in advance.
     private var ahead: Bool { later != nil || (picked.map { $0 > model.todayWeekday } ?? false) }
+    /// Today's card: the only one with Build as I go, Log sport and Track live.
+    private var isToday: Bool { later == nil && (day.map { $0 == model.todayWeekday } ?? true) }
     /// The card's day this week: the picked day, else the session's (nil = unscheduled, startable any day).
     private var day: Int? { picked ?? session.weekday }
     /// An earlier day this week (#537): its session is logged, never played.
@@ -881,12 +898,12 @@ private struct NextUpCard: View {
                 }
             }
             // Start workout gets the full width; sports sit under it in one split pill (#462, design C).
-            if !ahead {
+            if isToday {
                 SportSplitPill(onFree: { Haptics.start(); freestyle = model.freestyleInProgress ?? model.startFreestyle() },
                                freeResumes: model.freestyleInProgress != nil,
                                onLog: { logging = SportLog(start: Date().addingTimeInterval(-120 * 60)) },
                                onTrack: { trackingSport = SportLog(start: Date()) })
-            } else if !done {
+            } else if ahead && !done {
                 // A later day with a workout (#481, design A): plan a sport there too, or move the workout (this week).
                 HStack(spacing: 10) {
                     if let trip = dayKey.flatMap({ model.profile?.sportTrip(on: $0) }) {
@@ -1103,7 +1120,7 @@ private struct RestDayCard: View {
                     }
                     .buttonStyle(.plain)
                 }
-                if !climbing && !ahead {
+                if date == nil && weekday == model.todayWeekday {
                     // Any other sport (#416), dated like a climb; Track live with a Watch (#462, design C).
                     SportSplitPill(onFree: { Haptics.start(); freestyle = model.freestyleInProgress ?? model.startFreestyle() },
                                    freeResumes: model.freestyleInProgress != nil,
