@@ -1,0 +1,27 @@
+name: Garmin signing key
+
+# One-off (#550): makes the Connect IQ developer key (RSA 4096, PKCS#8 DER) so nothing runs on a laptop. Download the
+# artifact (kept 1 day), paste garmin-developer-key.base64.txt into the GARMIN_DEVELOPER_KEY secret, keep the .der
+# somewhere safe: Store updates must be signed with the same key.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  key:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          mkdir out
+          openssl genrsa -out key.pem 4096
+          openssl pkcs8 -topk8 -inform PEM -outform DER -in key.pem -out out/garmin-developer-key.der -nocrypt
+          base64 -w0 out/garmin-developer-key.der > out/garmin-developer-key.base64.txt
+          rm key.pem
+      - uses: actions/upload-artifact@v7
+        with:
+          name: garmin-developer-key
+          path: out/
+          retention-days: 1
