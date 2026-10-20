@@ -40,6 +40,9 @@ public struct WorkoutRecord: Codable, Hashable, Sendable, Identifiable {
     public var maxHeartRate: Double?
     /// Muscle raw value → load (sets × weight), for history heat maps.
     public var muscleLoad: [String: Double]
+    /// Server version this copy was pulled or saved as, sent back as `baseUpdatedAt` so an edit never overwrites a
+    /// newer copy from another device. Nil until the server has it.
+    public var updatedAt: String?
 
     public var totalSets: Int { exercises.reduce(0) { $0 + $1.setsDone } }
     public var volumeKg: Double { exercises.reduce(0) { $0 + $1.volumeKg } }
