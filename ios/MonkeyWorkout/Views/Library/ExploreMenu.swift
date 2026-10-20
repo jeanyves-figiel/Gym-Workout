@@ -1,18 +1,52 @@
 import SwiftUI
 import WorkoutEngine
 
-/// Explore top menu (#483, design C): one rounded card bar like the 2D/3D switch.
-/// The picked section widens, fills with its own colour and shows its name; the others show only their icon.
+/// Explore top menu (#516, two-level): Exercises | Ready-made switch, then the ways to browse that side
+/// (By muscle / By machine / By type, or Workouts / Plans) as labelled square tiles, so every section is named.
 struct ExploreMenu: View {
     @Binding var mode: LibraryView.Mode
+    /// Last section picked on each side, so switching back returns there.
+    @State private var lastExercises: LibraryView.Mode = .muscles
+    @State private var lastReady: LibraryView.Mode = .workouts
 
     var body: some View {
-        HStack(spacing: 4) {
-            ForEach(LibraryView.Mode.allCases) { m in segment(m) }
+        VStack(spacing: 8) {
+            HStack(spacing: 4) {
+                side(.exercises)
+                side(.readyMade)
+            }
+            .padding(4)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.cardStrong))
+            HStack(spacing: 6) {
+                ForEach(mode.group.modes) { m in segment(m) }
+            }
         }
-        .padding(4)
-        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.cardStrong))
         .sensoryFeedback(.selection, trigger: mode)
+        .onChange(of: mode, initial: true) { _, m in
+            if m.group == .exercises { lastExercises = m } else { lastReady = m }
+        }
+    }
+
+    private func side(_ g: LibraryView.Mode.MenuGroup) -> some View {
+        let on = mode.group == g
+        return Button {
+            guard !on else { return }
+            withAnimation(.snappy(duration: 0.25)) { mode = g == .exercises ? lastExercises : lastReady }
+        } label: {
+            Label(g.label, systemImage: g.symbol)
+                .font(Theme.label(15))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundStyle(on ? Theme.ink : .white.opacity(0.75))
+                .frame(maxWidth: .infinity)
+                .frame(height: 40)
+                .background {
+                    if on { RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white) }
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     private func segment(_ m: LibraryView.Mode) -> some View {
@@ -21,23 +55,19 @@ struct ExploreMenu: View {
             withAnimation(.snappy(duration: 0.25)) { mode = m }
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: m.symbol)
-                    .font(.system(size: on ? 16 : 17, weight: .bold))
-                if on {
-                    Text(m.short)
-                        .font(Theme.label(14))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
+                Image(systemName: m.symbol).font(.system(size: 14, weight: .bold))
+                Text(m.short).font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.75)
             }
-            .foregroundStyle(on ? .white : m.tint)
-            // Picked segment takes the free width; the others stay compact icon tiles.
-            .frame(maxWidth: on ? .infinity : nil)
-            .frame(width: on ? nil : 50, height: 46)
+            .foregroundStyle(on ? .white : .white.opacity(0.85))
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .padding(.horizontal, 4)
             .background {
                 if on {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous).fill(m.gradient)
-                        .shadow(color: m.tint.opacity(0.5), radius: 8, y: 4)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous).fill(m.gradient)
+                        .shadow(color: m.tint.opacity(0.45), radius: 7, y: 3)
+                } else {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.card)
                 }
             }
             .contentShape(Rectangle())
@@ -49,12 +79,22 @@ struct ExploreMenu: View {
 }
 
 extension LibraryView.Mode {
-    /// Dock label: short so all five fit on the smallest iPhone.
+    /// Exercises (browse the catalogue) or Ready-made (whole workouts and plans).
+    enum MenuGroup: CaseIterable {
+        case exercises, readyMade
+        var label: String { self == .exercises ? "Exercises" : "Ready-made" }
+        var symbol: String { self == .exercises ? "dumbbell.fill" : "list.bullet.rectangle.fill" }
+        var modes: [LibraryView.Mode] { self == .exercises ? [.muscles, .machines, .categories] : [.workouts, .programmes] }
+    }
+
+    var group: MenuGroup { [.workouts, .programmes].contains(self) ? .readyMade : .exercises }
+
+    /// Tile label under the Exercises / Ready-made switch.
     var short: String {
         switch self {
-        case .muscles: "Muscles"
-        case .machines: "Machines"
-        case .categories: "Types"
+        case .muscles: "By muscle"
+        case .machines: "By machine"
+        case .categories: "By type"
         case .workouts: "Workouts"
         case .programmes: "Plans"
         }
