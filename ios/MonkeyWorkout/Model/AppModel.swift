@@ -55,6 +55,11 @@ final class AppModel {
     private let store: LocalStore
     private var syncing = false
     private var resyncRequested = false
+    /// Bumped whenever this device's data is replaced (sign-out, another account signing in): what a sync fetched
+    /// before then belongs to the previous account and is dropped.
+    @ObservationIgnored private(set) var accountEpoch = 0
+    /// `accountEpoch` when the running sync started.
+    @ObservationIgnored private var syncEpoch = 0
     /// Silent retry after a failed sync: 5 s, 15 s, 1 min, then every 5 min while the app is active; reset on success.
     @ObservationIgnored private var retryTask: Task<Void, Never>?
     @ObservationIgnored private var retryAttempt = 0
@@ -235,6 +240,7 @@ final class AppModel {
             store.wipe()
             state = LocalState()
             state.ownerId = user.id
+            accountEpoch += 1
             // The previous account's set history, Fuel, Move, Pro, Health cache, prefs and keys.
             wipeAccountLocalData()
         }
@@ -285,6 +291,7 @@ final class AppModel {
         stopAutoSync()
         store.wipe()
         state = LocalState()
+        accountEpoch += 1
         user = nil
         phase = .signedOut
         wipeAccountLocalData()
@@ -313,7 +320,12 @@ final class AppModel {
     private func flushPendingSync() async {
         guard phase == .signedIn, !demo, hasPendingSync else { return }
         await withTaskGroup(of: Void.self) { group in
-            group.addTask { await self.sync() }
+            group.addTask {
+                // A sync already running would only queue this one: let it finish, then send what it didn't.
+                while await self.syncing, !Task.isCancelled { try? await Task.sleep(nanoseconds: 100_000_000) }
+                guard !Task.isCancelled else { return }
+                await self.sync()
+            }
             group.addTask { try? await Task.sleep(nanoseconds: 5_000_000_000) }
             await group.next()
             group.cancelAll()
@@ -746,7 +758,8 @@ final class AppModel {
     /// Server profile replaces the local one unless a local edit is still unsaved (the next push sends it).
     /// Unchanged → nothing, so this week's one-off swaps stay; done and running sessions keep their content.
     private func pullProfile() async {
-        guard let remote = try? await api.fetchProfile(SyncedProfile.self) else { return }
+        let epoch = accountEpoch
+        guard let remote = try? await api.fetchProfile(SyncedProfile.self), accountEpoch == epoch else { return }
         guard state.synced == nil || !state.profileDirty, remote != state.synced else { return }
         let sameWeek = state.synced.map { $0.week == remote.week && $0.seed == remote.seed && $0.weekOf == remote.weekOf } ?? false
         let kept = sameWeek ? doneIds.union([state.activeWorkout?.sessionId].compactMap { $0 }) : []
@@ -777,6 +790,7 @@ final class AppModel {
             return
         }
         syncing = true
+        syncEpoch = accountEpoch
         defer {
             syncing = false
             if resyncRequested {
@@ -803,6 +817,8 @@ final class AppModel {
               await runSyncStep(&firstError, { try await self.syncSports() }),
               await runSyncStep(&firstError, { try await self.syncMachineNotes() })
         else { return sessionExpired() }
+        // Signed out or another account signed in during the sync: nothing of it applies to this state.
+        guard accountEpoch == syncEpoch else { return }
         persist()
         if let firstError {
             syncError = Self.syncMessage(firstError)
@@ -827,14 +843,16 @@ final class AppModel {
     /// One sync step; a failure is remembered (first one wins) and the next steps still run.
     /// Returns false when the session is gone, so the sync stops.
     private func runSyncStep(_ firstError: inout Error?, _ work: () async throws -> Void) async -> Bool {
-        guard !Task.isCancelled else {
+        // Cancelled, or the account changed since the sync started: the remaining steps are skipped.
+        guard !Task.isCancelled, accountEpoch == syncEpoch else {
             if firstError == nil { firstError = CancellationError() }
             return true
         }
         do {
             try await work()
         } catch APIError.signedOut {
-            return false
+            // After a sign-out the old session's calls fail like this: not the current session expiring.
+            return accountEpoch != syncEpoch
         } catch {
             if firstError == nil { firstError = error }
         }
@@ -905,7 +923,9 @@ final class AppModel {
         // Full pull: the server list is the truth, so workouts removed elsewhere (undo on another device,
         // admin undo) drop off this device too instead of lingering in Progress totals (#213).
         // Unsynced local records are kept; workouts whose delete is still queued stay gone.
+        let epoch = accountEpoch
         let remoteHistory = try await api.fetchWorkouts(WorkoutRecord.self)
+        guard accountEpoch == epoch else { return }
         let deleted = state.deletedWorkoutIds ?? []
         var historyById = Dictionary(remoteHistory.filter { !deleted.contains($0.id) }.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
         for r in state.history where state.pendingHistoryIds.contains(r.id) { historyById[r.id] = r }
@@ -916,7 +936,9 @@ final class AppModel {
     private func pullLogs() async throws {
         // 5 min overlap absorbs clock skew; merge is idempotent by id.
         let since = state.lastLogPull?.addingTimeInterval(-300)
+        let epoch = accountEpoch
         let changes = try await api.fetchLogChanges(since: since)
+        guard accountEpoch == epoch else { return }
         let deleted = state.deletedLogIds ?? []
         var byId = Dictionary(state.logs.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
         for l in changes.logs where !state.pendingLogIds.contains(l.id) && !deleted.contains(l.id) { byId[l.id] = l }

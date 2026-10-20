@@ -80,6 +80,7 @@ extension AppModel {
     }
 
     func syncMachineNotes() async throws {
+        let epoch = accountEpoch
         for id in state.deletedMachineNoteIds ?? [] {
             do {
                 try await api.deleteMachineNote(id)
@@ -115,6 +116,8 @@ extension AppModel {
             state.pendingMachinePhotoIds?.remove(id)
         }
         let remote = try await api.fetchMachineNotes(MachineNote.self)
+        // Signed out or another account signed in meanwhile: the list belongs to the previous account.
+        guard accountEpoch == epoch else { return }
         let stillPending = (state.pendingMachineNoteIds ?? []).union(state.pendingMachinePhotoIds ?? [])
         let deleted = state.deletedMachineNoteIds ?? []
         let local = Dictionary((state.machineNotes ?? []).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })

@@ -38,6 +38,7 @@ extension AppModel {
     }
 
     func syncSports() async throws {
+        let epoch = accountEpoch
         for id in state.deletedSportIds ?? [] {
             do {
                 try await api.deleteSport(id)
@@ -54,6 +55,8 @@ extension AppModel {
             for l in pending where state.sportLogs?.first(where: { $0.id == l.id }) == l { state.pendingSportIds?.remove(l.id) }
         }
         let remote = try await api.fetchSports(SportLog.self)
+        // Signed out or another account signed in meanwhile: the list belongs to the previous account.
+        guard accountEpoch == epoch else { return }
         let stillPending = state.pendingSportIds ?? []
         let deleted = state.deletedSportIds ?? []
         var merged = remote.filter { !stillPending.contains($0.id) && !deleted.contains($0.id) }
