@@ -40,7 +40,7 @@ struct LibraryView: View {
                 ExploreMenu(mode: $mode)
 
                 switch mode {
-                case .muscles: muscles
+                case .muscles: muscles(proxy)
                 case .machines: MachinesSection()
                 case .categories: categories
                 case .workouts: WorkoutLibrarySection()
@@ -72,18 +72,26 @@ struct LibraryView: View {
         .navigationDestination(item: $tapped) { MuscleDetailView(muscle: $0) }
     }
 
-    private var muscles: some View {
+    private func muscles(_ proxy: ScrollViewProxy) -> some View {
         VStack(alignment: .leading, spacing: 20) {
-            BodyMapCard(heat: model.weekHeat) { tapped = $0 }
-            // Machine chips (#456): muscle cards count only exercises on the picked kit; muscles with none hide.
-            MachineChips()
-            NewExerciseButton()
-
-            let heat = model.weekHeat, hard = model.weeklyHardSets, last = model.lastTrained, planned = model.plan != nil
+            // Split hero (#516): figure left, most worked / needs work right.
+            MuscleHero(heat: model.weekHeat) { tapped = $0 }
             let filter = MachineFilter(key: machineFilter), gym = model.exploreGym
             let counts = Dictionary(uniqueKeysWithValues: Muscle.allCases.map { m in
                 (m, Exercise.working(m, filter: filter, gym: gym).reduce(0) { $0 + $1.1.count })
             })
+            let groups = MuscleGroup.allCases.filter { g in g.muscles.contains { filter == .all || counts[$0, default: 0] > 0 } }
+            VStack(alignment: .leading, spacing: 10) {
+                // Machine chips (#456): muscle cards count only exercises on the picked kit; muscles with none hide.
+                MachineChips()
+                // Group tiles jump to their cards (#516).
+                MuscleGroupJump(groups: groups) { g in
+                    withAnimation(.snappy(duration: 0.35)) { proxy.scrollTo(g, anchor: .top) }
+                }
+            }
+            NewExerciseButton()
+
+            let heat = model.weekHeat, hard = model.weeklyHardSets, last = model.lastTrained, planned = model.plan != nil
             ForEach(MuscleGroup.allCases) { g in
                 let shown = g.muscles.filter { filter == .all || counts[$0, default: 0] > 0 }
                 if !shown.isEmpty {
@@ -121,51 +129,6 @@ struct LibraryView: View {
             HyroxExploreCard()
             NewExerciseButton()
         }
-    }
-}
-
-/// Explore → Muscles body map (#110): front/back anatomical figures on a soft glow. Tap a muscle to open it.
-/// This week's sets and top muscles live in the Explore hero above (#459).
-private struct BodyMapCard: View {
-    let heat: [Muscle: Double]
-    let onTap: (Muscle) -> Void
-    @AppStorage(BodyMapMode.storageKey) private var storedMode = BodyMapMode.flat
-    @Environment(\.bodyMapDemo) private var demo
-
-    private var mode: BodyMapMode { demo?.mode ?? storedMode }
-
-    /// 2D | 3D pill on the map (same setting as Account → Body & Health → Body map).
-    private var modeToggle: some View {
-        BodyMapModeToggle(selection: $storedMode, current: mode)
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            if mode == .solid {
-                BodyMap3DPanel(heat: heat, modeToggle: AnyView(modeToggle), onOpen: onTap)
-            } else {
-                VStack(spacing: 14) {
-                    HStack(spacing: 12) {
-                        ForEach(BodySide.allCases) { s in
-                            BodyMapView(side: s, heat: heat, onTap: onTap)
-                        }
-                    }
-                    .frame(height: 340)
-                    .padding(.bottom, 18)
-                    HeatLegend()
-                    Text("Tap a muscle to see its exercises").font(.footnote).foregroundStyle(Theme.muted)
-                }
-                .padding(16)
-                .padding(.top, 30)
-                .background(
-                    RadialGradient(colors: [WorkoutEngine.Category.strength.colors[1].opacity(0.22), .clear],
-                                   center: UnitPoint(x: 0.5, y: 0.4), startRadius: 0, endRadius: 220)
-                )
-                .overlay(alignment: .topTrailing) { modeToggle.padding(12) }
-            }
-        }
-        .background(Theme.card)
-        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
     }
 }
 
