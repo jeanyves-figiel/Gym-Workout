@@ -667,19 +667,19 @@ private struct WeekHero: View {
     }
 }
 
-/// Sessions done this week as a ring with the count inside.
+/// Sessions done this week as a rounded-square ring (#541) with the count inside.
 struct DoneRing: View {
     let done: Int
     let total: Int
     var size: CGFloat = 54
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
         ZStack {
-            Circle().stroke(.white.opacity(0.3), lineWidth: 6)
-            Circle()
+            shape.stroke(.white.opacity(0.3), lineWidth: 6)
+            shape
                 .trim(from: 0, to: total > 0 ? min(1, CGFloat(done) / CGFloat(total)) : 0)
-                .stroke(.white, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                .rotationEffect(.degrees(-90))
+                .stroke(.white, style: StrokeStyle(lineWidth: 6, lineCap: .butt))
             VStack(spacing: -1) {
                 Text("\(done)/\(total)").font(Theme.display(15)).monospacedDigit()
                 Text("DONE").font(Theme.label(7)).tracking(1)
