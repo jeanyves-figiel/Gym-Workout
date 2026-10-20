@@ -199,29 +199,33 @@ struct WeekView: View {
         }
         // From today's card, "Next up" shows the next session's day; from any other day, back to today.
         let back = { withAnimation(.snappy) { pickedDay = pickedDay == nil && opensToday ? next?.weekday : nil } }
-        if pickedDay == nil, opensToday {
-            if let s = plan.sessions.first(where: { $0.weekday == today }) {
-                NextUpCard(session: s, picked: today, onPick: pick, onBack: back) { start(s) }
+        Group {
+            if pickedDay == nil, opensToday {
+                if let s = plan.sessions.first(where: { $0.weekday == today }) {
+                    NextUpCard(session: s, picked: today, onPick: pick, onBack: back) { start(s) }
+                } else {
+                    RestDayCard(weekday: today, onPick: pick, onBack: back,
+                                onAdd: { addingDay = today; adding = true },
+                                backTitle: next.flatMap { s in s.weekday.map { "Next up · \(WeekSchedule.name($0)) · \(s.displayTitle)" } })
+                }
+            } else if let d = pickedDay, !(1...7).contains(d) {
+                // A day of another week (#481) shows in the card too, never as a pop-up.
+                otherWeekCard(d, pick: pick, back: back)
+            } else if let d = pickedDay, let s = plan.sessions.first(where: { $0.weekday == d }) {
+                NextUpCard(session: s, picked: d, onPick: pick, onBack: back) { start(s) }
+            } else if let d = pickedDay {
+                RestDayCard(weekday: d, onPick: pick, onBack: back) { addingDay = d; adding = true }
+            } else if let next {
+                NextUpCard(session: next, picked: nil, onPick: pick, onBack: back) { start(next) }
+            } else if let later = model.nextWeekSession() {
+                // This week has nothing left (#473): Next up is next week's first session, shown, not startable.
+                NextUpCard(session: later.session, later: later.day, onPick: pick, onBack: back)
             } else {
-                RestDayCard(weekday: today, onPick: pick, onBack: back,
-                            onAdd: { addingDay = today; adding = true },
-                            backTitle: next.flatMap { s in s.weekday.map { "Next up · \(WeekSchedule.name($0)) · \(s.displayTitle)" } })
+                WeekCompleteCard(missed: model.missedToHandle.count, onPick: pick)
             }
-        } else if let d = pickedDay, !(1...7).contains(d) {
-            // A day of another week (#481) shows in the card too, never as a pop-up.
-            otherWeekCard(d, pick: pick, back: back)
-        } else if let d = pickedDay, let s = plan.sessions.first(where: { $0.weekday == d }) {
-            NextUpCard(session: s, picked: d, onPick: pick, onBack: back) { start(s) }
-        } else if let d = pickedDay {
-            RestDayCard(weekday: d, onPick: pick, onBack: back) { addingDay = d; adding = true }
-        } else if let next {
-            NextUpCard(session: next, picked: nil, onPick: pick, onBack: back) { start(next) }
-        } else if let later = model.nextWeekSession() {
-            // This week has nothing left (#473): Next up is next week's first session, shown, not startable.
-            NextUpCard(session: later.session, later: later.day, onPick: pick, onBack: back)
-        } else {
-            WeekCompleteCard(missed: model.missedToHandle.count, onPick: pick)
         }
+        // Back goes to today then, so the button says so (not "Back to next up (Thu)").
+        .environment(\.trainBackToToday, opensToday && pickedDay != nil)
     }
 
     /// Day `d` of a later week (planned session or rest day) or of last week (#481); `d` counts from this week's Monday.
@@ -734,6 +738,7 @@ private struct NextUpCard: View {
     var onStart: (() -> Void)? = nil
     @Environment(AppModel.self) private var model
     @Environment(\.trainCompact) private var compact
+    @Environment(\.trainBackToToday) private var backToToday
     @State private var logging: SportLog?
     /// A missed day's session logged after the fact (#537).
     @State private var loggingMissed: Session?
@@ -934,10 +939,9 @@ private struct NextUpCard: View {
                     }
                 }
             }
-            if picked != nil && !isNext, let next = model.nextSession {
-                BackToNextUpButton(label: backLabel(next), action: onBack)
-            } else if picked != nil && !isNext {
-                BackToNextUpButton(label: "Back to this week", action: onBack)
+            // The next session's card needs a way back too when back means today.
+            if picked != nil && (!isNext || backToToday) {
+                BackToNextUpButton(label: backButtonTitle(model, toToday: backToToday), action: onBack)
             }
         }
     }
@@ -952,6 +956,7 @@ private struct PastDayCard: View {
     var onBack: () -> Void = {}
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
+    @Environment(\.trainBackToToday) private var backToToday
     @State private var showsHistory = false
     /// Log a workout or sport on this day (#537), dated 18:00.
     @State private var logging: SportLog?
@@ -985,7 +990,7 @@ private struct PastDayCard: View {
                     .background(Capsule().fill(Color.white.opacity(0.15)))
             }
             .buttonStyle(.plain)
-            BackToNextUpButton(label: model.nextSession.map(backLabel) ?? "Back to this week", action: onBack)
+            BackToNextUpButton(label: backButtonTitle(model, toToday: backToToday), action: onBack)
         }
         .padding(20)
         .background {
@@ -1004,6 +1009,11 @@ private struct PastDayCard: View {
 /// "Back to next up (Thu)"; no day for an unscheduled session.
 private func backLabel(_ next: Session) -> String {
     next.weekday.map { "Back to next up (\(WeekSchedule.shortName($0)))" } ?? "Back to next up"
+}
+
+/// Bottom button under a picked day: "Back to today" when Train opens on today, else back to the next session.
+@MainActor private func backButtonTitle(_ model: AppModel, toToday: Bool) -> String {
+    toToday ? "Back to today" : model.nextSession.map(backLabel) ?? "Back to this week"
 }
 
 /// "Back to next up" under a day picked in the strip (#277).
@@ -1038,6 +1048,7 @@ private struct RestDayCard: View {
     /// Bottom button title when the card is today's default (#538 follow-up); nil = "Back to next up".
     var backTitle: String? = nil
     @Environment(AppModel.self) private var model
+    @Environment(\.trainBackToToday) private var backToToday
     @State private var logging: ClimbLog?
     @State private var loggingSport: SportLog?
     @State private var trackingSport: SportLog?
@@ -1134,8 +1145,7 @@ private struct RestDayCard: View {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.35), style: StrokeStyle(lineWidth: 2, dash: [7, 5]))
             }
-            BackToNextUpButton(label: backTitle ?? model.nextSession.map(backLabel) ?? "Back to this week",
-                               action: onBack)
+            BackToNextUpButton(label: backTitle ?? backButtonTitle(model, toToday: backToToday), action: onBack)
         }
         .padding(20)
         .background {
@@ -1436,11 +1446,21 @@ private struct TrainCompactKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+private struct TrainBackToTodayKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 extension EnvironmentValues {
     /// Train on a short phone (#337): Next up drops its figure, muscle chips and block stripe.
     var trainCompact: Bool {
         get { self[TrainCompactKey.self] }
         set { self[TrainCompactKey.self] = newValue }
+    }
+
+    /// A day picked in the Train strip while Train opens on today: its back button returns to today.
+    var trainBackToToday: Bool {
+        get { self[TrainBackToTodayKey.self] }
+        set { self[TrainBackToTodayKey.self] = newValue }
     }
 }
 
