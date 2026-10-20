@@ -724,10 +724,11 @@ final class AppModel {
             Task { await sync() }
             return removed
         }
+        let restored = removed.restored
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
-            // Put back by Undo meanwhile: nothing to delete.
-            guard let self, self.state.deletedWorkoutIds?.contains(id) == true else { return }
+            // Put back by Undo meanwhile: its post stays and nothing is deleted.
+            guard let self, !restored.value else { return }
             Community.shared.didUndo(r, api: self.api)
             await self.sync()
         }
@@ -739,12 +740,19 @@ final class AppModel {
     /// new id, since the server ignores re-uploads of deleted ids.
     func restoreWorkout(_ removed: RemovedWorkout) {
         var record = removed.record
-        guard !state.history.contains(where: { $0.id == record.id }) else { return }
-        if state.deletedWorkoutIds?.remove(record.id) == nil { record.id = UUID() }
+        guard !removed.restored.value, !state.history.contains(where: { $0.id == record.id }) else { return }
+        removed.restored.value = true
+        if state.deletedWorkoutIds?.remove(record.id) == nil {
+            record.id = UUID()
+            record.updatedAt = nil
+        }
         state.history.append(record)
         state.pendingHistoryIds.insert(record.id)
         for var log in removed.logs where !state.logs.contains(where: { $0.id == log.id }) {
-            if state.deletedLogIds?.remove(log.id) == nil { log.id = UUID() }
+            if state.deletedLogIds?.remove(log.id) == nil {
+                log.id = UUID()
+                log.updatedAt = nil
+            }
             state.logs.append(log)
             state.pendingLogIds.insert(log.id)
         }
@@ -1108,6 +1116,12 @@ struct RemovedWorkout {
     var done: Bool?
     var ticked: [String: Bool] = [:]
     var active: ActiveWorkout?
+    /// Set once Undo put it back, so the delayed server delete and post removal skip it.
+    let restored = Flag()
+
+    final class Flag {
+        var value = false
+    }
 }
 
 // Synced records remember the server version their edit started from, sent as `baseUpdatedAt` on upload so an
