@@ -1,59 +1,47 @@
 {
-  "id": "2026-10-20.1",
+  "id": "2026-10-20.2",
   "items": [
     {
-      "symbol": "magnifyingglass",
+      "symbol": "bolt.fill",
       "tint": "cardio",
-      "title": "Explore, clearer",
-      "body": "Pick Exercises or Ready-made, then browse by muscle, machine or type. Muscles shows what you worked most this week."
+      "title": "Smoother everywhere",
+      "body": "Screens, date bars and exercise animations glide, and your data is kept safe even when you edit during a sync."
     },
     {
-      "symbol": "arrow.up.and.down.text.horizontal",
+      "symbol": "calendar",
       "tint": "strength",
-      "title": "Jump around an exercise",
-      "body": "A sticky bar on each exercise takes you straight to muscles, your stats, setup, form or similar moves."
+      "title": "Train opens on today",
+      "body": "Today and Start are always on your first screen. Recaps and tips take turns in one card under Next up."
     },
     {
-      "symbol": "arrow.left.and.right",
-      "tint": "cardio",
-      "title": "Fuel days slide",
-      "body": "Slide Fuel's date bar day by day like Train's week strip. Days are coloured by load: big day, training day or rest."
+      "symbol": "play.fill",
+      "tint": "power",
+      "title": "Only today starts",
+      "body": "Only today's workout has Start. Missed days say Log it, upcoming ones show when they're planned."
     },
     {
-      "symbol": "text.magnifyingglass",
+      "symbol": "xmark.square.fill",
+      "tint": "strength",
+      "title": "Step out, Undo back",
+      "body": "Tap ✕ to step out of a workout: it's paused, and Undo brings you right back. Finish and Discard live in the workout map."
+    },
+    {
+      "symbol": "timer",
       "tint": "warmup",
-      "title": "What I have: one box",
-      "body": "Search every food from one box and add what's in your fridge in a few taps."
+      "title": "Rest in its place",
+      "body": "Rest shows a big timer and bar in the set card's spot, with +15 s and Skip rest right there."
     },
     {
-      "symbol": "pills.fill",
-      "tint": "power",
-      "title": "Supplements and shakes",
-      "body": "Supplements and meal shakes in Fuel: on your timeline, with a caffeine check for your sleep."
-    },
-    {
-      "symbol": "figure.climbing",
-      "tint": "power",
-      "title": "Train is cleaner",
-      "body": "Wall session shows on climbing days only."
-    },
-    {
-      "symbol": "figure.cooldown",
+      "symbol": "arrow.uturn.backward",
       "tint": "stretch",
-      "title": "Sport prep",
-      "body": "Sport days get a warm-up and a stretch."
+      "title": "Undo, not \"Are you sure?\"",
+      "body": "Deleting a measurement, recipe, workout or plan item happens at once, with Undo."
     },
     {
-      "symbol": "square.grid.2x2.fill",
-      "tint": "warmup",
-      "title": "Fuel tools at hand",
-      "body": "Fuel tools sit right under the date bar, and your next meal offers recipes from what you have."
-    },
-    {
-      "symbol": "drop.fill",
+      "symbol": "textformat.size",
       "tint": "cardio",
-      "title": "Water reminders",
-      "body": "Water reminders that follow your training, with +1 right on the banner, widget and Watch."
+      "title": "Easier to read",
+      "body": "Text follows your iPhone's text size, light cards use dark text, and buttons are easier to tap."
     }
   ]
 }
