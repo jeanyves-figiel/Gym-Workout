@@ -144,6 +144,7 @@ struct FuelView: View {
         .sheet(isPresented: $setup) { NavigationStack { FuelSetupView(sheet: true) } }
         .sheet(item: $slot) { s in FuelSlotSheet(slot: s, plan: plan, day: day) }
         .navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }
+        .fuelDestinations()
         .onAppear { if !store.saved.setUp && !model.demo { setup = true } }
         .coachFocus(CoachFocus(screen: "fuel", title: "Fuel", detail: Self.coachDetail(plan, log: log, prefs: store.prefs),
                                starters: CoachFocus.tab(.fuel).starters))
@@ -687,6 +688,27 @@ struct FuelPortionsView: View {
 // MARK: - Tools
 
 /// Doors to the rest of Fuel, under every layout.
+/// Fuel screens, pushed by value like the recipes inside them: a value link inside a screen pushed with a
+/// destination link popped the recipe straight back (#508).
+enum FuelRoute: Hashable {
+    case pantry, mealPlan, groceries, recipes(MealKind?), week, learn
+}
+
+extension View {
+    func fuelDestinations() -> some View {
+        navigationDestination(for: FuelRoute.self) { route in
+            switch route {
+            case .pantry: PantryView()
+            case .mealPlan: MealPlanView()
+            case .groceries: GroceriesView()
+            case .recipes(let slot): RecipeBrowserView(slot: slot)
+            case .week: FuelWeekView()
+            case .learn: FuelLearnView()
+            }
+        }
+    }
+}
+
 struct FuelTools: View {
     let plan: FuelPlan
     @Environment(AppModel.self) private var model
@@ -696,7 +718,7 @@ struct FuelTools: View {
         let today = store.key(Date())
         let planned = store.saved.plan.filter { $0.day >= today }.count
         VStack(spacing: 10) {
-            NavigationLink { PantryView() } label: {
+            NavigationLink(value: FuelRoute.pantry) {
                 FuelTile(emoji: "🧊", label: "What I have", title: store.saved.pantry.isEmpty ? "Type, pick or scan your food" : "Meals from your fridge",
                          detail: store.saved.pantry.isEmpty ? "Get meals that fit your day" : "\(store.saved.pantry.count) foods at home",
                          gradient: FuelPalette.mint) {
@@ -706,25 +728,25 @@ struct FuelTools: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("fuel.pantry")
             HStack(spacing: 10) {
-                NavigationLink { MealPlanView() } label: {
+                NavigationLink(value: FuelRoute.mealPlan) {
                     square("🗓️", "Meal plan", planned > 0 ? "\(planned) meals" : "Plan days", FuelPalette.violet)
                 }
                 .buttonStyle(.plain)
-                NavigationLink { GroceriesView() } label: {
+                NavigationLink(value: FuelRoute.groceries) {
                     square("🛒", "Groceries", planned > 0 ? "\(model.groceries().count) items" : "From your plan", FuelPalette.hot)
                 }
                 .buttonStyle(.plain)
             }
             HStack(spacing: 10) {
-                NavigationLink { RecipeBrowserView() } label: {
+                NavigationLink(value: FuelRoute.recipes(nil)) {
                     square("📖", "Recipes", "\(RecipeBook.catalog.count + store.saved.recipes.count)", FuelPalette.coach)
                 }
                 .buttonStyle(.plain)
-                NavigationLink { FuelWeekView() } label: {
+                NavigationLink(value: FuelRoute.week) {
                     square("📈", "Fuel week", "Streaks", FuelPalette.water)
                 }
                 .buttonStyle(.plain)
-                NavigationLink { FuelLearnView() } label: {
+                NavigationLink(value: FuelRoute.learn) {
                     square("🎓", "Learn", "\(FuelLearn.cards.count) reads", FuelPalette.gradient(0x3D4BFF, 0x8A4DFF))
                 }
                 .buttonStyle(.plain)
@@ -816,7 +838,7 @@ struct FuelSlotSheet: View {
                             .accessibilityLabel("I ate \(r.name)")
                         }
                     }
-                    NavigationLink { RecipeBrowserView(slot: slot.recipeKind) } label: {
+                    NavigationLink(value: FuelRoute.recipes(slot.recipeKind)) {
                         Label("All \(slot.recipeKind.label.lowercased()) recipes", systemImage: "book.fill")
                             .font(Theme.label(15)).foregroundStyle(Theme.lime)
                             .frame(maxWidth: .infinity).padding(.vertical, 12)
@@ -830,6 +852,7 @@ struct FuelSlotSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }
             .navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0, eat: (slot, plan, day)) }
+            .fuelDestinations()
         }
         .presentationDetents([.large])
     }

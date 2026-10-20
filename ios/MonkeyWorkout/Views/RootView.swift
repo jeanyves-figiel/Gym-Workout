@@ -416,15 +416,15 @@ private struct DemoScreen: View {
         case "move": MoveSessionSheet(sessionId: second)
         // Fuel (#496).
         case "fuel", "fuel-timeline", "fuel-portions": NavigationStack { FuelView() }
-        case "fuel-recipes": NavigationStack { RecipeBrowserView() }
+        case "fuel-recipes": NavigationStack { RecipeBrowserView().navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }.fuelDestinations() }
         case "recipe": NavigationStack { RecipeDetailView(recipe: RecipeBook.catalog[0]) }
         case "cook-mode": CookModeView(recipe: RecipeBook.catalog[0], servings: RecipeBook.catalog[0].servings)
-        case "fuel-pantry": NavigationStack { PantryView() }
+        case "fuel-pantry": NavigationStack { PantryView().navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }.fuelDestinations() }
         case "meal-plan":
-            NavigationStack { MealPlanView() }
+            NavigationStack { MealPlanView().navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }.fuelDestinations() }
                 .onAppear { if FuelStore.shared.saved.plan.isEmpty { model.planMeals() } }
         case "groceries":
-            NavigationStack { GroceriesView() }
+            NavigationStack { GroceriesView().navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }.fuelDestinations() }
                 .onAppear { if FuelStore.shared.saved.plan.isEmpty { model.planMeals() } }
         case "fuel-week": NavigationStack { FuelWeekView() }
         case "fuel-learn": NavigationStack { FuelLearnView() }
