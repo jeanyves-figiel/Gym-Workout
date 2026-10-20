@@ -231,7 +231,17 @@ struct NextUpCompactWidget: View {
         }
     }
 
-    private func startButton(_ s: Session) -> some View {
+    /// Start for today's session only (#537); a later day shows its day instead.
+    @ViewBuilder private func startButton(_ s: Session) -> some View {
+        if !model.startableToday(s), let wd = s.weekday {
+            PlannedDayBadge(weekday: wd, compact: true)
+                .frame(maxWidth: wide ? nil : .infinity)
+        } else {
+            playButton(s)
+        }
+    }
+
+    private func playButton(_ s: Session) -> some View {
         Button { onStart(s) } label: {
             Label(model.activeWorkout(s.id) == nil ? "Start" : "Resume", systemImage: "play.fill")
                 .font(Theme.label(14))
