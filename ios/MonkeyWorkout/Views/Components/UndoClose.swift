@@ -92,7 +92,13 @@ final class UndoCloseCenter {
     private var window: PassthroughWindow?
     private let state = UndoBarState()
 
-    func show(_ offer: UndoOffer) {
+    /// Something was deleted at once (#539): no confirmation dialog, the Undo bar puts it back with `restore`.
+    func deleted(_ title: String, detail: String = "", symbol: String = "trash.fill", restore: @escaping () -> Void) {
+        Haptics.destructive()
+        show(UndoOffer(title: title, detail: detail, symbol: symbol, reopen: { AnyView(EmptyView()) }, revert: restore), haptic: false)
+    }
+
+    func show(_ offer: UndoOffer, haptic: Bool = true) {
         guard let scene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
             .first(where: { $0.activationState == .foregroundActive }) ?? UIApplication.shared.connectedScenes.first as? UIWindowScene
@@ -106,13 +112,14 @@ final class UndoCloseCenter {
             w.isHidden = false
             window = w
         }
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        if haptic { Haptics.undo() }
         state.present(offer)
         UIAccessibility.post(notification: .announcement, argument: "\(offer.title). Undo available.")
     }
 
     func undo(_ offer: UndoOffer) {
         state.clear()
+        Haptics.undo()
         if let revert = offer.revert { return revert() }
         let host = UIHostingController(rootView: environment(offer.reopen()))
         host.modalPresentationStyle = offer.fullScreen ? .fullScreen : .pageSheet

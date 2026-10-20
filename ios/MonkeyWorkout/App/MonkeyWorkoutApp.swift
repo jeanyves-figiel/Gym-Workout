@@ -17,6 +17,8 @@ struct MonkeyWorkoutApp: App {
                 .environment(lock)
                 .environment(health)
                 .environment(\.bodyFigure, model.bodyFigure)
+                // Dynamic Type (#540): grows up to the third accessibility size, where the layouts still hold.
+                .dynamicTypeSize(...DynamicTypeSize.accessibility3)
                 .task {
                     model.health = health
                     FuelStore.shared.health = health
@@ -24,7 +26,8 @@ struct MonkeyWorkoutApp: App {
                     // Screens reopened by Undo (#285) live outside this tree: give them the same environment.
                     UndoCloseCenter.shared.environment = { [model, lock, health] view in
                         AnyView(view.environment(model).environment(lock).environment(health)
-                            .environment(\.bodyFigure, model.bodyFigure).preferredColorScheme(.dark).tint(Theme.lime))
+                            .environment(\.bodyFigure, model.bodyFigure).preferredColorScheme(.dark).tint(Theme.lime)
+                            .dynamicTypeSize(...DynamicTypeSize.accessibility3))
                     }
                     await model.bootstrap()
                     FuelStore.shared.applyWidgetGlasses()

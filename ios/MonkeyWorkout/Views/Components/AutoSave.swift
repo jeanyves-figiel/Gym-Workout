@@ -7,17 +7,19 @@ import UIKit
 // navigation bar reads "Saving…" while a change waits (short debounce) and "Saved" once written. C: leaving
 // the screen after a change shows the gradient Undo bar (#285) with what changed; Undo puts the values the
 // screen opened with back. Screens opt in with `.autoSave(_:title:detail:save:)`.
+// A save that throws turns the pill into a red "Couldn't save · Retry" (#539); the change stays on screen.
 
-enum AutoSaveStatus: Equatable { case idle, saving, saved }
+enum AutoSaveStatus: Equatable { case idle, saving, saved, failed }
 
 extension View {
     /// Saves `value` a moment after each change, flushes on leave, shows the Saved pill and offers Undo on close.
     /// `value` is nil until the screen has loaded; the first non-nil value is what Undo goes back to.
     /// `save` gets the value only: it must not read the screen's `@State` (Undo calls it after the screen is gone).
+    /// When it throws, the pill shows "Couldn't save · Retry".
     /// `committed` runs once when the screen closes after a change (e.g. writing to Apple Health).
     func autoSave<V: Equatable>(_ value: V?, title: String, symbol: String = "checkmark",
                                 detail: @escaping (V) -> String = { _ in "" },
-                                save: @escaping (V) -> Void,
+                                save: @escaping @MainActor (V) async throws -> Void,
                                 committed: ((V) -> Void)? = nil) -> some View {
         modifier(AutoSaveModifier(value: value, title: title, symbol: symbol, detail: detail, save: save, committed: committed))
     }
@@ -28,7 +30,7 @@ private struct AutoSaveModifier<V: Equatable>: ViewModifier {
     let title: String
     let symbol: String
     let detail: (V) -> String
-    let save: (V) -> Void
+    let save: @MainActor (V) async throws -> Void
     let committed: ((V) -> Void)?
 
     @State private var original: V?
@@ -43,7 +45,7 @@ private struct AutoSaveModifier<V: Equatable>: ViewModifier {
         content
             .toolbar {
                 if status != .idle {
-                    ToolbarItem(placement: .topBarTrailing) { SavedPill(status: status) }
+                    ToolbarItem(placement: .topBarTrailing) { SavedPill(status: status, retry: flush) }
                 }
             }
             .onAppear {
@@ -71,10 +73,24 @@ private struct AutoSaveModifier<V: Equatable>: ViewModifier {
 
     private func flush() {
         guard let value, value != lastSaved else { return }
-        save(value)
+        let previous = lastSaved
         lastSaved = value
-        withAnimation(.snappy) { status = .saved }
-        UIAccessibility.post(notification: .announcement, argument: "Saved")
+        withAnimation(.snappy) { status = .saving }
+        let save = save
+        Task { @MainActor in
+            do {
+                try await save(value)
+                withAnimation(.snappy) { status = .saved }
+                Haptics.success()
+                UIAccessibility.post(notification: .announcement, argument: "Saved")
+            } catch {
+                // Not written: the next change or Retry tries again.
+                lastSaved = previous
+                withAnimation(.snappy) { status = .failed }
+                Haptics.destructive()
+                UIAccessibility.post(notification: .announcement, argument: "Couldn't save. Retry available.")
+            }
+        }
     }
 
     private func commit() {
@@ -87,7 +103,7 @@ private struct AutoSaveModifier<V: Equatable>: ViewModifier {
         guard let value, let original, value != original else { return nil }
         let save = save
         return UndoOffer(title: "\(title) saved", detail: detail(value), symbol: symbol,
-                         reopen: { AnyView(EmptyView()) }, revert: { save(original) })
+                         reopen: { AnyView(EmptyView()) }, revert: { Task { @MainActor in try? await save(original) } })
     }
 }
 
@@ -111,26 +127,48 @@ private struct CommitProbe: UIViewControllerRepresentable {
     }
 }
 
-/// Design A: lime pill, "Saving…" with a spinner, then "Saved" with a tick.
+/// Design A: lime pill, "Saving…" with a spinner, then "Saved" with a tick. A failed save (#539): red gradient
+/// "Couldn't save · Retry" that saves again when tapped.
 struct SavedPill: View {
     let status: AutoSaveStatus
+    var retry: () -> Void = {}
+
+    static let failure = LinearGradient(colors: [Color(red: 1, green: 0.23, blue: 0.19), Color(red: 1, green: 0.18, blue: 0.43)],
+                                        startPoint: .leading, endPoint: .trailing)
 
     var body: some View {
-        HStack(spacing: 5) {
-            if status == .saving {
-                ProgressView().controlSize(.mini).tint(Theme.lime)
-            } else {
-                Image(systemName: "checkmark").font(.system(size: 10, weight: .black))
+        if status == .failed {
+            Button(action: retry) {
+                HStack(spacing: 5) {
+                    Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10, weight: .black))
+                    Text("Couldn't save · ").font(Theme.label(12)) + Text("Retry").font(Theme.label(12)).underline()
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Self.failure))
+                .fixedSize()
+                .contentShape(Rectangle())
             }
-            Text(status == .saving ? "Saving…" : "Saved").font(Theme.label(12))
+            .buttonStyle(.plain)
+            .accessibilityLabel("Couldn't save")
+            .accessibilityHint("Tries saving again")
+        } else {
+            HStack(spacing: 5) {
+                if status == .saving {
+                    ProgressView().controlSize(.mini).tint(Theme.lime)
+                } else {
+                    Image(systemName: "checkmark").font(.system(size: 10, weight: .black))
+                }
+                Text(status == .saving ? "Saving…" : "Saved").font(Theme.label(12))
+            }
+            .foregroundStyle(Theme.lime)
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(Capsule().fill(Theme.lime.opacity(0.15)))
+            .fixedSize()
+            .contentTransition(.opacity)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(status == .saving ? "Saving" : "All changes saved")
         }
-        .foregroundStyle(Theme.lime)
-        .padding(.horizontal, 10).padding(.vertical, 5)
-        .background(Capsule().fill(Theme.lime.opacity(0.15)))
-        .fixedSize()
-        .contentTransition(.opacity)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(status == .saving ? "Saving" : "All changes saved")
     }
 }
 
