@@ -254,7 +254,8 @@ struct MuscleDetailView: View {
     var body: some View {
         let _ = model.customExercises.count
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            // Lazy: a muscle's sections build as they scroll in (full width either way: the sections fill it).
+            LazyVStack(alignment: .leading, spacing: 22) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(muscle.group.label).eyebrow()
                     Text(muscle.name).font(Theme.display(40))
@@ -330,7 +331,8 @@ struct CategoryDetailView: View {
     var body: some View {
         let _ = model.customExercises.count
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            // Lazy: a category's exercise cards (dozens) build as they scroll in; header and cards fill the width.
+            LazyVStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 10) {
                     Image(systemName: category.symbol).font(.system(size: 40, weight: .bold))
                     Text(category.label).font(Theme.display(40))
