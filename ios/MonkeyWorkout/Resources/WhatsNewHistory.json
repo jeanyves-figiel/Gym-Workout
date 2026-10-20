@@ -1,6 +1,55 @@
 {
   "releases": [
     {
+      "id": "2026-10-19.3",
+      "build": 50,
+      "date": "2026-10-19",
+      "items": [
+        {
+          "symbol": "hand.point.up.left.fill",
+          "tint": "strength",
+          "title": "Hold a day",
+          "body": "Touch and hold a workout day in the week strip on Train to move it, swap it with another workout, edit it or plan a sport that day."
+        },
+        {
+          "symbol": "plus.rectangle.on.rectangle",
+          "tint": "strength",
+          "title": "Build as I go",
+          "body": "Unplanned session? Start empty and add exercises as you train. Coach suggests what's next."
+        },
+        {
+          "symbol": "arrow.counterclockwise.circle.fill",
+          "tint": "power",
+          "title": "Start fresh",
+          "body": "Want a totally new plan? Training profile → Start fresh. Keep your answers or answer again; history, PRs and XP stay."
+        },
+        {
+          "symbol": "fork.knife",
+          "tint": "cardio",
+          "title": "Fuel",
+          "body": "New tab: food pointers for each day's training, 200+ recipes, meal plans, a grocery list and a fridge scan."
+        },
+        {
+          "symbol": "chart.line.uptrend.xyaxis",
+          "tint": "power",
+          "title": "Monkey grows with you",
+          "body": "Every 4 weeks a block review levels your plan up, auto-tune fits each day's workout to your sleep and sore muscles, and your growth path shows when you'll hit your goal."
+        },
+        {
+          "symbol": "scalemass.fill",
+          "tint": "strength",
+          "title": "Built for heavy lifters",
+          "body": "Peak a lift for a test day with Lift Focus, pick top sets, drops or myo-reps per exercise, and see your rep records in Lift Lab."
+        },
+        {
+          "symbol": "shield.lefthalf.filled",
+          "tint": "warmup",
+          "title": "Rewards for every day",
+          "body": "Streak shields save a missed week, a Comeback quest after a break, and every finish shows 3 wins, even on a tough day."
+        }
+      ]
+    },
+    {
       "id": "2026-10-19.2",
       "build": 49,
       "date": "2026-10-19",

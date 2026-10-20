@@ -1,47 +1,35 @@
 {
-  "id": "2026-10-19.3",
+  "id": "2026-10-20.1",
   "items": [
     {
-      "symbol": "hand.point.up.left.fill",
-      "tint": "strength",
-      "title": "Hold a day",
-      "body": "Touch and hold a workout day in the week strip on Train to move it, swap it with another workout, edit it or plan a sport that day."
-    },
-    {
-      "symbol": "plus.rectangle.on.rectangle",
-      "tint": "strength",
-      "title": "Build as I go",
-      "body": "Unplanned session? Start empty and add exercises as you train. Coach suggests what's next."
-    },
-    {
-      "symbol": "arrow.counterclockwise.circle.fill",
-      "tint": "power",
-      "title": "Start fresh",
-      "body": "Want a totally new plan? Training profile → Start fresh. Keep your answers or answer again; history, PRs and XP stay."
-    },
-    {
-      "symbol": "fork.knife",
+      "symbol": "magnifyingglass",
       "tint": "cardio",
-      "title": "Fuel",
-      "body": "New tab: food pointers for each day's training, 200+ recipes, meal plans, a grocery list and a fridge scan."
+      "title": "Explore, clearer",
+      "body": "Pick Exercises or Ready-made, then browse by muscle, machine or type. Muscles shows what you worked most this week."
     },
     {
-      "symbol": "chart.line.uptrend.xyaxis",
-      "tint": "power",
-      "title": "Monkey grows with you",
-      "body": "Every 4 weeks a block review levels your plan up, auto-tune fits each day's workout to your sleep and sore muscles, and your growth path shows when you'll hit your goal."
-    },
-    {
-      "symbol": "scalemass.fill",
+      "symbol": "arrow.up.and.down.text.horizontal",
       "tint": "strength",
-      "title": "Built for heavy lifters",
-      "body": "Peak a lift for a test day with Lift Focus, pick top sets, drops or myo-reps per exercise, and see your rep records in Lift Lab."
+      "title": "Jump around an exercise",
+      "body": "A sticky bar on each exercise takes you straight to muscles, your stats, setup, form or similar moves."
     },
     {
-      "symbol": "shield.lefthalf.filled",
+      "symbol": "arrow.left.and.right",
+      "tint": "cardio",
+      "title": "Fuel days slide",
+      "body": "Slide Fuel's date bar day by day like Train's week strip. Days are coloured by load: big day, training day or rest."
+    },
+    {
+      "symbol": "text.magnifyingglass",
       "tint": "warmup",
-      "title": "Rewards for every day",
-      "body": "Streak shields save a missed week, a Comeback quest after a break, and every finish shows 3 wins, even on a tough day."
+      "title": "What I have: one box",
+      "body": "Search every food from one box and add what's in your fridge in a few taps."
+    },
+    {
+      "symbol": "pills.fill",
+      "tint": "power",
+      "title": "Supplements and shakes",
+      "body": "Supplements and meal shakes in Fuel: on your timeline, with a caffeine check for your sleep."
     }
   ]
 }
