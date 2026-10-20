@@ -9,6 +9,8 @@ enum NotificationRoute: Identifiable, Equatable {
     case session(String)
     /// Missed-session check-in: the session and the day it was planned on.
     case reschedule(sessionId: String, day: Date)
+    /// "Pick another day": the day picker itself, not the check-in.
+    case move(sessionId: String)
     /// Badge just unlocked (#76).
     case badge(String)
     /// Someone you follow achieved something: their community page.
@@ -18,6 +20,7 @@ enum NotificationRoute: Identifiable, Equatable {
         switch self {
         case let .session(s): "session|\(s)"
         case let .reschedule(s, d): "reschedule|\(s)|\(d.timeIntervalSince1970)"
+        case let .move(s): "move|\(s)"
         case let .badge(b): "badge|\(b)"
         case let .member(u, _): "member|\(u)"
         }
@@ -486,6 +489,7 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         if kind == "badge", let badgeId { return .badge(badgeId) }
         guard let sessionId else { return nil }
         switch (kind, action) {
+        case ("missed", Action.reschedule): return .move(sessionId: sessionId)
         // "Train today" too: the missed day's own page can't start it (#537), the check-in's Train now can.
         case ("missed", _): return .reschedule(sessionId: sessionId, day: day ?? Date())
         case ("upcoming", _): return .session(sessionId)

@@ -181,7 +181,8 @@ struct AddWorkoutSheet: View {
 
     init(weekday: Int? = nil, quick: Focus? = nil) {
         let today = WeekSchedule.fromCalendar(Calendar.current.component(.weekday, from: Date()))
-        _weekday = State(initialValue: weekday ?? today)
+        // Never an earlier day: a workout added there could only be logged (#537).
+        _weekday = State(initialValue: max(weekday ?? today, today))
         _quick = State(initialValue: quick)
     }
 
@@ -284,7 +285,9 @@ struct AddWorkoutSheet: View {
             Text(dayDate.formatted(dayFormat)).font(Theme.display(26))
             HStack(spacing: 4) {
                 ForEach(WeekSchedule.weekdays, id: \.self) { wd in
-                    let off = week?.off[wd] != nil
+                    // An earlier day can't take a new workout (#537): log it from Train instead.
+                    let off = week?.off[wd] != nil || wd < model.todayWeekday
+                    let past = wd < model.todayWeekday
                     let busy = week?.plan.sessions.contains { $0.weekday == wd } ?? false
                     Button { weekday = wd } label: {
                         VStack(spacing: 1) {
@@ -301,7 +304,7 @@ struct AddWorkoutSheet: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(off)
-                    .accessibilityLabel(WeekSchedule.name(wd) + (off ? ", can't train" : busy ? ", has a session" : ""))
+                    .accessibilityLabel(WeekSchedule.name(wd) + (past ? ", past day, log it from Train" : off ? ", can't train" : busy ? ", has a session" : ""))
                 }
             }
         }

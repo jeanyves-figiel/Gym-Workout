@@ -808,7 +808,11 @@ struct FuelSlotActions: View {
             HStack(spacing: 6) {
                 chip(.pantry, "🧊 From what I have")
                 chip(.recipes(slot.recipeKind), "📖 Other recipes")
-                if !missing.isEmpty { chip(.groceries, "🛒 \(missing.count) missing · Groceries") }
+                // The count is this meal's; Groceries lists the whole basket, so the chip says which.
+                if !missing.isEmpty {
+                    chip(.groceries, "🛒 \(missing.count) to buy for this meal")
+                        .accessibilityHint("Opens the full grocery list")
+                }
             }
         }
         .scrollClipDisabled()

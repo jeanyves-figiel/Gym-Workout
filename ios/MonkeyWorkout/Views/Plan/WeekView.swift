@@ -534,10 +534,13 @@ struct WeekView: View {
         }
     }
 
-    /// Sessions still to do in the next 4 weeks (Calendar button).
+    /// Sessions still to do in the next 4 weeks (Calendar button), from today on like the Calendar widget:
+    /// this week's missed days don't count as planned.
     private var plannedCount: Int {
-        let done = model.doneIds
-        return model.calendarWeeks(count: 4).reduce(0) { $0 + $1.plan.sessions.filter { !done.contains($0.id) }.count }
+        let done = model.doneIds, today = model.todayWeekday
+        return model.calendarWeeks(count: 4).enumerated().reduce(0) { n, w in
+            n + w.element.plan.sessions.filter { !done.contains($0.id) && (w.offset > 0 || ($0.weekday ?? today) >= today) }.count
+        }
     }
 
     /// Weekday of each session as the training calendar places it: unscheduled plans (no gym or climbing days
@@ -1113,7 +1116,13 @@ private struct RestDayCard: View {
                      : climber ? "Nothing planned. Train or climb?" : "Nothing planned. Fancy a session?")
                     .font(.footnote).foregroundStyle(.white.opacity(0.8)).multilineTextAlignment(.center)
                 HStack(spacing: 10) {
-                    if let onAdd {
+                    if !laterWeek && weekday < model.todayWeekday {
+                        // An earlier day is logged, never planned (#537): a workout added there could only be logged.
+                        Button { loggingSport = SportLog(start: climbStart()) } label: {
+                            Label("Log a workout", systemImage: "square.and.pencil").lineLimit(1).minimumScaleFactor(0.9)
+                        }
+                        .buttonStyle(LimeButtonStyle())
+                    } else if let onAdd {
                         Button(action: onAdd) { Label("Add workout", systemImage: "plus").lineLimit(1).minimumScaleFactor(0.9) }
                             .buttonStyle(LimeButtonStyle())
                     }
