@@ -341,7 +341,9 @@ struct MonkeyCoachCard: View {
 
     private func open(_ action: Action) {
         switch action {
-        case .start(let s): onStart(s)
+        // Only today's session starts (#537); another day's opens its page.
+        case .start(let s):
+            if model.startableToday(s) { onStart(s) } else { NotificationManager.shared.route = .session(s.id) }
         case .catchUp(let wd): catchUp = .init(id: wd)
         case .progress(let section):
             model.progressJump = section
