@@ -62,6 +62,8 @@ final class AppModel {
     /// Connectivity regained with something unsent → sync.
     @ObservationIgnored private var pathMonitor: NWPathMonitor?
     @ObservationIgnored private var online = true
+    /// Coalesced save waiting to run (`persist()`).
+    @ObservationIgnored private var persistTask: Task<Void, Never>?
 
     init(api: APIClient, store: LocalStore) {
         self.api = api
@@ -965,8 +967,33 @@ final class AppModel {
         online = true
     }
 
-    /// Internal (not private) so model extensions in other files can save.
+    /// Internal (not private) so model extensions in other files can save. Coalesced: a burst of changes is encoded
+    /// and written once, off the main thread, shortly after the last one; at once while the app isn't active (it may
+    /// be suspended any moment).
     func persist() {
+        guard !demo else { return }
+        guard UIApplication.shared.applicationState == .active else { return persistNow() }
+        persistTask?.cancel()
+        let wipes = store.wipeCount
+        persistTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            // A sign-out or account switch wiped the file meanwhile: nothing of before goes back to disk.
+            guard !Task.isCancelled, let self, self.store.wipeCount == wipes else { return }
+            self.persistTask = nil
+            self.store.saveInBackground(self.state)
+        }
+    }
+
+    /// Writes the state now, after any write already queued.
+    func persistNow() {
+        persistTask?.cancel()
+        persistTask = nil
         if !demo { store.save(state) }
+    }
+
+    /// The app leaves the foreground: a coalesced save still waiting is written now.
+    func flushPersist() {
+        guard persistTask != nil else { return }
+        persistNow()
     }
 }

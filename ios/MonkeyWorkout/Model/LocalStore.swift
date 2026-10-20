@@ -187,6 +187,10 @@ struct ActiveWorkout: Codable, Equatable {
 /// JSON file in Application Support, encrypted at rest by iOS data protection.
 struct LocalStore {
     private let url: URL
+    /// Saves and wipes run in order on one queue: a background save never lands after a later save or a wipe.
+    private static let queue = DispatchQueue(label: "LocalStore.io", qos: .utility)
+    private final class Wipes { var count = 0 }
+    private let wipes = Wipes()
 
     init(filename: String = "state.json") {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -201,13 +205,31 @@ struct LocalStore {
         return s
     }
 
+    /// Times this store was wiped (main thread): a save planned before a wipe is dropped (`AppModel.persist`).
+    var wipeCount: Int { wipes.count }
+
+    /// Saves now, after any background save queued before it.
     func save(_ state: LocalState) {
+        let url = url
+        Self.queue.sync { Self.write(state, to: url) }
+    }
+
+    /// Encodes and writes off the calling thread, after any save queued before it.
+    func saveInBackground(_ state: LocalState) {
+        let url = url
+        Self.queue.async { Self.write(state, to: url) }
+    }
+
+    private static func write(_ state: LocalState, to url: URL) {
         guard let data = try? JSONEncoder().encode(state) else { return }
         try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 
     func wipe() {
-        try? FileManager.default.removeItem(at: url)
+        wipes.count += 1
+        let url = url
+        // After any queued save, so none brings the file back.
+        Self.queue.sync { try? FileManager.default.removeItem(at: url) }
         MachineNotePhotos.wipe()
     }
 }

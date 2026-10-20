@@ -68,6 +68,7 @@ struct MonkeyWorkoutApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     switch phase {
                     case .background:
+                        model.flushPersist()
                         lock.didEnterBackground()
                         HomeWidgetSync.shared.push()
                     case .active:
@@ -83,6 +84,8 @@ struct MonkeyWorkoutApp: App {
                             await health.refresh()
                             WatchSync.shared.push()
                         }
+                    case .inactive:
+                        model.flushPersist()
                     default: break
                     }
                 }
