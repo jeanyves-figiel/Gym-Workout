@@ -247,13 +247,9 @@ struct LogClimbView: View {
     /// Design C card: type chips, start, duration, how hard, grade chips, notes, all in the type's colours.
     private var card: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    DatePicker("Started", selection: $log.start, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
-                        .labelsHidden()
-                        .colorScheme(.dark)
-                    Text(log.kind.label).font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.6)
-                }
+            CardTimes(start: $log.start, minutes: log.minutes)
+            HStack {
+                Text(log.kind.label).font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.6)
                 Spacer()
                 Image(systemName: log.kind.symbol).font(.system(size: 40, weight: .bold))
             }
@@ -264,7 +260,7 @@ struct LogClimbView: View {
                 }
             }
 
-            CardDuration(minutes: $log.minutes, max: 360)
+            CardDuration(minutes: CardTimes.endAnchored($log.minutes, start: $log.start), max: 360)
 
             Text("How hard · \(log.effort) \(ClimbLog.effortLabel(log.effort))")
                 .font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.9)

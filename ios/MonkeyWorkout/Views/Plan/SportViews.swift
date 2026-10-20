@@ -384,18 +384,14 @@ struct LogSportView: View {
     /// Design C card (#435): the sport's own colours hold when, how long and how hard.
     private var card: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    DatePicker("Started", selection: $log.start, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
-                        .labelsHidden()
-                        .colorScheme(.dark)
-                    Text(log.sport.label).font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.6)
-                }
+            CardTimes(start: $log.start, minutes: log.minutes)
+            HStack {
+                Text(log.sport.label).font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.6)
                 Spacer()
                 Image(systemName: log.sport.symbol).font(.system(size: 40, weight: .bold))
             }
 
-            CardDuration(minutes: $log.minutes, max: 16 * 60)
+            CardDuration(minutes: CardTimes.endAnchored($log.minutes, start: $log.start), max: 16 * 60)
 
             Text("How hard · \(log.effort) \(ClimbLog.effortLabel(log.effort))")
                 .font(Theme.label(11)).tracking(1.2).textCase(.uppercase).opacity(0.9)
@@ -486,6 +482,51 @@ struct SportStrip: View {
     }
 }
 
+/// Day, Started → Ended inside a log card: the end is the start plus the duration, and editing it moves the start.
+struct CardTimes: View {
+    @Binding var start: Date
+    let minutes: Int
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 6) {
+            DatePicker("Day", selection: $start, in: ...Date(), displayedComponents: .date)
+                .labelsHidden()
+            labelled("Started") {
+                DatePicker("Started", selection: $start, in: ...Date(), displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+            }
+            Image(systemName: "arrow.right").font(.system(size: 13, weight: .heavy)).padding(.bottom, 10)
+            labelled("Ended") {
+                DatePicker("Ended", selection: end, in: ...Date(), displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+            }
+        }
+        .colorScheme(.dark)
+    }
+
+    /// Picking an end time keeps the duration and moves the start.
+    private var end: Binding<Date> {
+        Binding(get: { start.addingTimeInterval(Double(minutes) * 60) },
+                set: { start = $0.addingTimeInterval(-Double(minutes) * 60) })
+    }
+
+    private func labelled(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(Theme.label(9)).tracking(1).textCase(.uppercase).opacity(0.85)
+            content()
+        }
+    }
+
+    /// Duration binding that keeps the end where it is: − / + moves the start, so "finished now" stays now.
+    static func endAnchored(_ minutes: Binding<Int>, start: Binding<Date>) -> Binding<Int> {
+        Binding(get: { minutes.wrappedValue },
+                set: { m in
+                    start.wrappedValue = start.wrappedValue.addingTimeInterval(Double(minutes.wrappedValue - m) * 60)
+                    minutes.wrappedValue = m
+                })
+    }
+}
+
 /// Duration stepper inside a sport-coloured log card (#435), 15 min steps.
 struct CardDuration: View {
     @Binding var minutes: Int
@@ -524,11 +565,16 @@ struct FeelChips: View {
     @Binding var effort: Int
     static let feels: [(String, Int)] = [("Easy", 3), ("Solid", 6), ("Hard", 8), ("Wrecked", 10)]
 
+    /// The one chip an effort lights: the nearest feel, a tie going to the lower one (7 → Solid, like its label).
+    static func chip(for effort: Int) -> Int {
+        feels.map(\.1).min { abs(effort - $0) < abs(effort - $1) } ?? 6
+    }
+
     var body: some View {
         HStack(spacing: 6) {
             ForEach(Self.feels.indices, id: \.self) { i in
                 let f = Self.feels[i]
-                let on = abs(effort - f.1) <= 1
+                let on = Self.chip(for: effort) == f.1
                 CardChip(title: f.0, on: on) { effort = f.1 }
             }
         }
@@ -758,7 +804,7 @@ struct SportSessionSheet: View {
                     HStack(spacing: 8) {
                         ForEach(FeelChips.feels.indices, id: \.self) { i in
                             let f = FeelChips.feels[i]
-                            let on = (effort ?? entry.effort).map { abs($0 - f.1) <= 1 } ?? false
+                            let on = (effort ?? entry.effort).map { FeelChips.chip(for: $0) == f.1 } ?? false
                             Button { rate(f.1) } label: {
                                 Text(f.0).font(Theme.label(14)).frame(maxWidth: .infinity, minHeight: 44)
                                     .foregroundStyle(on ? Theme.ink : .white)
