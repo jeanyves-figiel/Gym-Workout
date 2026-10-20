@@ -7,6 +7,8 @@ export type PushKind = 'follow_achievement' | 'test';
 
 /** Pushes to followers in flight at once per fan-out, so a member with many followers can't flood APNs or the loop. */
 const FAN_OUT_CONCURRENCY = 5;
+/** Devices kept per member; registering another drops the least recently registered. */
+export const MAX_DEVICES = 10;
 
 /** Runs `fn` over `items` with at most `limit` running at once. */
 const forEachLimit = async <T>(items: readonly T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> => {
@@ -78,6 +80,12 @@ export class PushService {
          ON CONFLICT(token) DO UPDATE SET user_id = excluded.user_id, env = excluded.env, topic = excluded.topic, tz = excluded.tz, updated_at = excluded.updated_at`,
       )
       .run(token, userId, env, topic, tz ?? null, ts, ts);
+    this.d.db
+      .prepare(
+        `DELETE FROM push_devices WHERE user_id = ? AND token NOT IN
+           (SELECT token FROM push_devices WHERE user_id = ? ORDER BY updated_at DESC, created_at DESC, token LIMIT ?)`,
+      )
+      .run(userId, userId, MAX_DEVICES);
   }
 
   unregisterDevice(userId: string, token: string): void {

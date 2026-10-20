@@ -181,6 +181,22 @@ describe('push devices and prefs', () => {
     expect(peak).toBe(5);
   });
 
+  it('keeps the 10 most recently registered devices per member', async () => {
+    const u = await signUp('many@example.com');
+    const tok = (i: number) => i.toString(16).padStart(2, '0').repeat(32);
+    for (let i = 0; i < 12; i++) {
+      await put('/v1/me/push-device', device(tok(i)), u.token);
+      clock = new Date(clock.getTime() + 1000);
+    }
+    // re-registering an old device refreshes it
+    await put('/v1/me/push-device', device(tok(0)), u.token);
+    const kept = (db.prepare('SELECT token FROM push_devices WHERE user_id = ?').all(u.id) as { token: string }[]).map((r) => r.token);
+    expect(kept).toHaveLength(10);
+    expect(kept).toContain(tok(0));
+    expect(kept).not.toContain(tok(1));
+    expect(kept).not.toContain(tok(2));
+  });
+
   it('deletes devices and prefs with the account', async () => {
     const u = await signUp('gone@example.com');
     await put('/v1/me/push-device', device(TOKEN_A), u.token);

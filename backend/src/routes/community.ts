@@ -16,7 +16,11 @@ import {
 import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
 import type { Mailer } from '../mailer.ts';
+import { DAY, throttleTake } from '../throttle.ts';
 import { beforeSql, pageCursor } from './sync.ts';
+
+/** New community posts per member per day (updates of an existing post don't count). */
+const POSTS_PER_DAY = 50;
 
 /** Community (#61): profiles, shared progress posts, cheers, report + block. */
 
@@ -491,6 +495,8 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     if (dup || owner) {
       db.prepare('UPDATE community_posts SET visibility = ?, caption = ?, payload = ?, updated_at = ? WHERE id = ?').run(vis, b.caption || null, json, ts, target);
     } else {
+      if (!throttleTake(db, `post:${req.userId!}`, POSTS_PER_DAY, DAY, now()))
+        throw new ApiError(429, 'daily_limit', `That's ${POSTS_PER_DAY} posts today. Share more tomorrow!`);
       db.prepare(
         `INSERT INTO community_posts (id, user_id, kind, ref_id, visibility, caption, payload, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(id, req.userId!, b.kind, b.refId ?? null, vis, b.caption || null, json, ts, ts);

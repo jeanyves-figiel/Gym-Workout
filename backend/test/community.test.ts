@@ -154,6 +154,16 @@ describe('pronouns (#415)', () => {
 });
 
 describe('community feed', () => {
+  it('caps new posts at 50 a day; updating a post is not a new one', async () => {
+    const u = await join('poster@example.com', 'poster');
+    for (let i = 0; i < 50; i++) expect((await share(u.t)).statusCode).toBe(200);
+    const over = await share(u.t);
+    expect(over.statusCode).toBe(429);
+    expect(over.json().error).toBe('daily_limit');
+    const mine = db.prepare('SELECT id FROM community_posts LIMIT 1').get() as { id: string };
+    expect((await share(u.t, { id: mine.id })).statusCode).toBe(200);
+  });
+
   it('honours visibility, cheers, blocks and deletion', async () => {
     const a = await join('a@example.com', 'bea', { defaultVisibility: 'members' });
     const b = await join('b@example.com', 'monkey_jy', { defaultVisibility: 'private' });
