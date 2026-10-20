@@ -194,7 +194,8 @@ public actor APIClient {
             path += "?since=\(s.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? s)"
         }
         let r = try await authorized("GET", path, Empty?.none, as: LogsResponse.self)
-        return LogChanges(logs: r.logs, deleted: Set((r.deleted ?? []).compactMap(UUID.init(uuidString:))))
+        return LogChanges(logs: r.logs, deleted: Set((r.deleted ?? []).compactMap(UUID.init(uuidString:))),
+                          serverTime: r.serverTime.flatMap { Self.parseISO($0) })
     }
 
     public func pushLogs(_ logs: [LogEntry]) async throws {

@@ -170,13 +170,17 @@ private func tokensJSON(_ n: Int) -> String {
         let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
         StubProtocol.register("logs-deleted.test") { req, _ in
             req.url!.query?.contains("since=") == true
-                ? (200, #"{"logs":[],"deleted":["6f9619ff-8b86-d011-b42d-00c04fc964ff","not-a-uuid"],"serverTime":"x"}"#)
+                ? (200, #"{"logs":[],"deleted":["6f9619ff-8b86-d011-b42d-00c04fc964ff","not-a-uuid"],"serverTime":"2026-10-07T10:00:00.250Z"}"#)
                 : (200, #"{"logs":[],"serverTime":"x"}"#)
         }
         let api = makeClient("logs-deleted.test", tokens: store)
         let changes = try await api.fetchLogChanges(since: Date())
         #expect(changes.deleted == [UUID(uuidString: "6F9619FF-8B86-D011-B42D-00C04FC964FF")!])
-        #expect(try await api.fetchLogChanges().deleted.isEmpty)
+        #expect(changes.serverTime == Date(timeIntervalSince1970: 1_791_367_200.25))
+        let full = try await api.fetchLogChanges()
+        #expect(full.deleted.isEmpty)
+        // A bad server time doesn't fail the pull; the app falls back to its own clock.
+        #expect(full.serverTime == nil)
     }
 
     @Test func workoutsRoundTrip() async throws {

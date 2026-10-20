@@ -925,7 +925,8 @@ final class AppModel {
         for id in changes.deleted { byId[id] = nil }
         state.pendingLogIds.subtract(changes.deleted)
         state.logs = byId.values.sorted { $0.date < $1.date }
-        state.lastLogPull = Date()
+        // The server's clock, compared with its own timestamps next time; this device's only when it didn't send one.
+        state.lastLogPull = changes.serverTime ?? Date()
     }
 
     // MARK: Automatic retry
