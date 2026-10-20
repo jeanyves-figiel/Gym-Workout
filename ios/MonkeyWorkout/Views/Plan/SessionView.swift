@@ -111,7 +111,7 @@ struct SessionView: View {
     private func bottomBar(_ s: Session) -> some View {
         if model.startableToday(s) {
             bar {
-                Button { playing = true } label: {
+                Button { Haptics.start(); playing = true } label: {
                     Label(model.activeWorkout(s.id) == nil ? "Start workout" : "Resume workout", systemImage: "play.fill")
                         .lineLimit(1).minimumScaleFactor(0.9)
                 }
@@ -399,7 +399,7 @@ struct ExerciseCard: View {
                     .frame(width: 30, height: 30)
                     .background(shape.fill(Color(hex: 0xFF3D6E).opacity(0.22)))
             } else {
-                Text("\(number)").font(Theme.display(15)).monospacedDigit().foregroundStyle(.white)
+                Text("\(number)").font(Theme.display(15)).monospacedDigit().foregroundStyle(block.kind.category.ink)
                     .lineLimit(1).minimumScaleFactor(0.7)
                     .frame(width: 30, height: 30)
                     .background(shape.fill(block.kind.category.gradient))

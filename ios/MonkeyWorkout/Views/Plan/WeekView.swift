@@ -126,7 +126,7 @@ struct WeekView: View {
             guard let id else { return }
             PlayerLaunch.shared.sessionId = nil
             guard playing == nil, let s = model.session(id) else { return }
-            playing = s
+            start(s)
         }
         .proPaywall($gate)
         .sheet(item: $moving) { s in MoveSessionSheet(sessionId: s.id) }
@@ -180,11 +180,11 @@ struct WeekView: View {
             // A day of another week (#481) shows in the card too, never as a pop-up.
             otherWeekCard(d, pick: pick, back: back)
         } else if let d = pickedDay, let s = plan.sessions.first(where: { $0.weekday == d }) {
-            NextUpCard(session: s, picked: d, onPick: pick, onBack: back) { playing = s }
+            NextUpCard(session: s, picked: d, onPick: pick, onBack: back) { start(s) }
         } else if let d = pickedDay {
             RestDayCard(weekday: d, onPick: pick, onBack: back) { addingDay = d; adding = true }
         } else if let next {
-            NextUpCard(session: next, picked: nil, onPick: pick, onBack: back) { playing = next }
+            NextUpCard(session: next, picked: nil, onPick: pick, onBack: back) { start(next) }
         } else if let later = model.nextWeekSession() {
             // This week has nothing left (#473): Next up is next week's first session, shown, not startable.
             NextUpCard(session: later.session, later: later.day, onPick: pick, onBack: back)
@@ -226,6 +226,12 @@ struct WeekView: View {
 
     private func removeTitle(_ s: Session) -> String {
         model.planInsert(for: s)?.replacing == nil ? "Remove from this week" : "Back to planned session"
+    }
+
+    /// Opens the player on a workout the member started (#541: one heavy tap, the same everywhere).
+    private func start(_ s: Session) {
+        Haptics.start()
+        playing = s
     }
 
     /// Takes an added session off this week at once (#538); the Undo bar puts it back (no confirmation, #285).
@@ -350,7 +356,7 @@ struct WeekView: View {
         case .actions:
             actionChips
         case .coach:
-            if small { CoachSmallWidget() } else { MonkeyCoachCard { playing = $0 } }
+            if small { CoachSmallWidget() } else { MonkeyCoachCard { start($0) } }
         case .week:
             if small {
                 WeekSmallWidget(plan: plan, done: model.completedCount)
@@ -371,7 +377,7 @@ struct WeekView: View {
                 }
             } else {
                 VStack(alignment: .leading, spacing: 18) {
-                    NextUpCompactWidget(session: model.nextSession, wide: !small) { playing = $0 }
+                    NextUpCompactWidget(session: model.nextSession, wide: !small) { start($0) }
                         .frame(maxHeight: small ? .infinity : nil, alignment: .top)
                     // A small Next up gets the slot under its row instead (#538).
                     if !arranging, !small { TrainNoticeSlot() }
@@ -862,7 +868,7 @@ private struct NextUpCard: View {
             }
             // Start workout gets the full width; sports sit under it in one split pill (#462, design C).
             if !ahead {
-                SportSplitPill(onFree: { freestyle = model.freestyleInProgress ?? model.startFreestyle() },
+                SportSplitPill(onFree: { Haptics.start(); freestyle = model.freestyleInProgress ?? model.startFreestyle() },
                                freeResumes: model.freestyleInProgress != nil,
                                onLog: { logging = SportLog(start: Date().addingTimeInterval(-120 * 60)) },
                                onTrack: { trackingSport = SportLog(start: Date()) })
@@ -1083,7 +1089,7 @@ private struct RestDayCard: View {
                 }
                 if !climbing && !ahead {
                     // Any other sport (#416), dated like a climb; Track live with a Watch (#462, design C).
-                    SportSplitPill(onFree: { freestyle = model.freestyleInProgress ?? model.startFreestyle() },
+                    SportSplitPill(onFree: { Haptics.start(); freestyle = model.freestyleInProgress ?? model.startFreestyle() },
                                    freeResumes: model.freestyleInProgress != nil,
                                    onLog: { loggingSport = SportLog(start: climbStart()) },
                                    onTrack: { trackingSport = SportLog(start: Date()) })
