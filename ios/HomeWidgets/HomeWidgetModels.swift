@@ -227,11 +227,29 @@ struct HomeWidgetSnapshot: Codable, Equatable, Sendable {
     struct Next: Codable, Equatable, Sendable {
         var id: String
         var title: String
-        /// "Today", "Thursday", or "Extra".
+        /// "Today", "Thursday", or "Extra", as of when the app wrote the snapshot.
         var day: String
         var minutes: Int
         var exercises: Int
         var tint: UInt32
+        /// The day the session is planned on; nil when it has no weekday ("Extra") or from an older app.
+        var date: Date? = nil
+
+        private static let names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+        /// `day` as of `now`: after midnight yesterday's "Today" becomes its weekday, and tomorrow's becomes "Today".
+        func dayLabel(at now: Date, calendar cal: Calendar = .current) -> String {
+            guard let date else { return day }
+            if cal.isDate(date, inSameDayAs: now) { return "Today" }
+            return Self.names[(cal.component(.weekday, from: date) + 6) % 7]
+        }
+    }
+
+    /// The snapshot as a widget entry at `date` shows it: day labels follow the entry's day, not the app's.
+    func at(_ date: Date, calendar cal: Calendar = .current) -> HomeWidgetSnapshot {
+        var s = self
+        if let n = next { s.next?.day = n.dayLabel(at: date, calendar: cal) }
+        return s
     }
 
     struct Lift: Codable, Equatable, Hashable, Sendable {

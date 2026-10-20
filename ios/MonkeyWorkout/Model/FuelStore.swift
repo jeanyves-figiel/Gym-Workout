@@ -46,7 +46,11 @@ final class FuelStore {
         var water: WaterPrefs?
     }
 
-    private(set) var saved = Saved()
+    private(set) var saved = Saved() {
+        didSet { version &+= 1 }
+    }
+    /// Bumped on every change to `saved`: keys `AppModel`'s Fuel plan cache.
+    @ObservationIgnored private(set) var version = 0
     /// Glasses tapped today go to Apple Health as dietary water.
     @ObservationIgnored weak var health: HealthManager?
     /// The day's plan from the app model, for glasses counted outside Fuel (widgets, notification buttons).
@@ -327,8 +331,8 @@ final class FuelStore {
 
     private func save(_ s: Saved) {
         saved = s
-        // Today's water and meals on the Watch and the Home Screen widgets.
-        WatchSync.shared.push()
+        // Today's water and meals on the Watch and the Home Screen widgets (coalesced: a burst of taps sends once).
+        WatchSync.shared.schedulePush()
         guard let data = try? JSONEncoder().encode(s) else { return }
         let url = Self.url
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

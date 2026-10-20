@@ -152,8 +152,10 @@ struct ExerciseHeroCard: View {
         .foregroundStyle(.white)
         .padding(compact ? 12 : 16)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(cat.gradient))
-        .shadow(color: cat.color.opacity(0.35), radius: 18, y: 8)
+        // Shadow on the card shape only (the same look: everything sits inside it), so the playing movement isn't
+        // re-shadowed every frame.
+        .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(cat.gradient)
+            .shadow(color: cat.color.opacity(0.35), radius: 18, y: 8))
     }
 
     /// Plays the movement a few times when the exercise shows, then rests on the start; tap replays.

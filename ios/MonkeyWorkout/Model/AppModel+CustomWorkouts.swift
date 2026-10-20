@@ -58,6 +58,7 @@ extension AppModel {
     /// Pushes queued deletes and edits, then pulls the full list (small) so deletes made on other devices apply too.
     /// Called from `sync()`, which guarantees a single sync at a time.
     func syncCustomWorkouts() async throws {
+        let epoch = accountEpoch
         for id in state.deletedCustomWorkoutIds ?? [] {
             try await api.deleteCustomWorkout(id)
             state.deletedCustomWorkoutIds?.remove(id)
@@ -82,6 +83,8 @@ extension AppModel {
         }
 
         let remote = try await api.fetchCustomWorkouts(CustomWorkout.self)
+        // Signed out or another account signed in meanwhile: the list belongs to the previous account.
+        guard accountEpoch == epoch else { return }
         let stillPending = state.pendingCustomWorkoutIds ?? []
         let deleted = state.deletedCustomWorkoutIds ?? []
         let local = state.customWorkoutList ?? []

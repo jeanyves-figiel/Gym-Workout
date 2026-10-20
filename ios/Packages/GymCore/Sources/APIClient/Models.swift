@@ -76,26 +76,34 @@ struct LogsResponse: Decodable {
     var logs: [LogEntry] { list.elements }
     /// With `?since=`: ids deleted on the server since then (#432). Absent on older servers.
     var deleted: [String]?
-    enum CodingKeys: String, CodingKey { case list = "logs", deleted }
+    /// The server's clock when it read the logs; a string so a bad value never fails the pull.
+    var serverTime: String?
+    enum CodingKeys: String, CodingKey { case list = "logs", deleted, serverTime }
 }
 
 /// A delta pull of set logs: changed entries plus ids deleted on the server since then (#432).
 public struct LogChanges: Sendable, Equatable {
     public var logs: [LogEntry]
     public var deleted: Set<UUID>
+    /// The server's clock at the pull: the next `since`, so a device clock that is off never skips changes.
+    /// Nil when the server didn't send it.
+    public var serverTime: Date?
 
-    public init(logs: [LogEntry], deleted: Set<UUID> = []) {
+    public init(logs: [LogEntry], deleted: Set<UUID> = [], serverTime: Date? = nil) {
         self.logs = logs
         self.deleted = deleted
+        self.serverTime = serverTime
     }
 }
 
 /// List that skips elements it can't decode (a record a newer app version wrote, a bad row), so one of them
-/// doesn't fail the whole pull.
-struct LossyArray<Element: Decodable>: Decodable {
-    var elements: [Element]
+/// doesn't fail the whole pull. Also used for the app's state file, so one bad record doesn't wipe a list.
+public struct LossyArray<Element: Decodable>: Decodable {
+    public var elements: [Element]
+    /// Elements that didn't decode and were left out (nulls not counted).
+    public var skipped = 0
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         var c = try decoder.unkeyedContainer()
         var out: [Element] = []
         while !c.isAtEnd {
@@ -104,6 +112,7 @@ struct LossyArray<Element: Decodable>: Decodable {
             if let e = try? c.decode(Element.self) {
                 out.append(e)
             } else {
+                skipped += 1
                 _ = try? c.decode(Skip.self)
             }
             // A failed decode doesn't always advance the container: never spin on one element.

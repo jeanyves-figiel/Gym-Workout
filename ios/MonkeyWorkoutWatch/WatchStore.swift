@@ -239,7 +239,9 @@ final class WatchStore: NSObject {
                 let saved = await workout.finish(sets: nil)
                 pausedAt = nil
                 if let recordId {
-                    send(.tracked(WTracked(recordId: recordId, avgHeartRate: avg, maxHeartRate: max,
+                    // Live when reachable: a queued answer can land after the iPhone's 3-minute wait, which then
+                    // saves a second Health workout.
+                    sendNow(.tracked(WTracked(recordId: recordId, avgHeartRate: avg, maxHeartRate: max,
                                            kcal: saved ? kcal : nil, savedToHealth: saved)))
                 }
             }

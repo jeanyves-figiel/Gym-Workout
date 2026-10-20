@@ -78,6 +78,8 @@ final class HomeWidgetSync {
             s.next = .init(id: next.id, title: next.displayTitle, day: day, minutes: next.estMin,
                            exercises: next.blocks.reduce(0) { $0 + $1.items.count },
                            tint: (next.blocks.first { $0.kind == .strength } ?? next.blocks.first)?.kind.category.tintHex ?? 0xCCFF3D)
+            // The widget labels the day from this after midnight, so yesterday's session never reads "Today".
+            s.next?.date = next.weekday.flatMap { cal.date(byAdding: .day, value: $0 - 1, to: weekStart) }
         }
 
         let stats = Progression.stats(records: model.state.history, weights: model.weightEntries,

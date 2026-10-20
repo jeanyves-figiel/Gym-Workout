@@ -155,7 +155,11 @@ final class HealthManager {
 
     private(set) var connected = UserDefaults.standard.bool(forKey: HealthManager.connectedKey)
     private(set) var writeWorkouts = UserDefaults.standard.object(forKey: HealthManager.writeKey) as? Bool ?? true
-    var snapshot = HealthSnapshot()
+    var snapshot = HealthSnapshot() {
+        didSet { snapshotVersion &+= 1 }
+    }
+    /// Bumped on every new snapshot: keys `AppModel`'s plan cache.
+    @ObservationIgnored private(set) var snapshotVersion = 0
     /// Health values known (cached or read). Until then "Connect Apple Health" prompts stay hidden for connected users.
     private(set) var loaded = false
     var error: String?
@@ -191,8 +195,11 @@ final class HealthManager {
     var settled: Bool { loaded || !connected || !available }
 
     private func cache(_ s: HealthSnapshot) {
-        snapshot = s
-        loaded = true
+        let unchanged = s == snapshot && loaded
+        // Same readings: no redraw, no plan rebuild, no rewrite (unless the file is gone, e.g. after sign-out).
+        if s != snapshot { snapshot = s }
+        if !loaded { loaded = true }
+        guard !unchanged || !FileManager.default.fileExists(atPath: Self.cacheURL.path) else { return }
         guard let data = try? JSONEncoder().encode(s) else { return }
         let url = Self.cacheURL
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

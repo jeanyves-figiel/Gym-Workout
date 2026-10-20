@@ -33,7 +33,7 @@ struct RootView: View {
                     #endif
                 }
             }
-            if lock.locked && lock.enabled {
+            if lock.enabled && (lock.locked || lock.covered) {
                 LockScreen()
             }
         }
@@ -124,10 +124,13 @@ private struct LockScreen: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "lock.fill").font(.system(size: 44))
-            Text("MonkeyWorkout is locked").font(.headline)
-            if let e = lock.error { Text(e).font(.footnote).foregroundStyle(.secondary) }
-            Button("Unlock with \(lock.biometryName)") { Task { await lock.unlock() } }
-                .buttonStyle(.borderedProminent)
+            // Only covered (app switcher): no prompt to unlock.
+            if lock.locked {
+                Text("MonkeyWorkout is locked").font(.headline)
+                if let e = lock.error { Text(e).font(.footnote).foregroundStyle(.secondary) }
+                Button("Unlock with \(lock.biometryName)") { Task { await lock.unlock() } }
+                    .buttonStyle(.borderedProminent)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.background)

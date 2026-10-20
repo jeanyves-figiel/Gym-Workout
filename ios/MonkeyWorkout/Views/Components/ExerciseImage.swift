@@ -19,15 +19,15 @@ struct ExerciseImage: View {
     /// Frames this exercise has (17–49 for catalog art, #256; 1–2 for a custom exercise; 0 without media).
     static func frameCount(_ e: Exercise) -> Int {
         if CustomExercise.isCustom(e.id) { return CustomExercises.shared.record(e.id)?.frameCount ?? 0 }
-        return e.illustrationAssets.count
+        return ExerciseIllustrations.frameCount(of: e.id)
     }
 
     /// Has a picture: catalog illustration or a custom exercise's photo/pose.
     static func hasMedia(_ e: Exercise) -> Bool { frameCount(e) > 0 }
 
     private var image: UIImage? {
-        let names = exercise.illustrationAssets
-        return names.indices.contains(frame) ? UIImage(named: names[frame]) : nil
+        guard frame >= 0, frame < ExerciseIllustrations.frameCount(of: exercise.id) else { return nil }
+        return IllustrationImages.image(ExerciseIllustrations.assetName(exercise.id, frame: frame))
     }
 
     var body: some View {
@@ -59,6 +59,36 @@ struct ExerciseImage: View {
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
+        }
+    }
+}
+
+/// Illustration frames decoded ahead of playback: the movement swaps frames many times a second, so the frames of the
+/// exercise on show are decoded once in the background instead of on the main thread as they first draw.
+enum IllustrationImages {
+    /// About one exercise's frames (720 × 540 each); the system also empties it under memory pressure.
+    private static let cache: NSCache<NSString, UIImage> = {
+        let c = NSCache<NSString, UIImage>()
+        c.totalCostLimit = 80 * 1024 * 1024
+        return c
+    }()
+
+    /// The decoded frame when ready, else the bundled image as before (decoded as it draws).
+    static func image(_ name: String) -> UIImage? {
+        if let decoded = cache.object(forKey: name as NSString) { return decoded }
+        return UIImage(named: name)
+    }
+
+    /// Decodes the exercise's illustration frames in the background.
+    static func prepare(_ exerciseId: String) {
+        let names = (0..<ExerciseIllustrations.frameCount(of: exerciseId)).map { ExerciseIllustrations.assetName(exerciseId, frame: $0) }
+        guard !names.isEmpty else { return }
+        Task.detached(priority: .userInitiated) {
+            for name in names where IllustrationImages.cache.object(forKey: name as NSString) == nil {
+                guard let decoded = UIImage(named: name)?.preparingForDisplay() else { continue }
+                let cost = Int(decoded.size.width * decoded.scale * decoded.size.height * decoded.scale) * 4
+                IllustrationImages.cache.setObject(decoded, forKey: name as NSString, cost: cost)
+            }
         }
     }
 }
@@ -120,6 +150,8 @@ struct ExerciseMotionView: View {
         // A new exercise (first appearance, or the player moving on): play the movement a few times.
         .task(id: exercise.id) {
             playback = nil
+            // Frames decoded before they are needed mid-play.
+            if canPlay { IllustrationImages.prepare(exercise.id) }
             guard Self.autoPlays(cycles: autoPlayCycles, frames: frames, reduceMotion: reduceMotion) else { return }
             start(autoPlayCycles)
         }
@@ -143,16 +175,18 @@ struct ExerciseMotionView: View {
     }
 
     /// The frames at `state`'s position (or the resting frame): the lower frame fully opaque, the next one
-    /// switched in quickly over it (#241: a short dissolve, no long double-exposed poses). Every frame stays in the stack so none is ever loaded mid-play. Reduce Motion: whole frames.
+    /// switched in quickly over it (#241: a short dissolve, no long double-exposed poses). Only those two are drawn
+    /// (every other frame would be invisible); both always stay in the stack, and the exercise's frames are decoded
+    /// ahead (`IllustrationImages`), so nothing loads mid-play. Reduce Motion: whole frames.
     private func picture(_ state: MotionPlayback.State?) -> some View {
         let raw = state?.position ?? Double(restingFrame)
         let position = reduceMotion ? raw.rounded() : raw
-        let (lower, upper) = MotionPlayback.blend(position, frames: max(frames, 1), window: MotionPlayback.switchWindow)
+        let count = max(frames, 1)
+        let (lower, upper) = MotionPlayback.blend(position, frames: count, window: MotionPlayback.switchWindow)
         return ZStack {
-            ForEach(0..<max(frames, 1), id: \.self) { f in
-                ExerciseImage(exercise: exercise, frame: f, contentMode: contentMode)
-                    .opacity(f == lower ? 1 : (f == lower + 1 ? upper : 0))
-            }
+            ExerciseImage(exercise: exercise, frame: lower, contentMode: contentMode)
+            ExerciseImage(exercise: exercise, frame: min(lower + 1, count - 1), contentMode: contentMode)
+                .opacity(lower + 1 < count ? upper : 0)
             if let motion, !motion.path.isEmpty {
                 MotionPathOverlay(motion: motion, position: position, contentMode: contentMode,
                                   emphasised: state != nil)

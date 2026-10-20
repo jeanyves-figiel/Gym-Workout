@@ -62,14 +62,18 @@ struct MonkeyWorkoutApp: App {
                     }
                 }
                 // Plan, completion, history or custom workouts changed: refresh the Watch.
-                .onChange(of: WatchSync.changeKey(model)) { WatchSync.shared.push() }
+                .onChange(of: WatchSync.changeKey(model)) { WatchSync.shared.schedulePush() }
                 // Home Screen widget taps (#297).
                 .onOpenURL { HomeWidgetRouter.open($0, model: model) }
                 .onChange(of: scenePhase) { _, phase in
                     switch phase {
                     case .background:
+                        model.flushPersist()
                         lock.didEnterBackground()
                         HomeWidgetSync.shared.push()
+                    case .inactive:
+                        // App switcher snapshot: hide content when the lock is on.
+                        lock.didResignActive()
                     case .active:
                         lock.didBecomeActive()
                         // A new programme week (#255), or a new calendar week for the plan (#266).
@@ -83,6 +87,8 @@ struct MonkeyWorkoutApp: App {
                             await health.refresh()
                             WatchSync.shared.push()
                         }
+                    case .inactive:
+                        model.flushPersist()
                     default: break
                     }
                 }

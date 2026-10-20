@@ -25,6 +25,7 @@ extension AppModel {
     }
 
     func syncClimbs() async throws {
+        let epoch = accountEpoch
         // Climbs logged before #312 were only on this device: send them all once.
         if state.climbsUploaded != true {
             state.pendingClimbIds = (state.pendingClimbIds ?? []).union((state.climbs ?? []).map(\.id))
@@ -42,9 +43,12 @@ extension AppModel {
         let pending = (state.climbs ?? []).filter { pendingIds.contains($0.id) }
         if !pending.isEmpty {
             try await api.pushClimbs(pending)
-            state.pendingClimbIds?.subtract(pending.map(\.id))
+            // Only clear what is unchanged since the push started (an edit made meanwhile stays queued).
+            for c in pending where state.climbs?.first(where: { $0.id == c.id }) == c { state.pendingClimbIds?.remove(c.id) }
         }
         let remote = try await api.fetchClimbs(ClimbLog.self)
+        // Signed out or another account signed in meanwhile: the list belongs to the previous account.
+        guard accountEpoch == epoch else { return }
         let stillPending = state.pendingClimbIds ?? []
         let deleted = state.deletedClimbIds ?? []
         var merged = remote.filter { !stillPending.contains($0.id) && !deleted.contains($0.id) }

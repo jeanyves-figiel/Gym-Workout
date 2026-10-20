@@ -299,13 +299,14 @@ struct WeekView: View {
 
     /// Calendar, Variation and Edit plan as Explore-style gradient buttons in one row (#147): the Quick actions widget.
     private var actionChips: some View {
-        HStack(spacing: 8) {
+        let planned = plannedCount
+        return HStack(spacing: 8) {
             NavigationLink { CalendarView() } label: {
-                HeaderChip(symbol: "calendar", title: "Calendar", detail: "\(plannedCount) planned",
+                HeaderChip(symbol: "calendar", title: "Calendar", detail: "\(planned) planned",
                            gradient: WorkoutEngine.Category.strength.gradient)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Calendar, \(plannedCount) sessions planned in the next 4 weeks")
+            .accessibilityLabel("Calendar, \(planned) sessions planned in the next 4 weeks")
             Button {
                 ProStore.shared.run(.variation, $gate) { varying = true }
             } label: {
@@ -484,7 +485,8 @@ struct WeekView: View {
 
     /// Sessions still to do in the next 4 weeks (Calendar button).
     private var plannedCount: Int {
-        model.calendarWeeks(count: 4).reduce(0) { $0 + $1.plan.sessions.filter { !model.doneIds.contains($0.id) }.count }
+        let done = model.doneIds
+        return model.calendarWeeks(count: 4).reduce(0) { $0 + $1.plan.sessions.filter { !done.contains($0.id) }.count }
     }
 
     /// Weekday of each session as the training calendar places it: unscheduled plans (no gym or climbing days

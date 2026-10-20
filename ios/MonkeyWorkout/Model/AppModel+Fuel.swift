@@ -89,11 +89,28 @@ extension AppModel {
 
     var fuelLeanKg: Double? { health?.snapshot.leanKg ?? measurements.last?.leanKg }
 
+    /// Cached per day (`AppModel+Cache`), except today's and yesterday's: today's coming sessions are placed after
+    /// the current time.
     func fuelPlan(on date: Date) -> FuelPlan {
         let cal = planCalendar
         let day = cal.startOfDay(for: date)
         let steps: Int = Calendar.current.isDateInToday(day) ? MoveStore.shared.today.steps
             : MoveStore.shared.saved.days.first { $0.day == day }?.steps ?? 0
+        let today = cal.startOfDay(for: Date())
+        let followsClock = day == today || cal.date(byAdding: .day, value: 1, to: day) == today
+        // Reading `saved` keeps a view that gets a cached plan observing the Fuel settings.
+        _ = FuelStore.shared.saved.prefs
+        let key = FuelPlanKey(derived: derivedKey, steps: steps, fuel: FuelStore.shared.version)
+        if !followsClock, let c = derived.fuelPlans[day], c.key == key { return c.value }
+        let plan = makeFuelPlan(day: day, steps: steps, calendar: cal)
+        if !followsClock {
+            if derived.fuelPlans.count > 64 { derived.fuelPlans = [:] }
+            derived.fuelPlans[day] = (key, plan)
+        }
+        return plan
+    }
+
+    private func makeFuelPlan(day: Date, steps: Int, calendar cal: Calendar) -> FuelPlan {
         let tomorrow = cal.date(byAdding: .day, value: 1, to: day).map { fuelActivities(on: $0) } ?? []
         let input = FuelDayInput(day: day, weightKg: fuelWeightKg, leanKg: fuelLeanKg, female: body.sex == .female,
                                  activities: fuelActivities(on: day), steps: steps, tomorrow: tomorrow, trainingGoal: profile?.goal,

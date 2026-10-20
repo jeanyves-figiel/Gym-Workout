@@ -6,9 +6,13 @@ import WorkoutEngine
 extension AppModel {
     /// Logs with a weight, as engine set logs.
     var setLogs: [SetLog] {
-        state.logs.compactMap { l in
+        let version = observedStateVersion
+        if let c = derived.setLogs, c.key == version { return c.value }
+        let logs = state.logs.compactMap { l in
             l.weightKg.map { SetLog(date: l.date, exerciseId: l.exerciseId, sessionId: l.sessionId, setIndex: l.setIndex, kg: $0, reps: l.reps, rir: l.rir) }
         }
+        derived.setLogs = (version, logs)
+        return logs
     }
 
     /// Every session in which `exerciseId` was logged, oldest first.

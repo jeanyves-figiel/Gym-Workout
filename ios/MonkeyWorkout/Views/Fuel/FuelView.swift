@@ -187,16 +187,31 @@ struct FuelDayStrip: View {
     @Binding var day: Date
     @Environment(AppModel.self) private var model
 
+    /// 1 week back to 2 weeks ahead, in days from today.
+    static let range = -7...14
+
+    /// Load of every day in the strip, by days from today.
+    @MainActor static func loads(_ model: AppModel, today: Date, calendar cal: Calendar) -> [Int: FuelLoad] {
+        let weightKg = model.fuelWeightKg ?? Fuel.typicalKg
+        var out: [Int: FuelLoad] = [:]
+        for o in range {
+            if let d = cal.date(byAdding: .day, value: o, to: today) { out[o] = Fuel.load(model.fuelActivities(on: d), weightKg: weightKg) }
+        }
+        return out
+    }
+
     var body: some View {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         let picked = cal.dateComponents([.day], from: today, to: cal.startOfDay(for: day)).day ?? 0
-        LensDayStrip(range: -7...14, selected: picked, onPick: { o in
+        // Each day's load once per render: the strip redraws its cells every time a cell slides under the lens.
+        let loads = Self.loads(model, today: today, calendar: cal)
+        LensDayStrip(range: Self.range, selected: picked, onPick: { o in
             if let d = cal.date(byAdding: .day, value: o, to: today) { withAnimation(.snappy) { day = d } }
         }) { o in
             if let d = cal.date(byAdding: .day, value: o, to: today) {
                 let on = o == picked
-                let load = Fuel.load(model.fuelActivities(on: d), weightKg: model.fuelWeightKg ?? Fuel.typicalKg)
+                let load = loads[o] ?? Fuel.load(model.fuelActivities(on: d), weightKg: model.fuelWeightKg ?? Fuel.typicalKg)
                 Button { withAnimation(.snappy) { day = d } } label: {
                     VStack(spacing: 2) {
                         Text(d.formatted(.dateTime.weekday(.narrow))).font(Theme.label(9)).opacity(0.75)

@@ -38,6 +38,7 @@ extension AppModel {
 
     /// Pushes queued edits, then pulls the full list. Called from `sync()` (one sync at a time).
     func syncCustomExercises() async throws {
+        let epoch = accountEpoch
         let pendingIds = state.pendingCustomExerciseIds ?? []
         let pending = (state.customExerciseList ?? []).filter { pendingIds.contains($0.id) }
         state.pendingCustomExerciseIds = Set(pending.map(\.id))
@@ -48,6 +49,8 @@ extension AppModel {
         }
 
         let remote = try await api.fetchCustomExercises(CustomExercise.self)
+        // Signed out or another account signed in meanwhile: the list belongs to the previous account.
+        guard accountEpoch == epoch else { return }
         let stillPending = state.pendingCustomExerciseIds ?? []
         let local = state.customExerciseList ?? []
         // Server copy wins unless a local edit is still queued. Local-only records are kept (never deleted).

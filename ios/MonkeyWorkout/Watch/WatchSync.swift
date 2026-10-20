@@ -188,8 +188,24 @@ final class WatchSync: NSObject {
         session.activate()
     }
 
+    /// Pending `schedulePush()`.
+    private var pushTask: Task<Void, Never>?
+
+    /// `push()` once changes settle (1.5 s after the last call): a burst of edits builds one snapshot.
+    func schedulePush() {
+        pushTask?.cancel()
+        pushTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled else { return }
+            self?.push()
+        }
+    }
+
     /// Sends the current snapshot when it changed and a Watch app is installed.
     func push() {
+        // Sends everything now, so a scheduled push has nothing left to do.
+        pushTask?.cancel()
+        pushTask = nil
         // Home Screen widgets (#297) follow the same changes.
         HomeWidgetSync.shared.push()
         // Pairing or installing the Watch app while the app runs shows Track on Watch without a restart (#462).
@@ -205,11 +221,11 @@ final class WatchSync: NSObject {
         try? session.updateApplicationContext([WatchKeys.snapshot: data])
     }
 
-    /// Cheap fingerprint of what the snapshot depends on.
+    /// Cheap fingerprint of what the snapshot depends on (the plan is cached, the lists only counted).
     static func changeKey(_ model: AppModel) -> String {
         let plan = model.plan.map { "\($0.seed)-\($0.week)-\($0.sessions.count)" } ?? "-"
         // Next up follows the day too (#266): a missed session stops being next.
-        return "\(plan)|\(model.nextSession?.id ?? "-")|\(model.state.done.count)|\(model.state.history.count)|\(model.customWorkouts.count)|\(model.state.logs.count)|\(ProStore.shared.locked)|\(model.user?.id ?? "-")|\(model.climbLogs.count)|\(model.sportLogs.count)|\(model.profile?.hyrox?.goalMinutes ?? 0)|\(model.watchUploadKey != nil)"
+        return "\(plan)|\(model.nextSession?.id ?? "-")|\(model.state.done.count)|\(model.state.history.count)|\(model.state.customWorkoutList?.count ?? 0)|\(model.state.logs.count)|\(ProStore.shared.locked)|\(model.user?.id ?? "-")|\(model.state.climbs?.count ?? 0)|\(model.state.sportLogs?.count ?? 0)|\(model.profile?.hyrox?.goalMinutes ?? 0)|\(model.watchUploadKey != nil)"
     }
 
     /// Mirrors the iPhone player on the Watch (best effort, only while the Watch app is reachable).
@@ -329,11 +345,24 @@ final class WatchSync: NSObject {
             guard let r = awaitingWatch.removeValue(forKey: t.recordId) else { return }
             if t.savedToHealth { model.attachHeartRate(r.id, avg: t.avgHeartRate, max: t.maxHeartRate) } else { saveOnPhone(r) }
         case let .finished(f):
-            guard !handled.contains(f.id), let session = model.session(f.sessionId) ?? knownSessions[f.sessionId] else { return }
+            guard !handled.contains(f.id) else { return }
             handled.insert(f.id)
-            let r = model.recordWorkout(
-                session: session, setsDone: f.setsDone, startedAt: f.start, endedAt: f.end,
-                bodyMassKg: health?.snapshot.weightKg ?? model.body.weightKg)
+            let r: WorkoutRecord
+            if let session = model.session(f.sessionId) ?? knownSessions[f.sessionId] {
+                r = model.recordWorkout(
+                    session: session, setsDone: f.setsDone, startedAt: f.start, endedAt: f.end,
+                    bodyMassKg: health?.snapshot.weightKg ?? model.body.weightKg)
+            } else {
+                // The session left the plan and wasn't sent since the app started: keep the workout with what the
+                // Watch sent rather than drop it.
+                r = WorkoutRecord.watchOnly(
+                    sessionId: f.sessionId, title: f.title, week: model.plan?.week ?? 1, deload: model.plan?.deload ?? false,
+                    startedAt: f.start, endedAt: f.end, kcal: f.kcal, avgHeartRate: f.avgHeartRate, maxHeartRate: f.maxHeartRate)
+                model.state.history.append(r)
+                model.state.pendingHistoryIds.insert(r.id)
+                model.persist()
+                Task { await model.sync() }
+            }
             model.clearActiveWorkout(f.sessionId)
             if f.savedToHealth {
                 model.attachHeartRate(r.id, avg: f.avgHeartRate, max: f.maxHeartRate)

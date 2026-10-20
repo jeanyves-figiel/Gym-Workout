@@ -68,6 +68,7 @@ extension AppModel {
 
     /// Pushes queued deletes and new attempts, then pulls the full list. Called from `sync()`.
     func syncPRAttempts() async throws {
+        let epoch = accountEpoch
         for id in state.deletedPRAttemptIds ?? [] {
             try await api.deletePRAttempt(id)
             state.deletedPRAttemptIds?.remove(id)
@@ -76,9 +77,12 @@ extension AppModel {
         let pending = (state.prAttempts ?? []).filter { pendingIds.contains($0.id) }
         if !pending.isEmpty {
             try await api.pushPRAttempts(pending)
-            state.pendingPRAttemptIds?.subtract(pending.map(\.id))
+            // Only clear what is unchanged since the push started (an edit made meanwhile stays queued).
+            for a in pending where state.prAttempts?.first(where: { $0.id == a.id }) == a { state.pendingPRAttemptIds?.remove(a.id) }
         }
         let remote = try await api.fetchPRAttempts(PRAttempt.self)
+        // Signed out or another account signed in meanwhile: the list belongs to the previous account.
+        guard accountEpoch == epoch else { return }
         let stillPending = state.pendingPRAttemptIds ?? []
         let deleted = state.deletedPRAttemptIds ?? []
         var merged = remote.filter { !stillPending.contains($0.id) && !deleted.contains($0.id) }
