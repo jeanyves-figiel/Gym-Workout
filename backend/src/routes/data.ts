@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type AuthService, publicUser } from '../auth.ts';
 import { type DB, tx } from '../db.ts';
-import { deletedField, reviveUploaded, recordTombstone, sinceQuery } from './sync.ts';
+import { baseUpdatedAt, conflictsField, deletedField, opaqueCopy, reviveUploaded, recordTombstone, sinceQuery, takeConflicts } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
 import { ApiError } from '../errors.ts';
 import { HOUR, throttleTake } from '../throttle.ts';
@@ -21,6 +21,7 @@ import { listPrAttempts } from './prAttempts.ts';
 
 const logEntry = z.object({
   id: z.uuid(),
+  baseUpdatedAt,
   date: z.iso.datetime({ offset: true }),
   exerciseId: z.string().min(1).max(128),
   /** Plan-insert ids are `custom-<uuid>~plan-<uuid>` (85 chars), so leave room. */
@@ -103,17 +104,18 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
          updated_at = excluded.updated_at
        WHERE workout_logs.user_id = excluded.user_id`,
     );
-    const saved = tx(db, () => {
-      const logs = reviveUploaded(db, req.userId!, 'logs', b.logs);
+    const { saved, conflicts } = tx(db, () => {
+      const { fresh, conflicts } = takeConflicts(db, 'workout_logs', req.userId!, b.logs, toLog);
+      const logs = reviveUploaded(db, req.userId!, 'logs', fresh);
       assertRowQuota(db, 'workout_logs', req.userId!, logs.map((l) => l.id));
       let count = 0;
       for (const l of logs) count += Number(up.run(
           l.id, req.userId!, l.date, l.exerciseId, l.sessionId ?? null, l.weightKg ?? null, l.reps ?? null,
           l.setIndex ?? null, l.rir ?? null, ts,
         ).changes);
-      return count;
+      return { saved: count, conflicts };
     });
-    return { saved, serverTime: ts };
+    return { saved, serverTime: ts, ...conflictsField(conflicts) };
   });
 
   r.delete('/me/logs/:id', async (req, reply) => {
@@ -127,7 +129,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
 
   // ───────────── completed workout sessions (opaque app-defined records)
   const workout = z
-    .object({ id: z.uuid(), startedAt: z.iso.datetime({ offset: true }) })
+    .object({ id: z.uuid(), baseUpdatedAt, startedAt: z.iso.datetime({ offset: true }) })
     .catchall(z.unknown());
 
   const listWorkouts = (userId: string, since?: string) =>
@@ -153,8 +155,9 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
        ON CONFLICT(id) DO UPDATE SET started_at = excluded.started_at, data = excluded.data, updated_at = excluded.updated_at
        WHERE workouts.user_id = excluded.user_id`,
     );
-    const saved = tx(db, () => {
-      const workouts = reviveUploaded(db, req.userId!, 'workouts', b.workouts);
+    const { saved, conflicts } = tx(db, () => {
+      const { fresh, conflicts } = takeConflicts(db, 'workouts', req.userId!, b.workouts, opaqueCopy);
+      const workouts = reviveUploaded(db, req.userId!, 'workouts', fresh);
       assertRowQuota(db, 'workouts', req.userId!, workouts.map((w) => w.id));
       let count = 0;
       for (const w of workouts) {
@@ -162,9 +165,9 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
         if (json.length > 100_000) throw Object.assign(new Error('Workout too large'), { statusCode: 413 });
         count += Number(up.run(w.id, req.userId!, w.startedAt, json, ts).changes);
       }
-      return count;
+      return { saved: count, conflicts };
     });
-    return { saved, serverTime: ts };
+    return { saved, serverTime: ts, ...conflictsField(conflicts) };
   });
 
   r.delete('/me/workouts/:id', async (req, reply) => {

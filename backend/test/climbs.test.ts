@@ -161,6 +161,39 @@ describe('climbs sync (#312)', () => {
     }
   });
 
+  it('returns a conflict instead of overwriting a newer server copy when baseUpdatedAt is sent', async () => {
+    const t = await signUp('climber@example.com');
+    const c = sample();
+    await post('/v1/me/climbs', { climbs: [c] }, t);
+    const base = (await get('/v1/me/climbs', t)).json().climbs[0].updatedAt as string;
+    advance(1000);
+    // device B edits without a base (older app): overwrites as before
+    expect((await post('/v1/me/climbs', { climbs: [{ ...c, minutes: 120 }] }, t)).json()).toEqual({ saved: 1, serverTime: clock.toISOString() });
+    const newer = clock.toISOString();
+    advance(1000);
+    // device A edited from the older copy: kept back, server copy returned; the other item is written
+    const other = sample();
+    const r = (await post('/v1/me/climbs', { climbs: [{ ...c, minutes: 30, baseUpdatedAt: base }, { ...other, baseUpdatedAt: base }] }, t)).json();
+    expect(r.saved).toBe(1);
+    expect(r.conflicts).toEqual([{ ...c, minutes: 120, updatedAt: newer }]);
+    // from the current copy it goes through, and baseUpdatedAt is not stored
+    const ok = (await post('/v1/me/climbs', { climbs: [{ ...c, minutes: 45, baseUpdatedAt: newer.replace('.000Z', 'Z') }] }, t)).json();
+    expect(ok).toEqual({ saved: 1, serverTime: clock.toISOString() });
+    const stored = (await get('/v1/me/climbs', t)).json().climbs.find((x: { id: string }) => x.id === c.id);
+    expect(stored.minutes).toBe(45);
+    expect(stored).not.toHaveProperty('baseUpdatedAt');
+
+    // logs answer conflicts in the pull's shape
+    const log = { id: randomUUID(), date: '2026-10-07T18:00:00Z', exerciseId: 'bench', weightKg: 60, reps: 8 };
+    await post('/v1/me/logs', { logs: [log] }, t);
+    const logBase = clock.toISOString();
+    advance(1000);
+    await post('/v1/me/logs', { logs: [{ ...log, reps: 10 }] }, t);
+    const lr = (await post('/v1/me/logs', { logs: [{ ...log, reps: 5, baseUpdatedAt: logBase }] }, t)).json();
+    expect(lr.saved).toBe(0);
+    expect(lr.conflicts).toEqual([expect.objectContaining({ id: log.id, reps: 10, updatedAt: clock.toISOString() })]);
+  });
+
   it('logs and workouts report deletes too (#432)', async () => {
     const t = await signUp('climber@example.com');
     const since = clock.toISOString();

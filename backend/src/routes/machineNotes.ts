@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { sanitizeJpeg } from '../community/image.ts';
 import { type DB, tx } from '../db.ts';
-import { deletedField, reviveUploaded, recordTombstone, sinceQuery } from './sync.ts';
+import { baseUpdatedAt, conflictsField, deletedField, reviveUploaded, recordTombstone, sinceQuery, takeConflicts } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
 import { ApiError } from '../errors.ts';
 
@@ -14,6 +14,7 @@ import { ApiError } from '../errors.ts';
 const note = z
   .object({
     id: z.uuid(),
+    baseUpdatedAt,
     gymId: z.string().min(1).max(200),
     gymName: z.string().max(120),
     exerciseId: z.string().min(1).max(128),
@@ -64,8 +65,9 @@ export const machineNoteRoutes = (r: FastifyInstance, db: DB, now: () => Date) =
        ON CONFLICT(id) DO UPDATE SET gym_id = excluded.gym_id, exercise_id = excluded.exercise_id, data = excluded.data, updated_at = excluded.updated_at
        WHERE machine_notes.user_id = excluded.user_id`,
     );
-    const saved = tx(db, () => {
-      const notes = reviveUploaded(db, req.userId!, 'machine-notes', b.notes);
+    const { saved, conflicts } = tx(db, () => {
+      const { fresh, conflicts } = takeConflicts(db, 'machine_notes', req.userId!, b.notes, toNote);
+      const notes = reviveUploaded(db, req.userId!, 'machine-notes', fresh);
       assertRowQuota(db, 'machine_notes', req.userId!, notes.map((n) => n.id));
       let count = 0;
       for (const n of notes) {
@@ -74,9 +76,9 @@ export const machineNoteRoutes = (r: FastifyInstance, db: DB, now: () => Date) =
         if (json.length > 10_000) throw Object.assign(new Error('Note too large'), { statusCode: 413 });
         count += Number(up.run(n.id, req.userId!, n.gymId, n.exerciseId, json, ts).changes);
       }
-      return count;
+      return { saved: count, conflicts };
     });
-    return { saved, serverTime: ts };
+    return { saved, serverTime: ts, ...conflictsField(conflicts) };
   });
 
   r.delete('/me/machine-notes/:id', async (req, reply) => {

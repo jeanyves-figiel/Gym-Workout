@@ -3,13 +3,14 @@ import { z } from 'zod';
 import { randomToken, sha256 } from '../crypto.ts';
 import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
-import { deletedField, reviveUploaded, recordTombstone, sinceQuery } from './sync.ts';
+import { baseUpdatedAt, conflictsField, deletedField, opaqueCopy, reviveUploaded, recordTombstone, sinceQuery, takeConflicts } from './sync.ts';
 import { assertRowQuota } from '../quota.ts';
 
 /** Other sport sessions (#416): snowboard, MTB, Hyrox… Synced like climbs (upsert by client id). */
 const sport = z
   .object({
     id: z.uuid(),
+    baseUpdatedAt,
     start: z.iso.datetime({ offset: true }),
     minutes: z.number().int().min(0).max(24 * 60),
     effort: z.number().int().min(1).max(10),
@@ -24,9 +25,10 @@ const upsert = (db: DB, userId: string, upload: z.infer<typeof sport>[], ts: str
      ON CONFLICT(id) DO UPDATE SET start = excluded.start, data = excluded.data, updated_at = excluded.updated_at
      WHERE sports.user_id = excluded.user_id`,
   );
-  /** Rows written: another account's ids are skipped by the WHERE. */
+  /** Rows written (another account's ids are skipped by the WHERE) and conflicts (see `takeConflicts`). */
   return tx(db, () => {
-    const sports = reviveUploaded(db, userId, 'sports', upload);
+    const { fresh, conflicts } = takeConflicts(db, 'sports', userId, upload, opaqueCopy);
+    const sports = reviveUploaded(db, userId, 'sports', fresh);
     assertRowQuota(db, 'sports', userId, sports.map((c) => c.id));
     let count = 0;
     for (const c of sports) {
@@ -34,7 +36,7 @@ const upsert = (db: DB, userId: string, upload: z.infer<typeof sport>[], ts: str
       if (json.length > 10_000) throw Object.assign(new Error('Sport session too large'), { statusCode: 413 });
       count += Number(up.run(c.id, userId, c.start, json, ts).changes);
     }
-    return count;
+    return { saved: count, conflicts };
   });
 };
 
@@ -57,7 +59,8 @@ export const sportRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.post('/me/sports', async (req) => {
     const b = z.object({ sports: z.array(sport).max(200) }).parse(req.body);
     const ts = now().toISOString();
-    return { saved: upsert(db, req.userId!, b.sports, ts), serverTime: ts };
+    const { saved, conflicts } = upsert(db, req.userId!, b.sports, ts);
+    return { saved, serverTime: ts, ...conflictsField(conflicts) };
   });
 
   // Upload-only key for the member's Apple Watch (#426): a Hyrox race goes straight to the server when the Watch has
@@ -92,6 +95,6 @@ export const watchSportRoutes = (app: FastifyInstance, db: DB, now: () => Date) 
     if (!row) throw new ApiError(401, 'invalid_token', 'Unknown Watch key.');
     const b = z.object({ sports: z.array(sport).max(10) }).parse(req.body);
     const ts = now().toISOString();
-    return { saved: upsert(db, row.user_id, b.sports, ts), serverTime: ts };
+    return { saved: upsert(db, row.user_id, b.sports, ts).saved, serverTime: ts };
   });
 };
