@@ -115,41 +115,47 @@ struct SportSplitPill: View {
     @State private var link = WatchLink.shared
 
     var body: some View {
-        HStack(spacing: 0) {
+        // Equal tiles with gaps (#529): each part has its own rounded shape.
+        HStack(spacing: 8) {
             if let onFree {
                 half(freeResumes ? "Freestyle" : "Build as I go", detail: freeResumes ? "resume" : "add as you train",
                      symbol: "plus.square.on.square", ink: .white, action: onFree)
-                    .background(LinearGradient.freestyle)
+                    .background(LinearGradient.freestyle, in: tile)
                     .accessibilityHint("Start an empty workout and add exercises as you train")
                     .accessibilityIdentifier("train.freestyle")
             }
             half("Log sport", detail: "past session", symbol: "plus.circle.fill", ink: .white, action: onLog)
-                .background(LinearGradient(colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)], startPoint: .leading, endPoint: .trailing))
+                .background(LinearGradient(colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)], startPoint: .leading, endPoint: .trailing), in: tile)
                 .accessibilityHint("Log a sport session you already did: snowboard, bike, Hyrox…")
             if link.ready {
                 half("Track live", detail: "on your Watch", symbol: "applewatch.radiowaves.left.and.right", ink: Theme.ink, action: onTrack)
-                    .background(Theme.lime)
+                    .background(Theme.lime, in: tile)
                     .accessibilityHint("Start a sport on your Apple Watch now")
             }
         }
         .frame(maxWidth: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: link.ready)
     }
+
+    private var tile: RoundedRectangle { RoundedRectangle(cornerRadius: 18, style: .continuous) }
 
     private func half(_ title: String, detail: String, symbol: String, ink: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             // Icon over the title so three parts fit the card at any width (#526: the inline labels overflowed).
-            VStack(spacing: 1) {
-                Image(systemName: symbol).font(.system(size: 14, weight: .bold))
-                Text(title).font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.6)
-                Text(detail).font(Theme.label(9)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.7)
-            }
-            .foregroundStyle(ink)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 56)
-            .contentShape(Rectangle())
+            // Content sits in an overlay so the label lengths never change a tile's size: all tiles same width and height.
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .frame(height: 60)
+                .overlay {
+                    VStack(spacing: 1) {
+                        Image(systemName: symbol).font(.system(size: 14, weight: .bold))
+                        Text(title).font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.6)
+                        Text(detail).font(Theme.label(9)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                    .foregroundStyle(ink)
+                    .padding(.horizontal, 6)
+                }
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
