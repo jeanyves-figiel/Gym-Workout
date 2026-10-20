@@ -1,8 +1,9 @@
 name: Garmin signing key
 
-# One-off (#550): makes the Connect IQ developer key (RSA 4096, PKCS#8 DER) so nothing runs on a laptop. Download the
-# artifact (kept 1 day), paste garmin-developer-key.base64.txt into the GARMIN_DEVELOPER_KEY secret, keep the .der
-# somewhere safe: Store updates must be signed with the same key.
+# One-off (#550): makes the Connect IQ developer key (RSA 4096, PKCS#8 DER) and stores it straight into the
+# GARMIN_DEVELOPER_KEY secret. The repository is public: the key never goes to an artifact or the log.
+# Needs GARMIN_SETUP_TOKEN: a fine-grained token for this repository with "Secrets: Read and write" (delete it after).
+# Does nothing when GARMIN_DEVELOPER_KEY already exists: Store updates must be signed with the same key.
 
 on:
   workflow_dispatch:
@@ -13,15 +14,20 @@ permissions:
 jobs:
   key:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GARMIN_SETUP_TOKEN }}
+      REPO: ${{ github.repository }}
     steps:
       - run: |
-          mkdir out
-          openssl genrsa -out key.pem 4096
-          openssl pkcs8 -topk8 -inform PEM -outform DER -in key.pem -out out/garmin-developer-key.der -nocrypt
-          base64 -w0 out/garmin-developer-key.der > out/garmin-developer-key.base64.txt
-          rm key.pem
-      - uses: actions/upload-artifact@v7
-        with:
-          name: garmin-developer-key
-          path: out/
-          retention-days: 1
+          if [ -z "$GH_TOKEN" ]; then echo "::error::Add the GARMIN_SETUP_TOKEN secret first."; exit 1; fi
+          if gh secret list --repo "$REPO" | cut -f1 | grep -qx GARMIN_DEVELOPER_KEY; then
+            echo "::notice::GARMIN_DEVELOPER_KEY already exists; kept as is."
+            exit 0
+          fi
+          umask 077
+          d=$(mktemp -d)
+          openssl genrsa -out "$d/key.pem" 4096 2>/dev/null
+          openssl pkcs8 -topk8 -inform PEM -outform DER -in "$d/key.pem" -out "$d/key.der" -nocrypt
+          base64 -w0 "$d/key.der" | gh secret set GARMIN_DEVELOPER_KEY --repo "$REPO"
+          rm -rf "$d"
+          echo "::notice::GARMIN_DEVELOPER_KEY saved. You can delete GARMIN_SETUP_TOKEN now."
