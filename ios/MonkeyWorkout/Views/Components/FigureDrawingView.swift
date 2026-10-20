@@ -188,7 +188,7 @@ struct CustomExerciseArt: View {
     var contentMode: ContentMode = .fill
 
     var body: some View {
-        if let data = record.photo, frame == 0 || record.drawing == nil, let image = UIImage(data: data) {
+        if let data = record.photo, frame == 0 || record.drawing == nil, let image = CustomPhotoCache.image(record.id, data) {
             Image(uiImage: image).resizable().aspectRatio(contentMode: contentMode)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let d = record.drawing {
@@ -196,6 +196,27 @@ struct CustomExerciseArt: View {
                 drawing: d, frame: record.photo == nil ? frame : 1, lit: FigureHighlight.segments(for: record.primary),
                 accent: record.category.figureAccent)
         }
+    }
+}
+
+/// Custom exercise photos made into images once, not on every render of a list or the player.
+private enum CustomPhotoCache {
+    private static let cache: NSCache<NSString, UIImage> = {
+        let c = NSCache<NSString, UIImage>()
+        c.countLimit = 60
+        return c
+    }()
+
+    /// Keyed by the record and its photo (size, leading and trailing bytes), so a new photo is never shown stale.
+    static func image(_ id: UUID, _ data: Data) -> UIImage? {
+        var hasher = Hasher()
+        hasher.combine(data)
+        hasher.combine(data.suffix(512))
+        let key = "\(id.uuidString)-\(data.count)-\(hasher.finalize())" as NSString
+        if let image = cache.object(forKey: key) { return image }
+        guard let image = UIImage(data: data) else { return nil }
+        cache.setObject(image, forKey: key)
+        return image
     }
 }
 
