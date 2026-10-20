@@ -103,7 +103,7 @@ struct WorkoutPlayerView: View {
         var effort: Effort?
     }
 
-    enum MapAction { case finish, finishEarly, discard }
+    enum MapAction { case finish, finishEarly, discard, close }
 
     struct SplitUndo: Equatable {
         var text: String
@@ -179,7 +179,8 @@ struct WorkoutPlayerView: View {
                         recent: model.recentExerciseIds(limit: 6).compactMap(Exercise.find).filter { e in !picks.contains { $0.id == e.id } },
                         onPick: { addFree([$0], jump: true) },
                         onBrowse: { freeBrowse = FreeBrowse(group: $0, jump: true) },
-                        onClose: closeWorkout)
+                        // Pause: keep for later or discard (#538), with nothing added yet.
+                        onClose: { mapOpen = true })
                 }
             }
         }
@@ -241,6 +242,20 @@ struct WorkoutPlayerView: View {
                 // Finish, Finish early and Discard live here (#538), not in a dialog behind the pause button.
                 WorkoutMapSheet(blocks: session.blocks, setsDone: setsDone, current: steps[index].item.uid)
                     .safeAreaInset(edge: .bottom) { mapActions }
+            } else if isFree, steps.isEmpty {
+                // Build as I go before the first exercise (#490): nothing to map, but it can be kept or discarded.
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Workout map").eyebrow()
+                    Text("Nothing added yet").font(Theme.display(26))
+                    Text("Keep it for later, or discard it.").font(.subheadline).foregroundStyle(Theme.muted)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(20)
+                .background(Theme.bg.ignoresSafeArea())
+                .foregroundStyle(.white)
+                .preferredColorScheme(.dark)
+                .safeAreaInset(edge: .bottom) { mapActions }
+                .presentationDetents([.medium])
             }
         }
         .animation(.spring(duration: 0.4), value: index)
@@ -458,17 +473,28 @@ struct WorkoutPlayerView: View {
     }
 
     /// Workout map footer (#538): Finish and Discard side by side, Finish early under them. Each runs once the map closed.
+    /// An empty Build as I go workout gets Keep for later in Finish's place.
     private var mapActions: some View {
         VStack(spacing: 6) {
             HStack(spacing: 10) {
-                Button {
-                    mapAction = .finish
-                    mapOpen = false
-                } label: {
-                    Label("Finish", systemImage: "flag.checkered").lineLimit(1).minimumScaleFactor(0.9)
+                if steps.isEmpty {
+                    Button {
+                        mapAction = .close
+                        mapOpen = false
+                    } label: {
+                        Label("Keep for later", systemImage: "pause.fill").lineLimit(1).minimumScaleFactor(0.9)
+                    }
+                    .buttonStyle(LimeButtonStyle())
+                } else {
+                    Button {
+                        mapAction = .finish
+                        mapOpen = false
+                    } label: {
+                        Label("Finish", systemImage: "flag.checkered").lineLimit(1).minimumScaleFactor(0.9)
+                    }
+                    .buttonStyle(LimeButtonStyle())
+                    .accessibilityHint("Saves the workout as it is now")
                 }
-                .buttonStyle(LimeButtonStyle())
-                .accessibilityHint("Saves the workout as it is now")
                 Button {
                     mapAction = .discard
                     mapOpen = false
@@ -482,19 +508,22 @@ struct WorkoutPlayerView: View {
                 .buttonStyle(.plain)
                 .accessibilityHint("Closes without saving. Undo for a few seconds.")
             }
-            Button {
-                mapAction = .finishEarly
-                mapOpen = false
-            } label: {
-                Label("Short on time? Finish early", systemImage: "timer")
-                    .font(Theme.label(14)).foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .contentShape(Rectangle())
+            if !steps.isEmpty {
+                Button {
+                    mapAction = .finishEarly
+                    mapOpen = false
+                } label: {
+                    Label("Short on time? Finish early", systemImage: "timer")
+                        .font(Theme.label(14)).foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 20)
         .padding(.top, 10)
+        .padding(.bottom, steps.isEmpty ? 8 : 0)
         .background(Theme.bg.ignoresSafeArea())
     }
 
@@ -503,6 +532,7 @@ struct WorkoutPlayerView: View {
         mapAction = nil
         switch a {
         case .finish: finish()
+        case .close: closeWorkout()
         case .finishEarly: finishingEarly = true
         case .discard: discardWithUndo()
         }
@@ -527,7 +557,7 @@ struct WorkoutPlayerView: View {
     // MARK: Landscape (#362)
 
     /// #373 (A + C mix from `player-layout/landscape-mix.png`): the exercise card at full height on the left; on the right
-    /// the one input and the controls (or the rest ring in their place), and the smart Up next bar at the bottom.
+    /// the one input and the controls, and the smart Up next bar at the bottom. Rest takes the set card's slot, as upright (#538).
     private func cockpit(_ step: Step, session: Session) -> some View {
         let cat = step.category
         let sets = step.sets
@@ -577,22 +607,22 @@ struct WorkoutPlayerView: View {
                             ZoneClearedBanner(zone: zoneCleared.cleared, next: zoneCleared.next)
                         }
                         if let p = pause {
-                            cockpitRest(p, step: step, sets: sets, done: done, color: cat.colors[0])
+                            restSlot(p, step: step, sets: sets, done: done, colors: cat.colors)
                         } else {
                             setCard(step, sets: sets, done: done, colors: cat.colors)
-                            Spacer(minLength: 0)
-                            controls(step, sets: sets, done: done)
-                                .overlay(alignment: .bottom) {
-                                    if let a = autoNext, a.uid == step.item.uid {
-                                        let next = upNext(after: step, done: done, sets: sets, includeSets: false)
-                                        AutoNextBar(title: next?.title ?? "", detail: next?.detail ?? "", end: a.end, total: a.total,
-                                                    finishing: index >= steps.count - 1,
-                                                    onGo: { advance(step) }, onHold: { autoNext = nil })
-                                            .padding(.bottom, 8)
-                                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                                    }
-                                }
                         }
+                        Spacer(minLength: 0)
+                        controls(step, sets: sets, done: done)
+                            .overlay(alignment: .bottom) {
+                                if let a = autoNext, a.uid == step.item.uid {
+                                    let next = upNext(after: step, done: done, sets: sets, includeSets: false)
+                                    AutoNextBar(title: next?.title ?? "", detail: next?.detail ?? "", end: a.end, total: a.total,
+                                                finishing: index >= steps.count - 1,
+                                                onGo: { advance(step) }, onHold: { autoNext = nil })
+                                        .padding(.bottom, 8)
+                                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                                }
+                            }
                         upNextBar(step, done: done, sets: sets, session: session)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -604,54 +634,6 @@ struct WorkoutPlayerView: View {
             .padding(.top, 4)
             .padding(.bottom, 8)
         }
-    }
-
-    /// Landscape rest: the ring (closes by itself) takes the set card and controls' place only; the picture and Up next stay.
-    /// Beside it what was logged, the optional effort, the mobility drill paired with the exercise, +15 s and Skip.
-    private func cockpitRest(_ p: Pause, step: Step, sets: Int, done: Int, color: Color) -> some View {
-        HStack(spacing: 12) {
-            Group {
-                if let end = p.end {
-                    RestRing(end: end, total: p.total, color: color) { closePause() }
-                } else {
-                    SetRing(since: setStart, done: done, sets: sets, color: color)
-                }
-            }
-            .frame(maxHeight: .infinity)
-            VStack(alignment: .leading, spacing: 8) {
-                if let i = p.effortSet {
-                    Text(log.values(i).map { "Set \(i + 1) · \(LoadAdvisor.formatKg($0.kg)) × \($0.reps) · how hard?" } ?? "How hard? (optional)")
-                        .font(Theme.label(11)).foregroundStyle(Theme.muted).lineLimit(1).minimumScaleFactor(0.7)
-                    EffortPicker(selected: p.effort, optional: true, compact: true) { pickEffort($0) }
-                }
-                if p.end != nil, let drill = step.item.pairedWith.flatMap(Exercise.find) {
-                    Button { formFor = drill } label: {
-                        Label("During rest: \(drill.name)", systemImage: "figure.flexibility")
-                            .font(Theme.label(11)).lineLimit(1).minimumScaleFactor(0.7)
-                    }
-                    .buttonStyle(.plain)
-                }
-                Spacer(minLength: 0)
-                HStack(spacing: 8) {
-                    if p.end != nil {
-                        Button("+15 s") { extendRest() }
-                            .font(Theme.label(15))
-                            .frame(maxWidth: .infinity, minHeight: 46)
-                            .background(Capsule().fill(Theme.cardStrong))
-                    }
-                    Button(p.end == nil ? "Continue" : "Skip") { closePause() }
-                        .font(Theme.label(15))
-                        .frame(maxWidth: .infinity, minHeight: 46)
-                        .background(Capsule().fill(Theme.lime))
-                        .foregroundStyle(Theme.ink)
-                }
-            }
-        }
-        .foregroundStyle(.white)
-        .padding(12)
-        .frame(maxHeight: .infinity)
-        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.card))
-        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Theme.stroke))
     }
 
     /// The smart Up next bar (#373), same in both orientations: the next set or exercise, the two after it, what's left.
