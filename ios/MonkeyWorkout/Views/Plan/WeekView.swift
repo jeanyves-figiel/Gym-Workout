@@ -121,6 +121,13 @@ struct WeekView: View {
             .presentationBackground(.clear)
         }
         .onChange(of: model.state.history.count) { revealChestIfNeeded() }
+        // Start on a Home Screen widget (#537): today's session straight in the player.
+        .onChange(of: PlayerLaunch.shared.sessionId, initial: true) { _, id in
+            guard let id else { return }
+            PlayerLaunch.shared.sessionId = nil
+            guard playing == nil, let s = model.session(id) else { return }
+            playing = s
+        }
         .proPaywall($gate)
         .sheet(item: $moving) { s in MoveSessionSheet(sessionId: s.id) }
         .sheet(isPresented: $adding) { AddWorkoutSheet(weekday: addingDay) }
