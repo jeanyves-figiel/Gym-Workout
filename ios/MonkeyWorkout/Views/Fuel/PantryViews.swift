@@ -29,6 +29,7 @@ struct PantryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 input
+                matches
                 HStack(spacing: 10) {
                     if LiveFoodScanner.available {
                         Button { liveScan = true } label: {
@@ -91,15 +92,18 @@ struct PantryView: View {
 
     private var input: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("WHAT'S IN YOUR KITCHEN?").font(Theme.label(10)).tracking(1.2).opacity(0.9)
+            Text("SEARCH OR TYPE A LIST").font(Theme.label(10)).tracking(1.2).opacity(0.9)
             HStack(spacing: 8) {
-                TextField("eggs, rice, spinach, skyr…", text: $text, axis: .vertical)
-                    .lineLimit(1...3)
-                    .focused($typing)
-                    .submitLabel(.done)
-                    .onSubmit(addTyped)
-                    .padding(10)
-                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.25)))
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass").font(.system(size: 14, weight: .bold)).opacity(0.8)
+                    TextField("eggs, rice, spinach, skyr…", text: $text, axis: .vertical)
+                        .lineLimit(1...3)
+                        .focused($typing)
+                        .submitLabel(.done)
+                        .onSubmit(addTyped)
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.25)))
                 Button(action: addTyped) {
                     Image(systemName: "plus").font(.system(size: 18, weight: .heavy)).foregroundStyle(Theme.ink)
                         .frame(width: 44, height: 44).background(Circle().fill(Theme.lime))
@@ -108,18 +112,9 @@ struct PantryView: View {
                 .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
                 .accessibilityLabel("Add")
             }
-            let suggestions = text.count >= 2 ? FoodBook.search(String(text.split(separator: ",").last ?? ""), own: store.saved.foods).prefix(6) : []
-            if !suggestions.isEmpty {
-                FlowLayout(spacing: 6) {
-                    ForEach(Array(suggestions)) { f in
-                        Button { store.add([f]); text = "" } label: {
-                            Text("\(f.emoji) \(f.name)").font(Theme.label(12))
-                                .padding(.horizontal, 9).padding(.vertical, 6).background(Capsule().fill(.black.opacity(0.28)))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
+            Text(query.count < 2 ? "Type to search all \(FoodBook.catalog.count + store.saved.foods.count) foods, or a list and tap +."
+                                : "Tap a match below, or + to add the whole list.")
+                .font(.system(size: 11, weight: .bold, design: .rounded)).opacity(0.85)
         }
         .foregroundStyle(.white)
         .padding(14)
@@ -176,37 +171,79 @@ struct PantryView: View {
         }
     }
 
-    private var picker: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Pick").eyebrow()
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(FoodGroup.allCases) { g in
-                        Button { group = g } label: {
-                            Text("\(g.emoji) \(g.label)").font(Theme.label(12))
-                                .foregroundStyle(group == g ? Theme.ink : .white)
-                                .padding(.horizontal, 10).padding(.vertical, 7)
-                                .background(Capsule().fill(group == g ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Theme.card)))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
+    /// The word being typed: the last item of a comma list.
+    private var query: String {
+        String(text.split(separator: ",", omittingEmptySubsequences: false).last ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// One box (#511): matches from the whole catalogue show right under the box as you type.
+    @ViewBuilder private var matches: some View {
+        let q = query
+        if q.count >= 2 {
             let have = store.pantryIds
-            FlowLayout(spacing: 6) {
-                ForEach(FoodBook.catalog.filter { $0.group == group && $0.fits(store.prefs) }) { f in
-                    let on = have.contains(f.id)
-                    Button { if on { store.remove(f.id) } else { store.add([f]) } } label: {
-                        Text("\(f.emoji) \(f.name)").font(Theme.label(12))
-                            .foregroundStyle(on ? Theme.ink : .white)
-                            .padding(.horizontal, 10).padding(.vertical, 7)
-                            .background(Capsule().fill(on ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Theme.card)))
+            let found = FoodBook.search(q, own: store.saved.foods)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Matches for “\(q)” · \(found.count)").eyebrow()
+                if found.isEmpty {
+                    Text("Nothing matches. Try a shorter word, or scan the label.")
+                        .font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted)
+                } else {
+                    FlowLayout(spacing: 6) {
+                        ForEach(found) { f in
+                            foodChip(f, on: have.contains(f.id)) {
+                                if !have.contains(f.id) { store.add([f]) }
+                                dropQuery()
+                            }
+                        }
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(on ? .isSelected : [])
                 }
             }
         }
+    }
+
+    /// Browse by group: the groups wrap with their counts so none hide off screen.
+    private var picker: some View {
+        let have = store.pantryIds
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(query.count >= 2 ? "Or browse" : "Pick").eyebrow()
+            FlowLayout(spacing: 6) {
+                ForEach(FoodGroup.allCases) { g in
+                    let count = FoodBook.catalog.filter { $0.group == g && $0.fits(store.prefs) }.count
+                    Button { group = g } label: {
+                        Text("\(g.emoji) \(g.label) \(count)").font(Theme.label(12))
+                            .foregroundStyle(group == g ? Theme.ink : .white)
+                            .padding(.horizontal, 10).padding(.vertical, 7)
+                            .background(Capsule().fill(group == g ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Theme.card)))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(group == g ? .isSelected : [])
+                }
+            }
+            FlowLayout(spacing: 6) {
+                ForEach(FoodBook.catalog.filter { $0.group == group && $0.fits(store.prefs) }) { f in
+                    let on = have.contains(f.id)
+                    foodChip(f, on: on) { if on { store.remove(f.id) } else { store.add([f]) } }
+                }
+            }
+        }
+    }
+
+    private func foodChip(_ f: Food, on: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text("\(f.emoji) \(f.name)\(on ? " ✓" : "")").font(Theme.label(12))
+                .foregroundStyle(on ? Theme.ink : .white)
+                .padding(.horizontal, 10).padding(.vertical, 7)
+                .background(Capsule().fill(on ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Theme.card)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    /// Picked from the matches: keep the rest of the typed list, drop the word being searched.
+    private func dropQuery() {
+        var parts = text.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
+        parts.removeLast()
+        text = parts.isEmpty ? "" : parts.joined(separator: ",") + ", "
     }
 
     private func targetMacros(_ plan: FuelPlan) -> (Macros, String) {
