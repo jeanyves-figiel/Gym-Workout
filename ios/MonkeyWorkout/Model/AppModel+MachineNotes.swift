@@ -96,16 +96,21 @@ extension AppModel {
         }
         // Photos once their note is on the server.
         for id in state.pendingMachinePhotoIds ?? [] where !(state.pendingMachineNoteIds ?? []).contains(id) {
-            guard let i = state.machineNotes?.firstIndex(where: { $0.id == id }) else {
+            guard state.machineNotes?.contains(where: { $0.id == id }) == true else {
                 state.pendingMachinePhotoIds?.remove(id)
                 continue
             }
-            if let jpeg = MachineNotePhotos.load(id) {
-                state.machineNotes?[i].photoId = try await api.uploadMachineNotePhoto(noteId: id, jpeg: jpeg)
+            let jpeg = MachineNotePhotos.load(id)
+            var photoId: String?
+            if let jpeg {
+                photoId = try await api.uploadMachineNotePhoto(noteId: id, jpeg: jpeg)
             } else {
                 try await api.deleteMachineNotePhoto(noteId: id)
-                state.machineNotes?[i].photoId = nil
             }
+            // The photo changed during the upload: keep it queued for the next sync.
+            guard MachineNotePhotos.load(id) == jpeg else { continue }
+            // Look the note up again: the list may have changed during the upload (deleted, reordered).
+            if let i = state.machineNotes?.firstIndex(where: { $0.id == id }) { state.machineNotes?[i].photoId = photoId }
             state.pendingMachinePhotoIds?.remove(id)
         }
         let remote = try await api.fetchMachineNotes(MachineNote.self)
