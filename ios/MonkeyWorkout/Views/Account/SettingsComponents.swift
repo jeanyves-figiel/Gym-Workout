@@ -11,7 +11,7 @@ enum SettingsChapter: String, CaseIterable, Identifiable {
         switch self {
         case .you: "You"
         case .training: "Training"
-        case .watch: "Apple Watch"
+        case .watch: "Watches"
         case .look: "Look & apps"
         case .account: "Account"
         case .help: "Help"

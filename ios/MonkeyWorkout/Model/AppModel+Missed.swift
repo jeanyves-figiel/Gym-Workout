@@ -52,7 +52,8 @@ extension AppModel {
     }
 
     /// Records a missed session after the fact on its day: sets done per item, weights per exercise.
-    func logMissed(_ s: Session, setsDone: [String: Int], weights: [String: Double], start: Date, minutes: Int) {
+    @discardableResult
+    func logMissed(_ s: Session, setsDone: [String: Int], weights: [String: Double], start: Date, minutes: Int) -> WorkoutRecord {
         for (exerciseId, kg) in weights {
             let entry = LogEntry(date: start, exerciseId: exerciseId, sessionId: s.id, weightKg: kg)
             state.logs.append(entry)
@@ -60,7 +61,7 @@ extension AppModel {
         }
         for b in s.blocks { for it in b.items where (setsDone[it.uid] ?? 0) > 0 { state.ticked[it.uid] = true } }
         state.skipped?[s.id] = nil
-        recordWorkout(session: s, setsDone: setsDone, startedAt: start,
+        return recordWorkout(session: s, setsDone: setsDone, startedAt: start,
                       endedAt: start.addingTimeInterval(TimeInterval(max(1, minutes) * 60)), bodyMassKg: body.weightKg)
     }
 

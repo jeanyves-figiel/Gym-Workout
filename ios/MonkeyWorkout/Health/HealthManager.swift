@@ -93,6 +93,8 @@ struct HealthSnapshot: Equatable, Codable {
     var recentClimbs: [ClimbEntry] = []
     /// Other sport workouts of the last 4 weeks from every app (Watch, Strava, Garmin…), newest first (#416).
     var recentSports: [SportEntry] = []
+    /// Gym workouts other watch apps wrote this week and last (#549), newest first. Optional: older caches decode.
+    var recentGym: [GymEntry]?
     var weightTrend: [TrendPoint] = []
     var vo2Trend: [TrendPoint] = []
     /// Body composition and waist (#185), latest values and the last year.
@@ -285,6 +287,7 @@ final class HealthManager {
         async let climbingPast = climbingCount(from: fourWeeks, to: weekStart)
         async let recentClimbs = climbs(from: fourWeeks, to: now)
         async let recentSports = sports(from: fourWeeks, to: now)
+        async let recentGym = gym(from: cal.date(byAdding: .day, value: -7, to: weekStart)!, to: now)
         async let measurementStatus = requestStatus()
         async let moveStatus = moveRequestStatus()
 
@@ -319,6 +322,7 @@ final class HealthManager {
         s.climbingPerWeek4w = past > 0 ? Double(past) / 4 : nil
         s.recentClimbs = await recentClimbs
         s.recentSports = await recentSports
+        s.recentGym = await recentGym
         needsMoveAccess = await moveStatus == .shouldRequest
         // Steps and floors only ask for themselves, so the body-measurement prompt doesn't show for them.
         needsMeasurementAccess = await measurementStatus == .shouldRequest && !needsMoveAccess
@@ -520,6 +524,31 @@ final class HealthManager {
                 kcal: stats[HKQuantityType(.activeEnergyBurned)]?.sumQuantity()?.doubleValue(for: .kilocalorie()),
                 local: meta[Self.sportIdKey] != nil,
                 tracked: meta["MonkeyWorkoutSport"] != nil && meta[Self.sportIdKey] == nil)
+        }
+    }
+
+    /// Gym-type workouts recorded by other watch apps (#549): Garmin, Polar, Coros, Suunto… Ours (app and Watch) are
+    /// left out: they are already in History.
+    private func gym(from: Date, to: Date) async -> [GymEntry] {
+        let types: [HKWorkoutActivityType] = [.traditionalStrengthTraining, .functionalStrengthTraining, .highIntensityIntervalTraining, .coreTraining]
+        let pred = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSCompoundPredicate(orPredicateWithSubpredicates: types.map { HKQuery.predicateForWorkouts(with: $0) }),
+            HKQuery.predicateForSamples(withStart: from, end: to),
+        ])
+        let d = HKSampleQueryDescriptor(predicates: [.workout(pred)], sortDescriptors: [SortDescriptor<HKWorkout>(\.startDate, order: .reverse)], limit: 40)
+        let workouts = (try? await d.result(for: store)) ?? []
+        let ours = (Bundle.main.bundleIdentifier ?? "Com.app.MonkeyWorkout").lowercased()
+        return workouts.compactMap { (w: HKWorkout) -> GymEntry? in
+            let source = w.sourceRevision.source
+            guard !source.bundleIdentifier.lowercased().hasPrefix(ours), w.metadata?["MonkeyWorkoutTitle"] == nil else { return nil }
+            let stats = w.allStatistics
+            let hr = stats[HKQuantityType(.heartRate)]
+            return GymEntry(
+                id: w.uuid, start: w.startDate, end: w.endDate, source: source.name,
+                device: w.device.flatMap { [$0.manufacturer, $0.model].compactMap { $0 }.joined(separator: " ") }.flatMap { $0.isEmpty ? nil : $0 },
+                avgHR: hr?.averageQuantity()?.doubleValue(for: bpm),
+                maxHR: hr?.maximumQuantity()?.doubleValue(for: bpm),
+                kcal: stats[HKQuantityType(.activeEnergyBurned)]?.sumQuantity()?.doubleValue(for: .kilocalorie()))
         }
     }
 

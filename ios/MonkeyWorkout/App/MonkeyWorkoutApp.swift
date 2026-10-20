@@ -31,9 +31,11 @@ struct MonkeyWorkoutApp: App {
                     }
                     await model.bootstrap()
                     FuelStore.shared.applyWidgetGlasses()
+                    GarminSync.shared.attach(model)
                     WatchSync.shared.start(model: model, health: health)
                     HomeWidgetSync.shared.start(model: model, health: health)
                     await AppleCredentialCheck.verify(model)
+                    await GarminSync.shared.pull()
                 }
                 .task {
                     // Health reads in parallel with sign-in and sync (cached values already shown, #202).
