@@ -1,4 +1,5 @@
 import type { DB } from './db.ts';
+import { BUSY_KEEP_DAYS } from './gymSchema.ts';
 import { TOMBSTONE_KEEP_DAYS } from './routes/sync.ts';
 
 export interface PurgeResult {
@@ -34,6 +35,8 @@ export const purgeExpired = (db: DB, now: Date = new Date()): PurgeResult => {
     db.prepare(`DELETE FROM ${t} WHERE expires_at <= ?`).run(iso);
   // Sync deletes (#432): old enough that every active device has pulled them.
   db.prepare('DELETE FROM sync_tombstones WHERE deleted_at <= ?').run(new Date(now.getTime() - TOMBSTONE_KEEP_DAYS * 86_400_000).toISOString());
+  // "Taken?" taps (#406) past the rush-hours window; was done on every tap.
+  db.prepare('DELETE FROM gym_busy WHERE at < ?').run(new Date(now.getTime() - BUSY_KEEP_DAYS * 86_400_000).toISOString());
   return { codes, emailChanges, refreshTokens };
 };
 
