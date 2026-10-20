@@ -15,7 +15,6 @@ struct WeekView: View {
     @State private var addingDay: Int?
     /// Day picked in the Next up strip (#277); nil = the next session.
     @State private var pickedDay: Int?
-    @State private var removing: Session?
     @State private var swipe: (id: String, dx: CGFloat)?
     /// Editing the Train widgets (#260).
     @State private var arranging = false
@@ -41,20 +40,13 @@ struct WeekView: View {
                     if arranging {
                         TrainEditBar(onAdd: { addingWidget = true }, onList: { customising = true })
                     }
-                    // New week made with what the app learned (#299): the coach says what changed.
-                    if !arranging, let recap = model.tasteRecap { TasteRecapCard(recap: recap) }
-                    // A new block (#495): what the last 4 weeks brought and what the next block changes.
-                    if !arranging, let review = model.blockReview { BlockReviewCard(review: review) }
-                    // What Monkey noticed this week (#495): one slim bar, the growth path behind it.
-                    if !arranging {
-                        let notices = model.noticedBar
-                        if !notices.isEmpty { NoticedBar(insights: notices) }
-                    }
-                    // Kind streaks (#501): welcome back, Comeback quest, a shield that saved last week.
-                    if !arranging { KindStreakCards() }
                     // The member's widgets (#260); the default layout is the Train screen as it always was.
                     let layout = model.trainLayout
-                    if !layout.contains(.nextUp), !arranging { notices(plan: plan, profile: profile) }
+                    if !layout.contains(.nextUp), !arranging {
+                        // Cards that only show for a while (#538) sit under Next up; on top when it was removed.
+                        TrainNoticeSlot()
+                        notices(plan: plan, profile: profile)
+                    }
                     ForEach(layout.rows) { row in
                         switch row {
                         case .full(let w):
@@ -73,6 +65,8 @@ struct WeekView: View {
                                 .frame(maxWidth: .infinity, minHeight: TrainWidgetMetrics.smallHeight, maxHeight: .infinity, alignment: .top)
                             }
                             .fixedSize(horizontal: false, vertical: true)
+                            // A small Next up keeps the slot of passing cards (#538) right under its row.
+                            if !arranging, a.kind == .nextUp || b?.kind == .nextUp { TrainNoticeSlot() }
                         }
                     }
                     if layout.widgets.isEmpty {
@@ -113,7 +107,7 @@ struct WeekView: View {
             NavigationStack {
                 TrainingProfileView()
                     .navigationTitle("Training profile")
-                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { editing = false } } }
+                    .toolbar { CloseToolbarItem { editing = false } }
             }
         }
         .sheet(isPresented: $varying) {
@@ -133,15 +127,6 @@ struct WeekView: View {
         .navigationDestination(isPresented: $showingCalendar) { CalendarView() }
         .sheet(isPresented: $addingWidget) { TrainWidgetGallery() }
         .sheet(isPresented: $customising) { TrainCustomiseSheet() }
-        .confirmationDialog(removing.map(removeTitle).map { "\($0)?" } ?? "", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
-                            titleVisibility: .visible, presenting: removing) { s in
-            Button(removeTitle(s), role: .destructive) {
-                if let id = s.planInsertId { withAnimation { model.removePlanInsert(id) } }
-                removing = nil
-            }
-        } message: { s in
-            Text(model.planInsert(for: s)?.replacing == nil ? "\(s.displayTitle) comes off this week's plan." : "This day goes back to its planned session.")
-        }
         .refreshable { await model.sync() }
         .sheet(item: Bindable(model).finishedProgramme) { r in ProgrammeFinishedSheet(record: r).presentationDetents([.large]) }
         .task {
@@ -195,7 +180,7 @@ struct WeekView: View {
             NextUpCard(session: next, picked: nil, onPick: pick, onBack: back) { playing = next }
         } else if let later = model.nextWeekSession() {
             // This week has nothing left (#473): Next up is next week's first session, shown, not startable.
-            NextUpCard(session: later.session, later: later.day, onPick: pick, onBack: back) {}
+            NextUpCard(session: later.session, later: later.day, onPick: pick, onBack: back)
         } else {
             WeekCompleteCard(missed: model.missedToHandle.count, onPick: pick)
         }
@@ -211,9 +196,9 @@ struct WeekView: View {
             let weeks = model.calendarWeeks(count: 3)
             if week < weeks.count, let s = weeks[week].plan.sessions.first(where: { $0.weekday == wd }) {
                 NextUpCard(session: s, picked: d, later: DaySelection(week: weeks[week], weekday: wd, current: false),
-                           onPick: pick, onBack: back) {}
+                           onPick: pick, onBack: back)
             } else {
-                RestDayCard(weekday: wd, day: d, date: date, onPick: pick, onBack: back) {}
+                RestDayCard(weekday: wd, day: d, date: date, onPick: pick, onBack: back)
             }
         } else {
             PastDayCard(day: d, date: date, onPick: pick, onBack: back)
@@ -228,12 +213,29 @@ struct WeekView: View {
         }
         Button("Add workout this day", systemImage: "plus") { addingDay = day; adding = true }
         if s.isPlanInsert && !done {
-            Button(removeTitle(s), systemImage: "trash", role: .destructive) { removing = s }
+            Button(removeTitle(s), systemImage: "trash", role: .destructive) { remove(s) }
         }
     }
 
     private func removeTitle(_ s: Session) -> String {
         model.planInsert(for: s)?.replacing == nil ? "Remove from this week" : "Back to planned session"
+    }
+
+    /// Takes an added session off this week at once (#538); the Undo bar puts it back (no confirmation, #285).
+    private func remove(_ s: Session) {
+        guard let ins = model.planInsert(for: s) else { return }
+        let extra = ins.replacing == nil
+        withAnimation { model.removePlanInsert(ins.id) }
+        UndoCloseCenter.shared.show(UndoOffer(
+            title: extra ? "\(s.displayTitle) removed" : "Back to planned session",
+            detail: extra ? "This week's plan" : s.displayTitle, symbol: "trash", reopen: { AnyView(EmptyView()) },
+            revert: { [model] in
+                if let generated = ins.generated, let wd = ins.weekday {
+                    model.addExtra(ins.workout, generated: generated, weekday: wd)
+                } else {
+                    model.insertIntoPlan(ins.workout, replacing: ins.replacing, weekday: ins.weekday)
+                }
+            }))
     }
 
     private func swipeToRemove(_ s: Session) -> some Gesture {
@@ -245,7 +247,7 @@ struct WeekView: View {
             .onEnded { v in
                 let past = v.translation.width < -80 && abs(v.translation.width) > abs(v.translation.height) * 1.5
                 withAnimation(.snappy) { swipe = nil }
-                if past { removing = s }
+                if past { remove(s) }
             }
     }
 
@@ -289,12 +291,14 @@ struct WeekView: View {
         .padding(.top, 4)
     }
 
+    /// Rounded square, 44 pt (#538), like the player's controls.
     private func headerIcon(_ symbol: String) -> some View {
         Image(systemName: symbol)
-            .font(.system(size: 15, weight: .heavy))
+            .font(.system(size: 16, weight: .heavy))
             .foregroundStyle(.white)
-            .frame(width: 36, height: 36)
-            .background(Circle().fill(Color.white.opacity(0.14)))
+            .frame(width: 44, height: 44)
+            .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(Color.white.opacity(0.14)))
+            .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
     }
 
     /// Calendar, Variation and Edit plan as Explore-style gradient buttons in one row (#147): the Quick actions widget.
@@ -351,19 +355,21 @@ struct WeekView: View {
         case .nextUp:
             if w.size == .large {
                 VStack(alignment: .leading, spacing: 18) {
-                    if !arranging, let undo = model.variationUndo { VariationUndoCard(undo: undo) }
                     nextUpCard(plan)
+                    // One slot for the cards that only show for a while (#538): Start workout never moves down for them.
+                    if !arranging { TrainNoticeSlot() }
                     // Sport prep on a planned sport day (#523).
                     if !arranging { SportPrepBar() }
-                    if !arranging { notices(plan: plan, profile: profile, undo: false) }
+                    if !arranging { notices(plan: plan, profile: profile) }
                 }
             } else {
                 VStack(alignment: .leading, spacing: 18) {
-                    if !arranging, let undo = model.variationUndo { VariationUndoCard(undo: undo) }
                     NextUpCompactWidget(session: model.nextSession, wide: !small) { playing = $0 }
                         .frame(maxHeight: small ? .infinity : nil, alignment: .top)
+                    // A small Next up gets the slot under its row instead (#538).
+                    if !arranging, !small { TrainNoticeSlot() }
                     if !arranging, !small { SportPrepBar() }
-                    if !arranging, !small { notices(plan: plan, profile: profile, undo: false) }
+                    if !arranging, !small { notices(plan: plan, profile: profile) }
                 }
             }
         case .climbing:
@@ -414,10 +420,9 @@ struct WeekView: View {
         }
     }
 
-    /// Cards that only show when they apply: Undo variation, body prompt, climbing hint. Next to Next up,
-    /// or on top when the member removed Next up.
-    @ViewBuilder private func notices(plan: WeekPlan, profile: Profile, undo: Bool = true) -> some View {
-        if undo, let u = model.variationUndo { VariationUndoCard(undo: u) }
+    /// Cards that only show when they apply: body prompt, climbing hint (Undo variation is in the slot, #538). Under
+    /// Next up, or on top when the member removed Next up.
+    @ViewBuilder private func notices(plan: WeekPlan, profile: Profile) -> some View {
         if health.settled && health.snapshot.weightKg == nil && model.body.weightKg == nil {
             BodyPromptCard()
         }
@@ -471,7 +476,7 @@ struct WeekView: View {
                         }
                     }
                     .simultaneousGesture(removable ? swipeToRemove(s) : nil)
-                    .accessibilityAction(named: removeTitle(s)) { if removable { removing = s } }
+                    .accessibilityAction(named: removeTitle(s)) { if removable { remove(s) } }
                 }
             }
             Text(quest
@@ -683,10 +688,13 @@ private struct NextUpCard: View {
     var later: DaySelection? = nil
     var onPick: (Int) -> Void = { _ in }
     var onBack: () -> Void = {}
-    let onStart: () -> Void
+    /// Opens the player; nil = nothing to start here (a later week's day, #473).
+    var onStart: (() -> Void)? = nil
     @Environment(AppModel.self) private var model
     @Environment(\.trainCompact) private var compact
     @State private var logging: SportLog?
+    /// A missed day's session logged after the fact (#537).
+    @State private var loggingMissed: Session?
     @State private var trackingSport: SportLog?
     /// Build as I go (#490): the empty workout open in the player.
     @State private var freestyle: Session?
@@ -697,6 +705,10 @@ private struct NextUpCard: View {
     @State private var editingTrip: SportTrip?
     /// A later day picked in the strip (#343): nothing can be started or logged in advance.
     private var ahead: Bool { later != nil || (picked.map { $0 > model.todayWeekday } ?? false) }
+    /// The card's day this week: the picked day, else the session's (nil = unscheduled, startable any day).
+    private var day: Int? { picked ?? session.weekday }
+    /// An earlier day this week (#537): its session is logged, never played.
+    private var past: Bool { day.map { $0 < model.todayWeekday } ?? false }
 
     /// This card's day counted from this week's Monday (#481), for the strip.
     private var stripDay: Int? {
@@ -745,6 +757,7 @@ private struct NextUpCard: View {
         .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Color.white.opacity(0.15)))
         .sheet(item: $logging) { LogSportView(initial: $0) }
         .sheet(item: $trackingSport) { LogSportView(initial: $0, live: true) }
+        .sheet(item: $loggingMissed) { MissedLogSheet(session: $0) }
         .fullScreenCover(item: $freestyle) { WorkoutPlayerView(sessionId: $0.id) }
         .modifier(LaterDaySheets(day: $laterDay))
         .sheet(isPresented: $moving) { MoveSessionSheet(sessionId: session.id) }
@@ -759,8 +772,9 @@ private struct NextUpCard: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(eyebrow).font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
+                    // Long titles wrap instead of shrinking or cutting off (#538).
                     Text(session.displayTitle).font(Theme.display(compact ? 26 : 30)).foregroundStyle(.white)
-                        .lineLimit(2).minimumScaleFactor(0.8).fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(3).minimumScaleFactor(0.9).fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 10) {
                         Label("\(session.estMin) min", systemImage: "clock.fill").font(Theme.label(14)).foregroundStyle(.white.opacity(0.9))
                         // XP it earns (#227).
@@ -820,12 +834,23 @@ private struct NextUpCard: View {
                     // A later day (#343): only its overview.
                     NavigationLink(value: session.id) { Label("See workout", systemImage: "list.bullet") }
                         .buttonStyle(LimeButtonStyle())
-                } else {
+                } else if let onStart, model.activeWorkout(session.id) != nil || !past && (day == nil || day == model.todayWeekday) {
+                    // Only today's session starts (#537); one in progress always resumes.
                     Button(action: onStart) {
                         Label(model.activeWorkout(session.id) == nil ? "Start workout" : "Resume workout", systemImage: "play.fill")
-                            .lineLimit(1).minimumScaleFactor(0.75)
+                            .lineLimit(1).minimumScaleFactor(0.9)
                     }
                     .buttonStyle(LimeButtonStyle())
+                } else if past {
+                    // A missed day (#537): log what was done that day.
+                    Button { loggingMissed = session } label: {
+                        Label("Log it", systemImage: "square.and.pencil").lineLimit(1).minimumScaleFactor(0.9)
+                    }
+                    .buttonStyle(LimeButtonStyle(fill: .white))
+                    .accessibilityHint("Logs this workout on its day with what you did")
+                } else if let day {
+                    // Next up is a later day (#537): planned, not startable yet.
+                    PlannedDayBadge(weekday: day)
                 }
             }
             // Start workout gets the full width; sports sit under it in one split pill (#462, design C).
@@ -884,6 +909,8 @@ private struct PastDayCard: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @State private var showsHistory = false
+    /// Log a workout or sport on this day (#537), dated 18:00.
+    @State private var logging: SportLog?
 
     var body: some View {
         let cal = model.planCalendar
@@ -896,11 +923,24 @@ private struct PastDayCard: View {
                 Text("Rest day 😴").font(Theme.display(26)).foregroundStyle(.white)
             } else {
                 ForEach(items) { it in
-                    Text(it.title).font(Theme.display(26)).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(it.title).font(Theme.display(26)).foregroundStyle(.white).lineLimit(2).minimumScaleFactor(0.9)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Button { showsHistory = true } label: { Label("See in History", systemImage: "clock.arrow.circlepath") }
-                .buttonStyle(LimeButtonStyle())
+            // A past day is logged, never played (#537).
+            Button {
+                logging = SportLog(start: cal.date(bySettingHour: 18, minute: 0, second: 0, of: date) ?? date)
+            } label: {
+                Label("Log a workout for this day", systemImage: "square.and.pencil").lineLimit(1).minimumScaleFactor(0.9)
+            }
+            .buttonStyle(LimeButtonStyle())
+            Button { showsHistory = true } label: {
+                Label("See in History", systemImage: "clock.arrow.circlepath")
+                    .font(Theme.label(14)).foregroundStyle(.white)
+                    .frame(maxWidth: .infinity).padding(.vertical, 12)
+                    .background(Capsule().fill(Color.white.opacity(0.15)))
+            }
+            .buttonStyle(.plain)
             BackToNextUpButton(label: model.nextSession.map(backLabel) ?? "Back to this week", action: onBack)
         }
         .padding(20)
@@ -913,6 +953,7 @@ private struct PastDayCard: View {
         .sheet(isPresented: $showsHistory) {
             NavigationStack { HistoryView().toolbar { CloseToolbarItem { showsHistory = false } } }
         }
+        .sheet(item: $logging) { LogSportView(initial: $0) }
     }
 }
 
@@ -948,7 +989,8 @@ private struct RestDayCard: View {
     var date: Date? = nil
     var onPick: (Int) -> Void = { _ in }
     var onBack: () -> Void = {}
-    let onAdd: () -> Void
+    /// Plans a workout on this day; nil = not offered (a later week's day, #481).
+    var onAdd: (() -> Void)? = nil
     @Environment(AppModel.self) private var model
     @State private var logging: ClimbLog?
     @State private var loggingSport: SportLog?
@@ -1014,8 +1056,8 @@ private struct RestDayCard: View {
                      : climber ? "Nothing planned. Train or climb?" : "Nothing planned. Fancy a session?")
                     .font(.footnote).foregroundStyle(.white.opacity(0.8)).multilineTextAlignment(.center)
                 HStack(spacing: 10) {
-                    if !laterWeek {
-                        Button(action: onAdd) { Label("Add workout", systemImage: "plus").lineLimit(1).minimumScaleFactor(0.75) }
+                    if let onAdd {
+                        Button(action: onAdd) { Label("Add workout", systemImage: "plus").lineLimit(1).minimumScaleFactor(0.9) }
                             .buttonStyle(LimeButtonStyle())
                     }
                     if climbing && !ahead {
@@ -1202,14 +1244,145 @@ private struct VariationUndoCard: View {
                 .padding(.vertical, 8)
                 .background(Capsule().fill(.white))
                 .foregroundStyle(Theme.ink)
+            // 44 pt target (#538) without making the card taller.
             Button { withAnimation { model.variationUndo = nil } } label: {
                 Image(systemName: "xmark").font(.footnote.bold()).opacity(0.8)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .padding(.vertical, -10)
+            .padding(.trailing, -8)
             .accessibilityLabel("Dismiss")
         }
         .foregroundStyle(.white)
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(WorkoutEngine.Category.warmup.gradient))
+    }
+}
+
+/// One slot under Next up for the cards that only show for a while (#538, design A): a variation's Undo, the taste
+/// recap, the block review, what Monkey noticed and kind streaks. One at a time: the bars show where it is, a swipe or
+/// a tap on the bars shows the next, ✕ puts the current one away. Start workout never moves down for them.
+private struct TrainNoticeSlot: View {
+    enum Kind: Hashable { case variation, taste, block, noticed, kind }
+
+    @Environment(AppModel.self) private var model
+    @State private var index = 0
+    /// Kind streak cards put away this week (they have no close of their own): the week's Monday key.
+    @AppStorage("trainKindStreakHidden") private var kindHiddenWeek = ""
+
+    private var weekKey: String {
+        let cal = model.planCalendar
+        return PlanCalendar.key(Progression.weekStart(Date(), cal), cal)
+    }
+
+    private var cards: [Kind] {
+        var out: [Kind] = []
+        // New variation (#98): its Undo first.
+        if model.variationUndo != nil { out.append(.variation) }
+        // New week made with what the app learned (#299).
+        if model.tasteRecap != nil { out.append(.taste) }
+        // A new block (#495): what the last 4 weeks brought and what the next block changes.
+        if model.blockReview != nil { out.append(.block) }
+        // What Monkey noticed this week (#495).
+        if !model.noticedBar.isEmpty { out.append(.noticed) }
+        // Kind streaks (#501): welcome back, Comeback quest, a shield that saved last week.
+        if kindHiddenWeek != weekKey,
+           model.comeback != nil
+            || Progression.stats(records: model.state.history, weights: [], targetPerWeek: model.gameTarget).shieldSavedLastWeek {
+            out.append(.kind)
+        }
+        return out
+    }
+
+    var body: some View {
+        let cards = self.cards
+        if !cards.isEmpty {
+            let i = min(index, cards.count - 1)
+            VStack(spacing: 4) {
+                card(cards[i])
+                    .id(cards[i])
+                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
+                footer(cards, current: i)
+            }
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 24).onEnded { v in
+                    guard cards.count > 1, abs(v.translation.width) > 50,
+                          abs(v.translation.width) > abs(v.translation.height) * 1.5 else { return }
+                    withAnimation(.snappy) { index = (i + (v.translation.width < 0 ? 1 : cards.count - 1)) % cards.count }
+                }
+            )
+            .onChange(of: model.variationUndo != nil) { _, shown in
+                // A variation just applied: its Undo comes first.
+                if shown { index = 0 }
+            }
+        }
+    }
+
+    @ViewBuilder private func card(_ k: Kind) -> some View {
+        switch k {
+        case .variation:
+            if let u = model.variationUndo { VariationUndoCard(undo: u) }
+        case .taste:
+            if let r = model.tasteRecap { TasteRecapCard(recap: r) }
+        case .block:
+            if let r = model.blockReview { BlockReviewCard(review: r) }
+        case .noticed:
+            NoticedBar(insights: model.noticedBar)
+        case .kind:
+            KindStreakCards()
+        }
+    }
+
+    /// Position bars (tap for the next card) and ✕ for the one showing.
+    private func footer(_ cards: [Kind], current i: Int) -> some View {
+        HStack(spacing: 8) {
+            if cards.count > 1 {
+                Button { withAnimation(.snappy) { index = (i + 1) % cards.count } } label: {
+                    HStack(spacing: 4) {
+                        ForEach(cards.indices, id: \.self) { j in
+                            Capsule().fill(Color.white.opacity(j == i ? 0.95 : 0.3)).frame(width: j == i ? 20 : 10, height: 4)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(title(cards[i])), \(i + 1) of \(cards.count)")
+                .accessibilityHint("Shows the next one")
+            } else {
+                Spacer(minLength: 0)
+            }
+            Button { dismiss(cards[i]) } label: {
+                Image(systemName: "xmark").font(.system(size: 13, weight: .heavy)).foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(Color.white.opacity(0.1)))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss \(title(cards[i]))")
+        }
+    }
+
+    private func title(_ k: Kind) -> String {
+        switch k {
+        case .variation: "Variation undo"
+        case .taste: "Taste recap"
+        case .block: "Block review"
+        case .noticed: "What Monkey noticed"
+        case .kind: "Streak news"
+        }
+    }
+
+    private func dismiss(_ k: Kind) {
+        withAnimation(.snappy) {
+            switch k {
+            case .variation: model.variationUndo = nil
+            case .taste: model.dismissTasteRecap()
+            case .block: if let r = model.blockReview { model.closeBlockReview(r) }
+            case .noticed: model.closeNoticed()
+            case .kind: kindHiddenWeek = weekKey
+            }
+        }
     }
 }
 
@@ -1234,5 +1407,37 @@ extension WeekView {
         guard !Self.checkedInterrupted, !model.demo else { return }
         Self.checkedInterrupted = true
         if let s = model.interruptedWorkout() { playing = s } else { LiveWorkout.endLeftovers() }
+    }
+}
+
+extension AppModel {
+    /// Only today's session can be played (#537): a planned session on its own day (or unscheduled) and not done yet;
+    /// a library or freestyle workout any day; a workout in progress always resumes.
+    func startableToday(_ s: Session) -> Bool {
+        if activeWorkout(s.id) != nil { return true }
+        guard let planned = plan?.sessions.first(where: { $0.id == s.id }) else { return true }
+        if state.done[planned.id] ?? false { return false }
+        return planned.weekday.map { $0 == todayWeekday } ?? true
+    }
+}
+
+/// Dashed lime "Planned for Thu" in Start's place (#537, design A): a later day's session is shown, not started.
+struct PlannedDayBadge: View {
+    let weekday: Int
+    /// Small widget size: "Thu" in a slim capsule.
+    var compact = false
+
+    var body: some View {
+        Label(compact ? WeekSchedule.shortName(weekday) : "Planned for \(WeekSchedule.shortName(weekday))", systemImage: "calendar")
+            .font(Theme.label(compact ? 14 : 17))
+            .foregroundStyle(Theme.lime)
+            .lineLimit(1)
+            .minimumScaleFactor(0.9)
+            .padding(.horizontal, compact ? 14 : 12)
+            .padding(.vertical, compact ? 9 : 18)
+            .frame(maxWidth: compact ? nil : .infinity)
+            .background(Capsule().strokeBorder(Theme.lime.opacity(0.85), style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Planned for \(WeekSchedule.name(weekday)). Starts on the day.")
     }
 }
