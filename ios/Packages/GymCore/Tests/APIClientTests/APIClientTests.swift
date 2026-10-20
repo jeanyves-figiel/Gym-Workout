@@ -266,6 +266,17 @@ private func tokensJSON(_ n: Int) -> String {
         #expect(!legacy.contains("setIndex"))
         #expect(!legacy.contains("rir"))
     }
+
+    @Test func lossyArrayCountsSkippedElements() throws {
+        let dec = JSONDecoder()
+        dec.dateDecodingStrategy = .iso8601
+        let json = #"[{"id":"bad"},null,{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","date":"2026-10-07T10:00:00Z","exerciseId":"back-squat"},7]"#
+        let l = try dec.decode(LossyArray<LogEntry>.self, from: Data(json.utf8))
+        #expect(l.elements.map(\.exerciseId) == ["back-squat"])
+        #expect(l.skipped == 2)
+        let clean = try dec.decode(LossyArray<LogEntry>.self, from: Data("[]".utf8))
+        #expect(clean.elements.isEmpty && clean.skipped == 0)
+    }
 }
 
 @Suite struct EntitlementTests {

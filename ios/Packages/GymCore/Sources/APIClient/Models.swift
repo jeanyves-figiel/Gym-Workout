@@ -91,11 +91,13 @@ public struct LogChanges: Sendable, Equatable {
 }
 
 /// List that skips elements it can't decode (a record a newer app version wrote, a bad row), so one of them
-/// doesn't fail the whole pull.
-struct LossyArray<Element: Decodable>: Decodable {
-    var elements: [Element]
+/// doesn't fail the whole pull. Also used for the app's state file, so one bad record doesn't wipe a list.
+public struct LossyArray<Element: Decodable>: Decodable {
+    public var elements: [Element]
+    /// Elements that didn't decode and were left out (nulls not counted).
+    public var skipped = 0
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         var c = try decoder.unkeyedContainer()
         var out: [Element] = []
         while !c.isAtEnd {
@@ -104,6 +106,7 @@ struct LossyArray<Element: Decodable>: Decodable {
             if let e = try? c.decode(Element.self) {
                 out.append(e)
             } else {
+                skipped += 1
                 _ = try? c.decode(Skip.self)
             }
             // A failed decode doesn't always advance the container: never spin on one element.
