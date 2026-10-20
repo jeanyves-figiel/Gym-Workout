@@ -32,7 +32,7 @@ export const customExerciseRoutes = (r: FastifyInstance, db: DB, now: () => Date
   r.get('/me/custom-exercises', async (req) => {
     const q = sinceQuery.parse(req.query);
     // Archived by a flag, never deleted: `deleted` stays empty, kept for the same since-pull shape (#432).
-    return { exercises: listCustomExercises(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'custom-exercises', q.since), serverTime: now().toISOString() };
+    return { exercises: listCustomExercises(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'custom-exercises', q.since, now()), serverTime: now().toISOString() };
   });
 
   r.post('/me/custom-exercises', async (req) => {

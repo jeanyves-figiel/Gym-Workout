@@ -31,7 +31,7 @@ export const bodyMeasurementRoutes = (r: FastifyInstance, db: DB, now: () => Dat
     const q = sinceQuery.parse(req.query);
     return {
       measurements: listBodyMeasurements(db, req.userId!, q.since),
-      ...deletedField(db, req.userId!, 'body-measurements', q.since),
+      ...deletedField(db, req.userId!, 'body-measurements', q.since, now()),
       serverTime: now().toISOString(),
     };
   });

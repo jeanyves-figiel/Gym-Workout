@@ -30,7 +30,7 @@ export const listClimbs = (db: DB, userId: string, since?: string) =>
 export const climbRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/me/climbs', async (req) => {
     const q = sinceQuery.parse(req.query);
-    return { climbs: listClimbs(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'climbs', q.since), serverTime: now().toISOString() };
+    return { climbs: listClimbs(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'climbs', q.since, now()), serverTime: now().toISOString() };
   });
 
   r.post('/me/climbs', async (req) => {

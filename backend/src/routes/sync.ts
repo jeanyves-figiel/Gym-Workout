@@ -54,9 +54,22 @@ export const deletedSince = (db: DB, userId: string, kind: SyncKind, since: stri
     }[]
   ).map((r) => r.item_id);
 
-/** `deleted` for a since pull: always present (maybe empty) when `since` was given, absent on a full pull. */
-export const deletedField = (db: DB, userId: string, kind: SyncKind, since: string | undefined): { deleted?: string[] } =>
-  since === undefined ? {} : { deleted: deletedSince(db, userId, kind, since) };
+/**
+ * `deleted` for a since pull: always present (maybe empty) when `since` was given, absent on a full pull. With a
+ * `since` older than the tombstone retention, deletes may have been purged: `fullResync: true` tells the app to pull
+ * everything again (additive; older apps ignore it).
+ */
+export const deletedField = (
+  db: DB,
+  userId: string,
+  kind: SyncKind,
+  since: string | undefined,
+  now: Date,
+): { deleted?: string[]; fullResync?: true } => {
+  if (since === undefined) return {};
+  const horizon = new Date(now.getTime() - TOMBSTONE_KEEP_DAYS * 86_400_000).toISOString();
+  return { deleted: deletedSince(db, userId, kind, since), ...(since < horizon ? { fullResync: true as const } : {}) };
+};
 
 /**
  * An upload of a deleted id brings it back (Undo in the app re-saves the same id): its tombstone goes, so the

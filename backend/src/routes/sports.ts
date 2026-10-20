@@ -51,7 +51,7 @@ export const listSports = (db: DB, userId: string, since?: string) =>
 export const sportRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/me/sports', async (req) => {
     const q = sinceQuery.parse(req.query);
-    return { sports: listSports(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'sports', q.since), serverTime: now().toISOString() };
+    return { sports: listSports(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'sports', q.since, now()), serverTime: now().toISOString() };
   });
 
   r.post('/me/sports', async (req) => {

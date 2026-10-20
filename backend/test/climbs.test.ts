@@ -150,6 +150,17 @@ describe('climbs sync (#312)', () => {
     expect(db.prepare('SELECT COUNT(*) AS n FROM sync_tombstones').get()).toEqual({ n: 0 });
   });
 
+  it('asks for a full resync when since is older than the tombstone retention', async () => {
+    const t = await signUp('climber@example.com');
+    const old = new Date(clock.getTime() - 181 * 86_400_000).toISOString();
+    const recent = new Date(clock.getTime() - 179 * 86_400_000).toISOString();
+    for (const kind of ['climbs', 'logs', 'workouts']) {
+      expect((await get(`/v1/me/${kind}?since=${encodeURIComponent(old)}`, t)).json()).toMatchObject({ deleted: [], fullResync: true });
+      expect((await get(`/v1/me/${kind}?since=${encodeURIComponent(recent)}`, t)).json()).not.toHaveProperty('fullResync');
+      expect((await get(`/v1/me/${kind}`, t)).json()).not.toHaveProperty('fullResync');
+    }
+  });
+
   it('logs and workouts report deletes too (#432)', async () => {
     const t = await signUp('climber@example.com');
     const since = clock.toISOString();

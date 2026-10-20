@@ -31,7 +31,7 @@ export const listPrAttempts = (db: DB, userId: string, since?: string) =>
 export const prAttemptRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/me/pr-attempts', async (req) => {
     const q = sinceQuery.parse(req.query);
-    return { attempts: listPrAttempts(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'pr-attempts', q.since), serverTime: now().toISOString() };
+    return { attempts: listPrAttempts(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'pr-attempts', q.since, now()), serverTime: now().toISOString() };
   });
 
   r.post('/me/pr-attempts', async (req) => {

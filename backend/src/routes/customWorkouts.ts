@@ -46,7 +46,7 @@ export const listCustomWorkouts = (db: DB, userId: string, since?: string) =>
 export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/me/custom-workouts', async (req) => {
     const q = sinceQuery.parse(req.query);
-    return { workouts: listCustomWorkouts(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'custom-workouts', q.since), serverTime: now().toISOString() };
+    return { workouts: listCustomWorkouts(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'custom-workouts', q.since, now()), serverTime: now().toISOString() };
   });
 
   r.post('/me/custom-workouts', async (req) => {

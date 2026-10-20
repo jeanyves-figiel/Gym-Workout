@@ -53,7 +53,7 @@ export const machineNoteRoutes = (r: FastifyInstance, db: DB, now: () => Date) =
 
   r.get('/me/machine-notes', async (req) => {
     const q = sinceQuery.parse(req.query);
-    return { notes: listMachineNotes(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'machine-notes', q.since), serverTime: now().toISOString() };
+    return { notes: listMachineNotes(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'machine-notes', q.since, now()), serverTime: now().toISOString() };
   });
 
   r.post('/me/machine-notes', async (req) => {

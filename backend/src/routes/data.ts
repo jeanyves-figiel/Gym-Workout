@@ -89,7 +89,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
         ? db.prepare('SELECT * FROM workout_logs WHERE user_id = ? AND updated_at >= ? ORDER BY updated_at').all(req.userId!, q.since)
         : db.prepare('SELECT * FROM workout_logs WHERE user_id = ? ORDER BY updated_at').all(req.userId!)
     ) as unknown as LogRow[];
-    return { logs: rows.map(toLog), ...deletedField(db, req.userId!, 'logs', q.since), serverTime: now().toISOString() };
+    return { logs: rows.map(toLog), ...deletedField(db, req.userId!, 'logs', q.since, now()), serverTime: now().toISOString() };
   });
 
   r.post('/me/logs', async (req) => {
@@ -142,7 +142,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
 
   r.get('/me/workouts', async (req) => {
     const q = sinceQuery.parse(req.query);
-    return { workouts: listWorkouts(req.userId!, q.since), ...deletedField(db, req.userId!, 'workouts', q.since), serverTime: now().toISOString() };
+    return { workouts: listWorkouts(req.userId!, q.since), ...deletedField(db, req.userId!, 'workouts', q.since, now()), serverTime: now().toISOString() };
   });
 
   r.post('/me/workouts', async (req) => {
