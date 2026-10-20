@@ -61,6 +61,7 @@ struct LibraryView: View {
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
+        .statusBarScrim()
         .navigationTitle("Explore")
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(for: Muscle.self) { MuscleDetailView(muscle: $0) }

@@ -140,6 +140,7 @@ struct FuelView: View {
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
+        .statusBarScrim()
         .navigationTitle("Fuel")
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $setup) { NavigationStack { FuelSetupView(sheet: true) } }
@@ -674,10 +675,11 @@ struct FuelPortionsView: View {
             HStack {
                 Text(k.emoji).font(.system(size: 24))
                 Spacer()
-                Text("\(have)/\(target)").font(Theme.display(22)).monospacedDigit()
+                Text("\(have)/\(target)").font(Theme.display(22)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
             }
             Text("\(k.label.uppercased()) · \(k.food.uppercased())").font(Theme.label(9)).tracking(0.8).lineLimit(1).minimumScaleFactor(0.7)
-            HStack(spacing: 3) {
+            // Big days can ask for 15+ portions: the squares wrap inside the tile instead of pushing it off screen.
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 11, maximum: 11), spacing: 3)], alignment: .leading, spacing: 3) {
                 ForEach(0..<max(target, have), id: \.self) { i in
                     RoundedRectangle(cornerRadius: 3).fill(i < have ? ink : ink.opacity(0.25)).frame(width: 11, height: 11)
                 }

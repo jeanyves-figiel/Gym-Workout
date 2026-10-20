@@ -608,6 +608,11 @@ public enum Fuel {
         ]
         let start = cal.startOfDay(for: day)
         func minute(_ d: Date) -> Int { Int(d.timeIntervalSince(start) / 60) }
+        // Main meals inside a training move after it first, so they become its recovery meal (#524).
+        for a in acts {
+            let s = minute(a.start), e = minute(a.end)
+            for j in drafts.indices where drafts[j].minute > s - 20 && drafts[j].minute < e { drafts[j].minute = e + 30 }
+        }
         for (i, a) in acts.enumerated() {
             let s = minute(a.start), e = minute(a.end)
             // Pre: only when the last main meal is more than 2 h before.
@@ -622,7 +627,7 @@ public enum Fuel {
                 drafts.append(Draft(id: "recovery-\(i)", kind: .recovery, minute: e + 30))
             }
         }
-        // Drop main meals that land inside a training.
+        // Meals still inside a training move after it; a recovery snack already there is the same meal (#524).
         for a in acts {
             let s = minute(a.start), e = minute(a.end)
             for j in drafts.indices where drafts[j].minute > s - 20 && drafts[j].minute < e {
@@ -630,6 +635,7 @@ public enum Fuel {
                 drafts[j].after = true
             }
         }
+        drafts.removeAll { d in d.kind == .recovery && drafts.contains { $0.kind != .recovery && $0.after && abs($0.minute - d.minute) < 60 } }
         let wanted = max(3, min(6, prefs.meals))
         let extras: [(String, MealKind, Int)] = [("snack-pm", .snack, 16 * 60), ("bedtime", .bedtime, sleep - 60), ("snack-am", .snack, 10 * 60)]
         for (id, kind, m) in extras where drafts.count < wanted {
