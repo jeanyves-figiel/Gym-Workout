@@ -79,7 +79,7 @@ struct LibraryView: View {
             MuscleHero(heat: model.weekHeat) { tapped = $0 }
             let filter = MachineFilter(key: machineFilter), gym = model.exploreGym
             let counts = Dictionary(uniqueKeysWithValues: Muscle.allCases.map { m in
-                (m, Exercise.working(m, filter: filter, gym: gym).reduce(0) { $0 + $1.1.count })
+                (m, Exercise.rowCount(m, filter: filter, gym: gym))
             })
             let groups = MuscleGroup.allCases.filter { g in g.muscles.contains { filter == .all || counts[$0, default: 0] > 0 } }
             VStack(alignment: .leading, spacing: 10) {
@@ -247,6 +247,8 @@ private struct CategoryCard: View {
 /// Muscle page: role, map, weekly volume, and every exercise working it — grouped by category.
 struct MuscleDetailView: View {
     let muscle: Muscle
+    /// Set when shown as a sheet: the X top right closes it.
+    var onClose: (() -> Void)? = nil
     @Environment(AppModel.self) private var model
     @State private var open: ExerciseRef?
     @AppStorage(MachineFilterStore.key) private var machineFilter = MachineFilter.all.key
@@ -267,7 +269,7 @@ struct MuscleDetailView: View {
                     VStack(spacing: 10) {
                         GradientStat(symbol: "square.stack.3d.up.fill", value: "\(model.weeklySets(for: muscle))", label: "Sets / week",
                                      gradient: WorkoutEngine.Category.strength.gradient)
-                        GradientStat(symbol: "list.bullet", value: "\(Exercise.working(muscle).reduce(0) { $0 + $1.1.count })", label: "Exercises",
+                        GradientStat(symbol: "list.bullet", value: "\(Exercise.rowCount(muscle, filter: MachineFilter(key: machineFilter), gym: model.exploreGym))", label: "Exercises",
                                      gradient: WorkoutEngine.Category.cardio.gradient)
                     }
                     .frame(width: 130)
@@ -318,7 +320,15 @@ struct MuscleDetailView: View {
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Muscle")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar { if let onClose { CloseToolbarItem(action: onClose) } }
         .sheet(item: $open) { ref in NavigationStack { ExerciseDetailView(exerciseId: ref.exerciseId) } }
+    }
+}
+
+extension Exercise {
+    /// Rows a muscle's page lists: chip-filtered, variations folded under their base (#174), so counts match the list.
+    static func rowCount(_ muscle: Muscle, filter: MachineFilter, gym: Set<Equipment>?) -> Int {
+        working(muscle, filter: filter, gym: gym).reduce(0) { $0 + folded($1.1.map(\.exercise)).count }
     }
 }
 

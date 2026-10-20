@@ -106,7 +106,7 @@ struct MainTabView: View {
         }
         // First open after an update (#183); seen once dismissed, either way.
         .sheet(item: Binding(get: { model.offerPro ? nil : whatsNew }, set: { whatsNew = $0 }), onDismiss: WhatsNew.markSeen) {
-            WhatsNewView(notes: $0)
+            NavigationStack { WhatsNewView(notes: $0) }
         }
     }
 }

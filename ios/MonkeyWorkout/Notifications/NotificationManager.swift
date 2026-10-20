@@ -486,7 +486,7 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         if kind == "badge", let badgeId { return .badge(badgeId) }
         guard let sessionId else { return nil }
         switch (kind, action) {
-        case ("missed", Action.trainToday): return .session(sessionId)
+        // "Train today" too: the missed day's own page can't start it (#537), the check-in's Train now can.
         case ("missed", _): return .reschedule(sessionId: sessionId, day: day ?? Date())
         case ("upcoming", _): return .session(sessionId)
         default: return nil

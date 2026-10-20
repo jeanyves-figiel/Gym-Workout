@@ -25,6 +25,8 @@ struct WhatsNewView: View {
             .background(Theme.bg.opacity(0.92).ignoresSafeArea())
         }
         .background(Theme.bg.ignoresSafeArea())
+        // Sheets close with the X top right too, not only Let's train.
+        .toolbar { CloseToolbarItem { dismiss() } }
     }
 }
 

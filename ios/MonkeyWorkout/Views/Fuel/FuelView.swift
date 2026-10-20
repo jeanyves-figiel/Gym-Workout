@@ -100,8 +100,18 @@ struct FuelView: View {
     @Environment(HealthManager.self) private var health
     @State private var store = FuelStore.shared
     @State private var day = Calendar.current.startOfDay(for: Date())
+    /// The date `day` was last set on: on a later date the strip reopens on today, like Train (#547).
+    @State private var dayOn = Calendar.current.startOfDay(for: Date())
+    @Environment(\.scenePhase) private var scenePhase
     @State private var setup = false
     @State private var slot: FuelSlot?
+
+    private func dropStaleDay() {
+        let today = Calendar.current.startOfDay(for: Date())
+        guard dayOn != today else { return }
+        dayOn = today
+        day = today
+    }
 
     private var layout: Binding<FuelLayout> {
         Binding(get: { store.prefs.layout }, set: { l in
@@ -148,6 +158,8 @@ struct FuelView: View {
         .navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }
         .fuelDestinations()
         .onAppear { if !store.saved.setUp && !model.demo { setup = true } }
+        .onChange(of: scenePhase) { if scenePhase == .active { dropStaleDay() } }
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in dropStaleDay() }
         .coachFocus(CoachFocus(screen: "fuel", title: "Fuel", detail: Self.coachDetail(plan, log: log, prefs: store.prefs),
                                starters: CoachFocus.tab(.fuel).starters))
     }

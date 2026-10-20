@@ -162,6 +162,8 @@ struct MonkeyCoachCard: View {
     @State private var hop = false
     @State private var bob = false
     @State private var catchUp: WeekDayStrip.DayPick?
+    /// The "N missed" chip: every missed day, not only the first.
+    @State private var catchUpAll = false
     @State private var levels = false
     /// Workout chat (#381).
     @State private var chatting = false
@@ -292,6 +294,7 @@ struct MonkeyCoachCard: View {
         .animation(.easeInOut(duration: 0.35), value: tip)
         .sensoryFeedback(.impact(weight: .light), trigger: tip)
         .sheet(item: $catchUp) { MissedCatchUpSheet(weekday: $0.id) }
+        .sheet(isPresented: $catchUpAll) { MissedCatchUpSheet(weekday: nil) }
         .sheet(isPresented: $levels) { LevelLadderSheet() }
         .sheet(item: $sportSession) { SportSessionSheet(entry: $0) }
         .sheet(item: $snowProgramme) { ProgrammeSheet(id: $0.id) }
@@ -310,8 +313,8 @@ struct MonkeyCoachCard: View {
                 .accessibilityLabel("\(stats.currentStreakWeeks)-week streak").accessibilityHint("Opens Training in Progress")
             NavigationLink { CalendarView() } label: { gameChip("\(stats.thisWeek)/\(target) \(short ? "wk" : "this week") ›") }
                 .accessibilityLabel("\(stats.thisWeek) of \(target) this week").accessibilityHint("Opens the calendar")
-            if let m = missed.first {
-                Button { catchUp = .init(id: m.weekday ?? model.todayWeekday) } label: {
+            if !missed.isEmpty {
+                Button { catchUpAll = true } label: {
                     gameChip("\(missed.count) missed ›", fill: Color(hex: 0xFFD23F), ink: Theme.ink)
                 }
                 .accessibilityHint("Log it, mark it done, do it today or skip")
@@ -370,7 +373,8 @@ struct MonkeyCoachCard: View {
         let title = next?.displayTitle ?? "it"
         let missed = model.missedToHandle
         let go: Action = next.map { .start($0) } ?? .progress(.training)
-        let cta = next.map { "Start \($0.displayTitle)" } ?? "See progress"
+        // Only today's session starts (#537): another day's tip opens its page, so it says See.
+        let cta = next.map { "\(model.startableToday($0) ? "Start" : "See") \($0.displayTitle)" } ?? "See progress"
         var out: [Tip] = if next == nil, let m = missed.first, mood != .party {
             // Nothing left this week but a missed session (#266).
             [Tip(text: "Missed \(m.displayTitle)? Log it or do it today 💪", tint: (0xFF3D6E, 0xFF8A3D), cta: "Catch up", action: .catchUp(m.weekday ?? model.todayWeekday))]
@@ -392,7 +396,7 @@ struct MonkeyCoachCard: View {
         } else if let e = Sports.recentHard(sports), let n = next, n.weekday == model.todayWeekday,
                   let to = Sports.swap(for: n.focus, after: e.sport), model.canChangeFocus(n) {
             out.insert(Tip(text: "\(e.sport.loadLabel.capitalized) loaded by \(e.sport.short). \(n.focus.dayLabel) → \(to.dayLabel)?",
-                           tint: (0x00B86B, 0x1EC8A5), cta: "Swap today", action: .sport(e)), at: 0)
+                           tint: (0x00B86B, 0x1EC8A5), cta: "Review & swap", action: .sport(e)), at: 0)
         }
         // Snow ready (#428 C): skiers and snowboarders get the pre-season programme first, each autumn until they look.
         if let ride = Programme.snowNudge(sports: model.profile?.sports, running: model.activeProgramme != nil,
