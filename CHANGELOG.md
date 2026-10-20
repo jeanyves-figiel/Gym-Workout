@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- **Train climbing row slimmed: Wall session on climbing days only** (#521, design B from `climb-row/proposals.png`): Log climb and Around climbing days under Next up repeated Log sport → Climbing and Settings. The row is gone; on a climbing day one full-width **Wall session** bar (warm-up · hangboard · cool-down) shows instead, and the hard-climb note stays. No climbing day and no hard climb: the widget takes no space. MonkeyGrade climbs now refresh from Train itself.
 - **Fuel What I have: one box finds any food** (#511, design B from `nutrition-pointers/pick-search.png`): the kitchen box is now "Search or type a list"; every match from all 240 foods shows right under it as you type, ticked in place. Pick groups wrap with their counts instead of scrolling off screen.
 - **What's new 2026-10-19.3** (build 50): hold a day in the week strip (#488), build a workout as you go (#490), start fresh (#492), Fuel (#496), Monkey grows with you (#495), built for heavy lifters (#499), rewards for every day (#501); 2026-10-19.2 moved to history as build 49.
 - **What's new 2026-10-19.2** (build 49): smooth week strip (#486); 2026-10-19.1 moved to history as build 48.

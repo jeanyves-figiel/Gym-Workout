@@ -160,6 +160,9 @@ struct WeekView: View {
             model.replanCurrentWeek()
             model.persist()
             revealChestIfNeeded()
+            // MonkeyGrade climbs feed the climbing widget's hard-climb note (#521: the widget may not be on screen).
+            let mg = MonkeyGradeLink.shared
+            if mg.isConnected(for: model.user?.id) { await mg.refresh() }
         }
     }
 
@@ -362,7 +365,7 @@ struct WeekView: View {
             if small {
                 ClimbSmallWidget()
             } else if Generator.isClimber(profile) {
-                ClimbSection()
+                ClimbSection(arranging: arranging)
             } else {
                 Button { editing = true } label: {
                     WidgetTile(kind: .climbing, title: "Climbing") {
