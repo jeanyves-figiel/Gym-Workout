@@ -57,7 +57,8 @@ struct HomeProvider: AppIntentTimelineProvider {
     func snapshot(for configuration: HomeWidgetIntent, in context: Context) async -> HomeEntry {
         // The widget gallery shows sample numbers until the app has written real ones.
         let snap = HomeWidgetStore.load().flatMap { $0.signedIn ? $0 : nil } ?? (context.isPreview ? .sample : HomeWidgetSnapshot())
-        return HomeEntry(date: Date(), snap: snap, topic: configuration.topic, look: configuration.look)
+        let now = Date()
+        return HomeEntry(date: now, snap: snap.at(now), topic: configuration.topic, look: configuration.look)
     }
 
     /// Now, then each midnight for two days (Today moves); the app reloads the timeline whenever its data changes.
@@ -66,7 +67,8 @@ struct HomeProvider: AppIntentTimelineProvider {
         let cal = Calendar.current
         let start = cal.startOfDay(for: Date())
         let dates = [Date()] + (1...2).compactMap { cal.date(byAdding: .day, value: $0, to: start) }
-        return Timeline(entries: dates.map { HomeEntry(date: $0, snap: snap, topic: configuration.topic, look: configuration.look) }, policy: .atEnd)
+        return Timeline(entries: dates.map { HomeEntry(date: $0, snap: snap.at($0, calendar: cal), topic: configuration.topic, look: configuration.look) },
+                        policy: .atEnd)
     }
 }
 
