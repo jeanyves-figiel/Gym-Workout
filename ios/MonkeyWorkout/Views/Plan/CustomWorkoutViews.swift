@@ -370,8 +370,8 @@ private struct QuickActionCard: View {
     }
 }
 
-private extension View {
-    /// List row without system chrome, so the content's own card shows.
+extension View {
+    /// List row without system chrome, so the content's own card shows. Shared by the gradient-row lists (#539).
     func cardRow() -> some View {
         listRowBackground(Color.clear)
             .listRowSeparator(.hidden)

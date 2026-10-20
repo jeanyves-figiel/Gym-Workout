@@ -234,7 +234,11 @@ struct TrainCustomiseSheet: View {
     var body: some View {
         let layout = model.trainLayout
         NavigationStack {
+            // Explore-style gradient rows (#539): one card per widget with its tile, drag ≡ to reorder; removing
+            // is instant with Undo.
             List {
+                ContentTitle(title: "Customise Train", subtitle: "Drag ≡ to reorder · swipe left to remove")
+                    .cardRow()
                 Section("Presets") {
                     ForEach(TrainLayout.Preset.allCases) { p in
                         Button {
@@ -246,24 +250,21 @@ struct TrainCustomiseSheet: View {
                                     Text(p.detail).font(.caption).foregroundStyle(Theme.muted)
                                 }
                                 Spacer()
-                                if model.trainPreset == p { Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.lime) }
+                                SquareToggle(on: model.trainPreset == p)
                             }
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .accessibilityAddTraits(model.trainPreset == p ? .isSelected : [])
+                        .darkCardRow()
                     }
                 }
-                Section {
-                    ForEach(layout.widgets) { w in row(w) }
-                        .onMove { from, to in model.editTrainLayout { $0.move(fromOffsets: from, toOffset: to) } }
-                        .onDelete { idx in
-                            let ids = idx.map { layout.widgets[$0].id }
-                            model.editTrainLayout { l in ids.forEach { l.remove($0) } }
-                        }
-                } header: {
-                    Text("On Train")
-                } footer: {
-                    Text("Drag ≡ to reorder, swipe left to remove.")
+                Section("On Train") {
+                    ForEach(layout.widgets) { w in
+                        row(w).gradientRow(w.kind.palette.gradient, ink: w.kind.palette.ink)
+                    }
+                    .onMove { from, to in model.editTrainLayout { $0.move(fromOffsets: from, toOffset: to) } }
+                    .onDelete { idx in remove(idx.map { layout.widgets[$0] }, from: layout) }
                 }
                 if !layout.addable.isEmpty {
                     Section("Add") {
@@ -275,36 +276,47 @@ struct TrainCustomiseSheet: View {
                                     icon(kind)
                                     VStack(alignment: .leading, spacing: 1) {
                                         Text(kind.title).font(Theme.label(14))
-                                        Text(kind.detail).font(.caption).foregroundStyle(Theme.muted).lineLimit(2)
+                                        Text(kind.detail).font(.caption.weight(.semibold)).opacity(0.8).lineLimit(2)
                                     }
                                     Spacer()
-                                    Image(systemName: "plus.circle.fill").font(.title3).foregroundStyle(Theme.lime)
+                                    SquareToggle(on: false, ink: kind.palette.ink)
                                 }
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Add \(kind.title)")
+                            .gradientRow(kind.palette.gradient, ink: kind.palette.ink)
+                            .opacity(0.75)
                         }
                     }
                 }
                 Section {
                     Button("Reset to default") { withAnimation { model.setTrainLayout(nil) } }
+                        .font(Theme.label(15))
                         .foregroundStyle(Theme.lime)
                         .disabled(!model.trainLayoutCustomised)
+                        .darkCardRow()
                 }
             }
             .environment(\.editMode, .constant(.active))
             .themedForm()
-            .navigationTitle("Customise Train")
-            .navigationBarTitleDisplayMode(.inline)
+            .titleInContent("Customise Train")
             .toolbar { CloseToolbarItem { dismiss() } }
         }
     }
 
+    /// Swipe-removed widgets go at once; the Undo bar puts the layout back.
+    private func remove(_ widgets: [TrainWidget], from layout: TrainLayout) {
+        let ids = widgets.map(\.id)
+        model.editTrainLayout { l in ids.forEach { l.remove($0) } }
+        UndoCloseCenter.shared.deleted("\(widgets.first?.kind.title ?? "Widget") removed", symbol: "rectangle.stack.badge.minus") { [model] in
+            model.setTrainLayout(layout)
+        }
+    }
+
     private func icon(_ kind: TrainWidgetKind) -> some View {
-        Image(systemName: kind.symbol)
-            .font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
-            .frame(width: 30, height: 30)
-            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(kind.palette.gradient))
+        IconTile(symbol: kind.symbol, size: 30, ink: kind.palette.isLight)
+            .foregroundStyle(kind.palette.ink)
     }
 
     private func row(_ w: TrainWidget) -> some View {
@@ -320,7 +332,7 @@ struct TrainCustomiseSheet: View {
                         ForEach(w.kind.looks) { Text($0.title).tag(Optional($0)) }
                     }
                 } label: {
-                    Text(w.resolvedLook?.title ?? "").font(Theme.label(12)).foregroundStyle(Theme.lime)
+                    Text(w.resolvedLook?.title ?? "").font(Theme.label(12)).underline()
                 }
             }
             if w.kind.sizes.count > 1 {
@@ -334,10 +346,10 @@ struct TrainCustomiseSheet: View {
                     Text(w.size.title)
                         .font(Theme.label(12)).foregroundStyle(Theme.ink)
                         .padding(.horizontal, 9).padding(.vertical, 4)
-                        .background(Capsule().fill(Theme.lime))
+                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Theme.lime))
                 }
             } else {
-                Text(w.size.title).font(Theme.label(12)).foregroundStyle(Theme.muted)
+                Text(w.size.title).font(Theme.label(12)).opacity(0.7)
             }
         }
     }
