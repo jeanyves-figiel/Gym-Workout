@@ -46,7 +46,11 @@ final class FuelStore {
         var water: WaterPrefs?
     }
 
-    private(set) var saved = Saved()
+    private(set) var saved = Saved() {
+        didSet { version &+= 1 }
+    }
+    /// Bumped on every change to `saved`: keys `AppModel`'s Fuel plan cache.
+    @ObservationIgnored private(set) var version = 0
     /// Glasses tapped today go to Apple Health as dietary water.
     @ObservationIgnored weak var health: HealthManager?
     /// The day's plan from the app model, for glasses counted outside Fuel (widgets, notification buttons).

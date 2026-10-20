@@ -20,6 +20,15 @@ struct DerivedCache {
     var badges: (key: Int, value: [Badge])?
     var setLogs: (key: Int, value: [SetLog])?
     var history: (key: Int, value: [WorkoutRecord])?
+    /// Fuel plans per day (`fuelPlan(on:)`), for days whose plan doesn't follow the clock.
+    var fuelPlans: [Date: (key: FuelPlanKey, value: FuelPlan)] = [:]
+}
+
+/// What a day's Fuel plan is made from besides the plan's inputs: the day's steps and the Fuel settings.
+struct FuelPlanKey: Equatable {
+    var derived: DerivedKey
+    var steps: Int
+    var fuel: Int
 }
 
 extension AppModel {
