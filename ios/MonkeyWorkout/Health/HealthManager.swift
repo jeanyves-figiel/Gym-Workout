@@ -195,8 +195,11 @@ final class HealthManager {
     var settled: Bool { loaded || !connected || !available }
 
     private func cache(_ s: HealthSnapshot) {
-        snapshot = s
-        loaded = true
+        let unchanged = s == snapshot && loaded
+        // Same readings: no redraw, no plan rebuild, no rewrite (unless the file is gone, e.g. after sign-out).
+        if s != snapshot { snapshot = s }
+        if !loaded { loaded = true }
+        guard !unchanged || !FileManager.default.fileExists(atPath: Self.cacheURL.path) else { return }
         guard let data = try? JSONEncoder().encode(s) else { return }
         let url = Self.cacheURL
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
