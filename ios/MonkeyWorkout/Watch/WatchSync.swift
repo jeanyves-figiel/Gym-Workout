@@ -388,7 +388,7 @@ final class WatchSync: NSObject {
             s.week = plan.week
             s.weeks = Generator.mesocycleWeeks
             s.deload = plan.deload
-            s.sessions = plan.sessions.map { session($0, label: $0.dayLabel, model: model) }
+            s.sessions = plan.sessions.map { session($0, label: $0.dayLabel, planned: true, model: model) }
         }
         s.extras = WorkoutTemplate.all.map { session($0.session, label: "Example", model: model) }
             + model.customWorkouts.map { session($0.session, label: "My workout", model: model) }
@@ -425,7 +425,7 @@ final class WatchSync: NSObject {
         return s
     }
 
-    private static func session(_ session: Session, label: String, model: AppModel) -> WSession {
+    private static func session(_ session: Session, label: String, planned: Bool = false, model: AppModel) -> WSession {
         WSession(
             id: session.id, title: session.displayTitle, dayLabel: label, estMin: session.estMin,
             done: model.state.done[session.id] ?? false,
@@ -436,7 +436,8 @@ final class WatchSync: NSObject {
                        items: b.items.filter { Exercise.find($0.exerciseId) != nil }
                            .map { item($0, block: b, sessionId: session.id, model: model) })
             },
-            missed: model.missedToHandle.contains { $0.id == session.id })
+            missed: model.missedToHandle.contains { $0.id == session.id },
+            plannedOn: planned && session.weekday != nil ? WSession.dayKey(model.day(of: session)) : nil)
     }
 
     private static func item(_ it: PlannedExercise, block: Block, sessionId: String, model: AppModel) -> WItem {

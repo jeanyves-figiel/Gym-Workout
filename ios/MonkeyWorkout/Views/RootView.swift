@@ -54,6 +54,11 @@ struct MainTabView: View {
     @State private var ask = CoachAsk.shared
     @AppStorage(AskCoachPref.bubbleKey) private var coachBubble = true
 
+    /// What's new with the X top right (#556); its own function keeps `body` quick to type-check.
+    private func whatsNewSheet(_ notes: WhatsNew) -> some View {
+        NavigationStack { WhatsNewView(notes: notes) }
+    }
+
     var body: some View {
         TabView(selection: Bindable(model).tab) {
             NavigationStack { WeekView() }
@@ -111,7 +116,7 @@ struct MainTabView: View {
         }
         // First open after an update (#183); seen once dismissed, either way.
         .sheet(item: Binding(get: { model.offerPro ? nil : whatsNew }, set: { whatsNew = $0 }), onDismiss: WhatsNew.markSeen) {
-            WhatsNewView(notes: $0)
+            whatsNewSheet($0)
         }
     }
 }

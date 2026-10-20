@@ -61,9 +61,18 @@ struct WSession: Codable, Equatable, Identifiable, Hashable {
     var blocks: [WBlock]
     /// Planned on an earlier day this week and not done (#266); nil from older phone apps.
     var missed: Bool? = nil
+    /// Planned date as yyyy-MM-dd; nil = unscheduled (examples, own workouts) or an older phone app.
+    var plannedOn: String? = nil
 
     var items: [WItem] { blocks.flatMap(\.items) }
     var isMissed: Bool { missed == true && !done }
+    /// Only today's session starts (#537), as on the iPhone; another day's shows its day instead of Start.
+    var startsToday: Bool { plannedOn.map { $0 == WSession.dayKey(Date()) } ?? true }
+
+    static func dayKey(_ date: Date) -> String {
+        let c = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
 }
 
 struct WBlock: Codable, Equatable, Hashable {

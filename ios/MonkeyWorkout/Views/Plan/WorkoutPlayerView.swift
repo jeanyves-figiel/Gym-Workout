@@ -742,14 +742,15 @@ struct WorkoutPlayerView: View {
 
     private func topBar(_ session: Session) -> some View {
         HStack(spacing: 10) {
-            // Pause: the workout map with Finish, Finish early and Discard (#538).
+            // Workout menu: the workout map with Finish, Finish early and Discard (#538). Not a pause icon:
+            // the ✕ is what pauses (#556, design A from `player-topbar/proposals.png`).
             Button { mapOpen = true } label: {
-                Image(systemName: "pause.fill").font(.system(size: 16, weight: .heavy))
+                Image(systemName: "ellipsis").font(.system(size: 16, weight: .heavy))
                     .frame(width: 44, height: 44)
                     .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(Theme.cardStrong))
             }
             .disabled(steps.isEmpty)
-            .accessibilityLabel("Pause")
+            .accessibilityLabel("Workout menu")
             .accessibilityHint("Finish, finish early or discard the workout")
             // Tap the dots for the workout map (#361).
             Button { mapOpen = true } label: {
@@ -958,6 +959,8 @@ struct WorkoutPlayerView: View {
                 .frame(width: size, height: size)
                 .background(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).fill(Theme.cardStrong))
         }
+        // Nothing left to skip to: it would finish and save the workout, which is the main button's job.
+        .disabled(nextStep == nil)
         .accessibilityLabel("Skip to next exercise")
     }
 
@@ -1071,12 +1074,15 @@ struct WorkoutPlayerView: View {
         pause = p
     }
 
+    /// Next step with sets left: after a superset split mid-round (#352) a member done earlier is passed over.
+    private var nextStep: Int? {
+        steps.indices.first { $0 > index && (setsDone[steps[$0].item.uid] ?? 0) < steps[$0].sets }
+    }
+
     private func advance(_ step: Step) {
         autoNext = nil
         if (setsDone[step.item.uid] ?? 0) >= step.sets { model.setTicked(step.item.uid) }
-        // Next step with sets left: after a superset split mid-round (#352) a member done earlier is passed over.
-        let next = steps.indices.first { $0 > index && (setsDone[steps[$0].item.uid] ?? 0) < steps[$0].sets }
-        if let next { go(next) } else { finish() }
+        if let next = nextStep { go(next) } else { finish() }
     }
 
     private func finish() {

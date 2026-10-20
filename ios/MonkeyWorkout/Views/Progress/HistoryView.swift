@@ -340,6 +340,8 @@ struct HistoryTile: View {
 struct RecentSessionsStrip: View {
     let items: [HistoryItem]
     let seeAll: () -> Void
+    /// A climb card: History filtered to climbing (there's no page for one climb).
+    var openClimbs: (() -> Void)? = nil
     @State private var sport: SportEntry?
 
     var body: some View {
@@ -358,7 +360,9 @@ struct RecentSessionsStrip: View {
                         switch item {
                         case .gym(let r): NavigationLink(value: r.id) { card(item) }.buttonStyle(.plain)
                         case .sport(let s): Button { sport = s } label: { card(item) }.buttonStyle(.plain)
-                        case .climb: Button(action: seeAll) { card(item) }.buttonStyle(.plain)
+                        case .climb:
+                            Button(action: openClimbs ?? seeAll) { card(item) }.buttonStyle(.plain)
+                                .accessibilityHint("Opens climbing history")
                         }
                     }
                 }

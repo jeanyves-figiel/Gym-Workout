@@ -127,7 +127,7 @@ struct SessionDetailView: View {
             }
             .watchMargins()
         }
-        .pinnedButton(theme == .game ? "▶ GO!" : "▶ START") { onStart(session) }
+        .pinnedButton(theme == .game ? "▶ GO!" : "▶ START", when: session.startsToday) { onStart(session) }
         .sheet(item: $cues) { it in CuesSheet(item: it, block: rows.first { $0.item.uid == it.uid }?.block, theme: theme) }
     }
 
@@ -137,6 +137,7 @@ struct SessionDetailView: View {
             Text(theme == .game ? "+\(W.xp(session)) XP · \(session.items.count) bosses".uppercased()
                  : "\(session.estMin)′ · \(session.blocks.count) blocks · \(session.items.count) ex".uppercased())
                 .font(W.label(10)).tracking(1).foregroundStyle(theme == .game ? W.lime : .white.opacity(0.85))
+            if !session.startsToday { PlannedTag(day: session.dayLabel).padding(.top, 4) }
         }
         .padding(.bottom, 3)
     }

@@ -16,6 +16,7 @@ struct MuscleHero: View {
     @Environment(AppModel.self) private var model
     @Environment(\.bodyMapDemo) private var demo
     @AppStorage(BodyMapMode.storageKey) private var storedMode = BodyMapMode.flat
+    @AppStorage(MachineFilterStore.key) private var machineFilter = MachineFilter.all.key
     @State private var picked: Muscle?
     @State private var facing: BodyMapFacing = .front
     /// Demo screens only: vertex count once the figure is built.
@@ -138,7 +139,8 @@ struct MuscleHero: View {
     /// The muscle tapped on the figure: name, sets, exercises, and a button to its page.
     private func pickedCard(_ m: Muscle) -> some View {
         let h = heat[m] ?? 0
-        let n = Exercise.working(m).reduce(0) { $0 + $1.1.count }
+        // Same count as the muscle page's list (chip filter, variations folded).
+        let n = Exercise.rowCount(m, filter: MachineFilter(key: machineFilter), gym: model.exploreGym)
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 MuscleThumbnail(muscle: m, heat: h)

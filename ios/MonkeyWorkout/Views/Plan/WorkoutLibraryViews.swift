@@ -578,11 +578,13 @@ struct AddToPlanSheet: View {
                         .padding(.bottom, 6)
                     ForEach(Array(model.replaceableSessions.enumerated()), id: \.offset) { i, pair in
                         let done = model.state.done[pair.current.id] ?? false
+                        // An earlier day is logged, never re-planned (#537).
+                        let past = !done && (pair.current.weekday ?? model.todayWeekday) < model.todayWeekday
                         let card = dayCard(number: i + 1, session: pair.current,
                                            day: pair.current.weekday.map { WeekSchedule.name($0).uppercased() } ?? "DAY \(i + 1)",
-                                           note: done ? "DONE" : pair.current.isPlanInsert ? "FROM LIBRARY" : nil,
-                                           done: done, selected: replacing == i && !pickedExtra)
-                        if done {
+                                           note: done ? "DONE" : past ? "PAST DAY" : pair.current.isPlanInsert ? "FROM LIBRARY" : nil,
+                                           done: done || past, selected: replacing == i && !pickedExtra)
+                        if done || past {
                             // Not a button: a disabled one would grey the text out on the dark canvas.
                             card
                         } else {
@@ -595,7 +597,8 @@ struct AddToPlanSheet: View {
                     if pickedExtra {
                         Picker("Day", selection: $extraDay) {
                             Text("Any day").tag(Int?.none)
-                            ForEach(1...7, id: \.self) { d in Text(WeekSchedule.name(d)).tag(Int?.some(d)) }
+                            // From today on (#537): an earlier day could only be logged.
+                            ForEach(model.todayWeekday...7, id: \.self) { d in Text(WeekSchedule.name(d)).tag(Int?.some(d)) }
                         }
                         .pickerStyle(.menu)
                         .tint(Theme.lime)

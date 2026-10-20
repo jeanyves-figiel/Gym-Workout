@@ -74,7 +74,7 @@ struct ExerciseDetailView: View {
             }
             CloseToolbarItem { dismiss() }
         }
-        .sheet(item: $muscle) { m in NavigationStack { MuscleDetailView(muscle: m) } }
+        .sheet(item: $muscle) { m in NavigationStack { MuscleDetailView(muscle: m, onClose: { muscle = nil }) } }
         .sheet(item: $editing) { c in CustomExerciseBuilderView(existing: c) }
     }
 

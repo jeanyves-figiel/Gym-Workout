@@ -218,7 +218,7 @@ struct ProgressTabView: View {
                     .accessibilityHint("Opens History")
             } else {
                 // Recent sessions (#442 C): every kind of session, See all opens History.
-                RecentSessionsStrip(items: items) { opened = .history }
+                RecentSessionsStrip(items: items, seeAll: { opened = .history }, openClimbs: { openedSport = .climbing })
             }
         case .consistency:
             ConsistencyCalendar(days: s.days, records: dayRecords, empty: fresh)

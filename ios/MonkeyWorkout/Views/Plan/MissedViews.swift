@@ -441,13 +441,14 @@ struct LaterDaySheets: ViewModifier {
 /// Catch-up sheet for a missed day: each missed session with Log it · Mark done · Do today · Skip.
 /// Skip takes a session off the sheet (#340); the sheet closes once nothing is left.
 struct MissedCatchUpSheet: View {
-    let weekday: Int
+    /// The missed day; nil = every missed day (the "N missed" chips).
+    let weekday: Int?
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var logging: Session?
 
     var body: some View {
-        let missed = model.missedToHandle.filter { $0.weekday == weekday }
+        let missed = model.missedToHandle.filter { weekday == nil || $0.weekday == weekday }
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -460,7 +461,7 @@ struct MissedCatchUpSheet: View {
                                     .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.25)))
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(s.displayTitle).font(Theme.display(22)).lineLimit(1).minimumScaleFactor(0.6)
-                                    Text("Missed · \(s.estMin) min planned")
+                                    Text("Missed\(weekday == nil ? " \(s.weekday.map(WeekSchedule.shortName) ?? "")" : "") · \(s.estMin) min planned")
                                         .font(.subheadline.weight(.semibold)).opacity(0.9)
                                 }
                                 Spacer(minLength: 0)
@@ -478,13 +479,13 @@ struct MissedCatchUpSheet: View {
             }
             .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle("Missed · \(WeekSchedule.name(weekday))")
+            .navigationTitle(weekday.map { "Missed · \(WeekSchedule.name($0))" } ?? "Missed")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }
         }
         .presentationDetents([.medium, .large])
         .preferredColorScheme(.dark)
-        .sheet(item: $logging, onDismiss: { if model.missedToHandle.allSatisfy({ $0.weekday != weekday }) { dismiss() } }) { s in
+        .sheet(item: $logging, onDismiss: { if model.missedToHandle.allSatisfy({ weekday != nil && $0.weekday != weekday }) { dismiss() } }) { s in
             MissedLogSheet(session: s)
         }
         .onChange(of: missed.map(\.id)) { _, ids in if ids.isEmpty && logging == nil { dismiss() } }
