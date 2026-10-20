@@ -30,57 +30,48 @@ extension Climbs {
     }
 }
 
-/// Train tab: "Log climb" card, hard-climb note and recent climbs (logged here or from Apple Health).
+/// Train tab climbing widget: Wall session on climbing days only (#521, design B) and the hard-climb note.
+/// Logging a climb lives in Log sport → Climbing; Around climbing days in Settings and on the Wall session page.
 struct ClimbSection: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
-    @State private var logging: ClimbLog?
-    @State private var settings = false
-    @State private var gate: ProGate?
-
-    @AppStorage("wallDay") private var wallDayRaw = WallDay.bouldering.rawValue
 
     private var monkeyGrade: MonkeyGradeLink { .shared }
-    private var wallDay: WallDay { WallDay(rawValue: wallDayRaw) ?? .bouldering }
 
     private var climbs: [ClimbEntry] {
         Climbs.merged(local: model.climbLogs, health: health.snapshot.recentClimbs, monkeyGrade: monkeyGrade.climbs(for: model.user?.id))
     }
 
+    /// Train is being arranged: keep a tile to move even on a day with nothing to show.
+    var arranging = false
+
     var body: some View {
         let all = climbs
-        VStack(alignment: .leading, spacing: 12) {
-            // Log climb and Wall session side by side (design B slim bars); Wall session opens its own page.
-            HStack(spacing: 8) {
-                Button {
-                    logging = ClimbLog(start: Date().addingTimeInterval(-90 * 60))
-                } label: {
-                    ClimbBar(symbol: "figure.climbing", title: "Log climb", detail: "\(Climbs.thisWeek(all)) this wk",
-                             trailing: "plus", gradient: ClimbKind.boulder.gradient)
-                }
-                .buttonStyle(.plain)
-                .accessibilityHint("Log a climbing session")
+        let wall = isClimbingDay && model.profile?.climbDayAddon != false
+        let hard = Climbs.recentHard(all)
+        // Nothing to show: no view at all, so Train keeps no gap for it.
+        if wall || hard != nil || arranging {
+            VStack(alignment: .leading, spacing: 12) {
                 // Wall session (#366): on unless turned off in Around climbing days.
-                if model.profile?.climbDayAddon != false {
+                if wall {
                     NavigationLink {
-                        WallSessionPage(today: isClimbingDay, climbedToday: all.contains { Calendar.current.isDateInToday($0.start) })
+                        WallSessionPage(today: true, climbedToday: all.contains { Calendar.current.isDateInToday($0.start) })
                     } label: {
-                        ClimbBar(symbol: "hand.raised.fill", title: "Wall session", detail: wallDay.label,
+                        ClimbBar(symbol: "hand.raised.fill", title: "Wall session", detail: "Warm-up · hangboard · cool-down",
                                  trailing: "chevron.right", gradient: ClimbKind.topRope.gradient)
                     }
                     .buttonStyle(.plain)
+                } else if hard == nil {
+                    ClimbBar(symbol: "hand.raised.fill", title: "Wall session", detail: "Shows on climbing days",
+                             trailing: "calendar", gradient: ClimbKind.topRope.gradient)
+                        .opacity(0.6)
                 }
+                if let hard {
+                    HardClimbNote(climb: hard)
+                }
+                // Past climbs live on the History page (#442); delete one there with a long press.
             }
-            if let hard = Climbs.recentHard(all) {
-                HardClimbNote(climb: hard)
-            }
-            AroundClimbingLink { ProStore.shared.run(.climbing, $gate) { settings = true } }
-            // Past climbs live on the History page (#442); delete one there with a long press.
         }
-        .sheet(item: $logging) { LogClimbView(initial: $0) }
-        .sheet(isPresented: $settings) { ClimbSettingsView() }
-        .proPaywall($gate)
-        .task { if monkeyGrade.isConnected(for: model.user?.id) { await monkeyGrade.refresh() } }
     }
 
     private var isClimbingDay: Bool {

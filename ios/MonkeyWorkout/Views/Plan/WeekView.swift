@@ -161,6 +161,9 @@ struct WeekView: View {
             model.replanCurrentWeek()
             model.persist()
             revealChestIfNeeded()
+            // MonkeyGrade climbs feed the climbing widget's hard-climb note (#521: the widget may not be on screen).
+            let mg = MonkeyGradeLink.shared
+            if mg.isConnected(for: model.user?.id) { await mg.refresh() }
         }
     }
 
@@ -349,6 +352,8 @@ struct WeekView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     if !arranging, let undo = model.variationUndo { VariationUndoCard(undo: undo) }
                     nextUpCard(plan)
+                    // Sport prep on a planned sport day (#523).
+                    if !arranging { SportPrepBar() }
                     if !arranging { notices(plan: plan, profile: profile, undo: false) }
                 }
             } else {
@@ -356,6 +361,7 @@ struct WeekView: View {
                     if !arranging, let undo = model.variationUndo { VariationUndoCard(undo: undo) }
                     NextUpCompactWidget(session: model.nextSession, wide: !small) { playing = $0 }
                         .frame(maxHeight: small ? .infinity : nil, alignment: .top)
+                    if !arranging, !small { SportPrepBar() }
                     if !arranging, !small { notices(plan: plan, profile: profile, undo: false) }
                 }
             }
@@ -363,7 +369,7 @@ struct WeekView: View {
             if small {
                 ClimbSmallWidget()
             } else if Generator.isClimber(profile) {
-                ClimbSection()
+                ClimbSection(arranging: arranging)
             } else {
                 Button { editing = true } label: {
                     WidgetTile(kind: .climbing, title: "Climbing") {

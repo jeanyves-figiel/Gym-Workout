@@ -296,7 +296,7 @@ enum BodyTexture {
 struct BodyMapDemo {
     var mode: BodyMapMode
     var picked: Muscle?
-    var facing: BodyMap3DPanel.Snap = .front
+    var facing: BodyMapFacing = .front
 }
 
 private struct BodyMapDemoKey: EnvironmentKey {
@@ -326,7 +326,7 @@ struct BodyMapModeToggle: View {
                     Text(m.label).font(Theme.label(12))
                         .padding(.horizontal, 12).padding(.vertical, 6)
                         .foregroundStyle(on == m ? Theme.ink : .white.opacity(0.8))
-                        .background(Capsule().fill(on == m ? Color.white : .clear))
+                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(on == m ? Color.white : .clear))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(m == .flat ? "2D body map" : "3D body map")
@@ -334,124 +334,8 @@ struct BodyMapModeToggle: View {
             }
         }
         .padding(3)
-        .background(Capsule().fill(.white.opacity(0.14)))
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.22)))
         .sensoryFeedback(.selection, trigger: selection)
-    }
-}
-
-/// Explore → Muscles in 3D (#225): the figure on its stage, Front / Side / Back snaps, and a card for the picked
-/// muscle (tap it to open the muscle's page).
-struct BodyMap3DPanel: View {
-    let heat: [Muscle: Double]
-    let modeToggle: AnyView
-    let onOpen: (Muscle) -> Void
-    @Environment(AppModel.self) private var model
-    @Environment(\.bodyMapDemo) private var demo
-    @State private var picked: Muscle?
-    @State private var facing: Snap = .front
-    /// Demo screens only: vertex count once the figure is built.
-    @State private var demoVertices: Int?
-
-    enum Snap: String, CaseIterable, Identifiable {
-        case front = "Front", side = "Side", back = "Back"
-        var id: String { rawValue }
-        var yaw: Double { switch self { case .front: 0; case .side: -65; case .back: 180 } }
-    }
-
-    var body: some View {
-        ZStack(alignment: .top) {
-            RadialGradient(colors: [Color(red: 0.17, green: 0.15, blue: 0.28), Color(red: 0.07, green: 0.07, blue: 0.09)],
-                           center: UnitPoint(x: 0.5, y: 0.4), startRadius: 0, endRadius: 360)
-            BodyMap3DView(heat: heat, selected: picked, yaw: facing.yaw, onTap: { m in
-                withAnimation(.spring(duration: 0.3)) { picked = m }
-            }, onReady: demo == nil ? nil : { demoVertices = $0 })
-            .padding(.top, 58)
-            .padding(.bottom, 84)
-            VStack(spacing: 8) {
-                HStack {
-                    Text("Drag to turn · pinch to zoom")
-                        .font(Theme.label(11)).tracking(1.5).textCase(.uppercase)
-                        .foregroundStyle(.white.opacity(0.8))
-                    Spacer()
-                    modeToggle
-                }
-                HStack(spacing: 6) {
-                    ForEach(Snap.allCases) { s in
-                        Button {
-                            facing = s
-                        } label: {
-                            Text(s.rawValue).font(Theme.label(12))
-                                .padding(.horizontal, 13).padding(.vertical, 7)
-                                .foregroundStyle(facing == s ? Theme.ink : .white)
-                                .background(Capsule().fill(facing == s ? Color.white : .white.opacity(0.16)))
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(facing == s ? .isSelected : [])
-                    }
-                }
-            }
-            .padding(12)
-            VStack {
-                Spacer()
-                if demo != nil {
-                    Text(demoVertices.map { "\($0) vertices" } ?? "building figure…").font(.caption2).foregroundStyle(Theme.muted)
-                }
-                pickedCard.padding(10)
-            }
-        }
-        .frame(height: 540)
-        .onAppear {
-            if let demo {
-                picked = demo.picked
-                facing = demo.facing
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityActions {
-            ForEach(Muscle.allCases) { m in
-                Button(m.name) { onOpen(m) }
-            }
-        }
-    }
-
-    @ViewBuilder private var pickedCard: some View {
-        if let m = picked {
-            let h = heat[m] ?? 0
-            Button { onOpen(m) } label: {
-                HStack(spacing: 12) {
-                    MuscleThumbnail(muscle: m, heat: h)
-                        .frame(width: 44, height: 44)
-                        .padding(3)
-                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.22)))
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(m.name).font(Theme.display(21)).lineLimit(1).minimumScaleFactor(0.7)
-                        let n = Exercise.working(m).reduce(0) { $0 + $1.1.count }
-                        Text("\(h >= 0.75 ? "Main mover" : h > 0 ? "Assist" : "Not this week") · \(n) exercises")
-                            .font(.caption.weight(.semibold)).opacity(0.9)
-                    }
-                    Spacer(minLength: 4)
-                    VStack(alignment: .trailing, spacing: 0) {
-                        Text("\(model.weeklySets(for: m))").font(Theme.display(28)).monospacedDigit()
-                        Text("SETS").font(Theme.label(10)).tracking(1).opacity(0.8)
-                    }
-                    Image(systemName: "chevron.right").font(.system(size: 14, weight: .heavy)).opacity(0.8)
-                }
-                .foregroundStyle(.white)
-                .padding(14)
-                .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(m.group.gradient))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(m.name), open exercises")
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-        } else {
-            Text("Tap a muscle to see its exercises")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.8))
-                .padding(.vertical, 10).padding(.horizontal, 14)
-                .background(Capsule().fill(.black.opacity(0.25)))
-                .padding(.bottom, 20)
-        }
     }
 }
 
