@@ -298,6 +298,18 @@ private func tokensJSON(_ n: Int) -> String {
         #expect(pending == [w.id])
     }
 
+    @Test func coachCallNameGoesInHeaderNotURL() async throws {
+        let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
+        StubProtocol.register("call.test") { req, _ in
+            let ok = req.url!.path == "/v1/me/coach-voices/joanna/call/hype.mp3" && req.url!.query == nil
+                && req.value(forHTTPHeaderField: "X-Call-Name") == "Zo%C3%A9%20Lou"
+            return ok ? (200, "mp3") : (400, #"{"error":"x","message":"\#(req.url!.absoluteString)"}"#)
+        }
+        let api = makeClient("call.test", tokens: store)
+        let data = try await api.coachVoiceCall(voice: "joanna", style: "hype", name: "Zoé Lou")
+        #expect(String(decoding: data, as: UTF8.self) == "mp3")
+    }
+
     @Test func undecodableConflictCopyStillLeavesTheQueue() {
         let id = UUID()
         let mine = LogEntry(id: id, date: Date(timeIntervalSince1970: 0), exerciseId: "x", weightKg: 1, updatedAt: "2026-01-01T00:00:00.000Z")

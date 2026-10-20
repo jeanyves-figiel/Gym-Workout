@@ -470,15 +470,17 @@ public actor APIClient {
         try decode(type, try await authorizedRaw(method, path, body))
     }
 
-    /// Adds bearer token; refreshes proactively (≤30 s left) and once on 401.
-    func authorizedRaw(_ method: String, _ path: String, _ body: (some Encodable)?, raw: (data: Data, contentType: String)? = nil) async throws -> Data {
+    /// Adds bearer token; refreshes proactively (≤30 s left) and once on 401. `headers`: extra request headers.
+    func authorizedRaw(
+        _ method: String, _ path: String, _ body: (some Encodable)?, raw: (data: Data, contentType: String)? = nil, headers: [String: String] = [:]
+    ) async throws -> Data {
         guard var t = tokens.load() else { throw APIError.signedOut }
         if t.accessExpiresAt.timeIntervalSince(now()) < 30 { t = try await refreshed(t) }
         do {
-            return try await send(method, path, body, bearer: t.accessToken, raw: raw)
+            return try await send(method, path, body, bearer: t.accessToken, raw: raw, headers: headers)
         } catch let APIError.server(status, _, _) where status == 401 {
             t = try await refreshed(t)
-            return try await send(method, path, body, bearer: t.accessToken, raw: raw)
+            return try await send(method, path, body, bearer: t.accessToken, raw: raw, headers: headers)
         }
     }
 
@@ -505,12 +507,14 @@ public actor APIClient {
     }
 
     func send(
-        _ method: String, _ path: String, _ body: (some Encodable)?, bearer: String? = nil, raw: (data: Data, contentType: String)? = nil
+        _ method: String, _ path: String, _ body: (some Encodable)?, bearer: String? = nil, raw: (data: Data, contentType: String)? = nil,
+        headers: [String: String] = [:]
     ) async throws -> Data {
         guard let url = URL(string: path, relativeTo: baseURL) else { throw APIError.network("Bad URL \(path)") }
         var req = URLRequest(url: url)
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Accept")
+        for (field, value) in headers { req.setValue(value, forHTTPHeaderField: field) }
         if let deviceName { req.setValue(deviceName, forHTTPHeaderField: "X-Device-Name") }
         if let bearer {
             req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")

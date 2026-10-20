@@ -56,8 +56,17 @@ extension APIClient {
     }
 
     /// MP3 of the short call said before key lines (#415): "Alex!" (hype) or "Alex." (chill, drill).
+    /// The name goes in `X-Call-Name`, never in the URL (kept out of request logs).
     public func coachVoiceCall(voice: String, style: String, name: String) async throws -> Data {
-        let q = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&+=?#"))) ?? ""
-        return try await authorizedRaw("GET", "/v1/me/coach-voices/\(voice)/call/\(style).mp3?name=\(q)", Empty?.none)
+        try await authorizedRaw("GET", "/v1/me/coach-voices/\(voice)/call/\(style).mp3", Empty?.none,
+                                headers: ["X-Call-Name": Self.callNameHeader(name)])
     }
+
+    /// Percent-encoded UTF-8 (the server decodes it with `decodeURIComponent`): header values stay plain ASCII.
+    static func callNameHeader(_ name: String) -> String {
+        name.addingPercentEncoding(withAllowedCharacters: unreserved) ?? ""
+    }
+
+    /// RFC 3986 unreserved characters, ASCII only (`.alphanumerics` would let "é" through unencoded).
+    private static let unreserved = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
 }
