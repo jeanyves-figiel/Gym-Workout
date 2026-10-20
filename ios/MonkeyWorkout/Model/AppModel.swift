@@ -235,8 +235,8 @@ final class AppModel {
             store.wipe()
             state = LocalState()
             state.ownerId = user.id
-            // The previous account's key.
-            clearWatchUploadKey()
+            // The previous account's set history, Fuel, Move, Pro, Health cache, prefs and keys.
+            wipeAccountLocalData()
         }
         self.user = user
         phase = .signedIn
@@ -283,24 +283,30 @@ final class AppModel {
 
     private func resetLocal() {
         stopAutoSync()
-        ProStore.shared.reset()
         store.wipe()
-        LiftSets.shared.wipe()
-        LiftLearning.shared.wipe()
         state = LocalState()
         user = nil
         phase = .signedOut
+        wipeAccountLocalData()
+        // Signed-out snapshots for the Watch and the Home Screen widgets (WatchSync.push refreshes both).
+        WatchSync.shared.push()
+    }
+
+    /// The account's data kept outside state.json on this device: wiped on sign-out and when another account signs in.
+    private func wipeAccountLocalData() {
+        ProStore.shared.reset()
+        LiftSets.shared.wipe()
+        LiftLearning.shared.wipe()
         // Personal copies outside state.json: cached Health readings, the data export, HTTP responses.
         HealthManager.clearCache()
         MoveStore.shared.signOut()
         FuelStore.shared.signOut()
+        NotificationManager.shared.resetPrefs()
         // The MonkeyGrade sign-in and the Watch upload key live in this device's Keychain, not in state.json.
         MonkeyGradeLink.shared.disconnect()
         clearWatchUploadKey()
         try? FileManager.default.removeItem(at: Self.exportFileURL)
         URLCache.shared.removeAllCachedResponses()
-        // Signed-out snapshots for the Watch and the Home Screen widgets (WatchSync.push refreshes both).
-        WatchSync.shared.push()
     }
 
     /// Before a sign-out wipes this device: one last try (5 s at most) to send what hasn't reached the server.
