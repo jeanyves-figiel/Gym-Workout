@@ -29,6 +29,13 @@ export const ensureSchemaExtras = (db: DB): void => {
     CREATE INDEX IF NOT EXISTS refresh_expires ON refresh_tokens(expires_at);
     -- Shared library look-up by id in any letter case (routes/library.ts: lower(w.id) = lower(?)).
     CREATE INDEX IF NOT EXISTS custom_workouts_lower_id ON custom_workouts(lower(id));
+    -- Who saved which shared workout: a member's repeat saves don't bump the counter again.
+    CREATE TABLE IF NOT EXISTS library_saves (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      workout_id TEXT NOT NULL REFERENCES custom_workouts(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, workout_id)
+    );
     -- Climbing sessions (#312), synced from the app (routes/climbs.ts).
     CREATE TABLE IF NOT EXISTS climbs (
       id TEXT PRIMARY KEY,

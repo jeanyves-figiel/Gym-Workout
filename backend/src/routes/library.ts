@@ -85,13 +85,19 @@ export const libraryRoutes = (r: FastifyInstance, db: DB, now: () => Date, maile
     return { workout: toShared(visibleWorkout(id, req.userId!)) };
   });
 
-  /** Counts a copy into "My workouts" (the app creates the copy itself). */
+  /** Counts a copy into "My workouts" (the app creates the copy itself), once per member and workout. */
   r.post('/library/shared/:id/save', async (req) => {
     const { id } = z.object({ id: z.uuid() }).parse(req.params);
     requireProfile(req.userId!);
     const row = visibleWorkout(id, req.userId!);
-    db.prepare('UPDATE custom_workouts SET saves = saves + 1 WHERE id = ?').run(row.id);
-    return { workout: toShared({ ...row, saves: row.saves + 1 }) };
+    const first = tx(db, () => {
+      const fresh = Number(
+        db.prepare('INSERT OR IGNORE INTO library_saves (user_id, workout_id, created_at) VALUES (?, ?, ?)').run(req.userId!, row.id, now().toISOString()).changes,
+      );
+      if (fresh) db.prepare('UPDATE custom_workouts SET saves = saves + 1 WHERE id = ?').run(row.id);
+      return fresh > 0;
+    });
+    return { workout: toShared({ ...row, saves: row.saves + (first ? 1 : 0) }) };
   });
 
   r.post('/library/shared/:id/report', { config: { rateLimit: { max: 20, timeWindow: '1 hour' } } }, async (req, reply) => {

@@ -147,6 +147,9 @@ describe('workout library', () => {
     const viewers = [await member('v1@example.com', 'viewer1'), await member('v2@example.com', 'viewer2'), await member('v3@example.com', 'viewer3')];
 
     expect(((await req('POST', `/v1/library/shared/${w.id}/save`, viewers[0]!.t)).json() as { workout: Shared }).workout.saves).toBe(1);
+    // saving again (another tap, a retry) doesn't count twice; another member does
+    expect(((await req('POST', `/v1/library/shared/${w.id}/save`, viewers[0]!.t)).json() as { workout: Shared }).workout.saves).toBe(1);
+    expect(((await req('POST', `/v1/library/shared/${w.id}/save`, viewers[1]!.t)).json() as { workout: Shared }).workout.saves).toBe(2);
 
     expect((await req('POST', '/v1/community/blocks', viewers[0]!.t, { userId: owner.id })).statusCode).toBeLessThan(300);
     expect((await shared(viewers[0]!.t)).workouts).toHaveLength(0);
