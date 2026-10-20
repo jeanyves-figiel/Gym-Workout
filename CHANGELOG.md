@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Sport prep on sport days** (#523, design A from `climb-row/sport-proposals.png`): climbing had its Wall session, other sports nothing. On a planned sport day (weekly day, one-off day or trip) Train shows a **\<Sport\> prep** bar under Next up, in the sport's colours. It opens a page like the Wall session: **Before** (no-kit warm-up, 6-7 moves), the sport (Track live or Log it), **After** (stretch). One pair per family: snow, ride, run & hike, water, court, combat, general. Engine `SportPrep`; tests `SportPrepTests`.
+
 ### Changed
 - **Train climbing row slimmed: Wall session on climbing days only** (#521, design B from `climb-row/proposals.png`): Log climb and Around climbing days under Next up repeated Log sport → Climbing and Settings. The row is gone; on a climbing day one full-width **Wall session** bar (warm-up · hangboard · cool-down) shows instead, and the hard-climb note stays. No climbing day and no hard climb: the widget takes no space. MonkeyGrade climbs now refresh from Train itself.
 - **Fuel What I have: one box finds any food** (#511, design B from `nutrition-pointers/pick-search.png`): the kitchen box is now "Search or type a list"; every match from all 240 foods shows right under it as you type, ticked in place. Pick groups wrap with their counts instead of scrolling off screen.

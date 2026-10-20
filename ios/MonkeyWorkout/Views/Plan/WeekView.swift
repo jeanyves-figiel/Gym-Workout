@@ -351,6 +351,8 @@ struct WeekView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     if !arranging, let undo = model.variationUndo { VariationUndoCard(undo: undo) }
                     nextUpCard(plan)
+                    // Sport prep on a planned sport day (#523).
+                    if !arranging { SportPrepBar() }
                     if !arranging { notices(plan: plan, profile: profile, undo: false) }
                 }
             } else {
@@ -358,6 +360,7 @@ struct WeekView: View {
                     if !arranging, let undo = model.variationUndo { VariationUndoCard(undo: undo) }
                     NextUpCompactWidget(session: model.nextSession, wide: !small) { playing = $0 }
                         .frame(maxHeight: small ? .infinity : nil, alignment: .top)
+                    if !arranging, !small { SportPrepBar() }
                     if !arranging, !small { notices(plan: plan, profile: profile, undo: false) }
                 }
             }
