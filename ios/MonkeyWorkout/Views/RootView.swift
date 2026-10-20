@@ -428,6 +428,7 @@ private struct DemoScreen: View {
                 .onAppear { if FuelStore.shared.saved.plan.isEmpty { model.planMeals() } }
         case "fuel-week": NavigationStack { FuelWeekView() }
         case "fuel-learn": NavigationStack { FuelLearnView() }
+        case "fuel-supplements": NavigationStack { SupplementsView() }
         case "fuel-setup": NavigationStack { FuelSetupView(sheet: true) }
         case "share-recipe": ShareRecipeSheet(recipe: RecipeBook.catalog[0])
         case "whats-new": if let n = WhatsNew.current { WhatsNewView(notes: n) }

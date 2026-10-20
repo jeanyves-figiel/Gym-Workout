@@ -98,7 +98,9 @@ extension AppModel {
         let input = FuelDayInput(day: day, weightKg: fuelWeightKg, leanKg: fuelLeanKg, female: body.sex == .female,
                                  activities: fuelActivities(on: day), steps: steps, tomorrow: tomorrow, trainingGoal: profile?.goal,
                                  event: fuelEvent(on: day))
-        return Fuel.plan(input, prefs: FuelStore.shared.prefs, calendar: cal)
+        var plan = Fuel.plan(input, prefs: FuelStore.shared.prefs, calendar: cal)
+        Supplements.apply(FuelStore.shared.stack, to: &plan, prefs: FuelStore.shared.prefs, calendar: cal)
+        return plan
     }
 
     /// The 7 days up to `now`, with what was tapped.
