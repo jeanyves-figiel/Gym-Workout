@@ -134,7 +134,25 @@ struct WorkoutPlayerView: View {
         out.estMin = max(1, s.estMin + Int((Double(fitted.estSec - s.blocks.estSec) / 60).rounded()))
         return out
     }
-    private var steps: [Step] { session?.blocks.flatMap { b in b.items.map { Step(item: $0, block: b) } } ?? [] }
+    /// Read many times per render: rebuilt only when the session changes (an unchanged session compares in O(1),
+    /// its block arrays are shared with the cached plan).
+    private var steps: [Step] {
+        let s = session
+        if stepsMemo.filled, stepsMemo.session == s { return stepsMemo.steps }
+        let out = s?.blocks.flatMap { b in b.items.map { Step(item: $0, block: b) } } ?? []
+        stepsMemo.session = s
+        stepsMemo.steps = out
+        stepsMemo.filled = true
+        return out
+    }
+    @State private var stepsMemo = StepsMemo()
+
+    /// Last steps built and the session they came from (not observed: a cache, never drawn from).
+    private final class StepsMemo {
+        var session: Session?
+        var steps: [Step] = []
+        var filled = false
+    }
     /// Build as I go (#490): started empty, exercises added in the player.
     private var isFree: Bool { Freestyle.isFreestyle(sessionId) }
 
