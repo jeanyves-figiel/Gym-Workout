@@ -4,7 +4,9 @@ import SwiftUI
 import WorkoutEngine
 
 enum AuthRoute: Hashable {
-    case signIn, signUp, verify(email: String, password: String? = nil), forgot, reset(email: String), privacy, twoStep(token: String)
+    case signIn, signUp, verify(email: String, password: String? = nil), forgot, reset(email: String), privacy
+    /// 2-step code after a right password or Sign in with Apple (#257); `appleUserID` is remembered once it's accepted.
+    case twoStep(token: String, appleUserID: String? = nil)
 }
 
 struct AuthFlowView: View {
@@ -35,7 +37,7 @@ struct AuthFlowView: View {
                     case .forgot: ForgotPasswordView(path: $path)
                     case let .reset(email): ResetPasswordView(email: email, path: $path)
                     case .privacy: PrivacyNoticeView()
-                    case let .twoStep(token): TwoStepSignInView(token: token)
+                    case let .twoStep(token, appleUserID): TwoStepSignInView(token: token, appleUserID: appleUserID)
                     }
                 }
         }
@@ -90,7 +92,7 @@ struct WelcomeView: View {
                     .font(.body.weight(.medium))
                     .foregroundStyle(Theme.muted)
                 Spacer()
-                AppleSignInButton()
+                AppleSignInButton(path: $path)
                 Button { path.append(.signUp) } label: { Text("CREATE ACCOUNT") }
                     .buttonStyle(LimeButtonStyle())
                 Button("I already have an account") { path.append(.signIn) }
@@ -106,10 +108,18 @@ struct WelcomeView: View {
 
 /// Sign in with Apple → backend verifies the identity token and creates/links the account.
 struct AppleSignInButton: View {
+    /// The auth flow's stack, where a 2-step account continues on its code step; nil = pushed from this button.
+    var path: Binding<[AuthRoute]>?
     @Environment(AppModel.self) private var model
     @State private var task = FormTask()
     /// Raw nonce of the request in flight; its hash goes to Apple, the raw value to the server (#432).
     @State private var nonce: AppleNonce?
+    /// 2-step code step pushed from here when there's no `path` (the button on the code screen itself).
+    @State private var twoStep: AppleTwoStep?
+
+    init(path: Binding<[AuthRoute]>? = nil) {
+        self.path = path
+    }
 
     var body: some View {
         VStack(spacing: 6) {
@@ -135,9 +145,18 @@ struct AppleSignInButton: View {
                     let code = cred.authorizationCode.flatMap { String(data: $0, encoding: .utf8) }
                     let appleUserID = cred.user
                     task.run {
-                        let user = try await model.api.signInWithApple(identityToken: token, name: name, authorizationCode: code, nonce: rawNonce)
-                        AppleCredentialCheck.remember(appleUserID: appleUserID, accountId: user.id)
-                        await model.didAuthenticate(user)
+                        do {
+                            let user = try await model.api.signInWithApple(identityToken: token, name: name, authorizationCode: code, nonce: rawNonce)
+                            AppleCredentialCheck.remember(appleUserID: appleUserID, accountId: user.id)
+                            await model.didAuthenticate(user)
+                        } catch let e as TwoStepRequired {
+                            // 2-step on (#257): the same code step as a password sign-in.
+                            if let path {
+                                path.wrappedValue.append(.twoStep(token: e.token, appleUserID: appleUserID))
+                            } else {
+                                twoStep = AppleTwoStep(token: e.token, appleUserID: appleUserID)
+                            }
+                        }
                     }
                 case let .failure(error):
                     if (error as? ASAuthorizationError)?.code != .canceled { task.error = error.localizedDescription }
@@ -152,5 +171,14 @@ struct AppleSignInButton: View {
                 .multilineTextAlignment(.center)
             ErrorText(message: task.error)
         }
+        .navigationDestination(item: $twoStep) { step in
+            TwoStepSignInView(token: step.token, appleUserID: step.appleUserID)
+        }
     }
+}
+
+/// Sign in with Apple waiting for its 2-step code.
+private struct AppleTwoStep: Hashable {
+    var token: String
+    var appleUserID: String
 }

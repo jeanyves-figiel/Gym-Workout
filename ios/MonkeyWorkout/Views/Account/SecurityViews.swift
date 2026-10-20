@@ -716,13 +716,16 @@ struct PasskeySignInButton: View {
 /// After a correct password when 2-step is on.
 struct TwoStepSignInView: View {
     let token: String
+    /// Set when the code finishes a Sign in with Apple: remembered for the account like a direct Apple sign-in.
+    let appleUserID: String?
     @Environment(AppModel.self) private var model
     @State private var code = ""
     @State private var useRecovery = false
     @State private var task = FormTask()
 
-    init(token: String) {
+    init(token: String, appleUserID: String? = nil) {
         self.token = token
+        self.appleUserID = appleUserID
     }
 
     var body: some View {
@@ -752,6 +755,7 @@ struct TwoStepSignInView: View {
                     let user = useRecovery
                         ? try await model.api.completeTwoStep(token: token, recoveryCode: value)
                         : try await model.api.completeTwoStep(token: token, code: value)
+                    if let appleUserID { AppleCredentialCheck.remember(appleUserID: appleUserID, accountId: user.id) }
                     await model.didAuthenticate(user)
                 }
             }
