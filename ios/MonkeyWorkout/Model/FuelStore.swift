@@ -40,6 +40,8 @@ final class FuelStore {
         var prices: [String: Double] = [:]
         /// `FuelMarket` id picked by the member (currency + local price level); nil = the phone's region.
         var market: String?
+        /// The member's supplements (#514); optional so older saves still load.
+        var supplements: [Supplement]?
     }
 
     private(set) var saved = Saved()
@@ -93,6 +95,22 @@ final class FuelStore {
             let earned = (log.proteinHit(plan) ? FuelWeek.proteinXP : 0) + (log.waterHit(plan) ? FuelWeek.waterXP : 0)
             s.hits[k] = earned > 0 ? earned : nil
         }
+        save(s)
+    }
+
+    var stack: [Supplement] { saved.supplements ?? [] }
+
+    func saveSupplement(_ x: Supplement) {
+        var s = saved
+        var list = s.supplements ?? []
+        if let i = list.firstIndex(where: { $0.id == x.id }) { list[i] = x } else { list.append(x) }
+        s.supplements = list
+        save(s)
+    }
+
+    func deleteSupplement(_ id: String) {
+        var s = saved
+        s.supplements?.removeAll { $0.id == id }
         save(s)
     }
 
@@ -247,7 +265,8 @@ final class FuelStore {
         s.prefs = FuelPrefs(goal: .build, meals: 5, layout: layout)
         let k = key(now)
         s.logs[k] = FuelDayLog(glasses: 6, eaten: Portions(palms: 3, cups: 3, fists: 2, thumbs: 2),
-                               ticks: ["breakfast": FuelTick(added: Portions(palms: 1, cups: 2, fists: 0, thumbs: 1))])
+                               ticks: ["breakfast": FuelTick(added: Portions()),
+                                       "supp-demo-huel": FuelTick(added: Portions(palms: 2, cups: 1, fists: 0, thumbs: 1))])
         for i in 1...6 {
             guard let d = cal.date(byAdding: .day, value: -i, to: now) else { continue }
             s.logs[key(d)] = FuelDayLog(glasses: [10, 7, 11, 9, 6, 12][i - 1], eaten: Portions(palms: [7, 5, 7, 6, 4, 7][i - 1], cups: 7, fists: 5, thumbs: 4))
@@ -256,6 +275,15 @@ final class FuelStore {
         s.favourites = Set(RecipeBook.catalog.prefix(4).map(\.id))
         s.pantry = ["egg", "rice", "chicken-breast", "broccoli", "greek-yogurt", "oats", "banana", "olive-oil", "spinach", "milk"]
             .filter { FoodBook.food($0) != nil }.map { PantryItem(foodId: $0) }
+        s.supplements = [
+            Supplement(id: "demo-huel", name: "Huel Black Edition", kind: .mealReplacement, dose: "1 bottle", proteinG: 40, carbsG: 24, fatG: 17,
+                       restDays: true),
+            Supplement(id: "demo-boost", name: "KaEx Boost+", kind: .preWorkout, dose: "1 sachet in 300 ml water",
+                       caffeineMg: 105, creatineG: 3, proteinG: 3.5),
+            Supplement(id: "demo-whey", name: "Whey shake", kind: .protein, dose: "1 scoop in milk", proteinG: 24, restDays: true),
+            Supplement(id: "demo-d", name: "Vitamin D", kind: .vitaminD, dose: "1 capsule", restDays: true),
+        ]
+        s.logs[k]?.ticks["supp-demo-d"] = FuelTick(added: Portions())
         saved = s
     }
 
