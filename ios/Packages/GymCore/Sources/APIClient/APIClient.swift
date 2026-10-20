@@ -167,9 +167,25 @@ public actor APIClient {
         reauthGrant = nil
     }
 
-    /// Full JSON export of everything stored for the account.
+    /// Full JSON export of everything stored for the account. At most 3 an hour (`rate_limited`, 429).
     public func exportData() async throws -> Data {
-        try await authorizedRaw("GET", "/v1/me/export", Empty?.none)
+        do {
+            return try await authorizedRaw("GET", "/v1/me/export", Empty?.none)
+        } catch let APIError.server(status, code, _) where code == "rate_limited" {
+            throw APIError.server(status: status, code: code, message: Self.exportLimitMessage)
+        }
+    }
+
+    static let exportLimitMessage = "You can export your data 3 times an hour. Try again a bit later."
+    static let scanVerifyMessage = "Verify your email to use scans, or try again tomorrow."
+
+    /// Scans (gym, food) refuse new accounts until the email is verified (`verification_required`, 403).
+    func scanRequest<T: Decodable>(_ path: String, _ body: some Encodable, as type: T.Type) async throws -> T {
+        do {
+            return try await authorized("POST", path, body, as: type)
+        } catch let APIError.server(status, code, _) where code == "verification_required" {
+            throw APIError.server(status: status, code: code, message: Self.scanVerifyMessage)
+        }
     }
 
     // MARK: Sync

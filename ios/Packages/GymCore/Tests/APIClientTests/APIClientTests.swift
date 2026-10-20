@@ -310,6 +310,28 @@ private func tokensJSON(_ n: Int) -> String {
         #expect(String(decoding: data, as: UTF8.self) == "mp3")
     }
 
+    @Test func exportAndScanLimitsReadPolitely() async throws {
+        let store = InMemoryTokenStore(StoredTokens(accessToken: "a", accessExpiresAt: Date().addingTimeInterval(600), refreshToken: "r"))
+        StubProtocol.register("limits.test") { req, _ in
+            switch req.url!.path {
+            case "/v1/me/export": return (429, #"{"error":"rate_limited","message":"Too many requests. Slow down."}"#)
+            case "/v1/me/food-scan": return (403, #"{"error":"verification_required","message":"x"}"#)
+            default: return (429, #"{"error":"daily_limit","message":"That's 5 scans today. Scan more tomorrow!"}"#)
+            }
+        }
+        let api = makeClient("limits.test", tokens: store)
+        await #expect(throws: APIError.server(status: 429, code: "rate_limited", message: APIClient.exportLimitMessage)) {
+            _ = try await api.exportData()
+        }
+        await #expect(throws: APIError.server(status: 403, code: "verification_required", message: APIClient.scanVerifyMessage)) {
+            _ = try await api.foodScan(jpeg: Data([0xFF, 0xD8]), catalog: [])
+        }
+        // Daily limits keep the server's own wording.
+        await #expect(throws: APIError.server(status: 429, code: "daily_limit", message: "That's 5 scans today. Scan more tomorrow!")) {
+            _ = try await api.gymScan(jpeg: Data([0xFF, 0xD8]), catalog: [])
+        }
+    }
+
     @Test func undecodableConflictCopyStillLeavesTheQueue() {
         let id = UUID()
         let mine = LogEntry(id: id, date: Date(timeIntervalSince1970: 0), exerciseId: "x", weightKg: 1, updatedAt: "2026-01-01T00:00:00.000Z")
