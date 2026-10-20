@@ -21,5 +21,5 @@ Glance: next session and water. Home menu: Water +1, Refresh, Unpair.
 
 **Build.** `monkey.jungle` = production (workout.monkeygrade.cloud), `staging.jungle` = staging. CI
 (`.github/workflows/garmin.yml`) needs `GARMIN_USERNAME`, `GARMIN_PASSWORD` (Garmin developer account, for the SDK and
-device files) and `GARMIN_DEVELOPER_KEY` (base64 of the `.der` signing key, keep a copy: the Store app is tied to it).
+device files) and `GARMIN_DEVELOPER_KEY` (made by the "Garmin signing key" workflow, never leaves GitHub secrets: the Store app is tied to it).
 Side-load `MonkeyWorkout-staging-fr265.prg` from the workflow artifact by copying it to `GARMIN/APPS` over USB.

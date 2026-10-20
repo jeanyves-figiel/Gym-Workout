@@ -1,23 +1,17 @@
 {
-  "id": "2026-10-20.3",
+  "id": "2026-10-20.4",
   "items": [
     {
-      "symbol": "calendar",
-      "tint": "strength",
-      "title": "Train opens on today",
-      "body": "Train always opens on today, and today's card has Build as I go, Log sport and Track live, climbing days too."
-    },
-    {
-      "symbol": "airplane",
+      "symbol": "applewatch.radiowaves.left.and.right",
       "tint": "cardio",
-      "title": "Away days in their week",
-      "body": "Trips and can't-train days sit in their week on the Calendar. Tap the strip to edit."
+      "title": "Any watch counts",
+      "body": "A gym workout from Garmin, Polar, Coros or Suunto in Apple Health shows on its session. Mark it done or log your sets."
     },
     {
-      "symbol": "clock",
-      "tint": "warmup",
-      "title": "Clear log times",
-      "body": "Log a climb or sport with Started → Ended times, and one How hard chip."
+      "symbol": "watch.analog",
+      "tint": "power",
+      "title": "Garmin is coming",
+      "body": "Settings › Watches › Garmin watch is ready for the MonkeyWorkout Garmin app: today's session, sets, rest ring and water on your wrist. Coming to the Connect IQ Store soon."
     }
   ]
 }
