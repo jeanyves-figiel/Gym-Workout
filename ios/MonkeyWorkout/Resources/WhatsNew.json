@@ -30,6 +30,18 @@
       "tint": "power",
       "title": "Supplements and shakes",
       "body": "Supplements and meal shakes in Fuel: on your timeline, with a caffeine check for your sleep."
+    },
+    {
+      "symbol": "figure.climbing",
+      "tint": "power",
+      "title": "Train is cleaner",
+      "body": "Wall session shows on climbing days only."
+    },
+    {
+      "symbol": "figure.cooldown",
+      "tint": "stretch",
+      "title": "Sport prep",
+      "body": "Sport days get a warm-up and a stretch."
     }
   ]
 }
