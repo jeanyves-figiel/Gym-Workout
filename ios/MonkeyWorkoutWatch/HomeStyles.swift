@@ -232,7 +232,7 @@ private struct DayCard: View {
                 Button { onStart(session) } label: {
                     Image(systemName: "play.fill").font(.system(size: 22, weight: .black)).foregroundStyle(W.ink)
                         .frame(width: 54, height: 54)
-                        .background(Circle().fill(W.lime))
+                        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(W.lime))
                         .shadow(color: W.lime.opacity(0.6), radius: 8)
                 }
                 .buttonStyle(.plain)
@@ -321,7 +321,7 @@ struct RingsHome: View {
 
     private func center(next: WSession?, progress p: WProgress, ready: WReady?) -> some View {
         ZStack {
-            Circle().fill(charge > 0 ? AnyShapeStyle(W.lime) : AnyShapeStyle(W.gradient(next?.tint ?? 0x3DFFB0, 0xFF3DA8)))
+            RoundedRectangle(cornerRadius: 22, style: .continuous).fill(charge > 0 ? AnyShapeStyle(W.lime) : AnyShapeStyle(W.gradient(next?.tint ?? 0x3DFFB0, 0xFF3DA8)))
                 .shadow(color: W.lime.opacity(charge), radius: 12)
             if charge > 0 {
                 Text("\(max(1, 3 - Int(charge * 3)))")
@@ -349,7 +349,7 @@ struct RingsHome: View {
             }
         }
         .scaleEffect(1 + charge * 0.12)
-        .contentShape(Circle())
+        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .onLongPressGesture(minimumDuration: 3) {
             go(next)
         } onPressingChanged: { pressing in
@@ -408,14 +408,17 @@ private struct RingTrack: View {
     let value: Double
     let colors: [Color]
 
+    /// Rounded squares with square ends (#541), as the iPhone's progress: tiles, not circles.
     var body: some View {
-        ZStack {
-            Circle().stroke(colors[0].opacity(0.2), lineWidth: 11)
-            Circle().trim(from: 0, to: max(0.0001, value))
-                .stroke(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing),
-                        style: StrokeStyle(lineWidth: 11, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .opacity(value > 0 ? 1 : 0)
+        GeometryReader { geo in
+            let shape = RoundedRectangle(cornerRadius: min(geo.size.width, geo.size.height) * 0.3, style: .continuous)
+            ZStack {
+                shape.stroke(colors[0].opacity(0.2), lineWidth: 11)
+                shape.trim(from: 0, to: max(0.0001, value))
+                    .stroke(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing),
+                            style: StrokeStyle(lineWidth: 11, lineCap: .butt))
+                    .opacity(value > 0 ? 1 : 0)
+            }
         }
     }
 }

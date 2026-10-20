@@ -10,11 +10,7 @@ struct HomeView: View {
         Group {
             if !store.hasPlan {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Eyebrow(text: "MonkeyWorkout", color: W.lime)
-                        Text("Open MonkeyWorkout on your iPhone to sync your plan.").font(.footnote)
-                    }
-                    .watchMargins()
+                    NoPlanCard().watchMargins()
                 }
             } else {
                 switch store.homeStyle {
@@ -25,6 +21,35 @@ struct HomeView: View {
             }
         }
         .navigationDestination(for: WSession.self) { SessionDetailView(session: $0, onStart: onStart) }
+    }
+}
+
+/// No plan synced yet (#541): gradient card in place of grey text. The Watch can't open the iPhone app itself,
+/// so the card says where to go; the plan arrives here on its own once it's built.
+private struct NoPlanCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: "calendar.badge.plus").font(.system(size: 15, weight: .bold))
+                .frame(width: 30, height: 30)
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.white.opacity(0.25)))
+            Text("No plan yet").font(W.display(18)).lineLimit(1).minimumScaleFactor(0.8)
+            Text("Build your week on iPhone").font(.system(size: 12, weight: .semibold, design: .rounded)).opacity(0.9)
+            HStack(spacing: 6) {
+                Image(systemName: "iphone").font(.system(size: 13, weight: .bold))
+                Text("Open MonkeyWorkout on iPhone").font(W.label(11)).lineLimit(2).minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(W.ink)
+            .padding(.horizontal, 10).padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(W.lime))
+            .padding(.top, 4)
+        }
+        .foregroundStyle(.white)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(W.gradient(0xB23DFF, 0xFF3DA8)))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("No plan yet. Build your week in MonkeyWorkout on your iPhone; it syncs here.")
     }
 }
 
@@ -52,8 +77,9 @@ struct HomeStatRows: View {
             }
             .buttonStyle(.plain)
             NavigationLink { ProgressScreen() } label: {
+                // Real counts on the right (#541), not a bare "›".
                 HomeRow(symbol: "chart.line.uptrend.xyaxis", title: "Progress",
-                        value: p.records.isEmpty ? "›" : "\(p.records.count) PR", tint: (0x3D5AFF, 0x7B3DFF))
+                        value: "\(p.records.count)", tint: (0x3D5AFF, 0x7B3DFF), unit: "PR")
             }
             .buttonStyle(.plain)
             // Fuel water (#496): a tap adds a glass on the iPhone too.
@@ -68,12 +94,15 @@ struct HomeStatRows: View {
             }
             // Other sports (#418): snowboard, MTB, hike, Hyrox… tracked in the background with GPS.
             NavigationLink { SportPickerView() } label: {
-                HomeRow(symbol: "figure.mixed.cardio", title: "Track a sport", value: "›", tint: (0x00A3C4, 0x7DF9FF))
+                // Hyrox plus every tracked sport.
+                HomeRow(symbol: "figure.mixed.cardio", title: "Track a sport", value: "\(TrackedSport.allCases.count + 1)",
+                        tint: (0x00A3C4, 0x7DF9FF), unit: "SPORTS")
             }
             .buttonStyle(.plain)
             // Home style (#389): moved here from the gear next to the clock.
             NavigationLink { HomeStyleSettings() } label: {
-                HomeRow(symbol: "paintpalette.fill", title: "Home style", value: "›", tint: (0x5A5F73, 0x2C2F3A))
+                HomeRow(symbol: "paintpalette.fill", title: "Home style", value: "\(WatchHomeStyle.allCases.count)",
+                        tint: (0x5A5F73, 0x2C2F3A), unit: "STYLES")
             }
             .buttonStyle(.plain)
         }
@@ -125,6 +154,8 @@ struct HomeRow: View {
     let title: String
     let value: String
     let tint: (UInt32, UInt32)
+    /// Small caps under the value (#541): "PR", "SPORTS".
+    var unit: String? = nil
 
     var body: some View {
         HStack(spacing: 7) {
@@ -133,7 +164,10 @@ struct HomeRow: View {
                 .background(RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.25)))
             Text(title).font(W.label(12)).lineLimit(1).minimumScaleFactor(0.8)
             Spacer(minLength: 2)
-            Text(value).font(W.display(19)).lineLimit(1).minimumScaleFactor(0.7)
+            VStack(alignment: .trailing, spacing: -2) {
+                Text(value).font(W.display(19)).lineLimit(1).minimumScaleFactor(0.7)
+                if let unit { Text(unit).font(W.label(7)).tracking(0.5).opacity(0.85) }
+            }
         }
         .foregroundStyle(.white)
         .padding(7)

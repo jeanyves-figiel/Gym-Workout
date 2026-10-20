@@ -249,7 +249,10 @@ private struct KgButton: View {
             Image(systemName: sign < 0 ? "minus" : "plus")
                 .font(.system(size: 12, weight: .black))
                 .frame(width: 26, height: 26)
-                .background(Circle().fill(.white.opacity(0.2)))
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(0.2)))
+                // Same tile, bigger target (#540): 44 pt tall, 36 pt wide so the weight between them keeps its room.
+                .frame(width: 36, height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(sign < 0 ? "Less weight" : "More weight")
