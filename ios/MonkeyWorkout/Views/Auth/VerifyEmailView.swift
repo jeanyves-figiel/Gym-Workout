@@ -8,6 +8,8 @@ struct VerifyEmailView: View {
     @State private var code = ""
     @State private var task = FormTask()
     @State private var resent = false
+    @State private var resending = false
+    @State private var resendError: String?
 
     var body: some View {
         AuthScreen(title: "Verify email") {
@@ -29,14 +31,27 @@ struct VerifyEmailView: View {
             ErrorText(message: task.error)
             LimeActionButton(title: "Verify", busy: task.busy, disabled: code.count != 6, action: submit)
                 .padding(.top, 6)
-            AccountPillButton(title: resent ? "Code sent" : "Resend code") {
-                Task {
-                    try? await model.api.resendVerification(email: email)
-                    resent = true
-                }
+            // "Code sent" only once the request worked (#539); a failure shows a Retry card instead.
+            if let resendError {
+                InlineErrorCard(title: "Couldn't send the code", message: resendError) { resend() }
             }
-            .disabled(resent)
+            AccountPillButton(title: resent ? "Code sent" : resending ? "Sending…" : "Resend code") { resend() }
+                .disabled(resent || resending)
             AccountNote(text: "No email? Check spam, or resend the code.")
+        }
+    }
+
+    private func resend() {
+        resending = true
+        resendError = nil
+        Task {
+            defer { resending = false }
+            do {
+                try await model.api.resendVerification(email: email)
+                resent = true
+            } catch {
+                resendError = error.localizedDescription
+            }
         }
     }
 

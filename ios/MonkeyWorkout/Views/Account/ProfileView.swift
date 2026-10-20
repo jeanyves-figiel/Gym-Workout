@@ -111,7 +111,7 @@ struct ProfileView: View {
         .onAppear(perform: load)
         .onChange(of: photoItem) { _, item in if let item { upload(item) } }
         .autoSave(loaded ? snapshot : nil, title: "Profile", symbol: "person.crop.circle.fill",
-                  detail: Self.detail, save: { [model] in Self.store($0, model: model) })
+                  detail: Self.detail, save: { [model] in try await Self.store($0, model: model) })
     }
 
     // MARK: Hero
@@ -208,7 +208,8 @@ struct ProfileView: View {
     }
 
     /// Writes only what differs from what's stored. Also Undo's revert, so it reads no `@State`.
-    private static func store(_ s: Snapshot, model: AppModel) {
+    /// Throws when the server refuses or can't be reached, so the auto-save pill shows "Couldn't save · Retry" (#539).
+    @MainActor private static func store(_ s: Snapshot, model: AppModel) async throws {
         let talk = talk(s, into: model.body)
         if talk != model.body { model.saveBody(talk) }
         #if DEBUG
@@ -216,20 +217,16 @@ struct ProfileView: View {
         #endif
         let api = model.api, community = Community.shared
         let me = community.me
-        Task {
-            if (model.user?.name ?? "") != s.name, let user = try? await api.updateName(s.name.isEmpty ? nil : s.name) {
-                model.user = user
-            }
-            if let p = community.profile, let v = s.visibility, let a = s.autoShare, !s.nickname.isEmpty,
-               p.nickname != s.nickname || (p.bio ?? "") != s.bio || p.defaultVisibility != v || p.autoShare != a {
-                if let saved = try? await api.saveCommunityProfile(nickname: s.nickname, bio: s.bio, defaultVisibility: v,
-                                                                   autoShare: a, acceptGuidelines: false) {
-                    community.setProfile(saved)
-                }
-            } else if community.profile == nil, (me.nickname ?? "") != s.nickname || (me.bio ?? "") != s.bio,
-                      let saved = try? await api.savePublicProfile(nickname: s.nickname, bio: s.bio) {
-                community.setPublic(saved)
-            }
+        if (model.user?.name ?? "") != s.name {
+            model.user = try await api.updateName(s.name.isEmpty ? nil : s.name)
+        }
+        if let p = community.profile, let v = s.visibility, let a = s.autoShare, !s.nickname.isEmpty,
+           p.nickname != s.nickname || (p.bio ?? "") != s.bio || p.defaultVisibility != v || p.autoShare != a {
+            let saved = try await api.saveCommunityProfile(nickname: s.nickname, bio: s.bio, defaultVisibility: v,
+                                                           autoShare: a, acceptGuidelines: false)
+            community.setProfile(saved)
+        } else if community.profile == nil, (me.nickname ?? "") != s.nickname || (me.bio ?? "") != s.bio {
+            community.setPublic(try await api.savePublicProfile(nickname: s.nickname, bio: s.bio))
         }
     }
 

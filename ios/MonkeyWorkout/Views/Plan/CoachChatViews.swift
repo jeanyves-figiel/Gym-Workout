@@ -55,11 +55,12 @@ extension AppModel {
                                 memory: coachFacts.isEmpty ? nil : coachFacts.prefix(20).map { String($0.prefix(120)) })
     }
 
-    func coachChatStatus() async -> CoachChatStatus? {
+    /// Throws when the server can't be reached, so the chat shows an error card with Retry (#539).
+    func coachChatStatus() async throws -> CoachChatStatus {
         #if DEBUG
         if demo { return CoachChatStatus(available: true, remainingToday: 18) }
         #endif
-        return try? await api.coachChatStatus()
+        return try await api.coachChatStatus()
     }
 
     /// Sends the conversation; the last message is the member's.
@@ -105,7 +106,7 @@ struct AskCoachBar: View {
                 Image(systemName: "arrow.up").font(.system(size: 12, weight: .black))
                     .foregroundStyle(Theme.ink)
                     .frame(width: 24, height: 24)
-                    .background(Circle().fill(Theme.lime))
+                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Theme.lime))
             }
             .foregroundStyle(.white)
             .padding(.leading, 12).padding(.trailing, 5).padding(.vertical, 5)
@@ -126,6 +127,8 @@ struct CoachChatView: View {
     @State private var store = CoachChatStore.shared
     @State private var draft = ""
     @State private var sending = false
+    /// Status didn't load (#539): error card with Retry above the greeting.
+    @State private var statusError: String?
     @State private var gate: ProGate?
     @State private var playing: CustomWorkout?
     @State private var planning: CustomWorkout?
@@ -150,6 +153,9 @@ struct CoachChatView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 10) {
                             if let focus, focus.screen != "train" { focusChip(focus) }
+                            if let statusError {
+                                InlineErrorCard(title: "Couldn't reach Coach", message: statusError) { Task { await loadStatus() } }
+                            }
                             greeting
                             ForEach(store.messages) { m in message(m).id(m.id) }
                             if sending { typingBubble.id("typing") }
@@ -188,10 +194,7 @@ struct CoachChatView: View {
         .presentationDetents(ask == nil ? [.large] : [.medium, .large], selection: $detent)
         .task {
             store.rollOver()
-            if let s = await model.coachChatStatus() {
-                store.available = s.available
-                store.remaining = s.remainingToday
-            }
+            await loadStatus()
             guard let ask else { return }
             if let q = ask.question { send(q, spoken: ask.spoken) }
             else if ask.listen { listen() }
@@ -199,6 +202,19 @@ struct CoachChatView: View {
         .onDisappear {
             listener.cancel()
             voice.stop()
+        }
+    }
+
+    private func loadStatus() async {
+        statusError = nil
+        do {
+            let s = try await model.coachChatStatus()
+            store.available = s.available
+            store.remaining = s.remainingToday
+        } catch is CancellationError {
+            // Closed: nothing to report.
+        } catch {
+            statusError = error.localizedDescription
         }
     }
 
@@ -409,7 +425,10 @@ struct CoachChatView: View {
                         Image(systemName: listener.listening ? "stop.fill" : "mic.fill").font(.system(size: 16, weight: .black))
                             .foregroundStyle(Theme.ink)
                             .frame(width: 34, height: 34)
-                            .background(Circle().fill(Theme.lime))
+                            .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Theme.lime))
+                            // 44 pt hit area around the 34 pt tile (#540).
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .disabled(!canTalk)
@@ -421,7 +440,9 @@ struct CoachChatView: View {
                         Image(systemName: "arrow.up").font(.system(size: 16, weight: .black))
                             .foregroundStyle(Theme.ink)
                             .frame(width: 34, height: 34)
-                            .background(Circle().fill(Theme.lime))
+                            .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Theme.lime))
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .disabled(!canSend)
@@ -429,7 +450,7 @@ struct CoachChatView: View {
                     .accessibilityLabel("Send")
                 }
             }
-            .padding(.leading, 16).padding(.trailing, 6).padding(.vertical, 6)
+            .padding(.leading, 16).padding(.trailing, 1).padding(.vertical, 1)
             .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.white.opacity(0.1)))
             if let p = listener.problem {
                 Text(p).font(.caption2.weight(.semibold)).foregroundStyle(Theme.muted).padding(.leading, 16)

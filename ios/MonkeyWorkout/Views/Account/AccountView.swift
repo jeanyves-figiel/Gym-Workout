@@ -20,6 +20,8 @@ struct AccountView: View {
     }
     @State private var signOutAllTask = FormTask()
     @State private var deviceCount: Int?
+    /// The device count didn't load (#539): an error card with Retry instead of an empty value.
+    @State private var deviceCountError: String?
     @State private var gate: ProGate?
     @State private var climbSettings = false
     @State private var webPage: WebPage?
@@ -117,7 +119,7 @@ struct AccountView: View {
         .readableWidth()
         .themedForm()
         .navigationTitle("Settings")
-        .task { deviceCount = try? await model.api.sessions().count }
+        .task { await loadDeviceCount() }
         .proPaywall($gate)
         .sheet(isPresented: $climbSettings) { ClimbSettingsView() }
         .sheet(item: $webPage) { SafariView(url: $0.url).ignoresSafeArea() }
@@ -128,6 +130,16 @@ struct AccountView: View {
         } message: {
             Text("Every device, including this one, will need to sign in again.")
         }
+    }
+
+    private func loadDeviceCount() async {
+        deviceCountError = nil
+        #if DEBUG
+        if model.demo { return }
+        #endif
+        do { deviceCount = try await model.api.sessions().count } catch is CancellationError {
+            // Left the screen: nothing to report.
+        } catch { deviceCountError = error.localizedDescription }
     }
 
     private func searchHeader(jump: @escaping (SettingsChapter) -> Void) -> some View {
@@ -328,6 +340,11 @@ struct AccountView: View {
                         SettingsRow(symbol: "iphone.gen3", title: "Signed-in devices", value: deviceCount.map { "\($0)" })
                     }
                     .buttonStyle(.plain)
+                    if let deviceCountError {
+                        InlineErrorCard(title: "Couldn't load your devices", message: deviceCountError) {
+                            Task { await loadDeviceCount() }
+                        }
+                    }
                 }
                 if search.matches(Find.lock) {
                     SettingsRow(symbol: lock.biometryName == "Touch ID" ? "touchid" : "faceid", title: "Lock with \(lock.biometryName)") {
