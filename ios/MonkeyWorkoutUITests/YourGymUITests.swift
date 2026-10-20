@@ -39,8 +39,10 @@ final class YourGymUITests: XCTestCase {
         XCTAssertTrue(count(68).waitForExistence(timeout: 5), "ADD ALL shows the full list")
         // The Equipment page opened and closed keeps the edit.
         app.staticTexts["Equipment"].tap()
-        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
-        app.buttons["Done"].tap()
+        // The Equipment sheet closes with its X (#539).
+        let close = app.navigationBars["Equipment"].buttons["Close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        close.tap()
         XCTAssertTrue(count(68).waitForExistence(timeout: 5), "still 68 after the Equipment page")
         save()
         openYourGym()
@@ -48,21 +50,22 @@ final class YourGymUITests: XCTestCase {
         XCTAssertFalse(app.buttons["ADD ALL"].exists)
     }
 
-    /// The member's path on build 32: Equipment page → Done → back, no SAVE.
+    /// The member's path on build 32: Equipment page → close → back, no SAVE.
     func testEquipmentPageAdditionSticksWithoutSave() {
         openYourGym()
         XCTAssertTrue(count(48).waitForExistence(timeout: 5))
         app.staticTexts["Equipment"].tap()
-        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
-        // Scroll to the tile (search would hide Done while it's active).
+        let close = app.navigationBars["Equipment"].buttons["Close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        // Scroll to the tile (search would hide the X while it's active).
         let ghd = app.buttons["Glute-ham developer (GHD)"].firstMatch
         for _ in 0..<15 where !(ghd.exists && ghd.isHittable) { app.swipeUp() }
         XCTAssertTrue(ghd.isHittable)
         ghd.tap()
-        app.buttons["Done"].firstMatch.tap()
+        close.tap()
         XCTAssertTrue(count(49).waitForExistence(timeout: 5), "item added on the Equipment page")
         sleep(2)
-        XCTAssertTrue(count(49).exists, "count stays after Done")
+        XCTAssertTrue(count(49).exists, "count stays after closing")
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
         openYourGym()
