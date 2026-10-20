@@ -498,8 +498,12 @@ struct WWater: Codable, Equatable {
     var target: Int
     var glassMl: Int
 
-    /// Same format as `PlanCalendar.key` (the Watch has no WorkoutEngine).
-    static func key(_ date: Date, _ cal: Calendar = .current) -> String {
+    /// Same format and calendar as the phone's `FuelStore.key` (`PlanCalendar.key` with `Progression.calendar()`;
+    /// the Watch has no WorkoutEngine): ISO 8601 in the current time zone, so a Buddhist or Japanese calendar
+    /// setting never gives another year.
+    static func key(_ date: Date) -> String {
+        var cal = Calendar(identifier: .iso8601)
+        cal.timeZone = .current
         let c = cal.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
