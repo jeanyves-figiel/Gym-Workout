@@ -96,8 +96,9 @@ public enum MealPlanner {
         // Grams left in packs opened by meals planned so far (perishables only).
         var open: [String: Double] = [:]
         let slotCount = days.enumerated().reduce(0) { n, d in n + d.element.plan.slots.filter { kindsOn(d.offset).contains($0.kind) }.count }
-        // Budget for the planned days, spread over the meals (snacks count as half).
-        let perMeal = shopping.budget.map { $0 * Double(days.count) / 7 / Double(max(1, slotCount)) }
+        // Budget for the days with meals (days no plan covers don't count), spread over the meals (snacks count as half).
+        let mealDays = days.indices.filter { i in days[i].plan.slots.contains { kindsOn(i).contains($0.kind) } }.count
+        let perMeal = shopping.budget.map { $0 * Double(mealDays) / 7 / Double(max(1, slotCount)) }
         func use(_ r: Recipe) {
             guard shopping.lessWaste, let amounts = r.amounts else { return }
             let factor = Double(servings) / Double(max(1, r.servings))

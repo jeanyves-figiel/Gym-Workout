@@ -112,7 +112,9 @@ struct BasketCard: View {
         let basket = MealPlanner.basket(items)
         let weekly = store.saved.budget
         let budget = weekly.map { $0 * Double(store.planSpan) / 7 }
-        let meals = store.saved.plan.count
+        let today = store.key(Date())
+        let meals = store.saved.plan.filter { $0.day >= today }.count
+        let days = store.planSpan
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
@@ -122,7 +124,7 @@ struct BasketCard: View {
                             .lineLimit(1).minimumScaleFactor(0.6)
                         if let budget { Text("/ \(Int(BudgetFormat.local(budget).rounded()))").font(Theme.display(17)).opacity(0.75) }
                     }
-                    Text("\(store.planSpan) days · \(store.saved.people) \(store.saved.people == 1 ? "person" : "people") · \(meals) meals")
+                    Text("\(days) \(days == 1 ? "day" : "days") · \(store.saved.people) \(store.saved.people == 1 ? "person" : "people") · \(meals) meals")
                         .font(Theme.label(11)).opacity(0.9)
                     if let budget {
                         let over = basket.cost - budget
