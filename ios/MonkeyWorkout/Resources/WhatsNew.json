@@ -1,11 +1,29 @@
 {
-  "id": "2026-10-21.3",
+  "id": "2026-10-21.4",
   "items": [
     {
-      "symbol": "plus.square.fill",
+      "symbol": "person.crop.square.fill",
+      "tint": "mobility",
+      "title": "One profile",
+      "body": "Name, photo, posts, followers and community options, all on one Your profile page."
+    },
+    {
+      "symbol": "barcode.viewfinder",
       "tint": "warmup",
-      "title": "Just ate, smarter",
-      "body": "The lime + opens on the meal you're at, with ideas for it. Meals you ticked today show with Undo, and the hand portions have names."
+      "title": "Scans know a beer from a cheese 🍺",
+      "body": "Barcode first, drinks and 29 more foods, and a check list with Fix for anything unsure."
+    },
+    {
+      "symbol": "pills.fill",
+      "tint": "cardio",
+      "title": "Supplements on your schedule",
+      "body": "Times a day, days, courses, cycles and reminders."
+    },
+    {
+      "symbol": "figure.strengthtraining.traditional",
+      "tint": "strength",
+      "title": "Freestyle, smoother",
+      "body": "Pick, do, pick. Your trail on top, Coach picks always ready."
     }
   ]
 }

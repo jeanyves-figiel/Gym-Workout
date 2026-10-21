@@ -384,5 +384,5 @@ extension Session {
 extension Session {
     /// Example and custom workouts carry their own name; generated sessions are named by focus.
     public var isExample: Bool { id.hasPrefix(WorkoutTemplate.idPrefix) }
-    public var displayTitle: String { isStandalone ? title : focus.label }
+    public var displayTitle: String { isStandalone || Freestyle.isFreestyle(id) ? title : focus.label }
 }

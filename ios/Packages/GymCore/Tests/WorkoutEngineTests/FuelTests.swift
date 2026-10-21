@@ -308,6 +308,46 @@ import Testing
         #expect(p.glasses == base.glasses + 1)
     }
 
+    @Test func rhythmTwiceADayGivesTwoTicks() {
+        var d = Supplement(id: "d", name: "Vitamin D", kind: .vitaminD, dose: "1 capsule", restDays: true)
+        d.rhythm = .quick(.twice, kind: .vitaminD, start: day)
+        d.rhythm?.intakes[1].servings = 2
+        let doses = Supplements.schedule([d], plan: plan(trainingAt: nil), prefs: FuelPrefs(), calendar: cal)
+        #expect(doses.map(\.id) == ["supp-d", "supp-d-2"])
+        #expect(doses[1].supplement.dose == "2 × 1 capsule")
+        #expect(d.schedule.quick(.vitaminD) == .twice)
+    }
+
+    @Test func rhythmDaysCourseAndCycle() {
+        let c = Supplement(id: "c", name: "Creatine", kind: .creatine, dose: "1 scoop", creatineG: 5)
+        var r = SupplementRhythm(intakes: [.init(timing: .breakfast)], days: .everyN(2), start: day, length: .weeks(2))
+        #expect(r.intakes(on: day, training: false, calendar: cal).count == 1)
+        #expect(r.intakes(on: cal.date(byAdding: .day, value: 1, to: day)!, training: false, calendar: cal).isEmpty)
+        #expect(r.intakes(on: cal.date(byAdding: .day, value: 14, to: day)!, training: false, calendar: cal).isEmpty)
+        #expect(r.intakes(on: cal.date(byAdding: .day, value: -1, to: day)!, training: false, calendar: cal).isEmpty)
+        r = SupplementRhythm(intakes: [.init(timing: .breakfast)], start: day, cycle: .init(onWeeks: 1, offWeeks: 1))
+        #expect(r.intakes(on: cal.date(byAdding: .day, value: 8, to: day)!, training: false, calendar: cal).isEmpty)
+        #expect(r.intakes(on: cal.date(byAdding: .day, value: 15, to: day)!, training: false, calendar: cal).count == 1)
+        r = .quick(.load, kind: .creatine, start: day)
+        #expect(r.intakes(on: day, training: false, calendar: cal).count == 4)
+        #expect(r.intakes(on: cal.date(byAdding: .day, value: 7, to: day)!, training: false, calendar: cal).count == 1)
+        var x = c
+        x.rhythm = SupplementRhythm(intakes: [.init(timing: .breakfast, minute: 7 * 60 + 15)], days: .trainingDays, start: day)
+        #expect(Supplements.schedule([x], plan: plan(trainingAt: nil), prefs: FuelPrefs(), calendar: cal).isEmpty)
+        #expect(Supplements.schedule([x], plan: plan(trainingAt: 18), prefs: FuelPrefs(), calendar: cal).first?.minute == 7 * 60 + 15)
+    }
+
+    @Test func switchingTypeRefillsUntouchedFields() {
+        let s = SupplementKind.mealReplacement.preset.switching(to: .creatine)
+        #expect(s.name == "Creatine")
+        #expect(s.proteinG == 0)
+        #expect(s.creatineG == 5)
+        #expect(s.timing == .breakfast)
+        var mine = SupplementKind.mealReplacement.preset
+        mine.name = "Huel Black"
+        #expect(mine.switching(to: .creatine).name == "Huel Black")
+    }
+
     @Test func mealShakeFillsBreakfast() {
         var p = plan(trainingAt: nil)
         Supplements.apply([shake], to: &p, prefs: FuelPrefs(), calendar: cal)

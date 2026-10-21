@@ -1,0 +1,562 @@
+[
+  {
+    "method": "GET",
+    "path": "/.well-known/apple-app-site-association"
+  },
+  {
+    "method": "GET",
+    "path": "/healthz"
+  },
+  {
+    "method": "GET",
+    "path": "/privacy"
+  },
+  {
+    "method": "GET",
+    "path": "/share/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/support"
+  },
+  {
+    "method": "GET",
+    "path": "/terms"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/app-store/notifications"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/auth/apple"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/auth/login"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/auth/logout"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/auth/mfa"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/auth/passkey"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/auth/passkey/options"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/auth/password/forgot"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/auth/password/reset"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/auth/refresh"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/auth/register"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/auth/resend-verification"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/auth/verify-email"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/community/avatars/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/community/blocks"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/community/blocks"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/community/blocks/:userId"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/community/feed"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/community/follows"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/community/follows/:userId"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/community/follows/:userId"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/community/me"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/community/me"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/community/me"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/community/me/avatar"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/community/me/avatar"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/community/me/level"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/community/me/pronouns"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/community/members"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/community/members/:userId"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/community/posts"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/community/posts/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/v1/community/posts/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/community/posts/:id/reactions/:kind"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/community/posts/:id/reactions/:kind"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/community/reports"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/garmin/events"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/garmin/pair"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/garmin/snapshot"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/gyms/busy"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/gyms/crowd"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/gyms/known"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/gyms/maps"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/gyms/maps"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/gyms/reports"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/gyms/reports"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/library/shared"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/library/shared/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/library/shared/:id/report"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/library/shared/:id/save"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/me"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me"
+  },
+  {
+    "method": "PATCH",
+    "path": "/v1/me"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/achievements"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/body-measurements"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/body-measurements"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/me/body-measurements/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/climbs"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/climbs"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/me/climbs/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/coach-chat"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/coach-chat"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/coach-voices"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/coach-voices/:voice/:line"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/coach-voices/:voice/call/:style"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/custom-exercises"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/custom-exercises"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/custom-workouts"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/custom-workouts"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/me/custom-workouts/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/email"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/email/confirm"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/entitlement"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/export"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/food-scan"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/garmin/claim"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/garmin/devices"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/me/garmin/devices/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/garmin/inbox"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/garmin/inbox/ack"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/me/garmin/snapshot"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/gym-scan"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/logout-all"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/logs"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/logs"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/me/logs/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/machine-notes"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/machine-notes"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/me/machine-notes/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/me/machine-notes/:id/photo"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/me/machine-notes/:id/photo"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/machine-notes/photos/:photoId"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/me/mfa"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/mfa/recovery-codes"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/mfa/totp/enable"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/mfa/totp/setup"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/notification-prefs"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/me/notification-prefs"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/passkeys"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/passkeys"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/me/passkeys/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/v1/me/passkeys/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/passkeys/options"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/password"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/pr-attempts"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/pr-attempts"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/me/pr-attempts/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/profile"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/me/profile"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/public-profile"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/me/public-profile"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/me/public-profile/avatar"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/me/public-profile/avatar"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/me/push-device"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/me/push-device/:token"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/push-test"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/reauth"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/reauth/email-code"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/reauth/passkey-options"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/reports"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/security"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/sessions"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/sports"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/sports"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/me/sports/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/me/subscriptions/test"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/subscriptions/test/cancel"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/subscriptions/test/purchase"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/subscriptions/transactions"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/watch-key"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/me/workouts"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/workouts"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/me/workouts/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/watch/sports"
+  }
+]

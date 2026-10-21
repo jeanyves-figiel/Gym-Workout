@@ -170,6 +170,7 @@ final class NotificationManager: NSObject {
             .map { "missed|\($0.sessionId)|\(ReminderPlanner.dayKey($0.day, calendar: cal))" })
         center.removeDeliveredNotifications(withIdentifiers: delivered.filter { !stillMissed.contains($0) })
         await scheduleWater(now: now)
+        await scheduleSupplements(now: now)
     }
 
     /// Sport-day start nudge (#418, design C): 08:00 on planned sport days, mirrored to the Watch. Dives are left to dive apps.
@@ -257,6 +258,37 @@ final class NotificationManager: NSObject {
             guard let at = cal.date(byAdding: .minute, value: n.minute, to: day), at > now else { continue }
             await postWater(id: "water|\(store.key(now))|\(n.minute)", title: n.title, body: n.body,
                             trigger: UNCalendarNotificationTrigger(dateMatching: cal.dateComponents([.year, .month, .day, .hour, .minute], from: at), repeats: false))
+        }
+    }
+
+    /// Supplement reminders (#572): one at each take the member asked a reminder for, today and the next 2 days,
+    /// skipping takes already ticked and quiet hours. Rebuilt when the stack changes, a take is ticked or the plan moves.
+    func scheduleSupplements(now: Date = Date()) async {
+        let old = await center.pendingNotificationRequests().map(\.identifier).filter { $0.hasPrefix("supp|") }
+        center.removePendingNotificationRequests(withIdentifiers: old)
+        #if DEBUG
+        if Demo.enabled { return }
+        #endif
+        let store = FuelStore.shared
+        guard allowed, store.stack.contains(where: { $0.rhythm?.remind == true }), let planFor = store.planFor else { return }
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: now)
+        for offset in 0..<3 {
+            guard let day = cal.date(byAdding: .day, value: offset, to: today) else { continue }
+            let log = store.log(day)
+            for dose in planFor(day).supplements where log.ticks[dose.id] == nil && !prefs.isQuiet(dose.minute) {
+                guard store.stack.first(where: { Supplements.tickId($0) == dose.id || dose.id.hasPrefix(Supplements.tickId($0) + "-") })?
+                        .rhythm?.remind == true,
+                      let at = cal.date(byAdding: .minute, value: dose.minute, to: day), at > now else { continue }
+                let content = UNMutableNotificationContent()
+                content.title = "\(dose.supplement.emoji) \(dose.supplement.name)"
+                content.body = [dose.reason, dose.supplement.dose].filter { !$0.isEmpty }.joined(separator: " · ")
+                content.sound = .default
+                content.threadIdentifier = "fuel"
+                content.userInfo = ["kind": "fuel"]
+                try? await center.add(UNNotificationRequest(identifier: "supp|\(store.key(day))|\(dose.id)", content: content,
+                                                            trigger: UNCalendarNotificationTrigger(dateMatching: cal.dateComponents([.year, .month, .day, .hour, .minute], from: at), repeats: false)))
+            }
         }
     }
 

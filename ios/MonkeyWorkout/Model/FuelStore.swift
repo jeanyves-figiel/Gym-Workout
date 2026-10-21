@@ -129,6 +129,9 @@ final class FuelStore {
         save(s)
         // Reminders follow the glasses known now (#520).
         if water { Task { await NotificationManager.shared.scheduleWater() } }
+        if cal.isDateInToday(day), stack.contains(where: { $0.rhythm?.remind == true }) {
+            Task { await NotificationManager.shared.scheduleSupplements() }
+        }
     }
 
     var stack: [Supplement] { saved.supplements ?? [] }
@@ -139,12 +142,14 @@ final class FuelStore {
         if let i = list.firstIndex(where: { $0.id == x.id }) { list[i] = x } else { list.append(x) }
         s.supplements = list
         save(s)
+        Task { await NotificationManager.shared.scheduleSupplements() }
     }
 
     func deleteSupplement(_ id: String) {
         var s = saved
         s.supplements?.removeAll { $0.id == id }
         save(s)
+        Task { await NotificationManager.shared.scheduleSupplements() }
     }
 
     func toggleFavourite(_ id: String) {

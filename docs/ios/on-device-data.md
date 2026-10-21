@@ -1,0 +1,42 @@
+# On-device data
+
+Everything the member sees is cached on the device and drawn on the first frame; the server is the sync target and backup, not the source of the screen. Server tables: [../data-model.md](../data-model.md).
+
+## Files
+
+All in the app's `Application Support` unless noted, written atomically with Data Protection `completeUntilFirstUserAuthentication` (readable after the first unlock, so widgets, the Watch and background sync work).
+
+| File | Owner | Holds | Synced to server |
+|---|---|---|---|
+| `state.json` | `LocalStore` / `LocalState` | Profile, week plan and seed, done / ticked / skipped, set logs, workout history, custom workouts and exercises, PR attempts, measurements, climbs, sports, machine notes, programme, Train / Progress layouts, taste, growth, paused workout, **outbox** (pending and deleted id sets, last pull times) | Yes, per kind ([sync protocol](../api/README.md#sync-protocol)); profile as one blob |
+| `machine-notes/` | `MachineNote` | One JPEG per machine setup note | Yes (owner-only photo route) |
+| `fuel.json` | `FuelStore` | Fuel settings, daily logs, recipes (favourite, own), pantry, meal plans, shopping list, scanned products, supplements, water | **No**: Fuel stays on the device |
+| `daily-move.json` | `MoveStore` | Daily steps and stairs | No (from HealthKit) |
+| `lift-sets.json` | `LiftSets` | Watch lift-sensor sets | Via workouts |
+| `health-snapshot.json` | `HealthManager` | Last HealthKit readings (readiness, steps, gym workouts from other apps) | No |
+| `coach-voices/` | `CoachVoices` | Voice catalog and cached MP3 lines | No (downloaded) |
+| `gym-workout-export.json` (temporary directory) | `AccountView` | Data export while it is shared; protection `complete` | n/a |
+
+### App Group (`group.<bundle id>`)
+
+| Item | Writer | Reader |
+|---|---|---|
+| `home-widgets.json` | app (`HomeWidgetSync`) | Home / Lock Screen widgets |
+| Water queue (App Group `UserDefaults`) | Water widget, notification buttons | app, when active |
+| Complication snapshot (`SharedSnapshot`) | Watch app | Watch complications |
+
+### Watch
+
+`snapshot.json` in the Watch app's Documents: last snapshot from the phone, so the Watch works with the phone away; logged sets and workouts queue until the phone is reachable.
+
+## Keychain
+
+Access and refresh tokens, the Watch upload key and the MonkeyGrade link sign-in: generic-password items, `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` (not in iCloud Keychain, not restored to another device).
+
+## Settings and preferences
+
+Small UI preferences (style, toggles) live in `UserDefaults` / `@AppStorage`; nothing sensitive.
+
+## Sign-out and deletion
+
+Sign-out first tries a final sync (5 s at most), then wipes `state.json`, tokens and every account copy outside it (`AppModel.wipeAccountLocalData`): Pro state, lift sets, Health cache, daily move, Fuel, notification prefs, MonkeyGrade link, Watch upload key, the export file and the URL cache; the Watch and widgets get signed-out snapshots. The same runs when another account signs in and after account deletion.
