@@ -66,7 +66,7 @@ struct TalkToYouCard: View {
                       picked: callOptions.contains(pickedCall) ? pickedCall : .none) { call = $0 }
 
                 Toggle(isOn: $showPronouns) {
-                    Text("Show pronouns on my Community profile").font(Theme.label(14))
+                    Text("Show pronouns in Community").font(Theme.label(14))
                 }
                 .tint(Theme.lime)
                 .disabled(pronounsText == nil)

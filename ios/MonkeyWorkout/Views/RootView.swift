@@ -329,7 +329,7 @@ private struct DemoScreen: View {
         case "account-passkeys": NavigationStack { PasskeysView(passkeys: Demo.security.passkeys) }
         case "community", "community-join": NavigationStack { CommunityView() }
         case "community-share": ShareWinView()
-        case "community-profile": NavigationStack { CommunityProfileView() }
+        case "community-profile": NavigationStack { ProfileView() }
         case "community-members":
             NavigationStack { FindMembersView().navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) } }
         case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", Demo.customExercise.exerciseId]) { _ in }

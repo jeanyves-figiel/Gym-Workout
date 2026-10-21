@@ -71,7 +71,7 @@ struct MePill: View {
     }
 }
 
-/// Me sheet: photo hero with the level bar, then Edit profile, Community profile (members) and Settings.
+/// Me sheet: photo hero with the level bar, then Levels, Your profile and Settings.
 struct MeSheet: View {
     @Environment(AppModel.self) private var model
     @State private var community = Community.shared
@@ -112,16 +112,12 @@ struct MeSheet: View {
 
                 row("Levels", detail: "What each level brings", symbol: "star.fill", gradient: WorkoutEngine.Category.power.gradient)
                     .opensLevels()
+                // One profile (#578): edit fields and community stats and tools on the same page.
                 NavigationLink { ProfileView() } label: {
-                    row("Edit profile", detail: "Name, photo, about, pronouns", symbol: "person.fill", gradient: AccountTint.publicProfile)
+                    row("Your profile", detail: community.profile != nil ? "Name, photo, posts, followers" : "Name, photo, about, pronouns",
+                        symbol: "person.fill", gradient: AccountTint.publicProfile)
                 }
                 .buttonStyle(.plain)
-                if community.profile != nil {
-                    NavigationLink { CommunityProfileView() } label: {
-                        row("Community profile", detail: "Your posts and followers", symbol: "person.3.fill", gradient: WorkoutEngine.Category.mobility.gradient)
-                    }
-                    .buttonStyle(.plain)
-                }
                 NavigationLink { AccountView() } label: {
                     row("Settings", detail: "Account, plan, devices, notifications", symbol: "gearshape.fill", gradient: WorkoutEngine.Category.strength.gradient)
                 }

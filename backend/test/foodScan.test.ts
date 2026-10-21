@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
-import { cleanScan } from '../src/coach/gymScan.ts';
+import { cleanFoodScan } from '../src/coach/foodScan.ts';
 import { loadConfig } from '../src/config.ts';
 import { type DB, openDb } from '../src/db.ts';
 import { ConsoleMailer } from '../src/mailer.ts';
@@ -23,7 +23,16 @@ beforeEach(() => {
       throw new Error('unused');
     },
     now: () => new Date('2026-10-19T10:00:00Z'),
-    foodScan: async (_jpeg, catalog) => cleanScan(['egg', 'unicorn-steak', 'rice', 'egg'], catalog),
+    foodScan: async (_jpeg, catalog) =>
+      cleanFoodScan(
+        [
+          { id: 'egg', name: 'Eggs', group: 'protein', sure: true, per100: { protein: 13, carbs: 1, fat: 10, kcal: 143 } },
+          { id: 'unicorn-steak', name: 'Appenzeller Bier', group: 'drink', sure: true, alcohol: true, per100: { protein: 0.5, carbs: 3.4, fat: 0, kcal: 42 } },
+          { id: 'rice', name: 'Rice', group: 'grain', sure: false, per100: { protein: 7, carbs: 78, fat: 1, kcal: 350 } },
+          { id: 'egg', name: 'Eggs', group: 'protein', sure: true },
+        ],
+        catalog,
+      ),
   });
 });
 afterEach(() => app.close());
@@ -49,7 +58,7 @@ describe('Food scan (#496)', () => {
     const a = await signUp('a@example.com');
     const res = await scan(a);
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ items: ['rice', 'egg'], remainingToday: 19 });
+    expect(res.json()).toMatchObject({ items: ['rice', 'egg'], remainingToday: 19 });
     expect((db.prepare('SELECT count FROM food_scan_usage').get() as { count: number }).count).toBe(1);
   });
 
@@ -83,6 +92,16 @@ describe('Food scan (#496)', () => {
     const res = await scan(a);
     expect(res.statusCode).toBe(429);
     expect(res.json()).toMatchObject({ error: 'daily_limit' });
+  });
+
+  it('keeps foods not on the list as new foods instead of the nearest id, with sure/unsure (#573)', async () => {
+    const a = await signUp('a@example.com');
+    const found = (await scan(a)).json().found;
+    expect(found).toEqual([
+      { id: 'egg', name: 'Eggs', group: 'protein', sure: true, alcohol: false, per100: { protein: 13, carbs: 1, fat: 10, kcal: 143 } },
+      { name: 'Appenzeller Bier', group: 'drink', sure: true, alcohol: true, per100: { protein: 0.5, carbs: 3.4, fat: 0, kcal: 42 } },
+      { id: 'rice', name: 'Rice (dry)', group: 'grain', sure: false, alcohol: false, per100: { protein: 7, carbs: 78, fat: 1, kcal: 350 } },
+    ]);
   });
 
   it('needs a signed-in member', async () => {

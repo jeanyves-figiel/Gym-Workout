@@ -12,6 +12,10 @@ import Testing
         #expect(Freestyle.session().id != s.id)
     }
 
+    @Test func namedFreestyleNotByFocus() {
+        #expect(Freestyle.session().displayTitle == Freestyle.title)
+    }
+
     @Test func addingKeepsOrderAndBringsTheBlockBack() throws {
         let s = Freestyle.session()
         let a = try #require(Exercise.find("back-squat"))

@@ -374,6 +374,7 @@ struct WorkoutPlayerView: View {
             // in the same place).
             VStack(alignment: .leading, spacing: 12) {
                 topBar(session)
+                if isFree { freeTrail }
                 if let splitUndo {
                     FinishEarlyBanner(text: splitUndo.text, symbol: splitUndo.symbol, onUndo: undoSplit)
                 } else if let fitBanner {
@@ -386,7 +387,7 @@ struct WorkoutPlayerView: View {
                 let setupTarget = MachineNoteTarget(exerciseId: step.exercise.id, gym: setupGym)
                 let setup = model.machineNote(exerciseId: step.exercise.id, gymId: setupGym.id)
                 ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
-                                 position: "\(index + 1)/\(steps.count)",
+                                 position: isFree ? "" : "\(index + 1)/\(steps.count)",
                                  onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
                                  onChange: canChange(step) ? { changeFor = step.item } : nil,
                                  setup: setup,
@@ -569,12 +570,13 @@ struct WorkoutPlayerView: View {
 
             VStack(spacing: 10) {
                 topBar(session)
+                if isFree { freeTrail }
                 HStack(alignment: .top, spacing: 12) {
                     let setupGym = model.gymRef(forItem: step.item.uid)
                     let setupTarget = MachineNoteTarget(exerciseId: step.exercise.id, gym: setupGym)
                     let setup = model.machineNote(exerciseId: step.exercise.id, gymId: setupGym.id)
                     ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
-                                     position: "\(index + 1)/\(steps.count)",
+                                     position: isFree ? "" : "\(index + 1)/\(steps.count)",
                                      onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
                                      onChange: canChange(step) ? { changeFor = step.item } : nil,
                                      setup: setup,
@@ -641,9 +643,10 @@ struct WorkoutPlayerView: View {
     private func upNextBar(_ step: Step, done: Int, sets: Int, session: Session) -> some View {
         let next = upNext(after: step, done: done, sets: sets, includeSets: false)
         let items = OverviewItem.list(session.blocks, setsDone: setsDone, current: step.item.uid)
-        if isFree, !steps.indices.contains(index + 1) {
-            // Build as I go (#490 B): nothing queued, so the Coach's next picks take Up next's place.
-            FreestyleNextBar(picks: model.freestylePicks(sessionId), onPick: { addFree([$0], jump: true) },
+        if isFree {
+            // Build as I go (#581, design C): the Coach's next picks always hold Up next's place (what's queued shows in
+            // the trail); lit up once this exercise is done.
+            FreestyleNextBar(picks: model.freestylePicks(sessionId), ready: done >= sets, onPick: { addFree([$0], jump: true) },
                              onMore: { freeBrowse = FreeBrowse(group: nil, jump: true) })
         } else {
             SmartUpNextBar(next: next,
@@ -954,18 +957,23 @@ struct WorkoutPlayerView: View {
     }
 
     private func skipButton(_ step: Step, size: CGFloat) -> some View {
-        Button { advance(step) } label: {
-            Image(systemName: "forward.end.fill").font(.system(size: size > 50 ? 18 : 15, weight: .heavy))
+        // Build as I go (#581, design C): search for the next exercise in skip's place (the trail goes to queued ones).
+        let pickNext = isFree
+        return Button { pickNext ? (freeBrowse = FreeBrowse(group: nil, jump: true)) : advance(step) } label: {
+            Image(systemName: pickNext ? "magnifyingglass" : "forward.end.fill").font(.system(size: size > 50 ? 18 : 15, weight: .heavy))
                 .frame(width: size, height: size)
                 .background(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).fill(Theme.cardStrong))
         }
         // Nothing left to skip to: it would finish and save the workout, which is the main button's job.
-        .disabled(nextStep == nil)
-        .accessibilityLabel("Skip to next exercise")
+        .disabled(nextStep == nil && !pickNext)
+        .accessibilityLabel(pickNext ? "Pick the next exercise" : "Skip to next exercise")
     }
 
     private func mainLabel(_ step: Step, sets: Int, done: Int) -> String {
-        if done >= sets { return index == steps.count - 1 ? "FINISH" : "NEXT" }
+        if done >= sets {
+            if isFree { return nextStep == nil ? "FINISH WORKOUT" : "NEXT" }
+            return index == steps.count - 1 ? "FINISH" : "NEXT"
+        }
         if let spec = step.timedSpec {
             guard let run = timed, run.uid == step.item.uid else { return "START \(Format.elapsed(Double(spec.workSec)))" }
             return run.end == nil ? "RESUME" : "PAUSE"
@@ -1116,6 +1124,8 @@ struct WorkoutPlayerView: View {
 
     /// X (#538): closes at once and keeps the workout paused to resume; the Undo bar on Train reopens it.
     private func closeWorkout() {
+        // Build as I go with nothing logged: nothing to resume, so X discards it (Undo still brings it back).
+        if isFree, setsDone.values.reduce(0, +) == 0 { return discardWithUndo() }
         let id = sessionId
         let title = session?.displayTitle ?? ""
         saveProgress()
@@ -1136,6 +1146,8 @@ struct WorkoutPlayerView: View {
         saveProgress()
         live.end()
         PendingDiscard.schedule(id, model: model)
+        // Gone from Train at once (no "resume" while the Undo bar shows); closing must not save it back.
+        discarded = true
         dismiss()
         UndoCloseCenter.shared.show(UndoOffer(
             title: "Workout discarded", detail: undoDetail(title, "not saved"), symbol: "trash",
@@ -1253,6 +1265,16 @@ struct WorkoutPlayerView: View {
 
     // MARK: Build as I go (#490)
 
+    /// Build as I go (#581, design C): what was done, this exercise and what's queued, in order; tap one to go there.
+    private var freeTrail: some View {
+        FreestyleTrail(items: steps.enumerated().map { i, s in
+            FreestyleTrail.Item(uid: s.item.uid, name: s.exercise.name,
+                                state: i == index ? .now : (setsDone[s.item.uid] ?? 0) >= s.sets ? .done : .queued)
+        }, onTap: { uid in
+            if let i = steps.firstIndex(where: { $0.item.uid == uid }) { go(i) }
+        }, onAdd: { freeBrowse = FreeBrowse(group: nil, jump: false) })
+    }
+
     struct FreeBrowse: Identifiable {
         let id = UUID()
         let group: MuscleGroup?
@@ -1260,13 +1282,12 @@ struct WorkoutPlayerView: View {
         let jump: Bool
     }
 
-    /// Adds the picks at the end of the workout, in order. The first exercise opens at once; later ones are played at
-    /// once when `jump` and the current exercise is done, otherwise they queue in Up next.
+    /// Adds the picks at the end of the workout, in order. The first exercise opens at once; with `jump` (a Coach pick
+    /// or More) the first pick is played at once, done with the current exercise or not (a cardio timer never run
+    /// would otherwise hold the workout on it); Add (`jump` false) queues them in Up next.
     private func addFree(_ picked: [Exercise], jump: Bool) {
         guard isFree, !picked.isEmpty else { return }
         let wasEmpty = steps.isEmpty
-        let current = steps.indices.contains(index) ? steps[index] : nil
-        let currentDone = current.map { (setsDone[$0.item.uid] ?? 0) >= $0.sets } ?? true
         var first: String?
         for e in picked {
             let id = UUID()
@@ -1279,8 +1300,7 @@ struct WorkoutPlayerView: View {
         if wasEmpty {
             setStart = Date()
             relocate(first)
-        } else if jump, currentDone {
-            autoNext = nil
+        } else if jump {
             if let i = steps.firstIndex(where: { $0.item.uid == first }) { go(i) }
         } else {
             updateLive()
@@ -1763,14 +1783,19 @@ private struct RestSlotCard: View {
 @MainActor
 enum PendingDiscard {
     private static var tasks: [String: Task<Void, Never>] = [:]
+    /// The discarded run, put back when Undo (or opening the player again) keeps it.
+    private static var kept: [String: (model: AppModel, run: ActiveWorkout)] = [:]
 
+    /// The run leaves Train at once (Freestyle no longer says resume); Watch and re-plan follow once Undo is gone.
     static func schedule(_ sessionId: String, model: AppModel) {
         tasks[sessionId]?.cancel()
+        if let run = model.activeWorkout(sessionId) { kept[sessionId] = (model, run) }
+        model.clearActiveWorkout(sessionId)
         tasks[sessionId] = Task { @MainActor in
             try? await Task.sleep(for: .seconds(UndoCloseCenter.seconds + 0.5))
             guard !Task.isCancelled else { return }
             PendingDiscard.tasks[sessionId] = nil
-            model.clearActiveWorkout(sessionId)
+            PendingDiscard.kept[sessionId] = nil
             WatchSync.shared.endLive(.discarded, sessionId: sessionId)
             model.replanAfterWorkoutIfDone()
         }
@@ -1778,6 +1803,8 @@ enum PendingDiscard {
 
     static func cancel(_ sessionId: String) {
         tasks.removeValue(forKey: sessionId)?.cancel()
+        guard let k = kept.removeValue(forKey: sessionId), k.model.state.activeWorkout == nil else { return }
+        k.model.saveActiveWorkout(k.run)
     }
 }
 
