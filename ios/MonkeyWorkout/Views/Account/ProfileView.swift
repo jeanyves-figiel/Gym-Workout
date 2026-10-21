@@ -4,8 +4,10 @@ import SwiftUI
 import WorkoutEngine
 
 /// Your profile (#438, design A from `unified-profile/proposals.png`): every "about me" field in one page,
-/// opened from the Settings header card and from your Community profile. Name, @nickname, photo, about,
+/// opened from the Settings header card and the Me sheet. Name, @nickname, photo, about,
 /// How we talk to you and Community options. Auto saves (#437): Saved pill while editing, Undo bar on leave.
+/// Also the community profile since #578 (design A from `one-profile/proposals.png`): Shared, Cheers and Followers
+/// under the hero, Blocked members, Guidelines and Leave under Community.
 struct ProfileView: View {
     @Environment(AppModel.self) private var model
 
@@ -39,6 +41,7 @@ struct ProfileView: View {
     /// Photo upload / removal, saved at once (not part of Undo).
     @State private var task = FormTask()
     @State private var loaded = false
+    @State private var confirmLeave = false
     @FocusState private var focus: Field?
 
     private enum Field: Hashable { case name, nickname, bio }
@@ -55,6 +58,9 @@ struct ProfileView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 hero
+                if let p = community.profile {
+                    CommunityStats(shared: p.sharedPosts, cheers: p.cheersReceived, followers: p.followers)
+                }
                 ErrorText(message: task.error)
 
                 section("About you")
@@ -95,7 +101,18 @@ struct ProfileView: View {
                     .tint(Theme.lime)
                     .card(padding: 14)
                     ShowGymCard()
-                    AccountNote(text: "Default visibility of your posts, auto-share and your gym. Blocked members and leaving are on your Community profile.")
+                    AccountNote(text: "Default visibility of your posts, auto-share and your gym.")
+                    Group {
+                        NavigationLink { BlockedMembersView() } label: {
+                            AccountCard(symbol: "hand.raised.fill", title: "Blocked members", gradient: WorkoutEngine.Category.mobility.gradient)
+                        }
+                        NavigationLink { GuidelinesView() } label: {
+                            AccountCard(symbol: "checkmark.seal.fill", title: "Community guidelines", gradient: WorkoutEngine.Category.stretch.gradient, ink: true)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    AccountPillButton(title: "Leave the community", role: .destructive) { confirmLeave = true }
+                        .padding(.top, 8)
                 } else {
                     AccountNote(text: "Join from the Community tab to appear there with this nickname, photo and about.")
                 }
@@ -109,6 +126,11 @@ struct ProfileView: View {
         .navigationTitle("Your profile")
         .toolbarTitleDisplayMode(.inline)
         .onAppear(perform: load)
+        .confirmationDialog("Leave the community?", isPresented: $confirmLeave, titleVisibility: .visible) {
+            Button("Leave and delete my posts", role: .destructive) { leave() }
+        } message: {
+            Text("Your posts and cheers are deleted. Your nickname, photo, about and training data stay on your Account.")
+        }
         .onChange(of: photoItem) { _, item in if let item { upload(item) } }
         .autoSave(loaded ? snapshot : nil, title: "Profile", symbol: "person.crop.circle.fill",
                   detail: Self.detail, save: { [model] in try await Self.store($0, model: model) })
@@ -169,6 +191,14 @@ struct ProfileView: View {
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(AccountTint.profile))
+    }
+
+    private func leave() {
+        let api = model.api
+        task.run {
+            try await api.leaveCommunity()
+            Community.shared.left()
+        }
     }
 
     private func section(_ title: String) -> some View {

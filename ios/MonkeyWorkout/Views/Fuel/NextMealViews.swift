@@ -1,7 +1,7 @@
 import SwiftUI
 import WorkoutEngine
 
-// Next meal and Just ate (#565, designs A + B from `meal-plan-pattern/proposals4.png`): with a meal plan, the Day
+// Next meal and Just ate (#578, designs A + B from `meal-plan-pattern/proposals4.png`): with a meal plan, the Day
 // look's plate card shows the planned recipe (Ate it · Swap · Something else) and the meal after it; a lime + on
 // Fuel logs what was just eaten in two taps: a planned meal, a recent recipe, a search, or portions by hand.
 
