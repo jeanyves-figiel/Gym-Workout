@@ -954,14 +954,16 @@ struct WorkoutPlayerView: View {
     }
 
     private func skipButton(_ step: Step, size: CGFloat) -> some View {
-        Button { advance(step) } label: {
+        // Build as I go: on the last exercise there is nothing to skip to yet, so skip picks the next one.
+        let pickNext = isFree && nextStep == nil
+        return Button { pickNext ? (freeBrowse = FreeBrowse(group: nil, jump: true)) : advance(step) } label: {
             Image(systemName: "forward.end.fill").font(.system(size: size > 50 ? 18 : 15, weight: .heavy))
                 .frame(width: size, height: size)
                 .background(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).fill(Theme.cardStrong))
         }
         // Nothing left to skip to: it would finish and save the workout, which is the main button's job.
-        .disabled(nextStep == nil)
-        .accessibilityLabel("Skip to next exercise")
+        .disabled(nextStep == nil && !pickNext)
+        .accessibilityLabel(pickNext ? "Pick the next exercise" : "Skip to next exercise")
     }
 
     private func mainLabel(_ step: Step, sets: Int, done: Int) -> String {
@@ -1116,6 +1118,8 @@ struct WorkoutPlayerView: View {
 
     /// X (#538): closes at once and keeps the workout paused to resume; the Undo bar on Train reopens it.
     private func closeWorkout() {
+        // Build as I go with nothing logged: nothing to resume, so X discards it (Undo still brings it back).
+        if isFree, setsDone.values.reduce(0, +) == 0 { return discardWithUndo() }
         let id = sessionId
         let title = session?.displayTitle ?? ""
         saveProgress()
@@ -1136,6 +1140,8 @@ struct WorkoutPlayerView: View {
         saveProgress()
         live.end()
         PendingDiscard.schedule(id, model: model)
+        // Gone from Train at once (no "resume" while the Undo bar shows); closing must not save it back.
+        discarded = true
         dismiss()
         UndoCloseCenter.shared.show(UndoOffer(
             title: "Workout discarded", detail: undoDetail(title, "not saved"), symbol: "trash",
@@ -1260,13 +1266,12 @@ struct WorkoutPlayerView: View {
         let jump: Bool
     }
 
-    /// Adds the picks at the end of the workout, in order. The first exercise opens at once; later ones are played at
-    /// once when `jump` and the current exercise is done, otherwise they queue in Up next.
+    /// Adds the picks at the end of the workout, in order. The first exercise opens at once; with `jump` (a Coach pick
+    /// or More) the first pick is played at once, done with the current exercise or not (a cardio timer never run
+    /// would otherwise hold the workout on it); Add (`jump` false) queues them in Up next.
     private func addFree(_ picked: [Exercise], jump: Bool) {
         guard isFree, !picked.isEmpty else { return }
         let wasEmpty = steps.isEmpty
-        let current = steps.indices.contains(index) ? steps[index] : nil
-        let currentDone = current.map { (setsDone[$0.item.uid] ?? 0) >= $0.sets } ?? true
         var first: String?
         for e in picked {
             let id = UUID()
@@ -1279,8 +1284,7 @@ struct WorkoutPlayerView: View {
         if wasEmpty {
             setStart = Date()
             relocate(first)
-        } else if jump, currentDone {
-            autoNext = nil
+        } else if jump {
             if let i = steps.firstIndex(where: { $0.item.uid == first }) { go(i) }
         } else {
             updateLive()
@@ -1763,14 +1767,19 @@ private struct RestSlotCard: View {
 @MainActor
 enum PendingDiscard {
     private static var tasks: [String: Task<Void, Never>] = [:]
+    /// The discarded run, put back when Undo (or opening the player again) keeps it.
+    private static var kept: [String: (model: AppModel, run: ActiveWorkout)] = [:]
 
+    /// The run leaves Train at once (Freestyle no longer says resume); Watch and re-plan follow once Undo is gone.
     static func schedule(_ sessionId: String, model: AppModel) {
         tasks[sessionId]?.cancel()
+        if let run = model.activeWorkout(sessionId) { kept[sessionId] = (model, run) }
+        model.clearActiveWorkout(sessionId)
         tasks[sessionId] = Task { @MainActor in
             try? await Task.sleep(for: .seconds(UndoCloseCenter.seconds + 0.5))
             guard !Task.isCancelled else { return }
             PendingDiscard.tasks[sessionId] = nil
-            model.clearActiveWorkout(sessionId)
+            PendingDiscard.kept[sessionId] = nil
             WatchSync.shared.endLive(.discarded, sessionId: sessionId)
             model.replanAfterWorkoutIfDone()
         }
@@ -1778,6 +1787,8 @@ enum PendingDiscard {
 
     static func cancel(_ sessionId: String) {
         tasks.removeValue(forKey: sessionId)?.cancel()
+        guard let k = kept.removeValue(forKey: sessionId), k.model.state.activeWorkout == nil else { return }
+        k.model.saveActiveWorkout(k.run)
     }
 }
 
