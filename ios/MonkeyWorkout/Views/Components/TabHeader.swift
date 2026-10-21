@@ -1,4 +1,5 @@
 import SwiftUI
+import WorkoutEngine
 
 // MARK: - Unified tab header (#560, design B from `header-menu/proposals.png`)
 
