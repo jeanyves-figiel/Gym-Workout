@@ -273,19 +273,38 @@ final class Community {
         let bea = CommunityAuthor(userId: "u-bea", nickname: "bench_bea", level: 42)
         let me = CommunityAuthor(userId: "demo", nickname: "monkey_jy", level: 9)
         let crimpy = CommunityAuthor(userId: "u-crimpy", nickname: "crimpy", level: 4)
+        let tom = CommunityAuthor(userId: "u-tom", nickname: "tom_runs", level: 12)
         let posts = [
             CommunityPost(
-                id: "p1", author: bea, mine: false, kind: "workout", visibility: .members, caption: "New bench best, 80 kg!",
-                payload: CommunityCard(title: "Upper body power", metric: .init(value: "6.4", unit: "t lifted"), style: "strength",
+                id: "p0", author: bea, mine: false, kind: "record", visibility: .members,
+                payload: CommunityCard(title: "Bench Press best", subtitle: "New personal best", metric: .init(value: "100", unit: "kg"), style: "moment:pr"),
+                createdAt: now.addingTimeInterval(-1 * 3600), reactions: ["like": 9, "strong": 6, "fire": 3, "beast": 4], myReactions: ["fire"]),
+            CommunityPost(
+                id: "p1", author: bea, mine: false, kind: "workout", visibility: .members, caption: "New bench best, 100 kg!",
+                payload: CommunityCard(title: "Chest Push Focus", subtitle: "Today", metric: .init(value: "6.4", unit: "t lifted"), style: "strength",
                                        stats: [.init(label: "min", value: "52"), .init(label: "sets", value: "18")]),
-                createdAt: now.addingTimeInterval(-2 * 3600), reactions: ["like": 12, "strong": 5, "fire": 3], myReactions: ["like"]),
+                createdAt: now.addingTimeInterval(-2 * 3600), reactions: ["like": 12, "strong": 5, "fire": 3, "banana": 2], myReactions: ["like"]),
             CommunityPost(
                 id: "p2", author: me, mine: true, kind: "badge", visibility: .members,
-                payload: CommunityCard(title: "Unbreakable", subtitle: "8-week streak", metric: .init(value: "8", unit: "weeks"), style: "power"),
-                createdAt: now.addingTimeInterval(-5 * 3600), reactions: ["like": 7, "clap": 4]),
+                payload: CommunityCard(title: "Unbreakable", subtitle: "Trained every week", metric: .init(value: "8", unit: "weeks"), style: "moment:streak"),
+                createdAt: now.addingTimeInterval(-3 * 3600), reactions: ["like": 7, "clap": 4]),
+            CommunityPost(
+                id: "p5", author: me, mine: true, kind: "workout", visibility: .members,
+                payload: CommunityCard(title: "Legs", subtitle: "Today", metric: .init(value: "9.1", unit: "t lifted"), style: "strength",
+                                       stats: [.init(label: "min", value: "55"), .init(label: "sets", value: "27"), .init(label: "exercises", value: "12")]),
+                createdAt: now.addingTimeInterval(-3.5 * 3600), reactions: ["like": 4, "strong": 2, "beast": 1]),
+            CommunityPost(
+                id: "p4", author: tom, mine: false, kind: "workout", visibility: .members,
+                payload: CommunityCard(title: "Running", subtitle: "Today", metric: .init(value: "8.4", unit: "km"), style: "sport:run",
+                                       stats: [.init(label: "min", value: "44")]),
+                createdAt: now.addingTimeInterval(-4 * 3600), reactions: ["clap": 2]),
+            CommunityPost(
+                id: "p6", author: crimpy, mine: false, kind: "badge", visibility: .members,
+                payload: CommunityCard(title: "Now Regular", subtitle: "Level 4 → 5", metric: .init(value: "5", unit: "level"), style: "moment:level"),
+                createdAt: now.addingTimeInterval(-20 * 3600), reactions: ["clap": 3]),
             CommunityPost(
                 id: "p3", author: crimpy, mine: false, kind: "workout", visibility: .everyone,
-                payload: CommunityCard(title: "Legs & core", metric: .init(value: "41", unit: "min"), style: "cardio",
+                payload: CommunityCard(title: "Pull Day", metric: .init(value: "41", unit: "min"), style: "strength",
                                        stats: [.init(label: "sets", value: "14")]),
                 createdAt: now.addingTimeInterval(-26 * 3600), reactions: ["like": 3, "strong": 2]),
         ]
@@ -386,18 +405,21 @@ struct WinCard: Identifiable {
         let day = f.string(from: pr.date)
         return WinCard(kind: "record", refId: "\(pr.exerciseId):\(day)",
                        card: CommunityCard(title: "\(name) best", subtitle: "New personal best", metric: .init(value: kg, unit: "kg"),
-                                           style: WorkoutEngine.Category.strength.rawValue),
+                                           style: "moment:pr"),
                        symbol: "trophy.fill", date: pr.date)
     }
 }
 
 extension AppModel {
     /// What auto-share may post (#479): finished workouts, sports logged here (or tracked on the Watch, from Health)
-    /// and climbs logged here. `Community.autoShare` keeps the last 24 h and skips what's already posted.
+    /// and climbs logged here, plus the bests, streak milestones and level ups they earned (#566).
+    /// `Community.autoShare` keeps the last 24 h and skips what's already posted.
     func autoShareWins(healthSports: [SportEntry] = []) -> [WinCard] {
         let workouts = state.history.filter(WinCard.shareable).map(WinCard.workout)
         let sports = Sports.merged(local: sportLogs, health: healthSports.filter { $0.tracked == true }).map(WinCard.sport)
         let climbs = climbLogs.map { WinCard.climb(ClimbEntry($0)) }
-        return workouts + sports + climbs
+        let moments = WinCard.moments(history: state.history, weights: weightEntries, targetPerWeek: gameTarget,
+                                      moveXP: MoveStore.shared.xp + FuelStore.shared.xp)
+        return workouts + sports + climbs + moments
     }
 }
