@@ -54,6 +54,16 @@ jobs:
               || { grep -E 'error:' build.log | sort -u; tail -n 50 build.log; exit 1; }
             tail -n 50 build.log
           done
+      # Device-only code (RoomPlan, #417) never compiles for the simulator; unsigned device build of the
+      # TestFlight scheme catches it, and SDK breaks on the TestFlight Xcode, before an archive run (#158).
+      - name: Build Staging for device (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild build -project ios/MonkeyWorkout.xcodeproj -scheme "MonkeyWorkout Staging" -configuration Staging \
+            -destination 'generic/platform=iOS' -skipPackagePluginValidation -derivedDataPath build-device \
+            CODE_SIGNING_ALLOWED=NO > device.log 2>&1 \
+            || { grep -E 'error:' device.log | sort -u; tail -n 50 device.log; exit 1; }
+          tail -n 5 device.log
       # Complications (#190): the widget extension must sit in the Watch app's PlugIns with the WidgetKit extension point.
       - name: Check Watch complications are embedded
         run: |
