@@ -1,11 +1,11 @@
 {
-  "id": "2026-10-21.2",
+  "id": "2026-10-21.3",
   "items": [
     {
-      "symbol": "fork.knife",
-      "tint": "cardio",
-      "title": "Meal plans fixed",
-      "body": "Tap your plan to edit it, or hold it to delete. The basket and budget now count only the days you plan meals."
+      "symbol": "plus.square.fill",
+      "tint": "warmup",
+      "title": "Just ate, smarter",
+      "body": "The lime + opens on the meal you're at, with ideas for it. Meals you ticked today show with Undo, and the hand portions have names."
     }
   ]
 }
