@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- **Just ate never empty** (#574, design A + C rows from `just-ate/proposals.png`): with no planned meal left today and no recent or favourite recipes, the sheet showed only a search field and four bare hand tiles at 0. It now opens on the **open meal nearest now** (big gradient card with what it should hold), with **6 ideas** for it (the planned recipe first, then recents that suit it, then fresh ideas), chips to switch to another open meal, **Today**: meals already ticked with **Undo**, and hand tiles named Protein, Carbs, Veg, Fats. Opens full height.
 - **Meal plan end to end** (#569): tapping the plan opened a blank **Plan** sheet and it couldn't be deleted: for saves from before #558 the plan built from `planDays`/`mainOnly` got new ids on every read. It is now written down once on load (fixed ids as a fallback), so its dates stop moving with today and it edits and deletes. **Delete plan** also from a long press on the plan card; Undo brings back the plan and its planned meals. The basket counts the **days with meals** from today (was always 31) and only coming meals; the budget follows those days, and the planner spreads the weekly budget over days with meals only (it spread 31 days of budget over 5 days, picking expensive meals). Timeline shows the current month; last rows clear the Ask Coach bubble; with no plan in the coming 31 days Re-plan is replaced by a hint. Test `budgetCountsOnlyDaysWithMeals`.
 
 ### Added
