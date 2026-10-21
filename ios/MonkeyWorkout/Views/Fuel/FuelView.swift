@@ -150,6 +150,18 @@ struct FuelView: View {
                      "diet \(prefs.diet.rawValue)"]
         if !prefs.avoid.isEmpty { parts.append("avoids " + prefs.avoid.map(\.rawValue).sorted().joined(separator: ", ")) }
         if let e = plan.event { parts.append("event: \(e.title)") }
+        // Supplements today and each one's schedule (#572), so Coach can answer "when do I take my creatine?".
+        if !plan.supplements.isEmpty {
+            parts.append("supplements today: " + plan.supplements.map { "\($0.supplement.name) \($0.time) \($0.supplement.dose)\(log.taken($0) ? " (taken)" : "")" }
+                .joined(separator: ", "))
+        }
+        let cal = Calendar.current
+        let stack = FuelStore.shared.stack
+        if !stack.isEmpty {
+            parts.append("supplement schedules: " + stack.map { s in
+                ([s.name, s.schedule.summary(calendar: cal)] + [s.schedule.courseLine(now: Date(), calendar: cal)].compactMap { $0 }).joined(separator: " · ")
+            }.joined(separator: "; "))
+        }
         return parts.joined(separator: "; ")
     }
 
