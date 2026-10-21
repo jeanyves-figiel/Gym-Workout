@@ -298,11 +298,14 @@ struct SessionFlowSheet: View {
                             .font(.subheadline)
                             .foregroundStyle(Theme.muted)
                         SessionFlowEditor(profile: profile, focus: session.focus, minutes: session.targetMin, flow: $flow)
-                        HStack(spacing: 8) {
-                            scopeButton("This workout", selected: !allWorkouts) { allWorkouts = false }
-                            scopeButton("All workouts", selected: allWorkouts) { allWorkouts = true }
+                        // An extra workout (#590) changes on its own; the plan's flow is set from a plan session.
+                        if !session.isPlanInsert {
+                            HStack(spacing: 8) {
+                                scopeButton("This workout", selected: !allWorkouts) { allWorkouts = false }
+                                scopeButton("All workouts", selected: allWorkouts) { allWorkouts = true }
+                            }
+                            .padding(.top, 4)
                         }
-                        .padding(.top, 4)
                         Button {
                             if allWorkouts { model.setPlanFlow(flow, clearing: session.id) } else { model.setSessionFlow(session.id, flow) }
                             dismiss()
