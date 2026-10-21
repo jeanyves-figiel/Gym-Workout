@@ -148,7 +148,8 @@ import Testing
                                      daySlots: dates.map { schedule.kinds(on: $0, cal) })
         for (i, d) in days.enumerated() {
             let kinds = Set(meals.filter { $0.day == d.key }.map(\.kind))
-            #expect(kinds.isSubset(of: i < 5 ? [.dinner] : [.lunch, .dinner]))
+            let allowed: Set<MealKind> = i < 5 ? [.dinner] : [.lunch, .dinner]
+            #expect(kinds.isSubset(of: allowed))
         }
         // No batch leftovers on a weekday: those days have no lunch.
         #expect(!meals.contains { $0.leftover && days.prefix(5).map(\.key).contains($0.day) })

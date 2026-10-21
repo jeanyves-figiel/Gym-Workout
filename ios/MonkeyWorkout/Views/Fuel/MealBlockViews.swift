@@ -66,7 +66,7 @@ enum MealPreset: String, CaseIterable, Identifiable {
     static func summary(_ p: MealPattern) -> String {
         let names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         func short(_ m: Set<MealKind>) -> String {
-            m.isEmpty ? "off" : MealPattern.main.filter(m.contains).map { String($0.label.prefix(1)) }.joined(separator: "+")
+            m.isEmpty ? "off" : MealPattern.main.filter { m.contains($0) }.map { String($0.label.prefix(1)) }.joined(separator: "+")
         }
         var parts: [String] = []
         var i = 0
