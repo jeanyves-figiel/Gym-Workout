@@ -159,7 +159,12 @@ struct WorkoutPlayerView: View {
     /// Build as I go (#490): started empty, exercises added in the player.
     private var isFree: Bool { Freestyle.isFreestyle(sessionId) }
 
+    // Split in three so the Xcode 27 type-checker handles it (one chain timed out, #158).
     var body: some View {
+        remoteControls(lifecycle(screen))
+    }
+
+    private var screen: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
             if let session {
@@ -261,6 +266,10 @@ struct WorkoutPlayerView: View {
         .animation(.spring(duration: 0.4), value: index)
         .animation(.spring(duration: 0.5), value: finished)
         .animation(.spring(duration: 0.3), value: pause)
+    }
+
+    private func lifecycle(_ content: some View) -> some View {
+        content
         .onAppear {
             // Back in the player (Undo, or Resume on Train) before a discard went through: keep the workout.
             PendingDiscard.cancel(sessionId)
@@ -295,6 +304,11 @@ struct WorkoutPlayerView: View {
         .onChange(of: index) { setStart = Date() }
         .onChange(of: log.rows) { updateLive() }
         .onChange(of: scenePhase) { _, p in if p != .active { saveProgress(interrupted: p == .background) } }
+    }
+
+    /// Lock screen, Dynamic Island and Watch commands.
+    private func remoteControls(_ content: some View) -> some View {
+        content
         .onReceive(NotificationCenter.default.publisher(for: .workoutRestAdd15)) { _ in extendRest() }
         .onReceive(NotificationCenter.default.publisher(for: .workoutRestSkip)) { _ in closePause() }
         // Lock screen / Dynamic Island (#371): effort tile logs the set, − / + kg, lime button.

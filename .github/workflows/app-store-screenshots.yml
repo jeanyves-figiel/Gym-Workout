@@ -47,7 +47,9 @@ jobs:
           set -o pipefail
           xcodebuild build -project ios/MonkeyWorkout.xcodeproj -scheme MonkeyWorkout -configuration Debug \
             -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
-            -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO | tail -n 5
+            -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO > build.log 2>&1 \
+            || { grep -E 'error:' build.log | sort -u; tail -n 30 build.log; exit 1; }
+          tail -n 5 build.log
       - name: Capture
         run: |
           APP=build/Build/Products/Debug-iphonesimulator/MonkeyWorkout.app
