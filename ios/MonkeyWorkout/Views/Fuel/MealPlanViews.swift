@@ -10,13 +10,17 @@ struct MealPlanView: View {
     @State private var swapping: (key: String, slot: FuelSlot, plan: FuelPlan)?
 
     var body: some View {
-        let cal = Calendar.current
-        let days: [Date] = (0..<store.saved.planDays).compactMap { cal.date(byAdding: .day, value: $0, to: cal.startOfDay(for: Date())) }
+        let cal = model.planCalendar
+        let book = store.book
+        // Days with meals to plan (or already planned); days no plan covers are left out.
+        let days: [Date] = book.days(from: Date(), cal).filter { d in
+            !book.kinds(on: d, cal).isEmpty || store.saved.plan.contains { $0.day == store.key(d) }
+        }
         let plans = days.map { model.fuelPlan(on: $0) }
         let items = model.groceries()
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                options
+                MyPlansCard { if !store.saved.plan.isEmpty { withAnimation(.snappy) { model.planMeals() } } }
                 Button { withAnimation(.snappy) { model.planMeals() } } label: {
                     Label(store.saved.plan.isEmpty ? "PLAN MY DAYS" : "RE-PLAN (KEEPS YOUR PICKS)", systemImage: "wand.and.stars")
                 }
@@ -45,40 +49,6 @@ struct MealPlanView: View {
         .sheet(isPresented: Binding(get: { swapping != nil }, set: { if !$0 { swapping = nil } })) {
             if let s = swapping { SwapMealSheet(key: s.key, slot: s.slot, plan: s.plan) }
         }
-    }
-
-    private var options: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("PLAN").font(Theme.label(10)).tracking(1.2).opacity(0.85)
-            HStack(spacing: 6) {
-                ForEach([3, 5, 7], id: \.self) { n in
-                    option("\(n) days", on: store.saved.planDays == n) { store.setPlanOptions(days: n) }
-                }
-            }
-            HStack(spacing: 6) {
-                option("Lunch & dinner", on: store.saved.mainOnly) { store.setPlanOptions(mainOnly: true) }
-                option("Every meal", on: !store.saved.mainOnly) { store.setPlanOptions(mainOnly: false) }
-            }
-            Stepper(value: Binding(get: { store.saved.people }, set: { store.setPlanOptions(people: $0) }), in: 1...8) {
-                Text("For \(store.saved.people) \(store.saved.people == 1 ? "person" : "people")").font(Theme.display(16))
-            }
-            Text("Meals follow each day's training, your diet and favourites, use what you have first, and don't repeat within 3 days. Batch dinners become next day's lunch.")
-                .font(.caption.weight(.semibold)).opacity(0.85)
-        }
-        .foregroundStyle(.white)
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(FuelPalette.violet))
-    }
-
-    private func option(_ title: String, on: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title).font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.7)
-                .foregroundStyle(on ? Theme.ink : .white)
-                .frame(maxWidth: .infinity).padding(.vertical, 9)
-                .background(Capsule().fill(on ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(.black.opacity(0.25))))
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     private func swapTip(_ swap: CheaperSwap) -> some View {

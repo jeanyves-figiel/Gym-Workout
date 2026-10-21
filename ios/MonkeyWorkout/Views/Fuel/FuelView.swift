@@ -105,6 +105,8 @@ struct FuelView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var setup = false
     @State private var slot: FuelSlot?
+    @State private var justAte = false
+    @AppStorage(AskCoachPref.bubbleRightKey) private var coachRight = true
 
     private func dropStaleDay() {
         let today = Calendar.current.startOfDay(for: Date())
@@ -155,9 +157,19 @@ struct FuelView: View {
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $setup) { NavigationStack { FuelSetupView(sheet: true) } }
         .sheet(item: $slot) { s in FuelSlotSheet(slot: s, plan: plan, day: day) }
+        // Just ate (#565, design B): on the side the Ask Coach bubble isn't on.
+        .overlay(alignment: coachRight ? .bottomLeading : .bottomTrailing) {
+            if Calendar.current.startOfDay(for: day) <= Calendar.current.startOfDay(for: Date()) {
+                JustAteButton { justAte = true }.padding(.horizontal, 16).padding(.bottom, 12)
+            }
+        }
+        .sheet(isPresented: $justAte) { JustAteSheet(plan: plan, day: day) }
         .navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }
         .fuelDestinations()
-        .onAppear { if !store.saved.setUp && !model.demo { setup = true } }
+        .onAppear {
+            if !store.saved.setUp && !model.demo { setup = true }
+            model.topUpMealPlan()
+        }
         .onChange(of: scenePhase) { if scenePhase == .active { dropStaleDay() } }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in dropStaleDay() }
         .coachFocus(CoachFocus(screen: "fuel", title: "Fuel", detail: Self.coachDetail(plan, log: log, prefs: store.prefs),
@@ -412,7 +424,17 @@ struct FuelDashboard: View {
             .padding(14)
             .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(FuelPalette.load(plan.load)))
 
-            if let next {
+            // With a meal plan, the next planned recipe and the one after it (#565, design A).
+            let key = store.key(day)
+            let plannedSlots = plan.slots.filter { s in s.minute >= now - 30 && store.saved.plan.contains { $0.day == key && $0.slot == s.id } }
+            if let first = plannedSlots.first, let meal = store.saved.plan.first(where: { $0.day == key && $0.slot == first.id }),
+               let recipe = RecipeBook.recipe(meal.recipeId, own: store.saved.recipes) {
+                PlannedPlateCard(slot: first, recipe: recipe, meal: meal, plan: plan, log: log, day: day, open: open)
+                if plannedSlots.count > 1, let m = store.saved.plan.first(where: { $0.day == key && $0.slot == plannedSlots[1].id }),
+                   let r = RecipeBook.recipe(m.recipeId, own: store.saved.recipes) {
+                    ThenMealCard(slot: plannedSlots[1], recipe: r, meal: m)
+                }
+            } else if let next {
                 VStack(alignment: .leading, spacing: 8) {
                     Button { open(next) } label: {
                         VStack(alignment: .leading, spacing: 8) {

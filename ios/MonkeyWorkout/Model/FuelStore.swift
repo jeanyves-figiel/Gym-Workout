@@ -24,10 +24,14 @@ final class FuelStore {
         var plan: [PlannedMeal] = []
         /// People per planned meal.
         var people = 1
-        /// Days the planner fills (3, 5 or 7).
+        /// Days the planner filled before blocks (3, 5 or 7); read only to build `schedule` for older saves.
         var planDays = 5
-        /// Only lunch and dinner (false = every slot of the day).
+        /// Only lunch and dinner (false = every slot of the day); older saves, see `planDays`.
         var mainOnly = true
+        /// Unused: kept so a save from a test build with one block schedule still loads into `book`.
+        var schedule: MealSchedule?
+        /// Named meal plans and their dates (#558); nil = older save, built from `planDays` and `mainOnly`.
+        var book: MealPlanBook?
         /// Grocery lines ticked in the shop.
         var bought: Set<String> = []
         /// Refuel reminder sent (day key).
@@ -197,12 +201,60 @@ final class FuelStore {
         save(s)
     }
 
-    func setPlanOptions(people: Int? = nil, days: Int? = nil, mainOnly: Bool? = nil, lessWaste: Bool? = nil) {
+    func setPlanOptions(people: Int? = nil, lessWaste: Bool? = nil) {
         var s = saved
         if let people { s.people = max(1, min(8, people)) }
-        if let days { s.planDays = days }
-        if let mainOnly { s.mainOnly = mainOnly }
         if let lessWaste { s.lessWaste = lessWaste }
+        save(s)
+    }
+
+    /// The member's named meal plans and their dates (#558). Older saves get one plan, "My plan", from today with
+    /// their length and choice (or their blocks).
+    var book: MealPlanBook {
+        if let b = saved.book { return b }
+        let today = key(Date())
+        let x = saved.schedule ?? MealSchedule(start: today, blocks: [MealBlock(pattern: saved.mainOnly ? .lunchDinner : .everyMeal,
+                                                                                days: saved.planDays)])
+        let end = cal.date(byAdding: .day, value: max(0, x.length - 1), to: PlanCalendar.date(x.start, cal) ?? Date()).map(key)
+        return MealPlanBook(plans: [NamedMealPlan(name: "My plan", blocks: x.blocks, repeatWeeks: x.repeatWeeks,
+                                                  periods: [MealPeriod(from: x.start, to: x.repeatWeeks == nil ? end : nil)])])
+    }
+
+    /// Days ahead the planner fills.
+    var planSpan: Int { MealPlanBook.horizon }
+
+    /// Part of a week's 21 main meals the plans hold over the coming weeks, for budget suggestions.
+    var mealShare: Double { book.mainPerWeek(from: Date(), cal) / 21 }
+
+    /// Adds or changes a named plan (blocks capped at the longest cycle).
+    func savePlan(_ plan: NamedMealPlan) {
+        var s = saved
+        var b = book
+        var p = plan
+        while p.length > MealSchedule.maxDays, let last = p.blocks.indices.last {
+            let cut = p.length - MealSchedule.maxDays
+            if p.blocks[last].days > cut { p.blocks[last].days -= cut } else { p.blocks.removeLast() }
+        }
+        if let w = p.repeatWeeks, w * 7 < p.length { p.repeatWeeks = nil }
+        if let i = b.plans.firstIndex(where: { $0.id == p.id }) { b.plans[i] = p } else { b.plans.append(p) }
+        s.book = b
+        save(s)
+    }
+
+    /// Takes a named plan off; returns the plans as they were, for the Undo bar.
+    func deleteNamedPlan(_ id: UUID) -> MealPlanBook {
+        let before = book
+        var s = saved
+        var b = before
+        b.plans.removeAll { $0.id == id }
+        s.book = b
+        save(s)
+        return before
+    }
+
+    func restoreBook(_ b: MealPlanBook) {
+        var s = saved
+        s.book = b
         save(s)
     }
 
