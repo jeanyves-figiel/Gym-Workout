@@ -178,7 +178,7 @@ struct PostCard: View {
         .confirmationDialog("Block \(post.author.nickname)?", isPresented: $confirmBlock, titleVisibility: .visible) {
             Button("Block", role: .destructive) { block() }
         } message: {
-            Text("You won't see each other's posts or profiles. Unblock any time from your community profile.")
+            Text("You won't see each other's posts or profiles. Unblock any time from Your profile.")
         }
         .confirmationDialog("Delete this post?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { delete() }

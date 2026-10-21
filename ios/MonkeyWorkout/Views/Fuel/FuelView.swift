@@ -124,7 +124,7 @@ struct FuelView: View {
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $setup) { NavigationStack { FuelSetupView(sheet: true) } }
         .sheet(item: $slot) { s in FuelSlotSheet(slot: s, plan: plan, day: day) }
-        // Just ate (#565, design B): on the side the Ask Coach bubble isn't on.
+        // Just ate (#578, design B): on the side the Ask Coach bubble isn't on.
         .overlay(alignment: coachRight ? .bottomLeading : .bottomTrailing) {
             if Calendar.current.startOfDay(for: day) <= Calendar.current.startOfDay(for: Date()) {
                 JustAteButton { justAte = true }.padding(.horizontal, 16).padding(.bottom, 12)
@@ -386,7 +386,7 @@ struct FuelDashboard: View {
             .padding(14)
             .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(FuelPalette.load(plan.load)))
 
-            // With a meal plan, the next planned recipe and the one after it (#565, design A).
+            // With a meal plan, the next planned recipe and the one after it (#578, design A).
             let key = store.key(day)
             let plannedSlots = plan.slots.filter { s in s.minute >= now - 30 && store.saved.plan.contains { $0.day == key && $0.slot == s.id } }
             if let first = plannedSlots.first, let meal = store.saved.plan.first(where: { $0.day == key && $0.slot == first.id }),
