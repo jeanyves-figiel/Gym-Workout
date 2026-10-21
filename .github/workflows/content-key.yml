@@ -1,0 +1,44 @@
+name: Content signing key
+
+# One-off (#583): makes the Ed25519 key that signs /v1/app-config and stores it straight into Fly as CONTENT_SIGNING_KEY,
+# on staging (restarts it) and production (--stage: used from the next Promote to production, nothing restarts now).
+# The repository is public: the private key never goes to an artifact or the log. The public key is printed for
+# CONTENT_PUBLIC_KEY in ios/Config/*.xcconfig. Refuses when the key already exists (builds pin its public key).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  key:
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master, pinned (#432)
+      - name: Ensure flyctl
+        run: |
+          command -v flyctl && exit 0
+          curl -fsSL https://fly.io/install.sh | sh
+          echo "$HOME/.fly/bin" >> "$GITHUB_PATH"
+      - run: |
+          if [ -z "$FLY_API_TOKEN" ]; then echo "::error::FLY_API_TOKEN not set."; exit 1; fi
+          for app in monkeyworkout-staging monkeyworkout-prod; do
+            if flyctl secrets list --app "$app" | awk '{print $1}' | grep -qx CONTENT_SIGNING_KEY; then
+              echo "::error::CONTENT_SIGNING_KEY already exists on $app; kept as is."
+              exit 1
+            fi
+          done
+          umask 077
+          d=$(mktemp -d)
+          openssl genpkey -algorithm ed25519 -outform DER -out "$d/key.der"
+          KEY=$(base64 -w0 "$d/key.der")
+          # Raw 32-byte public key (last 32 bytes of the SPKI DER), the form CryptoKit takes.
+          PUB=$(openssl pkey -inform DER -in "$d/key.der" -pubout -outform DER | tail -c 32 | base64 -w0)
+          rm -rf "$d"
+          echo "CONTENT_SIGNING_KEY=$KEY" | flyctl secrets import --app monkeyworkout-staging
+          echo "CONTENT_SIGNING_KEY=$KEY" | flyctl secrets import --app monkeyworkout-prod --stage
+          echo "::notice::CONTENT_PUBLIC_KEY = $PUB"
+          echo "CONTENT_PUBLIC_KEY = \`$PUB\`" >> "$GITHUB_STEP_SUMMARY"

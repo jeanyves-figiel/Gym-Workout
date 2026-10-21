@@ -41,6 +41,7 @@ import { appStoreNotificationRoutes, subscriptionRoutes } from './routes/subscri
 import { type AppStoreDecoder, createAppStoreDecoder } from './subscriptions/appStore.ts';
 import { SubscriptionService } from './subscriptions/service.ts';
 import { legalRoutes } from './routes/legal.ts';
+import { remoteRoutes } from './remote.ts';
 import { reauthToken, securityPublicRoutes, securityRoutes } from './routes/security.ts';
 import { SecurityService, type WebAuthnVerifier } from './security.ts';
 
@@ -177,6 +178,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   communityPublicRoutes(app, deps.db, deps.config.appName);
   appStoreNotificationRoutes(app, subscriptions);
   legalRoutes(app, deps.config);
+  remoteRoutes(app, deps.config.remote.dir, deps.config.remote.signingKey, (m) => app.log.error(m));
   securityPublicRoutes(app, security, deps.config.authRateLimitPerMin);
   watchSportRoutes(app, deps.db, deps.now ?? (() => new Date()));
   garminWatchRoutes(app, deps.db, deps.now ?? (() => new Date()));

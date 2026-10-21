@@ -33,6 +33,10 @@ struct RootView: View {
                     #endif
                 }
             }
+            // This build can't keep working (#583, design B): over everything but the lock.
+            if Remote.shared.updateNeed == .required {
+                RequiredUpdateView()
+            }
             if lock.enabled && (lock.locked || lock.covered) {
                 LockScreen()
             }
@@ -81,7 +85,7 @@ struct MainTabView: View {
         .sidebarAdaptableTabs()
         // Ask Coach everywhere (#412 A): the floating 🐵 and its chat, which knows the screen on top.
         .overlay { if coachBubble { AskCoachBubble() } }
-        .sheet(item: $ask.request) { r in CoachChatView(ask: r) }
+        .sheet(item: $ask.request) { r in CoachChatView(ask: r).remotePaused(.askCoach) }
         // Me sheet (#560): the Me pill at the top right of every tab.
         .sheet(isPresented: Bindable(model).meOpen) {
             NavigationStack {
@@ -452,6 +456,8 @@ private struct DemoScreen: View {
         case "fuel-setup": NavigationStack { FuelSetupView(sheet: true) }
         case "share-recipe": ShareRecipeSheet(recipe: RecipeBook.catalog[0])
         case "whats-new": if let n = WhatsNew.current { WhatsNewView(notes: n) }
+        // Over-the-air prompts (#583): remote-banner and remote-required are Train with the banner / update screen.
+        case "remote-paused": PausedCard(message: "Food scan is paused while we fix it. Search and barcode still work.")
         case "whats-new-history": NavigationStack { WhatsNewHistoryView(latest: WhatsNew.current, history: WhatsNew.history) }
         case "add-workout": AddWorkoutSheet()
         case "add-workout-quick": AddWorkoutSheet(quick: .fullUpper)

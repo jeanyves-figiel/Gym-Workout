@@ -235,7 +235,7 @@ struct WorkoutPlayerView: View {
             }
         }
         .sheet(isPresented: $voiceSetup) { CoachVoiceSetupSheet() }
-        .sheet(item: $asking) { CoachChatView(ask: $0) }
+        .sheet(item: $asking) { CoachChatView(ask: $0).remotePaused(.askCoach) }
         .overlay(alignment: .top) { if listener.listening || listener.problem != nil { heardPill.padding(.top, 60) } }
         .sheet(isPresented: $mapOpen, onDismiss: runMapAction) {
             if let session, steps.indices.contains(index) {

@@ -27,6 +27,9 @@
       "name": "Legal pages"
     },
     {
+      "name": "Over-the-air config (#583)"
+    },
+    {
       "name": "Auth"
     },
     {
@@ -155,6 +158,68 @@
           "Legal pages"
         ],
         "summary": "Support page (HTML)",
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/app-config": {
+      "get": {
+        "tags": [
+          "Over-the-air config (#583)"
+        ],
+        "summary": "Flags, values, minimumBuild / recommendedBuild, update, packs by SHA-256; ETag, X-Content-Signature (Ed25519, when CONTENT_SIGNING_KEY set)",
+        "description": "Errors / limits: 304 on If-None-Match; 120/min per IP",
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/packs/{name}/{sha}": {
+      "get": {
+        "tags": [
+          "Over-the-air config (#583)"
+        ],
+        "summary": "Content pack (recipes, foods, whats-new, coach-tips), immutable",
+        "description": "Errors / limits: 404 not_found on unknown name or hash; 120/min per IP",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sha",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "security": [],
         "responses": {
           "default": {

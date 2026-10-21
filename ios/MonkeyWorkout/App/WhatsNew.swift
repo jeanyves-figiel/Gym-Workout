@@ -22,10 +22,16 @@ struct WhatsNew: Decodable, Identifiable {
 
     private struct History: Decodable { let releases: [WhatsNew] }
 
-    static let current: WhatsNew? = load("WhatsNew", as: WhatsNew.self)
+    private static let bundled: WhatsNew? = load("WhatsNew", as: WhatsNew.self)
+
+    /// The `whats-new` content pack (#583) when the server sent one for this build: notes without a new build.
+    static let current: WhatsNew? = ContentPacks.shared.load(
+        "whats-new", bundled: Bundle.main.url(forResource: "WhatsNew", withExtension: "json"),
+        decode: { try JSONDecoder().decode(WhatsNew.self, from: $0) }, valid: { !$0.items.isEmpty })
 
     /// Earlier releases, newest first; never repeats the latest notes (a rebuild keeps the same id).
-    static let history: [WhatsNew] = (load("WhatsNewHistory", as: History.self)?.releases ?? [])
+    /// Under server notes, the build's own notes come first.
+    static let history: [WhatsNew] = ([bundled].compactMap { $0 } + (load("WhatsNewHistory", as: History.self)?.releases ?? []))
         .filter { $0.id != current?.id && !$0.items.isEmpty }
 
     /// "13 Oct" from `date`, else from the `yyyy-MM-dd` start of `id`.

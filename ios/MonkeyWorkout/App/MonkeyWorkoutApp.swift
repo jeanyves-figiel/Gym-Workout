@@ -37,6 +37,8 @@ struct MonkeyWorkoutApp: App {
                     await AppleCredentialCheck.verify(model)
                     await GarminSync.shared.pull()
                 }
+                // Over-the-air config and packs (#583), in parallel with sign-in: no account needed.
+                .task { await Remote.shared.refresh(model.api) }
                 .task {
                     // Health reads in parallel with sign-in and sync (cached values already shown, #202).
                     #if DEBUG
@@ -87,6 +89,7 @@ struct MonkeyWorkoutApp: App {
                         // Glasses tapped on the water widget (#520).
                         FuelStore.shared.applyWidgetGlasses()
                         Task {
+                            await Remote.shared.refresh(model.api)
                             await AppleCredentialCheck.verify(model)
                             await model.sync()
                             await health.refresh()

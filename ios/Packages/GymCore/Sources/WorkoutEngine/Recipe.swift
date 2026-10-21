@@ -198,10 +198,9 @@ public struct RecipeFilter: Equatable, Sendable {
 public enum RecipeBook {
     /// Built-in catalog, loaded once.
     public static let catalog: [Recipe] = {
-        guard let url = Bundle.module.url(forResource: "Recipes", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let list = try? JSONDecoder().decode([Recipe].self, from: data) else { return [] }
-        return list
+        // A content pack from the server (#583) when one was fetched for this build, else the bundled file.
+        ContentPacks.shared.load("recipes", bundled: Bundle.module.url(forResource: "Recipes", withExtension: "json"),
+                                 decode: { try JSONDecoder().decode([Recipe].self, from: $0) }, valid: { !$0.isEmpty }) ?? []
     }()
 
     public static func recipe(_ id: String, own: [Recipe] = []) -> Recipe? {

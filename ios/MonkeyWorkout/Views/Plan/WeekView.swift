@@ -40,6 +40,8 @@ struct WeekView: View {
                 // 14 pt between widgets (#337): Next up's Start workout stays above the tab bar.
                 VStack(alignment: .leading, spacing: 14) {
                     header
+                    // A newer build is out (#583, design A).
+                    if !arranging { UpdateBanner() }
                     if arranging {
                         TrainEditBar(onAdd: { addingWidget = true }, onList: { customising = true })
                     }

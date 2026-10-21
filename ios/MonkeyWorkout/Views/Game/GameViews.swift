@@ -301,7 +301,7 @@ struct MonkeyCoachCard: View {
         .sheet(isPresented: $levels) { LevelLadderSheet() }
         .sheet(item: $sportSession) { SportSessionSheet(entry: $0) }
         .sheet(item: $snowProgramme) { ProgrammeSheet(id: $0.id) }
-        .fullScreenCover(isPresented: $chatting) { CoachChatView() }
+        .fullScreenCover(isPresented: $chatting) { CoachChatView().remotePaused(.askCoach) }
         .proPaywall($gate)
         .onAppear {
             guard !reduceMotion else { return }
@@ -432,6 +432,16 @@ struct MonkeyCoachCard: View {
             "\(stats.thisWeek)/\(target) this week. \(left) to go!"
         }
         out.append(Tip(text: text, tint: (0xFF7A3D, 0xFF3D5A), cta: "Open calendar", action: .calendar))
+        // Tips from the server (#583), after the member's own.
+        for t in Remote.shared.coachTips {
+            let action: Action? = switch t.action {
+            case "progress": .progress(.training)
+            case "calendar": .calendar
+            case "levels": .levels
+            default: nil
+            }
+            if let action { out.append(Tip(text: t.text, tint: t.colors, cta: t.cta, action: action)) }
+        }
         return out
     }
 }

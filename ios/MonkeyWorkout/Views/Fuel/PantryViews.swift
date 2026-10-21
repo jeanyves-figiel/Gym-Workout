@@ -74,7 +74,7 @@ struct PantryView: View {
         }
         .proPaywall($gate)
         .sheet(isPresented: $liveScan) { LiveScanSheet() }
-        .sheet(isPresented: $photoScan) { FoodPhotoScanSheet() }
+        .sheet(isPresented: $photoScan) { FoodPhotoScanSheet().remotePaused(.foodScan) }
         .alert("How much \(editingGrams?.name.lowercased() ?? "")?", isPresented: Binding(get: { editingGrams != nil }, set: { if !$0 { editingGrams = nil } })) {
             TextField("Grams (empty = enough)", text: $gramsText).keyboardType(.numberPad)
             Button("Save") {

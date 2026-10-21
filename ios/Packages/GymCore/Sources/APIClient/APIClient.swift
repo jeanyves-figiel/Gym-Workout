@@ -556,6 +556,37 @@ public actor APIClient {
         return try await task.value
     }
 
+    // MARK: Over-the-air config (#583)
+
+    public struct RemoteFetch: Sendable {
+        public let data: Data
+        public let etag: String?
+        /// Ed25519 over `data`, base64 (`X-Content-Signature`).
+        public let signature: String?
+    }
+
+    /// `/v1/app-config`, public. nil when unchanged since `etag` (304).
+    public func appConfig(etag: String?) async throws -> RemoteFetch? {
+        guard let url = URL(string: "/v1/app-config", relativeTo: baseURL) else { throw APIError.network("Bad URL") }
+        var req = URLRequest(url: url)
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let etag { req.setValue(etag, forHTTPHeaderField: "If-None-Match") }
+        let data: Data
+        let response: URLResponse
+        do { (data, response) = try await session.data(for: req) } catch { throw APIError.network(error.localizedDescription) }
+        guard let http = response as? HTTPURLResponse else { throw APIError.network("No HTTP response") }
+        if http.statusCode == 304 { return nil }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(status: http.statusCode, code: "http_\(http.statusCode)", message: HTTPURLResponse.localizedString(forStatusCode: http.statusCode))
+        }
+        return RemoteFetch(data: data, etag: http.value(forHTTPHeaderField: "ETag"), signature: http.value(forHTTPHeaderField: "X-Content-Signature"))
+    }
+
+    /// A content pack by the path the config lists (`/v1/packs/<name>/<sha256>`); the caller checks the hash.
+    public func contentPack(_ path: String) async throws -> Data {
+        try await send("GET", path, Empty?.none)
+    }
+
     func send(
         _ method: String, _ path: String, _ body: (some Encodable)?, bearer: String? = nil, raw: (data: Data, contentType: String)? = nil,
         headers: [String: String] = [:]

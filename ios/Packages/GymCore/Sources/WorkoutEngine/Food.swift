@@ -199,10 +199,9 @@ public struct Food: Codable, Hashable, Sendable, Identifiable {
 
 public enum FoodBook {
     public static let catalog: [Food] = {
-        guard let url = Bundle.module.url(forResource: "Foods", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let list = try? JSONDecoder().decode([Food].self, from: data) else { return [] }
-        return list
+        // A content pack from the server (#583) when one was fetched for this build, else the bundled file.
+        ContentPacks.shared.load("foods", bundled: Bundle.module.url(forResource: "Foods", withExtension: "json"),
+                                 decode: { try JSONDecoder().decode([Food].self, from: $0) }, valid: { !$0.isEmpty }) ?? []
     }()
 
     public static func food(_ id: String, own: [Food] = []) -> Food? {
