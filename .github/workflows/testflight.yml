@@ -27,7 +27,7 @@ permissions:
 jobs:
   upload:
     name: Archive + upload
-    # Newest Xcode on macos-26: iOS 27 SDK, full-screen iPhone Duo (#120).
+    # xcode-27 runner, Xcode 27.1: iOS 27.1 SDK, full-screen iPhone Duo (#120, #158).
     runs-on: xcode-27
     timeout-minutes: 45
     env:
