@@ -53,7 +53,10 @@ struct WeekView: View {
                     ForEach(layout.rows) { row in
                         switch row {
                         case .full(let w):
-                            widget(w, plan: plan, profile: profile)
+                            // The week card joins the Coach card (#564): no row of its own.
+                            if !(w.kind == .week && weekInCoach) {
+                                widget(w, plan: plan, profile: profile)
+                            }
                         case .pair(let a, let b):
                             HStack(alignment: .top, spacing: 12) {
                                 widget(a, plan: plan, profile: profile)
@@ -206,7 +209,7 @@ struct WeekView: View {
                 } else {
                     RestDayCard(weekday: today, onPick: pick, onBack: back,
                                 onAdd: { addingDay = today; adding = true },
-                                backTitle: next.flatMap { s in s.weekday.map { "Next up · \(WeekSchedule.name($0)) · \(s.displayTitle)" } })
+                                backTitle: next.flatMap { s in s.weekday.map { "\(WeekSchedule.shortName($0)) · \(s.displayTitle)" } })
                 }
             } else if let d = pickedDay, !(1...7).contains(d) {
                 // A day of another week (#481) shows in the card too, never as a pop-up.
@@ -363,6 +366,12 @@ struct WeekView: View {
         }
     }
 
+    /// Coach and week cards both wide (#564, design D1): the week shows as tiles inside the Coach card. Apart while editing.
+    private var weekInCoach: Bool {
+        let w = model.trainLayout.widgets
+        return !arranging && w.contains { $0.kind == .coach && $0.size != .small } && w.contains { $0.kind == .week && $0.size != .small }
+    }
+
     /// One widget, in edit chrome while editing.
     @ViewBuilder private func widget(_ w: TrainWidget, plan: WeekPlan, profile: Profile) -> some View {
         if arranging {
@@ -378,7 +387,11 @@ struct WeekView: View {
         case .actions:
             actionChips
         case .coach:
-            if small { CoachSmallWidget() } else { MonkeyCoachCard { start($0) } }
+            if small {
+                CoachSmallWidget()
+            } else {
+                MonkeyCoachCard(weekFooter: weekInCoach ? AnyView(WeekTiles(plan: plan, done: model.completedCount)) : nil) { start($0) }
+            }
         case .week:
             if small {
                 WeekSmallWidget(plan: plan, done: model.completedCount)
@@ -584,15 +597,7 @@ private struct WeekHero: View {
     /// Daily auto-tune (#495): today's score, level, sore muscles and changes.
     @State private var tuning = false
 
-    /// Explore-style colour per cycle phase, its one-word job and its rule.
-    private var phase: (palette: WorkoutEngine.Category, title: String, rule: String) {
-        switch Generator.phaseIndex(plan.week) {
-        case 0: (.cardio, "Ease in", "RPE −1")
-        case 1: (.strength, "Build", "Target RPE")
-        case 2: (.power, "Peak week", "+1 set on main lifts")
-        default: (.stretch, "Recover", "−40% volume")
-        }
-    }
+    private var phase: (palette: WorkoutEngine.Category, title: String, rule: String) { weekPhase(plan.week) }
 
     var body: some View {
         let p = phase
@@ -694,6 +699,110 @@ private struct WeekHero: View {
     }
 }
 
+/// Explore-style colour per cycle phase, its one-word job and its rule.
+private func weekPhase(_ week: Int) -> (palette: WorkoutEngine.Category, title: String, rule: String) {
+    switch Generator.phaseIndex(week) {
+    case 0: (.cardio, "Ease in", "RPE −1")
+    case 1: (.strength, "Build", "Target RPE")
+    case 2: (.power, "Peak week", "+1 set on main lifts")
+    default: (.stretch, "Recover", "−40% volume")
+    }
+}
+
+/// The week card inside the Coach card (#564, design D1): three equal tiles, sessions done (calendar), the cycle
+/// phase (its sheet) and readiness (its sheet, or today's tune).
+private struct WeekTiles: View {
+    let plan: WeekPlan
+    let done: Int
+    @Environment(AppModel.self) private var model
+    @Environment(HealthManager.self) private var health
+    @State private var explainingPhase = false
+    @State private var explainingReadiness = false
+    @State private var tuning = false
+
+    var body: some View {
+        let p = weekPhase(plan.week)
+        let assessed = Readiness.assess(health.snapshot)
+        HStack(spacing: 6) {
+            NavigationLink { CalendarView() } label: {
+                tile("This week", "\(done)/\(plan.sessions.count)", detail: "done ›",
+                     colors: [Color(hex: 0x3D5AFF), Color(hex: 0x8A4FFF)])
+            }
+            .accessibilityLabel("\(done) of \(plan.sessions.count) sessions done this week").accessibilityHint("Opens the calendar")
+            Button { explainingPhase = true } label: {
+                tile("\(p.title) ⓘ", "W\(plan.week)/\(Generator.mesocycleWeeks)", detail: nil, colors: p.palette.colors, bars: true)
+            }
+            .accessibilityHint("Explains this week's training phase")
+            readinessTile(assessed)
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $explainingPhase) { WeekPhaseSheet(week: plan.week).presentationDetents([.large]) }
+        .sheet(isPresented: $tuning) { AutoTuneSheet().presentationDetents([.large]) }
+    }
+
+    @ViewBuilder private func readinessTile(_ assessed: (Readiness, [String])?) -> some View {
+        let tuned = model.tuneOn ? model.tuneChanges.count : 0
+        if let assessed {
+            let r = assessed.0
+            Button { if model.tuneOn { tuning = true } else { explainingReadiness = true } } label: {
+                tile(tuned > 0 ? "Tuned · \(tuned)" : "Ready", r.title,
+                     detail: model.readinessEased ? "eased: −1 RPE" : r.markers(health.snapshot), colors: r.colors)
+            }
+            .accessibilityLabel("Readiness: \(r.title)")
+            .accessibilityHint(model.tuneOn ? "Shows today's ready score and what Monkey tuned" : "Explains readiness and each marker")
+            .sheet(isPresented: $explainingReadiness) {
+                ReadinessSheet(snapshot: health.snapshot, readiness: r, flags: assessed.1).presentationDetents([.large])
+            }
+        } else if health.available, health.settled, !health.connected {
+            Button { Task { await health.connect() } } label: {
+                tile("Ready", "Health", detail: "connect ›", colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)])
+            }
+            .accessibilityHint("Asks Apple Health for heart rate variability, resting heart rate and sleep")
+        } else if model.tuneOn {
+            Button { tuning = true } label: {
+                tile("Today", tuned > 0 ? "Tuned · \(tuned)" : "Tune", detail: "light · push ›", colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E9BFF)])
+            }
+            .accessibilityHint("Tap sore muscles or pick light, medium or push for today's workout")
+        } else {
+            Button { explainingPhase = true } label: {
+                tile("Plan", "\(plan.sessions.count) sessions", detail: "\(plan.sessionMinutes) min", colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E9BFF)])
+            }
+            .accessibilityHint("Explains this week's training phase")
+        }
+    }
+
+    /// Same size whatever the text (#529): content in an overlay on a fixed frame.
+    /// `bars`: the cycle's weeks under the value, this one brightest.
+    private func tile(_ key: String, _ value: String, detail: String?, colors: [Color], bars: Bool = false) -> some View {
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .frame(height: 66)
+            .overlay(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(key).font(Theme.label(9)).tracking(0.8).textCase(.uppercase).opacity(0.9).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(value).font(Theme.display(value.count > 6 ? 14 : 20)).lineLimit(1).minimumScaleFactor(0.6)
+                    if let detail {
+                        Text(detail).font(Theme.label(9)).monospacedDigit().opacity(0.9).lineLimit(1).minimumScaleFactor(0.6)
+                    }
+                    if bars {
+                        HStack(spacing: 3) {
+                            ForEach(1...Generator.mesocycleWeeks, id: \.self) { w in
+                                Capsule().fill(.white.opacity(w == plan.week ? 1 : w < plan.week ? 0.6 : 0.3)).frame(height: 3)
+                            }
+                        }
+                        .padding(.top, 3)
+                    }
+                }
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                .padding(8)
+            }
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
 /// Sessions done this week as a rounded-square ring (#541) with the count inside.
 struct DoneRing: View {
     let done: Int
@@ -779,6 +888,13 @@ private struct NextUpCard: View {
         VStack(alignment: .leading, spacing: 10) {
             // The week at a glance (#266): missed days red (tap to catch up), today ringed; any other day shows here (#277).
             WeekDayStrip(selected: stripDay, onPick: onPick)
+            if showsJump {
+                // A picked day's way back as a chip on its own short line (#562, design B), same as the rest day card.
+                HStack {
+                    Spacer(minLength: 0)
+                    DayJumpChip(label: backChipTitle(model, toToday: backToToday), action: onBack)
+                }
+            }
             // Tapping the card opens the session page, same as the list button (#150).
             if let later {
                 Button { laterDay = later } label: { summary }
@@ -852,6 +968,8 @@ private struct NextUpCard: View {
     }
 
     private var done: Bool { model.doneIds.contains(session.id) }
+    /// The next session's card needs a way back too when back means today.
+    private var showsJump: Bool { picked != nil && (!isNext || backToToday) }
     private var isNext: Bool { session.id == model.nextSession?.id }
 
     private var eyebrow: String {
@@ -910,38 +1028,19 @@ private struct NextUpCard: View {
                                onTrack: { trackingSport = SportLog(start: Date()) })
             } else if ahead && !done {
                 // A later day with a workout (#481, design A): plan a sport there too, or move the workout (this week).
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     if let trip = dayKey.flatMap({ model.profile?.sportTrip(on: $0) }) {
-                        Button { editingTrip = trip } label: {
-                            Label(trip.title, systemImage: trip.sport.symbol).lineLimit(1).minimumScaleFactor(0.7)
-                                .font(Theme.label(14)).foregroundStyle(.white)
-                                .frame(maxWidth: .infinity).padding(.vertical, 12)
-                                .background(Capsule().fill(trip.sport.gradient))
-                        }
-                        .buttonStyle(.plain)
+                        DayActionTile(title: trip.title, detail: "edit", symbol: trip.sport.symbol,
+                                      fill: AnyShapeStyle(trip.sport.gradient)) { editingTrip = trip }
                     } else {
-                        Button { planningSport = true } label: {
-                            Label("Plan a sport", systemImage: "figure.skiing.downhill").lineLimit(1).minimumScaleFactor(0.7)
-                                .font(Theme.label(14)).foregroundStyle(.white)
-                                .frame(maxWidth: .infinity).padding(.vertical, 12)
-                                .background(Capsule().fill(LinearGradient(colors: [Color(hex: 0xFF5F8F), Color(hex: 0xFF9A5C)], startPoint: .leading, endPoint: .trailing)))
-                        }
-                        .buttonStyle(.plain)
+                        DayActionTile(title: "Plan sport", detail: "once · weekly · trip", symbol: "figure.mixed.cardio",
+                                      fill: AnyShapeStyle(DayActionTile.sportFill)) { planningSport = true }
                     }
                     if later == nil {
-                        Button { moving = true } label: {
-                            Label("Move", systemImage: "arrow.left.arrow.right").lineLimit(1)
-                                .font(Theme.label(14)).foregroundStyle(.white)
-                                .frame(maxWidth: .infinity).padding(.vertical, 12)
-                                .background(Capsule().fill(Color.white.opacity(0.15)))
-                        }
-                        .buttonStyle(.plain)
+                        DayActionTile(title: "Move", detail: "another day", symbol: "arrow.left.arrow.right",
+                                      fill: AnyShapeStyle(Color.white.opacity(0.15))) { moving = true }
                     }
                 }
-            }
-            // The next session's card needs a way back too when back means today.
-            if picked != nil && (!isNext || backToToday) {
-                BackToNextUpButton(label: backButtonTitle(model, toToday: backToToday), action: onBack)
             }
         }
     }
@@ -1013,35 +1112,38 @@ private struct PastDayCard: View {
     var body: some View {
         let cal = model.planCalendar
         let items = model.historyItems(health: health).filter { cal.isDate($0.start, inSameDayAs: date) }
-        VStack(alignment: .leading, spacing: 14) {
+        // Same layout as the rest day card (#562, design B): title with the jump chip, actions as tiles.
+        VStack(alignment: .leading, spacing: 12) {
             WeekDayStrip(selected: day, onPick: onPick)
-            Text("\(date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated))) · \(items.isEmpty ? "rest day" : "done")")
-                .font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
-            if items.isEmpty {
-                Text("Rest day 😴").font(Theme.display(26)).foregroundStyle(.white)
-            } else {
-                ForEach(items) { it in
-                    Text(it.title).font(Theme.display(26)).foregroundStyle(.white).lineLimit(2).minimumScaleFactor(0.9)
-                        .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .center, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated))) · \(items.isEmpty ? "rest day" : "done")")
+                        .font(Theme.label(12)).tracking(1.4).textCase(.uppercase).foregroundStyle(.white.opacity(0.8))
+                    if items.isEmpty {
+                        Text("Rest day 😴").font(Theme.display(26)).foregroundStyle(.white)
+                    } else {
+                        ForEach(items) { it in
+                            Text(it.title).font(Theme.display(26)).foregroundStyle(.white).lineLimit(2).minimumScaleFactor(0.9)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                Spacer(minLength: 0)
+                DayJumpChip(label: backChipTitle(model, toToday: backToToday), action: onBack)
+            }
+            HStack(spacing: 8) {
+                // A past day is logged, never played (#537).
+                DayActionTile(title: "Log a workout", detail: "on this day", symbol: "square.and.pencil",
+                              fill: AnyShapeStyle(Theme.lime), ink: Theme.ink) {
+                    logging = SportLog(start: cal.date(bySettingHour: 18, minute: 0, second: 0, of: date) ?? date)
+                }
+                DayActionTile(title: "History", detail: "what you did", symbol: "clock.arrow.circlepath",
+                              fill: AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x3D5AFF), Color(hex: 0x8A4FFF)], startPoint: .leading, endPoint: .trailing))) {
+                    showsHistory = true
                 }
             }
-            // A past day is logged, never played (#537).
-            Button {
-                logging = SportLog(start: cal.date(bySettingHour: 18, minute: 0, second: 0, of: date) ?? date)
-            } label: {
-                Label("Log a workout for this day", systemImage: "square.and.pencil").lineLimit(1).minimumScaleFactor(0.9)
-            }
-            .buttonStyle(LimeButtonStyle())
-            Button { showsHistory = true } label: {
-                Label("See in History", systemImage: "clock.arrow.circlepath")
-                    .font(Theme.label(14)).foregroundStyle(.white)
-                    .frame(maxWidth: .infinity).padding(.vertical, 12)
-                    .background(Capsule().fill(Color.white.opacity(0.15)))
-            }
-            .buttonStyle(.plain)
-            BackToNextUpButton(label: backButtonTitle(model, toToday: backToToday), action: onBack)
         }
-        .padding(20)
+        .padding(16)
         .background {
             RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .fill(LinearGradient(colors: [Color(hex: 0x3D4BD6).opacity(0.85), Color(hex: 0x5A2FA0).opacity(0.6), Theme.bg],
@@ -1055,29 +1157,65 @@ private struct PastDayCard: View {
     }
 }
 
-/// "Back to next up (Thu)"; no day for an unscheduled session.
-private func backLabel(_ next: Session) -> String {
-    next.weekday.map { "Back to next up (\(WeekSchedule.shortName($0)))" } ?? "Back to next up"
+/// Short jump title for the card's header chip (#562): "Today", "Next up · Thu" or "This week".
+@MainActor private func backChipTitle(_ model: AppModel, toToday: Bool) -> String {
+    toToday ? "Today" : model.nextSession.map { s in s.weekday.map { "Next up · \(WeekSchedule.shortName($0))" } ?? "Next up" } ?? "This week"
 }
 
-/// Bottom button under a picked day: "Back to today" when Train opens on today, else back to the next session.
-@MainActor private func backButtonTitle(_ model: AppModel, toToday: Bool) -> String {
-    toToday ? "Back to today" : model.nextSession.map(backLabel) ?? "Back to this week"
-}
-
-/// "Back to next up" under a day picked in the strip (#277).
-private struct BackToNextUpButton: View {
+/// Lime chip beside the day's title (#562, design B): back to today or to the next session; replaces the bottom bar.
+private struct DayJumpChip: View {
     let label: String
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Label(label, systemImage: "arrow.left")
-                .font(Theme.label(14))
-                .foregroundStyle(.white)
+            Text("\(label) ›")
+                .font(Theme.label(13))
+                .foregroundStyle(Theme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(Theme.lime))
+                .fixedSize()
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// One of the day card's action tiles (#562, design B): Explore-style, icon tile left, title over a detail line.
+/// Tiles in a row share the width and always have the same height.
+private struct DayActionTile: View {
+    let title: String
+    let detail: String
+    let symbol: String
+    let fill: AnyShapeStyle
+    var ink: Color = .white
+    let action: () -> Void
+
+    static let sportFill = LinearGradient(colors: [Color(hex: 0xFF5F8F), Color(hex: 0xFF9A5C)], startPoint: .leading, endPoint: .trailing)
+
+    var body: some View {
+        Button(action: action) {
+            // Content in an overlay so label lengths never change a tile's size (#529).
+            Color.clear
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(Capsule().fill(Color.white.opacity(0.15)))
+                .frame(height: 56)
+                .overlay(alignment: .leading) {
+                    HStack(spacing: 8) {
+                        Image(systemName: symbol).font(.system(size: 15, weight: .heavy))
+                            .frame(width: 32, height: 32)
+                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.black.opacity(0.18)))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(title).font(Theme.label(15)).lineLimit(1).minimumScaleFactor(0.6)
+                            Text(detail).font(Theme.label(10)).opacity(0.8).lineLimit(1).minimumScaleFactor(0.7)
+                        }
+                    }
+                    .foregroundStyle(ink)
+                    .padding(.horizontal, 10)
+                }
+                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(fill))
+                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -1094,7 +1232,7 @@ private struct RestDayCard: View {
     var onBack: () -> Void = {}
     /// Plans a workout on this day; nil = not offered (a later week's day, #481).
     var onAdd: (() -> Void)? = nil
-    /// Bottom button title when the card is today's default (#538 follow-up); nil = "Back to next up".
+    /// Header chip title when the card is today's default (#538 follow-up, #562); nil = "Next up · Thu" or "Today".
     var backTitle: String? = nil
     @Environment(AppModel.self) private var model
     @Environment(\.trainBackToToday) private var backToToday
@@ -1140,69 +1278,61 @@ private struct RestDayCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        // Design B (#562): title with a jump chip, actions as equal tiles; no hint line, no dashed box.
+        VStack(alignment: .leading, spacing: 12) {
             WeekDayStrip(selected: day ?? weekday, onPick: onPick)
-            Text("\(title) · \(trip.map { $0.isTrip ? "sport trip" : "sport day" } ?? (climbing ? "climbing day" : "rest day"))").font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
-            VStack(spacing: 6) {
-                if let trip {
-                    Button { editingTrip = trip } label: {
-                        Label(trip.title, systemImage: trip.sport.symbol).font(Theme.display(24)).foregroundStyle(.white)
-                            .padding(.horizontal, 16).padding(.vertical, 8)
-                            .background(Capsule().fill(trip.sport.gradient))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("Edit this sport day")
-                } else {
-                    Text(climbing ? "Climbing day 🧗" : "Rest day 😴").font(Theme.display(26)).foregroundStyle(.white)
-                }
-                Text(trip != nil ? (ahead ? "No gym that day. Log or track it on the day." : "No gym today. Log or track it.")
-                     : laterWeek ? (climbing ? "Climb planned. Log it on the day." : "Nothing planned. Plan a sport?")
-                     : ahead ? (climbing ? "Climb planned. Log it on the day, or plan a workout." : "Nothing planned. Plan a workout or a sport?")
-                     : climbing ? "No gym session planned. Log your climb, or add a workout."
-                     : climber ? "Nothing planned. Train or climb?" : "Nothing planned. Fancy a session?")
-                    .font(.footnote).foregroundStyle(.white.opacity(0.8)).multilineTextAlignment(.center)
-                HStack(spacing: 10) {
-                    if !laterWeek && weekday < model.todayWeekday {
-                        // An earlier day is logged, never planned (#537): a workout added there could only be logged.
-                        Button { loggingSport = SportLog(start: climbStart()) } label: {
-                            Label("Log a workout", systemImage: "square.and.pencil").lineLimit(1).minimumScaleFactor(0.9)
+            HStack(alignment: .center, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(Theme.label(12)).tracking(1.4).textCase(.uppercase).foregroundStyle(.white.opacity(0.8))
+                    if let trip {
+                        Button { editingTrip = trip } label: {
+                            Label(trip.title, systemImage: trip.sport.symbol).font(Theme.display(22)).foregroundStyle(.white)
+                                .lineLimit(1).minimumScaleFactor(0.7)
                         }
-                        .buttonStyle(LimeButtonStyle())
-                    } else if let onAdd {
-                        Button(action: onAdd) { Label("Add workout", systemImage: "plus").lineLimit(1).minimumScaleFactor(0.9) }
-                            .buttonStyle(LimeButtonStyle())
-                    }
-                    if climbing && !ahead {
-                        LogClimbButton { logging = ClimbLog(start: climbStart()) }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Edit this sport day")
+                    } else {
+                        Text(climbing ? "Climbing day 🧗" : "Rest day 😴").font(Theme.display(26)).foregroundStyle(.white)
+                            .lineLimit(1).minimumScaleFactor(0.7)
                     }
                 }
-                .padding(.top, 6)
-                if trip == nil && (laterWeek || weekday >= model.todayWeekday) {
+                Spacer(minLength: 0)
+                DayJumpChip(label: backTitle ?? backChipTitle(model, toToday: backToToday), action: onBack)
+            }
+            HStack(spacing: 8) {
+                if !laterWeek && weekday < model.todayWeekday {
+                    // An earlier day is logged, never planned (#537): a workout added there could only be logged.
+                    DayActionTile(title: "Log a workout", detail: "on this day", symbol: "square.and.pencil",
+                                  fill: AnyShapeStyle(Theme.lime), ink: Theme.ink) { loggingSport = SportLog(start: climbStart()) }
+                } else if let onAdd {
+                    DayActionTile(title: "Add workout", detail: ahead ? "plan this day" : "plan today", symbol: "plus",
+                                  fill: AnyShapeStyle(Theme.lime), ink: Theme.ink, action: onAdd)
+                }
+                if climbing && !ahead {
+                    DayActionTile(title: "Log climb", detail: "today's session", symbol: "figure.climbing",
+                                  fill: AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xFF6B3D), Color(hex: 0xFFA94D)], startPoint: .leading, endPoint: .trailing))) {
+                        logging = ClimbLog(start: climbStart())
+                    }
+                    .accessibilityHint("Log a climbing session")
+                }
+                if let trip {
+                    DayActionTile(title: trip.isTrip ? "Sport trip" : "Sport day", detail: "edit", symbol: trip.sport.symbol,
+                                  fill: AnyShapeStyle(trip.sport.gradient)) { editingTrip = trip }
+                } else if laterWeek || weekday >= model.todayWeekday {
                     // Plan sport (#474): once, every week or a trip from this day.
-                    Button { planningSport = true } label: {
-                        Label("Plan sport", systemImage: "figure.mixed.cardio").font(Theme.label(14)).foregroundStyle(.white)
-                            .padding(.horizontal, 16).padding(.vertical, 10)
-                            .background(Capsule().fill(Color.white.opacity(0.16)))
-                    }
-                    .buttonStyle(.plain)
-                }
-                if date == nil && weekday == model.todayWeekday {
-                    // Any other sport (#416), dated like a climb; Track live with a Watch (#462, design C).
-                    SportSplitPill(onFree: { Haptics.start(); freestyle = model.freestyleInProgress ?? model.startFreestyle() },
-                                   freeResumes: model.freestyleInProgress != nil,
-                                   onLog: { loggingSport = SportLog(start: climbStart()) },
-                                   onTrack: { trackingSport = SportLog(start: Date()) })
+                    DayActionTile(title: "Plan sport", detail: "once · weekly · trip", symbol: "figure.mixed.cardio",
+                                  fill: AnyShapeStyle(DayActionTile.sportFill)) { planningSport = true }
                 }
             }
-            .frame(maxWidth: .infinity)
-            .padding(16)
-            .background {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.35), style: StrokeStyle(lineWidth: 2, dash: [7, 5]))
+            if date == nil && weekday == model.todayWeekday {
+                // Any other sport (#416), dated like a climb; Track live with a Watch (#462, design C).
+                SportSplitPill(onFree: { Haptics.start(); freestyle = model.freestyleInProgress ?? model.startFreestyle() },
+                               freeResumes: model.freestyleInProgress != nil,
+                               onLog: { loggingSport = SportLog(start: climbStart()) },
+                               onTrack: { trackingSport = SportLog(start: Date()) })
             }
-            BackToNextUpButton(label: backTitle ?? backButtonTitle(model, toToday: backToToday), action: onBack)
         }
-        .padding(20)
+        .padding(16)
         .background {
             RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .fill(LinearGradient(colors: [Color(hex: 0x3D4BD6).opacity(0.85), Color(hex: 0x5A2FA0).opacity(0.6), Theme.bg],
@@ -1215,27 +1345,6 @@ private struct RestDayCard: View {
         .fullScreenCover(item: $freestyle) { WorkoutPlayerView(sessionId: $0.id) }
         .sheet(isPresented: $planningSport) { PlanSportSheet(day: dayKey, sport: model.profile?.otherSports.first?.sport) }
         .sheet(item: $editingTrip) { PlanSportSheet(day: $0.start, editing: $0) }
-    }
-}
-
-/// Orange Log climb button beside the card's main action (#277, design A).
-private struct LogClimbButton: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Label("Log climb", systemImage: "figure.climbing")
-                .font(Theme.label(15))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .fixedSize()
-                .padding(.horizontal, 16)
-                .padding(.vertical, 18)
-                .background(Capsule().fill(LinearGradient(colors: [Color(hex: 0xFF6B3D), Color(hex: 0xFFA94D)],
-                                                          startPoint: .leading, endPoint: .trailing)))
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint("Log a climbing session")
     }
 }
 
