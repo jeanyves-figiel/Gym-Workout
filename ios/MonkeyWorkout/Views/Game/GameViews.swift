@@ -152,6 +152,8 @@ struct LevelBarCard: View {
 /// Train: the monkey with a mood from the week, streak and readiness. Tap or swipe for the next tip; every chip
 /// and each tip's button opens its place (#278).
 struct MonkeyCoachCard: View {
+    /// The week card's tiles inside this card (#564, design D1); the "n/N this week" chip then goes.
+    var weekFooter: AnyView? = nil
     /// Starts a session in the player (the Train screen owns it).
     var onStart: (Session) -> Void = { _ in }
     @Environment(AppModel.self) private var model
@@ -240,6 +242,7 @@ struct MonkeyCoachCard: View {
                 }
             }
             .buttonStyle(.plain)
+            if let weekFooter { weekFooter }
             // Workout chat (#381, design A): short phones skip the bar so Start workout stays on screen (#337).
             if !compact {
                 AskCoachBar { ProStore.shared.run(.generateWorkout, $gate) { chatting = true } }
@@ -311,8 +314,10 @@ struct MonkeyCoachCard: View {
         HStack(spacing: 6) {
             Button { open(.progress(.training)) } label: { gameChip("🔥 \(stats.currentStreakWeeks)\(short ? "" : " wk") ›") }
                 .accessibilityLabel("\(stats.currentStreakWeeks)-week streak").accessibilityHint("Opens Training in Progress")
-            NavigationLink { CalendarView() } label: { gameChip("\(stats.thisWeek)/\(target) \(short ? "wk" : "this week") ›") }
-                .accessibilityLabel("\(stats.thisWeek) of \(target) this week").accessibilityHint("Opens the calendar")
+            if weekFooter == nil {
+                NavigationLink { CalendarView() } label: { gameChip("\(stats.thisWeek)/\(target) \(short ? "wk" : "this week") ›") }
+                    .accessibilityLabel("\(stats.thisWeek) of \(target) this week").accessibilityHint("Opens the calendar")
+            }
             if !missed.isEmpty {
                 Button { catchUpAll = true } label: {
                     gameChip("\(missed.count) missed ›", fill: Color(hex: 0xFFD23F), ink: Theme.ink)

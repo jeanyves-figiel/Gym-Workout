@@ -53,7 +53,10 @@ struct WeekView: View {
                     ForEach(layout.rows) { row in
                         switch row {
                         case .full(let w):
-                            widget(w, plan: plan, profile: profile)
+                            // The week card joins the Coach card (#564): no row of its own.
+                            if !(w.kind == .week && weekInCoach) {
+                                widget(w, plan: plan, profile: profile)
+                            }
                         case .pair(let a, let b):
                             HStack(alignment: .top, spacing: 12) {
                                 widget(a, plan: plan, profile: profile)
@@ -374,6 +377,12 @@ struct WeekView: View {
         }
     }
 
+    /// Coach and week cards both wide (#564, design D1): the week shows as tiles inside the Coach card. Apart while editing.
+    private var weekInCoach: Bool {
+        let w = model.trainLayout.widgets
+        return !arranging && w.contains { $0.kind == .coach && $0.size != .small } && w.contains { $0.kind == .week && $0.size != .small }
+    }
+
     /// One widget, in edit chrome while editing.
     @ViewBuilder private func widget(_ w: TrainWidget, plan: WeekPlan, profile: Profile) -> some View {
         if arranging {
@@ -389,7 +398,11 @@ struct WeekView: View {
         case .actions:
             actionChips
         case .coach:
-            if small { CoachSmallWidget() } else { MonkeyCoachCard { start($0) } }
+            if small {
+                CoachSmallWidget()
+            } else {
+                MonkeyCoachCard(weekFooter: weekInCoach ? AnyView(WeekTiles(plan: plan, done: model.completedCount)) : nil) { start($0) }
+            }
         case .week:
             if small {
                 WeekSmallWidget(plan: plan, done: model.completedCount)
@@ -595,15 +608,7 @@ private struct WeekHero: View {
     /// Daily auto-tune (#495): today's score, level, sore muscles and changes.
     @State private var tuning = false
 
-    /// Explore-style colour per cycle phase, its one-word job and its rule.
-    private var phase: (palette: WorkoutEngine.Category, title: String, rule: String) {
-        switch Generator.phaseIndex(plan.week) {
-        case 0: (.cardio, "Ease in", "RPE −1")
-        case 1: (.strength, "Build", "Target RPE")
-        case 2: (.power, "Peak week", "+1 set on main lifts")
-        default: (.stretch, "Recover", "−40% volume")
-        }
-    }
+    private var phase: (palette: WorkoutEngine.Category, title: String, rule: String) { weekPhase(plan.week) }
 
     var body: some View {
         let p = phase
@@ -702,6 +707,110 @@ private struct WeekHero: View {
             LinearGradient(colors: p.palette.colors + (readiness?.0.colors ?? []), startPoint: .leading, endPoint: .trailing)))
         .sheet(isPresented: $explainingPhase) { WeekPhaseSheet(week: plan.week).presentationDetents([.large]) }
         .sheet(isPresented: $tuning) { AutoTuneSheet().presentationDetents([.large]) }
+    }
+}
+
+/// Explore-style colour per cycle phase, its one-word job and its rule.
+private func weekPhase(_ week: Int) -> (palette: WorkoutEngine.Category, title: String, rule: String) {
+    switch Generator.phaseIndex(week) {
+    case 0: (.cardio, "Ease in", "RPE −1")
+    case 1: (.strength, "Build", "Target RPE")
+    case 2: (.power, "Peak week", "+1 set on main lifts")
+    default: (.stretch, "Recover", "−40% volume")
+    }
+}
+
+/// The week card inside the Coach card (#564, design D1): three equal tiles, sessions done (calendar), the cycle
+/// phase (its sheet) and readiness (its sheet, or today's tune).
+private struct WeekTiles: View {
+    let plan: WeekPlan
+    let done: Int
+    @Environment(AppModel.self) private var model
+    @Environment(HealthManager.self) private var health
+    @State private var explainingPhase = false
+    @State private var explainingReadiness = false
+    @State private var tuning = false
+
+    var body: some View {
+        let p = weekPhase(plan.week)
+        let assessed = Readiness.assess(health.snapshot)
+        HStack(spacing: 6) {
+            NavigationLink { CalendarView() } label: {
+                tile("This week", "\(done)/\(plan.sessions.count)", detail: "done ›",
+                     colors: [Color(hex: 0x3D5AFF), Color(hex: 0x8A4FFF)])
+            }
+            .accessibilityLabel("\(done) of \(plan.sessions.count) sessions done this week").accessibilityHint("Opens the calendar")
+            Button { explainingPhase = true } label: {
+                tile("\(p.title) ⓘ", "W\(plan.week)/\(Generator.mesocycleWeeks)", detail: nil, colors: p.palette.colors, bars: true)
+            }
+            .accessibilityHint("Explains this week's training phase")
+            readinessTile(assessed)
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $explainingPhase) { WeekPhaseSheet(week: plan.week).presentationDetents([.large]) }
+        .sheet(isPresented: $tuning) { AutoTuneSheet().presentationDetents([.large]) }
+    }
+
+    @ViewBuilder private func readinessTile(_ assessed: (Readiness, [String])?) -> some View {
+        let tuned = model.tuneOn ? model.tuneChanges.count : 0
+        if let assessed {
+            let r = assessed.0
+            Button { if model.tuneOn { tuning = true } else { explainingReadiness = true } } label: {
+                tile(tuned > 0 ? "Tuned · \(tuned)" : "Ready", r.title,
+                     detail: model.readinessEased ? "eased: −1 RPE" : r.markers(health.snapshot), colors: r.colors)
+            }
+            .accessibilityLabel("Readiness: \(r.title)")
+            .accessibilityHint(model.tuneOn ? "Shows today's ready score and what Monkey tuned" : "Explains readiness and each marker")
+            .sheet(isPresented: $explainingReadiness) {
+                ReadinessSheet(snapshot: health.snapshot, readiness: r, flags: assessed.1).presentationDetents([.large])
+            }
+        } else if health.available, health.settled, !health.connected {
+            Button { Task { await health.connect() } } label: {
+                tile("Ready", "Health", detail: "connect ›", colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)])
+            }
+            .accessibilityHint("Asks Apple Health for heart rate variability, resting heart rate and sleep")
+        } else if model.tuneOn {
+            Button { tuning = true } label: {
+                tile("Today", tuned > 0 ? "Tuned · \(tuned)" : "Tune", detail: "light · push ›", colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E9BFF)])
+            }
+            .accessibilityHint("Tap sore muscles or pick light, medium or push for today's workout")
+        } else {
+            Button { explainingPhase = true } label: {
+                tile("Plan", "\(plan.sessions.count) sessions", detail: "\(plan.sessionMinutes) min", colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E9BFF)])
+            }
+            .accessibilityHint("Explains this week's training phase")
+        }
+    }
+
+    /// Same size whatever the text (#529): content in an overlay on a fixed frame.
+    /// `bars`: the cycle's weeks under the value, this one brightest.
+    private func tile(_ key: String, _ value: String, detail: String?, colors: [Color], bars: Bool = false) -> some View {
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .frame(height: 66)
+            .overlay(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(key).font(Theme.label(9)).tracking(0.8).textCase(.uppercase).opacity(0.9).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(value).font(Theme.display(value.count > 6 ? 14 : 20)).lineLimit(1).minimumScaleFactor(0.6)
+                    if let detail {
+                        Text(detail).font(Theme.label(9)).monospacedDigit().opacity(0.9).lineLimit(1).minimumScaleFactor(0.6)
+                    }
+                    if bars {
+                        HStack(spacing: 3) {
+                            ForEach(1...Generator.mesocycleWeeks, id: \.self) { w in
+                                Capsule().fill(.white.opacity(w == plan.week ? 1 : w < plan.week ? 0.6 : 0.3)).frame(height: 3)
+                            }
+                        }
+                        .padding(.top, 3)
+                    }
+                }
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                .padding(8)
+            }
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
