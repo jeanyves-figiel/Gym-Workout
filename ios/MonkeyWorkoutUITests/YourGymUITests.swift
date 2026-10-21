@@ -13,11 +13,14 @@ final class YourGymUITests: XCTestCase {
     }
 
     private func openYourGym() {
-        // Settings opens from the avatar on every tab (#496); after REBUILD PLAN or back the sheet is still open.
+        // Settings opens from the Me pill on every tab (#560); after REBUILD PLAN or back the sheet is still open.
         if !app.navigationBars["Settings"].exists {
-            let avatar = app.buttons["settings.avatar"].firstMatch
-            XCTAssertTrue(avatar.waitForExistence(timeout: 10), "Settings avatar")
-            avatar.tap()
+            let pill = app.buttons["me.pill"].firstMatch
+            XCTAssertTrue(pill.waitForExistence(timeout: 10), "Me pill")
+            pill.tap()
+            let settings = app.buttons["me.settings"].firstMatch
+            XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings row")
+            settings.tap()
         }
         let card = app.buttons.containing(NSPredicate(format: "label CONTAINS[c] %@", "Fitnesspark")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10), "Your gym card")

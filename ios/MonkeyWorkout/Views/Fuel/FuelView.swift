@@ -62,39 +62,6 @@ enum FuelPalette {
     }
 }
 
-/// Round avatar with a gear (#496): opens Settings from the top right of every tab.
-struct SettingsAvatar: View {
-    @Environment(AppModel.self) private var model
-    var size: CGFloat = 36
-
-    private var initials: String {
-        let name = model.user?.name ?? ""
-        let parts = name.split(separator: " ").prefix(2).compactMap(\.first)
-        return parts.isEmpty ? "🐵" : String(parts).uppercased()
-    }
-
-    var body: some View {
-        Button { model.settingsOpen = true } label: {
-            Text(initials)
-                .font(Theme.label(size * 0.36))
-                .foregroundStyle(Theme.ink)
-                .frame(width: size, height: size)
-                .background(Circle().fill(FuelPalette.lime))
-                .overlay(alignment: .bottomTrailing) {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: size * 0.3, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(2)
-                        .background(Circle().fill(Theme.bg))
-                        .offset(x: 3, y: 3)
-                }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Settings")
-        .accessibilityIdentifier("settings.avatar")
-    }
-}
-
 struct FuelView: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
@@ -178,15 +145,10 @@ struct FuelView: View {
         HStack(spacing: 10) {
             Text("Fuel").font(Theme.display(34)).lineLimit(1)
             Spacer()
-            Button { setup = true } label: {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 15, weight: .heavy)).foregroundStyle(.white)
-                    .frame(width: 36, height: 36)
-                    .background(Circle().fill(Color.white.opacity(0.14)))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Your fuel settings")
-            SettingsAvatar()
+            Button { setup = true } label: { HeaderTile(symbol: "slider.horizontal.3") }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Your fuel settings")
+            MePill()
         }
         .padding(.top, 4)
     }
