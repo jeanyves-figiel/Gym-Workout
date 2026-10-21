@@ -167,7 +167,7 @@ jobs:
           # Cold boots took ~10 min of the job (iPad + Watch); start them now so they overlap the build.
           for pat in "iPhone 1[5-8] Pro \(" "iPad Pro 13-inch" "Apple Watch"; do
             ID=$(xcrun simctl list devices available | grep -m1 -E "$pat" | grep -oE '[0-9A-F-]{36}' || true)
-            [ -n "$ID" ] && { xcrun simctl boot "$ID" || true; }
+            if [ -n "$ID" ]; then xcrun simctl boot "$ID" || true; else echo "::warning::No simulator for $pat"; fi
           done
       - name: Build for simulator
         run: |
