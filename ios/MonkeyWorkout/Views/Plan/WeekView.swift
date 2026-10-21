@@ -305,7 +305,7 @@ struct WeekView: View {
         return sessions.indices.sorted { key($0) < key($1) }.map { sessions[$0] }
     }
 
-    /// Title, edit button and LV chip; while editing, "Edit Train" and Done (#260).
+    /// Title, plan menu, edit button and the Me pill (#560); while editing, "Edit Train" and Done (#260).
     private var header: some View {
         HStack(spacing: 10) {
             Text(arranging ? "Edit Train" : "Train").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
@@ -325,29 +325,18 @@ struct WeekView: View {
                         Button("Variation", systemImage: "shuffle") { ProStore.shared.run(.variation, $gate) { varying = true } }
                         Button("Edit plan", systemImage: "slider.horizontal.3") { editing = true }
                     } label: {
-                        headerIcon("ellipsis")
+                        HeaderTile(symbol: "ellipsis")
                     }
                     .accessibilityLabel("Plan actions")
                 }
-                Button { withAnimation(.snappy) { arranging = true } } label: { headerIcon("square.grid.2x2.fill") }
+                Button { withAnimation(.snappy) { arranging = true } } label: { HeaderTile(symbol: "square.grid.2x2.fill") }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Edit Train")
                     .accessibilityHint("Add, remove, resize and reorder the widgets on this screen")
-                LevelChip()
-                SettingsAvatar()
+                MePill()
             }
         }
         .padding(.top, 4)
-    }
-
-    /// Rounded square, 44 pt (#538), like the player's controls.
-    private func headerIcon(_ symbol: String) -> some View {
-        Image(systemName: symbol)
-            .font(.system(size: 16, weight: .heavy))
-            .foregroundStyle(.white)
-            .frame(width: 44, height: 44)
-            .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(Color.white.opacity(0.14)))
-            .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
     }
 
     /// Calendar, Variation and Edit plan as Explore-style gradient buttons in one row (#147): the Quick actions widget.

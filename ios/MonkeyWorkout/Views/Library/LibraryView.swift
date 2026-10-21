@@ -29,11 +29,11 @@ struct LibraryView: View {
         ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // In-content title with the settings avatar, like the other tabs (#496).
+                // In-content title with the Me pill, like the other tabs (#560).
                 HStack(spacing: 10) {
                     Text("Explore").font(Theme.display(34)).lineLimit(1)
                     Spacer()
-                    SettingsAvatar()
+                    MePill()
                 }
                 .padding(.top, 4)
                 // Card bar menu (#483).

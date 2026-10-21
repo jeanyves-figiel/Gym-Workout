@@ -82,7 +82,13 @@ struct MainTabView: View {
         // Ask Coach everywhere (#412 A): the floating 🐵 and its chat, which knows the screen on top.
         .overlay { if coachBubble { AskCoachBubble() } }
         .sheet(item: $ask.request) { r in CoachChatView(ask: r) }
-        // Settings (#496): the avatar at the top right of every tab.
+        // Me sheet (#560): the Me pill at the top right of every tab.
+        .sheet(isPresented: Bindable(model).meOpen) {
+            NavigationStack {
+                MeSheet().toolbar { CloseToolbarItem { model.meOpen = false } }
+            }
+        }
+        // Settings straight (#496), e.g. from Coach chat.
         .sheet(isPresented: Bindable(model).settingsOpen) {
             NavigationStack {
                 AccountView().toolbar { CloseToolbarItem { model.settingsOpen = false } }

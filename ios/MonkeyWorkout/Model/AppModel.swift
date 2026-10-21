@@ -34,6 +34,8 @@ final class AppModel {
     var tab: MainTab = .train
     /// Settings sheet, opened from the avatar on every tab (#496).
     var settingsOpen = false
+    /// Me sheet (#560): profile, level and Settings from the Me pill.
+    var meOpen = false
     /// Progress section to scroll to when Progress opens from a Train widget (#260).
     var progressJump: ProgressSection?
     /// Explore mode to show when Explore opens from elsewhere, e.g. Progress → Programmes with none started (#345).
