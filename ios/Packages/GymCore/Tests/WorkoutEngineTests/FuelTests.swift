@@ -170,6 +170,24 @@ import Testing
         #expect(MealPattern.weekdayDinners.mainPerWeek == 9)
     }
 
+    @Test func namedPlansRunOnTheirDates() {
+        let start = cal.date(from: DateComponents(year: 2026, month: 10, day: 19))!
+        func on(_ n: Int) -> Date { cal.date(byAdding: .day, value: n, to: start)! }
+        func key(_ n: Int) -> String { PlanCalendar.key(on(n), cal) }
+        let work = NamedMealPlan(name: "Work weeks", blocks: [MealBlock(pattern: .weekdayDinners, days: 7)],
+                                 periods: [MealPeriod(from: key(0))])
+        let holiday = NamedMealPlan(name: "Holidays", blocks: [MealBlock(pattern: .everyMeal, days: 7)],
+                                    periods: [MealPeriod(from: key(14), to: key(20))])
+        let book = MealPlanBook(plans: [work, holiday])
+        #expect(book.kinds(on: on(1), cal) == [.dinner])
+        #expect(book.kinds(on: on(12), cal) == [.lunch, .dinner]) // Saturday, week 2: the cycle started again
+        #expect(book.active(on: key(15))?.plan.name == "Holidays") // later period wins
+        #expect(book.kinds(on: on(15), cal).contains(.breakfast))
+        #expect(book.active(on: key(21))?.plan.name == "Work weeks")
+        #expect(MealPlanBook(plans: [holiday]).kinds(on: on(3), cal).isEmpty)
+        #expect(book.days(from: start, cal).count == MealPlanBook.horizon)
+    }
+
     @Test func budgetMakesThePlanCheaper() {
         let prefs = FuelPrefs(meals: 4)
         let days = week(prefs)

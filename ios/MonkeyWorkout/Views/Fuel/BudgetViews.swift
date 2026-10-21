@@ -227,7 +227,7 @@ struct BudgetSheet: View {
                         .font(Theme.display(30)).monospacedDigit()
                     Slider(value: $amount, in: (20 * market.factor).rounded()...(400 * market.factor).rounded(), step: market.step)
                         .tint(Theme.lime)
-                    Text("For \(store.saved.people) \(store.saved.people == 1 ? "person" : "people"), \(Int(store.schedule.mainPerWeek.rounded())) meals a week. Prices are estimates for \(market.label); change one from the grocery list.")
+                    Text("For \(store.saved.people) \(store.saved.people == 1 ? "person" : "people"), \(Int((store.mealShare * 21).rounded())) meals a week. Prices are estimates for \(market.label); change one from the grocery list.")
                         .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
                 }
                 Menu {

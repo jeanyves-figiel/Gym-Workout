@@ -11,28 +11,20 @@ struct MealPlanView: View {
 
     var body: some View {
         let cal = model.planCalendar
-        let schedule = store.schedule
-        // Days with meals to plan (or already planned); off days are left out.
-        let days: [Date] = schedule.days(from: Date(), cal).filter { d in
-            !schedule.kinds(on: d, cal).isEmpty || store.saved.plan.contains { $0.day == store.key(d) }
+        let book = store.book
+        // Days with meals to plan (or already planned); days no plan covers are left out.
+        let days: [Date] = book.days(from: Date(), cal).filter { d in
+            !book.kinds(on: d, cal).isEmpty || store.saved.plan.contains { $0.day == store.key(d) }
         }
         let plans = days.map { model.fuelPlan(on: $0) }
         let items = model.groceries()
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                MealBlocksCard { if !store.saved.plan.isEmpty { withAnimation(.snappy) { model.planMeals() } } }
+                MyPlansCard { if !store.saved.plan.isEmpty { withAnimation(.snappy) { model.planMeals() } } }
                 Button { withAnimation(.snappy) { model.planMeals() } } label: {
                     Label(store.saved.plan.isEmpty ? "PLAN MY DAYS" : "RE-PLAN (KEEPS YOUR PICKS)", systemImage: "wand.and.stars")
                 }
                 .buttonStyle(LimeButtonStyle())
-                if !store.saved.plan.isEmpty {
-                    Button { deletePlan() } label: {
-                        Label("Delete plan", systemImage: "trash").font(Theme.label(14)).foregroundStyle(.white)
-                            .frame(maxWidth: .infinity).padding(.vertical, 12)
-                            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(FuelPalette.protein))
-                    }
-                    .buttonStyle(.plain)
-                }
                 if !store.saved.plan.isEmpty {
                     BasketCard(items: items) { withAnimation(.snappy) { model.planMeals() } }
                     let byKey = Dictionary(zip(days.map { store.key($0) }, plans), uniquingKeysWith: { a, _ in a })
@@ -56,15 +48,6 @@ struct MealPlanView: View {
         .navigationTitle("Meal plan")
         .sheet(isPresented: Binding(get: { swapping != nil }, set: { if !$0 { swapping = nil } })) {
             if let s = swapping { SwapMealSheet(key: s.key, slot: s.slot, plan: s.plan) }
-        }
-    }
-
-    /// Takes the plan off at once (#558); the Undo bar puts it back (no confirmation, #285). Logged meals stay.
-    private func deletePlan() {
-        let days = Set(store.saved.plan.map(\.day)).count
-        let before = withAnimation(.snappy) { store.deletePlan() }
-        UndoCloseCenter.shared.deleted("Meal plan deleted", detail: "\(days) days", symbol: "trash") {
-            FuelStore.shared.restorePlan(before)
         }
     }
 
