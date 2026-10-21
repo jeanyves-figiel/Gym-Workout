@@ -5,3 +5,5 @@ APP_DISPLAY_NAME = MonkeyFit
 API_BASE_URL = https:/$()/workout-staging.monkeygrade.cloud
 // App Group shared by the Watch app and its complications (#190).
 APP_GROUP = group.$(APP_BUNDLE_ID)
+// Over-the-air config signature (#583): base64 raw Ed25519 public key from the "Content signing key" workflow; empty → not checked.
+CONTENT_PUBLIC_KEY =

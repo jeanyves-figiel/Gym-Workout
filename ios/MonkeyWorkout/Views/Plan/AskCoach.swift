@@ -190,7 +190,7 @@ struct CoachSpark: View {
         .buttonStyle(.plain)
         .accessibilityLabel("Ask Coach: \(question)")
         .proPaywall($gate)
-        .sheet(item: $request) { r in CoachChatView(ask: r) }
+        .sheet(item: $request) { r in CoachChatView(ask: r).remotePaused(.askCoach) }
     }
 }
 
