@@ -1224,17 +1224,35 @@ private struct PastDayCard: View {
             DayLogRow(symbol: item.symbol, title: item.title, detail: item.subtitle, value: value, caption: "SEE ›", fill: fill) { record = r }
         case .climb(let c):
             if c.local, let log = model.climbLogs.first(where: { $0.id == c.id }) {
-                DayLogRow(symbol: item.symbol, title: item.title, detail: item.subtitle, value: value, caption: "EDIT ✎", fill: fill) { climb = log }
+                DayLogRow(symbol: item.symbol, title: item.title, detail: item.subtitle, value: value, caption: "EDIT ✎", fill: fill,
+                          onDelete: { deleteClimb(log.id) }) { climb = log }
             } else {
                 // From Apple Health or MonkeyGrade: edited where it was recorded.
                 DayLogRow(symbol: item.symbol, title: item.title, detail: item.subtitle, value: value, caption: c.source.uppercased(), fill: fill, onTap: nil)
             }
         case .sport(let e):
             if e.local, let log = model.sportLogs.first(where: { $0.id == e.id }), log.fromHealth != true {
-                DayLogRow(symbol: item.symbol, title: item.title, detail: item.subtitle, value: value, caption: "EDIT ✎", fill: fill) { sport = log }
+                DayLogRow(symbol: item.symbol, title: item.title, detail: item.subtitle, value: value, caption: "EDIT ✎", fill: fill,
+                          onDelete: { deleteSport(log.id) }) { sport = log }
             } else {
                 DayLogRow(symbol: item.symbol, title: item.title, detail: item.subtitle, value: value, caption: "SEE ›", fill: fill) { healthSport = e }
             }
+        }
+    }
+
+    private func deleteClimb(_ id: UUID) {
+        withAnimation { model.deleteClimb(id) }
+        Task {
+            await health.deleteClimb(id)
+            await health.refresh()
+        }
+    }
+
+    private func deleteSport(_ id: UUID) {
+        withAnimation { model.deleteSport(id) }
+        Task {
+            await health.deleteSport(id)
+            await health.refresh()
         }
     }
 
@@ -1278,10 +1296,12 @@ private struct DayLogRow: View {
     let caption: String
     let fill: AnyShapeStyle
     var ink: Color = .white
+    /// Long press (#592): Delete under the tap's own action.
+    let onDelete: (() -> Void)?
     let onTap: (() -> Void)?
 
     init(symbol: String, title: String, detail: String, value: String, caption: String, fill: AnyShapeStyle,
-         ink: Color = .white, onTap: (() -> Void)?) {
+         ink: Color = .white, onDelete: (() -> Void)? = nil, onTap: (() -> Void)?) {
         self.symbol = symbol
         self.title = title
         self.detail = detail
@@ -1289,15 +1309,32 @@ private struct DayLogRow: View {
         self.caption = caption
         self.fill = fill
         self.ink = ink
+        self.onDelete = onDelete
         self.onTap = onTap
     }
 
     var body: some View {
-        if let onTap {
-            Button(action: onTap) { content }.buttonStyle(.plain)
-        } else {
-            content
+        Group {
+            if let onTap {
+                Button(action: onTap) { content }.buttonStyle(.plain)
+            } else {
+                content
+            }
         }
+        // Long press edits too (#592): the same action as a tap, plus Delete for what was logged here.
+        .contextMenu {
+            if let onTap {
+                Button(menuTitle, systemImage: caption.hasPrefix("EDIT") ? "pencil" : caption.hasPrefix("LOG") ? "square.and.pencil" : "eye",
+                       action: onTap)
+            }
+            if let onDelete {
+                Button("Delete", systemImage: "trash", role: .destructive, action: onDelete)
+            }
+        }
+    }
+
+    private var menuTitle: String {
+        caption.hasPrefix("EDIT") ? "Edit \(title)" : caption.hasPrefix("LOG") ? "Log \(title)" : "See \(title)"
     }
 
     private var content: some View {
