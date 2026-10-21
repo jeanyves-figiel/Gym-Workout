@@ -309,13 +309,16 @@ public struct MealSchedule: Codable, Hashable, Sendable {
 
     public var start: String
     public var blocks: [MealBlock]
-    /// nil = once.
+    /// nil = once (or back to back when `loops`).
     public var repeatWeeks: Int?
+    /// Without a repeat, starts again as soon as the blocks end (inside a named plan's dates).
+    public var loops: Bool
 
-    public init(start: String, blocks: [MealBlock], repeatWeeks: Int? = nil) {
+    public init(start: String, blocks: [MealBlock], repeatWeeks: Int? = nil, loops: Bool = false) {
         self.start = start
         self.blocks = blocks
         self.repeatWeeks = repeatWeeks
+        self.loops = loops
     }
 
     /// Days the blocks cover.
@@ -329,7 +332,7 @@ public struct MealSchedule: Codable, Hashable, Sendable {
         guard let first = PlanCalendar.date(start, cal),
               var offset = cal.dateComponents([.day], from: cal.startOfDay(for: first), to: cal.startOfDay(for: day)).day,
               offset >= 0 else { return nil }
-        if let weeks = repeatWeeks, weeks > 0 { offset %= weeks * 7 }
+        if let weeks = repeatWeeks, weeks > 0 { offset %= weeks * 7 } else if loops, length > 0 { offset %= length }
         for b in blocks {
             if offset < b.days { return b }
             offset -= b.days
@@ -359,5 +362,80 @@ public struct MealSchedule: Codable, Hashable, Sendable {
         guard span > 0 else { return 0 }
         let meals = blocks.reduce(0.0) { $0 + Double($1.pattern.mainPerWeek) * Double($1.days) / 7 }
         return meals * 7 / Double(span)
+    }
+}
+
+/// When a named plan runs: from a day to a day (nil = ongoing), both included.
+public struct MealPeriod: Codable, Hashable, Sendable, Identifiable {
+    public var id: UUID
+    public var from: String
+    public var to: String?
+
+    public init(id: UUID = UUID(), from: String, to: String? = nil) {
+        self.id = id
+        self.from = from
+        self.to = to
+    }
+
+    public func covers(_ key: String) -> Bool { key >= from && (to.map { key <= $0 } ?? true) }
+}
+
+/// A meal plan the member named (#558): its blocks and repeat, and the dates it runs. Inside each period the
+/// cycle starts on the period's first day and starts again when it ends (or every `repeatWeeks` weeks).
+public struct NamedMealPlan: Codable, Hashable, Sendable, Identifiable {
+    public var id: UUID
+    public var name: String
+    public var blocks: [MealBlock]
+    public var repeatWeeks: Int?
+    public var periods: [MealPeriod]
+
+    public init(id: UUID = UUID(), name: String, blocks: [MealBlock], repeatWeeks: Int? = nil, periods: [MealPeriod] = []) {
+        self.id = id
+        self.name = name
+        self.blocks = blocks
+        self.repeatWeeks = repeatWeeks
+        self.periods = periods
+    }
+
+    public func cycle(from start: String) -> MealSchedule {
+        MealSchedule(start: start, blocks: blocks, repeatWeeks: repeatWeeks, loops: true)
+    }
+
+    public var length: Int { blocks.reduce(0) { $0 + $1.days } }
+}
+
+/// All the member's named plans; which one runs on a day: the period covering it that started last.
+public struct MealPlanBook: Codable, Hashable, Sendable {
+    /// How far ahead the planner fills.
+    public static let horizon = 31
+
+    public var plans: [NamedMealPlan]
+
+    public init(plans: [NamedMealPlan] = []) { self.plans = plans }
+
+    public func active(on key: String) -> (plan: NamedMealPlan, period: MealPeriod)? {
+        plans.flatMap { p in p.periods.filter { $0.covers(key) }.map { (plan: p, period: $0) } }
+            .max { $0.period.from < $1.period.from }
+    }
+
+    public func kinds(on day: Date, _ cal: Calendar) -> Set<MealKind> {
+        guard let a = active(on: PlanCalendar.key(day, cal)) else { return [] }
+        return a.plan.cycle(from: a.period.from).kinds(on: day, cal)
+    }
+
+    /// The next `horizon` days from today.
+    public func days(from today: Date, _ cal: Calendar) -> [Date] {
+        let today = cal.startOfDay(for: today)
+        return (0..<Self.horizon).compactMap { cal.date(byAdding: .day, value: $0, to: today) }
+    }
+
+    /// Days in the coming `horizon` with meals to plan.
+    public func activeDays(from today: Date, _ cal: Calendar) -> Int { days(from: today, cal).filter { !kinds(on: $0, cal).isEmpty }.count }
+
+    /// Main meals a week on average over the coming `horizon` days, for budgets.
+    public func mainPerWeek(from today: Date, _ cal: Calendar) -> Double {
+        let main = Set(MealPattern.main)
+        let n = days(from: today, cal).reduce(0) { $0 + kinds(on: $1, cal).intersection(main).count }
+        return Double(n) * 7 / Double(Self.horizon)
     }
 }
