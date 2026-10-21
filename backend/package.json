@@ -10,6 +10,7 @@
     "dev": "PORT=7443 DB_PATH=./data/dev.db node --disable-warning=ExperimentalWarning --watch src/server.ts",
     "start": "node --disable-warning=ExperimentalWarning src/server.ts",
     "typecheck": "tsc -p .",
+    "docs": "node --disable-warning=ExperimentalWarning scripts/docs-reference.ts",
     "test": "vitest run"
   },
   "dependencies": {

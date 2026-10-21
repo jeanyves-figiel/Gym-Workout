@@ -7,6 +7,9 @@ strength + definition, climber mobility, cardio, explosiveness, and cool-downs d
 |---|---|---|
 | iOS app | `ios/` | SwiftUI, iOS 17+, on-device workout engine |
 | API | `backend/` | Node 22 (TS type-stripping), Fastify, SQLite, JWT — accounts + sync |
+| Watch, widgets, Garmin | `ios/MonkeyWorkoutWatch`, `ios/MonkeyWorkoutWidgets`, `garmin/` | watchOS, WidgetKit, Connect IQ |
+
+**Documentation:** [`docs/`](docs/README.md) — architecture, every screen, every API route, data model, security, infrastructure, CI/CD.
 
 ## iOS app
 
@@ -22,7 +25,7 @@ npm test
 npm run typecheck
 ```
 
-See [`backend/README.md`](backend/README.md) for endpoints and security model.
+See [`backend/README.md`](backend/README.md) (env, hosting), [`docs/api/endpoints.md`](docs/api/endpoints.md) (endpoints) and [`docs/security.md`](docs/security.md) (security model).
 
 ## Delivery (trunk-based)
 
