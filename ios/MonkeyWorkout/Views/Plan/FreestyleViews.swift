@@ -282,7 +282,7 @@ struct FreestyleCard: View {
                     .frame(width: 48, height: 48)
                     .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.22)))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(resuming ? "Resume freestyle" : "Build as I go").font(Theme.display(20)).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(resuming ? "Resume freestyle" : "Freestyle").font(Theme.display(20)).lineLimit(1).minimumScaleFactor(0.7)
                     Text("Start empty, add exercises as you train").font(Theme.label(12)).opacity(0.9).lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }
