@@ -21,10 +21,16 @@ struct MealPlanView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 MyPlansCard { if !store.saved.plan.isEmpty { withAnimation(.snappy) { model.planMeals() } } }
-                Button { withAnimation(.snappy) { model.planMeals() } } label: {
-                    Label(store.saved.plan.isEmpty ? "PLAN MY DAYS" : "RE-PLAN (KEEPS YOUR PICKS)", systemImage: "wand.and.stars")
+                if book.activeDays(from: Date(), cal) > 0 {
+                    Button { withAnimation(.snappy) { model.planMeals() } } label: {
+                        Label(store.saved.plan.isEmpty ? "PLAN MY DAYS" : "RE-PLAN (KEEPS YOUR PICKS)", systemImage: "wand.and.stars")
+                    }
+                    .buttonStyle(LimeButtonStyle())
+                } else {
+                    Text(book.plans.isEmpty ? "No meal plan yet. Tap New plan to pick which meals to plan and when."
+                         : "No plan runs in the coming 31 days. Tap a plan to add dates.")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
                 }
-                .buttonStyle(LimeButtonStyle())
                 if !store.saved.plan.isEmpty {
                     BasketCard(items: items) { withAnimation(.snappy) { model.planMeals() } }
                     let byKey = Dictionary(zip(days.map { store.key($0) }, plans), uniquingKeysWith: { a, _ in a })
@@ -42,6 +48,8 @@ struct MealPlanView: View {
                 .buttonStyle(.plain)
             }
             .padding(16)
+            // Last rows clear the Ask Coach bubble.
+            .padding(.bottom, 64)
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())

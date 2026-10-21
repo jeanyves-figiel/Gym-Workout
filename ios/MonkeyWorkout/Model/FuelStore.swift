@@ -65,7 +65,15 @@ final class FuelStore {
     }
 
     private init() {
-        if let data = try? Data(contentsOf: Self.url), let s = try? JSONDecoder().decode(Saved.self, from: data) { saved = s }
+        if let data = try? Data(contentsOf: Self.url), var s = try? JSONDecoder().decode(Saved.self, from: data) {
+            // Older saves get their plan written down once, so its dates stop moving with today and it can be edited
+            // or deleted.
+            if s.book == nil {
+                s.book = Self.legacyBook(s, today: PlanCalendar.key(Date(), Progression.calendar()), cal: Progression.calendar())
+                Self.write(s)
+            }
+            saved = s
+        }
     }
 
     private var cal: Calendar { Progression.calendar() }
@@ -197,6 +205,7 @@ final class FuelStore {
     func setPlan(_ meals: [PlannedMeal]) {
         var s = saved
         s.plan = meals
+        if s.book == nil { s.book = book }
         // A new plan starts a fresh list; lines still in it stay ticked.
         save(s)
     }
@@ -210,18 +219,28 @@ final class FuelStore {
 
     /// The member's named meal plans and their dates (#558). Older saves get one plan, "My plan", from today with
     /// their length and choice (or their blocks).
-    var book: MealPlanBook {
-        if let b = saved.book { return b }
-        let today = key(Date())
-        let x = saved.schedule ?? MealSchedule(start: today, blocks: [MealBlock(pattern: saved.mainOnly ? .lunchDinner : .everyMeal,
-                                                                                days: saved.planDays)])
-        let end = cal.date(byAdding: .day, value: max(0, x.length - 1), to: PlanCalendar.date(x.start, cal) ?? Date()).map(key)
-        return MealPlanBook(plans: [NamedMealPlan(name: "My plan", blocks: x.blocks, repeatWeeks: x.repeatWeeks,
-                                                  periods: [MealPeriod(from: x.start, to: x.repeatWeeks == nil ? end : nil)])])
+    var book: MealPlanBook { saved.book ?? Self.legacyBook(saved, today: key(Date()), cal: cal) }
+
+    /// Fixed ids, so the plan built for an older save is the same one on every read (editing and deleting find it).
+    private static let legacyIds = (plan: UUID(uuidString: "6D0E5A2C-0000-4000-8000-000000000001")!,
+                                    block: UUID(uuidString: "6D0E5A2C-0000-4000-8000-000000000002")!,
+                                    period: UUID(uuidString: "6D0E5A2C-0000-4000-8000-000000000003")!)
+
+    private static func legacyBook(_ s: Saved, today: String, cal: Calendar) -> MealPlanBook {
+        let x = s.schedule ?? MealSchedule(start: today, blocks: [MealBlock(id: legacyIds.block, pattern: s.mainOnly ? .lunchDinner : .everyMeal,
+                                                                            days: s.planDays)])
+        let end = cal.date(byAdding: .day, value: max(0, x.length - 1), to: PlanCalendar.date(x.start, cal) ?? Date())
+            .map { PlanCalendar.key($0, cal) }
+        return MealPlanBook(plans: [NamedMealPlan(id: legacyIds.plan, name: "My plan", blocks: x.blocks, repeatWeeks: x.repeatWeeks,
+                                                  periods: [MealPeriod(id: legacyIds.period, from: x.start,
+                                                                       to: x.repeatWeeks == nil ? end : nil)])])
     }
 
-    /// Days ahead the planner fills.
-    var planSpan: Int { MealPlanBook.horizon }
+    /// Days from today with meals planned: what the basket buys for and its budget covers.
+    var planSpan: Int {
+        let today = key(Date())
+        return max(1, Set(saved.plan.filter { $0.day >= today }.map(\.day)).count)
+    }
 
     /// Part of a week's 21 main meals the plans hold over the coming weeks, for budget suggestions.
     var mealShare: Double { book.mainPerWeek(from: Date(), cal) / 21 }
@@ -241,20 +260,21 @@ final class FuelStore {
         save(s)
     }
 
-    /// Takes a named plan off; returns the plans as they were, for the Undo bar.
-    func deleteNamedPlan(_ id: UUID) -> MealPlanBook {
-        let before = book
+    /// Takes a named plan off; returns the plans and planned meals as they were, for the Undo bar.
+    func deleteNamedPlan(_ id: UUID) -> (book: MealPlanBook, plan: [PlannedMeal]) {
+        let before = (book: book, plan: saved.plan)
         var s = saved
-        var b = before
+        var b = before.book
         b.plans.removeAll { $0.id == id }
         s.book = b
         save(s)
         return before
     }
 
-    func restoreBook(_ b: MealPlanBook) {
+    func restoreBook(_ b: (book: MealPlanBook, plan: [PlannedMeal])) {
         var s = saved
-        s.book = b
+        s.book = b.book
+        s.plan = b.plan
         save(s)
     }
 
@@ -385,6 +405,10 @@ final class FuelStore {
         saved = s
         // Today's water and meals on the Watch and the Home Screen widgets (coalesced: a burst of taps sends once).
         WatchSync.shared.schedulePush()
+        Self.write(s)
+    }
+
+    private static func write(_ s: Saved) {
         guard let data = try? JSONEncoder().encode(s) else { return }
         let url = Self.url
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

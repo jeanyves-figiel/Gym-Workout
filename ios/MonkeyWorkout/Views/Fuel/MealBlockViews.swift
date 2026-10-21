@@ -193,7 +193,23 @@ struct MyPlansCard: View {
             .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(MealPlanFormat.gradient(p.id, in: book)))
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button("Edit", systemImage: "pencil") { editing = p }
+            Button("Delete plan", systemImage: "trash", role: .destructive) { MealPlanDelete.run(p) { replan() } }
+        }
         .accessibilityLabel("\(p.name)\(active ? ", active today" : ""). Edit")
+        .accessibilityAction(named: "Delete plan") { MealPlanDelete.run(p) { replan() } }
+    }
+}
+
+/// Deletes a named plan with an Undo bar that brings back the plan and its planned meals.
+enum MealPlanDelete {
+    @MainActor static func run(_ p: NamedMealPlan, then replan: () -> Void) {
+        let before = FuelStore.shared.deleteNamedPlan(p.id)
+        replan()
+        UndoCloseCenter.shared.deleted("\(p.name) deleted", detail: "Meal plan", symbol: "trash") {
+            FuelStore.shared.restoreBook(before)
+        }
     }
 }
 
@@ -205,8 +221,10 @@ struct PlanLanes: View {
 
     var body: some View {
         let start = cal.date(byAdding: .day, value: -7, to: cal.startOfDay(for: Date())) ?? Date()
-        let months = (0..<Self.span).compactMap { cal.date(byAdding: .day, value: $0, to: start) }
+        var months = (0..<Self.span).compactMap { cal.date(byAdding: .day, value: $0, to: start) }
             .filter { cal.component(.day, from: $0) == 1 }
+        // The month the lanes start in, unless the next one's label would sit on it.
+        if (months.first.flatMap { cal.dateComponents([.day], from: start, to: $0).day } ?? Self.span) > 12 { months.insert(start, at: 0) }
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
                 Color.clear.frame(width: 76, height: 1)
@@ -306,10 +324,8 @@ struct MealPlanEditor: View {
                             .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
                         Button {
                             dismiss()
-                            let before = store.deleteNamedPlan(planId)
-                            UndoCloseCenter.shared.deleted("\(p.name) deleted", detail: "Meal plan", symbol: "trash") {
-                                FuelStore.shared.restoreBook(before)
-                            }
+                            // The meal list is re-planned when the sheet closes.
+                            MealPlanDelete.run(p) {}
                         } label: {
                             Label("DELETE PLAN", systemImage: "trash").font(Theme.label(14)).foregroundStyle(.white)
                                 .frame(maxWidth: .infinity).padding(.vertical, 12)

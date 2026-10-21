@@ -188,6 +188,20 @@ import Testing
         #expect(book.days(from: start, cal).count == MealPlanBook.horizon)
     }
 
+    @Test func budgetCountsOnlyDaysWithMeals() {
+        let prefs = FuelPrefs(meals: 4)
+        let days = week(prefs)
+        let kinds: Set<MealKind> = [.lunch, .dinner]
+        let shopping = MealPlanner.Shopping(budget: 30)
+        // Days no plan covers don't stretch the budget for the days that have meals.
+        let short = MealPlanner.plan(days: Array(days.prefix(3)), prefs: prefs, favourites: [], own: [], have: [], kept: [],
+                                     daySlots: Array(repeating: kinds, count: 3), shopping: shopping)
+        let padded = MealPlanner.plan(days: days, prefs: prefs, favourites: [], own: [], have: [], kept: [],
+                                      daySlots: Array(repeating: kinds, count: 3) + Array(repeating: [], count: days.count - 3),
+                                      shopping: shopping)
+        #expect(short == padded)
+    }
+
     @Test func budgetMakesThePlanCheaper() {
         let prefs = FuelPrefs(meals: 4)
         let days = week(prefs)
