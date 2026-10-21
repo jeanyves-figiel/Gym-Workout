@@ -77,6 +77,8 @@ export interface AppDeps {
   foodScan?: FoodScanModel;
   /** Studio coach voices (#395); defaults to Polly when credentials are configured. Injectable for tests. */
   synth?: Synthesize;
+  /** Sees every route as it is registered (`src/docsReference.ts`, #586). */
+  onRoute?: (route: { method: string | string[]; url: string }) => void;
 }
 
 const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
@@ -108,6 +110,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
     trustProxy: true,
     bodyLimit: 1_000_000,
   });
+  if (deps.onRoute) app.addHook('onRoute', deps.onRoute);
   const now = deps.now ?? (() => new Date());
   const outbound: Fetch = deps.fetch ?? ((input, init) => globalThis.fetch(input, init));
   const warn = (msg: string) => app.log.warn(msg);
