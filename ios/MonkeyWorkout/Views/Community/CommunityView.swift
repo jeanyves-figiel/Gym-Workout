@@ -37,28 +37,15 @@ struct CommunityView: View {
         .navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) }
     }
 
-    /// Title, Share a win and your round profile picture (opens your profile directly).
+    /// Title, Share a win and the Me pill (#560): your community profile is in the Me sheet.
     private var header: some View {
         HStack(spacing: 12) {
             Text("Community").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
             Spacer(minLength: 4)
-            Button { composing = true } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .heavy))
-                    .foregroundStyle(.black)
-                    .frame(width: 40, height: 40)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Share a win")
-            if let p = community.profile {
-                NavigationLink { CommunityProfileView() } label: {
-                    AvatarView(url: model.api.resolve(p.avatarUrl), nickname: p.nickname, size: 40)
-                }
+            Button { composing = true } label: { HeaderTile(symbol: "plus", lime: true) }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Your community profile")
-            }
-            SettingsAvatar()
+                .accessibilityLabel("Share a win")
+            MePill()
         }
         .padding(.top, 4)
     }
