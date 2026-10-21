@@ -175,7 +175,7 @@ final class FuelStore {
     func add(_ foods: [Food]) {
         var s = saved
         for f in foods {
-            if f.barcode != nil, !s.foods.contains(where: { $0.id == f.id }) { s.foods.append(f) }
+            if FoodBook.food(f.id) == nil, !s.foods.contains(where: { $0.id == f.id }) { s.foods.append(f) }
             if !s.pantry.contains(where: { $0.foodId == f.id }) { s.pantry.append(PantryItem(foodId: f.id)) }
         }
         save(s)
