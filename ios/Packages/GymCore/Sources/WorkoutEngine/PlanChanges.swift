@@ -67,7 +67,7 @@ extension PlanCalendar {
 
 extension Generator {
     /// Foci offered for a quick extra session.
-    public static let quickFoci: [Focus] = [.fullUpper, .fullLower, .fullPower, .push, .pull, .legs, .conditioning]
+    public static let quickFoci: [Focus] = [.upper, .lower, .fullPower, .push, .pull, .legs, .conditioning]
 
     /// Durations offered for a quick extra session (#178), and the default (extra sessions are usually short).
     public static let quickDurations = [15, 20, 30, 45, 60]

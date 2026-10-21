@@ -37,9 +37,13 @@ extension AppModel {
 
 /// Session flow (#198): one workout's blocks and time split, or the plan-wide default from a workout.
 extension AppModel {
-    /// Whether this workout's flow can change: a generated plan session, not done or started.
+    /// Whether this workout's flow can change: a generated plan session or a generated extra (#590), not done or started.
     func canEditFlow(_ session: Session) -> Bool {
-        guard !session.isPlanInsert, state.plan?.sessions.contains(where: { $0.id == session.id }) == true else { return false }
+        if session.isPlanInsert {
+            guard generatedExtra(session.id) != nil else { return false }
+        } else if state.plan?.sessions.contains(where: { $0.id == session.id }) != true {
+            return false
+        }
         return !(state.done[session.id] ?? false) && activeWorkout(session.id) == nil
     }
 
@@ -48,7 +52,32 @@ extension AppModel {
         var style = sessionStyle(sessionId)
         let f = flow.sanitized
         style.flow = f == (profile?.sessionFlow ?? SessionFlow()) ? nil : f
+        if generatedExtra(sessionId) != nil { return setExtraFlow(sessionId, style) }
         setSessionStyle(sessionId, style)
+    }
+
+    /// The quick extra (#113) behind a session of this week, when it was generated rather than a library workout.
+    func generatedExtra(_ sessionId: String) -> PlanInsert? {
+        state.synced?.planInserts?.first { $0.sessionId == sessionId && $0.generated != nil }
+    }
+
+    /// A generated extra regenerated with the flow (#590): same focus and length, exercises picked again.
+    private func setExtraFlow(_ sessionId: String, _ style: SessionStyle) {
+        guard var sp = state.synced, let i = sp.planInserts?.firstIndex(where: { $0.sessionId == sessionId }),
+              let old = sp.planInserts?[i].generated else { return }
+        var p = sp.tasteProfile
+        p.sessionFlow = style.flow ?? p.sessionFlow
+        let u = sp.planInserts![i].id.uuid
+        let seed = sp.seed &+ (UInt32(u.0) << 24 | UInt32(u.1) << 16 | UInt32(u.2) << 8 | UInt32(u.3))
+        guard let fresh = Generator.quickSession(p, focus: old.focus, week: sp.week, seed: seed, minutes: old.targetMin) else { return }
+        sp.planInserts?[i].generated = fresh
+        var styles = sp.sessionStyles ?? [:]
+        styles[sessionId] = style.isEmpty ? nil : style
+        sp.sessionStyles = styles.isEmpty ? nil : styles
+        state.synced = sp
+        state.profileDirty = true
+        persist()
+        Task { await sync() }
     }
 
     /// Every workout: becomes the plan's flow (Edit plan), and `sessionId` drops its own.
