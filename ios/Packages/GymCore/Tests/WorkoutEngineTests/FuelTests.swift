@@ -104,6 +104,17 @@ import Testing
         #expect(FoodBook.find(in: "red wine vinegar").map(\.id) == ["balsamic"])
     }
 
+    /// #573: "Or it's…" guesses for an unsure scan item: same group, closest values, never the item itself.
+    @Test func scanGuesses() throws {
+        let cheese = try #require(FoodBook.food("cheese"))
+        let g = FoodBook.guesses(for: cheese)
+        #expect(g.count == 3)
+        #expect(!g.contains { $0.id == "cheese" })
+        #expect(g.first?.group == .dairy)
+        let beer = try #require(FoodBook.food("beer"))
+        #expect(FoodBook.guesses(for: beer).contains { $0.id == "alcohol-free-beer" })
+    }
+
     /// #573: Open Food Facts beer without protein or fat values still comes back, as an alcoholic drink.
     @Test func openFoodFactsBeer() throws {
         let json = #"{"product":{"product_name":"Quöllfrisch hell","brands":"Appenzeller Bier","categories_tags":["en:beverages","en:alcoholic-beverages","en:beers"],"nutriments":{"carbohydrates_100g":3.4,"energy-kcal_100g":42,"alcohol_100g":4.8},"serving_quantity":330}}"#

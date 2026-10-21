@@ -253,6 +253,23 @@ public enum FoodBook {
     }
 
     /// Search box: name or alias contains every word.
+    /// "Or it's…" (#573): the closest other foods for a scan item Monkey wasn't sure of. Name words first, then the same
+    /// group by values per 100 g.
+    public static func guesses(for food: Food, own: [Food] = [], count: Int = 3) -> [Food] {
+        let words = fold(food.name).split { !$0.isLetter }.filter { $0.count >= 4 }.map(String.init)
+        let named = (own + catalog).filter { f in
+            f.id != food.id && words.contains { w in fold(([f.name] + f.aliases).joined(separator: " ")).contains(w) }
+        }
+        func gap(_ f: Food) -> Double {
+            abs(f.per100.protein - food.per100.protein) + abs(f.per100.carbs - food.per100.carbs)
+                + abs(f.per100.fat - food.per100.fat) + abs(f.per100.kcal - food.per100.kcal) / 10
+        }
+        let near = catalog.filter { $0.group == food.group && $0.id != food.id }.sorted { gap($0) < gap($1) }
+        var out: [Food] = []
+        for f in named + near where !out.contains(where: { $0.id == f.id }) && out.count < count { out.append(f) }
+        return out
+    }
+
     public static func search(_ query: String, own: [Food] = []) -> [Food] {
         let q = fold(query).split(separator: " ")
         guard !q.isEmpty else { return [] }
