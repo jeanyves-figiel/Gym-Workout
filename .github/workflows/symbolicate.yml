@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   symbolicate:
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 60
     env:
       REF: ${{ inputs.ref }}
@@ -28,7 +28,9 @@ jobs:
       - run: git checkout "$REF"
       - name: Select newest Xcode
         run: |
-          XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          # Xcode 27.1: iOS 27.1 SDK, full-screen iPhone Duo (#158). Xcode_27.2.app is a beta symlink.
+          XC=/Applications/Xcode_27.1.app
+          [ -d "$XC" ] || XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
           sudo xcode-select -s "$XC"
           xcodebuild -version
       - run: brew install xcodegen && xcodegen generate --spec ios/project.yml

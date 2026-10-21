@@ -60,4 +60,4 @@ CI captures each screen (≤ 800 px) and pushes them to branch `screenshots/pr-<
 ```bash
 swift test --package-path Packages/GymCore   # engine + API client (also runs on Linux)
 ```
-CI (`.github/workflows/ios.yml`, macOS): package tests + simulator builds for Debug and Staging.
+CI (`.github/workflows/ios.yml`, macOS; app jobs on the `xcode-27` runner with Xcode 27.1 pinned for the iOS 27.1 SDK / iPhone Duo, #158): package tests + simulator builds for Debug and Staging.
