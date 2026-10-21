@@ -1,6 +1,31 @@
 {
   "releases": [
     {
+      "id": "2026-10-20.4",
+      "build": 55,
+      "date": "2026-10-20",
+      "items": [
+        {
+          "symbol": "applewatch.radiowaves.left.and.right",
+          "tint": "cardio",
+          "title": "Any watch counts",
+          "body": "A gym workout from Garmin, Polar, Coros or Suunto in Apple Health shows on its session. Mark it done or log your sets."
+        },
+        {
+          "symbol": "watch.analog",
+          "tint": "power",
+          "title": "Garmin is coming",
+          "body": "Settings › Watches › Garmin watch is ready for the MonkeyWorkout Garmin app: today's session, sets, rest ring and water on your wrist. Coming to the Connect IQ Store soon."
+        },
+        {
+          "symbol": "hand.tap",
+          "tint": "strength",
+          "title": "Buttons say what they do",
+          "body": "Every button now says exactly what it does, Back to today jumps home, and the Watch starts only today's workout."
+        }
+      ]
+    },
+    {
       "id": "2026-10-20.3",
       "build": 54,
       "date": "2026-10-20",

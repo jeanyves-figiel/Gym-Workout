@@ -1,23 +1,23 @@
 {
-  "id": "2026-10-20.4",
+  "id": "2026-10-21.1",
   "items": [
     {
-      "symbol": "applewatch.radiowaves.left.and.right",
+      "symbol": "calendar.badge.clock",
       "tint": "cardio",
-      "title": "Any watch counts",
-      "body": "A gym workout from Garmin, Polar, Coros or Suunto in Apple Health shows on its session. Mark it done or log your sets."
+      "title": "Meal plans your way",
+      "body": "Name your plans, pick the meals for each day (weekday dinners, lunch too at the weekend) and set the dates each one runs. Fuel › Plan."
     },
     {
-      "symbol": "watch.analog",
-      "tint": "power",
-      "title": "Garmin is coming",
-      "body": "Settings › Watches › Garmin watch is ready for the MonkeyWorkout Garmin app: today's session, sets, rest ring and water on your wrist. Coming to the Connect IQ Store soon."
+      "symbol": "plus.square.fill",
+      "tint": "warmup",
+      "title": "Just ate? Tap +",
+      "body": "Fuel shows your next planned meal with Ate it and Swap. The lime + logs a planned meal, a recent recipe or a palm of protein in two taps."
     },
     {
-      "symbol": "hand.tap",
+      "symbol": "square.grid.2x2.fill",
       "tint": "strength",
-      "title": "Buttons say what they do",
-      "body": "Every button now says exactly what it does, Back to today jumps home, and the Watch starts only today's workout."
+      "title": "Train, tidier",
+      "body": "Coach Monkey shows your week as three tiles, and the day card puts Add workout and Plan sport side by side."
     }
   ]
 }
