@@ -92,6 +92,29 @@ import Testing
         #expect(found.contains("chicken-breast"))
         #expect(found.contains("broccoli"))
     }
+
+    /// #573: a beer label is a beer, not cheese; brand or region words alone don't make a food.
+    @Test func beerLabelIsBeer() {
+        #expect(FoodBook.find(in: "Appenzeller Bier Quöllfrisch hell 4,8% vol").map(\.id) == ["beer"])
+        #expect(FoodBook.find(in: "Appenzeller").isEmpty)
+        #expect(FoodBook.find(in: "Appenzeller Käse").map(\.id) == ["cheese"])
+        #expect(FoodBook.find(in: "Feldschlösschen Original alc. 4.8 %").isEmpty)
+        #expect(FoodBook.find(in: "Bière sans alcool").map(\.id) == ["alcohol-free-beer"])
+        #expect(FoodBook.find(in: "Coca-Cola Zero").map(\.id) == ["cola-zero"])
+        #expect(FoodBook.find(in: "red wine vinegar").map(\.id) == ["balsamic"])
+    }
+
+    /// #573: Open Food Facts beer without protein or fat values still comes back, as an alcoholic drink.
+    @Test func openFoodFactsBeer() throws {
+        let json = #"{"product":{"product_name":"Quöllfrisch hell","brands":"Appenzeller Bier","categories_tags":["en:beverages","en:alcoholic-beverages","en:beers"],"nutriments":{"carbohydrates_100g":3.4,"energy-kcal_100g":42,"alcohol_100g":4.8},"serving_quantity":330}}"#
+        let food = try #require(Food.openFoodFacts(Data(json.utf8), barcode: "7610820000014"))
+        #expect(food.group == .drink)
+        #expect(food.contains.contains(.alcohol))
+        #expect(food.name == "Appenzeller Bier Quöllfrisch hell")
+        #expect(food.emoji == "🍺")
+        #expect(food.per100.kcal == 42)
+        #expect(Food.openFoodFacts(Data(#"{"product":{"product_name":"x","nutriments":{}}}"#.utf8), barcode: "1") == nil)
+    }
 }
 
 @Suite struct PantryPlannerTests {

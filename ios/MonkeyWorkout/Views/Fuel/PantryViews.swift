@@ -389,20 +389,30 @@ struct LiveScanSheet: View {
     @State private var found: [Food] = []
     @State private var codes: Set<String> = []
     @State private var looking = 0
+    /// Barcode first (#573): words read off a package only count when no barcode product came within a few seconds of
+    /// them, so the label of a scanned bottle can't add a second, wrong food.
+    @State private var fromText: [String: Date] = [:]
+    @State private var lastProduct = Date.distantPast
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
                 LiveFoodScanner(onText: { text in
+                    guard Date().timeIntervalSince(lastProduct) > 4 else { return }
                     for f in FoodBook.find(in: text, own: store.saved.foods) where !found.contains(where: { $0.id == f.id }) {
                         found.append(f)
+                        fromText[f.id] = Date()
                     }
                 }, onBarcode: { code in
                     guard codes.insert(code).inserted else { return }
                     looking += 1
+                    let seen = Date()
                     Task {
                         defer { looking -= 1 }
-                        if let f = await model.lookUpBarcode(code), !found.contains(where: { $0.id == f.id }) { found.append(f) }
+                        guard let f = await model.lookUpBarcode(code) else { return }
+                        lastProduct = Date()
+                        found.removeAll { fromText[$0.id].map { seen.timeIntervalSince($0) < 4 } ?? false }
+                        if !found.contains(where: { $0.id == f.id }) { found.append(f) }
                     }
                 })
                 .ignoresSafeArea()
@@ -546,8 +556,10 @@ struct FoodPhotoScanSheet: View {
         Task {
             defer { scanning = false }
             do {
-                found = try await model.scanFood(jpeg: jpeg)
-                picked = Set(found.map(\.id))
+                let seen = try await model.scanFood(jpeg: jpeg)
+                found = seen.map(\.food)
+                // Unsure ones (#573) start unticked: tick them if Monkey got them right.
+                picked = Set(seen.filter(\.sure).map(\.food.id))
                 if found.isEmpty { notice = "No food spotted. Open the fridge door wide and try again." }
             } catch APIError.server(_, _, let message) {
                 notice = message
