@@ -24,7 +24,7 @@ const POSTS_PER_DAY = 50;
 
 /** Community (#61): profiles, shared progress posts, cheers, report + block. */
 
-export const REACTIONS = ['like', 'strong', 'fire', 'clap'] as const;
+export const REACTIONS = ['like', 'strong', 'fire', 'clap', 'beast', 'banana'] as const;
 const POST_KINDS = ['workout', 'badge', 'record', 'climb', 'note'] as const;
 
 interface ProfileRow {
