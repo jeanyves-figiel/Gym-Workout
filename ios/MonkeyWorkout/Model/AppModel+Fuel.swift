@@ -175,15 +175,15 @@ extension AppModel {
     /// new foods (#573); `sure` false when Monkey was guessing.
     func scanFood(jpeg: Data) async throws -> [(food: Food, sure: Bool)] {
         #if DEBUG
-        if demo { return ["egg", "milk", "spinach", "chicken-breast", "greek-yogurt", "beer"].compactMap { FoodBook.food($0) }.map { ($0, $0.id != "beer") } }
+        if demo { return ["egg", "milk", "spinach", "chicken-breast", "greek-yogurt", "beer"].compactMap { FoodBook.food($0) }.map { (food: $0, sure: $0.id != "beer") } }
         #endif
         let own = FuelStore.shared.saved.foods
         let catalog = (FoodBook.catalog + own).prefix(400).map { GymScanItem(id: $0.id, label: String($0.name.prefix(60))) }
         let result = try await api.foodScan(jpeg: jpeg, catalog: catalog)
-        guard let found = result.found else { return result.items.compactMap { FoodBook.food($0, own: own) }.map { ($0, true) } }
-        return found.compactMap { seen in
-            if let id = seen.id { return FoodBook.food(id, own: own).map { ($0, seen.sure) } }
-            return (Self.food(seen), seen.sure)
+        guard let found = result.found else { return result.items.compactMap { FoodBook.food($0, own: own) }.map { (food: $0, sure: true) } }
+        return found.compactMap { seen -> (food: Food, sure: Bool)? in
+            if let id = seen.id { return FoodBook.food(id, own: own).map { (food: $0, sure: seen.sure) } }
+            return (food: Self.food(seen), sure: seen.sure)
         }
     }
 

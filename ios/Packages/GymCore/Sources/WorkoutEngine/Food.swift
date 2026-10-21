@@ -160,7 +160,7 @@ public struct Food: Codable, Hashable, Sendable, Identifiable {
         let drink = alcoholic || categories.contains("en:beverages")
         var name = (product["product_name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Scanned product"
         if let brand = (product["brands"] as? String)?.split(separator: ",").first.map({ $0.trimmingCharacters(in: .whitespaces) }),
-           !brand.isEmpty, !fold(name).contains(fold(brand)) {
+           !brand.isEmpty, !FoodBook.fold(name).contains(FoodBook.fold(brand)) {
             name = "\(brand) \(name)"
         }
         let tags = (product["allergens_tags"] as? [String] ?? []).joined(separator: " ")
