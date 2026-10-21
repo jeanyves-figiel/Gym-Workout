@@ -21,6 +21,15 @@ Table columns: **Method**, **Path**, **Auth** (`–` public, `Bearer` access tok
 | GET | `/terms` | – | Terms of Use / EULA (HTML) | |
 | GET | `/support` | – | Support page (HTML) | |
 
+## Over-the-air config (#583)
+
+Source: `backend/content/` (see its README). Data only, never code (App Review 2.5.2).
+
+| Method | Path | Auth | Summary | Errors / limits |
+|---|---|---|---|---|
+| GET | `/v1/app-config` | – | Flags, values, `minimumBuild` / `recommendedBuild`, `update`, packs by SHA-256; `ETag`, `X-Content-Signature` (Ed25519, when `CONTENT_SIGNING_KEY` set) | 304 on `If-None-Match`; 120/min per IP |
+| GET | `/v1/packs/:name/:sha` | – | Content pack (`recipes`, `foods`, `whats-new`, `coach-tips`), immutable | 404 `not_found` on unknown name or hash; 120/min per IP |
+
 ## Auth
 
 | Method | Path | Auth | Summary | Errors / limits |
