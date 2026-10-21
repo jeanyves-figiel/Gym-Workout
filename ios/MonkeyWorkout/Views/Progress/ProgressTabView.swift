@@ -151,17 +151,11 @@ struct ProgressTabView: View {
                 }
                 .buttonStyle(.plain)
             } else {
-                Button { withAnimation(.snappy) { arranging = true } } label: {
-                    Image(systemName: "square.grid.2x2.fill")
-                        .font(.system(size: 15, weight: .heavy))
-                        .foregroundStyle(.white)
-                        .frame(width: 36, height: 36)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.14)))
-                }
+                Button { withAnimation(.snappy) { arranging = true } } label: { HeaderTile(symbol: "square.grid.2x2.fill") }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Edit Progress")
                 .accessibilityHint("Add, remove, resize and reorder the widgets on this screen")
-                SettingsAvatar()
+                MePill()
             }
         }
         .padding(.top, 4)
@@ -218,7 +212,7 @@ struct ProgressTabView: View {
                     .accessibilityHint("Opens History")
             } else {
                 // Recent sessions (#442 C): every kind of session, See all opens History.
-                RecentSessionsStrip(items: items) { opened = .history }
+                RecentSessionsStrip(items: items, seeAll: { opened = .history }, openClimbs: { openedSport = .climbing })
             }
         case .consistency:
             ConsistencyCalendar(days: s.days, records: dayRecords, empty: fresh)

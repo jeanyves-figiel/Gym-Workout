@@ -6,7 +6,7 @@ import type { Config } from '../config.ts';
  * Same URLs serve App Store Connect (Privacy Policy URL, Support URL, custom EULA) and the app's Account links.
  * Operator, address and contact come from env (`LEGAL_*`); unset values render as a visible placeholder.
  */
-export const LEGAL_UPDATED = '2026-10-18';
+export const LEGAL_UPDATED = '2026-10-20';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -88,6 +88,9 @@ const privacy = (l: Legal) => `
 
 <h3>Apple Health</h3>
 <p>With your permission the app reads from Apple Health (weight, height, body fat, lean body mass, waist circumference, age, sex, resting heart rate, heart rate variability, VO2 max, sleep, daily steps and floors climbed (these stay on your iPhone), heart rate and energy during workouts, climbing and other sport workouts with their distance, ascent and route; routes stay on your iPhone) and writes your gym sessions, weight, height and, if you choose, body fat and waist circumference to it. Health data is also used to suggest first-time loads. Health data is used only to estimate calories, show readiness, add XP for daily walking and stairs, send at most one walking reminder a day, and track progress. Most of it stays on your iPhone; only the session summary above (duration, calories, average and maximum heart rate) and the sport sessions you rate (sport, date, duration, your effort, distance) are synced to our server with your training history. Apple Health data is never used for advertising, never sold, never shared with third parties for their own purposes and never stored in iCloud by us. You can change Health permissions at any time in the iOS Settings or the Health app.</p>
+
+<h3>Garmin watch (optional)</h3>
+<p>If you pair a Garmin watch, we keep its pairing (a random token, stored hashed, and when it last synced), what the watch shows (this week's sessions, the next session's exercises and suggested loads, today's water), and, until your iPhone picks them up, the sets, finished workouts (times, average and maximum heart rate, calories) and water the watch sends. The watch reaches our server through Garmin's Connect app; Garmin saves the activity in your Garmin Connect account under Garmin's own privacy policy. Remove the watch in Settings to delete its pairing and anything waiting for your iPhone.</p>
 
 <h3>Community (optional)</h3>
 <ul>

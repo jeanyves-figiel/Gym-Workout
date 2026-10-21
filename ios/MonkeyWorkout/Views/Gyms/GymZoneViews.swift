@@ -62,6 +62,7 @@ struct ZoneBar: View {
             GymScanSheet(layout: Binding(get: { layout ?? .starter }, set: { layout = $0 })) { found in
                 onScanned?(found.filter { !equipment.contains($0) })
             }
+            .remotePaused(.gymScan)
         }
     }
 

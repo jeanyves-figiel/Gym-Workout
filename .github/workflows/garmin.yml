@@ -1,0 +1,84 @@
+name: Garmin watch app
+
+# Connect IQ build (#550): compiles the Garmin app for an AMOLED and a MIP watch and packages it for the Connect IQ
+# Store. The SDK and device files come from Garmin with the developer account in GARMIN_USERNAME / GARMIN_PASSWORD;
+# GARMIN_DEVELOPER_KEY is the signing key (base64 .der, made by garmin-key.yml). Without the account the job says so and
+# passes; without the key it still compiles (throwaway key) but packages nothing for the Store.
+
+on:
+  pull_request:
+    paths: ['garmin/**', '.github/workflows/garmin.yml']
+  push:
+    branches: [main]
+    paths: ['garmin/**', '.github/workflows/garmin.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: garmin
+    env:
+      GARMIN_USERNAME: ${{ secrets.GARMIN_USERNAME }}
+      GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+      GARMIN_DEVELOPER_KEY: ${{ secrets.GARMIN_DEVELOPER_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Secrets present?
+        id: secrets
+        run: |
+          if [ -z "$GARMIN_USERNAME" ] || [ -z "$GARMIN_PASSWORD" ]; then
+            echo "::notice::Garmin build skipped: add GARMIN_USERNAME and GARMIN_PASSWORD to the repository secrets."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-java@v5
+        if: steps.secrets.outputs.ok == 'true'
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: actions/setup-go@v6
+        if: steps.secrets.outputs.ok == 'true'
+        with:
+          go-version: stable
+      - name: Connect IQ SDK and devices
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          go install github.com/lindell/connect-iq-sdk-manager-cli@latest
+          M="$(go env GOPATH)/bin/connect-iq-sdk-manager-cli"
+          "$M" agreement accept
+          "$M" login
+          "$M" sdk set '^8.0.0'
+          "$M" device download --manifest manifest.xml
+          echo "$("$M" sdk current-path --bin)" >> "$GITHUB_PATH"
+      - name: Build
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          if [ -n "$GARMIN_DEVELOPER_KEY" ]; then
+            echo "$GARMIN_DEVELOPER_KEY" | base64 -d > "$RUNNER_TEMP/key.der"
+          else
+            echo "::notice::No GARMIN_DEVELOPER_KEY yet: compile check with a throwaway key, no Store package."
+            openssl genrsa -out "$RUNNER_TEMP/key.pem" 4096 2>/dev/null
+            openssl pkcs8 -topk8 -inform PEM -outform DER -in "$RUNNER_TEMP/key.pem" -out "$RUNNER_TEMP/key.der" -nocrypt
+          fi
+          mkdir -p build
+          for d in fr265 fenix7; do
+            monkeyc -f monkey.jungle -d "$d" -o "build/MonkeyWorkout-$d.prg" -y "$RUNNER_TEMP/key.der" -l 0 -w
+          done
+          # Side-load build against staging (same backend as TestFlight).
+          monkeyc -f staging.jungle -d fr265 -o build/MonkeyWorkout-staging-fr265.prg -y "$RUNNER_TEMP/key.der" -l 0
+          # Store package, every watch in the manifest (real key only).
+          if [ -n "$GARMIN_DEVELOPER_KEY" ]; then
+            monkeyc -e -r -f monkey.jungle -o build/MonkeyWorkout.iq -y "$RUNNER_TEMP/key.der" -l 0
+          fi
+          rm -f "$RUNNER_TEMP/key.der" "$RUNNER_TEMP/key.pem"
+      - uses: actions/upload-artifact@v7
+        if: steps.secrets.outputs.ok == 'true'
+        with:
+          name: garmin-app
+          path: garmin/build/

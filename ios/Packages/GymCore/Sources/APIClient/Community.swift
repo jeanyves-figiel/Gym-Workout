@@ -10,9 +10,9 @@ public enum CommunityVisibility: String, Codable, CaseIterable, Sendable, Identi
     public var id: String { rawValue }
 }
 
-/// Cheers members give each other.
+/// Cheers members give each other. Beast and Banana (#566) need a server that knows them.
 public enum CommunityReaction: String, Codable, CaseIterable, Sendable, Identifiable {
-    case like, strong, fire, clap
+    case like, strong, fire, clap, beast, banana
     public var id: String { rawValue }
 }
 

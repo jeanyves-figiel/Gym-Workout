@@ -315,6 +315,38 @@ public actor APIClient {
         return try await authorized("POST", "/v1/me/watch-key", Empty(), as: Response.self).key
     }
 
+    // MARK: Garmin watches (#550)
+
+    /// Pairs the Garmin watch showing `code` with this account.
+    public func garminClaim(code: String) async throws -> GarminDevice {
+        struct Body: Encodable { var code: String }
+        return try await authorized("POST", "/v1/me/garmin/claim", Body(code: code), as: GarminDevice.self)
+    }
+
+    public func garminDevices() async throws -> [GarminDevice] {
+        struct Response: Decodable { var devices: [GarminDevice] }
+        return try await authorized("GET", "/v1/me/garmin/devices", Empty?.none, as: Response.self).devices
+    }
+
+    public func garminRemove(_ id: String) async throws {
+        _ = try await authorizedRaw("DELETE", "/v1/me/garmin/devices/\(id)", Empty?.none)
+    }
+
+    /// What the Garmin watch shows (app-defined, under 32 KB as JSON).
+    public func garminPublish<T: Encodable & Sendable>(_ snapshot: T) async throws {
+        _ = try await authorizedRaw("PUT", "/v1/me/garmin/snapshot", GarminSnapshotBody(snapshot: snapshot))
+    }
+
+    /// Sets, finished workouts and water the Garmin watch sent (app-defined; each has `id` and `type`), oldest first.
+    public func garminInbox<T: Decodable & Sendable>(_: T.Type) async throws -> [T] {
+        try await authorized("GET", "/v1/me/garmin/inbox", Empty?.none, as: GarminInboxResponse<T>.self).events
+    }
+
+    public func garminAck(_ ids: [String]) async throws {
+        struct Body: Encodable { var ids: [String] }
+        _ = try await authorizedRaw("POST", "/v1/me/garmin/inbox/ack", Body(ids: ids))
+    }
+
     /// Machine setup notes (#355; app-defined; must encode `id`, `gymId`, `gymName`, `exerciseId`, `fields`).
     public func fetchMachineNotes<T: Decodable & Sendable>(_: T.Type) async throws -> [T] {
         try await authorized("GET", "/v1/me/machine-notes", Empty?.none, as: MachineNotesResponse<T>.self).notes
@@ -440,6 +472,8 @@ public actor APIClient {
     struct ClimbsResponse<T: Decodable>: Decodable { var climbs: [T] }
     struct SportsBody<T: Encodable>: Encodable { var sports: [T] }
     struct SportsResponse<T: Decodable>: Decodable { var sports: [T] }
+    struct GarminSnapshotBody<T: Encodable>: Encodable { var snapshot: T }
+    struct GarminInboxResponse<T: Decodable>: Decodable { var events: [T] }
     struct MachineNotesBody<T: Encodable>: Encodable { var notes: [T] }
     struct MachineNotesResponse<T: Decodable>: Decodable { var notes: [T] }
     struct MeasurementsBody<T: Encodable>: Encodable { var measurements: [T] }
@@ -522,6 +556,37 @@ public actor APIClient {
         return try await task.value
     }
 
+    // MARK: Over-the-air config (#583)
+
+    public struct RemoteFetch: Sendable {
+        public let data: Data
+        public let etag: String?
+        /// Ed25519 over `data`, base64 (`X-Content-Signature`).
+        public let signature: String?
+    }
+
+    /// `/v1/app-config`, public. nil when unchanged since `etag` (304).
+    public func appConfig(etag: String?) async throws -> RemoteFetch? {
+        guard let url = URL(string: "/v1/app-config", relativeTo: baseURL) else { throw APIError.network("Bad URL") }
+        var req = URLRequest(url: url)
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let etag { req.setValue(etag, forHTTPHeaderField: "If-None-Match") }
+        let data: Data
+        let response: URLResponse
+        do { (data, response) = try await session.data(for: req) } catch { throw APIError.network(error.localizedDescription) }
+        guard let http = response as? HTTPURLResponse else { throw APIError.network("No HTTP response") }
+        if http.statusCode == 304 { return nil }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(status: http.statusCode, code: "http_\(http.statusCode)", message: HTTPURLResponse.localizedString(forStatusCode: http.statusCode))
+        }
+        return RemoteFetch(data: data, etag: http.value(forHTTPHeaderField: "ETag"), signature: http.value(forHTTPHeaderField: "X-Content-Signature"))
+    }
+
+    /// A content pack by the path the config lists (`/v1/packs/<name>/<sha256>`); the caller checks the hash.
+    public func contentPack(_ path: String) async throws -> Data {
+        try await send("GET", path, Empty?.none)
+    }
+
     func send(
         _ method: String, _ path: String, _ body: (some Encodable)?, bearer: String? = nil, raw: (data: Data, contentType: String)? = nil,
         headers: [String: String] = [:]
@@ -569,4 +634,12 @@ public actor APIClient {
         f.formatOptions = [.withInternetDateTime]
         return f.date(from: s)
     }
+}
+
+/// A Garmin watch paired with the account (#550).
+public struct GarminDevice: Codable, Sendable, Identifiable, Equatable {
+    public var id: String
+    public var model: String?
+    public var pairedAt: String?
+    public var lastSeen: String?
 }

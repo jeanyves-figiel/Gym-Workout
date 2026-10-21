@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import type { FoodScanModel } from '../coach/foodScan.ts';
+import type { FoodScanModel, FoodSeen } from '../coach/foodScan.ts';
 import type { DB } from '../db.ts';
 import { ApiError } from '../errors.ts';
 import { inFlight, refundAiCall, reserveAiCall, trustedAccount } from '../quota.ts';
@@ -18,7 +18,7 @@ const body = z.object({
 
 /**
  * Food scan (#496): POST /v1/me/food-scan with one photo (fridge, cupboard, shopping, receipt); answers the food ids
- * seen on it. Pro once subscriptions are enforced; daily cap per member bounds the spend.
+ * seen on it (`items`, older apps) and every food or drink seen, known or not, with sure/unsure (`found`, #573). Pro once subscriptions are enforced; daily cap per member bounds the spend.
  */
 export const foodScanRoutes = (
   r: FastifyInstance,
@@ -41,7 +41,7 @@ export const foodScanRoutes = (
     if (jpeg.length > MAX_PHOTO || jpeg[0] !== 0xff || jpeg[1] !== 0xd8) throw new ApiError(400, 'bad_photo', 'Send one JPEG photo up to 1.5 MB.');
     const day = now().toISOString().slice(0, 10);
     if (!busy.enter(req.userId!)) throw new ApiError(429, 'busy', 'Still reading your last photo.');
-    let items: string[];
+    let found: FoodSeen[];
     let count: number | undefined;
     try {
       const slot = reserveAiCall(db, 'food_scan_usage', req.userId!, day, dailyLimit, globalLimit);
@@ -49,7 +49,7 @@ export const foodScanRoutes = (
       if (slot === 'all') throw new ApiError(429, 'daily_limit', 'Scanning is very busy today. Try again tomorrow!');
       count = slot;
       try {
-        items = await scan(jpeg, b.catalog);
+        found = await scan(jpeg, b.catalog);
       } catch (e) {
         refundAiCall(db, 'food_scan_usage', req.userId!, day);
         req.log.warn(`food scan failed: ${(e as Error).message}`);
@@ -58,6 +58,7 @@ export const foodScanRoutes = (
     } finally {
       busy.leave(req.userId!);
     }
-    return { items, remainingToday: Math.max(0, dailyLimit - count) };
+    const ids = new Set(found.flatMap((f) => (f.id ? [f.id] : [])));
+    return { items: b.catalog.map((c) => c.id).filter((id) => ids.has(id)), found, remainingToday: Math.max(0, dailyLimit - count) };
   });
 };

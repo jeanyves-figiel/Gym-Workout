@@ -87,7 +87,7 @@ struct CoachHome: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.plain)
-                    LimeButton(title: "▶ START") { onStart(next) }
+                    if next.startsToday { LimeButton(title: "▶ START") { onStart(next) } } else { PlannedTag(day: next.dayLabel) }
                 } else {
                     Text("Week complete 🏆").font(W.display(20)).foregroundStyle(.white)
                 }
@@ -229,14 +229,17 @@ private struct DayCard: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                         .allowsHitTesting(false)
                 }
-                Button { onStart(session) } label: {
-                    Image(systemName: "play.fill").font(.system(size: 22, weight: .black)).foregroundStyle(W.ink)
-                        .frame(width: 54, height: 54)
-                        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(W.lime))
-                        .shadow(color: W.lime.opacity(0.6), radius: 8)
+                // Only today's session starts (#537): other days' cards open their page.
+                if session.startsToday {
+                    Button { onStart(session) } label: {
+                        Image(systemName: "play.fill").font(.system(size: 22, weight: .black)).foregroundStyle(W.ink)
+                            .frame(width: 54, height: 54)
+                            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(W.lime))
+                            .shadow(color: W.lime.opacity(0.6), radius: 8)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Start \(session.title)")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Start \(session.title)")
             }
         }
         .watchMargins()
@@ -332,7 +335,7 @@ struct RingsHome: View {
                     switch stat {
                     case 0:
                         VStack(spacing: 0) {
-                            Text(next == nil ? "WEEK DONE" : "HOLD TO GO").font(W.label(7)).tracking(1)
+                            Text(next.map { $0.startsToday ? "HOLD TO GO" : $0.dayLabel.uppercased() } ?? "WEEK DONE").font(W.label(7)).tracking(1)
                             Text(next?.title ?? "🏆").font(W.display(13)).lineLimit(2).minimumScaleFactor(0.6)
                             if let next { Text("\(next.estMin)′").font(W.label(9)) }
                         }
@@ -356,7 +359,7 @@ struct RingsHome: View {
             if pressing { beginHold(next) } else { endHold() }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityAction(named: "Start") { if let next { onStart(next) } }
+        .accessibilityAction(named: "Start") { if let next, next.startsToday { onStart(next) } }
     }
 
     private func statText(_ value: String, _ label: String) -> some View {
@@ -368,7 +371,7 @@ struct RingsHome: View {
 
     private func beginHold(_ next: WSession?) {
         pressedAt = Date()
-        guard next != nil else { return }
+        guard next?.startsToday == true else { return }
         holdTask?.cancel()
         holdTask = Task { @MainActor in
             // A short press is a tap (cycles stats); charging starts after it.
@@ -397,7 +400,7 @@ struct RingsHome: View {
 
     private func go(_ next: WSession?) {
         holdTask?.cancel()
-        guard let next else { return }
+        guard let next, next.startsToday else { return }
         WKInterfaceDevice.current().play(.start)
         charge = 0
         onStart(next)
@@ -444,5 +447,17 @@ private struct QuestChest: View {
         .foregroundStyle(.white)
         .padding(8)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.12)))
+    }
+}
+
+/// In place of Start on another day's session (#537): its day, not a button.
+struct PlannedTag: View {
+    let day: String
+
+    var body: some View {
+        Text("PLANNED · \(day.uppercased())")
+            .font(W.label(13)).foregroundStyle(.white)
+            .frame(maxWidth: .infinity, minHeight: 34)
+            .background(Capsule().fill(.white.opacity(0.18)))
     }
 }

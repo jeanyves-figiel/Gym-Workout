@@ -64,6 +64,12 @@ export interface Config {
   backup: { dir?: string; keepDays: number };
   /** Encrypted off-site copy (#313): Fly Tigris bucket (secrets set by `flyctl storage create`) + BACKUP_KEY. Unset → off. */
   offsite?: OffsiteConfig;
+  /**
+   * Over-the-air config and content packs (#583): `dir` holds `config.json` + `packs/*.json` (shipped in the image, so
+   * staging gets them first and Promote to production takes the same files). CONTENT_SIGNING_KEY (base64 Ed25519
+   * PKCS#8 DER) signs `/v1/app-config`; unset → unsigned, the app then checks pack hashes only.
+   */
+  remote: { dir: string; signingKey?: string };
 }
 
 /** Whole number ≥ 1, else `dflt`: a typo must not turn into NaN days and prune every backup (#432). */
@@ -198,5 +204,6 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
             keepDays: positiveInt(env.BACKUP_OFFSITE_DAYS, 30),
           }
         : undefined,
+    remote: { dir: env.CONTENT_DIR || join(import.meta.dirname, '..', 'content'), signingKey: env.CONTENT_SIGNING_KEY || undefined },
   };
 };

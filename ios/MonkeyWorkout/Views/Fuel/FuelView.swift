@@ -62,46 +62,25 @@ enum FuelPalette {
     }
 }
 
-/// Round avatar with a gear (#496): opens Settings from the top right of every tab.
-struct SettingsAvatar: View {
-    @Environment(AppModel.self) private var model
-    var size: CGFloat = 36
-
-    private var initials: String {
-        let name = model.user?.name ?? ""
-        let parts = name.split(separator: " ").prefix(2).compactMap(\.first)
-        return parts.isEmpty ? "🐵" : String(parts).uppercased()
-    }
-
-    var body: some View {
-        Button { model.settingsOpen = true } label: {
-            Text(initials)
-                .font(Theme.label(size * 0.36))
-                .foregroundStyle(Theme.ink)
-                .frame(width: size, height: size)
-                .background(Circle().fill(FuelPalette.lime))
-                .overlay(alignment: .bottomTrailing) {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: size * 0.3, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(2)
-                        .background(Circle().fill(Theme.bg))
-                        .offset(x: 3, y: 3)
-                }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Settings")
-        .accessibilityIdentifier("settings.avatar")
-    }
-}
-
 struct FuelView: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @State private var store = FuelStore.shared
     @State private var day = Calendar.current.startOfDay(for: Date())
+    /// The date `day` was last set on: on a later date the strip reopens on today, like Train (#547).
+    @State private var dayOn = Calendar.current.startOfDay(for: Date())
+    @Environment(\.scenePhase) private var scenePhase
     @State private var setup = false
     @State private var slot: FuelSlot?
+    @State private var justAte = false
+    @AppStorage(AskCoachPref.bubbleRightKey) private var coachRight = true
+
+    private func dropStaleDay() {
+        let today = Calendar.current.startOfDay(for: Date())
+        guard dayOn != today else { return }
+        dayOn = today
+        day = today
+    }
 
     private var layout: Binding<FuelLayout> {
         Binding(get: { store.prefs.layout }, set: { l in
@@ -145,9 +124,21 @@ struct FuelView: View {
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $setup) { NavigationStack { FuelSetupView(sheet: true) } }
         .sheet(item: $slot) { s in FuelSlotSheet(slot: s, plan: plan, day: day) }
+        // Just ate (#578, design B): on the side the Ask Coach bubble isn't on.
+        .overlay(alignment: coachRight ? .bottomLeading : .bottomTrailing) {
+            if Calendar.current.startOfDay(for: day) <= Calendar.current.startOfDay(for: Date()) {
+                JustAteButton { justAte = true }.padding(.horizontal, 16).padding(.bottom, 12)
+            }
+        }
+        .sheet(isPresented: $justAte) { JustAteSheet(plan: plan, day: day) }
         .navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }
         .fuelDestinations()
-        .onAppear { if !store.saved.setUp && !model.demo { setup = true } }
+        .onAppear {
+            if !store.saved.setUp && !model.demo { setup = true }
+            model.topUpMealPlan()
+        }
+        .onChange(of: scenePhase) { if scenePhase == .active { dropStaleDay() } }
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in dropStaleDay() }
         .coachFocus(CoachFocus(screen: "fuel", title: "Fuel", detail: Self.coachDetail(plan, log: log, prefs: store.prefs),
                                starters: CoachFocus.tab(.fuel).starters))
     }
@@ -159,6 +150,18 @@ struct FuelView: View {
                      "diet \(prefs.diet.rawValue)"]
         if !prefs.avoid.isEmpty { parts.append("avoids " + prefs.avoid.map(\.rawValue).sorted().joined(separator: ", ")) }
         if let e = plan.event { parts.append("event: \(e.title)") }
+        // Supplements today and each one's schedule (#572), so Coach can answer "when do I take my creatine?".
+        if !plan.supplements.isEmpty {
+            parts.append("supplements today: " + plan.supplements.map { "\($0.supplement.name) \($0.time) \($0.supplement.dose)\(log.taken($0) ? " (taken)" : "")" }
+                .joined(separator: ", "))
+        }
+        let cal = Calendar.current
+        let stack = FuelStore.shared.stack
+        if !stack.isEmpty {
+            parts.append("supplement schedules: " + stack.map { s in
+                ([s.name, s.schedule.summary(calendar: cal)] + [s.schedule.courseLine(now: Date(), calendar: cal)].compactMap { $0 }).joined(separator: " · ")
+            }.joined(separator: "; "))
+        }
         return parts.joined(separator: "; ")
     }
 
@@ -166,15 +169,10 @@ struct FuelView: View {
         HStack(spacing: 10) {
             Text("Fuel").font(Theme.display(34)).lineLimit(1)
             Spacer()
-            Button { setup = true } label: {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 15, weight: .heavy)).foregroundStyle(.white)
-                    .frame(width: 36, height: 36)
-                    .background(Circle().fill(Color.white.opacity(0.14)))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Your fuel settings")
-            SettingsAvatar()
+            Button { setup = true } label: { HeaderTile(symbol: "slider.horizontal.3") }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Your fuel settings")
+            MePill()
         }
         .padding(.top, 4)
     }
@@ -400,7 +398,17 @@ struct FuelDashboard: View {
             .padding(14)
             .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(FuelPalette.load(plan.load)))
 
-            if let next {
+            // With a meal plan, the next planned recipe and the one after it (#578, design A).
+            let key = store.key(day)
+            let plannedSlots = plan.slots.filter { s in s.minute >= now - 30 && store.saved.plan.contains { $0.day == key && $0.slot == s.id } }
+            if let first = plannedSlots.first, let meal = store.saved.plan.first(where: { $0.day == key && $0.slot == first.id }),
+               let recipe = RecipeBook.recipe(meal.recipeId, own: store.saved.recipes) {
+                PlannedPlateCard(slot: first, recipe: recipe, meal: meal, plan: plan, log: log, day: day, open: open)
+                if plannedSlots.count > 1, let m = store.saved.plan.first(where: { $0.day == key && $0.slot == plannedSlots[1].id }),
+                   let r = RecipeBook.recipe(m.recipeId, own: store.saved.recipes) {
+                    ThenMealCard(slot: plannedSlots[1], recipe: r, meal: m)
+                }
+            } else if let next {
                 VStack(alignment: .leading, spacing: 8) {
                     Button { open(next) } label: {
                         VStack(alignment: .leading, spacing: 8) {
@@ -796,7 +804,11 @@ struct FuelSlotActions: View {
             HStack(spacing: 6) {
                 chip(.pantry, "🧊 From what I have")
                 chip(.recipes(slot.recipeKind), "📖 Other recipes")
-                if !missing.isEmpty { chip(.groceries, "🛒 \(missing.count) missing · Groceries") }
+                // The count is this meal's; Groceries lists the whole basket, so the chip says which.
+                if !missing.isEmpty {
+                    chip(.groceries, "🛒 \(missing.count) to buy for this meal")
+                        .accessibilityHint("Opens the full grocery list")
+                }
             }
         }
         .scrollClipDisabled()

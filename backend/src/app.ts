@@ -29,6 +29,7 @@ import { customWorkoutRoutes } from './routes/customWorkouts.ts';
 import { bodyMeasurementRoutes } from './routes/bodyMeasurements.ts';
 import { climbRoutes } from './routes/climbs.ts';
 import { sportRoutes, watchSportRoutes } from './routes/sports.ts';
+import { garminRoutes, garminWatchRoutes } from './routes/garmin.ts';
 import { machineNoteRoutes } from './routes/machineNotes.ts';
 import { reportRoutes } from './routes/reports.ts';
 import { prAttemptRoutes } from './routes/prAttempts.ts';
@@ -40,6 +41,7 @@ import { appStoreNotificationRoutes, subscriptionRoutes } from './routes/subscri
 import { type AppStoreDecoder, createAppStoreDecoder } from './subscriptions/appStore.ts';
 import { SubscriptionService } from './subscriptions/service.ts';
 import { legalRoutes } from './routes/legal.ts';
+import { remoteRoutes } from './remote.ts';
 import { reauthToken, securityPublicRoutes, securityRoutes } from './routes/security.ts';
 import { SecurityService, type WebAuthnVerifier } from './security.ts';
 
@@ -76,6 +78,8 @@ export interface AppDeps {
   foodScan?: FoodScanModel;
   /** Studio coach voices (#395); defaults to Polly when credentials are configured. Injectable for tests. */
   synth?: Synthesize;
+  /** Sees every route as it is registered (`src/docsReference.ts`, #586). */
+  onRoute?: (route: { method: string | string[]; url: string }) => void;
 }
 
 const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
@@ -107,6 +111,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
     trustProxy: true,
     bodyLimit: 1_000_000,
   });
+  if (deps.onRoute) app.addHook('onRoute', deps.onRoute);
   const now = deps.now ?? (() => new Date());
   const outbound: Fetch = deps.fetch ?? ((input, init) => globalThis.fetch(input, init));
   const warn = (msg: string) => app.log.warn(msg);
@@ -173,8 +178,10 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   communityPublicRoutes(app, deps.db, deps.config.appName);
   appStoreNotificationRoutes(app, subscriptions);
   legalRoutes(app, deps.config);
+  remoteRoutes(app, deps.config.remote.dir, deps.config.remote.signingKey, (m) => app.log.error(m));
   securityPublicRoutes(app, security, deps.config.authRateLimitPerMin);
   watchSportRoutes(app, deps.db, deps.now ?? (() => new Date()));
+  garminWatchRoutes(app, deps.db, deps.now ?? (() => new Date()));
 
   const authenticate = async (req: FastifyRequest) => {
     const h = req.headers.authorization;
@@ -292,6 +299,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       prAttemptRoutes(r, deps.db, deps.now ?? (() => new Date()));
       climbRoutes(r, deps.db, deps.now ?? (() => new Date()));
       sportRoutes(r, deps.db, deps.now ?? (() => new Date()));
+      garminRoutes(r, deps.db, deps.now ?? (() => new Date()));
       machineNoteRoutes(r, deps.db, deps.now ?? (() => new Date()));
       reportRoutes(r, { db: deps.db, now, mailer: deps.mailer, to: deps.config.legal.email, fetch: outbound, config: deps.config.reports, log: warn });
       bodyMeasurementRoutes(r, deps.db, deps.now ?? (() => new Date()));

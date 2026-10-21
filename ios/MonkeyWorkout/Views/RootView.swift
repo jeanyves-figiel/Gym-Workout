@@ -33,6 +33,10 @@ struct RootView: View {
                     #endif
                 }
             }
+            // This build can't keep working (#583, design B): over everything but the lock.
+            if Remote.shared.updateNeed == .required {
+                RequiredUpdateView()
+            }
             if lock.enabled && (lock.locked || lock.covered) {
                 LockScreen()
             }
@@ -53,6 +57,11 @@ struct MainTabView: View {
     @State private var whatsNew = WhatsNew.pending
     @State private var ask = CoachAsk.shared
     @AppStorage(AskCoachPref.bubbleKey) private var coachBubble = true
+
+    /// What's new with the X top right (#556); its own function keeps `body` quick to type-check.
+    private func whatsNewSheet(_ notes: WhatsNew) -> some View {
+        NavigationStack { WhatsNewView(notes: notes) }
+    }
 
     var body: some View {
         TabView(selection: Bindable(model).tab) {
@@ -76,8 +85,14 @@ struct MainTabView: View {
         .sidebarAdaptableTabs()
         // Ask Coach everywhere (#412 A): the floating 🐵 and its chat, which knows the screen on top.
         .overlay { if coachBubble { AskCoachBubble() } }
-        .sheet(item: $ask.request) { r in CoachChatView(ask: r) }
-        // Settings (#496): the avatar at the top right of every tab.
+        .sheet(item: $ask.request) { r in CoachChatView(ask: r).remotePaused(.askCoach) }
+        // Me sheet (#560): the Me pill at the top right of every tab.
+        .sheet(isPresented: Bindable(model).meOpen) {
+            NavigationStack {
+                MeSheet().toolbar { CloseToolbarItem { model.meOpen = false } }
+            }
+        }
+        // Settings straight (#496), e.g. from Coach chat.
         .sheet(isPresented: Bindable(model).settingsOpen) {
             NavigationStack {
                 AccountView().toolbar { CloseToolbarItem { model.settingsOpen = false } }
@@ -90,7 +105,12 @@ struct MainTabView: View {
         }
         // Auto-share catch-up (#479): a workout finished on the Watch while the app was closed, a failed post or
         // a sport the Watch tracked (it reaches the iPhone through Health) is posted when the app opens.
-        .onChange(of: scenePhase) { _, p in if p == .active { Task { await autoShare() } } }
+        .onChange(of: scenePhase) { _, p in
+            guard p == .active else { return }
+            Task { await autoShare() }
+            // Workouts and sets from a Garmin watch (#550).
+            Task { await GarminSync.shared.pull() }
+        }
         .onChange(of: health.snapshot.recentSports.count) { Task { await autoShare() } }
         // Coach voice (#402, C): the best matching studio voice, downloaded once in the background.
         .task(id: model.user?.id) { await CoachVoiceStore.shared.prepare(model: model) }
@@ -106,7 +126,7 @@ struct MainTabView: View {
         }
         // First open after an update (#183); seen once dismissed, either way.
         .sheet(item: Binding(get: { model.offerPro ? nil : whatsNew }, set: { whatsNew = $0 }), onDismiss: WhatsNew.markSeen) {
-            WhatsNewView(notes: $0)
+            whatsNewSheet($0)
         }
     }
 }
@@ -313,7 +333,7 @@ private struct DemoScreen: View {
         case "account-passkeys": NavigationStack { PasskeysView(passkeys: Demo.security.passkeys) }
         case "community", "community-join": NavigationStack { CommunityView() }
         case "community-share": ShareWinView()
-        case "community-profile": NavigationStack { CommunityProfileView() }
+        case "community-profile": NavigationStack { ProfileView() }
         case "community-members":
             NavigationStack { FindMembersView().navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) } }
         case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", Demo.customExercise.exerciseId]) { _ in }
@@ -436,6 +456,8 @@ private struct DemoScreen: View {
         case "fuel-setup": NavigationStack { FuelSetupView(sheet: true) }
         case "share-recipe": ShareRecipeSheet(recipe: RecipeBook.catalog[0])
         case "whats-new": if let n = WhatsNew.current { WhatsNewView(notes: n) }
+        // Over-the-air prompts (#583): remote-banner and remote-required are Train with the banner / update screen.
+        case "remote-paused": PausedCard(message: "Food scan is paused while we fix it. Search and barcode still work.")
         case "whats-new-history": NavigationStack { WhatsNewHistoryView(latest: WhatsNew.current, history: WhatsNew.history) }
         case "add-workout": AddWorkoutSheet()
         case "add-workout-quick": AddWorkoutSheet(quick: .fullUpper)

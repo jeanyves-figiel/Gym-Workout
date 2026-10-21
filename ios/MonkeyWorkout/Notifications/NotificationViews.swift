@@ -63,6 +63,8 @@ struct NotificationsHost: ViewModifier {
                     NavigationStack { SessionView(sessionId: id).toolbar { CloseToolbarItem { notify.route = nil } } }
                 case let .reschedule(id, day):
                     MissedSessionSheet(sessionId: id, day: day)
+                case let .move(id):
+                    RescheduleSheet(sessionId: id)
                 case let .member(userId, nickname):
                     NavigationStack {
                         MemberView(author: CommunityAuthor(userId: userId, nickname: nickname))
@@ -282,10 +284,20 @@ struct MissedSessionSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var training = false
-    @State private var moving = false
     @State private var calendar = false
 
     private var session: Session? { model.session(sessionId) }
+
+    private func moveNow() {
+        let before = Set(model.away.map(\.id))
+        let moved = model.reschedule(sessionId: sessionId)
+        let added = model.away.filter { !before.contains($0.id) }.map(\.id)
+        dismiss()
+        let title = moved.map { "Moved to \($0.formatted(.dateTime.weekday(.wide)))" } ?? "No free day left: skipped"
+        UndoCloseCenter.shared.deleted(title, detail: session?.title ?? "", symbol: "arrow.uturn.forward") { [model] in
+            for id in added { model.deleteAway(id) }
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -306,7 +318,8 @@ struct MissedSessionSheet: View {
                     .buttonStyle(.plain)
                     .disabled(session == nil)
 
-                    Button { moving = true } label: {
+                    // One tap moves it, as the card says; the Undo bar puts it back (#285).
+                    Button(action: moveNow) {
                         DayCard(symbol: "arrow.uturn.forward", title: "Move it", detail: "Next free day this week",
                                 big: "→", gradient: NotifyStyle.missed)
                     }
@@ -328,9 +341,6 @@ struct MissedSessionSheet: View {
             }
             .fullScreenCover(isPresented: $training, onDismiss: { dismiss() }) {
                 WorkoutPlayerView(sessionId: sessionId)
-            }
-            .sheet(isPresented: $moving, onDismiss: { dismiss() }) {
-                RescheduleSheet(sessionId: sessionId)
             }
             .sheet(isPresented: $calendar) {
                 NavigationStack { CalendarView() }

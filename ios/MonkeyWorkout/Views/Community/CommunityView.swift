@@ -37,28 +37,15 @@ struct CommunityView: View {
         .navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) }
     }
 
-    /// Title, Share a win and your round profile picture (opens your profile directly).
+    /// Title, Share a win and the Me pill (#560): your community profile is in the Me sheet.
     private var header: some View {
         HStack(spacing: 12) {
             Text("Community").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
             Spacer(minLength: 4)
-            Button { composing = true } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .heavy))
-                    .foregroundStyle(.black)
-                    .frame(width: 40, height: 40)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Share a win")
-            if let p = community.profile {
-                NavigationLink { CommunityProfileView() } label: {
-                    AvatarView(url: model.api.resolve(p.avatarUrl), nickname: p.nickname, size: 40)
-                }
+            Button { composing = true } label: { HeaderTile(symbol: "plus", lime: true) }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Your community profile")
-            }
-            SettingsAvatar()
+                .accessibilityLabel("Share a win")
+            MePill()
         }
         .padding(.top, 4)
     }
@@ -69,6 +56,7 @@ struct CommunityView: View {
                 header
                 CommunityGymCard()
                 FindMembersCard()
+                TrainedTodayRow(posts: community.posts(.members))
                 GradientSegments(selection: $scope, items: [
                     SegmentItem(value: .members, title: "Members", symbol: "person.3.fill"),
                     SegmentItem(value: .following, title: "Following", symbol: "heart.fill"),
@@ -149,6 +137,7 @@ struct PostCard: View {
             header
             HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
+                    if let m = CommunityMoment(post) { Text(m.label).font(Theme.label(11)).tracking(1.5).opacity(0.85) }
                     Text(post.payload.title).font(Theme.display(24)).lineLimit(2).minimumScaleFactor(0.7)
                     if let s = post.payload.subtitle { Text(s).font(.footnote.weight(.semibold)).opacity(0.85) }
                 }
@@ -170,6 +159,7 @@ struct PostCard: View {
                     }
                 }
             }
+            if let q = CoachQuip.line(for: post) { CoachQuipRow(text: q) }
             if let c = post.caption { Text(c).font(.subheadline.weight(.medium)) }
             if post.hidden {
                 Label("Hidden from members while reports are reviewed", systemImage: "eye.slash.fill").font(.caption.bold())
@@ -177,10 +167,10 @@ struct PostCard: View {
             ReactionBar(post: post)
             ErrorText(message: error)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(post.ink)
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(post.payload.gradient))
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(post.gradient))
         .opacity(post.hidden ? 0.6 : 1)
         .sheet(isPresented: $reporting) {
             ReportSheet(postId: post.id, userId: post.author.userId, nickname: post.author.nickname)
@@ -188,7 +178,7 @@ struct PostCard: View {
         .confirmationDialog("Block \(post.author.nickname)?", isPresented: $confirmBlock, titleVisibility: .visible) {
             Button("Block", role: .destructive) { block() }
         } message: {
-            Text("You won't see each other's posts or profiles. Unblock any time from your community profile.")
+            Text("You won't see each other's posts or profiles. Unblock any time from Your profile.")
         }
         .confirmationDialog("Delete this post?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { delete() }
@@ -262,35 +252,63 @@ struct PostCard: View {
     }
 }
 
-/// Like + encouragement cheers. Own posts show counts only.
+/// Like + encouragement cheers: bold square tiles, an emoji burst when you cheer (#566). Own posts show counts only.
 struct ReactionBar: View {
     let post: CommunityPost
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var burst: CommunityReaction?
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 5) {
             ForEach(CommunityReaction.allCases) { r in
                 let on = post.reacted(r)
                 Button {
+                    if !on, !reduceMotion { burst = r }
                     Task { await Community.shared.toggle(r, on: post, api: model.api) }
                 } label: {
-                    HStack(spacing: 4) {
-                        Text(r.emoji)
-                        if post.count(r) > 0 { Text("\(post.count(r))").monospacedDigit() }
+                    HStack(spacing: 3) {
+                        Text(r.emoji).font(.system(size: 15))
+                        if post.count(r) > 0 { Text("\(post.count(r))").monospacedDigit().lineLimit(1) }
                     }
-                    .font(Theme.label(13))
+                    .font(Theme.label(12))
                     .foregroundStyle(on ? Theme.ink : .white)
-                    .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(Capsule().fill(on ? Theme.lime : .white.opacity(0.18)))
+                    .frame(maxWidth: .infinity, minHeight: 34)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? Theme.lime : .black.opacity(0.22)))
+                    .overlay(alignment: .top) {
+                        if burst == r { BurstView(emoji: r.emoji) { burst = nil } }
+                    }
                 }
                 .buttonStyle(.plain)
                 .disabled(post.mine)
                 .accessibilityLabel("\(r.title), \(post.count(r))")
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
-            Spacer()
         }
         .sensoryFeedback(.impact(weight: .light), trigger: post.myReactions)
+    }
+}
+
+/// Three emojis that pop up and fade above a cheer tile.
+private struct BurstView: View {
+    let emoji: String
+    let done: () -> Void
+    @State private var up = false
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<3, id: \.self) { i in
+                Text(emoji).font(.system(size: 18))
+                    .offset(x: CGFloat(i - 1) * (up ? 16 : 4), y: up ? -44 - CGFloat(i % 2) * 10 : 0)
+                    .scaleEffect(up ? 1.3 : 0.6)
+                    .opacity(up ? 0 : 1)
+            }
+        }
+        .allowsHitTesting(false)
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.7)) { up = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) { done() }
+        }
     }
 }
 
@@ -325,6 +343,8 @@ extension CommunityReaction {
         case .strong: "💪"
         case .fire: "🔥"
         case .clap: "👏"
+        case .beast: "🦍"
+        case .banana: "🍌"
         }
     }
 
@@ -334,6 +354,8 @@ extension CommunityReaction {
         case .strong: "Strong"
         case .fire: "On fire"
         case .clap: "Keep going"
+        case .beast: "Beast"
+        case .banana: "Banana earned"
         }
     }
 }
@@ -365,11 +387,15 @@ extension CommunityVisibility {
 }
 
 extension CommunityCard {
-    var gradient: LinearGradient {
+    var colors: [Color] {
         // Sport and climb posts (#479): "sport:<Sport raw value>".
-        if let s = style, s.hasPrefix("sport:"), let sport = Sport(rawValue: String(s.dropFirst(6))) { return sport.gradient }
-        return (style.flatMap(WorkoutEngine.Category.init(rawValue:)) ?? .strength).gradient
+        if let s = style, s.hasPrefix("sport:"), let sport = Sport(rawValue: String(s.dropFirst(6))) { return sport.colors }
+        // Moments (#566): "moment:pr|streak|level".
+        if let s = style, s.hasPrefix("moment:"), let m = CommunityMoment(rawValue: String(s.dropFirst(7))) { return m.colors }
+        return (style.flatMap(WorkoutEngine.Category.init(rawValue:)) ?? .strength).colors
     }
+
+    var gradient: LinearGradient { LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing) }
 }
 
 /// Three big tiles: Only me / Members / Public.

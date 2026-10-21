@@ -74,7 +74,7 @@ struct PantryView: View {
         }
         .proPaywall($gate)
         .sheet(isPresented: $liveScan) { LiveScanSheet() }
-        .sheet(isPresented: $photoScan) { FoodPhotoScanSheet() }
+        .sheet(isPresented: $photoScan) { FoodPhotoScanSheet().remotePaused(.foodScan) }
         .alert("How much \(editingGrams?.name.lowercased() ?? "")?", isPresented: Binding(get: { editingGrams != nil }, set: { if !$0 { editingGrams = nil } })) {
             TextField("Grams (empty = enough)", text: $gramsText).keyboardType(.numberPad)
             Button("Save") {
@@ -386,23 +386,33 @@ struct LiveScanSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var store = FuelStore.shared
-    @State private var found: [Food] = []
+    @State private var found: [ScanPick] = []
     @State private var codes: Set<String> = []
     @State private var looking = 0
+    /// Barcode first (#573): words read off a package only count when no barcode product came within a few seconds of
+    /// them, so the label of a scanned bottle can't add a second, wrong food.
+    @State private var fromText: [String: Date] = [:]
+    @State private var lastProduct = Date.distantPast
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
                 LiveFoodScanner(onText: { text in
+                    guard Date().timeIntervalSince(lastProduct) > 4 else { return }
                     for f in FoodBook.find(in: text, own: store.saved.foods) where !found.contains(where: { $0.id == f.id }) {
-                        found.append(f)
+                        found.append(ScanPick(f, sure: false, source: "Label", on: true))
+                        fromText[f.id] = Date()
                     }
                 }, onBarcode: { code in
                     guard codes.insert(code).inserted else { return }
                     looking += 1
+                    let seen = Date()
                     Task {
                         defer { looking -= 1 }
-                        if let f = await model.lookUpBarcode(code), !found.contains(where: { $0.id == f.id }) { found.append(f) }
+                        guard let f = await model.lookUpBarcode(code) else { return }
+                        lastProduct = Date()
+                        found.removeAll { fromText[$0.id].map { seen.timeIntervalSince($0) < 4 } ?? false }
+                        if !found.contains(where: { $0.id == f.id }) { found.append(ScanPick(f, sure: true, source: "Barcode")) }
                     }
                 })
                 .ignoresSafeArea()
@@ -412,23 +422,17 @@ struct LiveScanSheet: View {
                         if looking > 0 { ProgressView().tint(.white) }
                     }
                     if !found.isEmpty {
-                        FlowLayout(spacing: 6) {
-                            ForEach(found) { f in
-                                Button { found.removeAll { $0.id == f.id } } label: {
-                                    Label("\(f.emoji) \(f.name)", systemImage: "xmark").labelStyle(.titleOnly)
-                                        .font(Theme.label(12)).padding(.horizontal, 9).padding(.vertical, 6)
-                                        .background(Capsule().fill(.white.opacity(0.2)))
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityHint("Removes it")
-                            }
-                        }
+                        ScrollView { ScanCheckList(picks: $found) }
+                            .frame(maxHeight: 250)
+                            .scrollBounceBehavior(.basedOnSize)
+                        let on = found.filter(\.on).map(\.food)
                         Button {
-                            store.add(found)
+                            store.add(on)
                             UINotificationFeedbackGenerator().notificationOccurred(.success)
                             dismiss()
-                        } label: { Text("ADD \(found.count) TO WHAT I HAVE") }
+                        } label: { Text("ADD \(on.count) TO WHAT I HAVE") }
                             .buttonStyle(LimeButtonStyle())
+                            .disabled(on.isEmpty)
                     }
                     Text("Read on your iPhone. Barcodes are looked up on Open Food Facts (only the code is sent).")
                         .font(.caption2.weight(.semibold)).opacity(0.75)
@@ -455,8 +459,7 @@ struct FoodPhotoScanSheet: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var image: UIImage?
     @State private var scanning = false
-    @State private var found: [Food] = []
-    @State private var picked: Set<String> = []
+    @State private var picks: [ScanPick] = []
     @State private var notice: String?
 
     var body: some View {
@@ -497,27 +500,17 @@ struct FoodPhotoScanSheet: View {
                     }
                     .disabled(scanning)
                     if let notice { Text(notice).font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted) }
-                    if !found.isEmpty {
-                        Text("Found \(found.count)").font(Theme.display(22))
-                        FlowLayout(spacing: 6) {
-                            ForEach(found) { f in
-                                let on = picked.contains(f.id)
-                                Button { if on { picked.remove(f.id) } else { picked.insert(f.id) } } label: {
-                                    Label("\(f.emoji) \(f.name)", systemImage: on ? "checkmark.circle.fill" : "circle")
-                                        .font(Theme.label(12)).foregroundStyle(on ? Theme.ink : .white)
-                                        .padding(.horizontal, 10).padding(.vertical, 7)
-                                        .background(Capsule().fill(on ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Theme.card)))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
+                    if !picks.isEmpty {
+                        Text("Found \(picks.count)").font(Theme.display(22))
+                        ScanCheckList(picks: $picks)
+                        let on = picks.filter(\.on).map(\.food)
                         Button {
-                            store.add(found.filter { picked.contains($0.id) })
+                            store.add(on)
                             UINotificationFeedbackGenerator().notificationOccurred(.success)
                             dismiss()
-                        } label: { Text("ADD \(picked.count) TO WHAT I HAVE") }
+                        } label: { Text("ADD \(on.count) TO WHAT I HAVE") }
                             .buttonStyle(LimeButtonStyle())
-                            .disabled(picked.isEmpty)
+                            .disabled(on.isEmpty)
                     }
                 }
                 .padding(16)
@@ -539,16 +532,18 @@ struct FoodPhotoScanSheet: View {
 
     private func scan(_ photo: UIImage) {
         image = photo
-        found = []
+        picks = []
         notice = nil
         guard let jpeg = GymScanSheet.jpeg(photo) else { notice = "Couldn't read that photo."; return }
         scanning = true
         Task {
             defer { scanning = false }
             do {
-                found = try await model.scanFood(jpeg: jpeg)
-                picked = Set(found.map(\.id))
-                if found.isEmpty { notice = "No food spotted. Open the fridge door wide and try again." }
+                // Unsure ones (#573) start unticked: FIX or tick them if Monkey got them right.
+                var seen: Set<String> = []
+                picks = try await model.scanFood(jpeg: jpeg).filter { seen.insert($0.food.id).inserted }
+                    .map { ScanPick($0.food, sure: $0.sure, source: "Photo") }
+                if picks.isEmpty { notice = "No food spotted. Open the fridge door wide and try again." }
             } catch APIError.server(_, _, let message) {
                 notice = message
             } catch {

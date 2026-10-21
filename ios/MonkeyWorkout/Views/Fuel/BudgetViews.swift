@@ -24,14 +24,14 @@ enum BudgetLevel: String, CaseIterable, Identifiable {
         }
     }
 
-    /// CHF a week per person for every meal (lunch and dinner only: 60 %).
-    func weekly(people: Int, mainOnly: Bool) -> Double {
+    /// CHF a week per person for every meal; `share` = part of the week's 21 main meals planned (#558).
+    func weekly(people: Int, share: Double) -> Double {
         let base: Double = switch self {
         case .saver: 50
         case .normal: 75
         case .treat: 110
         }
-        return (base * Double(people) * (mainOnly ? 0.6 : 1) / 5).rounded() * 5
+        return (base * Double(people) * max(0.1, min(1, share)) / 5).rounded() * 5
     }
 }
 
@@ -111,18 +111,20 @@ struct BasketCard: View {
     var body: some View {
         let basket = MealPlanner.basket(items)
         let weekly = store.saved.budget
-        let budget = weekly.map { $0 * Double(store.saved.planDays) / 7 }
-        let meals = store.saved.plan.count
+        let budget = weekly.map { $0 * Double(store.planSpan) / 7 }
+        let today = store.key(Date())
+        let meals = store.saved.plan.filter { $0.day >= today }.count
+        let days = store.planSpan
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("WEEK BASKET").font(Theme.label(10)).tracking(1.2).opacity(0.85)
+                    Text(store.planSpan > 7 ? "PLAN BASKET" : "WEEK BASKET").font(Theme.label(10)).tracking(1.2).opacity(0.85)
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(BudgetFormat.money(basket.cost.rounded())).font(Theme.display(32)).monospacedDigit()
                             .lineLimit(1).minimumScaleFactor(0.6)
                         if let budget { Text("/ \(Int(BudgetFormat.local(budget).rounded()))").font(Theme.display(17)).opacity(0.75) }
                     }
-                    Text("\(store.saved.planDays) days · \(store.saved.people) \(store.saved.people == 1 ? "person" : "people") · \(meals) meals")
+                    Text("\(days) \(days == 1 ? "day" : "days") · \(store.saved.people) \(store.saved.people == 1 ? "person" : "people") · \(meals) meals")
                         .font(Theme.label(11)).opacity(0.9)
                     if let budget {
                         let over = basket.cost - budget
@@ -136,7 +138,7 @@ struct BasketCard: View {
             HStack(spacing: 6) {
                 chip("💰 Cheaper", on: false) {
                     // 15 % under what the plan costs now, then re-plan (picks stay).
-                    let now = basket.cost * 7 / Double(max(1, store.saved.planDays))
+                    let now = basket.cost * 7 / Double(max(1, store.planSpan))
                     store.setBudget(max(10, (min(now, store.saved.budget ?? now) * 0.85 / 5).rounded() * 5))
                     replan()
                 }
@@ -202,7 +204,7 @@ struct BudgetSheet: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 6) {
                     ForEach(BudgetLevel.allCases) { level in
-                        let v = BudgetFormat.whole(level.weekly(people: store.saved.people, mainOnly: store.saved.mainOnly))
+                        let v = BudgetFormat.whole(level.weekly(people: store.saved.people, share: store.mealShare))
                         let on = limit && abs(v - amount) < 0.5
                         Button {
                             amount = v
@@ -227,7 +229,7 @@ struct BudgetSheet: View {
                         .font(Theme.display(30)).monospacedDigit()
                     Slider(value: $amount, in: (20 * market.factor).rounded()...(400 * market.factor).rounded(), step: market.step)
                         .tint(Theme.lime)
-                    Text("For \(store.saved.people) \(store.saved.people == 1 ? "person" : "people"), \(store.saved.mainOnly ? "lunch and dinner" : "every meal"). Prices are estimates for \(market.label); change one from the grocery list.")
+                    Text("For \(store.saved.people) \(store.saved.people == 1 ? "person" : "people"), \(Int((store.mealShare * 21).rounded())) meals a week. Prices are estimates for \(market.label); change one from the grocery list.")
                         .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
                 }
                 Menu {
@@ -257,7 +259,7 @@ struct BudgetSheet: View {
             .toolbar { CloseToolbarItem { dismiss() } }
             .onAppear {
                 limit = store.saved.budget != nil
-                amount = BudgetFormat.whole(store.saved.budget ?? BudgetLevel.normal.weekly(people: store.saved.people, mainOnly: store.saved.mainOnly))
+                amount = BudgetFormat.whole(store.saved.budget ?? BudgetLevel.normal.weekly(people: store.saved.people, share: store.mealShare))
             }
         }
         .preferredColorScheme(.dark)

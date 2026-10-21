@@ -139,8 +139,9 @@ public struct Food: Codable, Hashable, Sendable, Identifiable {
 
     public enum Role: String, Sendable { case protein, carbs, veg, fat, extra }
 
-    /// Product from Open Food Facts (`/api/v2/product/<code>.json`), per 100 g. Nil when the product or its values
-    /// are missing.
+    /// Product from Open Food Facts (`/api/v2/product/<code>.json`), per 100 g (ml for drinks). Nil when the product is
+    /// missing or has no values at all; a missing protein or fat (common on beer and soft drinks) counts as 0 (#573).
+    /// Drinks (beverage categories) stay drinks, alcohol is flagged.
     public static func openFoodFacts(_ data: Data, barcode: String) -> Food? {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let product = root["product"] as? [String: Any] else { return nil }
@@ -151,23 +152,40 @@ public struct Food: Codable, Hashable, Sendable, Identifiable {
             if let s = n[key] as? String { return Double(s) }
             return nil
         }
-        guard let p = value("proteins_100g"), let c = value("carbohydrates_100g"), let f = value("fat_100g") else { return nil }
-        let name = (product["product_name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Scanned product"
+        let p = value("proteins_100g"), c = value("carbohydrates_100g"), f = value("fat_100g"), kcal = value("energy-kcal_100g")
+        guard p != nil || c != nil || f != nil || kcal != nil else { return nil }
+        let categories = product["categories_tags"] as? [String] ?? []
+        let alcoholic = categories.contains { ["en:alcoholic-beverages", "en:beers", "en:wines", "en:ciders", "en:spirits"].contains($0) }
+            || (value("alcohol_100g") ?? value("alcohol") ?? 0) >= 0.5
+        let drink = alcoholic || categories.contains("en:beverages")
+        var name = (product["product_name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Scanned product"
+        if let brand = (product["brands"] as? String)?.split(separator: ",").first.map({ $0.trimmingCharacters(in: .whitespaces) }),
+           !brand.isEmpty, !FoodBook.fold(name).contains(FoodBook.fold(brand)) {
+            name = "\(brand) \(name)"
+        }
         let tags = (product["allergens_tags"] as? [String] ?? []).joined(separator: " ")
         var contains: [Allergen] = []
         let map: [(String, Allergen)] = [("milk", .lactose), ("gluten", .gluten), ("nuts", .nuts), ("peanuts", .peanuts), ("eggs", .eggs),
                                          ("soybeans", .soy), ("fish", .fish), ("crustaceans", .shellfish), ("molluscs", .shellfish),
                                          ("sesame", .sesame)]
         for (tag, a) in map where tags.contains(tag) && !contains.contains(a) { contains.append(a) }
+        if alcoholic { contains.append(.alcohol) }
         let analysis = (product["ingredients_analysis_tags"] as? [String] ?? [])
-        let base: RecipeBase = analysis.contains("en:vegan") ? .vegan : analysis.contains("en:vegetarian") ? .vegetarian
+        let base: RecipeBase = analysis.contains("en:vegan") || (drink && !contains.contains(.lactose)) ? .vegan
+            : analysis.contains("en:vegetarian") || drink ? .vegetarian
             : contains.contains(.fish) || contains.contains(.shellfish) ? .fish : .poultry
-        let qty = (product["serving_quantity"] as? Double) ?? (product["serving_quantity"] as? String).flatMap(Double.init) ?? 100
-        let food = Food(id: "bar-\(barcode)", name: String(name.prefix(40)), emoji: "🏷️", group: .snack,
-                        per100: Macros(protein: p, carbs: c, fat: f, kcal: value("energy-kcal_100g")),
-                        portion: Serving(g: max(10, min(500, qty)), label: "1 serving"), base: base, contains: contains,
+        let qty = (product["serving_quantity"] as? Double) ?? (product["serving_quantity"] as? String).flatMap(Double.init) ?? (drink ? 330 : 100)
+        let emoji = !drink ? "🏷️" : categories.contains("en:beers") ? "🍺" : categories.contains("en:wines") ? "🍷"
+            : alcoholic ? "🥃" : "🥤"
+        let food = Food(id: "bar-\(barcode)", name: String(name.prefix(40)), emoji: emoji, group: drink ? .drink : .snack,
+                        per100: Macros(protein: p ?? 0, carbs: c ?? 0, fat: f ?? 0, kcal: kcal),
+                        portion: Serving(g: max(10, min(1000, qty)), label: drink ? "1 bottle" : "1 serving"), base: base, contains: contains,
                         aliases: [], barcode: barcode)
         var out = food
+        if drink {
+            out.aisle = "drinks"
+            return out
+        }
         out.group = switch food.role {
         case .protein: .protein
         case .carbs: .grain
@@ -181,14 +199,20 @@ public struct Food: Codable, Hashable, Sendable, Identifiable {
 
 public enum FoodBook {
     public static let catalog: [Food] = {
-        guard let url = Bundle.module.url(forResource: "Foods", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let list = try? JSONDecoder().decode([Food].self, from: data) else { return [] }
-        return list
+        // A content pack from the server (#583) when one was fetched for this build, else the bundled file.
+        ContentPacks.shared.load("foods", bundled: Bundle.module.url(forResource: "Foods", withExtension: "json"),
+                                 decode: { try JSONDecoder().decode([Food].self, from: $0) }, valid: { !$0.isEmpty }) ?? []
     }()
 
     public static func food(_ id: String, own: [Food] = []) -> Food? {
         own.first { $0.id == id } ?? catalog.first { $0.id == id }
+    }
+
+    /// "Appenzeller Bier" → "appenzeller-bier": an id for a food the photo scan found that isn't on the list.
+    public static func slug(_ name: String) -> String {
+        let s = fold(name).map { $0.isASCII && ($0.isLetter || $0.isNumber) ? $0 : "-" }.reduce(into: "") { $0.append($1) }
+        let out = String(s.split(separator: "-").joined(separator: "-").prefix(34))
+        return out.isEmpty ? "food" : out
     }
 
     static func fold(_ s: String) -> String {
@@ -197,11 +221,15 @@ public enum FoodBook {
 
     /// Foods named in free text: typed ("eggs, rice and some spinach"), or read by the camera from a receipt or label.
     /// Longest names first so "sweet potato" wins over "potato".
+    /// A label with an alcohol strength ("5.2% vol", "alc. 4,8 %") is a drink's: only drinks match on it (#573: an
+    /// Appenzeller beer label read as cheese).
     public static func find(in text: String, own: [Food] = []) -> [Food] {
         let words = " " + fold(text).map { $0.isLetter || $0.isNumber ? $0 : " " }.reduce(into: "") { $0.append($1) } + " "
         var hits: [(Food, Int)] = []
         var used = words
-        let names = (own + catalog).flatMap { f in ([f.name] + f.aliases).map { (f, fold($0)) } }
+        let drinkLabel = isDrinkLabel(text)
+        let names = (own + catalog).filter { !drinkLabel || $0.group == .drink }
+            .flatMap { f in ([f.name] + f.aliases).map { (f, fold($0)) } }
             .filter { $0.1.count >= 3 }
             .sorted { $0.1.count > $1.1.count }
         for (f, name) in names where !hits.contains(where: { $0.0.id == f.id }) {
@@ -217,7 +245,34 @@ public enum FoodBook {
         return hits.sorted { $0.1 < $1.1 }.map(\.0)
     }
 
+    static func isDrinkLabel(_ text: String) -> Bool {
+        let t = fold(text)
+        return t.range(of: #"\d+([.,]\d+)?\s*%\s*(vol|alc|abv)"#, options: .regularExpression) != nil
+            || t.range(of: #"\b(alc|alk)\.?\s*\d+([.,]\d+)?\s*%"#, options: .regularExpression) != nil
+    }
+
     /// Search box: name or alias contains every word.
+    /// "Or it's…" (#573): the closest other foods for a scan item Monkey wasn't sure of. Name words first, then the same
+    /// group by values per 100 g.
+    public static func guesses(for food: Food, own: [Food] = [], count: Int = 3) -> [Food] {
+        func words(_ s: String) -> Set<String> { Set(fold(s).split { !$0.isLetter }.filter { $0.count >= 4 }.map(String.init)) }
+        let mine = words(food.name)
+        let named = (own + catalog).filter { f in
+            guard f.id != food.id else { return false }
+            let theirs = words(([f.name] + f.aliases).joined(separator: " "))
+            return mine.contains { theirs.contains($0) || theirs.contains($0 + "s") }
+        }
+        .sorted { ($0.group == food.group ? 0 : 1) < ($1.group == food.group ? 0 : 1) }
+        func gap(_ f: Food) -> Double {
+            abs(f.per100.protein - food.per100.protein) + abs(f.per100.carbs - food.per100.carbs)
+                + abs(f.per100.fat - food.per100.fat) + abs(f.per100.kcal - food.per100.kcal) / 10
+        }
+        let near = catalog.filter { $0.group == food.group && $0.id != food.id }.sorted { gap($0) < gap($1) }
+        var out: [Food] = []
+        for f in named + near where !out.contains(where: { $0.id == f.id }) && out.count < count { out.append(f) }
+        return out
+    }
+
     public static func search(_ query: String, own: [Food] = []) -> [Food] {
         let q = fold(query).split(separator: " ")
         guard !q.isEmpty else { return [] }

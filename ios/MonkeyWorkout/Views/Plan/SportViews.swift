@@ -118,7 +118,7 @@ struct SportSplitPill: View {
         // Equal tiles with gaps (#529): each part has its own rounded shape.
         HStack(spacing: 8) {
             if let onFree {
-                half(freeResumes ? "Freestyle" : "Build as I go", detail: freeResumes ? "resume" : "add as you train",
+                half("Freestyle", detail: freeResumes ? "resume" : "add as you train",
                      symbol: "plus.square.on.square", ink: .white, action: onFree)
                     .background(LinearGradient.freestyle, in: tile)
                     .accessibilityHint("Start an empty workout and add exercises as you train")

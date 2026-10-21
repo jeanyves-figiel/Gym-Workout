@@ -103,17 +103,19 @@ struct FreestyleStartView: View {
     }
 }
 
-/// In place of Up next on the workout's last exercise (#490 B): the Coach's three next picks, one tap = next, and
+/// In Up next's place (#490 B; always since #581): the Coach's three next picks, one tap = next, and
 /// More for the whole catalog. Same height as Up next, so nothing else moves.
 struct FreestyleNextBar: View {
     let picks: [Exercise]
+    /// This exercise is done: the picks light up, as what comes next.
+    var ready = false
     let onPick: (Exercise) -> Void
     let onMore: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
-                Text("Next · Coach picks").font(Theme.label(10)).tracking(1.2).textCase(.uppercase).opacity(0.85)
+                Text(ready ? "Pick next · Coach" : "Next · Coach picks").font(Theme.label(10)).tracking(1.2).textCase(.uppercase).opacity(0.85)
                 Spacer(minLength: 4)
                 Button(action: onMore) {
                     Label("More", systemImage: "magnifyingglass")
@@ -131,7 +133,71 @@ struct FreestyleNextBar: View {
         .foregroundStyle(.white)
         .padding(.horizontal, 10).padding(.vertical, 7)
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Theme.cardStrong))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Theme.lime, lineWidth: ready ? 2 : 0))
+        .animation(.spring(duration: 0.3), value: ready)
         .accessibilityIdentifier("freestyle.next")
+    }
+}
+
+/// Build as I go's trail (#581, design C) in place of "1/1": done exercises ✓, this one lime, queued ones outlined, and
+/// + to queue another. One row; scrolls sideways when long, keeping this exercise in view.
+struct FreestyleTrail: View {
+    enum Mark { case done, now, queued }
+    struct Item: Identifiable {
+        let uid: String
+        let name: String
+        let state: Mark
+        var id: String { uid }
+    }
+    let items: [Item]
+    let onTap: (String) -> Void
+    let onAdd: () -> Void
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(items) { it in
+                        Button { onTap(it.uid) } label: { chip(it) }
+                            .buttonStyle(.plain)
+                            .id(it.uid)
+                            .accessibilityLabel("\(it.name), \(it.state == .done ? "done" : it.state == .now ? "now" : "queued")")
+                    }
+                    Button(action: onAdd) {
+                        Image(systemName: "plus").font(.system(size: 12, weight: .heavy))
+                            .frame(width: 30, height: 30)
+                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Theme.cardStrong))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Add an exercise to this workout")
+                }
+            }
+            .onAppear { scroll(proxy, animated: false) }
+            .onChange(of: items.first { $0.state == .now }?.uid) { scroll(proxy, animated: true) }
+        }
+        .frame(height: 30)
+        .foregroundStyle(.white)
+        .accessibilityIdentifier("freestyle.trail")
+    }
+
+    private func scroll(_ proxy: ScrollViewProxy, animated: Bool) {
+        guard let uid = items.first(where: { $0.state == .now })?.uid else { return }
+        if animated { withAnimation(.snappy) { proxy.scrollTo(uid, anchor: .center) } } else { proxy.scrollTo(uid, anchor: .center) }
+    }
+
+    private func chip(_ it: Item) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: it.state == .done ? "checkmark" : it.state == .now ? "circle.fill" : "clock")
+                .font(.system(size: it.state == .now ? 7 : 10, weight: .heavy))
+            Text(it.name).font(Theme.label(11)).lineLimit(1)
+        }
+        .padding(.horizontal, 9)
+        .frame(height: 30)
+        .foregroundStyle(it.state == .now ? Theme.ink : it.state == .done ? Theme.lime : .white)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .fill(it.state == .now ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Theme.cardStrong)))
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .strokeBorder(Color.white.opacity(it.state == .queued ? 0.35 : 0), style: StrokeStyle(lineWidth: 1, dash: [3, 3])))
     }
 }
 
@@ -216,7 +282,7 @@ struct FreestyleCard: View {
                     .frame(width: 48, height: 48)
                     .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.22)))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(resuming ? "Resume freestyle" : "Build as I go").font(Theme.display(20)).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(resuming ? "Resume freestyle" : "Freestyle").font(Theme.display(20)).lineLimit(1).minimumScaleFactor(0.7)
                     Text("Start empty, add exercises as you train").font(Theme.label(12)).opacity(0.9).lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }

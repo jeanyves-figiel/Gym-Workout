@@ -125,7 +125,8 @@ struct WallSessionCard: View {
             ForEach(day.parts) { part in band(part) }
             if let first = day.parts.first?.template {
                 start(first) {
-                    Label("Start \(first.name.lowercased())", systemImage: "play.fill")
+                    // Opens its page (Start workout is there), so it says See, not Start.
+                    Label("See \(first.name.lowercased())", systemImage: "list.bullet")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(LimeButtonStyle())

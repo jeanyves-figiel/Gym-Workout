@@ -117,6 +117,11 @@ extension View {
     /// Screen side margins (#389).
     func watchMargins() -> some View { padding(.horizontal, W.edge) }
 
+    /// The pinned button only when `shown`; otherwise the screen as is.
+    @ViewBuilder func pinnedButton(_ title: String, when shown: Bool, action: @escaping () -> Void) -> some View {
+        if shown { pinnedButton(title, action: action) } else { self }
+    }
+
     /// Main button pinned at the bottom (#389): always visible, the list scrolls under it.
     func pinnedButton(_ title: String, action: @escaping () -> Void) -> some View {
         safeAreaInset(edge: .bottom, spacing: 4) {
@@ -179,7 +184,10 @@ struct WatchRootView: View {
         let action = ActionButton.shared
         guard action.startRequested else { return }
         action.startRequested = false
-        guard player == nil, store.live == nil, let s = store.next ?? store.snapshot.sessions.first(where: { !$0.done }) else { return }
+        // Only today's session starts (#537), never a later or missed day's.
+        let today = [store.next].compactMap { $0 }.first(where: \.startsToday)
+            ?? store.snapshot.sessions.first { !$0.done && $0.startsToday }
+        guard player == nil, store.live == nil, let s = today else { return }
         if store.snapshot.pro == false { locked = true } else { player = WatchPlayer(session: s) }
     }
 

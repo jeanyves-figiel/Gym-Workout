@@ -130,18 +130,29 @@ extension AppModel {
         }
     }
 
-    /// Fills the coming days (from today) with recipes and keeps the member's picks.
+    /// Fills the coming weeks (from today) with recipes and keeps the member's picks; each day gets the meals of the
+    /// named plan running that day (#558), days no plan covers get nothing.
     func planMeals(now: Date = Date()) {
         let store = FuelStore.shared
         let cal = planCalendar
-        let days: [(key: String, plan: FuelPlan)] = (0..<store.saved.planDays).compactMap { i in
-            cal.date(byAdding: .day, value: i, to: cal.startOfDay(for: now)).map { (PlanCalendar.key($0, cal), fuelPlan(on: $0)) }
-        }
-        let kinds: Set<MealKind> = store.saved.mainOnly ? [.lunch, .dinner] : Set(MealKind.allCases)
+        let book = store.book
+        let dates = book.days(from: now, cal)
+        let days = dates.map { (key: PlanCalendar.key($0, cal), plan: fuelPlan(on: $0)) }
         let meals = MealPlanner.plan(days: days, prefs: store.prefs, favourites: store.saved.favourites, own: store.saved.recipes,
-                                     have: store.pantryIds, kept: store.saved.plan, servings: store.saved.people, slots: kinds,
-                                     shopping: store.shopping)
+                                     have: store.pantryIds, kept: store.saved.plan, servings: store.saved.people,
+                                     daySlots: dates.map { book.kinds(on: $0, cal) }, shopping: store.shopping)
         store.setPlan(meals)
+    }
+
+    /// The plan tops itself up when a day with meals in the coming week isn't planned yet.
+    func topUpMealPlan(now: Date = Date()) {
+        let store = FuelStore.shared
+        let cal = planCalendar
+        let book = store.book
+        guard !store.saved.plan.isEmpty else { return }
+        let last = store.saved.plan.map(\.day).max() ?? ""
+        let due = book.days(from: now, cal).prefix(8).contains { PlanCalendar.key($0, cal) > last && !book.kinds(on: $0, cal).isEmpty }
+        if due { planMeals(now: now) }
     }
 
     /// "Tue 21" for a day key.
@@ -160,13 +171,34 @@ extension AppModel {
                                      have: store.saved.pantry, prices: store.saved.prices, dayLabel: fuelDayLabel)
     }
 
-    /// Foods seen on a photo of the fridge, a cupboard, shopping or a receipt (Pro).
-    func scanFood(jpeg: Data) async throws -> [Food] {
+    /// Foods seen on a photo of the fridge, a cupboard, shopping or a receipt (Pro). Foods not on the list come back as
+    /// new foods (#573); `sure` false when Monkey was guessing.
+    func scanFood(jpeg: Data) async throws -> [(food: Food, sure: Bool)] {
         #if DEBUG
-        if demo { return ["egg", "milk", "spinach", "chicken-breast", "greek-yogurt"].compactMap { FoodBook.food($0) } }
+        if demo { return ["egg", "milk", "spinach", "chicken-breast", "greek-yogurt", "beer"].compactMap { FoodBook.food($0) }.map { (food: $0, sure: $0.id != "beer") } }
         #endif
-        let catalog = FoodBook.catalog.map { GymScanItem(id: $0.id, label: String($0.name.prefix(60))) }
-        return try await api.foodScan(jpeg: jpeg, catalog: catalog).items.compactMap { FoodBook.food($0) }
+        let own = FuelStore.shared.saved.foods
+        let catalog = (FoodBook.catalog + own).prefix(400).map { GymScanItem(id: $0.id, label: String($0.name.prefix(60))) }
+        let result = try await api.foodScan(jpeg: jpeg, catalog: catalog)
+        guard let found = result.found else { return result.items.compactMap { FoodBook.food($0, own: own) }.map { (food: $0, sure: true) } }
+        return found.compactMap { seen -> (food: Food, sure: Bool)? in
+            if let id = seen.id { return FoodBook.food(id, own: own).map { (food: $0, sure: seen.sure) } }
+            return (food: Self.food(seen), sure: seen.sure)
+        }
+    }
+
+    /// A food the photo scan saw that isn't on the list, kept on the device like a scanned barcode.
+    static func food(_ seen: FoodSeen) -> Food {
+        let group = FoodGroup(rawValue: seen.group) ?? .snack
+        let slug = FoodBook.slug(seen.name)
+        let drink = group == .drink
+        var food = Food(id: "scan-\(slug)", name: seen.name, emoji: seen.alcohol ? "🍺" : group.emoji, group: group,
+                        per100: Macros(protein: seen.per100.protein, carbs: seen.per100.carbs, fat: seen.per100.fat, kcal: seen.per100.kcal),
+                        portion: Food.Serving(g: drink ? 330 : 100, label: drink ? "1 bottle" : "1 serving"),
+                        base: [.protein].contains(group) ? .poultry : [.dairy].contains(group) ? .vegetarian : .vegan,
+                        contains: seen.alcohol ? [.alcohol] : [])
+        food.aisle = drink ? "drinks" : nil
+        return food
     }
 
     /// A barcode: a food from the catalog when one was scanned before, else Open Food Facts (only the code is sent).
@@ -174,7 +206,7 @@ extension AppModel {
         let digits = code.filter(\.isNumber)
         guard digits.count >= 8 else { return nil }
         if let known = FuelStore.shared.saved.foods.first(where: { $0.barcode == digits }) { return known }
-        guard let url = URL(string: "https://world.openfoodfacts.org/api/v2/product/\(digits).json?fields=product_name,nutriments,allergens_tags,ingredients_analysis_tags,serving_quantity") else { return nil }
+        guard let url = URL(string: "https://world.openfoodfacts.org/api/v2/product/\(digits).json?fields=product_name,brands,categories_tags,nutriments,allergens_tags,ingredients_analysis_tags,serving_quantity") else { return nil }
         var req = URLRequest(url: url, timeoutInterval: 10)
         req.setValue("MonkeyWorkout iOS - contact@monkeygrade.cloud", forHTTPHeaderField: "User-Agent")
         guard let (data, _) = try? await URLSession.shared.data(for: req) else { return nil }

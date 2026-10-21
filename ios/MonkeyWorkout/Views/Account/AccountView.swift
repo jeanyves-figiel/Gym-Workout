@@ -47,6 +47,7 @@ struct AccountView: View {
         static let watchStart = "Start from iPhone apple watch ask auto"
         static let action = "Action button apple watch ultra"
         static let lift = "Lift sensor beta apple watch reps bar speed velocity"
+        static let garmin = "Garmin watch connect iq fenix forerunner venu epix pair code"
         static let style = "Style look theme monkey coach watch face home"
         static let widgets = "Home Screen widgets"
         static let monkeyGrade = "MonkeyGrade climbing connected apps"
@@ -66,7 +67,7 @@ struct AccountView: View {
 
         static let you = [pro, profile, gym, body]
         static let training = [method, flow, coach, reminders, climbing, fuel]
-        static let watch = [watchStart, action, lift]
+        static let watch = [watchStart, action, lift, garmin]
         static let look = [style, widgets, monkeyGrade]
         static let account = [password, email, security, devices, lock, export, signOut, delete]
         static let help = [whatsNew, report, privacy, terms, support]
@@ -269,7 +270,7 @@ struct AccountView: View {
             }
         }
 
-        // Apple Watch (#347, #349, #383): every option on one page, each row opens it at its card.
+        // Watches (#347, #349, #383, #550): Apple Watch options on one page, each row opens it at its card; Garmin.
         if search.any(Find.watch) {
             SettingsGroup(chapter: .watch) {
                 if search.matches(Find.watchStart) {
@@ -287,6 +288,14 @@ struct AccountView: View {
                 if search.matches(Find.lift) {
                     NavigationLink { WatchOptionsView(focus: .lift) } label: {
                         SettingsRow(symbol: "waveform.path.ecg", title: "Lift sensor β", value: WatchLiftPref.shared.mode.short)
+                    }
+                    .buttonStyle(.plain)
+                }
+                // Garmin watches (#550): pair with the code the watch shows.
+                if search.matches(Find.garmin) {
+                    NavigationLink { GarminView() } label: {
+                        SettingsRow(symbol: "watch.analog", title: "Garmin watch",
+                                    value: GarminSync.shared.paired ? "Paired" : "Pair")
                     }
                     .buttonStyle(.plain)
                 }

@@ -1,0 +1,11 @@
+{
+  "minimumBuild": 0,
+  "recommendedBuild": 0,
+  "flags": {
+    "foodScan": { "on": true, "message": "Food scan is paused while we fix it. Search and barcode still work." },
+    "gymScan": { "on": true, "message": "Gym scan is paused while we fix it. Add machines by hand meanwhile." },
+    "askCoach": { "on": true, "message": "Ask Coach is paused while we fix it. Back soon." }
+  },
+  "values": {},
+  "packs": {}
+}

@@ -1,23 +1,29 @@
 {
-  "id": "2026-10-20.3",
+  "id": "2026-10-21.4",
   "items": [
     {
-      "symbol": "calendar",
-      "tint": "strength",
-      "title": "Train opens on today",
-      "body": "Train always opens on today, and today's card has Build as I go, Log sport and Track live, climbing days too."
+      "symbol": "person.crop.square.fill",
+      "tint": "mobility",
+      "title": "One profile",
+      "body": "Name, photo, posts, followers and community options, all on one Your profile page."
     },
     {
-      "symbol": "airplane",
-      "tint": "cardio",
-      "title": "Away days in their week",
-      "body": "Trips and can't-train days sit in their week on the Calendar. Tap the strip to edit."
-    },
-    {
-      "symbol": "clock",
+      "symbol": "barcode.viewfinder",
       "tint": "warmup",
-      "title": "Clear log times",
-      "body": "Log a climb or sport with Started → Ended times, and one How hard chip."
+      "title": "Scans know a beer from a cheese 🍺",
+      "body": "Barcode first, drinks and 29 more foods, and a check list with Fix for anything unsure."
+    },
+    {
+      "symbol": "pills.fill",
+      "tint": "cardio",
+      "title": "Supplements on your schedule",
+      "body": "Times a day, days, courses, cycles and reminders."
+    },
+    {
+      "symbol": "figure.strengthtraining.traditional",
+      "tint": "strength",
+      "title": "Freestyle, smoother",
+      "body": "Pick, do, pick. Your trail on top, Coach picks always ready."
     }
   ]
 }

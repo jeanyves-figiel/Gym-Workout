@@ -206,8 +206,9 @@ final class WatchSync: NSObject {
         // Sends everything now, so a scheduled push has nothing left to do.
         pushTask?.cancel()
         pushTask = nil
-        // Home Screen widgets (#297) follow the same changes.
+        // Home Screen widgets (#297) and Garmin watches (#550) follow the same changes.
         HomeWidgetSync.shared.push()
+        GarminSync.shared.publish()
         // Pairing or installing the Watch app while the app runs shows Track on Watch without a restart (#462).
         if WatchLink.shared.ready != watchReady { WatchLink.shared.ready = watchReady }
         guard let model, let session, session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
@@ -323,6 +324,9 @@ final class WatchSync: NSObject {
 
     // MARK: Watch → phone
 
+    /// An event from another watch (Garmin, #550), handled like the Apple Watch's.
+    func receive(_ event: WatchEvent) { apply(event) }
+
     private func apply(_ event: WatchEvent) {
         guard let model else { return }
         switch event {
@@ -384,7 +388,7 @@ final class WatchSync: NSObject {
             s.week = plan.week
             s.weeks = Generator.mesocycleWeeks
             s.deload = plan.deload
-            s.sessions = plan.sessions.map { session($0, label: $0.dayLabel, model: model) }
+            s.sessions = plan.sessions.map { session($0, label: $0.dayLabel, planned: true, model: model) }
         }
         s.extras = WorkoutTemplate.all.map { session($0.session, label: "Example", model: model) }
             + model.customWorkouts.map { session($0.session, label: "My workout", model: model) }
@@ -421,7 +425,7 @@ final class WatchSync: NSObject {
         return s
     }
 
-    private static func session(_ session: Session, label: String, model: AppModel) -> WSession {
+    private static func session(_ session: Session, label: String, planned: Bool = false, model: AppModel) -> WSession {
         WSession(
             id: session.id, title: session.displayTitle, dayLabel: label, estMin: session.estMin,
             done: model.state.done[session.id] ?? false,
@@ -432,7 +436,8 @@ final class WatchSync: NSObject {
                        items: b.items.filter { Exercise.find($0.exerciseId) != nil }
                            .map { item($0, block: b, sessionId: session.id, model: model) })
             },
-            missed: model.missedToHandle.contains { $0.id == session.id })
+            missed: model.missedToHandle.contains { $0.id == session.id },
+            plannedOn: planned && session.weekday != nil ? WSession.dayKey(model.day(of: session)) : nil)
     }
 
     private static func item(_ it: PlannedExercise, block: Block, sessionId: String, model: AppModel) -> WItem {

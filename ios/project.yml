@@ -70,6 +70,8 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         API_BASE_URL: $(API_BASE_URL)
+        # Ed25519 public key that signs /v1/app-config (#583); empty → signature not checked.
+        CONTENT_PUBLIC_KEY: $(CONTENT_PUBLIC_KEY)
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false

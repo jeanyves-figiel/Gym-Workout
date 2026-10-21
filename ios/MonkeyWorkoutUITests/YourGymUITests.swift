@@ -13,11 +13,14 @@ final class YourGymUITests: XCTestCase {
     }
 
     private func openYourGym() {
-        // Settings opens from the avatar on every tab (#496); after REBUILD PLAN or back the sheet is still open.
+        // Settings opens from the Me pill on every tab (#560); after REBUILD PLAN or back the sheet is still open.
         if !app.navigationBars["Settings"].exists {
-            let avatar = app.buttons["settings.avatar"].firstMatch
-            XCTAssertTrue(avatar.waitForExistence(timeout: 10), "Settings avatar")
-            avatar.tap()
+            let pill = app.buttons["me.pill"].firstMatch
+            XCTAssertTrue(pill.waitForExistence(timeout: 10), "Me pill")
+            pill.tap()
+            let settings = app.buttons["me.settings"].firstMatch
+            XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings row")
+            settings.tap()
         }
         let card = app.buttons.containing(NSPredicate(format: "label CONTAINS[c] %@", "Fitnesspark")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10), "Your gym card")
@@ -37,11 +40,14 @@ final class YourGymUITests: XCTestCase {
         XCTAssertTrue(count(48).waitForExistence(timeout: 5))
         app.buttons["ADD ALL"].tap()
         XCTAssertTrue(count(68).waitForExistence(timeout: 5), "ADD ALL shows the full list")
-        // The Equipment page opened and closed keeps the edit.
-        app.staticTexts["Equipment"].tap()
+        // The Equipment page opened and closed keeps the edit (wait for ADD ALL's list to settle first).
+        let equipment = app.staticTexts["Equipment"].firstMatch
+        XCTAssertTrue(equipment.waitForExistence(timeout: 5))
+        sleep(1)
+        equipment.tap()
         // The Equipment sheet closes with its X (#539).
         let close = app.navigationBars["Equipment"].buttons["Close"]
-        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        XCTAssertTrue(close.waitForExistence(timeout: 10), "Equipment sheet")
         close.tap()
         XCTAssertTrue(count(68).waitForExistence(timeout: 5), "still 68 after the Equipment page")
         save()

@@ -60,6 +60,34 @@ export const ensureSchemaExtras = (db: DB): void => {
       key_hash TEXT NOT NULL UNIQUE,
       created_at TEXT NOT NULL
     );
+    -- Garmin watches (#550): a watch asks for a pairing code, the member types it in the app (routes/garmin.ts).
+    CREATE TABLE IF NOT EXISTS garmin_devices (
+      id TEXT PRIMARY KEY,
+      token_hash TEXT NOT NULL UNIQUE,
+      user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      code TEXT,
+      code_expires TEXT,
+      model TEXT,
+      created_at TEXT NOT NULL,
+      last_seen TEXT
+    );
+    CREATE INDEX IF NOT EXISTS garmin_devices_user ON garmin_devices(user_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS garmin_devices_code ON garmin_devices(code) WHERE code IS NOT NULL;
+    -- What the Garmin watch shows, published by the phone (the plan is built on the phone).
+    CREATE TABLE IF NOT EXISTS garmin_snapshots (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      data TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    -- Sets, finished workouts and water from the Garmin watch, until the phone picks them up.
+    CREATE TABLE IF NOT EXISTS garmin_inbox (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      device_id TEXT NOT NULL,
+      data TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS garmin_inbox_user ON garmin_inbox(user_id, created_at);
     -- Paid model calls (coach chat, gym scan, food scan) across all members per UTC day: the global budget (quota.ts).
     CREATE TABLE IF NOT EXISTS ai_daily_usage (
       day TEXT PRIMARY KEY,

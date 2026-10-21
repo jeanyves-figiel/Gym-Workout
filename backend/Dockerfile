@@ -10,6 +10,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY src ./src
+COPY content ./content
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/
 RUN mkdir -p /data && chown node:node /data
 VOLUME ["/data"]

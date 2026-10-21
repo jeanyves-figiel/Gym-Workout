@@ -75,8 +75,9 @@ struct SportPrepPage: View {
                     .buttonStyle(.plain)
                 }
                 if let before = SportPrep.before(sport) {
+                    // Opens the warm-up's page, where Start workout is: the label says so.
                     NavigationLink(value: before.sessionId) {
-                        Label("Start warm-up", systemImage: "play.fill").frame(maxWidth: .infinity)
+                        Label("See warm-up", systemImage: "list.bullet").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(LimeButtonStyle())
                     .padding(.top, 6)

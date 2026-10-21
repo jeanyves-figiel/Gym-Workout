@@ -24,10 +24,14 @@ final class FuelStore {
         var plan: [PlannedMeal] = []
         /// People per planned meal.
         var people = 1
-        /// Days the planner fills (3, 5 or 7).
+        /// Days the planner filled before blocks (3, 5 or 7); read only to build `schedule` for older saves.
         var planDays = 5
-        /// Only lunch and dinner (false = every slot of the day).
+        /// Only lunch and dinner (false = every slot of the day); older saves, see `planDays`.
         var mainOnly = true
+        /// Unused: kept so a save from a test build with one block schedule still loads into `book`.
+        var schedule: MealSchedule?
+        /// Named meal plans and their dates (#558); nil = older save, built from `planDays` and `mainOnly`.
+        var book: MealPlanBook?
         /// Grocery lines ticked in the shop.
         var bought: Set<String> = []
         /// Refuel reminder sent (day key).
@@ -61,7 +65,15 @@ final class FuelStore {
     }
 
     private init() {
-        if let data = try? Data(contentsOf: Self.url), let s = try? JSONDecoder().decode(Saved.self, from: data) { saved = s }
+        if let data = try? Data(contentsOf: Self.url), var s = try? JSONDecoder().decode(Saved.self, from: data) {
+            // Older saves get their plan written down once, so its dates stop moving with today and it can be edited
+            // or deleted.
+            if s.book == nil {
+                s.book = Self.legacyBook(s, today: PlanCalendar.key(Date(), Progression.calendar()), cal: Progression.calendar())
+                Self.write(s)
+            }
+            saved = s
+        }
     }
 
     private var cal: Calendar { Progression.calendar() }
@@ -117,6 +129,9 @@ final class FuelStore {
         save(s)
         // Reminders follow the glasses known now (#520).
         if water { Task { await NotificationManager.shared.scheduleWater() } }
+        if cal.isDateInToday(day), stack.contains(where: { $0.rhythm?.remind == true }) {
+            Task { await NotificationManager.shared.scheduleSupplements() }
+        }
     }
 
     var stack: [Supplement] { saved.supplements ?? [] }
@@ -127,12 +142,14 @@ final class FuelStore {
         if let i = list.firstIndex(where: { $0.id == x.id }) { list[i] = x } else { list.append(x) }
         s.supplements = list
         save(s)
+        Task { await NotificationManager.shared.scheduleSupplements() }
     }
 
     func deleteSupplement(_ id: String) {
         var s = saved
         s.supplements?.removeAll { $0.id == id }
         save(s)
+        Task { await NotificationManager.shared.scheduleSupplements() }
     }
 
     func toggleFavourite(_ id: String) {
@@ -163,7 +180,7 @@ final class FuelStore {
     func add(_ foods: [Food]) {
         var s = saved
         for f in foods {
-            if f.barcode != nil, !s.foods.contains(where: { $0.id == f.id }) { s.foods.append(f) }
+            if FoodBook.food(f.id) == nil, !s.foods.contains(where: { $0.id == f.id }) { s.foods.append(f) }
             if !s.pantry.contains(where: { $0.foodId == f.id }) { s.pantry.append(PantryItem(foodId: f.id)) }
         }
         save(s)
@@ -193,16 +210,76 @@ final class FuelStore {
     func setPlan(_ meals: [PlannedMeal]) {
         var s = saved
         s.plan = meals
+        if s.book == nil { s.book = book }
         // A new plan starts a fresh list; lines still in it stay ticked.
         save(s)
     }
 
-    func setPlanOptions(people: Int? = nil, days: Int? = nil, mainOnly: Bool? = nil, lessWaste: Bool? = nil) {
+    func setPlanOptions(people: Int? = nil, lessWaste: Bool? = nil) {
         var s = saved
         if let people { s.people = max(1, min(8, people)) }
-        if let days { s.planDays = days }
-        if let mainOnly { s.mainOnly = mainOnly }
         if let lessWaste { s.lessWaste = lessWaste }
+        save(s)
+    }
+
+    /// The member's named meal plans and their dates (#558). Older saves get one plan, "My plan", from today with
+    /// their length and choice (or their blocks).
+    var book: MealPlanBook { saved.book ?? Self.legacyBook(saved, today: key(Date()), cal: cal) }
+
+    /// Fixed ids, so the plan built for an older save is the same one on every read (editing and deleting find it).
+    private static let legacyIds = (plan: UUID(uuidString: "6D0E5A2C-0000-4000-8000-000000000001")!,
+                                    block: UUID(uuidString: "6D0E5A2C-0000-4000-8000-000000000002")!,
+                                    period: UUID(uuidString: "6D0E5A2C-0000-4000-8000-000000000003")!)
+
+    private static func legacyBook(_ s: Saved, today: String, cal: Calendar) -> MealPlanBook {
+        let x = s.schedule ?? MealSchedule(start: today, blocks: [MealBlock(id: legacyIds.block, pattern: s.mainOnly ? .lunchDinner : .everyMeal,
+                                                                            days: s.planDays)])
+        let end = cal.date(byAdding: .day, value: max(0, x.length - 1), to: PlanCalendar.date(x.start, cal) ?? Date())
+            .map { PlanCalendar.key($0, cal) }
+        return MealPlanBook(plans: [NamedMealPlan(id: legacyIds.plan, name: "My plan", blocks: x.blocks, repeatWeeks: x.repeatWeeks,
+                                                  periods: [MealPeriod(id: legacyIds.period, from: x.start,
+                                                                       to: x.repeatWeeks == nil ? end : nil)])])
+    }
+
+    /// Days from today with meals planned: what the basket buys for and its budget covers.
+    var planSpan: Int {
+        let today = key(Date())
+        return max(1, Set(saved.plan.filter { $0.day >= today }.map(\.day)).count)
+    }
+
+    /// Part of a week's 21 main meals the plans hold over the coming weeks, for budget suggestions.
+    var mealShare: Double { book.mainPerWeek(from: Date(), cal) / 21 }
+
+    /// Adds or changes a named plan (blocks capped at the longest cycle).
+    func savePlan(_ plan: NamedMealPlan) {
+        var s = saved
+        var b = book
+        var p = plan
+        while p.length > MealSchedule.maxDays, let last = p.blocks.indices.last {
+            let cut = p.length - MealSchedule.maxDays
+            if p.blocks[last].days > cut { p.blocks[last].days -= cut } else { p.blocks.removeLast() }
+        }
+        if let w = p.repeatWeeks, w * 7 < p.length { p.repeatWeeks = nil }
+        if let i = b.plans.firstIndex(where: { $0.id == p.id }) { b.plans[i] = p } else { b.plans.append(p) }
+        s.book = b
+        save(s)
+    }
+
+    /// Takes a named plan off; returns the plans and planned meals as they were, for the Undo bar.
+    func deleteNamedPlan(_ id: UUID) -> (book: MealPlanBook, plan: [PlannedMeal]) {
+        let before = (book: book, plan: saved.plan)
+        var s = saved
+        var b = before.book
+        b.plans.removeAll { $0.id == id }
+        s.book = b
+        save(s)
+        return before
+    }
+
+    func restoreBook(_ b: (book: MealPlanBook, plan: [PlannedMeal])) {
+        var s = saved
+        s.book = b.book
+        s.plan = b.plan
         save(s)
     }
 
@@ -333,6 +410,10 @@ final class FuelStore {
         saved = s
         // Today's water and meals on the Watch and the Home Screen widgets (coalesced: a burst of taps sends once).
         WatchSync.shared.schedulePush()
+        Self.write(s)
+    }
+
+    private static func write(_ s: Saved) {
         guard let data = try? JSONEncoder().encode(s) else { return }
         let url = Self.url
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

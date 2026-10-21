@@ -396,71 +396,6 @@ struct GuidelinesView: View {
 
 // MARK: - Own profile
 
-struct CommunityProfileView: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-    @State private var editing = false
-    @State private var confirmLeave = false
-    @State private var task = FormTask()
-    private var community: Community { .shared }
-
-    var body: some View {
-        ScrollView {
-            if let p = community.profile {
-                VStack(alignment: .leading, spacing: 16) {
-                    ProfileHero(avatar: model.api.resolve(p.avatarUrl), nickname: p.nickname, bio: p.bio)
-                    RankTitleChip(level: model.game.level).frame(maxWidth: .infinity)
-                    if let pr = p.pronouns { PronounsChip(pronouns: pr).frame(maxWidth: .infinity) }
-                    if p.showGym == true, let gym = p.gym {
-                        Label(gym, systemImage: "building.2.fill").font(Theme.label(13)).foregroundStyle(Theme.lime).frame(maxWidth: .infinity)
-                    }
-                    CommunityStats(shared: p.sharedPosts, cheers: p.cheersReceived, followers: p.followers)
-                    Text("Profile").eyebrow()
-                    Group {
-                        // Same page as the Settings header card (#438): nickname, photo, about, pronouns, visibility, auto-share.
-                        NavigationLink { ProfileView() } label: {
-                            AccountCard(symbol: "pencil", title: "Edit profile",
-                                        subtitle: "\(p.defaultVisibility.title) · auto-share \(p.autoShare ? "on" : "off")",
-                                        gradient: WorkoutEngine.Category.strength.gradient)
-                        }
-                        NavigationLink { BlockedMembersView() } label: {
-                            AccountCard(symbol: "hand.raised.fill", title: "Blocked members", gradient: WorkoutEngine.Category.mobility.gradient)
-                        }
-                        NavigationLink { GuidelinesView() } label: {
-                            AccountCard(symbol: "checkmark.seal.fill", title: "Community guidelines", gradient: WorkoutEngine.Category.stretch.gradient, ink: true)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    ErrorText(message: task.error)
-                    AccountPillButton(title: "Leave the community", role: .destructive) { confirmLeave = true }
-                        .padding(.top, 8)
-                }
-                .padding(16)
-                // Keeps the last button clear of the home indicator.
-                .padding(.bottom, 32)
-            }
-        }
-        .readableWidth()
-        .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Your profile")
-        .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Leave the community?", isPresented: $confirmLeave, titleVisibility: .visible) {
-            Button("Leave and delete my posts", role: .destructive) { leave() }
-        } message: {
-            Text("Your posts and cheers are deleted. Your nickname, photo, about and training data stay on your Account.")
-        }
-    }
-
-    private func leave() {
-        let api = model.api
-        task.run {
-            try await api.leaveCommunity()
-            Community.shared.left()
-            dismiss()
-        }
-    }
-}
-
 private struct ProfileHero: View {
     let avatar: URL?
     let nickname: String
@@ -479,8 +414,8 @@ private struct ProfileHero: View {
     }
 }
 
-/// Shared · Cheers · Followers as gradient tiles (own profile and member pages).
-private struct CommunityStats: View {
+/// Shared · Cheers · Followers as gradient tiles (Your profile and member pages).
+struct CommunityStats: View {
     let shared: Int
     let cheers: Int
     let followers: Int
