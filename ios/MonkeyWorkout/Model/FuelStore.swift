@@ -24,10 +24,12 @@ final class FuelStore {
         var plan: [PlannedMeal] = []
         /// People per planned meal.
         var people = 1
-        /// Days the planner fills (3, 5 or 7).
+        /// Days the planner filled before blocks (3, 5 or 7); read only to build `schedule` for older saves.
         var planDays = 5
-        /// Only lunch and dinner (false = every slot of the day).
+        /// Only lunch and dinner (false = every slot of the day); older saves, see `planDays`.
         var mainOnly = true
+        /// Meal plan blocks, start and repeat (#558); nil = older save, built from `planDays` and `mainOnly`.
+        var schedule: MealSchedule?
         /// Grocery lines ticked in the shop.
         var bought: Set<String> = []
         /// Refuel reminder sent (day key).
@@ -197,12 +199,77 @@ final class FuelStore {
         save(s)
     }
 
-    func setPlanOptions(people: Int? = nil, days: Int? = nil, mainOnly: Bool? = nil, lessWaste: Bool? = nil) {
+    func setPlanOptions(people: Int? = nil, lessWaste: Bool? = nil) {
         var s = saved
         if let people { s.people = max(1, min(8, people)) }
-        if let days { s.planDays = days }
-        if let mainOnly { s.mainOnly = mainOnly }
         if let lessWaste { s.lessWaste = lessWaste }
+        save(s)
+    }
+
+    /// The meal plan's blocks (#558); older saves get one block from today.
+    var schedule: MealSchedule {
+        saved.schedule ?? MealSchedule(start: key(Date()), blocks: [MealBlock(pattern: saved.mainOnly ? .lunchDinner : .everyMeal,
+                                                                              days: saved.planDays)])
+    }
+
+    /// Days from today the plan covers.
+    var planSpan: Int { schedule.days(from: Date(), cal).count }
+
+    /// Part of a week's 21 main meals the plan holds, for budget suggestions.
+    var mealShare: Double { schedule.mainPerWeek / 21 }
+
+    /// New blocks start the cycle today; a repeat shorter than the blocks is dropped.
+    func setBlocks(_ blocks: [MealBlock]) {
+        var s = saved
+        var x = schedule
+        x.start = key(Date())
+        x.blocks = Array(blocks.prefix(8))
+        while x.length > MealSchedule.maxDays, let last = x.blocks.indices.last {
+            let cut = x.length - MealSchedule.maxDays
+            if x.blocks[last].days > cut { x.blocks[last].days -= cut } else { x.blocks.removeLast() }
+        }
+        if let w = x.repeatWeeks, w * 7 < x.length { x.repeatWeeks = nil }
+        s.schedule = x
+        save(s)
+    }
+
+    func setRepeat(weeks: Int?) {
+        var s = saved
+        var x = schedule
+        x.repeatWeeks = weeks.flatMap { $0 * 7 >= x.length ? $0 : nil }
+        s.schedule = x
+        save(s)
+    }
+
+    /// Restarts a cycle that ended (no repeat) from today.
+    func restartIfOver(now: Date = Date()) {
+        let x = schedule
+        guard x.repeatWeeks == nil, x.days(from: now, cal).isEmpty else { return }
+        var s = saved
+        var y = x
+        y.start = key(now)
+        s.schedule = y
+        save(s)
+    }
+
+    /// Takes the whole plan off (meals, basket ticks, repeat); returns what the Undo bar puts back.
+    func deletePlan() -> Saved {
+        let before = saved
+        var s = saved
+        s.plan = []
+        s.bought = []
+        var x = schedule
+        x.repeatWeeks = nil
+        s.schedule = x
+        save(s)
+        return before
+    }
+
+    func restorePlan(_ before: Saved) {
+        var s = saved
+        s.plan = before.plan
+        s.bought = before.bought
+        s.schedule = before.schedule
         save(s)
     }
 

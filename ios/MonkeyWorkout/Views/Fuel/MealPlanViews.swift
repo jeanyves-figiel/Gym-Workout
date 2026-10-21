@@ -10,17 +10,29 @@ struct MealPlanView: View {
     @State private var swapping: (key: String, slot: FuelSlot, plan: FuelPlan)?
 
     var body: some View {
-        let cal = Calendar.current
-        let days: [Date] = (0..<store.saved.planDays).compactMap { cal.date(byAdding: .day, value: $0, to: cal.startOfDay(for: Date())) }
+        let cal = model.planCalendar
+        let schedule = store.schedule
+        // Days with meals to plan (or already planned); off days are left out.
+        let days: [Date] = schedule.days(from: Date(), cal).filter { d in
+            !schedule.kinds(on: d, cal).isEmpty || store.saved.plan.contains { $0.day == store.key(d) }
+        }
         let plans = days.map { model.fuelPlan(on: $0) }
         let items = model.groceries()
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                options
+                MealBlocksCard { if !store.saved.plan.isEmpty { withAnimation(.snappy) { model.planMeals() } } }
                 Button { withAnimation(.snappy) { model.planMeals() } } label: {
                     Label(store.saved.plan.isEmpty ? "PLAN MY DAYS" : "RE-PLAN (KEEPS YOUR PICKS)", systemImage: "wand.and.stars")
                 }
                 .buttonStyle(LimeButtonStyle())
+                if !store.saved.plan.isEmpty {
+                    Button { deletePlan() } label: {
+                        Label("Delete plan", systemImage: "trash").font(Theme.label(14)).foregroundStyle(.white)
+                            .frame(maxWidth: .infinity).padding(.vertical, 12)
+                            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(FuelPalette.protein))
+                    }
+                    .buttonStyle(.plain)
+                }
                 if !store.saved.plan.isEmpty {
                     BasketCard(items: items) { withAnimation(.snappy) { model.planMeals() } }
                     let byKey = Dictionary(zip(days.map { store.key($0) }, plans), uniquingKeysWith: { a, _ in a })
@@ -47,38 +59,13 @@ struct MealPlanView: View {
         }
     }
 
-    private var options: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("PLAN").font(Theme.label(10)).tracking(1.2).opacity(0.85)
-            HStack(spacing: 6) {
-                ForEach([3, 5, 7], id: \.self) { n in
-                    option("\(n) days", on: store.saved.planDays == n) { store.setPlanOptions(days: n) }
-                }
-            }
-            HStack(spacing: 6) {
-                option("Lunch & dinner", on: store.saved.mainOnly) { store.setPlanOptions(mainOnly: true) }
-                option("Every meal", on: !store.saved.mainOnly) { store.setPlanOptions(mainOnly: false) }
-            }
-            Stepper(value: Binding(get: { store.saved.people }, set: { store.setPlanOptions(people: $0) }), in: 1...8) {
-                Text("For \(store.saved.people) \(store.saved.people == 1 ? "person" : "people")").font(Theme.display(16))
-            }
-            Text("Meals follow each day's training, your diet and favourites, use what you have first, and don't repeat within 3 days. Batch dinners become next day's lunch.")
-                .font(.caption.weight(.semibold)).opacity(0.85)
+    /// Takes the plan off at once (#558); the Undo bar puts it back (no confirmation, #285). Logged meals stay.
+    private func deletePlan() {
+        let days = Set(store.saved.plan.map(\.day)).count
+        let before = withAnimation(.snappy) { store.deletePlan() }
+        UndoCloseCenter.shared.deleted("Meal plan deleted", detail: "\(days) days", symbol: "trash") {
+            FuelStore.shared.restorePlan(before)
         }
-        .foregroundStyle(.white)
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(FuelPalette.violet))
-    }
-
-    private func option(_ title: String, on: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title).font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.7)
-                .foregroundStyle(on ? Theme.ink : .white)
-                .frame(maxWidth: .infinity).padding(.vertical, 9)
-                .background(Capsule().fill(on ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(.black.opacity(0.25))))
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     private func swapTip(_ swap: CheaperSwap) -> some View {

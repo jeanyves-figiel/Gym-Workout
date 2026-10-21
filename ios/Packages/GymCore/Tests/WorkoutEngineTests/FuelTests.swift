@@ -138,6 +138,37 @@ import Testing
         }
     }
 
+    @Test func perDayMealsFollowThePattern() {
+        let prefs = FuelPrefs(meals: 4)
+        let days = week(prefs) // Mon 19 Oct → Sun 25 Oct 2026
+        let start = cal.date(from: DateComponents(year: 2026, month: 10, day: 19))!
+        let schedule = MealSchedule(start: days[0].key, blocks: [MealBlock(pattern: .weekdayDinners, days: 7)])
+        let dates = (0..<7).map { cal.date(byAdding: .day, value: $0, to: start)! }
+        let meals = MealPlanner.plan(days: days, prefs: prefs, favourites: [], own: [], have: [], kept: [],
+                                     daySlots: dates.map { schedule.kinds(on: $0, cal) })
+        for (i, d) in days.enumerated() {
+            let kinds = Set(meals.filter { $0.day == d.key }.map(\.kind))
+            #expect(kinds.isSubset(of: i < 5 ? [.dinner] : [.lunch, .dinner]))
+        }
+        // No batch leftovers on a weekday: those days have no lunch.
+        #expect(!meals.contains { $0.leftover && days.prefix(5).map(\.key).contains($0.day) })
+    }
+
+    @Test func blocksRunInOrderAndRepeat() {
+        let start = cal.date(from: DateComponents(year: 2026, month: 10, day: 19))!
+        let s = MealSchedule(start: PlanCalendar.key(start, cal),
+                             blocks: [MealBlock(pattern: .dinners, days: 7), MealBlock(pattern: .everyMeal, days: 7)], repeatWeeks: 3)
+        func on(_ n: Int) -> Date { cal.date(byAdding: .day, value: n, to: start)! }
+        #expect(s.kinds(on: on(2), cal) == [.dinner])
+        #expect(s.kinds(on: on(9), cal).contains(.breakfast))
+        #expect(s.kinds(on: on(16), cal).isEmpty) // week 3: gap before the cycle starts again
+        #expect(s.kinds(on: on(21), cal) == [.dinner])
+        #expect(s.days(from: on(0), cal).count == MealSchedule.maxDays)
+        #expect(MealSchedule(start: s.start, blocks: s.blocks).days(from: on(10), cal).count == 4)
+        #expect(s.repeatChoices.first == 2)
+        #expect(MealPattern.weekdayDinners.mainPerWeek == 9)
+    }
+
     @Test func budgetMakesThePlanCheaper() {
         let prefs = FuelPrefs(meals: 4)
         let days = week(prefs)

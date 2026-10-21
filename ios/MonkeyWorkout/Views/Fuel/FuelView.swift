@@ -157,7 +157,10 @@ struct FuelView: View {
         .sheet(item: $slot) { s in FuelSlotSheet(slot: s, plan: plan, day: day) }
         .navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }
         .fuelDestinations()
-        .onAppear { if !store.saved.setUp && !model.demo { setup = true } }
+        .onAppear {
+            if !store.saved.setUp && !model.demo { setup = true }
+            model.topUpMealPlan()
+        }
         .onChange(of: scenePhase) { if scenePhase == .active { dropStaleDay() } }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in dropStaleDay() }
         .coachFocus(CoachFocus(screen: "fuel", title: "Fuel", detail: Self.coachDetail(plan, log: log, prefs: store.prefs),
