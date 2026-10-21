@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
 import { containsObjectionable as isObjectionable } from '../src/community/filter.ts';
 import { sanitizeJpeg } from '../src/community/image.ts';
+import { ensureCommunitySchema } from '../src/community/schema.ts';
 import { followerIds } from '../src/community/moderation.ts';
 import { loadConfig } from '../src/config.ts';
 import { type DB, openDb } from '../src/db.ts';
@@ -193,6 +194,10 @@ describe('community feed', () => {
     expect(r.reactions).toMatchObject({ like: 1, strong: 1, fire: 0 });
     expect(r.myReactions.sort()).toEqual(['like', 'strong']);
     expect((await req('DELETE', `/v1/community/posts/${pub.id}/reactions/like`, b.t)).json().post.reactions.like).toBe(0);
+    // Beast and Banana cheers (#566), then back off so the counts below stay the same.
+    const fun = (await req('PUT', `/v1/community/posts/${pub.id}/reactions/banana`, b.t)).json().post;
+    expect(fun.reactions).toMatchObject({ beast: 0, banana: 1 });
+    await req('DELETE', `/v1/community/posts/${pub.id}/reactions/banana`, b.t);
     expect((await req('GET', '/v1/community/me', a.t)).json().profile).toMatchObject({ sharedPosts: 1, cheersReceived: 1 });
 
     // member profile
@@ -446,5 +451,30 @@ describe('filter & image helpers', () => {
     const out = sanitizeJpeg(jpeg(128, 96));
     expect(out).toMatchObject({ width: 128, height: 96 });
     expect(out.data.subarray(-2)).toEqual(Buffer.from([0xff, 0xd9]));
+  });
+});
+
+describe('community reactions migration (#566)', () => {
+  it('rebuilds the old kind CHECK and keeps existing cheers', async () => {
+    const a = await join('mig-a@example.com', 'mig_a');
+    const b = await join('mig-b@example.com', 'mig_b');
+    const post = (await share(a.t, { visibility: 'members' })).json().post;
+    await req('PUT', `/v1/community/posts/${post.id}/reactions/clap`, b.t);
+    db.exec(`
+      CREATE TABLE old_reactions (
+        post_id TEXT NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK (kind IN ('like', 'strong', 'fire', 'clap')),
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (post_id, user_id, kind)
+      );
+      INSERT INTO old_reactions SELECT * FROM community_reactions;
+      DROP TABLE community_reactions;
+      ALTER TABLE old_reactions RENAME TO community_reactions;
+    `);
+    ensureCommunitySchema(db);
+    ensureCommunitySchema(db);
+    const r = (await req('PUT', `/v1/community/posts/${post.id}/reactions/beast`, b.t)).json().post;
+    expect(r.reactions).toMatchObject({ clap: 1, beast: 1 });
   });
 });

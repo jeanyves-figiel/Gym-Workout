@@ -48,7 +48,7 @@ export const ensureCommunitySchema = (db: DB): void => {
     CREATE TABLE IF NOT EXISTS community_reactions (
       post_id TEXT NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      kind TEXT NOT NULL CHECK (kind IN ('like', 'strong', 'fire', 'clap')),
+      kind TEXT NOT NULL CHECK (kind IN ('like', 'strong', 'fire', 'clap', 'beast', 'banana')),
       created_at TEXT NOT NULL,
       PRIMARY KEY (post_id, user_id, kind)
     );
@@ -87,4 +87,22 @@ export const ensureCommunitySchema = (db: DB): void => {
   if (!cols.some((c) => c.name === 'level')) db.exec('ALTER TABLE community_profiles ADD COLUMN level INTEGER');
   // Pronouns (#415): shown next to the nickname only when the member turns it on in the app.
   if (!cols.some((c) => c.name === 'pronouns')) db.exec('ALTER TABLE community_profiles ADD COLUMN pronouns TEXT');
+  // Beast and Banana cheers (#566): the kind CHECK is rebuilt once on databases made before them.
+  const reactions = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'community_reactions'").get() as { sql: string } | undefined;
+  if (reactions && !reactions.sql.includes("'banana'")) {
+    db.exec(`
+      BEGIN;
+      CREATE TABLE community_reactions_new (
+        post_id TEXT NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK (kind IN ('like', 'strong', 'fire', 'clap', 'beast', 'banana')),
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (post_id, user_id, kind)
+      );
+      INSERT INTO community_reactions_new SELECT post_id, user_id, kind, created_at FROM community_reactions;
+      DROP TABLE community_reactions;
+      ALTER TABLE community_reactions_new RENAME TO community_reactions;
+      COMMIT;
+    `);
+  }
 };
