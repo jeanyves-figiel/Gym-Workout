@@ -130,18 +130,29 @@ extension AppModel {
         }
     }
 
-    /// Fills the coming days (from today) with recipes and keeps the member's picks.
+    /// Fills the coming weeks (from today) with recipes and keeps the member's picks; each day gets the meals of the
+    /// named plan running that day (#558), days no plan covers get nothing.
     func planMeals(now: Date = Date()) {
         let store = FuelStore.shared
         let cal = planCalendar
-        let days: [(key: String, plan: FuelPlan)] = (0..<store.saved.planDays).compactMap { i in
-            cal.date(byAdding: .day, value: i, to: cal.startOfDay(for: now)).map { (PlanCalendar.key($0, cal), fuelPlan(on: $0)) }
-        }
-        let kinds: Set<MealKind> = store.saved.mainOnly ? [.lunch, .dinner] : Set(MealKind.allCases)
+        let book = store.book
+        let dates = book.days(from: now, cal)
+        let days = dates.map { (key: PlanCalendar.key($0, cal), plan: fuelPlan(on: $0)) }
         let meals = MealPlanner.plan(days: days, prefs: store.prefs, favourites: store.saved.favourites, own: store.saved.recipes,
-                                     have: store.pantryIds, kept: store.saved.plan, servings: store.saved.people, slots: kinds,
-                                     shopping: store.shopping)
+                                     have: store.pantryIds, kept: store.saved.plan, servings: store.saved.people,
+                                     daySlots: dates.map { book.kinds(on: $0, cal) }, shopping: store.shopping)
         store.setPlan(meals)
+    }
+
+    /// The plan tops itself up when a day with meals in the coming week isn't planned yet.
+    func topUpMealPlan(now: Date = Date()) {
+        let store = FuelStore.shared
+        let cal = planCalendar
+        let book = store.book
+        guard !store.saved.plan.isEmpty else { return }
+        let last = store.saved.plan.map(\.day).max() ?? ""
+        let due = book.days(from: now, cal).prefix(8).contains { PlanCalendar.key($0, cal) > last && !book.kinds(on: $0, cal).isEmpty }
+        if due { planMeals(now: now) }
     }
 
     /// "Tue 21" for a day key.
