@@ -256,10 +256,14 @@ public enum FoodBook {
     /// "Or it's…" (#573): the closest other foods for a scan item Monkey wasn't sure of. Name words first, then the same
     /// group by values per 100 g.
     public static func guesses(for food: Food, own: [Food] = [], count: Int = 3) -> [Food] {
-        let words = fold(food.name).split { !$0.isLetter }.filter { $0.count >= 4 }.map(String.init)
+        func words(_ s: String) -> Set<String> { Set(fold(s).split { !$0.isLetter }.filter { $0.count >= 4 }.map(String.init)) }
+        let mine = words(food.name)
         let named = (own + catalog).filter { f in
-            f.id != food.id && words.contains { w in fold(([f.name] + f.aliases).joined(separator: " ")).contains(w) }
+            guard f.id != food.id else { return false }
+            let theirs = words(([f.name] + f.aliases).joined(separator: " "))
+            return mine.contains { theirs.contains($0) || theirs.contains($0 + "s") }
         }
+        .sorted { ($0.group == food.group ? 0 : 1) < ($1.group == food.group ? 0 : 1) }
         func gap(_ f: Food) -> Double {
             abs(f.per100.protein - food.per100.protein) + abs(f.per100.carbs - food.per100.carbs)
                 + abs(f.per100.fat - food.per100.fat) + abs(f.per100.kcal - food.per100.kcal) / 10
