@@ -221,10 +221,11 @@ struct PlanLanes: View {
 
     var body: some View {
         let start = cal.date(byAdding: .day, value: -7, to: cal.startOfDay(for: Date())) ?? Date()
-        var months = (0..<Self.span).compactMap { cal.date(byAdding: .day, value: $0, to: start) }
+        let firsts = (0..<Self.span).compactMap { cal.date(byAdding: .day, value: $0, to: start) }
             .filter { cal.component(.day, from: $0) == 1 }
         // The month the lanes start in, unless the next one's label would sit on it.
-        if (months.first.flatMap { cal.dateComponents([.day], from: start, to: $0).day } ?? Self.span) > 12 { months.insert(start, at: 0) }
+        let gap = firsts.first.flatMap { cal.dateComponents([.day], from: start, to: $0).day } ?? Self.span
+        let months = gap > 12 ? [start] + firsts : firsts
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
                 Color.clear.frame(width: 76, height: 1)
