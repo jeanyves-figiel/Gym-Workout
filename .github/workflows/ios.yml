@@ -210,6 +210,13 @@ jobs:
             xcrun simctl io "$IPAD" screenshot "shots/ipad-$s.png"
             sips -Z 800 "shots/ipad-$s.png" >/dev/null
           done
+          # iPhone Duo postures (#598): the sim has no hinge, so force each one; the iPad stands in for the Duo inner screen.
+          for pose in flex book tent; do
+            xcrun simctl launch --terminate-running-process "$IPAD" Com.app.MonkeyWorkout.dev -demo -demoScreen player -duoPosture "$pose"
+            sleep 8
+            xcrun simctl io "$IPAD" screenshot "shots/ipad-player-$pose.png"
+            sips -Z 800 "shots/ipad-player-$pose.png" >/dev/null
+          done
       - name: Capture Watch home styles
         run: |
           # Watch home styles (#219), best effort: needs a watchOS simulator runtime on the runner.

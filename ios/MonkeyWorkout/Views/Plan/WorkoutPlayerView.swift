@@ -20,6 +20,8 @@ struct WorkoutPlayerView: View {
     @Environment(\.verticalSizeClass) private var verticalSize
     /// Height of the upright player: under 720 pt (iPhone Duo outer screen, #594) the hero and timer go short.
     @State private var playerHeight: CGFloat = 0
+    /// iPhone Duo posture (#598): Flex, Book and Tent get their own layouts.
+    @State private var posture = DuoPosture.forced ?? .flat
     @State private var record: WorkoutRecord?
     /// What this workout earned (#227): XP, level-up, week chest, new badges.
     @State private var reward: GameReward?
@@ -364,12 +366,17 @@ struct WorkoutPlayerView: View {
     @ViewBuilder
     private func player(_ step: Step, session: Session) -> some View {
         Group {
-            if verticalSize == .compact {
-                cockpit(step, session: session)
-            } else {
+            switch posture {
+            case .flex: flex(step, session: session)
+            // Book (#598, B): the landscape cockpit, one page each side of the hinge.
+            case .book: cockpit(step, session: session, gap: 36)
+            case .tent: tent(step, session: session)
+            case .flat where verticalSize == .compact: cockpit(step, session: session)
+            case .flat:
                 upright(step, session: session)
             }
         }
+        .duoPosture($posture)
         .task(id: autoNext) {
             // Countdown over: on to the next exercise (a timed one waits for START).
             guard let a = autoNext, a.uid == step.item.uid else { return }
@@ -625,7 +632,7 @@ struct WorkoutPlayerView: View {
 
     /// #373 (A + C mix from `player-layout/landscape-mix.png`): the exercise card at full height on the left; on the right
     /// the one input and the controls, and the smart Up next bar at the bottom. Rest takes the set card's slot, as upright (#538).
-    private func cockpit(_ step: Step, session: Session) -> some View {
+    private func cockpit(_ step: Step, session: Session, gap: CGFloat = 12) -> some View {
         let cat = step.category
         let sets = step.sets
         let done = setsDone[step.item.uid] ?? 0
@@ -637,7 +644,7 @@ struct WorkoutPlayerView: View {
             VStack(spacing: 10) {
                 topBar(session)
                 if isFree { freeTrail }
-                HStack(alignment: .top, spacing: 12) {
+                HStack(alignment: .top, spacing: gap) {
                     let setupGym = model.gymRef(forItem: step.item.uid)
                     let setupTarget = MachineNoteTarget(exerciseId: step.exercise.id, gym: setupGym)
                     let setup = model.machineNote(exerciseId: step.exercise.id, gymId: setupGym.id)
@@ -702,6 +709,117 @@ struct WorkoutPlayerView: View {
             .padding(.top, 4)
             .padding(.bottom, 8)
         }
+    }
+
+    // MARK: iPhone Duo postures (#598)
+
+    /// Flex (#598, A): half open on a table. Top half to watch (the exercise card, its picture and target), bottom half
+    /// to tap (the one input, the controls, Up next). Nothing sits on the hinge between them.
+    private func flex(_ step: Step, session: Session) -> some View {
+        let cat = step.category
+        let sets = step.sets
+        let done = setsDone[step.item.uid] ?? 0
+        let setupGym = model.gymRef(forItem: step.item.uid)
+        let setupTarget = MachineNoteTarget(exerciseId: step.exercise.id, gym: setupGym)
+        let setup = model.machineNote(exerciseId: step.exercise.id, gymId: setupGym.id)
+
+        return ZStack(alignment: .top) {
+            RadialGradient(colors: [cat.colors[0].opacity(0.35), .clear], center: .top, startRadius: 10, endRadius: 700)
+                .ignoresSafeArea()
+
+            VStack(spacing: 36) {
+                VStack(spacing: 8) {
+                    topBar(session)
+                    ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
+                                     position: isFree ? "" : "\(index + 1)/\(steps.count)",
+                                     onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
+                                     onChange: canChange(step) ? { changeFor = step.item } : nil,
+                                     setup: setup,
+                                     onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
+                                     onSetupPhoto: { setupPhotoFor = setup },
+                                     onSplit: canSplit(step) ? { split(step) } : nil,
+                                     onGroup: canSplit(step) ? { groupFix = step.item } : nil,
+                                     onAdd: isFree ? { freeBrowse = FreeBrowse(group: nil, jump: false) } : nil,
+                                     compact: true) { formFor = step.exercise }
+                        .id(step.item.uid)
+                        .transition(.opacity)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .overlay {
+                            if let r = coach.record {
+                                CoachRecordBurst(record: r) { withAnimation(.spring(duration: 0.3)) { coach.record = nil } }
+                            } else if let b = coach.bubble {
+                                CoachBubble(call: b).padding(12)
+                            }
+                        }
+                }
+                .frame(maxHeight: .infinity)
+
+                VStack(spacing: 8) {
+                    if let p = pause {
+                        restSlot(p, step: step, sets: sets, done: done, colors: cat.colors)
+                    } else {
+                        setCard(step, sets: sets, done: done, colors: cat.colors)
+                    }
+                    Spacer(minLength: 0)
+                    controls(step, sets: sets, done: done)
+                    upNextBar(step, done: done, sets: sets, session: session)
+                }
+                .frame(maxHeight: .infinity)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 8)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("player.flex")
+        }
+        .animation(.spring(duration: 0.35), value: coach.bubble)
+        .animation(.spring(duration: 0.35), value: coach.record)
+    }
+
+    /// Tent (#598, C): stood up on the floor, read from 2 m. One huge number (rest, the timer, or this set's target),
+    /// what comes next, and the controls. Logging is by voice or the Watch.
+    private func tent(_ step: Step, session: Session) -> some View {
+        let cat = step.category
+        let sets = step.sets
+        let done = setsDone[step.item.uid] ?? 0
+        let next = upNext(after: step, done: done, sets: sets, includeSets: false)
+
+        return ZStack {
+            LinearGradient(colors: cat.colors, startPoint: .topLeading, endPoint: .bottomTrailing).ignoresSafeArea()
+            VStack(spacing: 12) {
+                Text("\(step.exercise.name) · set \(min(done + 1, sets))/\(sets)".uppercased())
+                    .font(Theme.label(18)).lineLimit(1).minimumScaleFactor(0.6)
+                Spacer(minLength: 0)
+                TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                    Text(tentFigure(step, done: done, now: ctx.date))
+                        .font(.system(size: 160, weight: .black, design: .rounded))
+                        .monospacedDigit()
+                        .lineLimit(1).minimumScaleFactor(0.3)
+                }
+                Text(pause != nil ? "Rest" : (step.loggable ? "reps × kg" : step.item.prescription.reps))
+                    .font(Theme.label(20)).opacity(0.85)
+                Spacer(minLength: 0)
+                if let next {
+                    Text("Next: \(next.title)").font(Theme.display(28)).lineLimit(1).minimumScaleFactor(0.6)
+                }
+                controls(step, sets: sets, done: done)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("player.tent")
+        }
+    }
+
+    private func tentFigure(_ step: Step, done: Int, now: Date) -> String {
+        if let p = pause {
+            return p.end.map { Format.elapsed($0.timeIntervalSince(now)) } ?? Format.elapsed(now.timeIntervalSince(p.start))
+        }
+        if let run = timed, run.uid == step.item.uid { return Format.elapsed(run.left(at: now)) }
+        if let spec = step.timedSpec { return Format.elapsed(Double(spec.workSec)) }
+        if step.loggable, let v = log.values(done) { return "\(v.reps)×\(LoadAdvisor.formatKg(v.kg))" }
+        return step.item.prescription.reps
     }
 
     /// The smart Up next bar (#373), same in both orientations: the next set or exercise, the two after it, what's left.
