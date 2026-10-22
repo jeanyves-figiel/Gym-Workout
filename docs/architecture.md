@@ -47,7 +47,7 @@ flowchart LR
 
 | Part | Path | Stack |
 |---|---|---|
-| iPhone app | `ios/MonkeyWorkout` | SwiftUI, iOS 17+, `@Observable` `AppModel` split into `AppModel+<Feature>.swift` |
+| iPhone app | `ios/MonkeyWorkout` | SwiftUI, iOS 18+, `@Observable` `AppModel` split into `AppModel+<Feature>.swift` |
 | Engine | `ios/Packages/GymCore/Sources/WorkoutEngine` | Pure Swift, deterministic per seed, exercise catalog, techniques, food, recipes |
 | API client | `ios/Packages/GymCore/Sources/APIClient` | `URLSession` without HTTP cache, Keychain token store, single-flight refresh |
 | Widgets + Live Activity | `ios/MonkeyWorkoutWidgets`, `ios/HomeWidgets`, `ios/Shared` | WidgetKit, ActivityKit, App Intents |

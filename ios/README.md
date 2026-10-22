@@ -1,6 +1,6 @@
 # MonkeyWorkout iOS
 
-SwiftUI, iOS 17+, iPhone. Workout engine runs on-device (offline at the gym); account + sync via the API.
+SwiftUI, iOS 18+, iPhone. Workout engine runs on-device (offline at the gym); account + sync via the API.
 
 ## Setup (Mac)
 

@@ -5,7 +5,7 @@ import PackageDescription
 // Pure Swift (no Core Motion) so it is tested with `swift test` on macOS; the Watch feeds it device motion.
 let package = Package(
     name: "LiftSensor",
-    platforms: [.iOS(.v17), .watchOS(.v10), .macOS(.v14)],
+    platforms: [.iOS(.v18), .watchOS(.v11), .macOS(.v14)],
     products: [
         .library(name: "LiftSensor", targets: ["LiftSensor"]),
     ],

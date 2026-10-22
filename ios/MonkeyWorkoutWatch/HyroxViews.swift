@@ -165,18 +165,14 @@ struct HyroxRaceView: View {
         return parts.joined(separator: " · ")
     }
 
-    /// Big button; double tap does the same (watchOS 11).
-    @ViewBuilder private var nextButton: some View {
+    /// Big button; double tap does the same.
+    private var nextButton: some View {
         let title = tracker.asking ? "\(tracker.current?.label ?? "Next")? ✓" : tracker.between ? "START ›" : "DONE ›"
-        let button = Button { tracker.advance() } label: {
+        return Button { tracker.advance() } label: {
             Text(title).font(W.label(13)).foregroundStyle(W.ink).frame(maxWidth: .infinity).lineLimit(1).minimumScaleFactor(0.6)
         }
         .buttonStyle(.borderedProminent).tint(tracker.asking ? .yellow : W.lime).buttonBorderShape(.capsule)
-        if #available(watchOS 11.0, *) {
-            button.handGestureShortcut(.primaryAction)
-        } else {
-            button
-        }
+        .handGestureShortcut(.primaryAction)
     }
 
     private var controls: some View {

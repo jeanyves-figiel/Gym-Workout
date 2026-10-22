@@ -132,9 +132,9 @@ struct MainTabView: View {
 }
 
 private extension View {
-    /// iPad and unfolded iPhone Duo: tab bar that can become a sidebar (iOS 18+). iPhone keeps the bottom tab bar.
-    @ViewBuilder func sidebarAdaptableTabs() -> some View {
-        if #available(iOS 18, *) { tabViewStyle(.sidebarAdaptable) } else { self }
+    /// iPad and unfolded iPhone Duo: tab bar that can become a sidebar. iPhone keeps the bottom tab bar.
+    func sidebarAdaptableTabs() -> some View {
+        tabViewStyle(.sidebarAdaptable)
     }
 }
 

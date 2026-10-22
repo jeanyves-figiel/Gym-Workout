@@ -1,6 +1,6 @@
 # iPhone app
 
-SwiftUI, iOS 17+. Setup and build: [`ios/README.md`](../../ios/README.md). Watch, widgets and other devices: [devices.md](devices.md). Local files: [on-device-data.md](on-device-data.md).
+SwiftUI, iOS 18+. Setup and build: [`ios/README.md`](../../ios/README.md). Watch, widgets and other devices: [devices.md](devices.md). Local files: [on-device-data.md](on-device-data.md).
 
 ## Code map
 
