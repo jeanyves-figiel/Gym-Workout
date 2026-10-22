@@ -190,6 +190,9 @@ struct ProgressTabView: View {
         case .growth:
             // Growth path (#495): goal, its date and what Monkey noticed; opens the page.
             GrowthWidget()
+        case .mood:
+            // Mood vs training (#614 B): the finish faces against each workout's effort.
+            MoodWidget(widget: w)
         case .streak:
             StreakRow(current: s.currentStreakWeeks, best: s.bestStreakWeeks, thisWeek: s.thisWeek, target: target, fresh: fresh,
                       shields: s.streakShields)
