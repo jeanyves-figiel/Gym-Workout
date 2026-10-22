@@ -120,23 +120,39 @@ struct AskCoachBubble: View {
 
     var body: some View {
         GeometryReader { g in
-            let minY = size / 2 + 60
-            // Above the tab bar.
-            let maxY = max(minY + 1, g.size.height - size / 2 - 64)
-            let cy = minY + (maxY - minY) * y
-            let cx = right ? g.size.width - size / 2 - 12 : size / 2 + 12
-            face
-                .position(x: cx + drag.width, y: cy + drag.height)
-                .gesture(
-                    DragGesture(minimumDistance: 12)
-                        .onChanged { drag = $0.translation }
-                        .onEnded { v in
-                            right = cx + v.translation.width > g.size.width / 2
-                            y = min(1, max(0, (cy + v.translation.height - minY) / (maxY - minY)))
-                            withAnimation(.spring(duration: 0.3)) { drag = .zero }
-                        })
+            if g.safeAreaInsets.trailing >= size, g.size.width < g.size.height {
+                // iPhone Duo outer screen (#594 design A): iOS keeps a column on the right for the status bar and the
+                // tab rail, and the cards fill the rest. The 🐵 docks in that column, on top of the tab rail, so it
+                // never covers a card.
+                face
+                    .position(x: g.size.width + g.safeAreaInsets.trailing / 2,
+                              y: max(size, g.size.height + g.safeAreaInsets.bottom - Self.railHeight - size / 2 - 12))
+            } else {
+                floating(g)
+            }
         }
         .proPaywall($gate)
+    }
+
+    /// The system tab rail on the Duo outer screen: five tab icons plus its margin above the bottom edge.
+    private static let railHeight: CGFloat = 286
+
+    private func floating(_ g: GeometryProxy) -> some View {
+        let minY = size / 2 + 60
+        // Above the tab bar.
+        let maxY = max(minY + 1, g.size.height - size / 2 - 64)
+        let cy = minY + (maxY - minY) * y
+        let cx = right ? g.size.width - size / 2 - 12 : size / 2 + 12
+        return face
+            .position(x: cx + drag.width, y: cy + drag.height)
+            .gesture(
+                DragGesture(minimumDistance: 12)
+                    .onChanged { drag = $0.translation }
+                    .onEnded { v in
+                        right = cx + v.translation.width > g.size.width / 2
+                        y = min(1, max(0, (cy + v.translation.height - minY) / (maxY - minY)))
+                        withAnimation(.spring(duration: 0.3)) { drag = .zero }
+                    })
     }
 
     private var face: some View {

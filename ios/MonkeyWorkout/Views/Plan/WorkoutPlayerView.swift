@@ -16,6 +16,8 @@ struct WorkoutPlayerView: View {
     @Environment(\.scenePhase) private var scenePhase
     /// Compact = iPhone on its side (#362): the cockpit layout.
     @Environment(\.verticalSizeClass) private var verticalSize
+    /// Height of the upright player: under 720 pt (iPhone Duo outer screen, #594) the hero and timer go short.
+    @State private var playerHeight: CGFloat = 0
     @State private var record: WorkoutRecord?
     /// What this workout earned (#227): XP, level-up, week chest, new badges.
     @State private var reward: GameReward?
@@ -374,6 +376,8 @@ struct WorkoutPlayerView: View {
     }
 
     @ViewBuilder
+    private var short: Bool { playerHeight > 0 && playerHeight < 720 }
+
     private func upright(_ step: Step, session: Session) -> some View {
         let cat = step.category
         let sets = step.sets
@@ -409,7 +413,8 @@ struct WorkoutPlayerView: View {
                                  onSetupPhoto: { setupPhotoFor = setup },
                                  onSplit: canSplit(step) ? { split(step) } : nil,
                                  onGroup: canSplit(step) ? { groupFix = step.item } : nil,
-                                 onAdd: isFree ? { freeBrowse = FreeBrowse(group: nil, jump: false) } : nil) { formFor = step.exercise }
+                                 onAdd: isFree ? { freeBrowse = FreeBrowse(group: nil, jump: false) } : nil,
+                                 short: short) { formFor = step.exercise }
                     .id(step.item.uid)
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
                     .layoutPriority(1)
@@ -460,6 +465,7 @@ struct WorkoutPlayerView: View {
                 .padding(.top, 66)
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { playerHeight = $0 }
         .animation(.spring(duration: 0.35), value: voiceToast)
         .animation(.spring(duration: 0.35), value: coach.bubble)
         .animation(.spring(duration: 0.35), value: coach.record)
@@ -914,7 +920,7 @@ struct WorkoutPlayerView: View {
         } else if let spec = step.timedSpec {
             let run = timed.flatMap { $0.uid == step.item.uid ? $0 : nil }
                 ?? TimedRun(uid: step.item.uid, total: spec.workSec, remaining: Double(spec.workSec), end: nil)
-            TimedSetCard(run: run, sets: sets, done: done, easySec: spec.easySec, colors: colors)
+            TimedSetCard(run: run, sets: sets, done: done, easySec: spec.easySec, colors: colors, short: short)
         } else if sets > 1 {
             PlainSetCard(sets: sets, done: done, target: step.item.prescription.reps, color: colors[0])
         }
