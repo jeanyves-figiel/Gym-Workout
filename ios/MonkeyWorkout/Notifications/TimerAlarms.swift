@@ -42,7 +42,7 @@ final class TimerAlarms {
     private static let askedKey = "timerAlarms.asked"
 
     /// Ring through Silent (C): off until the member allows it.
-    private(set) var enabled = UserDefaults.standard.bool(forKey: enabledKey)
+    private(set) var enabled = UserDefaults.standard.bool(forKey: TimerAlarms.enabledKey)
     private var scheduled: UUID?
     private var scheduledFor: Date?
     private var last: (title: String, kind: Kind)?
@@ -112,10 +112,17 @@ final class TimerAlarms {
     @available(iOS 26, *)
     private static func schedule(id: UUID, at date: Date, title: String, kind: Kind) async throws {
         let rest = kind == .rest
-        let stop = AlarmButton(text: rest ? "Start set" : "OK", textColor: .black, systemImageName: rest ? "play.fill" : "checkmark")
-        let more = AlarmButton(text: "+30 s", textColor: .white, systemImageName: "plus")
-        let alert = AlarmPresentation.Alert(title: LocalizedStringResource(stringLiteral: title), stopButton: stop,
-                                            secondaryButton: rest ? more : nil, secondaryButtonBehavior: rest ? .custom : nil)
+        let heading = LocalizedStringResource(stringLiteral: title)
+        let alert: AlarmPresentation.Alert
+        if rest {
+            alert = AlarmPresentation.Alert(title: heading,
+                                            stopButton: AlarmButton(text: "Start set", textColor: .black, systemImageName: "play.fill"),
+                                            secondaryButton: AlarmButton(text: "+30 s", textColor: .white, systemImageName: "plus"),
+                                            secondaryButtonBehavior: .custom)
+        } else {
+            alert = AlarmPresentation.Alert(title: heading,
+                                            stopButton: AlarmButton(text: "OK", textColor: .black, systemImageName: "checkmark"))
+        }
         let attributes = AlarmAttributes<TimerAlarmData>(presentation: AlarmPresentation(alert: alert), metadata: TimerAlarmData(),
                                                          tintColor: Theme.lime)
         let secondary: (any LiveActivityIntent)? = rest ? AddRest30Intent() : nil

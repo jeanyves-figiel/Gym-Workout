@@ -49,7 +49,7 @@ enum HealthEffort {
     /// The Health workout saved for a session between `start` and `end` (by this app or its Watch).
     static func workout(from start: Date, to end: Date, store: HKHealthStore) async -> HKWorkout? {
         let pred = HKQuery.predicateForSamples(withStart: start.addingTimeInterval(-180), end: end.addingTimeInterval(180))
-        let d = HKSampleQueryDescriptor(predicates: [.workout(pred)], sortDescriptors: [SortDescriptor(\.startDate)], limit: 5)
+        let d = HKSampleQueryDescriptor(predicates: [.workout(pred)], sortDescriptors: [SortDescriptor<HKWorkout>(\.startDate)], limit: 5)
         let found = (try? await d.result(for: store)) ?? []
         return found.min { abs($0.startDate.timeIntervalSince(start)) < abs($1.startDate.timeIntervalSince(start)) }
     }

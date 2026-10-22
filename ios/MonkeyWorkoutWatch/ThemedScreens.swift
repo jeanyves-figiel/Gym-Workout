@@ -434,17 +434,25 @@ struct WatchEffortAsk: View {
 /// How do you feel now (#614 C): four faces saved to Health as a State of Mind (levels as on the iPhone).
 struct WatchMoodAsk: View {
     @State private var picked: Int?
-    private static let faces: [(Int, String)] = [(1, "😫"), (2, "😐"), (3, "🙂"), (5, "🤩")]
+
+    private struct Face: Identifiable {
+        let level: Int
+        let emoji: String
+        var id: Int { level }
+    }
+
+    private static let faces = [Face(level: 1, emoji: "😫"), Face(level: 2, emoji: "😐"), Face(level: 3, emoji: "🙂"), Face(level: 5, emoji: "🤩")]
 
     var body: some View {
         HStack(spacing: 4) {
-            ForEach(Self.faces, id: \.0) { level, face in
+            ForEach(Self.faces) { f in
+                let level = f.level
                 Button {
                     picked = level
                     WKInterfaceDevice.current().play(.click)
                     Task { await WorkoutManager.shared.saveMood(level) }
                 } label: {
-                    Text(face).font(.system(size: picked == level ? 22 : 18))
+                    Text(f.emoji).font(.system(size: picked == level ? 22 : 18))
                         .frame(maxWidth: .infinity, minHeight: 32)
                         .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(picked == level ? W.lime : Color.white.opacity(0.12)))
