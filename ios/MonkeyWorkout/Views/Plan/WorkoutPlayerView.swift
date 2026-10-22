@@ -267,7 +267,7 @@ struct WorkoutPlayerView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(20)
-                .background(Theme.bg.ignoresSafeArea())
+                .glassSheetBackground()
                 .foregroundStyle(.white)
                 .preferredColorScheme(.dark)
                 .safeAreaInset(edge: .bottom) { mapActions }

@@ -1024,7 +1024,7 @@ struct ProgrammeSessionSheet: View {
                 }
                 .padding(16)
             }
-            .background(Theme.bg.ignoresSafeArea())
+            .glassSheetBackground()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

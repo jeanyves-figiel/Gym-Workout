@@ -482,7 +482,7 @@ struct MissedCatchUpSheet: View {
                 .padding(16)
             }
             .readableWidth()
-            .background(Theme.bg.ignoresSafeArea())
+            .glassSheetBackground()
             .navigationTitle(weekday.map { "Missed · \(WeekSchedule.name($0))" } ?? "Missed")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }

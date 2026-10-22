@@ -52,7 +52,7 @@ struct ChangeExerciseSheet: View {
         }
         .padding(20)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(Theme.bg.ignoresSafeArea())
+        .glassSheetBackground()
         .foregroundStyle(.white)
         .preferredColorScheme(.dark)
         .presentationDetents([.height((setsDone > 0 ? 330 : 300) + (takenZone == nil ? 0 : 62))])

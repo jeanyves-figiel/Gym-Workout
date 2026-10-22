@@ -1107,7 +1107,7 @@ struct SportPlanEditor: View {
                 Spacer(minLength: 0)
             }
             .padding(16)
-            .background(Theme.bg.ignoresSafeArea())
+            .glassSheetBackground()
             .navigationTitle("\(plan.sport.short) season")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { showsSeason = false } }

@@ -83,7 +83,8 @@ struct MainTabView: View {
                 .tabItem { Label("Community", systemImage: "person.3.fill") }
                 .tag(MainTab.community)
         }
-        .toolbarBackground(Theme.bg, for: .tabBar)
+        // Liquid Glass tab bar on iOS 26 (#616 A).
+        .glassTabBar()
         .sidebarAdaptableTabs()
         // Ask Coach everywhere (#412 A): the floating 🐵 and its chat, which knows the screen on top.
         .overlay { if coachBubble { AskCoachBubble() } }
