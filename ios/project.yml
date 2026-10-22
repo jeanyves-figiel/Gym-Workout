@@ -95,8 +95,7 @@ targets:
         NSHealthUpdateUsageDescription: Saves your gym sessions as workouts with how hard they felt (effort), how you feel after them (State of Mind), the weight, height, body fat, lean mass and waist you enter, and the water you log in Fuel, to Apple Health.
         ITSAppUsesNonExemptEncryption: false
         NSSupportsLiveActivities: true
-        # Workout mirrored from the Watch (#603): keeps the app running for it with the phone locked.
-        UIBackgroundModes: [workout-processing]
+        # No UIBackgroundModes for mirroring (#603): App Store rejects workout-processing on iOS; HealthKit wakes the app via workoutSessionMirroringStartHandler.
         # Siri sees the open exercise page (#605).
         NSUserActivityTypes: [com.monkeyworkout.exercise]
         # Ring through Silent (#613): rest and interval timers as AlarmKit alarms, off until the member allows it.
