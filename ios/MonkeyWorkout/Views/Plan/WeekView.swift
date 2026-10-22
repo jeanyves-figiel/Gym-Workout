@@ -1707,12 +1707,14 @@ private struct VariationUndoCard: View {
 /// recap, the block review, what Monkey noticed and kind streaks. One at a time: the bars show where it is, a swipe or
 /// a tap on the bars shows the next, ✕ puts the current one away. Start workout never moves down for them.
 private struct TrainNoticeSlot: View {
-    enum Kind: Hashable { case recover, variation, taste, block, noticed, kind }
+    enum Kind: Hashable { case recover, addOn, variation, taste, block, noticed, kind }
 
     @Environment(AppModel.self) private var model
     @State private var index = 0
     /// Readiness swap kept (#619 B): the day's key, so it stays away until tomorrow.
     @AppStorage("trainRecoverSwapKept") private var recoverKeptDay = ""
+    /// Sport add-on suggestion said No to (#620 B): until this time (30 days).
+    @AppStorage("trainAddOnNoUntil") private var addOnNoUntil = 0.0
 
     private var todayKey: String { PlanCalendar.key(Date(), model.planCalendar) }
     /// Kind streak cards put away this week (they have no close of their own): the week's Monday key.
@@ -1727,6 +1729,8 @@ private struct TrainNoticeSlot: View {
         var out: [Kind] = []
         // Low readiness on a heavy day (#619 B): swap it for mobility, before anything else.
         if recoverKeptDay != todayKey, model.recoverSwap != nil { out.append(.recover) }
+        // The Coach saw a sport played 3+ times in two weeks (#620 B).
+        if Date().timeIntervalSince1970 > addOnNoUntil, model.sportAddOnSuggestion != nil { out.append(.addOn) }
         // New variation (#98): its Undo first.
         if model.variationUndo != nil { out.append(.variation) }
         // New week made with what the app learned (#299).
@@ -1772,6 +1776,8 @@ private struct TrainNoticeSlot: View {
         switch k {
         case .recover:
             if let swap = model.recoverSwap { RecoverSwapCard(swap: swap) { dismiss(.recover) } }
+        case .addOn:
+            if let s = model.sportAddOnSuggestion { SportAddOnSuggestCard(sport: s.sport, count: s.count) { dismiss(.addOn) } }
         case .variation:
             if let u = model.variationUndo { VariationUndoCard(undo: u) }
         case .taste:
@@ -1817,6 +1823,7 @@ private struct TrainNoticeSlot: View {
     private func title(_ k: Kind) -> String {
         switch k {
         case .recover: "Readiness swap"
+        case .addOn: "Sport add-on"
         case .variation: "Variation undo"
         case .taste: "Taste recap"
         case .block: "Block review"
@@ -1829,6 +1836,7 @@ private struct TrainNoticeSlot: View {
         withAnimation(.snappy) {
             switch k {
             case .recover: recoverKeptDay = todayKey
+            case .addOn: addOnNoUntil = Date().addingTimeInterval(30 * 86_400).timeIntervalSince1970
             case .variation: model.variationUndo = nil
             case .taste: model.dismissTasteRecap()
             case .block: if let r = model.blockReview { model.closeBlockReview(r) }

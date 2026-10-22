@@ -54,6 +54,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var tasteRecap: TasteRecap?
     /// Growing with the member (#495): level, block reviews, long-term goal, weekly notices, the coach's memory.
     var growth: GrowthState?
+    /// Sport add-on (#620 C): a 15′ sport block in a few gym sessions a week; nil = none.
+    var sportAddOn: SportAddOnPref?
 
     /// Training profile with this week's learned tastes (#299): quick sessions and plan variations.
     var tasteProfile: Profile {

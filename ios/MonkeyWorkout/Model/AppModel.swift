@@ -352,7 +352,8 @@ final class AppModel {
     private func makePlan() -> WeekPlan? {
         guard let edited = uneditedPlan?.applying(edits: state.synced?.sessionEdits ?? []) else { return nil }
         // Lift Focus and Pro Sets (#499): the focus lift's block sets, then the member's set styles.
-        let p = expertPlan(edited)
+        // Sport add-on (#620 C) on the week's first strength sessions.
+        let p = SportAddOn.apply(expertPlan(edited), state.synced?.sportAddOn)
         // Daily auto-tune (#495) replaces the low-readiness easing when on.
         if tuneOn { return tuned(p).plan }
         return p.easedForReadiness(readinessEasedIds(p))

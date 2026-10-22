@@ -69,6 +69,8 @@ struct ProgrammeLibrarySection: View {
                         .strokeBorder(.white.opacity(0.25), style: StrokeStyle(lineWidth: 2, dash: [7, 6])))
             }
             .buttonStyle(.plain)
+            // Sport season blocks (#620 A): pick the sport, then its season's first day on the programme page.
+            SeasonPickerCard()
             Text("Programmes").eyebrow()
             ForEach(Programme.catalog.filter { !$0.sameFamily(model.activeProgramme?.programmeId) }) { p in
                 NavigationLink(value: ProgrammeRoute(id: p.id)) { ProgrammeCard(programme: p) }
@@ -210,10 +212,10 @@ struct ProgrammeDetailView: View {
         return base
     }
 
-    /// Snow ready not started yet: weeks to the week before the first day on snow.
+    /// Snow ready or a sport season block (#620) not started yet: weeks to the week before the first day.
     private var snowWeeks: Int? {
-        guard mine == nil, base.snowRide != nil, let firstDay else { return nil }
-        return Programme.snowWeeks(until: firstDay, now: .now)
+        guard mine == nil, base.snowRide != nil || base.isSeason, let firstDay else { return nil }
+        return base.isSeason ? Programme.seasonWeeks(until: firstDay, now: .now) : Programme.snowWeeks(until: firstDay, now: .now)
     }
 
     /// At its standard length: what the length choices are built from.
@@ -227,6 +229,7 @@ struct ProgrammeDetailView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     if base.snowRide != nil, mine == nil || mine?.firstDay != nil { snowSetup }
+                    if base.isSeason, mine == nil || mine?.firstDay != nil { seasonSetup }
                     if base.isHyrox { hyroxSetup }
                     ProgrammePhaseStrip(programme: programme, week: mine == nil ? nil : model.programmeWeek)
                     if mine != nil, !base.isHyrox { lengthRow }
@@ -316,6 +319,10 @@ struct ProgrammeDetailView: View {
                 ride = ride ?? SnowRide.from(sports) ?? base.snowRide
                 firstDay = firstDay ?? Programme.defaultSnowDay(sports: sports, now: .now)
                 snowSeen = Calendar.current.component(.year, from: .now)
+            }
+            if base.isSeason {
+                // Saturday 8 weeks out: the standard length.
+                firstDay = firstDay ?? Programme.defaultSnowDay(sports: nil, now: .now)
             }
             if demoLength { lengthSheet = true }
             if demoEdit { editing = base.copy() }
@@ -440,6 +447,36 @@ struct ProgrammeDetailView: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(Programme.snowReady(.both).gradient))
+    }
+
+    /// Sport season block (#620 A): the season's first day (the length is fitted to it); running, the countdown.
+    private var seasonSetup: some View {
+        let cal = Calendar.current
+        let day = mine?.firstDay ?? firstDay ?? .now
+        let days = max(0, cal.dateComponents([.day], from: cal.startOfDay(for: .now), to: cal.startOfDay(for: day)).day ?? 0)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: base.symbol).font(.system(size: 18, weight: .bold))
+                    .frame(width: 40, height: 40)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.22)))
+                Text("Season starts").font(Theme.display(20))
+                Spacer(minLength: 0)
+            }
+            Text(day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))
+                .font(Theme.display(44)).lineLimit(1).minimumScaleFactor(0.6)
+            if mine == nil {
+                Text("\(snowWeeks ?? programme.weeks) weeks · we fit the plan to it").font(.footnote.weight(.semibold)).opacity(0.9)
+                DatePicker("Season starts", selection: Binding(get: { firstDay ?? .now }, set: { firstDay = $0 }),
+                           in: cal.date(byAdding: .day, value: 7, to: .now)!..., displayedComponents: .date)
+                    .font(Theme.label(14)).tint(.white).colorScheme(.dark)
+            } else {
+                Text(days == 0 ? "Today. Have a great season" : "\(days) day\(days == 1 ? "" : "s") to go").font(.footnote.weight(.semibold)).opacity(0.9)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(base.gradient))
     }
 
     /// Copy to edit ("Make it mine", design A of #269).
@@ -1070,5 +1107,38 @@ struct ProgrammeLengthSheet: View {
             .fill(on ? AnyShapeStyle(programme.gradient) : AnyShapeStyle(Theme.card)))
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+
+/// "Get ready for…" (#620 A): one square tile per sport; each opens its season block (Snow ready, Climber's power or a
+/// season programme), where the first day of the season fits the length.
+struct SeasonPickerCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Get ready for…").font(Theme.display(20)).foregroundStyle(.white)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+                ForEach(SeasonSport.allCases) { s in
+                    NavigationLink(value: ProgrammeRoute(id: s.programmeId)) {
+                        VStack(spacing: 4) {
+                            Text(s.emoji).font(.system(size: 26))
+                            Text(s.label.uppercased()).font(Theme.label(11)).tracking(0.8)
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, minHeight: 64)
+                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.18)))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Get ready for \(s.label)")
+                }
+            }
+            // Sport add-on (#620 C): no plan change, 15′ in a few sessions.
+            SportAddOnRow()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous)
+            .fill(LinearGradient(colors: [Color(hex: 0xFF4D8D), Color(hex: 0x8A2BFF)], startPoint: .topLeading, endPoint: .bottomTrailing)))
     }
 }
