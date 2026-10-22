@@ -84,6 +84,12 @@
       "tint": "mobility",
       "title": "Can't train today?",
       "body": "Long press the day card or a day: Skip today. Not moved, Next up moves on, Unskip any time."
+    },
+    {
+      "symbol": "arrow.right.circle.fill",
+      "tint": "strength",
+      "title": "Next up, right on the day",
+      "body": "On the Train day card the Next up chip now sits on the day's line."
     }
   ]
 }
