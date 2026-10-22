@@ -1,6 +1,31 @@
 {
   "releases": [
     {
+      "id": "2026-10-22.1",
+      "build": 60,
+      "date": "2026-10-22",
+      "items": [
+        {
+          "symbol": "arrow.down.circle.fill",
+          "tint": "cardio",
+          "title": "Fixes without waiting",
+          "body": "Some fixes and new recipes now arrive without an app update."
+        },
+        {
+          "symbol": "figure.cross.training",
+          "tint": "strength",
+          "title": "Extra workouts, your way",
+          "body": "Edit the session flow of a quick extra, and Upper body is upper body only."
+        },
+        {
+          "symbol": "iphone",
+          "tint": "power",
+          "title": "Full screen on iPhone Duo",
+          "body": "The app now fills the whole screen on iPhone Duo."
+        }
+      ]
+    },
+    {
       "id": "2026-10-21.4",
       "build": 59,
       "date": "2026-10-21",
