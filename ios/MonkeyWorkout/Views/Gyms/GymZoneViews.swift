@@ -301,7 +301,7 @@ private struct ZoneEditSheet: View {
                 Spacer()
             }
             .padding(16)
-            .background(Theme.bg.ignoresSafeArea())
+            .glassSheetBackground()
             .navigationTitle("Zone")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

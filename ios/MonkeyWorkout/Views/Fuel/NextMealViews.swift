@@ -199,7 +199,7 @@ struct JustAteSheet: View {
                 }
                 .padding(16)
             }
-            .background(Theme.bg.ignoresSafeArea())
+            .glassSheetBackground()
             .navigationTitle("Just ate")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }

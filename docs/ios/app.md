@@ -107,4 +107,4 @@ Me sheet: photo, name, @nickname, level bar → **Your profile**, Levels, Settin
 
 ## Design rules
 
-Bold gradient cards (Explore look): icon tile left, heavy type, big number right, square shapes, no grey list screens. Sheets close with X top right. Every tappable-looking element leads somewhere. Visible UI changes start with 2–3 mockups for the owner to pick.
+Bold gradient cards (Explore look): icon tile left, heavy type, big number right, square shapes, no grey list screens. Sheets close with X top right. **Liquid Glass** (iOS 26, `LiquidGlass.swift`): glass only on system chrome, the floating tab bar (`glassTabBar`, minimises on scroll) and sheet edges (`glassSheetBackground` instead of `Theme.bg` on a sheet's content); cards, the player and its lime Log stay solid, no glass capsules over large titles. Every tappable-looking element leads somewhere. Visible UI changes start with 2–3 mockups for the owner to pick.
