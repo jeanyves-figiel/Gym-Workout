@@ -42,6 +42,9 @@ struct WatchSnapshot: Codable, Equatable {
     var hyrox: WHyrox?
     /// "Start on Watch" for another sport on the iPhone (#439); used for a few minutes after `at`.
     var sportStart: WSportStart?
+    /// Heart-rate zones (#609) and today's planned run (#618); nil from older iPhone apps.
+    var zones: WZones?
+    var run: WRun?
 
     /// Today's water from Fuel (#496); a tap on the Watch adds a glass.
     var water: WWater?
@@ -596,6 +599,70 @@ struct WSportStart: Codable, Equatable {
     var sport: String
     var saver: Bool
     var at: Date
+    /// A planned run (#618): the Watch run player follows its steps.
+    var run: WRun? = nil
+}
+
+/// Heart-rate zones (#609): bpm where zones 2…5 start, from Apple Health's zones or age and resting heart rate
+/// (`HeartZones` on the iPhone). Buzz on zone change can be turned off.
+struct WZones: Codable, Equatable {
+    var starts: [Int]
+    var buzz = true
+
+    /// Age 35, resting 60: until the iPhone sends the member's own.
+    static let standard = WZones(starts: [134, 146, 159, 171])
+
+    var valid: Bool { starts.count == 4 && zip(starts, starts.dropFirst()).allSatisfy { $0 < $1 } }
+
+    /// Zone 1…5 for a heart rate.
+    func zone(_ bpm: Double) -> Int { 1 + starts.filter { bpm >= Double($0) }.count }
+
+    /// bpm under (negative) or over (positive) a zone; 0 inside it.
+    func off(_ bpm: Double, target: Int) -> Int {
+        let z = min(max(target, 1), 5)
+        if z > 1, bpm < Double(starts[z - 2]) { return -Int((Double(starts[z - 2]) - bpm).rounded(.up)) }
+        if z < 5, bpm > Double(starts[z - 1] - 1) { return Int((bpm - Double(starts[z - 1] - 1)).rounded(.up)) }
+        return 0
+    }
+
+    /// Tile colours, zone 1…5 (same as the iPhone's `HeartZones.tints`).
+    static let tints: [(UInt32, UInt32)] = [
+        (0x3D59FF, 0x00C7FF), (0x00B86B, 0x3DFFB0), (0x9BD300, 0xCCFF3D), (0xFF7A3D, 0xFFC23D), (0xFF3D8B, 0xFF6B6B),
+    ]
+}
+
+/// A planned run or cardio session (#618), flattened from `RunWorkout` for the Watch run player.
+struct WRun: Codable, Equatable, Identifiable {
+    var id: String
+    var title: String
+    var detail: String
+    /// `Sport` raw value: run, roadBike, rowing.
+    var sport: String
+    /// Whole-session target zone (Zone 2 days).
+    var zone: Int?
+    var steps: [WRunStep]
+}
+
+struct WRunStep: Codable, Equatable {
+    /// warmup, work, recover, cooldown, steady.
+    var kind: String
+    var meters: Int?
+    var seconds: Int?
+    /// Seconds per km.
+    var pace: Int?
+    var zone: Int?
+    var rep: Int?
+    var of: Int?
+
+    var title: String {
+        switch kind {
+        case "warmup": "Warm-up"
+        case "recover": "Recover"
+        case "cooldown": "Cool-down"
+        case "steady": "Steady"
+        default: rep.map { r in of.map { "Rep \(r) of \($0)" } ?? "Rep \(r)" } ?? "Work"
+        }
+    }
 }
 
 struct WHyrox: Codable, Equatable {

@@ -1,3 +1,4 @@
+import AVFoundation
 import CoreLocation
 import Foundation
 import HealthKit
@@ -167,6 +168,13 @@ final class SportTracker: NSObject {
     /// Battery % at start and at finish (summary).
     private(set) var batteryStart: Float?
     private(set) var summary: Summary?
+    /// Planned run (#618, design B): its steps as big blocks, pace target vs actual, voice cues.
+    private(set) var run: WRun?
+    private(set) var stepIndex = 0
+    private(set) var stepStart: Date?
+    private var stepMeters0: Double = 0
+    private var runTimer: Timer?
+    private let voice = AVSpeechSynthesizer()
 
     struct Summary {
         let sport: TrackedSport
@@ -198,7 +206,7 @@ final class SportTracker: NSObject {
     private var saverTimer: Timer?
     private let trailMax = 400
 
-    func start(_ sport: TrackedSport, power: TrackPower) async {
+    func start(_ sport: TrackedSport, power: TrackPower, run: WRun? = nil, target: Int? = nil) async {
         guard HKHealthStore.isHealthDataAvailable(), !running, !WorkoutManager.shared.running, !HyroxTracker.shared.running else { return }
         let share: Set<HKSampleType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute(), HKQuantityType(.activeEnergyBurned),
                                         HKQuantityType(.heartRate)]
@@ -217,11 +225,14 @@ final class SportTracker: NSObject {
         reset()
         self.sport = sport
         self.power = power
+        self.run = run
+        await prepareZones(b, target: run?.steps.first?.zone ?? run?.zone ?? target)
         WKInterfaceDevice.current().isBatteryMonitoringEnabled = true
         batteryStart = WKInterfaceDevice.current().batteryLevel >= 0 ? WKInterfaceDevice.current().batteryLevel : nil
         let now = Date()
         started = now
         lapStart = now
+        stepStart = run == nil ? nil : now
         s.startActivity(with: now)
         do {
             try await b.beginCollection(at: now)
@@ -231,6 +242,7 @@ final class SportTracker: NSObject {
             return
         }
         if sport.usesGPS { startLocation() }
+        if run != nil { startRun() }
     }
 
     private func reset() {
@@ -267,6 +279,82 @@ final class SportTracker: NSObject {
         rideSeconds = 0
         liftSeconds = 0
         lastRun = nil
+        run = nil
+        stepIndex = 0
+        stepStart = nil
+        stepMeters0 = 0
+        runTimer?.invalidate()
+        runTimer = nil
+    }
+
+    // MARK: Run player (#618)
+
+    var step: WRunStep? { run.flatMap { stepIndex < $0.steps.count ? $0.steps[stepIndex] : nil } }
+    var nextUp: WRunStep? { run.flatMap { stepIndex + 1 < $0.steps.count ? $0.steps[stepIndex + 1] : nil } }
+    var stepMeters: Double { meters - stepMeters0 }
+
+    /// Metres or seconds left in the step.
+    func stepLeft(now: Date) -> (meters: Int?, seconds: Int?) {
+        guard let step else { return (nil, nil) }
+        if let m = step.meters { return (max(0, m - Int(stepMeters)), nil) }
+        if let sec = step.seconds { return (nil, max(0, sec - Int(now.timeIntervalSince(stepStart ?? now)))) }
+        return (nil, nil)
+    }
+
+    /// Live pace, seconds per km; nil when standing.
+    var pace: Int? { speed > 2 ? Int(3600 / speed) : nil }
+
+    private func startRun() {
+        cue()
+        runTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.checkStep() }
+        }
+    }
+
+    /// Next step when its distance or time is done; the last one ends the plan (tracking carries on until End).
+    private func checkStep(now: Date = Date()) {
+        guard !paused, let step else { return }
+        let left = stepLeft(now: now)
+        if (step.meters != nil && left.meters == 0) || (step.meters == nil && left.seconds == 0) { nextStep(now: now) }
+    }
+
+    /// Skip or step done: segment in Health, buzz, voice cue, the new step's target zone.
+    func nextStep(now: Date = Date()) {
+        guard let run, stepIndex < run.steps.count else { return }
+        if let s = stepStart, let builder {
+            let event = HKWorkoutEvent(type: .segment, dateInterval: DateInterval(start: s, end: now), metadata: nil)
+            Task { try? await builder.addWorkoutEvents([event]) }
+        }
+        stepIndex += 1
+        stepStart = now
+        stepMeters0 = meters
+        WKInterfaceDevice.current().play(stepIndex < run.steps.count ? .notification : .success)
+        if stepIndex >= run.steps.count {
+            runTimer?.invalidate()
+            runTimer = nil
+            ZoneTracker.shared.target = run.zone
+            speak("Plan done. Great work.")
+            return
+        }
+        ZoneTracker.shared.target = step?.zone ?? run.zone
+        cue()
+    }
+
+    /// Coach voice cue: "Rep 3 of 6. 400 metres at 4:30 a kilometre."
+    private func cue() {
+        guard let step else { return }
+        var parts = [step.title]
+        if let m = step.meters { parts.append(m >= 1000 && m % 1000 == 0 ? "\(m / 1000) kilometres" : "\(m) metres") }
+        else if let sec = step.seconds { parts.append(sec >= 60 ? "\(sec / 60) minutes" : "\(sec) seconds") }
+        if let p = step.pace { parts.append("at \(p / 60) \(String(format: "%02d", p % 60)) a kilometre") }
+        else if let z = step.zone { parts.append("in zone \(z)") }
+        speak(parts.joined(separator: ". "))
+    }
+
+    private func speak(_ text: String) {
+        let u = AVSpeechUtterance(string: text)
+        u.rate = AVSpeechUtteranceDefaultSpeechRate
+        voice.speak(u)
     }
 
     private func startLocation() {
@@ -404,6 +492,9 @@ final class SportTracker: NSObject {
     }
 
     private func cleanup() {
+        runTimer?.invalidate()
+        runTimer = nil
+        run = nil
         session = nil
         builder = nil
         routeBuilder = nil
@@ -446,6 +537,7 @@ final class SportTracker: NSObject {
             if l.verticalAccuracy >= 0 { climb(l.altitude, downhill: sport.downhill) }
         }
         if pending.count >= 30 { flushRoute() }
+        if run != nil { checkStep() }
     }
 
     /// Live map (#445 C): trail, distance and bearing home, direction of travel. Halves the trail when full.
@@ -500,6 +592,7 @@ final class SportTracker: NSObject {
             guard let v = stats.mostRecentQuantity()?.doubleValue(for: HKUnit.count().unitDivided(by: .minute())) else { return }
             heartRate = v
             maxHeartRate = max(maxHeartRate ?? 0, v)
+            ZoneTracker.shared.heart(v)
         case HKQuantityType(.activeEnergyBurned):
             kcal = stats.sumQuantity()?.doubleValue(for: .kilocalorie()) ?? kcal
         default:
@@ -530,6 +623,13 @@ extension SportTracker: HKWorkoutSessionDelegate {
 
 extension SportTracker: HKLiveWorkoutBuilderDelegate {
     nonisolated func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {}
+
+    /// watchOS 27: Apple's zone changed (#609).
+    @available(watchOS 27, *)
+    nonisolated func workoutBuilder(_ workoutBuilder: HKLiveWorkoutBuilder, didUpdateWorkoutZone zoneUpdate: HKLiveWorkoutZoneUpdate) {
+        guard let p = AppleZones.position(zoneUpdate) else { return }
+        Task { @MainActor in ZoneTracker.shared.apple(p.zone, count: p.count) }
+    }
 
     nonisolated func workoutBuilder(_ workoutBuilder: HKLiveWorkoutBuilder, didCollectDataOf collectedTypes: Set<HKSampleType>) {
         let stats = collectedTypes.compactMap { $0 as? HKQuantityType }.compactMap { workoutBuilder.statistics(for: $0) }

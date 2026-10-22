@@ -421,6 +421,8 @@ struct WeekView: View {
                     if !arranging { SportPrepBar() }
                     // Skill of the month practice day (#621 C).
                     if !arranging { SkillPracticeBar() }
+                    // Run & cardio plan (#618): race countdown or Hybrid, this week's runs.
+                    if !arranging { RunGoalCard() }
                     if !arranging { notices(plan: plan, profile: profile) }
                 }
             } else {
@@ -431,6 +433,7 @@ struct WeekView: View {
                     if !arranging, !small { TrainNoticeSlot() }
                     if !arranging, !small { SportPrepBar() }
                     if !arranging, !small { SkillPracticeBar() }
+                    if !arranging, !small { RunGoalCard() }
                     if !arranging, !small { notices(plan: plan, profile: profile) }
                 }
             }
