@@ -8,11 +8,21 @@ import WatchKit
 /// Home row → sports list.
 struct SportPickerView: View {
     @State private var picked: TrackedSport?
+    @Environment(WatchStore.self) private var store
 
     var body: some View {
         ScrollView {
             VStack(spacing: 6) {
                 Eyebrow(text: "Track a sport", color: W.lime)
+                // Today's planned run (#618): starts the run player with its steps.
+                if let run = store.snapshot.run, let sport = TrackedSport(rawValue: run.sport) {
+                    Button {
+                        Task { await SportTracker.shared.start(sport, power: .full, run: run) }
+                    } label: {
+                        HomeRow(symbol: sport.symbol, title: run.title, value: "▶", tint: (0xFF3D8B, 0xFF9A5E), unit: "TODAY")
+                    }
+                    .buttonStyle(.plain)
+                }
                 // Hyrox race mode (#426): runs and stations recorded by themselves.
                 NavigationLink { HyroxSetupView() } label: {
                     HomeRow(symbol: "figure.cross.training", title: "Hyrox", value: "›", tint: HyroxLook.station)
@@ -35,6 +45,8 @@ struct SportPickerView: View {
 struct SportPowerView: View {
     let sport: TrackedSport
     @Environment(\.dismiss) private var dismiss
+    /// Target zone (#609, design B); nil = none.
+    @State private var target: Int?
 
     var body: some View {
         ScrollView {
@@ -57,13 +69,25 @@ struct SportPowerView: View {
                 } else {
                     LimeButton(title: "Start") { start(.full) }
                 }
+                Eyebrow(text: "Target zone")
+                HStack(spacing: 4) {
+                    ForEach([nil, 2, 3, 4] as [Int?], id: \.self) { z in
+                        Button { target = z } label: {
+                            Text(z.map { "Z\($0)" } ?? "Off").font(W.label(12))
+                                .foregroundStyle(target == z ? W.ink : .white)
+                                .frame(maxWidth: .infinity, minHeight: 28)
+                                .background(RoundedRectangle(cornerRadius: 8).fill(target == z ? AnyShapeStyle(W.lime) : AnyShapeStyle(W.card)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
             .watchMargins()
         }
     }
 
     private func start(_ p: TrackPower) {
-        Task { await SportTracker.shared.start(sport, power: p) }
+        Task { await SportTracker.shared.start(sport, power: p, target: target) }
         dismiss()
     }
 }
@@ -87,7 +111,9 @@ struct SportTrackView: View {
     }
 
     @ViewBuilder private func dashboard(now: Date) -> some View {
-        if let sport = tracker.sport {
+        if let sport = tracker.sport, let step = tracker.step {
+            runDashboard(sport, step: step, now: now)
+        } else if let sport = tracker.sport {
             let elapsed = Self.clock(now.timeIntervalSince(tracker.started ?? now))
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(header(sport)) · \(elapsed)").font(W.label(11)).foregroundStyle(W.lime).lineLimit(1)
@@ -107,7 +133,10 @@ struct SportTrackView: View {
                     big(hr, "bpm", sport)
                     pair(("KCAL", "\(Int(tracker.kcal.rounded()))"), ("TIME", elapsed))
                 }
-                if sport.laps && !dimmed {
+                // Heart-rate zones (#609, design A) and the target lock (design B).
+                if !dimmed { ZoneTiles(height: 18) }
+                ZoneTargetLine()
+                if sport.laps && !dimmed && tracker.run == nil {
                     Button { tracker.markLap() } label: {
                         HStack(spacing: 4) { Text("LAP \(tracker.lap + 1) ›").font(W.label(12)); PinchMark() }
                             .foregroundStyle(W.ink).frame(maxWidth: .infinity)
@@ -118,10 +147,58 @@ struct SportTrackView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .watchMargins()
+            .zoneLockWash()
             .background(RadialGradient(colors: [W.color(sport.tint.0).opacity(dimmed ? 0.25 : 0.8), .black], center: .top, startRadius: 0, endRadius: 160)
                 .ignoresSafeArea())
         }
     }
+
+    /// Run player (#618, design B): the step as a big block, pace now vs target, what's left, the next step.
+    private func runDashboard(_ sport: TrackedSport, step: WRunStep, now: Date) -> some View {
+        let left = tracker.stepLeft(now: now)
+        let work = step.kind == "work"
+        let tint: (UInt32, UInt32) = work ? (0xFF3D8B, 0xFF9A5E) : step.zone.map { WZones.tints[$0 - 1] } ?? sport.tint
+        return VStack(alignment: .leading, spacing: 3) {
+            Text(runHeader(step)).font(W.label(11)).foregroundStyle(W.lime).lineLimit(1).minimumScaleFactor(0.7)
+            if let target = step.pace {
+                let p = tracker.pace
+                let ok = p.map { abs($0 - target) <= 8 } ?? false
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(p.map(Self.pace) ?? "–:––").font(W.display(40)).foregroundStyle(W.light(tint.1, 0.3)).minimumScaleFactor(0.5).lineLimit(1)
+                    Text("/km · target \(Self.pace(target))\(ok ? " ✓" : "")").font(W.label(11)).foregroundStyle(ok ? W.lime : .white)
+                }
+            } else {
+                big(hr, "bpm · Zone \(step.zone ?? tracker.run?.zone ?? 2)", sport)
+            }
+            if let m = left.meters {
+                Text("\(Int(tracker.stepMeters)) m · \(m) left").font(W.label(13))
+            } else if let s = left.seconds {
+                Text("\(Self.clock(Double(s))) left").font(W.label(13))
+            }
+            if !dimmed { ZoneTiles(height: 16) }
+            ZoneTargetLine()
+            if !dimmed {
+                Button { tracker.nextStep() } label: {
+                    Text(tracker.nextUp.map { "NEXT · \($0.title.uppercased()) ›" } ?? "FINISH PLAN ›").font(W.label(11)).foregroundStyle(W.ink)
+                        .lineLimit(1).minimumScaleFactor(0.6).frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent).tint(W.lime).buttonBorderShape(.capsule)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .watchMargins()
+        .zoneLockWash()
+        .background(RadialGradient(colors: [W.color(tint.0).opacity(dimmed ? 0.25 : 0.85), .black], center: .top, startRadius: 0, endRadius: 160)
+            .ignoresSafeArea())
+    }
+
+    private func runHeader(_ step: WRunStep) -> String {
+        var head = step.title.uppercased()
+        if let m = step.meters { head += " · \(m) M" } else if let s = step.seconds { head += " · \(s >= 60 ? "\(s / 60)′" : "\(s)″")" }
+        return head
+    }
+
+    static func pace(_ secPerKm: Int) -> String { String(format: "%d:%02d", secPerKm / 60, secPerKm % 60) }
 
     private func header(_ sport: TrackedSport) -> String {
         // Live run / lift state (#445 C).

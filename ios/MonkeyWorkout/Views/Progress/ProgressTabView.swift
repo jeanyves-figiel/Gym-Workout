@@ -249,6 +249,10 @@ struct ProgressTabView: View {
                     let sports = Sports.merged(local: model.sportLogs, health: health.snapshot.recentSports)
                     // Hyrox hub (#426): division, goal, sims, races.
                     if model.doesHyrox { HyroxHubCard() }
+                    // Week in heart-rate zones (#609 C): every workout's time in zone, Zone 2 goal.
+                    if let zones = health.snapshot.zoneWeek, !zones.isEmpty {
+                        ZoneWeekCard(time: zones, fromApple: health.snapshot.zonesFromApple == true)
+                    }
                     if !sports.isEmpty { SportsCard(entries: sports) }
                 case .programmes:
                     // Training programmes (#255): the running one, lifts start vs now, finished ones.

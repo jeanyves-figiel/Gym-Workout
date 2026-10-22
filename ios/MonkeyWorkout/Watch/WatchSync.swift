@@ -278,8 +278,9 @@ final class WatchSync: NSObject {
     /// "Start on Watch" for another sport (#439): same path as Hyrox, the sport goes with the snapshot, then the
     /// Watch app is woken with the sport's workout type.
     /// `done`: false when the Watch could not be woken (not on the wrist, locked, out of reach).
-    func startSport(_ sport: Sport, saver: Bool, done: ((Bool) -> Void)? = nil) {
-        sportStart = WSportStart(sport: sport.rawValue, saver: saver, at: Date())
+    /// `run`: a planned run (#618), the Watch follows its steps.
+    func startSport(_ sport: Sport, saver: Bool, run: RunWorkout? = nil, done: ((Bool) -> Void)? = nil) {
+        sportStart = WSportStart(sport: sport.rawValue, saver: saver, at: Date(), run: run.map(AppModel.watchRun))
         push()
         health?.startWatchApp(activity: HealthManager.activityType(for: sport), done: done)
     }
@@ -406,6 +407,9 @@ final class WatchSync: NSObject {
         s.liftLearned = LiftLearning.shared.levels
         s.hyrox = model.watchHyrox(start: WatchSync.shared.hyroxStart)
         s.sportStart = WatchSync.shared.sportStart
+        // Heart-rate zones (#609) and today's run (#618).
+        s.zones = WZones(starts: model.heartZones.starts, buzz: ZonePrefs.buzz)
+        s.run = model.todayRun.flatMap { model.runDone($0) ? nil : AppModel.watchRun($0.workout) }
         let today = Date()
         let fuel = FuelStore.shared
         s.water = WWater(day: fuel.key(today), glasses: fuel.log(today).glasses, target: model.fuelPlan(on: today).glasses,

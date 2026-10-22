@@ -135,6 +135,8 @@ struct HyroxRaceView: View {
                 Text("♥ \(tracker.heartRate.map { "\(Int($0))" } ?? "–")")
             }
             .font(W.label(11))
+            // Heart-rate zones (#609, design A).
+            if !dimmed { ZoneTiles(height: 14) }
             if !dimmed { nextButton }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

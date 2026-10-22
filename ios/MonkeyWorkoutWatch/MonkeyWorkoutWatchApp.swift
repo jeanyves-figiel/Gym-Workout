@@ -20,7 +20,7 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
         }
         if let s = snap.sportStart, let at = sportAt, let sport = TrackedSport(rawValue: s.sport) {
             handled.insert(at)
-            await SportTracker.shared.start(sport, power: s.saver ? .saver : .full)
+            await SportTracker.shared.start(sport, power: s.saver ? .saver : .full, run: s.run)
             return true
         }
         return false

@@ -442,6 +442,13 @@ private struct DemoScreen: View {
         case "train-day-picked": NavigationStack { WeekView(demoPick: .planned) }
         case "train-rest-day": NavigationStack { WeekView(demoPick: .rest) }
         case "train-past-day": NavigationStack { WeekView(demoPick: .past) }
+        case "train-run", "train-hybrid": NavigationStack { WeekView() }
+        case "run-session", "run-start":
+            if let day = model.runWeek.first(where: { $0.workout.kind == .intervals }) ?? model.runWeek.first {
+                RunSessionSheet(day: day, demoChoosing: Demo.screen == "run-start")
+            }
+        case "run-goal": RunGoalEditor(initial: model.runGoal)
+        case "zone-week": ZoneWeekCard(time: ZoneTime(seconds: [1_380, 6_720, 2_160, 900, 180]), fromApple: true).padding(16)
         case "train-gallery": TrainWidgetGallery()
         case "train-customise": TrainCustomiseSheet()
         case "gyms": GymFinderView(place: "Zürich")
