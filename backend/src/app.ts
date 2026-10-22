@@ -296,7 +296,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       securityRoutes(r, security, deps.config.authRateLimitPerMin);
       customWorkoutRoutes(r, deps.db, deps.now ?? (() => new Date()));
       communityRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
-      liveRoutes(r, deps.db, now);
+      liveRoutes(r, deps.db, now, push);
       customExerciseRoutes(r, deps.db, deps.now ?? (() => new Date()));
       prAttemptRoutes(r, deps.db, deps.now ?? (() => new Date()));
       climbRoutes(r, deps.db, deps.now ?? (() => new Date()));

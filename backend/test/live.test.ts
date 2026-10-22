@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
+import type { ApnsMessage } from '../src/push/apns.ts';
 import { loadConfig } from '../src/config.ts';
 import { type DB, openDb } from '../src/db.ts';
 import { ConsoleMailer } from '../src/mailer.ts';
@@ -14,11 +15,13 @@ let app: FastifyInstance;
 let mailer: ConsoleMailer;
 let clock: Date;
 let db: DB;
+let pushed: ApnsMessage[];
 
 beforeEach(() => {
   clock = new Date('2026-10-22T10:00:00Z');
   mailer = new ConsoleMailer(() => {});
   db = openDb(':memory:');
+  pushed = [];
   app = buildApp({
     config: loadConfig({ NODE_ENV: 'test', AUTH_RATE_LIMIT_PER_MIN: '1000' }),
     db,
@@ -27,6 +30,10 @@ beforeEach(() => {
       throw new Error('unused');
     },
     now: () => clock,
+    apns: async (m) => {
+      pushed.push(m);
+      return { status: 200 };
+    },
   });
 });
 afterEach(() => app.close());
@@ -83,6 +90,24 @@ describe('gym buddies', () => {
     clock = new Date(clock.getTime() + 11 * 60_000);
     expect((await req('GET', '/v1/community/buddies', tom.t)).json().buddies[0].live).toBeNull();
     expect((await req('GET', '/v1/community/live/cheers', ana.t)).json().cheers).toEqual([]);
+  });
+
+  it('pushes the invite, and the pairing back, once', async () => {
+    const ana = await join('ana@example.com', 'ana');
+    const tom = await join('tom@example.com', 'tom');
+    const device = (token: string) => ({ token, env: 'production', topic: 'Com.app.MonkeyWorkout', tz: 'Europe/Zurich' });
+    await req('PUT', '/v1/me/push-device', ana.t, device('a'.repeat(64)));
+    await req('PUT', '/v1/me/push-device', tom.t, device('b'.repeat(64)));
+    await req('PUT', `/v1/community/buddies/${tom.id}`, ana.t);
+    await req('PUT', `/v1/community/buddies/${tom.id}`, ana.t);
+    await app.push.idle();
+    expect(pushed).toHaveLength(1);
+    expect(pushed[0]).toMatchObject({ token: 'b'.repeat(64), payload: { kind: 'buddy_invite', actorId: ana.id, actorName: 'ana' } });
+    await req('PUT', `/v1/community/buddies/${ana.id}`, tom.t);
+    await app.push.idle();
+    expect(pushed).toHaveLength(2);
+    expect(pushed[1]).toMatchObject({ token: 'a'.repeat(64), payload: { kind: 'buddy_invite', actorId: tom.id } });
+    expect(JSON.stringify(pushed[1]!.payload)).toContain('tom is your gym buddy');
   });
 
   it('a block or leaving ends the pair', async () => {

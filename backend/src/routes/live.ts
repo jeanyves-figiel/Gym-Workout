@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { assertClean, isBlockedBetween, memberNotHiddenSql } from '../community/moderation.ts';
 import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
+import type { PushService } from '../push/service.ts';
 
 /**
  * Live group sessions (#626, designs B + C): gym buddies see each other's sets live and cheer from the Watch, and
@@ -65,7 +66,7 @@ export const liveExport = (db: DB, userId: string) => ({
   challengeScores: db.prepare('SELECT week, rounds, reps, updated_at FROM community_challenge_scores WHERE user_id = ? ORDER BY week').all(userId),
 });
 
-export const liveRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
+export const liveRoutes = (r: FastifyInstance, db: DB, now: () => Date, push?: PushService) => {
   const member = (userId: string) =>
     db.prepare('SELECT user_id, nickname, avatar_id, level FROM community_profiles WHERE user_id = ?').get(userId) as
       | { user_id: string; nickname: string; avatar_id: string | null; level: number | null }
@@ -122,8 +123,19 @@ export const liveRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
     const count = (db.prepare('SELECT COUNT(*) AS n FROM community_buddies WHERE user_id = ?').get(me) as { n: number }).n;
     const exists = !!db.prepare('SELECT 1 FROM community_buddies WHERE user_id = ? AND buddy_id = ?').get(me, userId);
     if (!exists && count >= MAX_BUDDIES) throw new ApiError(400, 'too_many_buddies', `Up to ${MAX_BUDDIES} gym buddies.`);
-    db.prepare('INSERT OR IGNORE INTO community_buddies (user_id, buddy_id, created_at) VALUES (?, ?, ?)').run(me, userId, now().toISOString());
-    return { status: paired(me, userId) ? 'paired' : 'invited' };
+    const added = Number(db.prepare('INSERT OR IGNORE INTO community_buddies (user_id, buddy_id, created_at) VALUES (?, ?, ?)').run(me, userId, now().toISOString()).changes) > 0;
+    const status = paired(me, userId) ? 'paired' : 'invited';
+    // Push (#626): the invite to them, or "paired" back to who invited. Once per new row; taps open my page.
+    if (added && push) {
+      const name = member(me)!.nickname;
+      push.notifyLater(userId, 'buddy_invite', {
+        title: status === 'paired' ? `${name} is your gym buddy 🤝` : 'Gym buddy invite 🤝',
+        body: status === 'paired' ? 'You see each other\'s sets live and can cheer from your Watch.' : `${name} wants to train with you. Open to pair.`,
+        data: { kind: 'buddy_invite', actorId: me, actorName: name },
+        collapseId: `buddy-${me}`.slice(0, 64),
+      });
+    }
+    return { status };
   });
 
   /** Unpair, cancel an invite or decline one. */
