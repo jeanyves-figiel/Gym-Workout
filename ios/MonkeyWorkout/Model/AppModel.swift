@@ -316,6 +316,7 @@ final class AppModel {
         clearWatchUploadKey()
         try? FileManager.default.removeItem(at: Self.exportFileURL)
         URLCache.shared.removeAllCachedResponses()
+        MeAvatar.shared.wipe()
     }
 
     /// Before a sign-out wipes this device: one last try (5 s at most) to send what hasn't reached the server.

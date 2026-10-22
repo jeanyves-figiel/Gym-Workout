@@ -12,6 +12,7 @@ All in the app's `Application Support` unless noted, written atomically with Dat
 | `machine-notes/` | `MachineNote` | One JPEG per machine setup note | Yes (owner-only photo route) |
 | `fuel.json` | `FuelStore` | Fuel settings, daily logs, recipes (favourite, own), pantry, meal plans, shopping list, scanned products, supplements, water | **No**: Fuel stays on the device |
 | `daily-move.json` | `MoveStore` | Daily steps and stairs | No (from HealthKit) |
+| `me-avatar.jpg`, `me-avatar.json` | `MeAvatar` | Your own profile photo and its URL, so the Me pill shows it at launch (#639); wiped on sign-out | Copy of the server photo |
 | `lift-sets.json` | `LiftSets` | Watch lift-sensor sets | Via workouts |
 | `health-snapshot.json` | `HealthManager` | Last HealthKit readings (readiness, steps, gym workouts from other apps) | No |
 | `coach-voices/` | `CoachVoices` | Voice catalog and cached MP3 lines | No (downloaded) |
