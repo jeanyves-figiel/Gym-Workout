@@ -119,6 +119,19 @@ private let monday = PlanCalendar.date("2026-10-12", cal)!
         #expect(Generator.quickWorkout(climber, groups: [], minutes: 20, seed: 7).items.isEmpty)
     }
 
+    /// "Upper body" and "Lower body" quick extras (#590) stay on their half: the upper one had hinges and lunges.
+    @Test func quickUpperAndLowerStayOnTheirHalf() throws {
+        let legs: Set<MuscleGroup> = [.hips, .legs]
+        func main(_ f: Focus) throws -> [Exercise] {
+            let s = try #require(Generator.quickSession(climber, focus: f, week: 2, seed: 5))
+            return s.blocks.filter { $0.kind == .strength }.flatMap(\.items).map { Exercise.get($0.exerciseId) }
+        }
+        let upper = try main(.upper)
+        #expect(!upper.isEmpty)
+        for e in upper { #expect(!e.primary.contains { legs.contains($0.group) }, "\(e.id)") }
+        #expect(try main(.lower).contains { $0.primary.contains { legs.contains($0.group) } })
+    }
+
     @Test func focusPresetsHaveMuscles() {
         for f in Generator.quickFoci where f != .conditioning { #expect(!f.muscleGroups.isEmpty) }
         #expect(Focus.conditioning.muscleGroups.isEmpty)

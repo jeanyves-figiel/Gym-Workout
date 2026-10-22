@@ -18,18 +18,28 @@ concurrency:
 
 jobs:
   capture:
-    runs-on: macos-26
-    timeout-minutes: 45
+    runs-on: xcode-27
+    # 75: iOS 27.1 runtime download + three Duo displays (#158).
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v7
       - name: Select newest Xcode
         run: |
           ls -d /Applications/Xcode* || true
-          XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          # Xcode 27.1: iOS 27.1 SDK, full-screen iPhone Duo (#158). Xcode_27.2.app is a beta symlink.
+          XC=/Applications/Xcode_27.1.app
+          [ -d "$XC" ] || XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
           sudo xcode-select -s "$XC"
           xcodebuild -version
           xcrun simctl list devicetypes | grep -iE "iphone 1[6-9]|iphone air|ipad pro|duo|fold" || true
-          xcrun simctl help 2>&1 | grep -iE "fold|posture|display" || true
+          xcrun simctl help 2>&1 | grep -iE "fold|posture|display|hinge" || true
+      - name: iOS 27.1 simulator runtime (iPhone Duo)
+        # The xcode-27 image ships iOS 27.0 simulators only; the Duo device type needs the 27.1 runtime (#158).
+        run: |
+          xcrun simctl list devicetypes | grep -q "iPhone Duo" && xcrun simctl list runtimes | grep -q "iOS 27.1" \
+            || xcodebuild -downloadPlatform iOS -buildVersion 27.1 || echo "::warning::iOS 27.1 runtime download failed"
+          xcrun simctl list runtimes
+          xcrun simctl list devicetypes | grep -iE "duo|fold" || true
       - run: brew install xcodegen
       - run: xcodegen generate --spec ios/project.yml
       - name: Build for simulator
@@ -37,7 +47,9 @@ jobs:
           set -o pipefail
           xcodebuild build -project ios/MonkeyWorkout.xcodeproj -scheme MonkeyWorkout -configuration Debug \
             -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
-            -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO | tail -n 5
+            -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO > build.log 2>&1 \
+            || { grep -E 'error:' build.log | sort -u; tail -n 30 build.log; exit 1; }
+          tail -n 5 build.log
       - name: Capture
         run: |
           APP=build/Build/Products/Debug-iphonesimulator/MonkeyWorkout.app
@@ -58,29 +70,71 @@ jobs:
             xcrun simctl bootstatus "$udid" -b
             xcrun simctl status_bar "$udid" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3 || true
             xcrun simctl install "$udid" "$APP"
-            mkdir -p "out/$name" "preview/$name"
+            # iPhone Duo: one screenshot per display (outer + inner), sorted by pixel width below.
+            local displays="default"
+            if [ "$name" = iphone-duo ]; then
+              # The sim boots folded: the app is on the outer screen ("LCD", 1398 px), the inner one is dark.
+              # simctl has no fold command; try each name the outer screen goes by, keep what isn't black.
+              xcrun simctl io help 2>&1 | grep -iE -A3 "display" || true
+              displays="default internal external primary LCD 1 4E7AD87B"
+            fi
+            mkdir -p "out/$name"
             local i=1
             for s in $SCREENS; do
               xcrun simctl launch --terminate-running-process "$udid" Com.app.MonkeyWorkout.dev -demo -demoScreen "$s" >/dev/null
-              sleep 10
+              # iOS 27.1 sims start the player slower (#158): give it longer.
+              case "$s" in player*) sleep 25 ;; *) sleep 10 ;; esac
               local f
               f=$(printf "%02d-%s" "$i" "$s")
-              xcrun simctl io "$udid" screenshot "out/$name/$f.png"
-              # App Store Connect rejects alpha: ship JPEG.
-              sips -s format jpeg -s formatOptions 95 "out/$name/$f.png" --out "out/$name/$f.jpg" >/dev/null
-              rm "out/$name/$f.png"
-              sips -Z 800 -s format jpeg "out/$name/$f.jpg" --out "preview/$name/$f.jpg" >/dev/null
+              for d in $displays; do
+                local dir="out/$name" arg=""
+                [ "$d" = default ] || { dir="out/$name-$d"; arg="--display=$d"; }
+                mkdir -p "$dir"
+                xcrun simctl io "$udid" screenshot $arg "$dir/$f.png" 2>/dev/null || continue
+                # App Store Connect rejects alpha: ship JPEG.
+                sips -s format jpeg -s formatOptions 95 "$dir/$f.png" --out "$dir/$f.jpg" >/dev/null
+                rm "$dir/$f.png"
+              done
               i=$((i + 1))
             done
-            sips -g pixelWidth -g pixelHeight "out/$name/01-week.jpg" | tail -2
+            sips -g pixelWidth -g pixelHeight "out/$name"*/01-week.jpg | grep -E 'jpg|pixel' || true
             xcrun simctl shutdown "$udid" || true
             xcrun simctl delete "$udid" || true
           }
 
-          capture iphone-6.9 "iPhone 17 Pro Max|iPhone 16 Pro Max"
-          capture iphone-6.3 "iPhone 17 Pro \(|iPhone 16 Pro \("
+          # Duo folders by real size: outer 1398 px wide, inner 2007 px; duplicates and empty displays dropped.
+          sort_duo() {
+            for dir in out/iphone-duo*; do
+              [ -f "$dir/01-week.jpg" ] || { rm -rf "$dir"; continue; }
+              local w target
+              w=$(sips -g pixelWidth "$dir/01-week.jpg" | awk '/pixelWidth/{print $2}')
+              case "$w" in 1398|2034) target=iphone-duo-outer ;; 2007|2853) target=iphone-duo-inner ;; *) target="iphone-duo-${w}px" ;; esac
+              if [ -d "out/$target" ]; then rm -rf "$dir"; elif [ "$dir" != "out/$target" ]; then mv "$dir" "out/$target"; fi
+            done
+          }
+
+          capture iphone-6.9 "iPhone 18 Pro Max|iPhone 17 Pro Max|iPhone 16 Pro Max"
+          capture iphone-6.3 "iPhone 18 Pro \(|iPhone 17 Pro \(|iPhone 16 Pro \("
           capture ipad-13 "iPad Pro 13-inch"
           capture iphone-duo "iPhone Duo"
+          # Black (screen off) and white (app not drawn) captures are dropped and listed.
+          python3 - <<'PY'
+          import glob, os, subprocess
+          for f in sorted(glob.glob("out/*/*.jpg")):
+              out = subprocess.run(["sips", "-Z", "8", "-s", "format", "bmp", f, "--out", "/tmp/px.bmp"], capture_output=True)
+              data = open("/tmp/px.bmp", "rb").read()[54:]
+              mean = sum(data) / max(1, len(data))
+              if mean < 3 or mean > 250:
+                  print(f"::warning::{f} is blank (mean {mean:.0f})")
+                  if "iphone-duo" in f: os.remove(f)
+          PY
+          sort_duo
+          # Crash reports, if the app died on a screen.
+          ls ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -i monkey && head -n 60 ~/Library/Logs/DiagnosticReports/*Monkey* || true
+          for dir in out/*; do
+            mkdir -p "preview/${dir#out/}"
+            for j in "$dir"/*.jpg; do sips -Z 800 -s format jpeg "$j" --out "preview/${dir#out/}/$(basename "$j")" >/dev/null; done
+          done
           find out -name '*.jpg' | sort
       - name: Publish to app-store-screenshots branch
         env:
