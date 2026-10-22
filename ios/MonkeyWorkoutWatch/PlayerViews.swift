@@ -43,6 +43,12 @@ struct PlayerView: View {
         .task(id: player.timedEnd) {
             // Timed work over: count the set.
             guard let end = player.timedEnd else { return }
+            // Guided per-side hold (#619 C): a tap on the wrist halfway, other side.
+            if let sw = player.sideSwitch(endingAt: end), sw > Date() {
+                try? await Task.sleep(for: .seconds(sw.timeIntervalSinceNow))
+                guard !Task.isCancelled, player.timedEnd == end else { return }
+                WKInterfaceDevice.current().play(.directionUp)
+            }
             try? await Task.sleep(for: .seconds(max(0, end.timeIntervalSinceNow)))
             guard !Task.isCancelled, player.timedEnd == end else { return }
             send(player.completeSet())
@@ -261,7 +267,8 @@ struct PlayerView: View {
             StepBar(index: player.index, count: player.steps.count)
             HStack(spacing: 4) {
                 if let block {
-                    Text(block.title.uppercased()).font(W.label(8)).tracking(0.5).lineLimit(1)
+                    Text((block.title + (player.guidedPosition.map { " · \($0.index) of \($0.count)" } ?? "")).uppercased())
+                        .font(W.label(8)).tracking(0.5).lineLimit(1)
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(Capsule().fill(accent))
                 }
@@ -298,11 +305,17 @@ struct PlayerView: View {
                     }
                 } else if step.timedSec != nil {
                     TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
-                        let left = player.timedEnd.map { max(0, $0.timeIntervalSince(ctx.date)) } ?? player.timedRemaining ?? TimeInterval(step.timedSec ?? 0)
-                        Text(WatchPlayer.clock(left)).font(W.display(34)).monospacedDigit().foregroundStyle(light)
+                        let left = player.timedEnd.map { max(0, $0.timeIntervalSince(ctx.date)) } ?? player.timedRemaining ?? TimeInterval(player.workSec(step) ?? 0)
+                        // Guided per-side hold (#619 C): the clock counts each side down on its own.
+                        let side = TimeInterval(step.timedSec ?? 0)
+                        let both = player.bothSides(step)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(WatchPlayer.clock(both && left > side ? left - side : left)).font(W.display(34)).monospacedDigit().foregroundStyle(light)
+                            if both { Text(left > side ? "LEFT" : "RIGHT").font(W.label(11)).foregroundStyle(light) }
+                        }
                     }
                     HStack {
-                        Text(step.reps).font(W.label(11)).opacity(0.8)
+                        Text(player.isGuided(step) ? "Guided · haptic at each change" : step.reps).font(W.label(11)).opacity(0.8)
                         Spacer(minLength: 0)
                         SetDots(done: player.done, total: step.sets)
                     }

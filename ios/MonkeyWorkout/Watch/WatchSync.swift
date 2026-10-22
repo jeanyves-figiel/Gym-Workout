@@ -435,7 +435,8 @@ final class WatchSync: NSObject {
                 WBlock(title: b.title, tint: b.kind.category.tintHex, tint2: b.kind.category.tintHex2,
                        // A custom exercise not loaded yet (mid-sync) is left out rather than trapping in Exercise.get (#351).
                        items: b.items.filter { Exercise.find($0.exerciseId) != nil }
-                           .map { item($0, block: b, sessionId: session.id, model: model) })
+                           .map { item($0, block: b, sessionId: session.id, model: model) },
+                       guided: b.kind == .cooldown ? true : nil)
             },
             missed: model.missedToHandle.contains { $0.id == session.id },
             plannedOn: planned && session.weekday != nil ? WSession.dayKey(model.day(of: session)) : nil)

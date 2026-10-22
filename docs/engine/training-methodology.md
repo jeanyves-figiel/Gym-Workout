@@ -25,7 +25,7 @@ Code root: `ios/Packages/GymCore/Sources/WorkoutEngine/`. All generation runs on
 | Climbing | Gym days scored away from climb days; day-before: no jumps, light pull/grip; ≥2 climb days: −1 pull set, grip-light picks, prehab moved up | `Schedule.swift:96-136`, `Generator.swift:70-73,246-257,273-276` |
 | Starting load | Same-pattern logged lift converted between implements (−10/−15 %), else body weight × pattern ratio × sex × level × age, inverse Epley at target RIR, then −15 % | `StartingLoad.swift:108-156` |
 | Progression | Double progression: all sets at top of range → +1 increment (+2 if all ≥ 4 RIR, not Base); best set under range → −5 %; else hold, +1 rep | `LoadAdvisor.swift:128-246` |
-| Readiness | HRV < 85 % baseline, resting HR > +5 bpm, sleep < 6 h → Ready / Normal / Easy. **Advice only; plan not changed** | `MonkeyWorkout/Health/HealthManager.swift:92-124` |
+| Readiness | HRV < 85 % baseline, resting HR > +5 bpm, sleep < 6 h → Ready / Normal / Easy. Easy on a strength day offers a one-tap swap to a recover day (session moves to the next free day, #619) | `MonkeyWorkout/Health/HealthManager.swift:92-124` |
 | Generate from muscles | Round-robin per group, prefer uncovered muscles + new patterns, ≤ 2 main lifts, mains → accessories → light; goal dose; grip-light for climbers | `MuscleWorkout.swift:62-205` |
 | Swaps | Same pattern/role, best primary-muscle overlap, same equipment/level | `Swap.swift:58-73` |
 

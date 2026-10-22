@@ -1543,6 +1543,10 @@ private struct RestDayCard: View {
                                   fill: AnyShapeStyle(DayActionTile.sportFill)) { planningSport = true }
                 }
             }
+            if date == nil && weekday >= model.todayWeekday && trip == nil && !climbing {
+                // Recover (#619 A): a short routine for what this week loaded most.
+                RecoverBar()
+            }
             if date == nil && weekday == model.todayWeekday {
                 // Any other sport (#416), dated like a climb; Track live with a Watch (#462, design C).
                 SportSplitPill(onFree: { Haptics.start(); freestyle = model.freestyleInProgress ?? model.startFreestyle() },
@@ -1703,10 +1707,14 @@ private struct VariationUndoCard: View {
 /// recap, the block review, what Monkey noticed and kind streaks. One at a time: the bars show where it is, a swipe or
 /// a tap on the bars shows the next, ✕ puts the current one away. Start workout never moves down for them.
 private struct TrainNoticeSlot: View {
-    enum Kind: Hashable { case variation, taste, block, noticed, kind }
+    enum Kind: Hashable { case recover, variation, taste, block, noticed, kind }
 
     @Environment(AppModel.self) private var model
     @State private var index = 0
+    /// Readiness swap kept (#619 B): the day's key, so it stays away until tomorrow.
+    @AppStorage("trainRecoverSwapKept") private var recoverKeptDay = ""
+
+    private var todayKey: String { PlanCalendar.key(Date(), model.planCalendar) }
     /// Kind streak cards put away this week (they have no close of their own): the week's Monday key.
     @AppStorage("trainKindStreakHidden") private var kindHiddenWeek = ""
 
@@ -1717,6 +1725,8 @@ private struct TrainNoticeSlot: View {
 
     private var cards: [Kind] {
         var out: [Kind] = []
+        // Low readiness on a heavy day (#619 B): swap it for mobility, before anything else.
+        if recoverKeptDay != todayKey, model.recoverSwap != nil { out.append(.recover) }
         // New variation (#98): its Undo first.
         if model.variationUndo != nil { out.append(.variation) }
         // New week made with what the app learned (#299).
@@ -1760,6 +1770,8 @@ private struct TrainNoticeSlot: View {
 
     @ViewBuilder private func card(_ k: Kind) -> some View {
         switch k {
+        case .recover:
+            if let swap = model.recoverSwap { RecoverSwapCard(swap: swap) { dismiss(.recover) } }
         case .variation:
             if let u = model.variationUndo { VariationUndoCard(undo: u) }
         case .taste:
@@ -1804,6 +1816,7 @@ private struct TrainNoticeSlot: View {
 
     private func title(_ k: Kind) -> String {
         switch k {
+        case .recover: "Readiness swap"
         case .variation: "Variation undo"
         case .taste: "Taste recap"
         case .block: "Block review"
@@ -1815,6 +1828,7 @@ private struct TrainNoticeSlot: View {
     private func dismiss(_ k: Kind) {
         withAnimation(.snappy) {
             switch k {
+            case .recover: recoverKeptDay = todayKey
             case .variation: model.variationUndo = nil
             case .taste: model.dismissTasteRecap()
             case .block: if let r = model.blockReview { model.closeBlockReview(r) }

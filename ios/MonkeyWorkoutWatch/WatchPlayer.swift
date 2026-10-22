@@ -129,9 +129,38 @@ final class WatchPlayer {
         phase = .rest(end: base.addingTimeInterval(15), total: total + 15, effortSet: effortSet)
     }
 
+    // MARK: Guided cool-down (#619 C)
+
+    /// The step is in a block the Watch guides on its own.
+    func isGuided(_ it: WItem) -> Bool { session.blocks.first { $0.items.contains { $0.uid == it.uid } }?.guided == true }
+    /// A guided per-side hold: one timer runs both sides.
+    func bothSides(_ it: WItem) -> Bool { isGuided(it) && it.reps.contains("side") }
+    /// Seconds the timer runs for a step: both sides of a guided per-side hold.
+    func workSec(_ it: WItem) -> Int? { it.timedSec.map { bothSides(it) ? $0 * 2 : $0 } }
+    /// When a guided per-side hold that ends at `end` switches sides.
+    func sideSwitch(endingAt end: Date) -> Date? {
+        guard let step, bothSides(step), let w = step.timedSec else { return nil }
+        return end.addingTimeInterval(-TimeInterval(w))
+    }
+    /// "2 of 4" inside a guided block.
+    var guidedPosition: (index: Int, count: Int)? {
+        guard let step, isGuided(step),
+              let b = session.blocks.first(where: { $0.items.contains { $0.uid == step.uid } }),
+              let i = b.items.firstIndex(where: { $0.uid == step.uid }) else { return nil }
+        return (i + 1, b.items.count)
+    }
+
+    /// A guided timed step starts its timer on arrival.
+    private func autoStartGuided() {
+        guard phase == .work, let step, isGuided(step), let w = workSec(step), done < step.sets else { return }
+        timedEnd = Date().addingTimeInterval(TimeInterval(w))
+        timedRemaining = nil
+        WKInterfaceDevice.current().play(.start)
+    }
+
     /// Starts, pauses or resumes timed work.
     func toggleTimer() {
-        guard let step, let work = step.timedSec else { return }
+        guard let step, let work = workSec(step) else { return }
         if let end = timedEnd {
             timedRemaining = max(0, end.timeIntervalSinceNow)
             timedEnd = nil
@@ -193,6 +222,7 @@ final class WatchPlayer {
         } else {
             index += 1
             phase = .work
+            autoStartGuided()
         }
         return events
     }
@@ -208,7 +238,7 @@ final class WatchPlayer {
     var mainLabel: String {
         guard let step else { return "FINISH" }
         if done >= step.sets { return index == steps.count - 1 ? "FINISH" : "NEXT" }
-        if let work = step.timedSec {
+        if let work = workSec(step) {
             if timedEnd != nil { return "PAUSE" }
             return timedRemaining == nil ? "START \(Self.clock(TimeInterval(work)))" : "RESUME"
         }

@@ -472,9 +472,10 @@ final class AppModel {
     }
 
     /// An example, own or shared library workout opened on its own (not part of this week's plan), unedited.
+    /// One without a cool-down gets the 5′ finisher (#619 C).
     func standaloneSession(_ id: String) -> Session? {
-        freestyleSession(id) ?? WorkoutTemplate.find(sessionId: id)?.session ?? customWorkout(sessionId: id)?.session
-            ?? sharedWorkout(sessionId: id)?.workout.session
+        freestyleSession(id) ?? (WorkoutTemplate.find(sessionId: id)?.session ?? customWorkout(sessionId: id)?.session
+            ?? sharedWorkout(sessionId: id)?.workout.session).map(Recovery.withFinisher)
     }
 
     /// First session not yet completed from today on, by day (moved and extra sessions included). Sessions of

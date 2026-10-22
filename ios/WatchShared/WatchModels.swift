@@ -80,6 +80,9 @@ struct WBlock: Codable, Equatable, Hashable {
     var tint: UInt32
     var tint2: UInt32
     var items: [WItem]
+    /// Cool-down the Watch guides on its own (#619 C): timers start by themselves, both sides of a per-side hold.
+    /// nil from older phone apps.
+    var guided: Bool? = nil
 }
 
 struct WItem: Codable, Equatable, Hashable, Identifiable {

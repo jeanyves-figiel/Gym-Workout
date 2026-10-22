@@ -29,7 +29,7 @@ sequenceDiagram
 ```
 
 - **Home** (`HomeStyles`, `BrowseViews`): three styles (Coach, Deck, Rings), picked on the phone or the Watch, latest wins. Next session, week, readiness, water.
-- **Player** (`PlayerViews`, `WatchPlayer`, `WorkoutManager`): runs a session from the phone's plan or mirrors / remote-controls the iPhone player; rest overlay, effort grid, set logging.
+- **Player** (`PlayerViews`, `WatchPlayer`, `WorkoutManager`): runs a session from the phone's plan or mirrors / remote-controls the iPhone player; rest overlay, effort grid, set logging. Cool-down blocks are **guided** (`WBlock.guided`, #619): each stretch's timer starts on its own, per-side holds run left then right with a haptic at the switch, the next stretch follows with a start haptic; the block chip reads "Cool-down · 2 of 4".
 - **Phone start** (`PhoneStartViews`): when the phone starts a workout the Watch is woken and offers to track it.
 - **Lift sensor** (`LiftTracker`, `LiftViews`): rep counting from Core Motion, strap prompt, test rep and practice mode, auto-log banner.
 - **Sports** (`SportTracker`, `SportViews`) and **Hyrox** (`HyroxTracker`, `HyroxViews`): tracked on the Watch, uploaded directly or via the phone.
