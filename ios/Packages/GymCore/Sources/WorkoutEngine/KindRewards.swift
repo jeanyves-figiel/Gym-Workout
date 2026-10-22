@@ -160,7 +160,8 @@ public struct Win: Sendable, Equatable, Identifiable {
 
 /// How the member felt after a session (#501), saved from the finish sheet.
 public enum Feel: Int, Sendable, CaseIterable, Codable {
-    case drained = 1, meh, good, great
+    /// Raw values are saved; `amazing` came with the Apple Health mood tiles (#614).
+    case drained = 1, meh, good, great, amazing
 
     public var emoji: String {
         switch self {
@@ -168,6 +169,7 @@ public enum Feel: Int, Sendable, CaseIterable, Codable {
         case .meh: "😐"
         case .good: "🙂"
         case .great: "😄"
+        case .amazing: "🤩"
         }
     }
 
@@ -177,6 +179,7 @@ public enum Feel: Int, Sendable, CaseIterable, Codable {
         case .meh: "Meh"
         case .good: "Good"
         case .great: "Great"
+        case .amazing: "Amazing"
         }
     }
 

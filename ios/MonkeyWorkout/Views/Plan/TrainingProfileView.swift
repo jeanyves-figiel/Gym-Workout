@@ -43,6 +43,8 @@ struct TrainingProfileView: View {
                     }
                     // Lift Focus (#499): peak one lift for a target.
                     LiftFocusCard()
+                    // Run & cardio (#618): a race plan or Hybrid around lifting.
+                    RunGoalProfileCard()
                     // Start fresh (#492): a brand new plan, history kept.
                     FreshStartCard()
                 }

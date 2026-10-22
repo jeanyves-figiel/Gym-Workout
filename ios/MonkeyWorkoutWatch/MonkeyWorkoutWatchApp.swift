@@ -18,9 +18,16 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
             await HyroxTracker.shared.start(format, settings: h)
             return true
         }
+        // Swim (#624): "Start on Watch" from the iPhone's swim plan runs today's swim in the pool.
+        if let s = snap.sportStart, let at = sportAt, s.sport == "swim" {
+            handled.insert(at)
+            let swim = snap.swim ?? WSwim()
+            await SwimTracker.shared.start(.pool(swim.pool), workout: swim.today, buddyMinutes: swim.buddyMinutes)
+            return true
+        }
         if let s = snap.sportStart, let at = sportAt, let sport = TrackedSport(rawValue: s.sport) {
             handled.insert(at)
-            await SportTracker.shared.start(sport, power: s.saver ? .saver : .full)
+            await SportTracker.shared.start(sport, power: s.saver ? .saver : .full, run: s.run)
             return true
         }
         return false
@@ -143,16 +150,38 @@ extension View {
 
 struct LimeButton: View {
     let title: String
+    /// Double tap presses it (#604); one per screen.
+    var pinch = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(title).font(W.label(14)).foregroundStyle(W.ink).frame(maxWidth: .infinity)
+            HStack(spacing: 4) {
+                Text(title).font(W.label(14))
+                if pinch { PinchMark() }
+            }
+            .foregroundStyle(W.ink).frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
         .tint(W.lime)
         .buttonBorderShape(.capsule)
         .shadow(color: W.lime.opacity(0.45), radius: 8)
+        .pinch(pinch)
+    }
+}
+
+/// Small hand on the button double tap presses (#604).
+struct PinchMark: View {
+    var body: some View {
+        Image(systemName: "hand.pinch.fill").font(.system(size: 10, weight: .bold)).opacity(0.75)
+            .accessibilityLabel("Double tap")
+    }
+}
+
+extension View {
+    /// Double tap (watchOS 11) presses this button (#604). Only one per screen may be on.
+    @ViewBuilder func pinch(_ on: Bool) -> some View {
+        if on { handGestureShortcut(.primaryAction) } else { self }
     }
 }
 
@@ -164,6 +193,9 @@ struct WatchRootView: View {
     /// Sport tracking (#418) takes the whole screen while it runs, then shows its summary.
     @State private var sports = SportTracker.shared
     @State private var hyrox = HyroxTracker.shared
+    /// Timers (#622) and swims (#624) take the whole screen too.
+    @State private var wod = WodTracker.shared
+    @State private var swim = SwimTracker.shared
 
     var body: some View {
         #if DEBUG
@@ -175,6 +207,7 @@ struct WatchRootView: View {
 
     private var main: some View {
         screens
+            .overlay(alignment: .top) { BuddyPingView() }
             .onAppear(perform: startFromActionButton)
             .onChange(of: ActionButton.shared.startRequested) { _, on in if on { startFromActionButton() } }
     }
@@ -196,6 +229,14 @@ struct WatchRootView: View {
             HyroxRaceView()
         } else if let race = hyrox.result, player == nil {
             HyroxFinishView(race: race, pb: hyrox.pb)
+        } else if wod.running, player == nil {
+            TimerRunView()
+        } else if let summary = wod.summary, player == nil {
+            TimerSummaryView(summary: summary)
+        } else if swim.running, player == nil {
+            SwimRunView()
+        } else if let summary = swim.summary, player == nil {
+            SwimSummaryView(summary: summary)
         } else if sports.running, player == nil {
             SportTrackView()
         } else if let summary = sports.summary, player == nil {
@@ -204,6 +245,8 @@ struct WatchRootView: View {
             PhoneStartView()
         } else if let live = store.live, player == nil {
             MirrorView(live: live)
+        } else if let remote = store.remoteTimer, player == nil {
+            TimerRemoteView(remote: remote)
         } else if let level = store.practice, player == nil {
             PracticeView(level: level)
         } else if let player {

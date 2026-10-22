@@ -17,6 +17,7 @@ import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
 import type { Mailer } from '../mailer.ts';
 import { DAY, throttleTake } from '../throttle.ts';
+import { leaveLive, unpair } from './live.ts';
 import { beforeSql, pageCursor } from './sync.ts';
 
 /** New community posts per member per day (updates of an existing post don't count). */
@@ -399,6 +400,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       db.prepare("UPDATE custom_workouts SET visibility = 'private', shared_at = NULL, updated_at = ? WHERE user_id = ? AND visibility != 'private'").run(ts, req.userId!);
       db.prepare('DELETE FROM community_reactions WHERE user_id = ?').run(req.userId!);
       db.prepare('DELETE FROM community_follows WHERE follower_id = ? OR followed_id = ?').run(req.userId!, req.userId!);
+      leaveLive(db, req.userId!);
       db.prepare('DELETE FROM community_profiles WHERE user_id = ?').run(req.userId!);
     });
     return reply.status(204).send();
@@ -703,6 +705,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       db.prepare('DELETE FROM community_follows WHERE (follower_id = ? AND followed_id = ?) OR (follower_id = ? AND followed_id = ?)').run(
         req.userId!, b.userId, b.userId, req.userId!,
       );
+      unpair(db, req.userId!, b.userId);
     });
     return reply.status(204).send();
   });

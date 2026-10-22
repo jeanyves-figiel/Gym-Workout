@@ -1,6 +1,43 @@
 {
   "releases": [
     {
+      "id": "2026-10-22.2",
+      "build": 61,
+      "date": "2026-10-22",
+      "items": [
+        {
+          "symbol": "calendar.badge.clock",
+          "tint": "mobility",
+          "title": "Past days, one look",
+          "body": "Pick an earlier day: one card with everything you logged, ready to edit."
+        },
+        {
+          "symbol": "takeoutbag.and.cup.and.straw",
+          "tint": "warmup",
+          "title": "Your shakes, one tap",
+          "body": "Huel, yfood and your supplements, one tap in Just ate and the meal plan."
+        },
+        {
+          "symbol": "iphone",
+          "tint": "power",
+          "title": "Made for iPhone Duo",
+          "body": "Folded: Coach sits on the tab rail and the player shows bigger moves."
+        },
+        {
+          "symbol": "book.pages",
+          "tint": "strength",
+          "title": "Half open, like a book or a stand",
+          "body": "On iPhone Duo the player fits how you hold it: on a table, like a book, or stood up with a giant timer."
+        },
+        {
+          "symbol": "bolt.fill",
+          "tint": "cardio",
+          "title": "Opens instantly, offline too",
+          "body": "Your photo, account, Community and Pro are kept on the phone, so nothing waits on the network."
+        }
+      ]
+    },
+    {
       "id": "2026-10-22.1",
       "build": 60,
       "date": "2026-10-22",

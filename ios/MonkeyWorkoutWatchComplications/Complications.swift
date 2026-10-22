@@ -28,6 +28,7 @@ struct StatComplications: WidgetBundle {
         LastWorkoutWidget()
         MyStatWidget()
         WaterWidget()
+        SmartStackWidget()
     }
 }
 

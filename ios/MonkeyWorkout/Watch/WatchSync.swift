@@ -1,3 +1,4 @@
+import APIClient
 import Foundation
 import LiftSensor
 import WatchConnectivity
@@ -6,6 +7,8 @@ import WorkoutEngine
 extension Notification.Name {
     /// A `WCommand` from the Watch for the iPhone workout player (object: WCommand).
     static let watchCommand = Notification.Name("watchCommand")
+    /// Double tap on the Watch for the big screen timer (#622 C).
+    static let watchTimerToggle = Notification.Name("watchTimerToggle")
     /// Live lift sensor state from the Watch for the iPhone player (object: WLiftLive, #383).
     static let watchLift = Notification.Name("watchLift")
     /// Practice mode state from the Watch (object: WLiftPracticeState, #410).
@@ -240,6 +243,23 @@ final class WatchSync: NSObject {
         }
     }
 
+    /// Big screen timer (#622 C): shows it on the Watch with a double-tap start; nil closes it.
+    func sendWodRemote(_ remote: WWodRemote?) {
+        guard let session, session.activationState == .activated, session.isReachable else { return }
+        if let remote, let data = try? JSONEncoder.watch.encode(remote) {
+            session.sendMessage([WatchKeys.wodRemote: data], replyHandler: nil, errorHandler: nil)
+        } else {
+            session.sendMessage([WatchKeys.wodRemoteEnded: true], replyHandler: nil, errorHandler: nil)
+        }
+    }
+
+    /// Gym buddy link (#626 B): a buddy's set or a cheer, shown over the Watch screen (best effort, reachable only).
+    func sendBuddy(_ ping: WBuddyPing) {
+        guard let session, session.activationState == .activated, session.isReachable,
+              let data = try? JSONEncoder.watch.encode(ping) else { return }
+        session.sendMessage([WatchKeys.buddy: data], replyHandler: nil, errorHandler: nil)
+    }
+
     /// The Watch app is open and can take a message now.
     var watchReachable: Bool {
         guard let session, session.activationState == .activated else { return false }
@@ -255,8 +275,9 @@ final class WatchSync: NSObject {
 
     /// Wakes the Watch app when a workout starts on the iPhone so it can offer to track it (#347).
     /// Needs a paired Watch with the app installed; `HKHealthStore.startWatchApp` only reaches a Watch on the wrist.
-    func offerStart(sessionId: String) {
-        guard WatchStartPref.shared.mode != .never, trackedBy != sessionId, let session, session.activationState == .activated,
+    /// `asked`: the member tapped Move to Watch (#603), so the Never setting doesn't hold it back.
+    func offerStart(sessionId: String, asked: Bool = false) {
+        guard asked || WatchStartPref.shared.mode != .never, trackedBy != sessionId, let session, session.activationState == .activated,
               session.isPaired, session.isWatchAppInstalled else { return }
         health?.startWatchApp()
     }
@@ -277,8 +298,9 @@ final class WatchSync: NSObject {
     /// "Start on Watch" for another sport (#439): same path as Hyrox, the sport goes with the snapshot, then the
     /// Watch app is woken with the sport's workout type.
     /// `done`: false when the Watch could not be woken (not on the wrist, locked, out of reach).
-    func startSport(_ sport: Sport, saver: Bool, done: ((Bool) -> Void)? = nil) {
-        sportStart = WSportStart(sport: sport.rawValue, saver: saver, at: Date())
+    /// `run`: a planned run (#618), the Watch follows its steps.
+    func startSport(_ sport: Sport, saver: Bool, run: RunWorkout? = nil, done: ((Bool) -> Void)? = nil) {
+        sportStart = WSportStart(sport: sport.rawValue, saver: saver, at: Date(), run: run.map(AppModel.watchRun))
         push()
         health?.startWatchApp(activity: HealthManager.activityType(for: sport), done: done)
     }
@@ -341,6 +363,11 @@ final class WatchSync: NSObject {
             return
         case let .hyroxRace(race):
             model.saveHyroxRace(race)
+        case let .bikeFTP(watts, date):
+            model.setBikeFTP(watts, testedAt: date)
+        case let .buddyCheer(userId, kind):
+            if let k = LiveCheer(rawValue: kind) { LiveRoom.shared.cheer(userId, k, api: model.api) }
+            return
         case let .liftSet(set):
             LiftSets.shared.add(set)
             // A correction changes what the Watch learned (pushed by LiftLearning).
@@ -399,16 +426,27 @@ final class WatchSync: NSObject {
         s.homeStyleChangedAt = WatchHomePref.shared.changedAt
         s.watchStart = WatchStartPref.shared.mode
         s.actionButton = WatchActionPref.shared.mode
+        s.bikeFTP = model.bikeFTP
         s.liftSensor = WatchLiftPref.shared.mode
         s.liftCounting = WatchLiftPref.shared.counting
         s.liftLogging = WatchLiftPref.shared.logging
         s.liftLearned = LiftLearning.shared.levels
         s.hyrox = model.watchHyrox(start: WatchSync.shared.hyroxStart)
         s.sportStart = WatchSync.shared.sportStart
+        // Heart-rate zones (#609) and today's run (#618).
+        s.zones = WZones(starts: model.heartZones.starts, buzz: ZonePrefs.buzz)
+        s.run = model.todayRun.flatMap { model.runDone($0) ? nil : AppModel.watchRun($0.workout) }
+        // Timers (#622) and swimming (#624).
+        s.wods = WodStore.shared.timers
+        s.swim = model.watchSwim()
         let today = Date()
         let fuel = FuelStore.shared
         s.water = WWater(day: fuel.key(today), glasses: fuel.log(today).glasses, target: model.fuelPlan(on: today).glasses,
                          glassMl: fuel.prefs.glassMl)
+        // Smart Stack (#612 A): Next up rises at the home gym.
+        if let g = model.homePlace, let lat = g.latitude, let lng = g.longitude {
+            s.gym = WGym(name: g.name, latitude: lat, longitude: lng)
+        }
         let target = model.profile?.sessionsPerWeek ?? 3
         let stats = Progression.stats(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
         s.progress = WProgress(
@@ -434,7 +472,8 @@ final class WatchSync: NSObject {
                 WBlock(title: b.title, tint: b.kind.category.tintHex, tint2: b.kind.category.tintHex2,
                        // A custom exercise not loaded yet (mid-sync) is left out rather than trapping in Exercise.get (#351).
                        items: b.items.filter { Exercise.find($0.exerciseId) != nil }
-                           .map { item($0, block: b, sessionId: session.id, model: model) })
+                           .map { item($0, block: b, sessionId: session.id, model: model) },
+                       guided: b.kind == .cooldown ? true : nil)
             },
             missed: model.missedToHandle.contains { $0.id == session.id },
             plannedOn: planned && session.weekday != nil ? WSession.dayKey(model.day(of: session)) : nil)
@@ -493,6 +532,11 @@ extension WatchSync: WCSessionDelegate {
             }
             return
         }
+        // Open water buddy alert (#615 B).
+        if let data = userInfo[WatchKeys.swimBuddy] as? Data, let buddy = try? JSONDecoder.watch.decode(WSwimBuddy.self, from: data) {
+            SwimStore.buddy(buddy)
+            return
+        }
         guard let data = userInfo[WatchKeys.event] as? Data, let event = try? JSONDecoder.watch.decode(WatchEvent.self, from: data) else { return }
         Task { @MainActor in self.apply(event) }
     }
@@ -516,6 +560,10 @@ extension WatchSync: WCSessionDelegate {
                 self.heartRate = (bpm, Date())
                 NotificationCenter.default.post(name: .watchHeartRate, object: nil)
             }
+            return
+        }
+        if message[WatchKeys.wodCommand] != nil {
+            Task { @MainActor in NotificationCenter.default.post(name: .watchTimerToggle, object: nil) }
             return
         }
         guard let raw = message[WatchKeys.command] as? String, let command = WCommand(rawValue: raw) else { return }

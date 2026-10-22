@@ -104,6 +104,11 @@ struct HealthSnapshot: Equatable, Codable {
     var bodyFatTrend: [TrendPoint] = []
     var leanTrend: [TrendPoint] = []
     var waistTrend: [TrendPoint] = []
+    /// Heart-rate zones (#609): bpm where zones 2…5 start, Apple's (Health settings, iOS 27) or from age and resting HR.
+    var zoneStarts: [Int]?
+    var zonesFromApple: Bool?
+    /// Time in each zone this week, every workout from every app (#609, design C).
+    var zoneWeek: ZoneTime?
 
     struct TrendPoint: Equatable, Identifiable, Codable {
         let date: Date
@@ -227,9 +232,10 @@ final class HealthManager {
     }
 
     private var shareTypes: Set<HKSampleType> {
-        [HKObjectType.workoutType(), HKQuantityType(.activeEnergyBurned), HKQuantityType(.bodyMass), HKQuantityType(.height),
-         HKQuantityType(.bodyFatPercentage), HKQuantityType(.leanBodyMass), HKQuantityType(.waistCircumference),
-         HKQuantityType(.dietaryWater)]
+        let base: Set<HKSampleType> = [HKObjectType.workoutType(), HKQuantityType(.activeEnergyBurned), HKQuantityType(.bodyMass),
+                                       HKQuantityType(.height), HKQuantityType(.bodyFatPercentage), HKQuantityType(.leanBodyMass),
+                                       HKQuantityType(.waistCircumference), HKQuantityType(.dietaryWater)]
+        return base.union(HealthEffort.shareTypes)
     }
 
     func setWriteWorkouts(_ on: Bool) {
@@ -323,11 +329,48 @@ final class HealthManager {
         s.recentClimbs = await recentClimbs
         s.recentSports = await recentSports
         s.recentGym = await recentGym
+        let apple = await appleZoneStarts()
+        let age = s.birthYear.map { cal.component(.year, from: now) - $0 }
+        let zones = apple.map(HeartZones.init(starts:)) ?? HeartZones.standard(age: age, restingHR: s.restingHR)
+        s.zoneStarts = zones.starts
+        s.zonesFromApple = apple != nil
+        s.zoneWeek = await zoneTime(from: weekStart, to: now, zones: zones)
         needsMoveAccess = await moveStatus == .shouldRequest
         // Steps and floors only ask for themselves, so the body-measurement prompt doesn't show for them.
         needsMeasurementAccess = await measurementStatus == .shouldRequest && !needsMoveAccess
         cache(s)
         await refreshMove()
+    }
+
+    // MARK: Heart-rate zones (#609)
+
+    /// Apple's zones from Health settings (iOS 27), when there are five.
+    private func appleZoneStarts() async -> [Int]? {
+        guard #available(iOS 27, *) else { return nil }
+        guard let config = try? await store.preferredWorkoutZoneConfiguration(for: HKQuantityType(.heartRate)) else { return nil }
+        return HeartZones.apple(lowerBounds: config.zones.map { $0.minimum?.doubleValue(for: bpm) })?.starts
+    }
+
+    /// Time in zone over every workout in the range: Apple's own zone times (iOS 27) when they are the same five
+    /// zones, else the workout's heart-rate samples sorted into them.
+    private func zoneTime(from: Date, to: Date, zones: HeartZones) async -> ZoneTime {
+        let pred = HKQuery.predicateForSamples(withStart: from, end: to)
+        let d = HKSampleQueryDescriptor(predicates: [.workout(pred)], sortDescriptors: [SortDescriptor<HKWorkout>(\.startDate)], limit: 60)
+        let workouts = (try? await d.result(for: store)) ?? []
+        var total = ZoneTime()
+        for w in workouts {
+            if #available(iOS 27, *), let g = w.zoneGroup(for: HKQuantityType(.heartRate)), g.zoneDurations.count == HeartZones.count,
+               HeartZones.apple(lowerBounds: g.configuration.zones.map { $0.minimum?.doubleValue(for: bpm) }) == zones {
+                total = total + ZoneTime(seconds: g.zoneDurations.map(\.duration))
+                continue
+            }
+            let hrPred = HKQuery.predicateForSamples(withStart: w.startDate, end: w.endDate)
+            let q = HKSampleQueryDescriptor(predicates: [.quantitySample(type: HKQuantityType(.heartRate), predicate: hrPred)],
+                                            sortDescriptors: [SortDescriptor<HKQuantitySample>(\.startDate)], limit: 4_000)
+            let samples = ((try? await q.result(for: store)) ?? []).map { (date: $0.startDate, bpm: $0.quantity.doubleValue(for: bpm)) }
+            total = total + ZoneTime.from(samples: samples, zones: zones)
+        }
+        return total
     }
 
     private func requestStatus() async -> HKAuthorizationRequestStatus? {
@@ -790,6 +833,22 @@ final class HealthManager {
             self.error = error.localizedDescription
         }
         return await heartRate(from: record.startedAt, to: record.endedAt)
+    }
+
+    /// Effort 1–10 on the session's Health workout (#614), so it counts in Apple's Training Load. Silent when the
+    /// workout isn't in Health (not saved, or the Watch's copy hasn't synced yet).
+    func saveEffort(_ score: Int, for r: WorkoutRecord) async {
+        guard connected, available else { return }
+        await HealthEffort.authorize(store)
+        guard let w = await HealthEffort.workout(from: r.startedAt, to: r.endedAt, store: store) else { return }
+        try? await HealthEffort.saveEffort(score, workout: w, store: store)
+    }
+
+    /// How the member feels after a workout (#614), as an Apple Health State of Mind.
+    func saveMood(_ feel: Feel, at date: Date = Date()) async {
+        guard connected, available else { return }
+        await HealthEffort.authorize(store)
+        try? await HealthEffort.saveMood(feel.rawValue, at: date, store: store)
     }
 
     func heartRate(from: Date, to: Date) async -> (avg: Double?, max: Double?) {

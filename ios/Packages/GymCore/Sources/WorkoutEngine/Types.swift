@@ -278,6 +278,9 @@ public struct Profile: Codable, Hashable, Sendable {
     /// Hyrox hub (#426): division and goal; nil = not set. The race date is the Hyrox sport's event date.
     public var hyrox: HyroxProfile?
 
+    /// Run & cardio programme (#618): a race with a goal time, or Hybrid; nil = none. Runs are planned around lifting.
+    public var runGoal: RunGoal?
+
     /// Usually trains before 11:00: muscles start cooler, the warm-up gets one more minute of cardio (#377).
     public var trainsInMorning: Bool { workoutTime.map { $0 < 11 * 60 } ?? false }
 

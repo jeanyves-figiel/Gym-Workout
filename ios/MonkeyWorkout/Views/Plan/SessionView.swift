@@ -29,6 +29,8 @@ struct SessionView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     header(session)
                     FlowOverview(session: session, onEdit: flowEdit(session))
+                    // Pool + gym (#624 C): the swim block of this gym day, or "Add a swim" for members with a swim plan.
+                    if !session.isStandalone { SwimBlockCard(session: session) }
                     // Gym Map (#406): the walk this session takes through the member's gym.
                     if let layout = model.profile?.gymLayout, let route = model.gymRoute(session) {
                         GymRouteCard(layout: layout, route: route, busyFirst: model.zoneBusy(route.stops[0].zone),

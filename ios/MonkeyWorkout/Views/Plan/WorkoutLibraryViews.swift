@@ -318,6 +318,9 @@ struct WorkoutLibraryView: View {
                     FreestyleCard(resuming: model.freestyleInProgress != nil) {
                         freestyle = model.freestyleInProgress ?? model.startFreestyle()
                     }
+                    // WOD and boxing timers (#622) and swimming (#624).
+                    TimersCard()
+                    SwimCard()
                 }
                 if filter == .all || filter == .mine {
                     section("My workouts", entries(model.myLibrary)) {

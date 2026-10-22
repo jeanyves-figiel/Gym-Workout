@@ -168,6 +168,7 @@ final class AppModel {
             Demo.programme(self)
             Demo.missed(self)
             Demo.sportTrips(self)
+            Demo.runs(self)
             if Demo.screen == "workout-style", let id = state.plan?.sessions.dropFirst().first?.id {
                 setSessionStyle(id, SessionStyle(rest: .short, grouping: .supersets))
             }
@@ -316,6 +317,8 @@ final class AppModel {
         // Personal copies outside state.json: cached Health readings, the data export, HTTP responses.
         HealthManager.clearCache()
         MoveStore.shared.signOut()
+        WodStore.shared.signOut()
+        SwimStore.shared.signOut()
         FuelStore.shared.signOut()
         NotificationManager.shared.resetPrefs()
         // The MonkeyGrade sign-in and the Watch upload key live in this device's Keychain, not in state.json.
@@ -361,10 +364,12 @@ final class AppModel {
     private func makePlan() -> WeekPlan? {
         guard let edited = uneditedPlan?.applying(edits: state.synced?.sessionEdits ?? []) else { return nil }
         // Lift Focus and Pro Sets (#499): the focus lift's block sets, then the member's set styles.
-        let p = expertPlan(edited)
+        // Sport add-on (#620 C) on the week's first strength sessions.
+        let p = SportAddOn.apply(expertPlan(edited), state.synced?.sportAddOn)
         // Daily auto-tune (#495) replaces the low-readiness easing when on.
-        if tuneOn { return tuned(p).plan }
-        return p.easedForReadiness(readinessEasedIds(p))
+        let fitted = tuneOn ? tuned(p).plan : p.easedForReadiness(readinessEasedIds(p))
+        // Life-stage programme (#625): safety guard swaps and loads by feel, last so nothing undoes them.
+        return lifeGuarded(fitted)
     }
 
     /// The plan before the member's per-workout exercise edits (#295): what an edit is made on.
@@ -481,9 +486,10 @@ final class AppModel {
     }
 
     /// An example, own or shared library workout opened on its own (not part of this week's plan), unedited.
+    /// One without a cool-down gets the 5′ finisher (#619 C).
     func standaloneSession(_ id: String) -> Session? {
-        freestyleSession(id) ?? WorkoutTemplate.find(sessionId: id)?.session ?? customWorkout(sessionId: id)?.session
-            ?? sharedWorkout(sessionId: id)?.workout.session
+        freestyleSession(id) ?? (WorkoutTemplate.find(sessionId: id)?.session ?? customWorkout(sessionId: id)?.session
+            ?? sharedWorkout(sessionId: id)?.workout.session).map(Recovery.withFinisher)
     }
 
     /// First session not yet completed from today on, by day (moved and extra sessions included). Sessions of

@@ -56,6 +56,9 @@ struct CommunityView: View {
                 header
                 CommunityGymCard()
                 FindMembersCard()
+                // Live group sessions (#626 B + C).
+                BuddiesCard()
+                ChallengeRoomCard()
                 TrainedTodayRow(posts: community.posts(.members))
                 GradientSegments(selection: $scope, items: [
                     SegmentItem(value: .members, title: "Members", symbol: "person.3.fill"),
@@ -77,7 +80,11 @@ struct CommunityView: View {
             .padding(16)
         }
         .readableWidth()
-        .refreshable { await community.refresh(api: model.api) }
+        .refreshable {
+            await community.refresh(api: model.api)
+            await LiveRoom.shared.load(api: model.api)
+        }
+        .task { await LiveRoom.shared.load(api: model.api) }
     }
 }
 

@@ -112,6 +112,7 @@ final class HyroxTracker: NSObject {
         let now = Date()
         WKInterfaceDevice.current().play(.start)
         session.startActivity(with: now)
+        await prepareZones(builder, target: nil)
         do {
             try await builder.beginCollection(at: now)
             try? await builder.addMetadata(["MonkeyWorkoutSport": "hyrox", "MonkeyWorkoutHyrox": format.label])
@@ -257,11 +258,19 @@ final class HyroxTracker: NSObject {
         hrSum += v
         hrCount += 1
         maxHR = max(maxHR ?? 0, v)
+        ZoneTracker.shared.heart(v)
     }
 }
 
 extension HyroxTracker: HKLiveWorkoutBuilderDelegate {
     nonisolated func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {}
+
+    /// watchOS 27: Apple's zone changed (#609).
+    @available(watchOS 27, *)
+    nonisolated func workoutBuilder(_ workoutBuilder: HKLiveWorkoutBuilder, didUpdateWorkoutZone zoneUpdate: HKLiveWorkoutZoneUpdate) {
+        guard let p = AppleZones.position(zoneUpdate) else { return }
+        Task { @MainActor in ZoneTracker.shared.apple(p.zone, count: p.count) }
+    }
 
     nonisolated func workoutBuilder(_ workoutBuilder: HKLiveWorkoutBuilder, didCollectDataOf collectedTypes: Set<HKSampleType>) {
         guard let stats = workoutBuilder.statistics(for: HKQuantityType(.heartRate)) else { return }

@@ -475,7 +475,9 @@ public struct ProgrammeLift: Hashable, Sendable, Identifiable {
 // MARK: - Catalog
 
 extension Programme {
-    public static func find(_ id: String) -> Programme? { all.first { $0.id == id } ?? [snowReadySki, snowReadyBoard].first { $0.id == id } }
+    public static func find(_ id: String) -> Programme? {
+        all.first { $0.id == id } ?? ([snowReadySki, snowReadyBoard] + seasonBlocks + lifeStages).first { $0.id == id }
+    }
 
     /// Catalog programme (or the member's own, `custom`) at `length` weeks (nil = standard).
     public static func find(_ id: String, length: Int?, custom: Programme? = nil) -> Programme? {

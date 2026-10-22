@@ -55,7 +55,47 @@ enum Demo {
         case "strap":
             StrapPrompt(exercise: "Leg Extension", spot: MachineSpot.for(name: "Leg Extension")!, onReady: {}, onSkip: {})
         case "testrep": TestRepView(calibrated: false, onSkip: {})
+        // Motion, timers and swimming (#611, #615, #622, #624).
+        case "timers": NavigationStack { TimerPickerView() }
+        case "boxing": MotionDemo(screen: screen)
+        case "swings": MotionDemo(screen: screen)
+        case "swim", "swim-sets", "open-water": MotionDemo(screen: screen)
         default: ProLockView()
+        }
+    }
+
+    /// Timers, swing counter and swim player with made-up numbers (#611, #615, #622, #624).
+    struct MotionDemo: View {
+        let screen: String
+        @State private var ready = false
+
+        var body: some View {
+            Group {
+                if ready {
+                    switch screen {
+                    case "boxing": TimerRunView()
+                    case "swings": SportTrackView()
+                    default: SwimRunView()
+                    }
+                }
+            }
+            .onAppear {
+                switch screen {
+                case "boxing":
+                    WodTracker.shared.demo(.boxing, at: Double(WodTimer.boxing.prep + 3 * 240 + 46))
+                case "swings":
+                    SportTracker.shared.demo(.padel, minutes: 42)
+                case "swim-sets":
+                    let w = SwimWorkout(name: "Week 3 · swim 1", sets: [SwimSet(reps: 1, meters: 200, stroke: .easy, sendOff: 330),
+                                                                        SwimSet(reps: 4, meters: 100, stroke: .free, sendOff: 120)])
+                    SwimTracker.shared.demo(.pool(25), workout: w, minutes: (330 + 2 * 120 + 102) / 60)
+                case "open-water":
+                    SwimTracker.shared.demo(.openWater, minutes: 28)
+                default:
+                    SwimTracker.shared.demo(.pool(25), minutes: 15)
+                }
+                ready = true
+            }
         }
     }
 

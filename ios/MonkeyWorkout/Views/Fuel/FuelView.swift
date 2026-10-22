@@ -131,6 +131,11 @@ struct FuelView: View {
             }
         }
         .sheet(isPresented: $justAte) { JustAteSheet(plan: plan, day: day) }
+        .onChange(of: FuelLaunch.shared.justAte, initial: true) { _, open in
+            guard open else { return }
+            FuelLaunch.shared.justAte = false
+            justAte = true
+        }
         .navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }
         .fuelDestinations()
         .onAppear {
