@@ -164,6 +164,8 @@ struct LocalState: Codable {
     var freestyle: Session?
     /// How the member felt after each workout (#501), `Feel` raw values by record id. Local only.
     var feels: [UUID: Int]?
+    /// Apple effort 1–10 per workout (#614), by record id. Local only (Apple Health keeps its own copy).
+    var efforts: [UUID: Int]?
 }
 
 /// Where the player stopped: exercise index, sets done per item and active time so far.
@@ -289,5 +291,6 @@ extension LocalState {
         freestyle = try? c.decodeIfPresent(Session.self, forKey: .freestyle)
         dayTune = try? c.decodeIfPresent(DayTune.self, forKey: .dayTune)
         feels = try? c.decodeIfPresent([UUID: Int].self, forKey: .feels)
+        efforts = try? c.decodeIfPresent([UUID: Int].self, forKey: .efforts)
     }
 }

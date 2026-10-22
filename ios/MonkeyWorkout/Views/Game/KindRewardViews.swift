@@ -135,34 +135,92 @@ struct WinsCard: View {
     }
 }
 
-/// "How do you feel now?": four faces, saved with the session (on this iPhone) and used for later wins.
+/// "How do you feel now?": five faces (#614 B), saved with the session (on this iPhone) and used for later wins; with
+/// Apple Health connected also saved there as a State of Mind.
 struct FeelRow: View {
     let recordId: UUID
     @Environment(AppModel.self) private var model
+    @Environment(HealthManager.self) private var health
 
     var body: some View {
         let picked = model.feel(of: recordId)
-        HStack(spacing: 6) {
-            Text(picked.map { "Feeling \($0.label.lowercased())" } ?? "How do you feel now?")
+        VStack(alignment: .leading, spacing: 8) {
+            Text(picked.map { "Feeling \($0.label.lowercased())" } ?? "Feeling now?")
                 .font(Theme.label(14)).lineLimit(1).minimumScaleFactor(0.8)
-            Spacer(minLength: 4)
-            ForEach(Feel.allCases, id: \.self) { f in
-                Button {
-                    UISelectionFeedbackGenerator().selectionChanged()
-                    withAnimation(.spring(duration: 0.3)) { model.setFeel(f, for: recordId) }
-                } label: {
-                    Text(f.emoji).font(.system(size: picked == f ? 30 : 24))
-                        .frame(width: 42, height: 42)
-                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(picked == f ? Theme.lime.opacity(0.9) : Color.white.opacity(0.08)))
-                        .opacity(picked == nil || picked == f ? 1 : 0.45)
+            HStack(spacing: 6) {
+                ForEach(Feel.allCases, id: \.self) { f in
+                    Button {
+                        UISelectionFeedbackGenerator().selectionChanged()
+                        withAnimation(.spring(duration: 0.3)) { model.setFeel(f, for: recordId) }
+                        Task { await health.saveMood(f) }
+                    } label: {
+                        Text(f.emoji).font(.system(size: picked == f ? 30 : 24))
+                            .frame(maxWidth: .infinity, minHeight: 46)
+                            .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(picked == f ? Theme.lime.opacity(0.9) : Color.white.opacity(0.08)))
+                            .opacity(picked == nil || picked == f ? 1 : 0.45)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(f.label)
+                    .accessibilityAddTraits(picked == f ? .isSelected : [])
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(f.label)
-                .accessibilityAddTraits(picked == f ? .isSelected : [])
+            }
+            if picked != nil, health.connected {
+                Label("Saved to Apple Health · State of Mind", systemImage: "heart.fill")
+                    .font(.caption.weight(.semibold)).foregroundStyle(.pink)
             }
         }
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.06)))
+    }
+}
+
+/// "How hard?" (#614 A): Apple effort 1–10 on the finish screen, prefilled from the session's reps in reserve. Saved
+/// on this iPhone as it moves and to the Health workout when the summary closes, so it counts in Training Load.
+struct EffortCard: View {
+    let record: WorkoutRecord
+    @Environment(AppModel.self) private var model
+    @Environment(HealthManager.self) private var health
+    @State private var value: Double = 7
+    @State private var fromRIR = false
+    @State private var loaded = false
+
+    var body: some View {
+        let v = Int(value)
+        VStack(alignment: .leading, spacing: 8) {
+            Text("HOW HARD? · APPLE EFFORT").font(Theme.label(11)).tracking(1.1).opacity(0.9)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("\(v)").font(Theme.display(44)).monospacedDigit().contentTransition(.numericText())
+                Text("/10 \(Effort.word(v))").font(Theme.label(16)).opacity(0.9)
+                Spacer()
+            }
+            Slider(value: $value, in: 1...10, step: 1)
+                .tint(.white)
+                .accessibilityLabel("Effort")
+                .accessibilityValue("\(v) of 10, \(Effort.word(v))")
+            Text(fromRIR ? "Prefilled from your RIR" : health.connected ? "Counts in Apple Training Load" : "Saved with this workout")
+                .font(.caption.weight(.semibold)).opacity(0.85)
+        }
+        .foregroundStyle(.white)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(LinearGradient(colors: KindRewardStyle.orange, startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .onAppear {
+            guard !loaded else { return }
+            let e = model.effort(of: record)
+            value = Double(e.value)
+            fromRIR = e.fromRIR
+            loaded = true
+        }
+        .onChange(of: value) { _, n in
+            UISelectionFeedbackGenerator().selectionChanged()
+            model.setEffort(Int(n), for: record.id)
+        }
+        .onDisappear {
+            let score = Int(value), r = record
+            model.setEffort(score, for: r.id)
+            Task { await health.saveEffort(score, for: r) }
+        }
     }
 }

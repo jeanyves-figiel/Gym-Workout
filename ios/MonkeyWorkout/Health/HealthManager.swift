@@ -229,7 +229,7 @@ final class HealthManager {
     private var shareTypes: Set<HKSampleType> {
         [HKObjectType.workoutType(), HKQuantityType(.activeEnergyBurned), HKQuantityType(.bodyMass), HKQuantityType(.height),
          HKQuantityType(.bodyFatPercentage), HKQuantityType(.leanBodyMass), HKQuantityType(.waistCircumference),
-         HKQuantityType(.dietaryWater)]
+         HKQuantityType(.dietaryWater)].union(HealthEffort.shareTypes)
     }
 
     func setWriteWorkouts(_ on: Bool) {
@@ -790,6 +790,22 @@ final class HealthManager {
             self.error = error.localizedDescription
         }
         return await heartRate(from: record.startedAt, to: record.endedAt)
+    }
+
+    /// Effort 1–10 on the session's Health workout (#614), so it counts in Apple's Training Load. Silent when the
+    /// workout isn't in Health (not saved, or the Watch's copy hasn't synced yet).
+    func saveEffort(_ score: Int, for r: WorkoutRecord) async {
+        guard connected, available else { return }
+        await HealthEffort.authorize(store)
+        guard let w = await HealthEffort.workout(from: r.startedAt, to: r.endedAt, store: store) else { return }
+        try? await HealthEffort.saveEffort(score, workout: w, store: store)
+    }
+
+    /// How the member feels after a workout (#614), as an Apple Health State of Mind.
+    func saveMood(_ feel: Feel, at date: Date = Date()) async {
+        guard connected, available else { return }
+        await HealthEffort.authorize(store)
+        try? await HealthEffort.saveMood(feel.rawValue, at: date, store: store)
     }
 
     func heartRate(from: Date, to: Date) async -> (avg: Double?, max: Double?) {
