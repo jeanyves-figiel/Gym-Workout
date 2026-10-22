@@ -63,6 +63,12 @@ final class ProStore {
         for await result in Transaction.currentEntitlements { await handle(result, finish: false) }
     }
 
+    /// Last entitlement seen for this account (#641), so Pro isn't locked at launch or offline.
+    func restore(userId: String?) {
+        guard !demo, let e = DeviceCache.load(Entitlement.self, "entitlement.json", userId: userId) else { return }
+        entitlement = e
+    }
+
     func reset() {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["pro-trial-ending"])
         entitlement = .free
@@ -71,7 +77,10 @@ final class ProStore {
 
     func refresh() async {
         guard let api, !demo else { return }
-        if let e = try? await api.entitlement() { entitlement = e }
+        if let e = try? await api.entitlement() {
+            entitlement = e
+            DeviceCache.save(e, "entitlement.json", userId: userId)
+        }
         await scheduleTrialReminder()
         guard entitlement.mode != .off else { return }
         if products.isEmpty, let p = try? await Product.products(for: Self.productIds) {
