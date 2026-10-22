@@ -358,8 +358,9 @@ final class AppModel {
         // Sport add-on (#620 C) on the week's first strength sessions.
         let p = SportAddOn.apply(expertPlan(edited), state.synced?.sportAddOn)
         // Daily auto-tune (#495) replaces the low-readiness easing when on.
-        if tuneOn { return tuned(p).plan }
-        return p.easedForReadiness(readinessEasedIds(p))
+        let fitted = tuneOn ? tuned(p).plan : p.easedForReadiness(readinessEasedIds(p))
+        // Life-stage programme (#625): safety guard swaps and loads by feel, last so nothing undoes them.
+        return lifeGuarded(fitted)
     }
 
     /// The plan before the member's per-workout exercise edits (#295): what an edit is made on.

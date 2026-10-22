@@ -175,6 +175,8 @@ final class WatchStore: NSObject {
         }
         snapshot = s
         save()
+        // Power zones (#623): the phone's FTP, set by hand or from a test.
+        if let ftp = s.bikeFTP { BikeSensors.shared.setFTP(ftp) }
     }
 
     fileprivate func receive(message: [String: Any]) {

@@ -48,6 +48,7 @@ struct SportPowerView: View {
     @Environment(\.dismiss) private var dismiss
     /// Target zone (#609, design B); nil = none.
     @State private var target: Int?
+    @State private var sensors = false
 
     var body: some View {
         ScrollView {
@@ -82,13 +83,28 @@ struct SportPowerView: View {
                         .buttonStyle(.plain)
                     }
                 }
+                if sport.bike {
+                    // Bike sensors and the FTP test (#623 A + C).
+                    Button { sensors = true } label: {
+                        HomeRow(symbol: "sensor.fill", title: "Sensors", value: "\(BikeSensors.shared.paired.count) ›", tint: sport.tint)
+                    }
+                    .buttonStyle(.plain)
+                    Button { start(.full, test: true) } label: {
+                        HomeRow(symbol: "bolt.heart.fill", title: "FTP test · 45′", value: BikeSensors.shared.ftp.map { "\($0) W" } ?? "›",
+                                tint: (0xFF8A00, 0xFFD400))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!BikeSensors.shared.hasPower)
+                }
             }
             .watchMargins()
         }
+        .sheet(isPresented: $sensors) { BikeSensorsPage() }
     }
 
-    private func start(_ p: TrackPower) {
+    private func start(_ p: TrackPower, test: Bool = false) {
         Task { await SportTracker.shared.start(sport, power: p, target: target) }
+        if test { BikeSensors.shared.startTest() }
         dismiss()
     }
 }
@@ -96,6 +112,7 @@ struct SportPowerView: View {
 /// The running session: one screen per sport (design B), controls on the next page.
 struct SportTrackView: View {
     @State private var tracker = SportTracker.shared
+    @Environment(WatchStore.self) private var store
     @Environment(\.isLuminanceReduced) private var dimmed
 
     var body: some View {
@@ -109,10 +126,15 @@ struct SportTrackView: View {
                 dashboard(now: ctx.date)
             }
             if tracker.sport?.usesGPS == true { mapPage }
+            if tracker.sport?.bike == true { BikeSensorsPage() }
             if let sport = tracker.sport, sport.compass, CLLocationManager.headingAvailable() { compassPage }
             controls
         }
         .tabViewStyle(.verticalPage)
+        // FTP test result (#623 C) to the iPhone: zones there follow it.
+        .onChange(of: BikeSensors.shared.testResult) { _, ftp in
+            if let ftp { store.send(.bikeFTP(watts: ftp, date: Date())) }
+        }
     }
 
     @ViewBuilder private func dashboard(now: Date) -> some View {
@@ -128,6 +150,8 @@ struct SportTrackView: View {
                     if let r = tracker.lastRun, !dimmed {
                         Text("Last run \(Int(r.drop.rounded())) m · \(Int(r.topKmh.rounded())) km/h").font(W.label(10)).opacity(0.85).lineLimit(1)
                     }
+                } else if sport.bike, BikeSensors.shared.hasPower {
+                    powerPlayer(sport, now: now)
                 } else if [TrackedSport.hike, .mountaineering, .trailRun].contains(sport) {
                     big("+\(Int(tracker.up.rounded()))", "m up · \(km) km", sport)
                     pair(("SUMMIT", tracker.highest.map { "\(Int($0.rounded()))" } ?? "–"), ("HR", hr))
@@ -230,6 +254,35 @@ struct SportTrackView: View {
             .watchMargins()
         }
     }
+
+    /// Power player (#623 B): zone tile, watts big, 3″ average, cadence and heart rate; the FTP test's phase on top.
+    @ViewBuilder private func powerPlayer(_ sport: TrackedSport, now: Date) -> some View {
+        let bike = BikeSensors.shared
+        if let test = bike.testPhase(now: now) {
+            HStack(spacing: 4) {
+                Text(test.phase == .done ? "FTP TEST DONE" : "FTP · \(test.phase.label.uppercased())").font(W.label(10))
+                Spacer(minLength: 0)
+                if test.phase != .done { Text(Self.clock(test.left)).font(W.label(12)).monospacedDigit() }
+            }
+            .foregroundStyle(W.ink)
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(RoundedRectangle(cornerRadius: 6).fill(W.color(0xFFD400)))
+            if let r = bike.testResult {
+                big("\(r)", "W · your new FTP", sport)
+            }
+        } else if let z = bike.zone {
+            Text("ZONE \(z.index) · \(z.name.uppercased())").font(W.label(10)).foregroundStyle(W.ink).lineLimit(1)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 6).fill(W.color(Self.zoneTint[z.index - 1])))
+        }
+        if bike.testResult == nil || bike.testPhase(now: now) == nil {
+            big(bike.watts.map { "\($0)" } ?? "–", "W · 3″ \(bike.avg3.map { "\(Int($0.rounded()))" } ?? "–")"
+                + (bike.testPhase(now: now)?.phase == .allOut ? " · avg \(bike.testAverage ?? 0)" : ""), sport)
+        }
+        pair(("RPM", bike.cadence.map { "\(Int($0.rounded()))" } ?? "–"), ("HR", bike.heartRate.map { "\($0)" } ?? hr))
+    }
+
+    private static let zoneTint: [UInt32] = [0x8E9BB0, 0x1E9BFF, 0x00C6A7, 0xFFD400, 0xFF8A00, 0xFF3D6E, 0x8A2BFF]
 
     private func header(_ sport: TrackedSport) -> String {
         // Live run / lift state (#445 C).
@@ -440,5 +493,44 @@ struct TrailView: View {
                 ctx.fill(Path(ellipseIn: CGRect(x: e.x - 5, y: e.y - 5, width: 10, height: 10)), with: .color(W.lime))
             }
         }
+    }
+}
+
+
+/// Bike sensors (#623 A): paired ones with battery and connection, the rest found nearby; tap to pair or unpair.
+struct BikeSensorsPage: View {
+    @State private var bike = BikeSensors.shared
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 6) {
+                Eyebrow(text: "Bike sensors", color: W.lime)
+                if bike.list.isEmpty {
+                    Text(bike.scanning ? "Looking… wake your sensors (spin the crank)." : "No sensors yet.")
+                        .font(W.label(11)).opacity(0.8)
+                }
+                ForEach(bike.list) { s in
+                    let paired = bike.paired[s.id] != nil
+                    Button { paired ? bike.unpair(s) : bike.pair(s) } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: s.kind.symbol).font(.system(size: 13, weight: .bold))
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(s.name).font(W.label(13)).lineLimit(1)
+                                Text(paired ? (s.connected ? "Connected" : "Paired") : "Tap to pair").font(W.label(9)).opacity(0.8)
+                            }
+                            Spacer(minLength: 0)
+                            if let b = s.battery { Text("\(b) %").font(W.label(11)).monospacedDigit() }
+                        }
+                        .foregroundStyle(paired ? W.ink : .white)
+                        .padding(8)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(paired ? AnyShapeStyle(W.lime) : AnyShapeStyle(W.card)))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .watchMargins()
+        }
+        .onAppear { bike.startScan() }
+        .onDisappear { bike.stopScan() }
     }
 }

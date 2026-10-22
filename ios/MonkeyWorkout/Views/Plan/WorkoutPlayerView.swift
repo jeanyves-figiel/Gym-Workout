@@ -421,7 +421,7 @@ struct WorkoutPlayerView: View {
                 let setup = model.machineNote(exerciseId: step.exercise.id, gymId: setupGym.id)
                 ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
                                  position: isFree ? "" : "\(index + 1)/\(steps.count)",
-                                 onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
+                                 onAttemptPR: step.loggable && model.lifeStage == nil ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
                                  onChange: canChange(step) ? { changeFor = step.item } : nil,
                                  setup: setup,
                                  onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
@@ -634,7 +634,7 @@ struct WorkoutPlayerView: View {
                     let setup = model.machineNote(exerciseId: step.exercise.id, gymId: setupGym.id)
                     ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
                                      position: isFree ? "" : "\(index + 1)/\(steps.count)",
-                                     onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
+                                     onAttemptPR: step.loggable && model.lifeStage == nil ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
                                      onChange: canChange(step) ? { changeFor = step.item } : nil,
                                      setup: setup,
                                      onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },

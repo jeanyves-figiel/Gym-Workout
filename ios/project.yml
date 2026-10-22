@@ -202,6 +202,7 @@ targets:
         NSHealthUpdateUsageDescription: Saves your gym sessions, timers, swims and the sports you track (with their route) as workouts, with their effort and how you feel after them, to Apple Health.
         NSMotionUsageDescription: Counts your reps, punches and racket swings and measures bar speed during workouts.
         NSLocationWhenInUseUsageDescription: Records the route, speed and elevation of the sports you track. The route is saved to Apple Health only.
+        NSBluetoothAlwaysUsageDescription: Connects your bike power meter, cadence sensor and heart-rate strap during rides.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).watchkitapp

@@ -355,6 +355,8 @@ final class WatchSync: NSObject {
             return
         case let .hyroxRace(race):
             model.saveHyroxRace(race)
+        case let .bikeFTP(watts, date):
+            model.setBikeFTP(watts, testedAt: date)
         case let .liftSet(set):
             LiftSets.shared.add(set)
             // A correction changes what the Watch learned (pushed by LiftLearning).
@@ -413,6 +415,7 @@ final class WatchSync: NSObject {
         s.homeStyleChangedAt = WatchHomePref.shared.changedAt
         s.watchStart = WatchStartPref.shared.mode
         s.actionButton = WatchActionPref.shared.mode
+        s.bikeFTP = model.bikeFTP
         s.liftSensor = WatchLiftPref.shared.mode
         s.liftCounting = WatchLiftPref.shared.counting
         s.liftLogging = WatchLiftPref.shared.logging

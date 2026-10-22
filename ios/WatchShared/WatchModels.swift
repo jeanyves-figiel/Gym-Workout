@@ -45,6 +45,8 @@ struct WatchSnapshot: Codable, Equatable {
     /// Heart-rate zones (#609) and today's planned run (#618); nil from older iPhone apps.
     var zones: WZones?
     var run: WRun?
+    /// Cycling FTP in watts (#623) for power zones; nil = not set or an older phone app.
+    var bikeFTP: Int?
 
     /// Today's water from Fuel (#496); a tap on the Watch adds a glass.
     var water: WWater?
@@ -243,6 +245,8 @@ enum WatchEvent: Codable, Equatable {
     case liftSet(WLiftSet)
     /// A Hyrox race or sim recorded on the Watch (#426); its id is the Health workout's.
     case hyroxRace(HyroxRace)
+    /// FTP from a 20′ test on the Watch (#623 C).
+    case bikeFTP(watts: Int, date: Date)
 }
 
 /// Reps and bar speed the Watch measured for one set (#383). Speeds in m/s, ranges in m, times in s.
