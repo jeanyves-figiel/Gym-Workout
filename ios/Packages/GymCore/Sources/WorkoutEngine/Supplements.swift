@@ -314,10 +314,12 @@ public struct Supplement: Codable, Hashable, Sendable, Identifiable {
     public var restDays: Bool
     /// Times a day, days, course length, cycle and loading (#572). Nil on older saves: `timing` + `restDays`.
     public var rhythm: SupplementRhythm?
+    /// Not on a schedule: picked from Just ate or a meal plan meal when the member has it (#599). Nil on older saves.
+    public var onDemand: Bool?
 
     public init(id: String = UUID().uuidString, name: String, kind: SupplementKind, timing: SupplementTiming? = nil, dose: String,
                 caffeineMg: Int = 0, creatineG: Double = 0, proteinG: Double = 0, carbsG: Double = 0, fatG: Double = 0,
-                restDays: Bool = false, rhythm: SupplementRhythm? = nil) {
+                restDays: Bool = false, rhythm: SupplementRhythm? = nil, onDemand: Bool? = nil) {
         self.id = id
         self.name = name
         self.kind = kind
@@ -330,9 +332,13 @@ public struct Supplement: Codable, Hashable, Sendable, Identifiable {
         self.fatG = max(0, fatG)
         self.restDays = restDays
         self.rhythm = rhythm
+        self.onDemand = onDemand
     }
 
     public var emoji: String { kind.emoji }
+
+    /// Only when the member picks it: never placed on the day by itself.
+    public var whenPicked: Bool { onDemand ?? false }
 
     /// The schedule in force: the saved one, or the one older saves meant.
     public var schedule: SupplementRhythm {
@@ -386,6 +392,14 @@ public struct Supplement: Codable, Hashable, Sendable, Identifiable {
             : Portions(palms: Int((proteinG / Portions.proteinPerPalm).rounded()))
     }
 
+    /// A meal shake or hot meal as a recipe (#599), so Just ate and the meal plan can pick it like any meal.
+    public var recipe: Recipe {
+        Recipe(id: Supplements.recipePrefix + id, name: name, emoji: emoji, slots: [.breakfast, .lunch, .dinner, .snack, .recovery],
+               minutes: 0, protein: Int(proteinG.rounded()), carbs: Int(carbsG.rounded()), fat: Int(fatG.rounded()), base: .vegan,
+               tags: [.quick, .onTheGo], ingredients: [dose.isEmpty ? "1 serving" : dose],
+               steps: ["From your supplements: amounts from its label. Edit it in Fuel → Supplements."], own: false)
+    }
+
     /// "⚡ 105 mg caffeine · 💪 3 g creatine".
     public var contents: [String] {
         var out: [String] = []
@@ -420,6 +434,19 @@ public enum Supplements {
     /// No caffeine within this many hours of bedtime (same as the Learn card).
     public static let caffeineHoursBeforeSleep = 6
 
+    /// Recipe id of a product from the stack ("product-<supplement id>").
+    public static let recipePrefix = "product-"
+
+    /// The stack's meal shakes and hot meals as recipes, for looking up planned and ticked meals.
+    public static func recipes(_ stack: [Supplement]) -> [Recipe] { stack.filter(\.isMeal).map(\.recipe) }
+
+    /// An unplanned take picked in Just ate (#599): its own tick key, so each one counts once and can be undone.
+    public static func extra(_ s: Supplement, log: FuelDayLog, minute: Int) -> SupplementDose {
+        var n = 1
+        while log.ticks["supp-\(s.id)-x\(n)"] != nil { n += 1 }
+        return SupplementDose(id: "supp-\(s.id)-x\(n)", supplement: s, minute: minute, reason: "Extra", late: false, replaces: nil)
+    }
+
     /// The first take keeps the key older logs used.
     public static func tickId(_ s: Supplement, take: Int = 0) -> String { take == 0 ? "supp-\(s.id)" : "supp-\(s.id)-\(take + 1)" }
 
@@ -441,7 +468,7 @@ public enum Supplements {
         let breakfast = meal(.breakfast) ?? prefs.wake + 30
         let cutoff = caffeineCutoff(prefs)
         let training = !acts.isEmpty
-        return stack.flatMap { s -> [SupplementDose] in
+        return stack.filter { !$0.whenPicked }.flatMap { s -> [SupplementDose] in
             s.schedule.intakes(on: plan.day, training: training, calendar: cal).enumerated().compactMap { i, take -> SupplementDose? in
                 var m: Int
                 var reason: String
