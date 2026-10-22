@@ -375,9 +375,9 @@ struct WorkoutPlayerView: View {
         }
     }
 
-    @ViewBuilder
     private var short: Bool { playerHeight > 0 && playerHeight < 720 }
 
+    @ViewBuilder
     private func upright(_ step: Step, session: Session) -> some View {
         let cat = step.category
         let sets = step.sets
