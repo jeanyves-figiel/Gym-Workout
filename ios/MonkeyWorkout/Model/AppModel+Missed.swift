@@ -18,8 +18,8 @@ extension AppModel {
     /// Missed sessions still waiting for the member: not skipped.
     var missedToHandle: [Session] { missedSessions.filter { !skippedIds.contains($0.id) } }
 
-    /// Sessions still to do this week, from today on.
-    var remainingCount: Int { plan.map { WeekProgress.remaining($0, today: todayWeekday, done: doneIds) } ?? 0 }
+    /// Sessions still to do this week, from today on (skipped ones don't count, #643).
+    var remainingCount: Int { plan.map { WeekProgress.remaining($0, today: todayWeekday, done: doneIds.union(skippedIds)) } ?? 0 }
 
     /// "Today", "Tomorrow" or the weekday of a session coming up.
     func upcomingDayLabel(_ s: Session) -> String {
@@ -71,6 +71,22 @@ extension AppModel {
         s[sessionId] = true
         state.skipped = s
         persist()
+    }
+
+    /// Skips today's or a later session this week without moving it (#643): Next up moves on, the day shows
+    /// skipped and it becomes a skipped missed session once the day is over.
+    func skipSession(_ sessionId: String) { skipMissed(sessionId) }
+
+    /// Puts a skipped session back on its day (#643).
+    func unskip(_ sessionId: String) {
+        state.skipped?[sessionId] = nil
+        persist()
+    }
+
+    /// Whether a session of today or later can be skipped: not done, not running, not skipped yet.
+    func canSkip(_ s: Session) -> Bool {
+        !doneIds.contains(s.id) && !skippedIds.contains(s.id) && state.activeWorkout?.sessionId != s.id
+            && (s.weekday ?? todayWeekday) >= todayWeekday
     }
 
     /// Moves a missed session to today, next to anything already planned today.

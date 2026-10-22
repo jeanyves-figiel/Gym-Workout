@@ -922,6 +922,8 @@ private struct NextUpCard: View {
                     summary
                 }
                 .buttonStyle(.plain)
+                // Long press (#643, design A): move it, or skip it without moving it.
+                .contextMenu { cardMenu }
                 .accessibilityHint("Opens the session overview")
             }
             actions
@@ -941,6 +943,22 @@ private struct NextUpCard: View {
         .sheet(isPresented: $moving) { MoveSessionSheet(sessionId: session.id) }
         .sheet(isPresented: $planningSport) { PlanSportSheet(day: dayKey ?? PlanCalendar.key(Date(), model.planCalendar), sport: model.profile?.otherSports.first?.sport) }
         .sheet(item: $editingTrip) { PlanSportSheet(day: $0.start, editing: $0) }
+    }
+
+    @ViewBuilder private var cardMenu: some View {
+        if !done && !past {
+            Button("Move to…", systemImage: "arrow.left.arrow.right") { moving = true }
+        }
+        if ahead && !done {
+            Button("Plan a sport", systemImage: "figure.snowboarding") { planningSport = true }
+        }
+        if model.canSkip(session), !past, let d = day {
+            Button(d == model.todayWeekday ? "Skip today" : "Skip \(WeekSchedule.name(d))", systemImage: "nosign", role: .destructive) {
+                skipWithUndo(model, session)
+            }
+        } else if skipped {
+            Button("Unskip", systemImage: "arrow.uturn.backward") { withAnimation { model.unskip(session.id) } }
+        }
     }
 
     /// Slim (#337, design A): muscle chips sit in the text column beside a smaller figure, so Start workout stays
@@ -985,6 +1003,8 @@ private struct NextUpCard: View {
     }
 
     private var done: Bool { model.doneIds.contains(session.id) }
+    /// Skipped on today or a later day this week (#643); an earlier skipped day is the past-day card's.
+    private var skipped: Bool { later == nil && !past && !done && model.skippedIds.contains(session.id) }
     /// The next session's card needs a way back too when back means today.
     private var showsJump: Bool { picked != nil && (!isNext || backToToday) }
     private var isNext: Bool { session.id == model.nextSession?.id }
@@ -1010,6 +1030,12 @@ private struct NextUpCard: View {
                 } else if done {
                     NavigationLink(value: session.id) { Label("Done · see workout", systemImage: "checkmark.seal.fill") }
                         .buttonStyle(LimeButtonStyle())
+                } else if skipped {
+                    // Skipped today or later (#643): put it back on its day.
+                    Button { withAnimation { model.unskip(session.id) } } label: {
+                        Label("Unskip \(session.displayTitle)", systemImage: "arrow.uturn.backward").lineLimit(1).minimumScaleFactor(0.8)
+                    }
+                    .buttonStyle(LimeButtonStyle(fill: .white))
                 } else if ahead {
                     // A later day (#343): only its overview.
                     NavigationLink(value: session.id) { Label("See workout", systemImage: "list.bullet") }

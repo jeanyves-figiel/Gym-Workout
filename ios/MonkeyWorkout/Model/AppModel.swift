@@ -495,7 +495,7 @@ final class AppModel {
     /// First session not yet completed from today on, by day (moved and extra sessions included). Sessions of
     /// earlier days that weren't done are missed (#266), not next.
     var nextSession: Session? {
-        plan.flatMap { WeekProgress.next($0, today: todayWeekday, done: doneIds) }
+        plan.flatMap { WeekProgress.next($0, today: todayWeekday, done: doneIds.union(skippedIds)) }
     }
 
     var completedCount: Int { plan?.sessions.filter { state.done[$0.id] ?? false }.count ?? 0 }

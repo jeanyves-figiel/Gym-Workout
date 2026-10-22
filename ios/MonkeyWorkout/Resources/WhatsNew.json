@@ -78,6 +78,12 @@
       "tint": "mobility",
       "title": "Liquid Glass",
       "body": "On iOS 26 the tab bar and sheets turn to glass. Now needs iOS 18 or later."
+    },
+    {
+      "symbol": "nosign",
+      "tint": "mobility",
+      "title": "Can't train today?",
+      "body": "Long press the day card or a day: Skip today. Not moved, Next up moves on, Unskip any time."
     }
   ]
 }

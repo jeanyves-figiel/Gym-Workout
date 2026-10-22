@@ -442,6 +442,7 @@ private struct DemoScreen: View {
         case "train-edit": NavigationStack { WeekView(demoEditing: true) }
         case "train-day-picked": NavigationStack { WeekView(demoPick: .planned) }
         case "train-rest-day": NavigationStack { WeekView(demoPick: .rest) }
+        case "train-skipped": NavigationStack { WeekView() }
         case "train-past-day": NavigationStack { WeekView(demoPick: .past) }
         case "train-run", "train-hybrid": NavigationStack { WeekView() }
         case "run-session", "run-start":

@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|account-security|account-reauth|account-2step|account-recovery|account-passkeys|signin-2step|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-gym-add|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|equipment-zones|equipment-by-zone|floor-plan|session-zones|swap-zones|player-zones|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|whats-new-history|watch-lift|lift-practice|watch-home|game-{week|session|done|progress}-{coach|deck|rings}|game-quest-deck|game-ladder|game-levelup|game-levelup-legend|game-level-row|explore-programmes|programme|programme-running|train-programme|programme-test|progress-programmes|profile-programme|calendar-programme|programme-finished|programme-length|programme-grid|programme-grid-running|programme-mine|programme-builder|programme-builder-week|snow-ready|hyrox-ready|train-missed|missed-catchup|missed-log|calendar-missed|train-day-picked|train-rest-day|train-past-day|undo-bar|edit-exercises|session-edited|flow-warmup|flow-cooldown|quick-flow|taste|train-taste|coach-chat|coach-chat-empty|position|position-mistake|position-press|your-week-sports|add-sport|plan-sport|calendar-trip|day-trip|fresh-start|train-smart|block-tweak|auto-tune|growth-path|coach-memory|lift-lab|lift-focus|lift-focus-setup|set-style|train-comeback|train-run|train-hybrid|run-session|run-start|run-goal|zone-week]`
+/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|account-security|account-reauth|account-2step|account-recovery|account-passkeys|signin-2step|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|variety|variation|welcome|signin|signup|verify|community|community-join|community-share|community-profile|profile|profile-gym|profile-gym-add|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|equipment-zones|equipment-by-zone|floor-plan|session-zones|swap-zones|player-zones|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|whats-new-history|watch-lift|lift-practice|watch-home|game-{week|session|done|progress}-{coach|deck|rings}|game-quest-deck|game-ladder|game-levelup|game-levelup-legend|game-level-row|explore-programmes|programme|programme-running|train-programme|programme-test|progress-programmes|profile-programme|calendar-programme|programme-finished|programme-length|programme-grid|programme-grid-running|programme-mine|programme-builder|programme-builder-week|snow-ready|hyrox-ready|train-missed|missed-catchup|missed-log|calendar-missed|train-day-picked|train-rest-day|train-past-day|train-skipped|undo-bar|edit-exercises|session-edited|flow-warmup|flow-cooldown|quick-flow|taste|train-taste|coach-chat|coach-chat-empty|position|position-mistake|position-press|your-week-sports|add-sport|plan-sport|calendar-trip|day-trip|fresh-start|train-smart|block-tweak|auto-tune|growth-path|coach-memory|lift-lab|lift-focus|lift-focus-setup|set-style|train-comeback|train-run|train-hybrid|run-session|run-start|run-goal|zone-week]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     /// Studio coach voices (#395) for the `coach-settings` screen.
@@ -154,7 +154,7 @@ enum Demo {
 
     /// Missed session screens (#266): the first session of the week not done and today on the second one's day.
     @MainActor static func missed(_ model: AppModel) {
-        if ["train-missed", "missed-catchup", "missed-log", "calendar-missed", "train-day-picked", "train-rest-day", "train-past-day"].contains(screen) {
+        if ["train-missed", "missed-catchup", "missed-log", "calendar-missed", "train-day-picked", "train-rest-day", "train-past-day", "train-skipped"].contains(screen) {
             // No away periods: they re-plan undone sessions from the real today, so nothing would be missed.
             model.state.synced?.away = nil
             model.state.done = [:]
@@ -177,6 +177,10 @@ enum Demo {
         let ordered = model.plan.map(WeekProgress.ordered) ?? []
         let next = model.state.done.isEmpty ? ordered.dropFirst().first : ordered.first { !model.doneIds.contains($0.id) }
         model.demoToday = next?.weekday ?? 3
+        if screen == "train-skipped", let s = model.plan?.sessions.first(where: { $0.weekday == model.todayWeekday }) {
+            // Today's session skipped from the long press (#643): dash in the strip, Unskip on the card.
+            model.skipSession(s.id)
+        }
     }
 
     /// Current cycle week (2 = Build). Every demo screen (Train chip, cycle sheet, calendar, library) reads it via the plan.
