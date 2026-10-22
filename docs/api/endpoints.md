@@ -167,6 +167,15 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | GET | `/v1/community/blocks` | Bearer | → blocked members | |
 | POST | `/v1/community/blocks` | Bearer | `{userId}` → 204; also removes follows both ways | |
 | DELETE | `/v1/community/blocks/:userId` | Bearer | Unblock → 204 | |
+| GET | `/v1/community/buddies` | Bearer | Gym buddies (#626) → `{buddies: [{userId, nickname, avatarUrl, level, status paired\|invited\|invites_you, live}]}`; `live` (`title, exercise, detail, state set\|rest\|done, updatedAt`) only when paired and sent in the last 10′ | 403 `community_profile_required` |
+| PUT | `/v1/community/buddies/:userId` | Bearer | Invite, or accept an invite → `{status: paired\|invited}`; up to 20 | 400 `own_content`, `too_many_buddies`; 404 |
+| DELETE | `/v1/community/buddies/:userId` | Bearer | Unpair, cancel or decline → 204; blocking or leaving the community also unpairs | |
+| POST | `/v1/community/buddies/:userId/cheers` | Bearer | `{kind fire\|banana\|beast}` to a paired buddy → 204 | 404 not paired; 60/min |
+| PUT | `/v1/community/live` | Bearer | Live set for buddies and the challenge room: `{title, exercise, detail?, state set\|rest\|done, challengeWeek?}` → 204; one row, replaced per set | 400 `objectionable_content`; 403 `community_profile_required` |
+| DELETE | `/v1/community/live` | Bearer | Workout ended → 204 | |
+| GET | `/v1/community/live/cheers` | Bearer | `?after=` last id seen → `{cheers: [{id, from: {userId, nickname}, kind, at}], last}`; last 10′ only | |
+| GET | `/v1/community/challenge` | Bearer | Weekly challenge room: `?week=YYYY-Www` (default this ISO week) → `{week, joined, training, leaderboard[≤20]: {rank, userId, nickname, avatarUrl, level, rounds, reps, live, me}, me}`; blocks and hidden members left out | 403 `community_profile_required` |
+| PUT | `/v1/community/challenge/score` | Bearer | `{week, rounds 0–200, reps 0–999}` → `{week, rounds, reps, rank, best}`; the best score stays | 400 `week_closed` |
 | GET | `/share/:id` | – | Public web card of a `public` post (HTML, Open Graph) | 404 |
 
 ## Workout library

@@ -106,3 +106,43 @@ export const ensureCommunitySchema = (db: DB): void => {
     `);
   }
 };
+
+/** Live group sessions (#626): gym buddies, live sets, cheers and the weekly challenge room. */
+export const ensureLiveSchema = (db: DB): void => {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS community_buddies (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      buddy_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, buddy_id)
+    );
+    CREATE INDEX IF NOT EXISTS community_buddies_buddy ON community_buddies(buddy_id);
+    CREATE TABLE IF NOT EXISTS community_live (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      exercise TEXT NOT NULL,
+      detail TEXT,
+      state TEXT NOT NULL CHECK (state IN ('set', 'rest', 'done')),
+      challenge_week TEXT,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS community_live_cheers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      to_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      from_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL CHECK (kind IN ('fire', 'banana', 'beast')),
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS community_live_cheers_to ON community_live_cheers(to_id, id);
+    CREATE TABLE IF NOT EXISTS community_challenge_scores (
+      week TEXT NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      rounds INTEGER NOT NULL,
+      reps INTEGER NOT NULL,
+      score INTEGER NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (week, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS community_challenge_board ON community_challenge_scores(week, score DESC);
+  `);
+};

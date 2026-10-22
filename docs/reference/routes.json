@@ -97,6 +97,30 @@
   },
   {
     "method": "GET",
+    "path": "/v1/community/buddies"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/community/buddies/:userId"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/community/buddies/:userId"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/community/buddies/:userId/cheers"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/community/challenge"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/community/challenge/score"
+  },
+  {
+    "method": "GET",
     "path": "/v1/community/feed"
   },
   {
@@ -110,6 +134,18 @@
   {
     "method": "PUT",
     "path": "/v1/community/follows/:userId"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/community/live"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/community/live"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/community/live/cheers"
   },
   {
     "method": "DELETE",

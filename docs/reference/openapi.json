@@ -2972,6 +2972,263 @@
         }
       }
     },
+    "/v1/community/buddies": {
+      "get": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "Gym buddies (#626) → {buddies: [{userId, nickname, avatarUrl, level, status paired|invited|invites_you, live}]}; live (title, exercise, detail, state set|rest|done, updatedAt) only when paired and sent in the last 10′",
+        "description": "Errors / limits: 403 community_profile_required",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/community/buddies/{userId}": {
+      "put": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "Invite, or accept an invite → {status: paired|invited}; up to 20",
+        "description": "Errors / limits: 400 own_content, too_many_buddies; 404",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "Unpair, cancel or decline → 204; blocking or leaving the community also unpairs",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/community/buddies/{userId}/cheers": {
+      "post": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "{kind fire|banana|beast} to a paired buddy → 204",
+        "description": "Errors / limits: 404 not paired; 60/min",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/community/live": {
+      "put": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "Live set for buddies and the challenge room: {title, exercise, detail?, state set|rest|done, challengeWeek?} → 204; one row, replaced per set",
+        "description": "Errors / limits: 400 objectionable_content; 403 community_profile_required",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "Workout ended → 204",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/community/live/cheers": {
+      "get": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "?after= last id seen → {cheers: [{id, from: {userId, nickname}, kind, at}], last}; last 10′ only",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/community/challenge": {
+      "get": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "Weekly challenge room: ?week=YYYY-Www (default this ISO week) → {week, joined, training, leaderboard[≤20]: {rank, userId, nickname, avatarUrl, level, rounds, reps, live, me}, me}; blocks and hidden members left out",
+        "description": "Errors / limits: 403 community_profile_required",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/community/challenge/score": {
+      "put": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "{week, rounds 0–200, reps 0–999} → {week, rounds, reps, rank, best}; the best score stays",
+        "description": "Errors / limits: 400 week_closed",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/share/{id}": {
       "get": {
         "tags": [
