@@ -58,6 +58,9 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var sportAddOn: SportAddOnPref?
     /// Calisthenics skill tree (#621): best tests and the skill of the month.
     var skills: SkillProgress?
+    /// Cycling FTP in watts (#623) and when it was last tested; power zones follow it.
+    var bikeFTP: Int?
+    var bikeFTPTestedAt: Date?
 
     /// Training profile with this week's learned tastes (#299): quick sessions and plan variations.
     var tasteProfile: Profile {

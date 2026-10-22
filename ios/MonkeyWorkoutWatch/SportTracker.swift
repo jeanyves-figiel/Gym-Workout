@@ -90,6 +90,9 @@ enum TrackedSport: String, CaseIterable, Identifiable {
     }
 
     /// GPS is worth its battery: outdoor sports that move.
+    /// Bike rides use Bluetooth power, cadence and heart-rate sensors (#623).
+    var bike: Bool { self == .roadBike || self == .mountainBike }
+
     var usesGPS: Bool { ![TrackedSport.crossfit, .rowing, .tennis, .padel, .football].contains(self) }
     /// Downhill: runs split at lifts, vertical counted down.
     var downhill: Bool { self == .snowboard || self == .ski }
@@ -263,6 +266,7 @@ final class SportTracker: NSObject {
         if run != nil { startRun() }
         // Batched sensors only run inside the workout session.
         if let lever = sport.swingLever { impacts.startSwings(lever: lever) }
+        if sport.bike { BikeSensors.shared.connect() }
     }
 
     private func reset() {
@@ -530,6 +534,7 @@ final class SportTracker: NSObject {
         runTimer?.invalidate()
         runTimer = nil
         run = nil
+        if sport?.bike == true { BikeSensors.shared.disconnect() }
         session = nil
         builder = nil
         routeBuilder = nil

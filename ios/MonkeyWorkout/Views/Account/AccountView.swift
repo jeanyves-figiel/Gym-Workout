@@ -48,6 +48,7 @@ struct AccountView: View {
         static let action = "Action button apple watch ultra"
         static let lift = "Lift sensor beta apple watch reps bar speed velocity"
         static let garmin = "Garmin watch connect iq fenix forerunner venu epix pair code"
+        static let bike = "Bike sensors power meter cadence heart rate strap ftp zones cycling watts"
         static let style = "Style look theme monkey coach watch face home"
         static let widgets = "Home Screen widgets"
         static let monkeyGrade = "MonkeyGrade climbing connected apps"
@@ -67,7 +68,7 @@ struct AccountView: View {
 
         static let you = [pro, profile, gym, body]
         static let training = [method, flow, coach, reminders, climbing, fuel]
-        static let watch = [watchStart, action, lift, garmin]
+        static let watch = [watchStart, action, lift, garmin, bike]
         static let look = [style, widgets, monkeyGrade]
         static let account = [password, email, security, devices, lock, export, signOut, delete]
         static let help = [whatsNew, report, privacy, terms, support]
@@ -296,6 +297,13 @@ struct AccountView: View {
                     NavigationLink { GarminView() } label: {
                         SettingsRow(symbol: "watch.analog", title: "Garmin watch",
                                     value: GarminSync.shared.paired ? "Paired" : "Pair")
+                    }
+                    .buttonStyle(.plain)
+                }
+                // Bike sensors and FTP (#623).
+                if search.matches(Find.bike) {
+                    NavigationLink { BikeSensorsView() } label: {
+                        SettingsRow(symbol: "bicycle", title: "Bike sensors", value: model.bikeFTP.map { "FTP \($0) W" } ?? "Set up")
                     }
                     .buttonStyle(.plain)
                 }
