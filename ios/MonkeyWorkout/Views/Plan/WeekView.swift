@@ -906,8 +906,9 @@ private struct NextUpCard: View {
             // The week at a glance (#266): missed days red (tap to catch up), today ringed; any other day shows here (#277).
             WeekDayStrip(selected: stripDay, onPick: onPick)
             if showsJump {
-                // A picked day's way back as a chip on its own short line (#562, design B), same as the rest day card.
-                HStack {
+                // A picked day's way back on the day's label line (#652, design A), outside the tappable summary.
+                HStack(alignment: .center, spacing: 10) {
+                    eyebrowText
                     Spacer(minLength: 0)
                     DayJumpChip(label: backChipTitle(model, toToday: backToToday), action: onBack)
                 }
@@ -967,7 +968,7 @@ private struct NextUpCard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(eyebrow).font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
+                    if !showsJump { eyebrowText }
                     // Long titles wrap instead of shrinking or cutting off (#538).
                     Text(session.displayTitle).font(Theme.display(compact ? 26 : 30)).foregroundStyle(.white)
                         .lineLimit(3).minimumScaleFactor(0.9).fixedSize(horizontal: false, vertical: true)
@@ -1008,6 +1009,11 @@ private struct NextUpCard: View {
     /// The next session's card needs a way back too when back means today.
     private var showsJump: Bool { picked != nil && (!isNext || backToToday) }
     private var isNext: Bool { session.id == model.nextSession?.id }
+
+    private var eyebrowText: some View {
+        Text(eyebrow).font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
+            .lineLimit(1).minimumScaleFactor(0.8)
+    }
 
     private var eyebrow: String {
         if let later, let date = later.week.date(later.weekday, model.planCalendar) {
