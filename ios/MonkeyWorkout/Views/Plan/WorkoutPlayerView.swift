@@ -352,6 +352,7 @@ struct WorkoutPlayerView: View {
                 upright(step, session: session)
             }
         }
+        .duoPosture($posture)
         .task(id: autoNext) {
             // Countdown over: on to the next exercise (a timed one waits for START).
             guard let a = autoNext, a.uid == step.item.uid else { return }

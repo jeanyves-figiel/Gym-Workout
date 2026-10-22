@@ -39,17 +39,6 @@ jobs:
           xcodebuild -version
       - run: brew install xcodegen
       - run: xcodegen generate --spec ios/project.yml
-      - name: Probe iOS 27.1 hinge API (temporary, #598)
-        run: |
-          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-          for fw in SwiftUI UIKit SwiftUICore; do
-            find "$SDK/System/Library/Frameworks/$fw.framework" -name "*.swiftinterface" -path "*arm64e-apple-ios*" 2>/dev/null | head -1 | while read f; do
-              echo "== $fw $f"; grep -n -i -E "hinge|posture|fold" "$f" | head -80
-            done
-            grep -rl -i "hinge" "$SDK/System/Library/Frameworks/$fw.framework/Headers" 2>/dev/null | head -5 | while read h; do
-              echo "== $h"; grep -n -i "hinge" "$h" | head -60
-            done
-          done
       - name: Build Debug + Staging
         run: |
           set -o pipefail
