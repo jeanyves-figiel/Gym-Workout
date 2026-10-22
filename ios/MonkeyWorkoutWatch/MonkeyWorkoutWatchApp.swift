@@ -143,16 +143,38 @@ extension View {
 
 struct LimeButton: View {
     let title: String
+    /// Double tap presses it (#604); one per screen.
+    var pinch = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(title).font(W.label(14)).foregroundStyle(W.ink).frame(maxWidth: .infinity)
+            HStack(spacing: 4) {
+                Text(title).font(W.label(14))
+                if pinch { PinchMark() }
+            }
+            .foregroundStyle(W.ink).frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
         .tint(W.lime)
         .buttonBorderShape(.capsule)
         .shadow(color: W.lime.opacity(0.45), radius: 8)
+        .pinch(pinch)
+    }
+}
+
+/// Small hand on the button double tap presses (#604).
+struct PinchMark: View {
+    var body: some View {
+        Image(systemName: "hand.pinch.fill").font(.system(size: 10, weight: .bold)).opacity(0.75)
+            .accessibilityLabel("Double tap")
+    }
+}
+
+extension View {
+    /// Double tap (watchOS 11) presses this button (#604). Only one per screen may be on.
+    @ViewBuilder func pinch(_ on: Bool) -> some View {
+        if on { handGestureShortcut(.primaryAction) } else { self }
     }
 }
 

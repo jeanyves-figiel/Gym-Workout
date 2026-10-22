@@ -74,6 +74,8 @@ extension Notification.Name {
     static let workoutStepKg = Notification.Name("workoutStepKg")
     /// Lock-screen lime button: what the player's lime button does.
     static let workoutMain = Notification.Name("workoutMain")
+    /// Siri "log 8 at 80" (#605): fills the coming set and logs it (userInfo: "reps" Int, "kg" Double?).
+    static let workoutVoiceLog = Notification.Name("workoutVoiceLog")
 }
 
 /// "+15 s" on the lock screen. Live Activity intents run in the app's process.

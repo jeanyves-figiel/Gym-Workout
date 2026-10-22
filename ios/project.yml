@@ -95,6 +95,10 @@ targets:
         NSHealthUpdateUsageDescription: Saves your gym sessions as workouts, the weight, height, body fat, lean mass and waist you enter, and the water you log in Fuel, to Apple Health.
         ITSAppUsesNonExemptEncryption: false
         NSSupportsLiveActivities: true
+        # Workout mirrored from the Watch (#603): keeps the app running for it with the phone locked.
+        UIBackgroundModes: [workout-processing]
+        # Siri sees the open exercise page (#605).
+        NSUserActivityTypes: [com.monkeyworkout.exercise]
         MWAppGroup: $(APP_GROUP)
         # Home Screen widget taps (#297): monkeyworkout://session/<id>, monkeyworkout://progress, …
         CFBundleURLTypes:

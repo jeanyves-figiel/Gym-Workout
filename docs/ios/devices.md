@@ -34,6 +34,8 @@ sequenceDiagram
 - **Lift sensor** (`LiftTracker`, `LiftViews`): rep counting from Core Motion, strap prompt, test rep and practice mode, auto-log banner.
 - **Sports** (`SportTracker`, `SportViews`) and **Hyrox** (`HyroxTracker`, `HyroxViews`): tracked on the Watch, uploaded directly or via the phone.
 - **Action button** (Ultra, `ActionButton`): start next up, next, pause, resume as App Intents.
+- **Double tap** (watchOS 11): presses the one lime button on screen, marked with a small hand (`LimeButton(pinch:)`, `View.pinch(_:)`, `PinchMark`): log set / start / next on the player, Skip during rest, the iPhone-run player's main button, LAP in sports, DONE in Hyrox. The Crown sets the reps before the pinch.
+- **Mirroring** (`WorkoutManager.sendMirror`, iPhone `MirroredWorkout`): every Watch workout session mirrors to the iPhone (`startMirroringToCompanionDevice`). A workout run on the Watch sends its player state (`WMirrorState`) and the iPhone shows it in the **twin player** (`TwinPlayerView`, banner `WatchLiveBanner` on Train); twin presses come back as `WCommand`s (`mirrorCommand`). The iPhone's mirrored session (background mode `workout-processing`) also keeps an iPhone-run workout tracked by the Watch answering it with the phone locked. **Move to Watch** in the player's workout map wakes the Watch to take the workout over.
 - Data: `snapshot.json` in the Watch container + App Group snapshot for complications.
 
 ### Complications (`MonkeyWorkoutWatchComplications`)
@@ -45,10 +47,19 @@ Next workout, Weekly goal, Streak, Week strip, Readiness, Top lift, Last workout
 - **MonkeyWorkout widget** (configurable, App Intent): Next up, This week, Streak, Readiness, Level + XP, Top lifts, Last workout, Volume, Climbing, Fuel, Week dashboard. Families: small, medium, large, Lock Screen circular, rectangular, inline. **Start** opens today's session in the player (`monkeyworkout://start/<id>`), another day says Open.
 - **Water widget**: small, medium, Lock Screen circular and rectangular; **+1** counts a glass without opening the app (`AddWaterIntent`); glasses wait in the App Group `WaterQueue` until the app is active.
 - Data written by `HomeWidgetSync` to `home-widgets.json` in the App Group; timelines reloaded on changes.
+- **Controls** (`Controls.swift`, iOS 18): Start today (`monkeyworkout://today`), Smart next (`monkeyworkout://next`: the player's main step during a workout, else start today), +1 glass (`AddWaterIntent`), Just ate (`monkeyworkout://justate`). For Control Center, the Lock Screen and the iPhone Action button.
+
+## Siri, Shortcuts and Spotlight (`App/SiriIntents.swift`)
+
+- `MonkeyShortcuts` (the app's only `AppShortcutsProvider`): Start today, Log set ("log 8 at 80", `LogSetByVoiceIntent` → `workoutVoiceLog` → player), Add water, Just ate, Best lift (`BestLiftIntent`, answer card), Ask Coach.
+- `ExerciseEntity` (`IndexedEntity`): catalog and own exercises; main lifts indexed in Spotlight at launch. The exercise page shares its entity with Siri (`NSUserActivity.appEntityIdentifier`, iOS 18.2) so "my best on this" works there.
+- Intents reach the app's `AppModel` through `AppDependencyManager` (`MonkeyWorkoutApp.init`).
 
 ## Live Activity (`WorkoutLiveActivity`, `Shared/WorkoutActivity`)
 
 Started by the player: Lock Screen and Dynamic Island show the exercise, set ("Set 2 of 4"), load ("82.5 kg × 8"), rest countdown and what's next, tinted by block. When the coming set is logged by kg × reps, effort tiles log it from the Lock Screen.
+
+On the Apple Watch Smart Stack (`supplementalActivityFamilies([.small])`, `SmallCard`): the set with **Log ✓** (`MainActionIntent`), the rest ring (tap skips) while resting, the summary once done.
 
 ## Garmin
 

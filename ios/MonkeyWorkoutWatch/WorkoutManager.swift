@@ -67,6 +67,8 @@ final class WorkoutManager: NSObject {
             running = true
             paused = false
             ActionButton.sessionStarted()
+            // iPhone sees the session live (#603): heart rate, calories and the twin player, even locked.
+            try? await s.startMirroringToCompanionDevice()
         } catch {
             discard()
         }
@@ -99,6 +101,7 @@ final class WorkoutManager: NSObject {
     /// Ends and saves the Health workout. Returns false when no session ran (the phone saves it then).
     func finish(sets: Int?) async -> Bool {
         guard let session, let builder, running else { discard(); return false }
+        mirrorSent = nil
         session.end()
         defer {
             self.session = nil
@@ -183,6 +186,25 @@ final class WorkoutManager: NSObject {
         if phoneSessionId != nil, let store = WatchStore.current { store.stopTracking() } else { discard() }
     }
 
+    // MARK: Mirroring (#603)
+
+    /// Last state sent to the iPhone's twin player.
+    private var mirrorSent: WMirrorState?
+
+    /// What the Watch player shows, for the iPhone's twin player. Same state twice is sent once.
+    func sendMirror(_ state: WMirrorState) {
+        guard let session, state != mirrorSent, let data = try? JSONEncoder.watch.encode(state) else { return }
+        mirrorSent = state
+        Task { try? await session.sendToRemoteWorkoutSession(data: data) }
+    }
+
+    fileprivate func received(_ data: [Data]) {
+        for d in data {
+            guard let c = try? JSONDecoder.watch.decode(WCommand.self, from: d) else { continue }
+            NotificationCenter.default.post(name: .mirrorCommand, object: c)
+        }
+    }
+
     fileprivate func update(_ stats: HKStatistics) {
         switch stats.quantityType {
         case HKQuantityType(.heartRate):
@@ -212,6 +234,16 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
         Task { @MainActor in self.failed(workoutSession) }
     }
+
+    /// The iPhone's twin player pressed something (#603).
+    nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didReceiveDataFromRemoteWorkoutSession data: [Data]) {
+        Task { @MainActor in self.received(data) }
+    }
+}
+
+extension Notification.Name {
+    /// A `WCommand` from the iPhone's twin player (#603), object: WCommand.
+    static let mirrorCommand = Notification.Name("mirrorCommand")
 }
 
 extension WorkoutManager: HKLiveWorkoutBuilderDelegate {

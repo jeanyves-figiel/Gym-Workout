@@ -107,8 +107,12 @@ struct SportTrackView: View {
                     pair(("KCAL", "\(Int(tracker.kcal.rounded()))"), ("TIME", elapsed))
                 }
                 if sport.laps && !dimmed {
-                    Button { tracker.markLap() } label: { Text("LAP \(tracker.lap + 1) ›").font(W.label(12)).foregroundStyle(W.ink).frame(maxWidth: .infinity) }
-                        .buttonStyle(.borderedProminent).tint(W.lime).buttonBorderShape(.capsule)
+                    Button { tracker.markLap() } label: {
+                        HStack(spacing: 4) { Text("LAP \(tracker.lap + 1) ›").font(W.label(12)); PinchMark() }
+                            .foregroundStyle(W.ink).frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent).tint(W.lime).buttonBorderShape(.capsule)
+                    .pinch(true)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

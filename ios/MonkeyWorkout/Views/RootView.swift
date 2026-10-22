@@ -121,6 +121,11 @@ struct MainTabView: View {
         .modifier(NotificationsHost())
         // Shake to report and Report on errors (#467) present over any screen.
         .onAppear { ProblemReporter.shared.model = model }
+        // Workout run on the Watch (#603): its twin player.
+        .fullScreenCover(isPresented: Binding(get: { MirroredWorkout.shared.presented && !model.offerPro },
+                                              set: { MirroredWorkout.shared.presented = $0 })) {
+            TwinPlayerView()
+        }
         .fullScreenCover(isPresented: Binding(get: { model.offerPro }, set: { model.offerPro = $0 })) {
             NavigationStack { ProView(context: .onboarding) { model.offerPro = false } }
         }

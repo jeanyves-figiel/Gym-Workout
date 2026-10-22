@@ -255,8 +255,9 @@ final class WatchSync: NSObject {
 
     /// Wakes the Watch app when a workout starts on the iPhone so it can offer to track it (#347).
     /// Needs a paired Watch with the app installed; `HKHealthStore.startWatchApp` only reaches a Watch on the wrist.
-    func offerStart(sessionId: String) {
-        guard WatchStartPref.shared.mode != .never, trackedBy != sessionId, let session, session.activationState == .activated,
+    /// `asked`: the member tapped Move to Watch (#603), so the Never setting doesn't hold it back.
+    func offerStart(sessionId: String, asked: Bool = false) {
+        guard asked || WatchStartPref.shared.mode != .never, trackedBy != sessionId, let session, session.activationState == .activated,
               session.isPaired, session.isWatchAppInstalled else { return }
         health?.startWatchApp()
     }

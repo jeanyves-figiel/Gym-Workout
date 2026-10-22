@@ -1,3 +1,4 @@
+import ActivityKit
 import Foundation
 import WidgetKit
 import WorkoutEngine
@@ -144,6 +145,21 @@ enum HomeWidgetRouter {
             } else {
                 NotificationManager.shared.route = .session(id)
             }
+        case "today":
+            // Start today control (#607): today's next session in the player, else Train.
+            model.tab = .train
+            startToday(model)
+        case "next":
+            // Smart next control (#607): during a workout the player's main step (log set, skip rest), else start today.
+            model.tab = .train
+            if Activity<WorkoutActivityAttributes>.activities.contains(where: { $0.content.state.summary == nil }) {
+                NotificationCenter.default.post(name: .workoutMain, object: nil)
+            } else {
+                startToday(model)
+            }
+        case "justate":
+            model.tab = .fuel
+            FuelLaunch.shared.justAte = true
         case "progress", "level":
             model.tab = .progress
         case "fuel":
@@ -152,6 +168,24 @@ enum HomeWidgetRouter {
             model.tab = .train
         }
     }
+}
+
+extension HomeWidgetRouter {
+    fileprivate static func startToday(_ model: AppModel) {
+        guard let s = model.nextSession else { return }
+        if model.startableToday(s) {
+            PlayerLaunch.shared.sessionId = s.id
+        } else {
+            NotificationManager.shared.route = .session(s.id)
+        }
+    }
+}
+
+/// Just ate opened from outside Fuel (#607: Just ate control). Fuel presents the sheet and clears it.
+@MainActor @Observable
+final class FuelLaunch {
+    static let shared = FuelLaunch()
+    var justAte = false
 }
 
 /// A workout to open in the player from outside Train (#537: Start on a Home Screen widget). Train presents it and

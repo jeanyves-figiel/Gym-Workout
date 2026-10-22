@@ -623,23 +623,28 @@ struct MirrorView: View {
                 pill("+15 s", theme == .tiles ? AnyShapeStyle(W.gradient(0x3D5AFF, 0x7B3DFF)) : AnyShapeStyle(Color.white.opacity(0.2)), .white) {
                     store.send(WCommand.addRest)
                 }
-                pill("Skip", AnyShapeStyle(W.lime), W.ink) { store.send(WCommand.skipRest) }
+                pill("Skip", AnyShapeStyle(W.lime), W.ink, pinch: true) { store.send(WCommand.skipRest) }
             }
         }
         if live.effortPending {
             EffortGrid { store.send([WCommand.effort0, .effort1, .effort2, .effort3, .effort4][$0]) }
         } else if !resting {
-            LimeButton(title: live.action) { store.send(WCommand.main) }
+            LimeButton(title: live.action, pinch: true) { store.send(WCommand.main) }
         }
     }
 
-    private func pill(_ title: String, _ fill: AnyShapeStyle, _ text: Color, action: @escaping () -> Void) -> some View {
+    private func pill(_ title: String, _ fill: AnyShapeStyle, _ text: Color, pinch: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title).font(W.label(12)).foregroundStyle(text)
-                .frame(maxWidth: .infinity, minHeight: 30)
-                .background(Capsule().fill(fill))
+            HStack(spacing: 4) {
+                Text(title).font(W.label(12))
+                if pinch { PinchMark() }
+            }
+            .foregroundStyle(text)
+            .frame(maxWidth: .infinity, minHeight: 30)
+            .background(Capsule().fill(fill))
         }
         .buttonStyle(.plain)
+        .pinch(pinch)
     }
 }
 

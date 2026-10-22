@@ -320,6 +320,9 @@ struct WorkoutPlayerView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .workoutStepKg)) { n in stepKgFromLockScreen(n.object as? Int ?? 0) }
         .onReceive(NotificationCenter.default.publisher(for: .workoutMain)) { _ in handle(.main) }
+        .onReceive(NotificationCenter.default.publisher(for: .workoutVoiceLog)) { n in
+            siriLog(reps: n.userInfo?["reps"] as? Int, kg: n.userInfo?["kg"] as? Double)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .watchHeartRate)) { _ in updateLive() }
         .onChange(of: timed) { updateLive() }
         .onChange(of: autoNext) { updateLive() }
@@ -541,11 +544,33 @@ struct WorkoutPlayerView: View {
                 }
                 .buttonStyle(.plain)
             }
+            moveToWatch
         }
         .padding(.horizontal, 20)
         .padding(.top, 10)
         .padding(.bottom, steps.isEmpty ? 8 : 0)
         .background(Theme.bg.ignoresSafeArea())
+    }
+
+    /// Hand-off (#603, design C): the Watch takes the workout over so the phone can go in the locker. The Watch tracks
+    /// it and mirrors its session back, which keeps this player answering the Watch with the screen off.
+    @ViewBuilder private var moveToWatch: some View {
+        if WatchSync.shared.watchTracks(sessionId) {
+            Label("On your Watch too · phone can sleep", systemImage: "applewatch.radiowaves.left.and.right")
+                .font(Theme.label(13)).foregroundStyle(Theme.lime)
+                .frame(maxWidth: .infinity, minHeight: 36)
+        } else if WatchSync.shared.watchReady {
+            Button {
+                WatchSync.shared.offerStart(sessionId: sessionId, asked: true)
+            } label: {
+                Label("Move to Watch", systemImage: "applewatch")
+                    .font(Theme.label(14)).foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Your Watch takes over: log sets and rest from the wrist, the phone can sleep")
+        }
     }
 
     private func runMapAction() {
@@ -861,6 +886,19 @@ struct WorkoutPlayerView: View {
     private func listenForCommand() {
         coach.stop()
         listener.start { said in runVoice(said) }
+    }
+
+    /// Siri "log 8 at 80" (#605): the coming set's reps and kg, then logged as the lime button does.
+    private func siriLog(reps: Int?, kg: Double?) {
+        guard ready, !finished, steps.indices.contains(index) else { return }
+        let step = steps[index]
+        let done = setsDone[step.item.uid] ?? 0
+        if step.loggable, log.item?.uid == step.item.uid, !log.rows.isEmpty {
+            let row = min(done, log.rows.count - 1)
+            if let kg { log.setKg(row, kg) }
+            if let reps { log.setReps(row, reps) }
+        }
+        handle(.main)
     }
 
     /// Runs what the member said: set done (with effort), weight, reps, rest, next / previous; anything else is a question.
@@ -1699,6 +1737,8 @@ struct WorkoutPlayerView: View {
             }
         case .next: advance(step)
         case .previous: go(index - 1)
+        case .kgDown: stepKgFromLockScreen(-1)
+        case .kgUp: stepKgFromLockScreen(1)
         }
     }
 }

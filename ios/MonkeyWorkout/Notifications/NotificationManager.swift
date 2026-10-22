@@ -551,7 +551,10 @@ struct CalendarSessionSource: PlannedSessionSource {
 /// Bridges UIKit's remote-notification callbacks into SwiftUI.
 final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
-        MainActor.assumeIsolated { NotificationManager.shared.configure() }
+        MainActor.assumeIsolated {
+            NotificationManager.shared.configure()
+            MirroredWorkout.shared.listen()
+        }
         return true
     }
 

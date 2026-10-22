@@ -524,6 +524,30 @@ struct WWater: Codable, Equatable {
 /// Watch → phone remote control of the iPhone player.
 enum WCommand: String, Codable {
     case main, skipRest, addRest, effort0, effort1, effort2, effort3, effort4, next, previous
+    /// Twin player on the iPhone (#603): − / + on the coming set's kg.
+    case kgDown, kgUp
+}
+
+/// A workout run on the Watch, as the iPhone's twin player shows it (#603). Sent through HealthKit workout
+/// mirroring (`sendToRemoteWorkoutSession`), which also keeps the iPhone app running with the phone locked.
+struct WMirrorState: Codable, Equatable {
+    var sessionId: String
+    var title: String
+    var exercise: String
+    /// "SET 2 OF 4", "SUPERSET A · 1 OF 2".
+    var setLabel: String
+    /// "80 kg × 8", "0:45", "3 × 10".
+    var detail: String
+    var next: String
+    var restEnd: Date?
+    var tint: UInt32
+    var tint2: UInt32
+    /// The Watch's lime button ("SET DONE", "START 0:45", "NEXT").
+    var action: String
+    var loggable: Bool
+    var position: Int
+    var count: Int
+    var finished = false
 }
 
 enum WatchKeys {

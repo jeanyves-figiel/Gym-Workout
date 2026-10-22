@@ -412,6 +412,8 @@ struct WeekView: View {
         case .nextUp:
             if w.size == .large {
                 VStack(alignment: .leading, spacing: 18) {
+                    // Workout running on the Watch (#603): back to its twin player.
+                    if !arranging { WatchLiveBanner() }
                     nextUpCard(plan)
                     // One slot for the cards that only show for a while (#538): Start workout never moves down for them.
                     if !arranging { TrainNoticeSlot() }

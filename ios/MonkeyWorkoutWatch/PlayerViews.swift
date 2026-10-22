@@ -88,6 +88,55 @@ struct PlayerView: View {
             complete()
         }
         .onDisappear { lift.stop() }
+        // iPhone twin player (#603): what this page shows goes to the phone; its presses come back.
+        .onChange(of: mirrorState, initial: true) { _, s in workout.sendMirror(s) }
+        .onReceive(NotificationCenter.default.publisher(for: .mirrorCommand)) { n in
+            if let c = n.object as? WCommand { remote(c) }
+        }
+    }
+
+    // MARK: iPhone twin player (#603)
+
+    private var mirrorState: WMirrorState {
+        let step = player.step
+        let block = step.flatMap { blockOf($0) }
+        var detail = ""
+        if let step {
+            if step.loggable, let row = player.currentRow, player.done < step.sets {
+                detail = "\(WatchPlayer.kg(row.kg)) kg × \(row.reps)"
+            } else if let sec = step.timedSec {
+                detail = WatchPlayer.clock(player.timedRemaining ?? TimeInterval(sec))
+            } else {
+                detail = step.sets > 1 ? "\(step.sets) × \(step.reps)" : step.reps
+            }
+        }
+        var restEnd: Date?
+        if case let .rest(end, _, _) = player.phase { restEnd = end }
+        let setLabel = step.map { s in
+            let set = s.sets > 1 ? "SET \(min(player.done + 1, s.sets)) OF \(s.sets)" : ""
+            return [block?.title.uppercased() ?? "", set].filter { !$0.isEmpty }.joined(separator: " · ")
+        } ?? ""
+        return WMirrorState(
+            sessionId: player.session.id, title: player.session.title, exercise: step?.name ?? "Done", setLabel: setLabel,
+            detail: detail, next: player.upNext, restEnd: restEnd, tint: block?.tint ?? 0x2F6BFF, tint2: block?.tint2 ?? 0x8A4DFF,
+            action: player.mainLabel, loggable: step?.loggable == true && player.done < (step?.sets ?? 0),
+            position: player.index + 1, count: player.steps.count, finished: player.phase == .finished)
+    }
+
+    private func remote(_ c: WCommand) {
+        switch c {
+        case .main:
+            if case .rest = player.phase { send(player.skipRest()) } else { main() }
+        case .skipRest: send(player.skipRest())
+        case .addRest: player.addRest()
+        case .effort0, .effort1, .effort2, .effort3, .effort4:
+            send(player.effort([WCommand.effort0, .effort1, .effort2, .effort3, .effort4].firstIndex(of: c) ?? 2))
+        case .next: send(player.advance())
+        case .previous: player.back()
+        case .kgDown: player.adjustKg(-1)
+        case .kgUp: player.adjustKg(1)
+        }
+        WKInterfaceDevice.current().play(.click)
     }
 
     // MARK: Lift sensor (#383)
@@ -264,9 +313,9 @@ struct PlayerView: View {
                 if let autoLogAt, let row = player.currentRow {
                     AutoLogBanner(title: "\(WatchPlayer.kg(row.kg)) kg × \(row.reps)", end: autoLogAt, onUndo: undoAutoLog)
                 } else if waitingForTap, let row = player.currentRow {
-                    LimeButton(title: "✓ LOG \(row.reps) REPS") { main() }
+                    LimeButton(title: "✓ LOG \(row.reps) REPS", pinch: pinchOnPage) { main() }
                 } else {
-                    LimeButton(title: player.mainLabel) { main() }
+                    LimeButton(title: player.mainLabel, pinch: pinchOnPage) { main() }
                 }
                 HStack(spacing: 5) {
                     Text("NEXT").font(W.label(8)).tracking(1).foregroundStyle(.secondary)
@@ -298,6 +347,12 @@ struct PlayerView: View {
             }
         }
         .overlay { liftOverlay }
+    }
+
+    /// Double tap (#604) presses the page's big button unless the rest or a sensor prompt covers it.
+    private var pinchOnPage: Bool {
+        if case .rest = player.phase { return false }
+        return lift.mode != .strap && lift.mode != .testRep && lift.calibratedAt == nil
     }
 
     private func blockOf(_ it: WItem) -> WBlock? {
@@ -594,7 +649,7 @@ struct RestOverlay: View {
                 restTile(end)
             } else {
                 if effort { Text("How hard?").font(W.display(14)).lineLimit(1) }
-                pill("Continue", fill: W.lime, text: W.ink, action: onSkip)
+                pill("Continue", fill: W.lime, text: W.ink, pinch: true, action: onSkip)
             }
             if effort {
                 EffortGrid(onEffort: onEffort, rowHeight: 28)
@@ -644,7 +699,7 @@ struct RestOverlay: View {
                     Spacer(minLength: 2)
                     square("+15", fill: .black.opacity(0.28), text: .white, action: onAdd)
                         .accessibilityLabel("Add 15 seconds")
-                    square("Skip", fill: W.lime, text: W.ink, action: onSkip)
+                    square("Skip", fill: W.lime, text: W.ink, pinch: true, action: onSkip)
                         .accessibilityLabel("Skip rest")
                 }
                 GeometryReader { g in
@@ -668,22 +723,32 @@ struct RestOverlay: View {
         return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.6 ? W.ink : .white
     }
 
-    private func square(_ title: String, fill: Color, text: Color, action: @escaping () -> Void) -> some View {
+    private func square(_ title: String, fill: Color, text: Color, pinch: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title).font(W.label(12)).foregroundStyle(text).lineLimit(1).minimumScaleFactor(0.7)
-                .frame(width: 40, height: 34)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(fill))
+            VStack(spacing: 0) {
+                Text(title).font(W.label(12)).lineLimit(1).minimumScaleFactor(0.7)
+                if pinch { PinchMark() }
+            }
+            .foregroundStyle(text)
+            .frame(width: 40, height: 34)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(fill))
         }
         .buttonStyle(.plain)
+        .pinch(pinch)
     }
 
-    private func pill(_ title: String, fill: Color, text: Color, action: @escaping () -> Void) -> some View {
+    private func pill(_ title: String, fill: Color, text: Color, pinch: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title).font(W.label(12)).foregroundStyle(text)
-                .frame(maxWidth: .infinity, minHeight: 30)
-                .background(Capsule().fill(fill))
+            HStack(spacing: 4) {
+                Text(title).font(W.label(12))
+                if pinch { PinchMark() }
+            }
+            .foregroundStyle(text)
+            .frame(maxWidth: .infinity, minHeight: 30)
+            .background(Capsule().fill(fill))
         }
         .buttonStyle(.plain)
+        .pinch(pinch)
     }
 }
 
