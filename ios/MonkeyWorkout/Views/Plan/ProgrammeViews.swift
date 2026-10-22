@@ -73,6 +73,12 @@ struct ProgrammeLibrarySection: View {
             SeasonPickerCard()
             // Calisthenics skill tree (#621).
             SkillTreeCard()
+            // Life-stage programmes (#625 A): gradient cards, each starts with a check-in on its page.
+            Text("Life stages").eyebrow()
+            ForEach(Programme.lifeStages.filter { !$0.sameFamily(model.activeProgramme?.programmeId) }) { p in
+                NavigationLink(value: ProgrammeRoute(id: p.id)) { ProgrammeCard(programme: p) }
+                    .buttonStyle(.plain)
+            }
             Text("Programmes").eyebrow()
             ForEach(Programme.catalog.filter { !$0.sameFamily(model.activeProgramme?.programmeId) }) { p in
                 NavigationLink(value: ProgrammeRoute(id: p.id)) { ProgrammeCard(programme: p) }
@@ -232,6 +238,7 @@ struct ProgrammeDetailView: View {
                     header
                     if base.snowRide != nil, mine == nil || mine?.firstDay != nil { snowSetup }
                     if base.isSeason, mine == nil || mine?.firstDay != nil { seasonSetup }
+                    if let stage = base.lifeStage { LifeStageSetup(stage: stage, running: mine != nil) }
                     if base.isHyrox { hyroxSetup }
                     ProgrammePhaseStrip(programme: programme, week: mine == nil ? nil : model.programmeWeek)
                     if mine != nil, !base.isHyrox { lengthRow }
@@ -610,6 +617,8 @@ struct ProgrammeDetailView: View {
             bigButton(model.activeProgramme == nil ? "Start programme" : "Switch to this programme", "flag.checkered", fill: Theme.lime) {
                 lengthSheet = true
             }
+            // Life stages (#625): only with the check-in done and the doctor's OK.
+            .disabled(base.lifeStage.map { s in model.lifeStageCheckIn.map { $0.stage != s || !$0.doctorOK } ?? true } ?? false)
             Text("Starts this week, week 1: \(programme.phases[0].kind.label). Pick \(Self.list(standard.lengths.map(\.weeks))) weeks.")
                 .font(.caption).foregroundStyle(Theme.muted)
         }

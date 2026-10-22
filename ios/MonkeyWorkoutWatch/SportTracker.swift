@@ -89,10 +89,10 @@ enum TrackedSport: String, CaseIterable, Identifiable {
         }
     }
 
-    /// GPS is worth its battery: outdoor sports that move.
     /// Bike rides use Bluetooth power, cadence and heart-rate sensors (#623).
     var bike: Bool { self == .roadBike || self == .mountainBike }
 
+    /// GPS is worth its battery: outdoor sports that move.
     var usesGPS: Bool { ![TrackedSport.crossfit, .rowing, .tennis, .padel, .football].contains(self) }
     /// Downhill: runs split at lifts, vertical counted down.
     var downhill: Bool { self == .snowboard || self == .ski }

@@ -82,6 +82,7 @@ struct SportPowerView: View {
                         }
                         .buttonStyle(.plain)
                     }
+                }
                 if sport.bike {
                     // Bike sensors and the FTP test (#623 A + C).
                     Button { sensors = true } label: {
@@ -101,10 +102,8 @@ struct SportPowerView: View {
         .sheet(isPresented: $sensors) { BikeSensorsPage() }
     }
 
-    private func start(_ p: TrackPower) {
-        Task { await SportTracker.shared.start(sport, power: p, target: target) }
     private func start(_ p: TrackPower, test: Bool = false) {
-        Task { await SportTracker.shared.start(sport, power: p) }
+        Task { await SportTracker.shared.start(sport, power: p, target: target) }
         if test { BikeSensors.shared.startTest() }
         dismiss()
     }
