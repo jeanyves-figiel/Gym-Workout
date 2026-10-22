@@ -3003,7 +3003,7 @@
         "tags": [
           "Community"
         ],
-        "summary": "Invite, or accept an invite → {status: paired|invited}; up to 20",
+        "summary": "Invite, or accept an invite → {status: paired|invited}; up to 20; push buddy_invite (actorId, actorName) to the invitee, or to the inviter once paired",
         "description": "Errors / limits: 400 own_content, too_many_buddies; 404",
         "parameters": [
           {

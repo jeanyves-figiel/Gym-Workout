@@ -517,7 +517,8 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
     /// Where a tapped notification goes; nil = just open the app.
     nonisolated static func route(kind: String?, action: String, sessionId: String?, day: Date?,
                                   badgeId: String?, actorId: String?, actorName: String?) -> NotificationRoute? {
-        if kind == "follow_achievement", let actorId { return .member(userId: actorId, nickname: actorName ?? "") }
+        // Gym buddy invite or pairing (#626) opens the member's page, where Gym buddy accepts.
+        if kind == "follow_achievement" || kind == "buddy_invite", let actorId { return .member(userId: actorId, nickname: actorName ?? "") }
         if kind == "badge", let badgeId { return .badge(badgeId) }
         guard let sessionId else { return nil }
         switch (kind, action) {
