@@ -6,7 +6,7 @@ import Testing
     @Test func classicIsTodaysPage() {
         let b = ProgressBoard.classic
         #expect(b.widgets.map(\.kind) == [.level, .chest, .streak, .growth, .training, .body, .records, .badges, .muscles, .programmes, .history, .consistency, .weekly, .mood])
-        #expect(b.rows.count == 10)
+        #expect(b.rows.count == 11)
     }
 
     @Test func sportWidgetsOnePerSport() {
