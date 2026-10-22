@@ -350,16 +350,18 @@ struct TimedSetCard: View {
     let done: Int
     let easySec: Int?
     let colors: [Color]
+    /// Short screens (iPhone Duo outer screen, #594): a smaller ring and no hint, so the exercise picture keeps its height.
+    var short = false
 
     var body: some View {
         HStack(spacing: 16) {
-            TimedRing(run: run, color: [colors[1], colors[0]], size: 132)
+            TimedRing(run: run, color: [colors[1], colors[0]], size: short ? 96 : 132)
             VStack(alignment: .leading, spacing: 8) {
                 Text(sets > 1 ? (done >= sets ? "All \(sets) done" : "Round \(min(done, sets - 1) + 1) of \(sets)") : "Timed")
                     .font(Theme.label(13)).tracking(1.2).textCase(.uppercase)
                 Text("Work \(Format.elapsed(Double(run.total)))" + (easySec.map { " · easy \(Format.elapsed(Double($0)))" } ?? ""))
                     .font(Theme.label(13)).foregroundStyle(Theme.muted)
-                Text("Nothing to log. Tap Start and go.").font(.caption).foregroundStyle(Theme.muted)
+                if !short { Text("Nothing to log. Tap Start and go.").font(.caption).foregroundStyle(Theme.muted) }
                 if sets > 1 { SetChips(count: sets, done: done, current: done, color: colors[0]) }
             }
             Spacer(minLength: 0)

@@ -56,6 +56,9 @@ struct ExerciseHeroCard: View {
     /// Landscape player (#362, #373 design A): smaller type, the picture takes all the height left with Form /
     /// Change / Setup stacked beside it, no note.
     var compact = false
+    /// Short upright screen (iPhone Duo outer screen, #594 design A): name and target on one line, no note, so the
+    /// picture keeps its height.
+    var short = false
     let onForm: () -> Void
 
     /// Colour and label of the item: a cardio, mobility or stretch move inside a strength block (custom and example
@@ -81,13 +84,23 @@ struct ExerciseHeroCard: View {
                 Text(position).font(Theme.label(12)).monospacedDigit()
             }
             .opacity(0.9)
-            Text(exercise.name)
-                .font(Theme.display(compact ? 22 : 28))
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
+            if !short {
+                Text(exercise.name)
+                    .font(Theme.display(compact ? 22 : 28))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+            }
             HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if short {
+                    Text(exercise.name)
+                        .font(Theme.display(24))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                        .layoutPriority(1)
+                    Text("·").font(Theme.display(24)).opacity(0.6)
+                }
                 Text(item.prescription.sets > 1 ? "\(item.prescription.sets)×\(item.prescription.reps)" : item.prescription.reps)
-                    .font(Theme.display(compact ? 26 : 34))
+                    .font(Theme.display(compact ? 26 : short ? 24 : 34))
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                 VStack(alignment: .leading, spacing: 0) {
@@ -145,7 +158,7 @@ struct ExerciseHeroCard: View {
             }
             if item.group != nil, onSplit != nil || onGroup != nil {
                 groupRow
-            } else if !compact, let n = item.prescription.note {
+            } else if !compact, !short, let n = item.prescription.note {
                 Text(n).font(.caption.weight(.semibold)).opacity(0.85).lineLimit(1)
             }
         }
