@@ -11,7 +11,7 @@ enum WristCoach {
     }
 
     /// `rows`: the exercise's sets; `done`: sets finished. Nil when there's nothing worth saying or no set left.
-    static func advice(rows: [WatchPlayer.Row], done: Int, kgStep: Double) -> Advice? {
+    @MainActor static func advice(rows: [WatchPlayer.Row], done: Int, kgStep: Double) -> Advice? {
         guard done < rows.count, done > 0 else { return nil }
         let coming = rows[done].kg
         let logged = rows.prefix(done).filter(\.logged)
