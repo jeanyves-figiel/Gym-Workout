@@ -410,6 +410,10 @@ final class WatchSync: NSObject {
         let fuel = FuelStore.shared
         s.water = WWater(day: fuel.key(today), glasses: fuel.log(today).glasses, target: model.fuelPlan(on: today).glasses,
                          glassMl: fuel.prefs.glassMl)
+        // Smart Stack (#612 A): Next up rises at the home gym.
+        if let g = model.homePlace, let lat = g.latitude, let lng = g.longitude {
+            s.gym = WGym(name: g.name, latitude: lat, longitude: lng)
+        }
         let target = model.profile?.sessionsPerWeek ?? 3
         let stats = Progression.stats(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
         s.progress = WProgress(

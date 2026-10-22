@@ -29,7 +29,7 @@ sequenceDiagram
 ```
 
 - **Home** (`HomeStyles`, `BrowseViews`): three styles (Coach, Deck, Rings), picked on the phone or the Watch, latest wins. Next session, week, readiness, water.
-- **Player** (`PlayerViews`, `WatchPlayer`, `WorkoutManager`): runs a session from the phone's plan or mirrors / remote-controls the iPhone player; rest overlay, effort grid, set logging.
+- **Player** (`PlayerViews`, `WatchPlayer`, `WorkoutManager`): runs a session from the phone's plan or mirrors / remote-controls the iPhone player; rest overlay, effort grid, set logging. Done screen asks effort (Digital Crown, saved on the Health workout) and mood (saved as a State of Mind).
 - **Phone start** (`PhoneStartViews`): when the phone starts a workout the Watch is woken and offers to track it.
 - **Lift sensor** (`LiftTracker`, `LiftViews`): rep counting from Core Motion, strap prompt, test rep and practice mode, auto-log banner.
 - **Sports** (`SportTracker`, `SportViews`) and **Hyrox** (`HyroxTracker`, `HyroxViews`): tracked on the Watch, uploaded directly or via the phone.
@@ -43,6 +43,8 @@ sequenceDiagram
 ### Complications (`MonkeyWorkoutWatchComplications`)
 
 Next workout, Weekly goal, Streak, Week strip, Readiness, Top lift, Last workout, Water, and **My stat** (configurable). All watch families; read from the shared snapshot.
+
+**Smart Stack** (`SmartStack.swift`, rectangular): three moment cards that rise on their own. **Gym time**: from 30′ before the usual training time (mean start of recent workouts) to an hour after on a training day, and at the home gym (`snapshot.gym`, 150 m region). **Rest day**: 7:00–10:00, easy day + water pace. **After workout**: the hour after the last workout, recap + protein. Relevance from entry scores (`TimelineEntryRelevance`) and `RelevantIntentManager` (date windows, gym region), refreshed with every timeline.
 
 ## iPhone widgets (`MonkeyWorkoutWidgets`, `HomeWidgets`)
 

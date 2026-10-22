@@ -8,7 +8,7 @@ All in the app's `Application Support` unless noted, written atomically with Dat
 
 | File | Owner | Holds | Synced to server |
 |---|---|---|---|
-| `state.json` | `LocalStore` / `LocalState` | Profile, week plan and seed, done / ticked / skipped, set logs, workout history, custom workouts and exercises, PR attempts, measurements, climbs, sports, machine notes, programme, Train / Progress layouts, taste, growth, paused workout, **outbox** (pending and deleted id sets, last pull times) | Yes, per kind ([sync protocol](../api/README.md#sync-protocol)); profile as one blob |
+| `state.json` | `LocalStore` / `LocalState` | Profile, week plan and seed, done / ticked / skipped, set logs, workout history, custom workouts and exercises, PR attempts, measurements, climbs, sports, machine notes, programme, Train / Progress layouts, taste, growth, paused workout, how each workout felt (`feels`) and its Apple effort 1–10 (`efforts`, local only), **outbox** (pending and deleted id sets, last pull times) | Yes, per kind ([sync protocol](../api/README.md#sync-protocol)); profile as one blob |
 | `machine-notes/` | `MachineNote` | One JPEG per machine setup note | Yes (owner-only photo route) |
 | `fuel.json` | `FuelStore` | Fuel settings, daily logs, recipes (favourite, own), pantry, meal plans, shopping list, scanned products, supplements, water | **No**: Fuel stays on the device |
 | `daily-move.json` | `MoveStore` | Daily steps and stairs | No (from HealthKit) |
@@ -35,7 +35,7 @@ Access and refresh tokens, the Watch upload key and the MonkeyGrade link sign-in
 
 ## Settings and preferences
 
-Small UI preferences (style, toggles) live in `UserDefaults` / `@AppStorage`; nothing sensitive.
+Small UI preferences (style, toggles) live in `UserDefaults` / `@AppStorage`; nothing sensitive. Ring through Silent (`timerAlarms.enabled`, off by default) and whether it was asked (`timerAlarms.asked`).
 
 ## Sign-out and deletion
 
