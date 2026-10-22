@@ -71,6 +71,8 @@ struct ProgrammeLibrarySection: View {
             .buttonStyle(.plain)
             // Sport season blocks (#620 A): pick the sport, then its season's first day on the programme page.
             SeasonPickerCard()
+            // Calisthenics skill tree (#621).
+            SkillTreeCard()
             Text("Programmes").eyebrow()
             ForEach(Programme.catalog.filter { !$0.sameFamily(model.activeProgramme?.programmeId) }) { p in
                 NavigationLink(value: ProgrammeRoute(id: p.id)) { ProgrammeCard(programme: p) }

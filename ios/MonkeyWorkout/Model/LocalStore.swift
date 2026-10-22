@@ -56,6 +56,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var growth: GrowthState?
     /// Sport add-on (#620 C): a 15′ sport block in a few gym sessions a week; nil = none.
     var sportAddOn: SportAddOnPref?
+    /// Calisthenics skill tree (#621): best tests and the skill of the month.
+    var skills: SkillProgress?
 
     /// Training profile with this week's learned tastes (#299): quick sessions and plan variations.
     var tasteProfile: Profile {

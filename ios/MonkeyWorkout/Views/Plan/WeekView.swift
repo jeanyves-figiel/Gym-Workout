@@ -419,6 +419,8 @@ struct WeekView: View {
                     if !arranging { TrainNoticeSlot() }
                     // Sport prep on a planned sport day (#523).
                     if !arranging { SportPrepBar() }
+                    // Skill of the month practice day (#621 C).
+                    if !arranging { SkillPracticeBar() }
                     if !arranging { notices(plan: plan, profile: profile) }
                 }
             } else {
@@ -428,6 +430,7 @@ struct WeekView: View {
                     // A small Next up gets the slot under its row instead (#538).
                     if !arranging, !small { TrainNoticeSlot() }
                     if !arranging, !small { SportPrepBar() }
+                    if !arranging, !small { SkillPracticeBar() }
                     if !arranging, !small { notices(plan: plan, profile: profile) }
                 }
             }
