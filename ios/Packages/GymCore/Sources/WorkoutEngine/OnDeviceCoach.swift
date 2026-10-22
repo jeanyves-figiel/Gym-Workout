@@ -94,3 +94,35 @@ public struct WorkoutRecap: Equatable, Sendable {
 
     static func kg(_ v: Double) -> String { v == v.rounded() ? String(Int(v)) : String(format: "%.1f", v) }
 }
+
+/// Visual Intelligence (#617 C): what the camera saw (labels like "leg press", "dumbbell") → exercises for that
+/// machine or kit, an exact exercise name first, main lifts before the rest.
+public enum MachineMatch {
+    public static func exercises(labels: [String], limit: Int = 10) -> [Exercise] {
+        var out: [Exercise] = []
+        func add(_ e: Exercise) { if !out.contains(where: { $0.id == e.id }) { out.append(e) } }
+        for raw in labels {
+            let label = clean(raw)
+            guard label.count >= 3 else { continue }
+            if let e = Exercise.named(label) { add(e) }
+            for eq in Equipment.allCases where names(eq).contains(where: { label.contains($0) || ($0.contains(label) && label.count >= 5) }) {
+                Exercise.search().filter { $0.equipment.contains(eq) }.sorted { $0.main && !$1.main }.forEach(add)
+            }
+        }
+        return Array(out.prefix(limit))
+    }
+
+    private static func clean(_ s: String) -> String {
+        var t = s.lowercased().replacingOccurrences(of: "_", with: " ").replacingOccurrences(of: "-", with: " ")
+        if t.hasSuffix("s"), !t.hasSuffix("ss"), t.count > 4 { t.removeLast() }
+        return t.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// "Barbell & plates" → "barbell", "Squat/power rack" → "squat", "power rack"; singular.
+    private static func names(_ eq: Equipment) -> [String] {
+        let label = eq.label.lowercased()
+        var out = [eq.rawValue.replacingOccurrences(of: "-", with: " ")]
+        out += label.components(separatedBy: CharacterSet(charactersIn: "&/(),")).map { $0.trimmingCharacters(in: .whitespaces) }
+        return out.map(clean).filter { $0.count >= 4 }
+    }
+}

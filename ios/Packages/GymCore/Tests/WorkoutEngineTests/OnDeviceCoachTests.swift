@@ -43,3 +43,21 @@ import Testing
         #expect(WorkoutRecap.build(record(8, bench: 80, setsDone: 0, dips: 0), history: []) == nil)
     }
 }
+
+/// Visual Intelligence labels → exercises (#617).
+@Suite struct MachineMatchTests {
+    @Test func legPressLabelFindsLegPress() throws {
+        let first = try #require(MachineMatch.exercises(labels: ["leg_press"]).first)
+        #expect(first.equipment.contains(.legPress))
+    }
+
+    @Test func dumbbellsFindDumbbellMoves() {
+        let found = MachineMatch.exercises(labels: ["Dumbbell"])
+        #expect(!found.isEmpty)
+        #expect(found.allSatisfy { $0.equipment.contains(.dumbbells) })
+    }
+
+    @Test func unknownLabelsFindNothing() {
+        #expect(MachineMatch.exercises(labels: ["blue sky", "green grass"]).isEmpty)
+    }
+}

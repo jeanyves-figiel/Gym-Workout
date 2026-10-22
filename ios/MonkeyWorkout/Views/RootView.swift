@@ -56,6 +56,8 @@ struct MainTabView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var whatsNew = WhatsNew.pending
     @State private var ask = CoachAsk.shared
+    /// Exercise page opened by Visual Intelligence or Shortcuts (#617).
+    @State private var exerciseLaunch = ExerciseLaunch.shared
     @AppStorage(AskCoachPref.bubbleKey) private var coachBubble = true
 
     /// What's new with the X top right (#556); its own function keeps `body` quick to type-check.
@@ -86,6 +88,7 @@ struct MainTabView: View {
         // Ask Coach everywhere (#412 A): the floating 🐵 and its chat, which knows the screen on top.
         .overlay { if coachBubble { AskCoachBubble() } }
         .sheet(item: $ask.request) { r in CoachChatView(ask: r).remotePaused(.askCoach) }
+        .sheet(item: $exerciseLaunch.item) { i in NavigationStack { ExerciseDetailView(exerciseId: i.id) } }
         // Me sheet (#560): the Me pill at the top right of every tab.
         .sheet(isPresented: Bindable(model).meOpen) {
             NavigationStack {
