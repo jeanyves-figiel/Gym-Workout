@@ -41,7 +41,7 @@ struct AccountView: View {
         static let method = "Training method block dup rir volume minimal"
         static let flow = "After last set workout flow next exercise countdown auto"
         static let coach = "Workout coach voice monkey hype chill drill haptics ask coach bubble microphone talk mic hands-free"
-        static let reminders = "Reminders alerts notifications quiet hours check-in achievements"
+        static let reminders = "Reminders alerts notifications quiet hours check-in achievements alarm ring silent focus rest timer"
         static let climbing = "Around climbing days climbing wall session before after"
         static let fuel = "Fuel nutrition food diet meals protein water allergies vegan vegetarian halal recipes no numbers"
         static let watchStart = "Start from iPhone apple watch ask auto"

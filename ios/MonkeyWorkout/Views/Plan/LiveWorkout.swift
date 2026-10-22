@@ -39,6 +39,8 @@ final class LiveWorkout {
         guard state != lastState else { return }
         // The rest-over buzz only changes with the rest (or what comes next).
         if state.restEnd != lastState?.restEnd || state.next != lastState?.next { scheduleRestEnd(state) }
+        // Ring through Silent (#613): rest over (A) or the end of a timed block (B).
+        if state.restEnd != lastState?.restEnd || state.workEnd != lastState?.workEnd { scheduleAlarm(state) }
         lastState = state
         guard let activity else { return }
         Task { await activity.update(ActivityContent(state: state, staleDate: state.restEnd)) }
@@ -46,6 +48,7 @@ final class LiveWorkout {
 
     func end() {
         lastState = nil
+        TimerAlarms.shared.cancel()
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [Self.restNotificationId])
         guard let activity else { return }
         self.activity = nil
@@ -55,6 +58,7 @@ final class LiveWorkout {
     /// Finished (#371): the card turns into the workout summary and stays on the lock screen for 15 minutes.
     func finish(_ state: WorkoutActivityAttributes.ContentState) {
         lastState = nil
+        TimerAlarms.shared.cancel()
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [Self.restNotificationId])
         guard let activity else { return }
         self.activity = nil
@@ -68,13 +72,24 @@ final class LiveWorkout {
     private func scheduleRestEnd(_ state: WorkoutActivityAttributes.ContentState) {
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: [Self.restNotificationId])
-        guard let end = state.restEnd, end.timeIntervalSinceNow > 1 else { return }
+        // The alarm rings instead (#613).
+        guard let end = state.restEnd, end.timeIntervalSinceNow > 1, !TimerAlarms.shared.ringing else { return }
         let content = UNMutableNotificationContent()
         content.title = "Rest over"
         content.body = "Next: \(state.next)"
         content.sound = .default
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: end.timeIntervalSinceNow, repeats: false)
         center.add(UNNotificationRequest(identifier: Self.restNotificationId, content: content, trigger: trigger))
+    }
+
+    private func scheduleAlarm(_ state: WorkoutActivityAttributes.ContentState) {
+        if let end = state.restEnd {
+            TimerAlarms.shared.ring(at: end, title: "Rest over · \(state.next)", kind: .rest)
+        } else if let end = state.workEnd {
+            TimerAlarms.shared.ring(at: end, title: "\(state.exercise) · time", kind: .bell)
+        } else {
+            TimerAlarms.shared.cancel()
+        }
     }
 }
 

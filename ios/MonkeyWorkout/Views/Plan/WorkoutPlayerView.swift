@@ -36,6 +36,7 @@ struct WorkoutPlayerView: View {
     @State private var pendingJump: Int?
     @State private var started = Date()
     @State private var finished = false
+    @State private var askRing = false
     @State private var ready = false
     @State private var discarded = false
     /// Finish, Finish early or Discard picked in the workout map (#538): run once the sheet has closed.
@@ -317,6 +318,13 @@ struct WorkoutPlayerView: View {
         content
         .onReceive(NotificationCenter.default.publisher(for: .workoutRestAdd15)) { _ in extendRest() }
         .onReceive(NotificationCenter.default.publisher(for: .workoutRestSkip)) { _ in closePause() }
+        // "+30 s" on the rest alarm (#613 A).
+        .onReceive(NotificationCenter.default.publisher(for: .workoutRestAdd30)) { _ in extendRest(by: 30) }
+        // Ring through Silent? (#613 C): asked once, the first time a rest or timed block runs.
+        .onChange(of: pause?.end != nil || timed?.end != nil) { _, running in
+            if running, TimerAlarms.shared.shouldAsk, demoMode == nil, !model.demo { askRing = true }
+        }
+        .sheet(isPresented: $askRing) { RingThroughSilentAsk() }
         // Lock screen / Dynamic Island (#371): effort tile logs the set, − / + kg, lime button.
         .onReceive(NotificationCenter.default.publisher(for: .workoutLogSet)) { n in
             let efforts: [WCommand] = [.effort0, .effort1, .effort2, .effort3, .effort4]
@@ -1144,11 +1152,11 @@ struct WorkoutPlayerView: View {
         if (setsDone[step.item.uid] ?? 0) >= step.sets { nextExercise(step) }
     }
 
-    private func extendRest() {
+    private func extendRest(by seconds: Int = 15) {
         guard var p = pause, let end = p.end else { return }
         let base = max(end, Date())
-        p.end = base.addingTimeInterval(15)
-        p.total += Int(base.timeIntervalSince(end)) + 15
+        p.end = base.addingTimeInterval(TimeInterval(seconds))
+        p.total += Int(base.timeIntervalSince(end)) + seconds
         pause = p
     }
 

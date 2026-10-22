@@ -78,13 +78,13 @@ extension AppModel {
         if let v = state.efforts?[r.id] { return (v, true, false) }
         let rirs = state.logs.filter { $0.sessionId == r.sessionId && $0.date >= r.startedAt.addingTimeInterval(-60) && $0.date <= r.endedAt.addingTimeInterval(60) }
             .compactMap(\.rir)
-        if let v = Effort.fromRIR(rirs) { return (v, false, true) }
+        if let v = WorkoutEffort.fromRIR(rirs) { return (v, false, true) }
         return (7, false, false)
     }
 
     func setEffort(_ v: Int, for id: UUID) {
         var all = state.efforts ?? [:]
-        all[id] = Effort.clamp(v)
+        all[id] = WorkoutEffort.clamp(v)
         state.efforts = all
         persist()
     }

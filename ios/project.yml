@@ -99,6 +99,8 @@ targets:
         UIBackgroundModes: [workout-processing]
         # Siri sees the open exercise page (#605).
         NSUserActivityTypes: [com.monkeyworkout.exercise]
+        # Ring through Silent (#613): rest and interval timers as AlarmKit alarms, off until the member allows it.
+        NSAlarmKitUsageDescription: Rest and interval timers ring like an alarm, even on Silent or with Focus on.
         MWAppGroup: $(APP_GROUP)
         # Home Screen widget taps (#297): monkeyworkout://session/<id>, monkeyworkout://progress, …
         CFBundleURLTypes:

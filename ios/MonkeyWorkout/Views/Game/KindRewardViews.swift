@@ -191,13 +191,13 @@ struct EffortCard: View {
             Text("HOW HARD? · APPLE EFFORT").font(Theme.label(11)).tracking(1.1).opacity(0.9)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("\(v)").font(Theme.display(44)).monospacedDigit().contentTransition(.numericText())
-                Text("/10 \(Effort.word(v))").font(Theme.label(16)).opacity(0.9)
+                Text("/10 \(WorkoutEffort.word(v))").font(Theme.label(16)).opacity(0.9)
                 Spacer()
             }
             Slider(value: $value, in: 1...10, step: 1)
                 .tint(.white)
                 .accessibilityLabel("Effort")
-                .accessibilityValue("\(v) of 10, \(Effort.word(v))")
+                .accessibilityValue("\(v) of 10, \(WorkoutEffort.word(v))")
             Text(fromRIR ? "Prefilled from your RIR" : health.connected ? "Counts in Apple Training Load" : "Saved with this workout")
                 .font(.caption.weight(.semibold)).opacity(0.85)
         }

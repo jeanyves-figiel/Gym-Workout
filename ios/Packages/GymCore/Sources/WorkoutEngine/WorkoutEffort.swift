@@ -1,7 +1,7 @@
 import Foundation
 
 /// Apple workout effort (#614): 1–10, the score Apple Health uses for Training Load.
-public enum Effort {
+public enum WorkoutEffort {
     public static let range = 1...10
 
     /// Prefill from the session's reps in reserve: 0 left → 10, 1 → 9, 3 → 7. Nil without any RIR logged.
