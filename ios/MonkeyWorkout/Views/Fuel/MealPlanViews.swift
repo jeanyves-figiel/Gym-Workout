@@ -97,7 +97,7 @@ struct MealPlanView: View {
                 Text("Nothing planned").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
             }
             ForEach(plan.slots.filter { s in meals.contains { $0.slot == s.id } }) { s in
-                if let m = meals.first(where: { $0.slot == s.id }), let r = RecipeBook.recipe(m.recipeId, own: store.saved.recipes) {
+                if let m = meals.first(where: { $0.slot == s.id }), let r = RecipeBook.recipe(m.recipeId, own: store.recipeLookup) {
                     HStack(spacing: 8) {
                         NavigationLink(value: r) {
                             VStack(alignment: .leading, spacing: 4) {
@@ -123,26 +123,50 @@ struct MealPlanView: View {
     }
 }
 
-/// Other recipes for one planned meal; the pick is kept on re-plan.
+/// Other recipes for one planned meal; the pick is kept on re-plan. "Mine" (#599, design C) plans a meal shake or hot
+/// meal from the member's products instead, for this meal or every planned one of its kind.
 struct SwapMealSheet: View {
     let key: String
     let slot: FuelSlot
     let plan: FuelPlan
     @Environment(\.dismiss) private var dismiss
     @State private var store = FuelStore.shared
+    @State private var mine = false
+    @State private var every = false
+    @State private var adding = false
 
     var body: some View {
         let ideas = RecipeBook.ideas(for: slot, load: plan.load, prefs: store.prefs, favourites: store.saved.favourites,
                                      own: store.saved.recipes, day: key + "swap", count: 12)
+        let products = Supplements.recipes(store.stack)
         NavigationStack {
             ScrollView {
                 VStack(spacing: 10) {
-                    ForEach(ideas) { r in
-                        Button {
-                            store.pin(PlannedMeal(day: key, slot: slot.id, kind: slot.kind, recipeId: r.id, servings: store.saved.people))
-                            dismiss()
-                        } label: { RecipeRow(recipe: r) }
-                            .buttonStyle(.plain)
+                    HStack(spacing: 4) {
+                        tab("Recipes", on: !mine) { mine = false }
+                        tab("Mine · shakes", on: mine) { mine = true }
+                    }
+                    if mine {
+                        Toggle("Every planned \(slot.kind.label.lowercased()) from here", isOn: $every)
+                            .font(Theme.label(13)).tint(Theme.lime)
+                            .padding(12)
+                            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.card))
+                        ForEach(products) { r in
+                            Button { use(r) } label: { RecipeRow(recipe: r) }
+                                .buttonStyle(.plain)
+                        }
+                        Button { adding = true } label: {
+                            Label("Add a shake or hot meal", systemImage: "plus").font(Theme.label(14)).foregroundStyle(Theme.lime)
+                                .frame(maxWidth: .infinity).padding(14)
+                                .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .strokeBorder(Theme.lime, style: StrokeStyle(lineWidth: 1.5, dash: [5])))
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        ForEach(ideas) { r in
+                            Button { use(r) } label: { RecipeRow(recipe: r) }
+                                .buttonStyle(.plain)
+                        }
                     }
                 }
                 .padding(16)
@@ -151,7 +175,31 @@ struct SwapMealSheet: View {
             .navigationTitle("Swap \(slot.title.lowercased())")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }
+            .sheet(isPresented: $adding) {
+                ProductCatalogSheet { v, n in store.saveSupplement(ProductCatalog.mine(v, servings: n, onDemand: true)) }
+            }
         }
+    }
+
+    private func tab(_ title: String, on: Bool, _ tap: @escaping () -> Void) -> some View {
+        Button { withAnimation(.snappy) { tap() } } label: {
+            Text(title).font(Theme.label(13)).foregroundStyle(on ? Theme.ink : .white)
+                .frame(maxWidth: .infinity).padding(.vertical, 9)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? Theme.lime : Theme.cardStrong))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private func use(_ r: Recipe) {
+        let people = store.saved.people
+        var meals = [PlannedMeal(day: key, slot: slot.id, kind: slot.kind, recipeId: r.id, servings: people)]
+        if mine && every {
+            meals += store.saved.plan.filter { $0.day > key && $0.kind == slot.kind }
+                .map { PlannedMeal(day: $0.day, slot: $0.slot, kind: $0.kind, recipeId: r.id, servings: people) }
+        }
+        store.pin(meals)
+        dismiss()
     }
 }
 

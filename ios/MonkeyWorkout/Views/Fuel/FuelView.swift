@@ -164,7 +164,8 @@ struct FuelView: View {
         let stack = FuelStore.shared.stack
         if !stack.isEmpty {
             parts.append("supplement schedules: " + stack.map { s in
-                ([s.name, s.schedule.summary(calendar: cal)] + [s.schedule.courseLine(now: Date(), calendar: cal)].compactMap { $0 }).joined(separator: " · ")
+                s.whenPicked ? "\(s.name) · when picked"
+                    : ([s.name, s.schedule.summary(calendar: cal)] + [s.schedule.courseLine(now: Date(), calendar: cal)].compactMap { $0 }).joined(separator: " · ")
             }.joined(separator: "; "))
         }
         return parts.joined(separator: "; ")
@@ -407,10 +408,10 @@ struct FuelDashboard: View {
             let key = store.key(day)
             let plannedSlots = plan.slots.filter { s in s.minute >= now - 30 && store.saved.plan.contains { $0.day == key && $0.slot == s.id } }
             if let first = plannedSlots.first, let meal = store.saved.plan.first(where: { $0.day == key && $0.slot == first.id }),
-               let recipe = RecipeBook.recipe(meal.recipeId, own: store.saved.recipes) {
+               let recipe = RecipeBook.recipe(meal.recipeId, own: store.recipeLookup) {
                 PlannedPlateCard(slot: first, recipe: recipe, meal: meal, plan: plan, log: log, day: day, open: open)
                 if plannedSlots.count > 1, let m = store.saved.plan.first(where: { $0.day == key && $0.slot == plannedSlots[1].id }),
-                   let r = RecipeBook.recipe(m.recipeId, own: store.saved.recipes) {
+                   let r = RecipeBook.recipe(m.recipeId, own: store.recipeLookup) {
                     ThenMealCard(slot: plannedSlots[1], recipe: r, meal: m)
                 }
             } else if let next {
@@ -590,9 +591,9 @@ struct FuelTimeline: View {
     }
 
     private func ideaName(_ s: FuelSlot) -> String? {
-        if let id = log.ticks[s.id]?.recipeId, let r = RecipeBook.recipe(id, own: store.saved.recipes) { return "\(r.emoji) \(r.name)" }
+        if let id = log.ticks[s.id]?.recipeId, let r = RecipeBook.recipe(id, own: store.recipeLookup) { return "\(r.emoji) \(r.name)" }
         if let m = store.saved.plan.first(where: { $0.day == store.key(day) && $0.slot == s.id }),
-           let r = RecipeBook.recipe(m.recipeId, own: store.saved.recipes) { return "\(r.emoji) \(r.name)" }
+           let r = RecipeBook.recipe(m.recipeId, own: store.recipeLookup) { return "\(r.emoji) \(r.name)" }
         return RecipeBook.ideas(for: s, load: plan.load, prefs: store.prefs, favourites: store.saved.favourites,
                                 own: store.saved.recipes, day: store.key(day), count: 1).first.map { "\($0.emoji) \($0.name)" }
     }
@@ -802,7 +803,7 @@ struct FuelSlotActions: View {
 
     var body: some View {
         let planned = store.saved.plan.first { $0.day == store.key(day) && $0.slot == slot.id }
-            .flatMap { RecipeBook.recipe($0.recipeId, own: store.saved.recipes) }
+            .flatMap { RecipeBook.recipe($0.recipeId, own: store.recipeLookup) }
         let have = store.pantryIds
         let missing = have.isEmpty ? [] : (planned?.keys ?? []).filter { !have.contains($0) }
         ScrollView(.horizontal, showsIndicators: false) {

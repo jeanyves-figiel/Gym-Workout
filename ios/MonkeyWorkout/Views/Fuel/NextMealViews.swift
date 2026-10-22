@@ -158,13 +158,14 @@ struct JustAteSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    TextField("Search recipes", text: $query)
+                    TextField("Search recipes and shakes", text: $query)
                         .font(Theme.label(15)).padding(12)
                         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.card))
                         .submitLabel(.search)
                     if query.trimmingCharacters(in: .whitespaces).isEmpty {
                         if let slot {
                             hero(slot)
+                            MineStrip(plan: plan, day: day) { eat($0, into: slot) }
                             if open.count > 1 {
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     HStack(spacing: 6) { ForEach(open) { chip($0, on: $0.id == slot.id) } }
@@ -178,10 +179,11 @@ struct JustAteSheet: View {
                         } else {
                             Text("Every meal today is ticked. Search or count by hand to add more.")
                                 .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
+                            MineStrip(plan: plan, day: day) { eat($0, into: nil) }
                         }
                         if !done.isEmpty {
                             label("TODAY")
-                            ForEach(done) { s in doneRow(s, recipe: log.ticks[s.id]?.recipeId.flatMap { RecipeBook.recipe($0, own: store.saved.recipes) }) }
+                            ForEach(done) { s in doneRow(s, recipe: log.ticks[s.id]?.recipeId.flatMap { RecipeBook.recipe($0, own: store.recipeLookup) }) }
                         }
                     } else {
                         let found = search(query)
@@ -249,7 +251,7 @@ struct JustAteSheet: View {
         let key = store.key(day)
         var out: [(recipe: Recipe, planned: Bool)] = []
         if let m = store.saved.plan.first(where: { $0.day == key && $0.slot == s.id }),
-           let r = RecipeBook.recipe(m.recipeId, own: store.saved.recipes) { out.append((r, true)) }
+           let r = RecipeBook.recipe(m.recipeId, own: store.recipeLookup) { out.append((r, true)) }
         let suits = { (r: Recipe) in r.slots.contains(s.recipeKind) || r.slots.contains(s.kind) }
         let more = recents().filter(suits)
             + RecipeBook.ideas(for: s, load: plan.load, prefs: store.prefs, favourites: store.saved.favourites,
@@ -382,12 +384,12 @@ struct JustAteSheet: View {
             for t in store.log(d).ticks.values { if let id = t.recipeId, !ids.contains(id) { ids.append(id) } }
         }
         ids += store.saved.favourites.sorted().filter { !ids.contains($0) }
-        return ids.compactMap { RecipeBook.recipe($0, own: store.saved.recipes) }.prefix(8).map { $0 }
+        return ids.compactMap { RecipeBook.recipe($0, own: store.recipeLookup) }.prefix(8).map { $0 }
     }
 
     private func search(_ q: String) -> [Recipe] {
         let words = q.lowercased().split(separator: " ")
-        return (store.saved.recipes + RecipeBook.catalog)
+        return (Supplements.recipes(store.stack) + store.saved.recipes + RecipeBook.catalog)
             .filter { r in words.allSatisfy { r.name.lowercased().contains($0) } }
             .prefix(12).map { $0 }
     }

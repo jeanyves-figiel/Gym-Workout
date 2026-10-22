@@ -39,7 +39,8 @@ struct FuelStackCard: View {
                         .accessibilityLabel("Edit supplements")
                     }
                     if doses.isEmpty {
-                        Text("Nothing today: your stack is for training days.").font(.footnote.weight(.bold)).opacity(0.85)
+                        Text(store.stack.allSatisfy(\.whenPicked) ? "Nothing scheduled: pick yours in Just ate when you have one."
+                             : "Nothing today: your stack is for training days.").font(.footnote.weight(.bold)).opacity(0.85)
                     }
                     ForEach(doses) { d in
                         SupplementDoseRow(dose: d, plan: plan, log: log, day: day)
@@ -146,6 +147,8 @@ struct SupplementsView: View {
     @State private var store = FuelStore.shared
     @State private var editing: Supplement?
     @State private var adding: Supplement?
+    @State private var browsing = false
+    @State private var picked: Supplement?
 
     var body: some View {
         ScrollView {
@@ -160,9 +163,9 @@ struct SupplementsView: View {
                                     .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(.white.opacity(0.2)))
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(s.name).font(Theme.display(16)).lineLimit(1)
-                                    Text(s.schedule.summary(calendar: .current))
+                                    Text(s.whenPicked ? "When you pick it · Just ate, meal plan" : s.schedule.summary(calendar: .current))
                                         .font(.system(size: 11, weight: .bold, design: .rounded)).opacity(0.85).lineLimit(2)
-                                    if let course = s.schedule.courseLine(now: Date(), calendar: .current) {
+                                    if !s.whenPicked, let course = s.schedule.courseLine(now: Date(), calendar: .current) {
                                         Text(course).font(Theme.label(10)).opacity(0.9).lineLimit(1).minimumScaleFactor(0.7)
                                     }
                                     if !s.contents.isEmpty {
@@ -181,6 +184,22 @@ struct SupplementsView: View {
                     }
                 }
                 Text("Add a supplement").eyebrow()
+                Button { browsing = true } label: {
+                    HStack(spacing: 10) {
+                        Text("🥤").font(.system(size: 22))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("From a brand").font(Theme.display(16))
+                            Text("Huel, yfood, Saturo, Jimmy Joy, KaEx… with their variants").font(Theme.label(11)).opacity(0.9).lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.system(size: 13, weight: .heavy))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(FuelPalette.hot))
+                }
+                .buttonStyle(.plain)
                 FlowLayout(spacing: 6) {
                     ForEach(SupplementKind.allCases) { k in
                         Button { adding = k.preset } label: {
@@ -201,6 +220,16 @@ struct SupplementsView: View {
         .navigationTitle("Supplements")
         .sheet(item: $editing) { s in NavigationStack { SupplementEditor(supplement: s, isNew: false) } }
         .sheet(item: $adding) { s in NavigationStack { SupplementEditor(supplement: s, isNew: true) } }
+        // The editor opens once the brand sheet is gone.
+        .sheet(isPresented: $browsing, onDismiss: {
+            adding = picked
+            picked = nil
+        }) {
+            ProductCatalogSheet(action: "Next", picked: { v, n in
+                // Meals default to "when you pick it"; the editor sets a schedule if the member wants one.
+                picked = ProductCatalog.mine(v, servings: n, onDemand: v.isMeal)
+            }, own: { picked = SupplementKind.other.preset })
+        }
     }
 
     static func gradient(_ k: SupplementKind) -> LinearGradient {
@@ -241,10 +270,23 @@ struct SupplementEditor: View {
             VStack(alignment: .leading, spacing: 10) {
                 hero(d, r.wrappedValue)
                 SupplementTypeStrip(kind: d.wrappedValue.kind) { k in d.wrappedValue = d.wrappedValue.switching(to: k) }
-                Text("Pick a plan").eyebrow().padding(.top, 6)
-                SupplementQuickGrid(rhythm: r, kind: d.wrappedValue.kind)
-                SupplementSummaryCard(rhythm: r.wrappedValue, servingLabel: d.wrappedValue.dose)
-                SupplementRhythmBuilder(rhythm: r, kind: d.wrappedValue.kind)
+                Toggle(isOn: Binding(get: { d.wrappedValue.whenPicked }, set: { d.wrappedValue.onDemand = $0 ? true : nil })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Only when I pick it").font(Theme.display(15))
+                        Text(d.wrappedValue.isMeal ? "No schedule: pick it in Just ate or for a meal plan meal."
+                             : "No schedule: tap it in Just ate when you have it.")
+                            .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
+                    }
+                }
+                .tint(Theme.lime)
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.card))
+                if !d.wrappedValue.whenPicked {
+                    Text("Pick a plan").eyebrow().padding(.top, 6)
+                    SupplementQuickGrid(rhythm: r, kind: d.wrappedValue.kind)
+                    SupplementSummaryCard(rhythm: r.wrappedValue, servingLabel: d.wrappedValue.dose)
+                    SupplementRhythmBuilder(rhythm: r, kind: d.wrappedValue.kind)
+                }
                 amounts(d)
                 if !isNew {
                     Button(role: .destructive) { confirmDelete = true } label: {
