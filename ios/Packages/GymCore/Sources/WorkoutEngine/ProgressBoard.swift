@@ -14,6 +14,8 @@ public enum ProgressWidgetKind: String, Codable, CaseIterable, Sendable, Identif
     case chest
     /// Growth path (#495): goal with its predicted date, milestones, what Monkey noticed.
     case growth
+    /// Mood after workouts against their effort (#614 B).
+    case mood
 
     public var id: String { rawValue }
 
@@ -33,6 +35,7 @@ public enum ProgressWidgetKind: String, Codable, CaseIterable, Sendable, Identif
         case .sport: "Sport"
         case .chest: "Week chest"
         case .growth: "Growth path"
+        case .mood: "Mood vs training"
         }
     }
 
@@ -52,12 +55,13 @@ public enum ProgressWidgetKind: String, Codable, CaseIterable, Sendable, Identif
         case .sport: "One sport: sessions, time and its best"
         case .chest: "This week's chest and XP, and the last 8 weeks"
         case .growth: "Your goal, its predicted date and what Monkey noticed"
+        case .mood: "How you felt after each workout against how hard it was"
         }
     }
 
     public var sizes: [TrainWidgetSize] {
         switch self {
-        case .level, .streak, .consistency, .chest, .growth: [.wide]
+        case .level, .streak, .consistency, .chest, .growth, .mood: [.wide]
         case .training, .body, .records, .badges, .muscles, .programmes: [.small, .wide]
         case .history: [.small, .wide]
         case .weekly: [.wide, .large]
@@ -67,7 +71,7 @@ public enum ProgressWidgetKind: String, Codable, CaseIterable, Sendable, Identif
 
     public var defaultSize: TrainWidgetSize {
         switch self {
-        case .level, .streak, .history, .consistency, .weekly, .programmes, .chest, .growth: .wide
+        case .level, .streak, .history, .consistency, .weekly, .programmes, .chest, .growth, .mood: .wide
         default: .small
         }
     }
@@ -243,7 +247,7 @@ public struct ProgressBoard: Codable, Equatable, Sendable {
             ProgressWidget(.level), ProgressWidget(.chest), ProgressWidget(.streak), ProgressWidget(.growth),
             ProgressWidget(.training), ProgressWidget(.body), ProgressWidget(.records), ProgressWidget(.badges),
             ProgressWidget(.muscles), ProgressWidget(.programmes, size: .small),
-            ProgressWidget(.history), ProgressWidget(.consistency), ProgressWidget(.weekly),
+            ProgressWidget(.history), ProgressWidget(.consistency), ProgressWidget(.weekly), ProgressWidget(.mood),
         ])
     }
 

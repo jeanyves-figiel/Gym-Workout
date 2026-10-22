@@ -70,7 +70,7 @@ Two-level menu (`ExploreMenu`): **Exercises** by muscle (2D/3D body map, `Muscle
 
 ### Progress (`Views/Progress`)
 
-Widget board (`ProgressBoardViews`) of gradient tiles: training (live tiles, consistency, trends, climbing, sports, **Zone 2 this week**: minutes per heart-rate zone over every workout from every app with a 150′ goal ring, `ZoneWeekCard`, #609 C; Apple's own zone times on iOS 27, else heart-rate samples sorted into the zones), programmes, body (`BodyHealthView`, measurements with help), records, badges, muscles; recent sessions strip → **History** (`HistoryView`). Levels and XP (`Views/Game`), weekly chest reveal, kind rewards.
+Widget board (`ProgressBoardViews`) of gradient tiles: training (live tiles, consistency, trends, climbing, sports, **Zone 2 this week**: minutes per heart-rate zone over every workout from every app with a 150′ goal ring, `ZoneWeekCard`, #609 C; Apple's own zone times on iOS 27, else heart-rate samples sorted into the zones), programmes, body (`BodyHealthView`, measurements with help), records, badges, muscles, **mood vs training** (`MoodWidget`, #614 B: effort bars and the finish faces of the last 10 workouts); recent sessions strip → **History** (`HistoryView`). Levels and XP (`Views/Game`), weekly chest reveal, kind rewards.
 
 ### Fuel (`Views/Fuel`)
 
