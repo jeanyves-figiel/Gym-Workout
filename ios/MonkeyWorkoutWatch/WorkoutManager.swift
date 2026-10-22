@@ -29,9 +29,13 @@ final class WorkoutManager: NSObject {
 
     var averageHeartRate: Double? { hrCount > 0 ? hrSum / Double(hrCount) : nil }
 
+    /// Health workout saved by the last `finish`, for the effort asked on Done (#614 C).
+    private(set) var lastWorkout: HKWorkout?
+
     func requestAuthorization() async {
         guard HKHealthStore.isHealthDataAvailable() else { return }
-        let share: Set<HKSampleType> = [HKObjectType.workoutType(), HKQuantityType(.activeEnergyBurned), HKQuantityType(.heartRate)]
+        let share: Set<HKSampleType> = Set<HKSampleType>([HKObjectType.workoutType(), HKQuantityType(.activeEnergyBurned), HKQuantityType(.heartRate)])
+            .union(HealthEffort.shareTypes)
         let read: Set<HKObjectType> = [HKQuantityType(.heartRate), HKQuantityType(.activeEnergyBurned), HKObjectType.workoutType()]
         try? await store.requestAuthorization(toShare: share, read: read)
     }
@@ -116,11 +120,22 @@ final class WorkoutManager: NSObject {
             if let sets { meta["MonkeyWorkoutSets"] = sets }
             try? await builder.addMetadata(meta)
             try await builder.endCollection(at: Date())
-            _ = try await builder.finishWorkout()
+            lastWorkout = try await builder.finishWorkout()
             return true
         } catch {
             return false
         }
+    }
+
+    /// Effort 1–10 on the workout just saved (#614 C): counts in Apple's Training Load.
+    func saveEffort(_ score: Int) async {
+        guard let w = lastWorkout else { return }
+        try? await HealthEffort.saveEffort(score, workout: w, store: store)
+    }
+
+    /// How the member feels after the workout (#614 C), as a State of Mind. Level 1–5, same faces as the iPhone.
+    func saveMood(_ level: Int) async {
+        try? await HealthEffort.saveMood(level, at: Date(), store: store)
     }
 
     /// Discards the session without saving anything.

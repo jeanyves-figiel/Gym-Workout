@@ -92,13 +92,15 @@ targets:
         NSSpeechRecognitionUsageDescription: Turns what you say to Coach into text, on your iPhone when it can. Only the words are sent to Coach.
         NSHealthShareUsageDescription: Reads weight, height, body fat, lean body mass, waist circumference, age, sex, resting heart rate, HRV, VO2max, sleep, steps, floors climbed, heart rate during sessions and climbing workouts to estimate calories and starting weights, show readiness, count daily walking and stairs toward your level, and track progress.
         NSLocationWhenInUseUsageDescription: Finds gyms near you. Your location is only used for the search and never leaves this device except to Apple Maps.
-        NSHealthUpdateUsageDescription: Saves your gym sessions as workouts, the weight, height, body fat, lean mass and waist you enter, and the water you log in Fuel, to Apple Health.
+        NSHealthUpdateUsageDescription: Saves your gym sessions as workouts with how hard they felt (effort), how you feel after them (State of Mind), the weight, height, body fat, lean mass and waist you enter, and the water you log in Fuel, to Apple Health.
         ITSAppUsesNonExemptEncryption: false
         NSSupportsLiveActivities: true
         # Workout mirrored from the Watch (#603): keeps the app running for it with the phone locked.
         UIBackgroundModes: [workout-processing]
         # Siri sees the open exercise page (#605).
         NSUserActivityTypes: [com.monkeyworkout.exercise]
+        # Ring through Silent (#613): rest and interval timers as AlarmKit alarms, off until the member allows it.
+        NSAlarmKitUsageDescription: Rest and interval timers ring like an alarm, even on Silent or with Focus on.
         MWAppGroup: $(APP_GROUP)
         # Home Screen widget taps (#297): monkeyworkout://session/<id>, monkeyworkout://progress, …
         CFBundleURLTypes:
@@ -195,7 +197,7 @@ targets:
         WKBackgroundModes: [workout-processing]
         MWAppGroup: $(APP_GROUP)
         NSHealthShareUsageDescription: Reads heart rate and active energy during your workouts.
-        NSHealthUpdateUsageDescription: Saves your gym sessions and the sports you track (with their route) as workouts to Apple Health.
+        NSHealthUpdateUsageDescription: Saves your gym sessions and the sports you track (with their route) as workouts, with their effort and how you feel after them, to Apple Health.
         NSMotionUsageDescription: Counts your reps and measures bar speed during workouts.
         NSLocationWhenInUseUsageDescription: Records the route, speed and elevation of the sports you track. The route is saved to Apple Health only.
     settings:

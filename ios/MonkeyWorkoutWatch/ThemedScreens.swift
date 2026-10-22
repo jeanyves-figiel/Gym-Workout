@@ -347,6 +347,7 @@ struct SummaryView: View {
     let saved: Bool
     let onDone: () -> Void
     @State private var celebrated = false
+    @State private var effort: Double = 7
 
     private var demo: Bool {
         #if DEBUG
@@ -371,12 +372,18 @@ struct SummaryView: View {
                 TileRow(symbol: "heart.fill", title: "Avg HR", value: hr, tint: W.gradient(0xFF3D6E, 0xB0105A))
                 TileRow(symbol: "flame.fill", title: "kcal", value: "\(Int(kcal))", tint: W.gradient(0xFFC23D, 0xFF7A3D))
                 rewardLines
+                // Effort + mood to Apple Health (#614 C): Crown for effort, tap a face.
+                if saved { WatchEffortAsk(effort: $effort) }
+                WatchMoodAsk()
                 if let g = store.snapshot.game { XPBar(game: g) }
                 if saved { Label("Saved to Health", systemImage: "heart.fill").font(W.label(10)).foregroundStyle(.pink) }
             }
             .watchMargins()
         }
-        .pinnedButton("DONE", action: onDone)
+        .pinnedButton("DONE") {
+            if saved { let e = Int(effort); Task { await WorkoutManager.shared.saveEffort(e) } }
+            onDone()
+        }
         // Level ladder (#242): full-screen level-up with the rank's effect, same as the iPhone.
         .overlay {
             if let level = store.reward?.levelUp, !celebrated, !demo {
@@ -397,6 +404,62 @@ struct SummaryView: View {
                 .lineLimit(1).minimumScaleFactor(0.7)
                 .padding(.horizontal, 8).padding(.vertical, 4)
                 .background(Capsule().fill(W.gradient(b.tint.0, b.tint.1)))
+        }
+    }
+}
+
+/// Effort 1–10 (#614 C): turn the Crown on the tile, saved with the workout on Done.
+struct WatchEffortAsk: View {
+    @Binding var effort: Double
+
+    var body: some View {
+        HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("EFFORT").font(W.label(9)).tracking(1).opacity(0.9)
+                Text("⟳ Crown").font(W.label(9)).opacity(0.75)
+            }
+            Spacer(minLength: 2)
+            Text("\(Int(effort))").font(.system(size: 30, weight: .black, design: .rounded)).monospacedDigit()
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 8).padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(W.gradient(0xFF9E1C, 0xFF3D5A)))
+        .focusable()
+        .digitalCrownRotation($effort, from: 1, through: 10, by: 1, sensitivity: .low, isContinuous: false, isHapticFeedbackEnabled: true)
+        .accessibilityLabel("Effort")
+        .accessibilityValue("\(Int(effort)) of 10")
+    }
+}
+
+/// How do you feel now (#614 C): four faces saved to Health as a State of Mind (levels as on the iPhone).
+struct WatchMoodAsk: View {
+    @State private var picked: Int?
+
+    private struct Face: Identifiable {
+        let level: Int
+        let emoji: String
+        var id: Int { level }
+    }
+
+    private static let faces = [Face(level: 1, emoji: "😫"), Face(level: 2, emoji: "😐"), Face(level: 3, emoji: "🙂"), Face(level: 5, emoji: "🤩")]
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(Self.faces) { f in
+                let level = f.level
+                Button {
+                    picked = level
+                    WKInterfaceDevice.current().play(.click)
+                    Task { await WorkoutManager.shared.saveMood(level) }
+                } label: {
+                    Text(f.emoji).font(.system(size: picked == level ? 22 : 18))
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(picked == level ? W.lime : Color.white.opacity(0.12)))
+                        .opacity(picked == nil || picked == level ? 1 : 0.45)
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 }

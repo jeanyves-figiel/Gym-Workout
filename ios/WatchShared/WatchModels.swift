@@ -48,6 +48,8 @@ struct WatchSnapshot: Codable, Equatable {
 
     /// Today's water from Fuel (#496); a tap on the Watch adds a glass.
     var water: WWater?
+    /// Home gym with a map position (#612): the Smart Stack raises Next up when the Watch is there. nil = none.
+    var gym: WGym?
 
     func session(_ id: String) -> WSession? { (sessions + extras).first { $0.id == id } }
 }
@@ -506,6 +508,13 @@ struct WLiftPracticeState: Codable, Equatable {
 }
 
 /// Fuel water (#496): glasses counted today against the day's target.
+/// Home gym for Smart Stack relevance (#612).
+struct WGym: Codable, Equatable {
+    var name: String
+    var latitude: Double
+    var longitude: Double
+}
+
 struct WWater: Codable, Equatable {
     /// `PlanCalendar` day key the counts belong to.
     var day: String

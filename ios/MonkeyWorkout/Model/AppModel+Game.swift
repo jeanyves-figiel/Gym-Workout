@@ -73,6 +73,22 @@ extension AppModel {
         persist()
     }
 
+    /// Saved effort (#614), else the prefill from the session's reps in reserve, else 7 (hard).
+    func effort(of r: WorkoutRecord) -> (value: Int, saved: Bool, fromRIR: Bool) {
+        if let v = state.efforts?[r.id] { return (v, true, false) }
+        let rirs = state.logs.filter { $0.sessionId == r.sessionId && $0.date >= r.startedAt.addingTimeInterval(-60) && $0.date <= r.endedAt.addingTimeInterval(60) }
+            .compactMap(\.rir)
+        if let v = WorkoutEffort.fromRIR(rirs) { return (v, false, true) }
+        return (7, false, false)
+    }
+
+    func setEffort(_ v: Int, for id: UUID) {
+        var all = state.efforts ?? [:]
+        all[id] = WorkoutEffort.clamp(v)
+        state.efforts = all
+        persist()
+    }
+
     /// Three personal wins for a finished workout.
     func wins(for r: WorkoutRecord) -> [Win] {
         let feels = state.history.filter { $0.id != r.id && $0.startedAt < r.startedAt }
