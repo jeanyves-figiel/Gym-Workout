@@ -136,6 +136,9 @@ final class FuelStore {
 
     var stack: [Supplement] { saved.supplements ?? [] }
 
+    /// Own recipes plus the stack's meal shakes and hot meals (#599): for finding a planned or ticked meal, not for ideas.
+    var recipeLookup: [Recipe] { saved.recipes + Supplements.recipes(stack) }
+
     func saveSupplement(_ x: Supplement) {
         var s = saved
         var list = s.supplements ?? []
@@ -148,6 +151,7 @@ final class FuelStore {
     func deleteSupplement(_ id: String) {
         var s = saved
         s.supplements?.removeAll { $0.id == id }
+        s.plan.removeAll { $0.recipeId == Supplements.recipePrefix + id }
         save(s)
         Task { await NotificationManager.shared.scheduleSupplements() }
     }
@@ -314,6 +318,19 @@ final class FuelStore {
         m.leftover = false
         s.plan.removeAll { $0.id == m.id }
         s.plan.append(m)
+        save(s)
+    }
+
+    /// Pins the same pick to many meals at once (a shake every planned breakfast, #599).
+    func pin(_ meals: [PlannedMeal]) {
+        var s = saved
+        for meal in meals {
+            var m = meal
+            m.pinned = true
+            m.leftover = false
+            s.plan.removeAll { $0.id == m.id }
+            s.plan.append(m)
+        }
         save(s)
     }
 
