@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
 
 // Apple Watch lift sensor (#383): rep detection, bar speed, range of motion and load–velocity maths.
@@ -12,5 +12,7 @@ let package = Package(
     targets: [
         .target(name: "LiftSensor"),
         .testTarget(name: "LiftSensorTests", dependencies: ["LiftSensor"]),
-    ]
+    ],
+    // Tools 6.0 for .iOS(.v18) / .watchOS(.v11) (#602); language mode stays Swift 5.
+    swiftLanguageModes: [.v5]
 )
