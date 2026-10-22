@@ -1,3 +1,4 @@
+import AppIntents
 import AuthenticationServices
 import SwiftUI
 import WorkoutEngine
@@ -5,10 +6,17 @@ import WorkoutEngine
 @main
 struct MonkeyWorkoutApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var model = AppModel.live()
+    @State private var model: AppModel
     @State private var lock = AppLock()
     @State private var health = HealthManager()
     @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        // Siri and Shortcuts (#605) reach the same model as the app.
+        let model = AppModel.live()
+        _model = State(initialValue: model)
+        AppDependencyManager.shared.add(dependency: model)
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -20,6 +28,8 @@ struct MonkeyWorkoutApp: App {
                 // Dynamic Type (#540): grows up to the third accessibility size, where the layouts still hold.
                 .dynamicTypeSize(...DynamicTypeSize.accessibility3)
                 .task {
+                    // Hints for hidden gestures (#617).
+                    HiddenGestureTips.configure()
                     model.health = health
                     FuelStore.shared.health = health
                     FuelStore.shared.planFor = { [model] in model.fuelPlan(on: $0) }
@@ -30,6 +40,8 @@ struct MonkeyWorkoutApp: App {
                             .dynamicTypeSize(...DynamicTypeSize.accessibility3))
                     }
                     await model.bootstrap()
+                    SiriIndex.indexExercises()
+                    MonkeyShortcuts.updateAppShortcutParameters()
                     FuelStore.shared.applyWidgetGlasses()
                     GarminSync.shared.attach(model)
                     WatchSync.shared.start(model: model, health: health)

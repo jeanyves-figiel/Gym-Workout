@@ -1,6 +1,7 @@
 import AVFoundation
 import Speech
 import SwiftUI
+import TipKit
 import WorkoutEngine
 
 /// Ask Coach everywhere (#412, design A + C from `ask-coach-everywhere/proposals.png`). A: the lime 🐵 bubble floats on
@@ -13,6 +14,8 @@ enum AskCoachPref {
     static let speakKey = "askCoach.speak"
     static let bubbleRightKey = "askCoach.bubble.right"
     static let bubbleYKey = "askCoach.bubble.y"
+    /// Short questions answered by the on-device model when the iPhone has one (#608).
+    static let onDeviceKey = "askCoach.onDevice"
 
     enum Speak: String, CaseIterable, Identifiable {
         case whenTalking, always, never
@@ -28,6 +31,7 @@ enum AskCoachPref {
 
     static var speak: Speak { UserDefaults.standard.string(forKey: speakKey).flatMap(Speak.init) ?? .whenTalking }
     static var playerMic: Bool { UserDefaults.standard.object(forKey: playerMicKey) as? Bool ?? true }
+    static var onDevice: Bool { UserDefaults.standard.object(forKey: onDeviceKey) as? Bool ?? true }
 }
 
 /// What the member is looking at, sent with the question (`screen` + `focus` on the server).
@@ -175,6 +179,7 @@ struct AskCoachBubble: View {
             .accessibilityAction { ask(listen: false) }
             .accessibilityAction(named: "Talk to Coach") { ask(listen: true) }
             .accessibilityIdentifier("askCoach.bubble")
+            .popoverTip(HoldToTalkTip())
     }
 
     private func ask(listen: Bool) {
@@ -224,6 +229,8 @@ struct CoachSpark: View {
     @ObservationIgnored private var task: SFSpeechRecognitionTask?
     @ObservationIgnored private var silence: Task<Void, Never>?
     @ObservationIgnored private var onDone: ((String) -> Void)?
+    /// SpeechAnalyzer run (#617, iOS 26): ends its input and the analyzer.
+    @ObservationIgnored private var stopAnalyzer: (() -> Void)?
 
     func start(_ onDone: @escaping (String) -> Void) {
         guard !listening else { return }
@@ -238,6 +245,8 @@ struct CoachSpark: View {
                 problem = "Allow the microphone and speech recognition in Settings to talk to Coach."
                 return
             }
+            // SpeechAnalyzer (#617): faster, offline, better with gym words; the older recognizer when it can't run.
+            if #available(iOS 26, *), await beginAnalyzer() { return }
             begin()
         }
     }
@@ -296,6 +305,90 @@ struct CoachSpark: View {
         armSilence(after: 7)
     }
 
+    /// SpeechAnalyzer + SpeechTranscriber (#617). False when the language isn't installed yet (it downloads for next
+    /// time) or the microphone won't start, so `begin()` takes over.
+    @available(iOS 26, *)
+    private func beginAnalyzer() async -> Bool {
+        var found = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current)
+        if found == nil { found = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: "en-US")) }
+        guard let locale = found else { return false }
+        let transcriber = SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [.volatileResults], attributeOptions: [])
+        let status = await AssetInventory.status(forModules: [transcriber])
+        guard status == .installed else {
+            if status != .unsupported {
+                Task { try? await AssetInventory.assetInstallationRequest(supporting: [transcriber])?.downloadAndInstall() }
+            }
+            return false
+        }
+        guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) else { return false }
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playAndRecord, mode: .measurement, options: [.duckOthers, .mixWithOthers, .defaultToSpeaker])
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+        } catch {
+            return false
+        }
+        let input = engine.inputNode
+        guard let converter = AVAudioConverter(from: input.outputFormat(forBus: 0), to: format) else { return false }
+        let analyzer = SpeechAnalyzer(modules: [transcriber])
+        let (stream, feed) = AsyncStream<AnalyzerInput>.makeStream()
+        Self.tap(input, converter: converter, format: format, into: feed)
+        engine.prepare()
+        do {
+            try engine.start()
+            try await analyzer.start(inputSequence: stream)
+        } catch {
+            engine.stop()
+            input.removeTap(onBus: 0)
+            feed.finish()
+            return false
+        }
+        listening = true
+        let results = Task { [weak self] in
+            var settled = ""
+            do {
+                for try await r in transcriber.results {
+                    let piece = String(r.text.characters)
+                    if r.isFinal { settled += piece }
+                    self?.heard(r.isFinal ? settled : settled + piece, final: false)
+                }
+            } catch {}
+        }
+        stopAnalyzer = {
+            feed.finish()
+            Task {
+                try? await analyzer.finalizeAndFinishThroughEndOfInput()
+                results.cancel()
+            }
+        }
+        armSilence(after: 7)
+        return true
+    }
+
+    /// Microphone buffers converted to the analyzer's format, off the main actor.
+    @available(iOS 26, *)
+    nonisolated private static func tap(_ input: AVAudioInputNode, converter: AVAudioConverter, format: AVAudioFormat,
+                                        into feed: AsyncStream<AnalyzerInput>.Continuation) {
+        input.removeTap(onBus: 0)
+        input.installTap(onBus: 0, bufferSize: 4096, format: input.outputFormat(forBus: 0)) { buffer, _ in
+            let ratio = format.sampleRate / buffer.format.sampleRate
+            let capacity = AVAudioFrameCount((Double(buffer.frameLength) * ratio).rounded(.up)) + 32
+            guard let out = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else { return }
+            var given = false
+            var error: NSError?
+            converter.convert(to: out, error: &error) { _, status in
+                if given {
+                    status.pointee = .noDataNow
+                    return nil
+                }
+                given = true
+                status.pointee = .haveData
+                return buffer
+            }
+            if error == nil, out.frameLength > 0 { feed.yield(AnalyzerInput(buffer: out)) }
+        }
+    }
+
     /// Off the main actor: the tap runs on the audio thread.
     nonisolated private static func tap(_ input: AVAudioInputNode, into req: SFSpeechAudioBufferRecognitionRequest) {
         input.removeTap(onBus: 0)
@@ -337,6 +430,8 @@ struct CoachSpark: View {
         engine.inputNode.removeTap(onBus: 0)
         request?.endAudio()
         task?.cancel()
+        stopAnalyzer?()
+        stopAnalyzer = nil
         request = nil
         task = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -369,6 +464,7 @@ struct AskCoachSettingsCard: View {
     @AppStorage(AskCoachPref.bubbleKey) private var bubble = true
     @AppStorage(AskCoachPref.playerMicKey) private var playerMic = true
     @AppStorage(AskCoachPref.speakKey) private var speak = AskCoachPref.Speak.whenTalking.rawValue
+    @AppStorage(AskCoachPref.onDeviceKey) private var onDevice = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -384,6 +480,8 @@ struct AskCoachSettingsCard: View {
             Toggle("🐵 bubble on every screen", isOn: $bubble).tint(Theme.lime).font(Theme.label(14))
                 .accessibilityIdentifier("askCoach.bubbleToggle")
             Toggle("Hey Coach mic in the player", isOn: $playerMic).tint(Theme.lime).font(Theme.label(14))
+            // On-device Coach (#608): quick questions and the finish recap on Apple Intelligence iPhones.
+            Toggle("⚡ Quick answers on device", isOn: $onDevice).tint(Theme.lime).font(Theme.label(14))
             VStack(alignment: .leading, spacing: 6) {
                 Text("Read answers aloud").eyebrow()
                 HStack(spacing: 6) {
@@ -398,7 +496,7 @@ struct AskCoachSettingsCard: View {
                     }
                 }
             }
-            Text("Voice is turned into text on your iPhone. Only the words are sent to Coach.").font(.caption).opacity(0.85)
+            Text("Voice is turned into text on your iPhone. Only the words are sent to Coach. On-device answers never leave your iPhone.").font(.caption).opacity(0.85)
         }
         .foregroundStyle(.white)
         .padding(18)

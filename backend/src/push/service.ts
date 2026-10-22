@@ -3,7 +3,7 @@ import type { ApnsEnv, ApnsSender } from './apns.ts';
 import { defaultPrefs, inQuietHours, NotificationPrefs } from './prefs.ts';
 
 /** Kinds of remote notifications. Each maps to a preference toggle. */
-export type PushKind = 'follow_achievement' | 'test';
+export type PushKind = 'follow_achievement' | 'buddy_invite' | 'test';
 
 /** Pushes to followers in flight at once per fan-out, so a member with many followers can't flood APNs or the loop. */
 const FAN_OUT_CONCURRENCY = 5;
@@ -139,6 +139,15 @@ export class PushService {
       this.pending.add(job);
     }
     return fresh.map((a) => a.id);
+  }
+
+  /** `notifyUser` in the background (tracked by `idle`), so the request doesn't wait on APNs. */
+  notifyLater(userId: string, kind: PushKind, m: { title: string; body: string; data?: Record<string, string>; collapseId?: string }): void {
+    const job = this.notifyUser(userId, kind, m)
+      .then(() => undefined)
+      .catch((e: Error) => this.d.log(`push: ${kind} failed: ${e.message}`))
+      .finally(() => this.pending.delete(job));
+    this.pending.add(job);
   }
 
   /** Tells everyone following `actorId` (who enabled follow alerts) about an achievement. Returns devices reached. */

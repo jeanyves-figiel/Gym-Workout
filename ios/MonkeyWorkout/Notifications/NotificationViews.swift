@@ -13,6 +13,7 @@ enum NotifyStyle {
     static let follow = LinearGradient(colors: [rgb(0xFF2D55), rgb(0xFF6FB5)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let badge = LinearGradient(colors: [rgb(0xFFB800), rgb(0xFF5E3A)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let move = LinearGradient(colors: [rgb(0xFF7A3D), rgb(0xFF3D8A)], startPoint: .topLeading, endPoint: .bottomTrailing)
+    static let alarm = LinearGradient(colors: [rgb(0xFF8A00), rgb(0xFF3D7B)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let quiet = LinearGradient(colors: [rgb(0x3A2D7A), rgb(0x1E1650)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let today = LinearGradient(colors: [rgb(0x00C9A7), rgb(0x2EC5FF)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let day = LinearGradient(colors: [Color.white.opacity(0.10), Color.white.opacity(0.05)], startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -87,6 +88,14 @@ struct NotificationSettingsView: View {
     @State private var notify = NotificationManager.shared
     @State private var testResult: String?
     @State private var testing = false
+    @State private var alarms = TimerAlarms.shared
+
+    /// Ring through Silent (#613 C): turning it on asks iOS for alarms; refused → stays off.
+    private var ringBinding: Binding<Bool> {
+        Binding(get: { alarms.enabled }, set: { on in
+            if on { Task { await alarms.enable() } } else { alarms.disable() }
+        })
+    }
 
     var body: some View {
         @Bindable var notify = notify
@@ -141,6 +150,15 @@ struct NotificationSettingsView: View {
                            isOn: $notify.prefs.moveNudges) {
                     Text("Skipped when you trained or logged a sport, hit your usual, or tapped Rest day. Steps never leave your iPhone.")
                         .font(.footnote.weight(.semibold)).opacity(0.9)
+                }
+
+                if alarms.available {
+                    NotifyCard(symbol: "alarm.waves.left.and.right.fill", title: "Ring through Silent",
+                               detail: "Rest and interval timers sound like an alarm on iPhone and Watch, even with Focus on",
+                               gradient: NotifyStyle.alarm, trailing: alarms.enabled ? "On" : "Off", isOn: ringBinding) {
+                        Text("End of rest: Start set or +30 s on the alarm. Tabata, EMOM and rounds ring at each block.")
+                            .font(.footnote.weight(.semibold)).opacity(0.9)
+                    }
                 }
 
                 NotifyCard(symbol: "moon.stars.fill", title: "Quiet hours", detail: "Reminders move out; follow alerts arrive silently",

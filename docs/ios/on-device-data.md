@@ -8,13 +8,15 @@ All in the app's `Application Support` unless noted, written atomically with Dat
 
 | File | Owner | Holds | Synced to server |
 |---|---|---|---|
-| `state.json` | `LocalStore` / `LocalState` | Profile, week plan and seed, done / ticked / skipped, set logs, workout history, custom workouts and exercises, PR attempts, measurements, climbs, sports, machine notes, programme, Train / Progress layouts, taste, growth, paused workout, **outbox** (pending and deleted id sets, last pull times) | Yes, per kind ([sync protocol](../api/README.md#sync-protocol)); profile as one blob |
+| `state.json` | `LocalStore` / `LocalState` | Profile, week plan and seed, done / ticked / skipped, set logs, workout history, custom workouts and exercises, PR attempts, measurements, climbs, sports, machine notes, programme, Train / Progress layouts, taste, growth, paused workout, how each workout felt (`feels`) and its Apple effort 1–10 (`efforts`, local only), **outbox** (pending and deleted id sets, last pull times) | Yes, per kind ([sync protocol](../api/README.md#sync-protocol)); profile as one blob |
 | `machine-notes/` | `MachineNote` | One JPEG per machine setup note | Yes (owner-only photo route) |
 | `fuel.json` | `FuelStore` | Fuel settings, daily logs, recipes (favourite, own), pantry, meal plans, shopping list, scanned products, supplements, water | **No**: Fuel stays on the device |
 | `daily-move.json` | `MoveStore` | Daily steps and stairs | No (from HealthKit) |
 | `me-avatar.jpg`, `me-avatar.json` | `MeAvatar` | Your own profile photo and its URL, so the Me pill shows it at launch (#639); wiped on sign-out | Copy of the server photo |
 | `cache/` (`account.json`, `community.json`, `entitlement.json`, `monkeygrade-sessions.json`) | `DeviceCache` | Last server answers per account: account, Community profile and first 30 posts per feed, Pro entitlement, MonkeyGrade sessions; shown at launch and offline (#641); wiped on sign-out and account switch | Copies of server data |
 | `lift-sets.json` | `LiftSets` | Watch lift-sensor sets | Via workouts |
+| `wod-timers.json` | `WodStore` | Saved WOD and boxing timers | No (sent to the Watch) |
+| `swim.json` | `SwimStore` | Swim plan, pool length, gym-day swim blocks, buddy alert minutes | No (today's swim sent to the Watch) |
 | `health-snapshot.json` | `HealthManager` | Last HealthKit readings (readiness, steps, gym workouts from other apps) | No |
 | `coach-voices/` | `CoachVoices` | Voice catalog and cached MP3 lines | No (downloaded) |
 | `gym-workout-export.json` (temporary directory) | `AccountView` | Data export while it is shared; protection `complete` | n/a |
@@ -37,8 +39,8 @@ Access and refresh tokens, the Watch upload key and the MonkeyGrade link sign-in
 
 ## Settings and preferences
 
-Small UI preferences (style, toggles) live in `UserDefaults` / `@AppStorage`; nothing sensitive.
+Small UI preferences (style, toggles) live in `UserDefaults` / `@AppStorage`; nothing sensitive. Ring through Silent (`timerAlarms.enabled`, off by default) and whether it was asked (`timerAlarms.asked`).
 
 ## Sign-out and deletion
 
-Sign-out first tries a final sync (5 s at most), then wipes `state.json`, tokens and every account copy outside it (`AppModel.wipeAccountLocalData`): Pro state, lift sets, Health cache, daily move, Fuel, notification prefs, MonkeyGrade link, Watch upload key, the export file and the URL cache; the Watch and widgets get signed-out snapshots. The same runs when another account signs in and after account deletion.
+Sign-out first tries a final sync (5 s at most), then wipes `state.json`, tokens and every account copy outside it (`AppModel.wipeAccountLocalData`): Pro state, lift sets, Health cache, daily move, timers, swim, Fuel, notification prefs, MonkeyGrade link, Watch upload key, the export file and the URL cache; the Watch and widgets get signed-out snapshots. The same runs when another account signs in and after account deletion.

@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 import WorkoutEngine
 
@@ -76,6 +77,11 @@ struct ExerciseDetailView: View {
         }
         .sheet(item: $muscle) { m in NavigationStack { MuscleDetailView(muscle: m, onClose: { muscle = nil }) } }
         .sheet(item: $editing) { c in CustomExerciseBuilderView(existing: c) }
+        // Siri sees the open exercise (#605, design C): "my best on this", "something easier?".
+        .userActivity("com.monkeyworkout.exercise") { a in
+            a.title = e.name
+            if #available(iOS 18.2, *) { a.appEntityIdentifier = EntityIdentifier(for: ExerciseEntity(e)) }
+        }
     }
 
     /// Parts that have something to show: a cardio move without history has no stats, a custom one no similar.

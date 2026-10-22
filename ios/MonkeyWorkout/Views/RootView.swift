@@ -56,6 +56,8 @@ struct MainTabView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var whatsNew = WhatsNew.pending
     @State private var ask = CoachAsk.shared
+    /// Exercise page opened by Visual Intelligence or Shortcuts (#617).
+    @State private var exerciseLaunch = ExerciseLaunch.shared
     @AppStorage(AskCoachPref.bubbleKey) private var coachBubble = true
 
     /// What's new with the X top right (#556); its own function keeps `body` quick to type-check.
@@ -81,11 +83,13 @@ struct MainTabView: View {
                 .tabItem { Label("Community", systemImage: "person.3.fill") }
                 .tag(MainTab.community)
         }
-        .toolbarBackground(Theme.bg, for: .tabBar)
+        // Liquid Glass tab bar on iOS 26 (#616 A).
+        .glassTabBar()
         .sidebarAdaptableTabs()
         // Ask Coach everywhere (#412 A): the floating 🐵 and its chat, which knows the screen on top.
         .overlay { if coachBubble { AskCoachBubble() } }
         .sheet(item: $ask.request) { r in CoachChatView(ask: r).remotePaused(.askCoach) }
+        .sheet(item: $exerciseLaunch.item) { i in NavigationStack { ExerciseDetailView(exerciseId: i.id) } }
         // Me sheet (#560): the Me pill at the top right of every tab.
         .sheet(isPresented: Bindable(model).meOpen) {
             NavigationStack {
@@ -121,6 +125,11 @@ struct MainTabView: View {
         .modifier(NotificationsHost())
         // Shake to report and Report on errors (#467) present over any screen.
         .onAppear { ProblemReporter.shared.model = model }
+        // Workout run on the Watch (#603): its twin player.
+        .fullScreenCover(isPresented: Binding(get: { MirroredWorkout.shared.presented && !model.offerPro },
+                                              set: { MirroredWorkout.shared.presented = $0 })) {
+            TwinPlayerView()
+        }
         .fullScreenCover(isPresented: Binding(get: { model.offerPro }, set: { model.offerPro = $0 })) {
             NavigationStack { ProView(context: .onboarding) { model.offerPro = false } }
         }
@@ -132,9 +141,9 @@ struct MainTabView: View {
 }
 
 private extension View {
-    /// iPad and unfolded iPhone Duo: tab bar that can become a sidebar (iOS 18+). iPhone keeps the bottom tab bar.
-    @ViewBuilder func sidebarAdaptableTabs() -> some View {
-        if #available(iOS 18, *) { tabViewStyle(.sidebarAdaptable) } else { self }
+    /// iPad and unfolded iPhone Duo: tab bar that can become a sidebar. iPhone keeps the bottom tab bar.
+    func sidebarAdaptableTabs() -> some View {
+        tabViewStyle(.sidebarAdaptable)
     }
 }
 
@@ -434,6 +443,13 @@ private struct DemoScreen: View {
         case "train-day-picked": NavigationStack { WeekView(demoPick: .planned) }
         case "train-rest-day": NavigationStack { WeekView(demoPick: .rest) }
         case "train-past-day": NavigationStack { WeekView(demoPick: .past) }
+        case "train-run", "train-hybrid": NavigationStack { WeekView() }
+        case "run-session", "run-start":
+            if let day = model.runWeek.first(where: { $0.workout.kind == .intervals }) ?? model.runWeek.first {
+                RunSessionSheet(day: day, demoChoosing: Demo.screen == "run-start")
+            }
+        case "run-goal": RunGoalEditor(initial: model.runGoal)
+        case "zone-week": ZoneWeekCard(time: ZoneTime(seconds: [1_380, 6_720, 2_160, 900, 180]), fromApple: true).padding(16)
         case "train-gallery": TrainWidgetGallery()
         case "train-customise": TrainCustomiseSheet()
         case "gyms": GymFinderView(place: "Zürich")

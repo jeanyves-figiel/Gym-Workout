@@ -54,6 +54,15 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var tasteRecap: TasteRecap?
     /// Growing with the member (#495): level, block reviews, long-term goal, weekly notices, the coach's memory.
     var growth: GrowthState?
+    /// Sport add-on (#620 C): a 15′ sport block in a few gym sessions a week; nil = none.
+    var sportAddOn: SportAddOnPref?
+    /// Calisthenics skill tree (#621): best tests and the skill of the month.
+    var skills: SkillProgress?
+    /// Cycling FTP in watts (#623) and when it was last tested; power zones follow it.
+    var bikeFTP: Int?
+    var bikeFTPTestedAt: Date?
+    /// Life-stage programme check-in (#625): due date, birth, weeks off, doctor's OK.
+    var lifeStage: LifeStageCheckIn?
 
     /// Training profile with this week's learned tastes (#299): quick sessions and plan variations.
     var tasteProfile: Profile {
@@ -164,6 +173,8 @@ struct LocalState: Codable {
     var freestyle: Session?
     /// How the member felt after each workout (#501), `Feel` raw values by record id. Local only.
     var feels: [UUID: Int]?
+    /// Apple effort 1–10 per workout (#614), by record id. Local only (Apple Health keeps its own copy).
+    var efforts: [UUID: Int]?
 }
 
 /// Where the player stopped: exercise index, sets done per item and active time so far.
@@ -289,5 +300,6 @@ extension LocalState {
         freestyle = try? c.decodeIfPresent(Session.self, forKey: .freestyle)
         dayTune = try? c.decodeIfPresent(DayTune.self, forKey: .dayTune)
         feels = try? c.decodeIfPresent([UUID: Int].self, forKey: .feels)
+        efforts = try? c.decodeIfPresent([UUID: Int].self, forKey: .efforts)
     }
 }

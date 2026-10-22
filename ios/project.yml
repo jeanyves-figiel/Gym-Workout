@@ -2,8 +2,8 @@ name: MonkeyWorkout
 options:
   bundleIdPrefix: com.app
   deploymentTarget:
-    iOS: "17.0"
-    watchOS: "10.0"
+    iOS: "18.0"
+    watchOS: "11.0"
   createIntermediateGroups: true
 configs:
   Debug: debug
@@ -92,9 +92,15 @@ targets:
         NSSpeechRecognitionUsageDescription: Turns what you say to Coach into text, on your iPhone when it can. Only the words are sent to Coach.
         NSHealthShareUsageDescription: Reads weight, height, body fat, lean body mass, waist circumference, age, sex, resting heart rate, HRV, VO2max, sleep, steps, floors climbed, heart rate during sessions and climbing workouts to estimate calories and starting weights, show readiness, count daily walking and stairs toward your level, and track progress.
         NSLocationWhenInUseUsageDescription: Finds gyms near you. Your location is only used for the search and never leaves this device except to Apple Maps.
-        NSHealthUpdateUsageDescription: Saves your gym sessions as workouts, the weight, height, body fat, lean mass and waist you enter, and the water you log in Fuel, to Apple Health.
+        NSHealthUpdateUsageDescription: Saves your gym sessions as workouts with how hard they felt (effort), how you feel after them (State of Mind), the weight, height, body fat, lean mass and waist you enter, and the water you log in Fuel, to Apple Health.
         ITSAppUsesNonExemptEncryption: false
         NSSupportsLiveActivities: true
+        # Workout mirrored from the Watch (#603): keeps the app running for it with the phone locked.
+        UIBackgroundModes: [workout-processing]
+        # Siri sees the open exercise page (#605).
+        NSUserActivityTypes: [com.monkeyworkout.exercise]
+        # Ring through Silent (#613): rest and interval timers as AlarmKit alarms, off until the member allows it.
+        NSAlarmKitUsageDescription: Rest and interval timers ring like an alarm, even on Silent or with Focus on.
         MWAppGroup: $(APP_GROUP)
         # Home Screen widget taps (#297): monkeyworkout://session/<id>, monkeyworkout://progress, …
         CFBundleURLTypes:
@@ -180,6 +186,8 @@ targets:
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.access: []
         com.apple.security.application-groups: [$(APP_GROUP)]
+        # Snorkel depth (#615 C, #634): Shallow Depth and Pressure capability on the Watch App ID.
+        com.apple.developer.submerged-shallow-depth-and-pressure: true
     info:
       path: MonkeyWorkoutWatch/Info.plist
       properties:
@@ -190,10 +198,13 @@ targets:
         WKCompanionAppBundleIdentifier: $(APP_BUNDLE_ID)
         WKBackgroundModes: [workout-processing]
         MWAppGroup: $(APP_GROUP)
-        NSHealthShareUsageDescription: Reads heart rate and active energy during your workouts.
-        NSHealthUpdateUsageDescription: Saves your gym sessions and the sports you track (with their route) as workouts to Apple Health.
-        NSMotionUsageDescription: Counts your reps and measures bar speed during workouts.
+        # Snorkel depth (#615 C): on since the Watch App ID has Apple's Shallow Depth and Pressure capability (#634).
+        MWDepth: true
+        NSHealthShareUsageDescription: Reads heart rate, active energy, swim distance, strokes and water temperature during your workouts.
+        NSHealthUpdateUsageDescription: Saves your gym sessions, timers, swims and the sports you track (with their route) as workouts, with their effort and how you feel after them, to Apple Health.
+        NSMotionUsageDescription: Counts your reps, punches and racket swings and measures bar speed during workouts.
         NSLocationWhenInUseUsageDescription: Records the route, speed and elevation of the sports you track. The route is saved to Apple Health only.
+        NSBluetoothAlwaysUsageDescription: Connects your bike power meter, cadence sensor and heart-rate strap during rides.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).watchkitapp

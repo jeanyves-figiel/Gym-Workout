@@ -1,4 +1,6 @@
+import APIClient
 import SwiftUI
+import TipKit
 import UIKit
 import WorkoutEngine
 
@@ -25,6 +27,9 @@ struct WorkoutPlayerView: View {
     @State private var reward: GameReward?
     /// Wins you missed (#501) on the finish sheet.
     @State private var wins: [Win] = []
+    /// Instant recap (#608 B), reworded by the on-device model when it can.
+    @State private var recap: WorkoutRecap?
+    @State private var recapOnDevice = false
 
     @State private var index = 0
     @State private var setsDone: [String: Int] = [:]
@@ -34,6 +39,7 @@ struct WorkoutPlayerView: View {
     @State private var pendingJump: Int?
     @State private var started = Date()
     @State private var finished = false
+    @State private var askRing = false
     @State private var ready = false
     @State private var discarded = false
     /// Finish, Finish early or Discard picked in the workout map (#538): run once the sheet has closed.
@@ -163,9 +169,12 @@ struct WorkoutPlayerView: View {
     /// Build as I go (#490): started empty, exercises added in the player.
     private var isFree: Bool { Freestyle.isFreestyle(sessionId) }
 
-    // Split in three so the Xcode 27 type-checker handles it (one chain timed out, #158).
+    // Split in four so the Xcode 27 type-checker handles it (one chain timed out, #158).
     var body: some View {
-        remoteControls(lifecycle(screen))
+        watchFeeds(remoteControls(lifecycle(screen)))
+            // Gym buddy link (#626 B): a buddy's set or cheer, a few seconds at the top.
+            .overlay(alignment: .top) { BuddyToast() }
+            .onDisappear { LiveRoom.shared.player(nil, api: model.api) }
     }
 
     private var screen: some View {
@@ -175,7 +184,7 @@ struct WorkoutPlayerView: View {
                 if finished {
                     SummaryView(session: session, elapsed: Date().timeIntervalSince(started), setsDone: setsDone.values.reduce(0, +),
                                 kcal: record?.kcal, healthSaved: health.connected && health.writeWorkouts, reward: reward,
-                                wins: wins, recordId: record?.id) {
+                                wins: wins, record: record, recap: recap, recapOnDevice: recapOnDevice) {
                         dismiss()
                     }
                     .transition(.scale.combined(with: .opacity))
@@ -260,7 +269,7 @@ struct WorkoutPlayerView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(20)
-                .background(Theme.bg.ignoresSafeArea())
+                .glassSheetBackground()
                 .foregroundStyle(.white)
                 .preferredColorScheme(.dark)
                 .safeAreaInset(edge: .bottom) { mapActions }
@@ -315,6 +324,13 @@ struct WorkoutPlayerView: View {
         content
         .onReceive(NotificationCenter.default.publisher(for: .workoutRestAdd15)) { _ in extendRest() }
         .onReceive(NotificationCenter.default.publisher(for: .workoutRestSkip)) { _ in closePause() }
+        // "+30 s" on the rest alarm (#613 A).
+        .onReceive(NotificationCenter.default.publisher(for: .workoutRestAdd30)) { _ in extendRest(by: 30) }
+        // Ring through Silent? (#613 C): asked once, the first time a rest or timed block runs.
+        .onChange(of: pause?.end != nil || timed?.end != nil) { _, running in
+            if running, TimerAlarms.shared.shouldAsk, demoMode == nil, !model.demo { askRing = true }
+        }
+        .sheet(isPresented: $askRing) { RingThroughSilentAsk() }
         // Lock screen / Dynamic Island (#371): effort tile logs the set, − / + kg, lime button.
         .onReceive(NotificationCenter.default.publisher(for: .workoutLogSet)) { n in
             let efforts: [WCommand] = [.effort0, .effort1, .effort2, .effort3, .effort4]
@@ -322,6 +338,14 @@ struct WorkoutPlayerView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .workoutStepKg)) { n in stepKgFromLockScreen(n.object as? Int ?? 0) }
         .onReceive(NotificationCenter.default.publisher(for: .workoutMain)) { _ in handle(.main) }
+    }
+
+    /// Siri, heart rate and Watch feeds (split from remoteControls for the type-checker).
+    private func watchFeeds(_ content: some View) -> some View {
+        content
+        .onReceive(NotificationCenter.default.publisher(for: .workoutVoiceLog)) { n in
+            siriLog(reps: n.userInfo?["reps"] as? Int, kg: n.userInfo?["kg"] as? Double)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .watchHeartRate)) { _ in updateLive() }
         .onChange(of: timed) { updateLive() }
         .onChange(of: autoNext) { updateLive() }
@@ -413,7 +437,7 @@ struct WorkoutPlayerView: View {
                 let setup = model.machineNote(exerciseId: step.exercise.id, gymId: setupGym.id)
                 ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
                                  position: isFree ? "" : "\(index + 1)/\(steps.count)",
-                                 onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
+                                 onAttemptPR: step.loggable && model.lifeStage == nil ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
                                  onChange: canChange(step) ? { changeFor = step.item } : nil,
                                  setup: setup,
                                  onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
@@ -492,7 +516,7 @@ struct WorkoutPlayerView: View {
                         "Set \(i + 1) · \(LoadAdvisor.formatKg(v.kg)) × \(v.reps)" + (p.effort.map { " · \($0.caption.lowercased())" } ?? "")
                     }
                 } ?? "Set \(done) done",
-                onEffort: pickEffort, onExtend: extendRest, onDone: closePause)
+                onEffort: pickEffort, onExtend: { extendRest() }, onDone: closePause)
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.card))
@@ -548,11 +572,33 @@ struct WorkoutPlayerView: View {
                 }
                 .buttonStyle(.plain)
             }
+            moveToWatch
         }
         .padding(.horizontal, 20)
         .padding(.top, 10)
         .padding(.bottom, steps.isEmpty ? 8 : 0)
         .background(Theme.bg.ignoresSafeArea())
+    }
+
+    /// Hand-off (#603, design C): the Watch takes the workout over so the phone can go in the locker. The Watch tracks
+    /// it and mirrors its session back, which keeps this player answering the Watch with the screen off.
+    @ViewBuilder private var moveToWatch: some View {
+        if WatchSync.shared.watchTracks(sessionId) {
+            Label("On your Watch too · phone can sleep", systemImage: "applewatch.radiowaves.left.and.right")
+                .font(Theme.label(13)).foregroundStyle(Theme.lime)
+                .frame(maxWidth: .infinity, minHeight: 36)
+        } else if WatchSync.shared.watchReady {
+            Button {
+                WatchSync.shared.offerStart(sessionId: sessionId, asked: true)
+            } label: {
+                Label("Move to Watch", systemImage: "applewatch")
+                    .font(Theme.label(14)).foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Your Watch takes over: log sets and rest from the wrist, the phone can sleep")
+        }
     }
 
     private func runMapAction() {
@@ -604,7 +650,7 @@ struct WorkoutPlayerView: View {
                     let setup = model.machineNote(exerciseId: step.exercise.id, gymId: setupGym.id)
                     ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
                                      position: isFree ? "" : "\(index + 1)/\(steps.count)",
-                                     onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
+                                     onAttemptPR: step.loggable && model.lifeStage == nil ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
                                      onChange: canChange(step) ? { changeFor = step.item } : nil,
                                      setup: setup,
                                      onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
@@ -958,6 +1004,7 @@ struct WorkoutPlayerView: View {
         .accessibilityLabel(listener.listening ? "Stop listening" : "Talk to Coach")
         .accessibilityHint("Say done, a weight, reps, skip rest, next, or ask a question")
         .accessibilityIdentifier("player.mic")
+        .popoverTip(VoiceLogTip())
     }
 
     /// What the mic hears, under the top bar.
@@ -979,6 +1026,19 @@ struct WorkoutPlayerView: View {
     private func listenForCommand() {
         coach.stop()
         listener.start { said in runVoice(said) }
+    }
+
+    /// Siri "log 8 at 80" (#605): the coming set's reps and kg, then logged as the lime button does.
+    private func siriLog(reps: Int?, kg: Double?) {
+        guard ready, !finished, steps.indices.contains(index) else { return }
+        let step = steps[index]
+        let done = setsDone[step.item.uid] ?? 0
+        if step.loggable, log.item?.uid == step.item.uid, !log.rows.isEmpty {
+            let row = min(done, log.rows.count - 1)
+            if let kg { log.setKg(row, kg) }
+            if let reps { log.setReps(row, reps) }
+        }
+        handle(.main)
     }
 
     /// Runs what the member said: set done (with effort), weight, reps, rest, next / previous; anything else is a question.
@@ -1008,6 +1068,13 @@ struct WorkoutPlayerView: View {
             guard onCard else { return coach.reply("No reps to log on this one.") }
             log.setReps(row, n)
             coach.reply("\(log.rows[row].reps) reps.")
+        case let .set(reps, kg):
+            // "Eight at eighty" (#617): both values in, set logged.
+            guard onCard else { return coach.reply("No weight on this one.") }
+            log.setKg(row, kg)
+            log.setReps(row, reps)
+            coach.reply("\(log.rows[row].reps) at \(log.rows[row].kg).")
+            handle(.main)
         case .skipRest: handle(.skipRest)
         case .addRest:
             handle(.addRest)
@@ -1212,11 +1279,11 @@ struct WorkoutPlayerView: View {
         if (setsDone[step.item.uid] ?? 0) >= step.sets { nextExercise(step) }
     }
 
-    private func extendRest() {
+    private func extendRest(by seconds: Int = 15) {
         guard var p = pause, let end = p.end else { return }
         let base = max(end, Date())
-        p.end = base.addingTimeInterval(15)
-        p.total += Int(base.timeIntervalSince(end)) + 15
+        p.end = base.addingTimeInterval(TimeInterval(seconds))
+        p.total += Int(base.timeIntervalSince(end)) + seconds
         pause = p
     }
 
@@ -1245,6 +1312,16 @@ struct WorkoutPlayerView: View {
             reward = GameReward(before: before.game, after: model.game, badgesBefore: before.badges, badgesAfter: model.badges)
             if reward?.weekCleared == true { model.markChestSeen() }
             wins = model.wins(for: r)
+            if let base = WorkoutRecap.build(r, history: model.history) {
+                recap = base
+                Task {
+                    guard let better = await OnDeviceCoach.recap(base) else { return }
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        recap = better
+                        recapOnDevice = true
+                    }
+                }
+            }
             // A Watch tracking this workout saves the Health workout with its heart rate (#347).
             if !WatchSync.shared.watchTracks(sessionId) {
                 Task {
@@ -1581,6 +1658,7 @@ struct WorkoutPlayerView: View {
         if demoMode == "done" {
             reward = Demo.reward
             wins = Demo.wins
+            recap = Demo.recap
             finished = true
         }
         if demoMode == "next", let s = steps.firstIndex(where: { $0.loggable }), s < steps.count - 1 {
@@ -1769,11 +1847,17 @@ struct WorkoutPlayerView: View {
     }
 
     private func updateLive() {
-        guard ready, !finished, !discarded else { return WatchSync.shared.sendLive(nil) }
+        guard ready, !finished, !discarded else {
+            LiveRoom.shared.player(nil, api: model.api)
+            return WatchSync.shared.sendLive(nil)
+        }
         let state = liveState()
         live.update(state)
         guard steps.indices.contains(index), let session else { return }
         let step = steps[index]
+        LiveRoom.shared.player(LiveSet(title: session.displayTitle, exercise: state.exercise,
+                                       detail: String([state.setLabel, state.detail].filter { !$0.isEmpty }.joined(separator: " · ").prefix(40)),
+                                       state: pause != nil ? .rest : .set), api: model.api)
         WatchSync.shared.sendLive(WLive(
             sessionTitle: session.displayTitle, exercise: state.exercise, setLabel: state.setLabel, detail: state.detail,
             restEnd: state.restEnd, next: state.next, tint: state.tint,
@@ -1817,6 +1901,8 @@ struct WorkoutPlayerView: View {
             }
         case .next: advance(step)
         case .previous: go(index - 1)
+        case .kgDown: stepKgFromLockScreen(-1)
+        case .kgUp: stepKgFromLockScreen(1)
         }
     }
 }
@@ -1955,9 +2041,13 @@ private struct SummaryView: View {
     let healthSaved: Bool
     var reward: GameReward?
     var wins: [Win] = []
-    var recordId: UUID?
+    var record: WorkoutRecord?
+    var recap: WorkoutRecap?
+    var recapOnDevice = false
     let onDone: () -> Void
     @State private var pop = false
+
+    private var recordId: UUID? { record?.id }
 
     var body: some View {
         ScrollView {
@@ -1976,6 +2066,9 @@ private struct SummaryView: View {
                 }
                 // Wins you missed (#501): three personal wins, even on a weak day, and how you feel now.
                 if !wins.isEmpty { WinsCard(wins: wins, recordId: recordId) }
+                if let recap { RecapCard(recap: recap, onDevice: recapOnDevice) }
+                // Effort to Apple Health (#614 A).
+                if let record { EffortCard(record: record) }
                 HStack(spacing: 10) {
                     GradientStat(symbol: "stopwatch.fill", value: Format.elapsed(elapsed), label: "Time", gradient: WorkoutEngine.Category.cardio.gradient)
                     GradientStat(symbol: "square.stack.3d.up.fill", value: "\(setsDone)", label: "Sets", gradient: WorkoutEngine.Category.strength.gradient)

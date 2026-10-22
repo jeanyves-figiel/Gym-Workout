@@ -140,8 +140,7 @@ final class ProStore {
 
     private func handle(_ result: VerificationResult<StoreKit.Transaction>, finish: Bool = true) async {
         guard case .verified(let t) = result, Self.productIds.contains(t.productID) else { return }
-        var renewal: String?
-        if #available(iOS 17.2, *) { renewal = await t.subscriptionStatus?.renewalInfo.jwsRepresentation }
+        let renewal = await t.subscriptionStatus?.renewalInfo.jwsRepresentation
         if let api {
             do {
                 entitlement = try await api.submitTransaction(result.jwsRepresentation, renewalInfo: renewal)

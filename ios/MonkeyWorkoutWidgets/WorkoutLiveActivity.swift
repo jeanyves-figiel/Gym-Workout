@@ -9,6 +9,10 @@ struct MonkeyWorkoutWidgets: WidgetBundle {
         WorkoutLiveActivity()
         HomeScreenWidget()
         WaterWidget()
+        StartTodayControl()
+        SmartNextControl()
+        WaterControl()
+        JustAteControl()
     }
 }
 
@@ -20,7 +24,8 @@ private func color(_ v: UInt32) -> Color {
 }
 
 /// Lock screen banner + Dynamic Island: log the coming set without unlocking, rest countdown, session progress (#371),
-/// and a summary card once the workout is finished.
+/// and a summary card once the workout is finished. On the Apple Watch Smart Stack (#606) a small card: the set with
+/// a Log button, or the rest ring while resting.
 struct WorkoutLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: WorkoutActivityAttributes.self) { ctx in
@@ -88,6 +93,7 @@ struct WorkoutLiveActivity: Widget {
             }
             .keylineTint(tint)
         }
+        .supplementalActivityFamilies([.small])
     }
 }
 
@@ -116,9 +122,12 @@ extension WorkoutActivityAttributes.ContentState {
 private struct LockScreenView: View {
     let state: WorkoutActivityAttributes.ContentState
     let attributes: WorkoutActivityAttributes
+    @Environment(\.activityFamily) private var family
 
     var body: some View {
-        if let summary = state.summary {
+        if family == .small {
+            SmallCard(state: state, title: attributes.sessionTitle)
+        } else if let summary = state.summary {
             FinishedCard(summary: summary, title: attributes.sessionTitle)
         } else {
             live
@@ -167,6 +176,66 @@ private struct LockScreenView: View {
         }
         .foregroundStyle(.white)
         .padding(12)
+    }
+}
+
+/// Watch Smart Stack and CarPlay size (#606, designs A + B by state): the set and a Log button, the rest ring and
+/// Skip while resting, the summary once done.
+private struct SmallCard: View {
+    let state: WorkoutActivityAttributes.ContentState
+    let title: String
+
+    var body: some View {
+        let tint = color(state.tint)
+        let resting = state.restEnd.map { $0 > .now } ?? false
+        HStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(eyebrow(resting)).font(.system(size: 10, weight: .heavy, design: .rounded))
+                    .foregroundStyle(resting ? lime : .white.opacity(0.85)).lineLimit(1)
+                Text(state.summary == nil ? state.exercise : "\(title) 🎉").font(.system(size: 14, weight: .black, design: .rounded))
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                if state.summary == nil, !state.detail.isEmpty {
+                    Text(state.detail).font(.system(size: 16, weight: .black, design: .rounded)).monospacedDigit()
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if state.summary != nil {
+                EmptyView()
+            } else if resting, let end = state.restEnd {
+                Button(intent: SkipRestIntent()) {
+                    ZStack {
+                        ProgressView(timerInterval: countdownRange(end), countsDown: true) { EmptyView() } currentValueLabel: { EmptyView() }
+                            .progressViewStyle(.circular).tint(lime)
+                        Text(timerInterval: countdownRange(end), countsDown: true)
+                            .font(.system(size: 12, weight: .black, design: .rounded)).monospacedDigit()
+                            .multilineTextAlignment(.center).frame(width: 40)
+                    }
+                    .frame(width: 50, height: 50)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Skip rest")
+            } else if state.loggable == true || state.action != nil {
+                Button(intent: MainActionIntent()) {
+                    Text(state.loggable == true ? "Log ✓" : (state.action ?? "Next"))
+                        .font(.system(size: 13, weight: .heavy, design: .rounded)).foregroundStyle(ink)
+                        .lineLimit(1).minimumScaleFactor(0.6)
+                        .frame(width: 58, height: 40)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(lime))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(10)
+        .background(LinearGradient(colors: [tint.opacity(0.9), .black], startPoint: .topLeading, endPoint: .bottomTrailing))
+    }
+
+    private func eyebrow(_ resting: Bool) -> String {
+        if let s = state.summary { return "DONE · \(s.minutes) MIN" }
+        if resting { return "REST · NEXT \(state.setLabel.uppercased())" }
+        if let hr = state.heartRate { return "\(state.setLabel.uppercased()) · ♥ \(hr)" }
+        return state.setLabel.uppercased()
     }
 }
 

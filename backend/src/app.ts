@@ -16,6 +16,7 @@ import { PushService } from './push/service.ts';
 import { accountRoutes } from './routes/account.ts';
 import { followerIds } from './community/moderation.ts';
 import { communityPublicRoutes, communityRoutes } from './routes/community.ts';
+import { liveRoutes } from './routes/live.ts';
 import { type CoachModel, claudeCoach } from './coach/chat.ts';
 import { coachChatRoutes } from './routes/coachChat.ts';
 import { type FoodScanModel, claudeFoodScan } from './coach/foodScan.ts';
@@ -295,6 +296,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       securityRoutes(r, security, deps.config.authRateLimitPerMin);
       customWorkoutRoutes(r, deps.db, deps.now ?? (() => new Date()));
       communityRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
+      liveRoutes(r, deps.db, now, push);
       customExerciseRoutes(r, deps.db, deps.now ?? (() => new Date()));
       prAttemptRoutes(r, deps.db, deps.now ?? (() => new Date()));
       climbRoutes(r, deps.db, deps.now ?? (() => new Date()));

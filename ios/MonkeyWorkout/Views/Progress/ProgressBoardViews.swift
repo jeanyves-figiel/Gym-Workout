@@ -10,7 +10,7 @@ extension ProgressWidgetKind {
     /// The Progress part a tile opens.
     var section: ProgressSection {
         switch self {
-        case .training, .consistency, .weekly, .streak, .level, .sport, .chest, .growth: .training
+        case .training, .consistency, .weekly, .streak, .level, .sport, .chest, .growth, .mood: .training
         case .body: .body
         case .records: .records
         case .badges: .badges
@@ -29,6 +29,7 @@ extension ProgressWidgetKind {
         case .sport: "figure.mixed.cardio"
         case .chest: "gift.fill"
         case .growth: "chart.line.uptrend.xyaxis"
+        case .mood: "face.smiling.inverse"
         default: section.symbol
         }
     }
@@ -42,6 +43,7 @@ extension ProgressWidgetKind {
         case .sport: Sport.other.colors
         case .chest: [Color(hex: 0xFF7A3D), Color(hex: 0xFF3D8A)]
         case .growth: WorkoutEngine.Category.mobility.colors
+        case .mood: [Color(hex: 0x00C9A7), Color(hex: 0x2F6BFF)]
         default: section.colors
         }
     }

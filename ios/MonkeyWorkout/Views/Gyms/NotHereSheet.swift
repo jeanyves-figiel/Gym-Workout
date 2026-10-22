@@ -63,7 +63,7 @@ struct NotHereSheet: View {
                 }
                 .padding(16)
             }
-            .background(Theme.bg.ignoresSafeArea())
+            .glassSheetBackground()
             .navigationTitle("Not here?")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }

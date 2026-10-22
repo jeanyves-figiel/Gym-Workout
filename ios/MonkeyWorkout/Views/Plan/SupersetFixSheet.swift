@@ -37,7 +37,7 @@ struct SupersetFixSheet: View {
             .padding(.horizontal, 20)
             .padding(.top, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.bg.ignoresSafeArea())
+            .glassSheetBackground()
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }

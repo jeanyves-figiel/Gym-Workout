@@ -42,9 +42,20 @@ struct WatchSnapshot: Codable, Equatable {
     var hyrox: WHyrox?
     /// "Start on Watch" for another sport on the iPhone (#439); used for a few minutes after `at`.
     var sportStart: WSportStart?
+    /// Heart-rate zones (#609) and today's planned run (#618); nil from older iPhone apps.
+    var zones: WZones?
+    var run: WRun?
+    /// Cycling FTP in watts (#623) for power zones; nil = not set or an older phone app.
+    var bikeFTP: Int?
 
     /// Today's water from Fuel (#496); a tap on the Watch adds a glass.
     var water: WWater?
+    /// Home gym with a map position (#612): the Smart Stack raises Next up when the Watch is there. nil = none.
+    var gym: WGym?
+    /// WOD and combat timers saved on the iPhone (#622); nil from older phone apps.
+    var wods: [WodTimer]?
+    /// Swimming (#624): pool length, plan, today's and the next swim; nil when the member never set it up.
+    var swim: WSwim?
 
     func session(_ id: String) -> WSession? { (sessions + extras).first { $0.id == id } }
 }
@@ -80,6 +91,9 @@ struct WBlock: Codable, Equatable, Hashable {
     var tint: UInt32
     var tint2: UInt32
     var items: [WItem]
+    /// Cool-down the Watch guides on its own (#619 C): timers start by themselves, both sides of a per-side hold.
+    /// nil from older phone apps.
+    var guided: Bool? = nil
 }
 
 struct WItem: Codable, Equatable, Hashable, Identifiable {
@@ -231,6 +245,10 @@ enum WatchEvent: Codable, Equatable {
     case liftSet(WLiftSet)
     /// A Hyrox race or sim recorded on the Watch (#426); its id is the Health workout's.
     case hyroxRace(HyroxRace)
+    /// FTP from a 20′ test on the Watch (#623 C).
+    case bikeFTP(watts: Int, date: Date)
+    /// Cheer for a gym buddy from the Watch (#626 B): `fire`, `banana` or `beast`.
+    case buddyCheer(userId: String, kind: String)
 }
 
 /// Reps and bar speed the Watch measured for one set (#383). Speeds in m/s, ranges in m, times in s.
@@ -500,6 +518,13 @@ struct WLiftPracticeState: Codable, Equatable {
 }
 
 /// Fuel water (#496): glasses counted today against the day's target.
+/// Home gym for Smart Stack relevance (#612).
+struct WGym: Codable, Equatable {
+    var name: String
+    var latitude: Double
+    var longitude: Double
+}
+
 struct WWater: Codable, Equatable {
     /// `PlanCalendar` day key the counts belong to.
     var day: String
@@ -524,6 +549,30 @@ struct WWater: Codable, Equatable {
 /// Watch → phone remote control of the iPhone player.
 enum WCommand: String, Codable {
     case main, skipRest, addRest, effort0, effort1, effort2, effort3, effort4, next, previous
+    /// Twin player on the iPhone (#603): − / + on the coming set's kg.
+    case kgDown, kgUp
+}
+
+/// A workout run on the Watch, as the iPhone's twin player shows it (#603). Sent through HealthKit workout
+/// mirroring (`sendToRemoteWorkoutSession`), which also keeps the iPhone app running with the phone locked.
+struct WMirrorState: Codable, Equatable {
+    var sessionId: String
+    var title: String
+    var exercise: String
+    /// "SET 2 OF 4", "SUPERSET A · 1 OF 2".
+    var setLabel: String
+    /// "80 kg × 8", "0:45", "3 × 10".
+    var detail: String
+    var next: String
+    var restEnd: Date?
+    var tint: UInt32
+    var tint2: UInt32
+    /// The Watch's lime button ("SET DONE", "START 0:45", "NEXT").
+    var action: String
+    var loggable: Bool
+    var position: Int
+    var count: Int
+    var finished = false
 }
 
 enum WatchKeys {
@@ -545,6 +594,14 @@ enum WatchKeys {
     static let practiceState = "practiceState"
     /// Watch → phone: one glass of water for this day key (#496), sent with `transferUserInfo`.
     static let water = "water"
+    /// Big screen timer (#622 C): `WWodRemote` phone → Watch, `wodRemoteEnded` when it closes, `wodCommand` Watch → phone.
+    static let wodRemote = "wodRemote"
+    static let wodRemoteEnded = "wodRemoteEnded"
+    static let wodCommand = "wodCommand"
+    /// Open water buddy alert (#615 B): `WSwimBuddy` Watch → phone, sent with `transferUserInfo`.
+    static let swimBuddy = "swimBuddy"
+    /// Gym buddy (#626 B): `WBuddyPing` phone → Watch, a buddy's set or a cheer for you.
+    static let buddy = "buddy"
 }
 
 extension JSONEncoder {
@@ -569,6 +626,70 @@ struct WSportStart: Codable, Equatable {
     var sport: String
     var saver: Bool
     var at: Date
+    /// A planned run (#618): the Watch run player follows its steps.
+    var run: WRun? = nil
+}
+
+/// Heart-rate zones (#609): bpm where zones 2…5 start, from Apple Health's zones or age and resting heart rate
+/// (`HeartZones` on the iPhone). Buzz on zone change can be turned off.
+struct WZones: Codable, Equatable {
+    var starts: [Int]
+    var buzz = true
+
+    /// Age 35, resting 60: until the iPhone sends the member's own.
+    static let standard = WZones(starts: [134, 146, 159, 171])
+
+    var valid: Bool { starts.count == 4 && zip(starts, starts.dropFirst()).allSatisfy { $0 < $1 } }
+
+    /// Zone 1…5 for a heart rate.
+    func zone(_ bpm: Double) -> Int { 1 + starts.filter { bpm >= Double($0) }.count }
+
+    /// bpm under (negative) or over (positive) a zone; 0 inside it.
+    func off(_ bpm: Double, target: Int) -> Int {
+        let z = min(max(target, 1), 5)
+        if z > 1, bpm < Double(starts[z - 2]) { return -Int((Double(starts[z - 2]) - bpm).rounded(.up)) }
+        if z < 5, bpm > Double(starts[z - 1] - 1) { return Int((bpm - Double(starts[z - 1] - 1)).rounded(.up)) }
+        return 0
+    }
+
+    /// Tile colours, zone 1…5 (same as the iPhone's `HeartZones.tints`).
+    static let tints: [(UInt32, UInt32)] = [
+        (0x3D59FF, 0x00C7FF), (0x00B86B, 0x3DFFB0), (0x9BD300, 0xCCFF3D), (0xFF7A3D, 0xFFC23D), (0xFF3D8B, 0xFF6B6B),
+    ]
+}
+
+/// A planned run or cardio session (#618), flattened from `RunWorkout` for the Watch run player.
+struct WRun: Codable, Equatable, Identifiable {
+    var id: String
+    var title: String
+    var detail: String
+    /// `Sport` raw value: run, roadBike, rowing.
+    var sport: String
+    /// Whole-session target zone (Zone 2 days).
+    var zone: Int?
+    var steps: [WRunStep]
+}
+
+struct WRunStep: Codable, Equatable {
+    /// warmup, work, recover, cooldown, steady.
+    var kind: String
+    var meters: Int?
+    var seconds: Int?
+    /// Seconds per km.
+    var pace: Int?
+    var zone: Int?
+    var rep: Int?
+    var of: Int?
+
+    var title: String {
+        switch kind {
+        case "warmup": "Warm-up"
+        case "recover": "Recover"
+        case "cooldown": "Cool-down"
+        case "steady": "Steady"
+        default: rep.map { r in of.map { "Rep \(r) of \($0)" } ?? "Rep \(r)" } ?? "Work"
+        }
+    }
 }
 
 struct WHyrox: Codable, Equatable {
@@ -586,4 +707,43 @@ struct WHyrox: Codable, Equatable {
     /// "Start race on Watch" on the iPhone: the format and when it was asked (used for a few minutes).
     var start: HyroxFormat?
     var startAt: Date?
+}
+
+/// Swimming on the Watch (#624, #615), flattened by the iPhone.
+struct WSwim: Codable, Equatable {
+    /// Pool length, metres.
+    var pool = 25
+    /// "1 km non-stop · week 3 of 8", when a plan runs.
+    var plan: String?
+    /// Swim planned today: a plan day, or the swim block of today's gym session (gym-day swims, C).
+    var today: SwimWorkout?
+    var next: SwimWorkout?
+    var nextDay: Date?
+    /// Open water: the iPhone alerts after this many minutes unless the swim ended (#615 B).
+    var buddyMinutes = 60
+}
+
+/// Big screen timer on the iPhone (#622 C): the Watch shows it and double tap starts or pauses it.
+struct WWodRemote: Codable, Equatable {
+    var timer: WodTimer
+    var running: Bool
+}
+
+/// Open water swim started or ended on the Watch (#615 B): the iPhone schedules or cancels the buddy alert.
+struct WSwimBuddy: Codable, Equatable {
+    var start: Date
+    var minutes: Int
+    var ended: Bool
+}
+
+/// Gym buddy link (#626 B), phone → Watch: a paired buddy just finished a set (`cheer` nil, the Watch offers
+/// 🔥 🍌 🦍 back) or cheered you (`cheer` set). Shown a few seconds over any screen, with a tap.
+struct WBuddyPing: Codable, Equatable, Identifiable {
+    var id = UUID()
+    var userId: String
+    var name: String
+    /// "Squat 70 kg × 8 ✓", or nil with a cheer.
+    var text: String?
+    /// Emoji of the cheer received.
+    var cheer: String?
 }

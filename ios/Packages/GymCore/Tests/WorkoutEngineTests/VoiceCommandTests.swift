@@ -23,6 +23,23 @@ import Testing
         #expect(VoiceCommand.parse("heavier") == .kgStep(1))
     }
 
+    @Test func repsAndWeightInOneGo() {
+        #expect(VoiceCommand.parse("eight at eighty") == .set(reps: 8, kg: 80))
+        #expect(VoiceCommand.parse("8 reps at 82.5 kg") == .set(reps: 8, kg: 82.5))
+        #expect(VoiceCommand.parse("ten at sixty two point five") == .set(reps: 10, kg: 62.5))
+        #expect(VoiceCommand.parse("100 kilos for 5") == .set(reps: 5, kg: 100))
+        #expect(VoiceCommand.parse("five at a hundred and twenty") == .set(reps: 5, kg: 120))
+        #expect(VoiceCommand.parse("Should I do 8 at 80?") == .ask("Should I do 8 at 80?"))
+    }
+
+    @Test func numberWords() {
+        #expect(VoiceCommand.foldNumbers(["eighty", "two", "point", "five"]) == ["82.5"])
+        #expect(VoiceCommand.foldNumbers(["one", "hundred", "and", "twenty", "kg"]) == ["120", "kg"])
+        #expect(VoiceCommand.foldNumbers(["seventy", "and", "a", "half"]) == ["70.5"])
+        #expect(VoiceCommand.foldNumbers(["two", "left"]) == ["2", "left"])
+        #expect(VoiceCommand.parse("weight seventy five") == .kg(75))
+    }
+
     @Test func restAndNavigation() {
         #expect(VoiceCommand.parse("skip rest") == .skipRest)
         #expect(VoiceCommand.parse("Let's go") == .skipRest)

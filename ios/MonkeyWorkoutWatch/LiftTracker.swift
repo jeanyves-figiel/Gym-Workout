@@ -33,6 +33,8 @@ final class LiftTracker {
     private(set) var calibratedAt: Date?
     /// Practice mode (#410): counting for the iPhone's Try it screen, not a set.
     private(set) var practicing = false
+    /// Velocity loss that cues "Rack it" in this set; the rep speed graph turns bars past it red (#611 A).
+    private(set) var lossLimit: Double?
 
     var lastVelocity: Double? { reps.last?.meanVelocity }
     var best: Double? { reps.map(\.meanVelocity).max() }
@@ -63,6 +65,7 @@ final class LiftTracker {
     func track(key: String, profile: LiftProfile, lossLimit: Double?, strictness: Double = 0) {
         guard key != self.key || mode == .idle else { return }
         reset(key: key, machine: false)
+        self.lossLimit = lossLimit
         begin(SetTracker(profile: profile, lossLimit: lossLimit, strictness: strictness))
     }
 
@@ -100,6 +103,7 @@ final class LiftTracker {
     func trackMachine(key: String, exercise: String, family: LiftProfile.Family, lossLimit: Double?, strictness: Double = 0) {
         guard key != self.key || mode == .idle else { return }
         reset(key: key, machine: true)
+        self.lossLimit = lossLimit
         if let known = machineAxis[exercise] {
             begin(SetTracker(machineAxis: known.axis, sign: known.sign, family: family, lossLimit: lossLimit, strictness: strictness))
         } else {
@@ -195,6 +199,7 @@ final class LiftTracker {
         self.key = key
         self.machine = machine
         practicing = false
+        lossLimit = nil
         reps = []
         velocityLoss = 0
         lossReached = false
