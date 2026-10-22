@@ -26,7 +26,11 @@ final class MonkeyGradeLink {
 
     private let keychain = Keychain(service: (Bundle.main.bundleIdentifier ?? "Com.app.MonkeyWorkout") + ".monkeygrade")
 
-    init() { stored = keychain.load() }
+    init() {
+        stored = keychain.load()
+        // Last sessions fetched (#641): MonkeyGrade climbs stay on Train and Progress offline.
+        sessions = DeviceCache.load([ClimbEntry].self, "monkeygrade-sessions.json", userId: stored?.ownerId) ?? []
+    }
 
     func isConnected(for userId: String?) -> Bool {
         guard let s = stored, let userId else { return false }
@@ -92,6 +96,7 @@ final class MonkeyGradeLink {
         keychain.clear()
         stored = nil
         sessions = []
+        DeviceCache.remove("monkeygrade-sessions.json")
         lastFetch = nil
         error = nil
     }
@@ -119,6 +124,7 @@ final class MonkeyGradeLink {
                 return
             }
             sessions = Self.parseSessions(data)
+            DeviceCache.save(sessions, "monkeygrade-sessions.json", userId: s.ownerId)
             lastFetch = Date()
             error = nil
         } catch {

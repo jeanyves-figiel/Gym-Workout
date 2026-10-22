@@ -9,7 +9,10 @@ final class AppModel {
     enum Phase: Equatable { case launching, signedOut, signedIn }
 
     var phase: Phase = .launching
-    var user: User?
+    /// Kept on the device (#641): Settings, the Me pill and Community don't wait for `/me` at launch or offline.
+    var user: User? {
+        didSet { if user != oldValue, !demo { DeviceCache.save(user, "account.json", userId: user?.id) } }
+    }
     var state = LocalState() {
         didSet {
             // Derived values (plan, calendar, game…) are cached until the state changes (`AppModel+Cache`).
@@ -203,6 +206,10 @@ final class AppModel {
             await pullProfile()
             phase = .signedIn
         } else {
+            // Last known account, Pro and Community from this device (#641) while the server wakes up.
+            if user == nil { user = DeviceCache.load(User.self, "account.json", userId: state.ownerId) }
+            ProStore.shared.restore(userId: state.ownerId)
+            Community.shared.restore(userId: state.ownerId)
             phase = .signedIn // optimistic: works offline at the gym
             await refreshUser()
             claimOwnerIfNeeded()
@@ -319,6 +326,8 @@ final class AppModel {
         clearWatchUploadKey()
         try? FileManager.default.removeItem(at: Self.exportFileURL)
         URLCache.shared.removeAllCachedResponses()
+        MeAvatar.shared.wipe()
+        DeviceCache.wipe()
     }
 
     /// Before a sign-out wipes this device: one last try (5 s at most) to send what hasn't reached the server.
