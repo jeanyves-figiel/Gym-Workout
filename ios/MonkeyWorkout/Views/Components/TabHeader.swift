@@ -38,14 +38,24 @@ struct MePhoto: View {
         ZStack {
             shape.fill(Theme.lime)
             Text(initials).font(Theme.label(size * 0.4)).foregroundStyle(Theme.ink)
-            if let url = model.api.resolve(Community.shared.me.avatarUrl) {
+            // Kept on the device (#639): shown at launch, before the profile has loaded.
+            if let img = MeAvatar.shared.image(for: ownerId) {
+                Image(uiImage: img).resizable().scaledToFill()
+            } else if let url {
                 AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
             }
         }
         .frame(width: size, height: size)
         .clipShape(shape)
         .accessibilityHidden(true)
+        .task(id: "\(Community.shared.loaded)-\(url?.absoluteString ?? "")") {
+            guard !model.demo, Community.shared.loaded else { return }
+            await MeAvatar.shared.update(url, userId: ownerId)
+        }
     }
+
+    private var url: URL? { model.api.resolve(Community.shared.me.avatarUrl) }
+    private var ownerId: String? { model.user?.id ?? model.state.ownerId }
 }
 
 /// The one way to you from every tab: gradient pill with the level and your photo. Opens the Me sheet

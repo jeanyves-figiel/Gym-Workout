@@ -31,6 +31,35 @@ final class Community {
     }
     func hasMore(_ scope: CommunityFeedScope) -> Bool { next[scope] != nil }
 
+    /// What the tab last showed (#641): kept per account so it opens at once, offline too.
+    private struct Snapshot: Codable {
+        var profile: CommunityProfile?
+        var publicProfile: PublicProfile?
+        var feed: [CommunityPost]
+        var mine: [CommunityPost]
+        var following: [CommunityPost]
+    }
+    private static let file = "community.json"
+
+    /// At launch, before the server answers: the last profile and feeds of this account.
+    func restore(userId: String?) {
+        guard !demo, !loaded, let userId, let s = DeviceCache.load(Snapshot.self, Self.file, userId: userId) else { return }
+        ownerId = userId
+        profile = s.profile
+        publicProfile = s.publicProfile
+        feed = s.feed
+        mine = s.mine
+        following = s.following
+        loaded = true
+    }
+
+    private func persist() {
+        guard !demo, loaded, let ownerId else { return }
+        let s = Snapshot(profile: profile, publicProfile: publicProfile, feed: Array(feed.prefix(30)),
+                         mine: Array(mine.prefix(30)), following: Array(following.prefix(30)))
+        DeviceCache.save(s, Self.file, userId: ownerId)
+    }
+
     /// Loads the profile (and feeds when joined). Resets when a different user signs in.
     func load(api: APIClient, userId: String?) async {
         guard !demo, let userId else { return }
@@ -50,7 +79,7 @@ final class Community {
             publicProfile = try await pub
             loaded = true
             error = nil
-            if profile != nil { await refresh(api: api) }
+            if profile != nil { await refresh(api: api) } else { persist() }
         } catch {
             self.error = error.localizedDescription
         }
@@ -70,6 +99,7 @@ final class Community {
             following = gp.posts
             next = [.members: fp.nextBefore, .mine: mp.nextBefore, .following: gp.nextBefore].compactMapValues { $0 }
             error = nil
+            persist()
         } catch {
             self.error = error.localizedDescription
         }
@@ -122,11 +152,13 @@ final class Community {
         publicProfile = PublicProfile(nickname: p.nickname, bio: p.bio, avatarUrl: p.avatarUrl, member: true)
         loaded = true
         if joined { feed = []; mine = []; following = [] }
+        persist()
     }
 
     /// Saved from Account; a member's community profile shows the same values.
     func setPublic(_ p: PublicProfile) {
         publicProfile = p
+        defer { persist() }
         guard profile != nil else { return }
         if let n = p.nickname, !n.isEmpty { profile!.nickname = n }
         profile!.bio = p.bio
@@ -141,6 +173,7 @@ final class Community {
         mine = []
         following = []
         next = [:]
+        persist()
     }
 
     /// Optimistic cheer toggle; reverts on failure.
