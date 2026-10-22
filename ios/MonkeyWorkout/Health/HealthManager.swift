@@ -232,9 +232,10 @@ final class HealthManager {
     }
 
     private var shareTypes: Set<HKSampleType> {
-        [HKObjectType.workoutType(), HKQuantityType(.activeEnergyBurned), HKQuantityType(.bodyMass), HKQuantityType(.height),
-         HKQuantityType(.bodyFatPercentage), HKQuantityType(.leanBodyMass), HKQuantityType(.waistCircumference),
-         HKQuantityType(.dietaryWater)].union(HealthEffort.shareTypes)
+        let base: Set<HKSampleType> = [HKObjectType.workoutType(), HKQuantityType(.activeEnergyBurned), HKQuantityType(.bodyMass),
+                                       HKQuantityType(.height), HKQuantityType(.bodyFatPercentage), HKQuantityType(.leanBodyMass),
+                                       HKQuantityType(.waistCircumference), HKQuantityType(.dietaryWater)]
+        return base.union(HealthEffort.shareTypes)
     }
 
     func setWriteWorkouts(_ on: Bool) {
