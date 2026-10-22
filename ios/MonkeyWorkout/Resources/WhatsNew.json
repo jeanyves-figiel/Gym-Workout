@@ -1,29 +1,23 @@
 {
-  "id": "2026-10-21.4",
+  "id": "2026-10-22.1",
   "items": [
     {
-      "symbol": "person.crop.square.fill",
-      "tint": "mobility",
-      "title": "One profile",
-      "body": "Name, photo, posts, followers and community options, all on one Your profile page."
-    },
-    {
-      "symbol": "barcode.viewfinder",
-      "tint": "warmup",
-      "title": "Scans know a beer from a cheese 🍺",
-      "body": "Barcode first, drinks and 29 more foods, and a check list with Fix for anything unsure."
-    },
-    {
-      "symbol": "pills.fill",
+      "symbol": "arrow.down.circle.fill",
       "tint": "cardio",
-      "title": "Supplements on your schedule",
-      "body": "Times a day, days, courses, cycles and reminders."
+      "title": "Fixes without waiting",
+      "body": "Some fixes and new recipes now arrive without an app update."
     },
     {
-      "symbol": "figure.strengthtraining.traditional",
+      "symbol": "figure.cross.training",
       "tint": "strength",
-      "title": "Freestyle, smoother",
-      "body": "Pick, do, pick. Your trail on top, Coach picks always ready."
+      "title": "Extra workouts, your way",
+      "body": "Edit the session flow of a quick extra, and Upper body is upper body only."
+    },
+    {
+      "symbol": "iphone",
+      "tint": "power",
+      "title": "Full screen on iPhone Duo",
+      "body": "The app now fills the whole screen on iPhone Duo."
     }
   ]
 }

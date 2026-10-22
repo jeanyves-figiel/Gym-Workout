@@ -433,6 +433,7 @@ private struct DemoScreen: View {
         case "train-edit": NavigationStack { WeekView(demoEditing: true) }
         case "train-day-picked": NavigationStack { WeekView(demoPick: .planned) }
         case "train-rest-day": NavigationStack { WeekView(demoPick: .rest) }
+        case "train-past-day": NavigationStack { WeekView(demoPick: .past) }
         case "train-gallery": TrainWidgetGallery()
         case "train-customise": TrainCustomiseSheet()
         case "gyms": GymFinderView(place: "Zürich")

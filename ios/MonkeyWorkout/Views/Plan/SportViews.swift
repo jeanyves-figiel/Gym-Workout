@@ -185,13 +185,17 @@ struct LogSportView: View {
     @State private var noWatch = false
     @State private var link = WatchLink.shared
     private let initial: SportLog
+    /// A logged session opened from its day (#592): saved over itself, and it can be deleted.
+    private let editing: Bool
 
     /// `restoring`: the session brought back by Undo (#285). `live`: opened from Track on Watch (#439).
-    init(initial: SportLog, picked: Bool = false, restoring: SportLog? = nil, live: Bool = false) {
+    /// `editing`: `initial` is a session already logged (#592).
+    init(initial: SportLog, picked: Bool = false, restoring: SportLog? = nil, live: Bool = false, editing: Bool = false) {
         self.initial = initial
-        _live = State(initialValue: live && restoring == nil)
+        self.editing = editing
+        _live = State(initialValue: live && restoring == nil && !editing)
         _log = State(initialValue: restoring ?? initial)
-        _picked = State(initialValue: picked || restoring != nil)
+        _picked = State(initialValue: picked || restoring != nil || editing)
         _distanceText = State(initialValue: (restoring ?? initial).distanceKm.map { String(format: "%g", $0) } ?? "")
         _showDistance = State(initialValue: (restoring ?? initial).distanceKm != nil)
         _showNotes = State(initialValue: (restoring ?? initial).notes != nil)
@@ -232,6 +236,12 @@ struct LogSportView: View {
                                  ? "Also saved to Apple Health. Gym days around it are planned to spare \(log.sport.loadLabel)."
                                  : "Saved in MonkeyWorkout. Connect Apple Health in Progress → Body & Health to also save it there.")
                                 .font(.footnote).foregroundStyle(Theme.muted)
+                            if editing {
+                                Button(role: .destructive) { delete() } label: {
+                                    Label("Delete \(log.sport.short)", systemImage: "trash").font(Theme.label(15)).frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.plain).foregroundStyle(Color(hex: 0xFF5F6D)).padding(.top, 4)
+                            }
                         }
                     } else {
                         SportPicker(sports: gridSports, mine: model.mySports, live: live,
@@ -266,7 +276,7 @@ struct LogSportView: View {
                 }
             }
             .navigationTitle(live && (canTrack || !picked) ? (picked ? "Track \(log.sport.short)" : "Track on Watch")
-                             : picked ? "Log \(log.sport.short)" : "Log sport")
+                             : editing ? "Edit \(log.sport.short)" : picked ? "Log \(log.sport.short)" : "Log sport")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }
         }
@@ -431,7 +441,7 @@ struct LogSportView: View {
         let original = initial
         return UndoOffer(title: "\(kept.sport.short) closed", detail: undoDetail(kept.sport.label, Climbs.duration(kept.minutes)),
                          symbol: kept.sport.symbol, colors: kept.sport.colors) {
-            AnyView(LogSportView(initial: original, restoring: kept))
+            AnyView(LogSportView(initial: original, restoring: kept, editing: editing))
         }
     }
 
@@ -439,10 +449,24 @@ struct LogSportView: View {
         let entry = log
         model.saveSport(entry)
         let weight = model.body.weightKg ?? health.snapshot.weightKg
+        let replaces = editing
         Task {
+            // An edited session replaces its Health workout instead of adding a second one (#592).
+            if replaces { await health.deleteSport(entry.id) }
             if await health.saveSport(entry, kcal: Sports.kcal(entry, weightKg: weight)) {
                 await health.refresh()
             }
+        }
+        closeGuard.done()
+        dismiss()
+    }
+
+    private func delete() {
+        let id = initial.id
+        model.deleteSport(id)
+        Task {
+            await health.deleteSport(id)
+            await health.refresh()
         }
         closeGuard.done()
         dismiss()

@@ -30,9 +30,10 @@ struct WeekView: View {
     @State private var visibleHeight: CGFloat = 800
     /// CI screenshots: open in edit mode.
     var demoEditing = false
-    /// Demo screens train-day-picked / train-rest-day (#277): a later planned day or a rest day picked in the strip.
+    /// Demo screens train-day-picked / train-rest-day (#277) / train-past-day (#592): a later planned day, a rest day
+    /// or yesterday picked in the strip.
     var demoPick: DemoPick?
-    enum DemoPick { case planned, rest }
+    enum DemoPick { case planned, rest, past }
 
     var body: some View {
         ScrollView {
@@ -157,7 +158,8 @@ struct WeekView: View {
             if let demoPick, let plan = model.plan {
                 let today = model.todayWeekday
                 let days = Set(plan.sessions.compactMap(\.weekday))
-                pickedDay = demoPick == .rest
+                pickedDay = demoPick == .past ? max(1, today - 1)
+                    : demoPick == .rest
                     ? (today...7).first { !days.contains($0) }
                     : WeekProgress.ordered(plan).last { ($0.weekday ?? 0) > today && $0.id != model.nextSession?.id }?.weekday
             }
@@ -216,6 +218,11 @@ struct WeekView: View {
             } else if let d = pickedDay, !(1...7).contains(d) {
                 // A day of another week (#481) shows in the card too, never as a pop-up.
                 otherWeekCard(d, pick: pick, back: back)
+            } else if let d = pickedDay, d < today, plan.sessions.first(where: { $0.weekday == d }).map({ model.activeWorkout($0.id) == nil }) ?? true {
+                // Every earlier day gets the same card (#592): what was logged, a missed session, add what was forgotten.
+                let cal = model.planCalendar
+                PastDayCard(day: d, date: cal.date(byAdding: .day, value: d - 1, to: Progression.weekStart(Date(), cal)) ?? Date(),
+                            session: plan.sessions.first { $0.weekday == d }, onPick: pick, onBack: back)
             } else if let d = pickedDay, let s = plan.sessions.first(where: { $0.weekday == d }) {
                 NextUpCard(session: s, picked: d, onPick: pick, onBack: back) { start(s) }
             } else if let d = pickedDay {
@@ -1097,51 +1104,83 @@ private struct HealthMatchBox: View {
     }
 }
 
-/// A day of last week picked in the strip (#481): what was trained that day, with History one tap away.
+/// Any past day picked in the strip (#481, #592 design A): one card for done, rest, climbing and missed days. Everything
+/// logged that day is a gradient row (tap = see or edit it), a planned session not done is a Log it row, and a
+/// forgotten workout or sport can still be added.
 private struct PastDayCard: View {
-    /// Strip day counted from this week's Monday (0 and below).
+    /// Strip day counted from this week's Monday (below today).
     let day: Int
     let date: Date
+    /// The session planned on this day (this week only).
+    var session: Session? = nil
     var onPick: (Int) -> Void = { _ in }
     var onBack: () -> Void = {}
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @Environment(\.trainBackToToday) private var backToToday
-    @State private var showsHistory = false
-    /// Log a workout or sport on this day (#537), dated 18:00.
-    @State private var logging: SportLog?
+    @State private var record: WorkoutRecord?
+    @State private var climb: ClimbLog?
+    @State private var newClimb: ClimbLog?
+    @State private var sport: SportLog?
+    @State private var newSport: SportLog?
+    @State private var healthSport: SportEntry?
+    /// A missed session, or a copy of one logged as an extra workout on this day.
+    @State private var loggingWorkout: Session?
+    @State private var loggingHealth: GymEntry?
+
+    /// 1 = Monday … 7 = Sunday.
+    private var weekday: Int { ((day - 1) % 7 + 7) % 7 + 1 }
+    private var climbing: Bool {
+        (model.profile.map(Generator.isClimber) ?? false) && (model.profile?.climbingDays.contains(weekday) ?? false)
+    }
+    /// 18:00 on this day: the default start of anything added here.
+    private var evening: Date { model.planCalendar.date(bySettingHour: 18, minute: 0, second: 0, of: date) ?? date }
+    /// The planned session, when it still needs logging.
+    private var missed: Session? {
+        guard let session, !model.doneIds.contains(session.id), model.activeWorkout(session.id) == nil else { return nil }
+        return session
+    }
 
     var body: some View {
         let cal = model.planCalendar
-        let items = model.historyItems(health: health).filter { cal.isDate($0.start, inSameDayAs: date) }
-        // Same layout as the rest day card (#562, design B): title with the jump chip, actions as tiles.
+        let items = model.historyItems(health: health).filter { cal.isDate($0.start, inSameDayAs: date) }.sorted { $0.start < $1.start }
         VStack(alignment: .leading, spacing: 12) {
             WeekDayStrip(selected: day, onPick: onPick)
             HStack(alignment: .center, spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated))) · \(items.isEmpty ? "rest day" : "done")")
+                    Text("\(date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated))) · \(state(items.count))")
                         .font(Theme.label(12)).tracking(1.4).textCase(.uppercase).foregroundStyle(.white.opacity(0.8))
-                    if items.isEmpty {
-                        Text("Rest day 😴").font(Theme.display(26)).foregroundStyle(.white)
-                    } else {
-                        ForEach(items) { it in
-                            Text(it.title).font(Theme.display(26)).foregroundStyle(.white).lineLimit(2).minimumScaleFactor(0.9)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                    Text(title(items)).font(Theme.display(26)).foregroundStyle(.white)
+                        .lineLimit(2).minimumScaleFactor(0.8).fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
                 DayJumpChip(label: backChipTitle(model, toToday: backToToday), action: onBack)
             }
-            HStack(spacing: 8) {
-                // A past day is logged, never played (#537).
-                DayActionTile(title: "Log a workout", detail: "on this day", symbol: "square.and.pencil",
-                              fill: AnyShapeStyle(Theme.lime), ink: Theme.ink) {
-                    logging = SportLog(start: cal.date(bySettingHour: 18, minute: 0, second: 0, of: date) ?? date)
+            ForEach(items) { row($0) }
+            if let missed {
+                if let match = model.healthMatch(for: missed, in: health.snapshot.recentGym) {
+                    // Recorded on another watch (#549): mark it done or log its sets.
+                    HealthMatchBox(entry: match, onDone: { withAnimation { model.markDone(missed, from: match) } },
+                                   onLog: { loggingHealth = match })
+                } else {
+                    DayLogRow(symbol: "square.and.pencil", title: missed.displayTitle,
+                              detail: model.skippedIds.contains(missed.id) ? "skipped · log what you did" : "missed · log what you did",
+                              value: "\(missed.estMin)′", caption: "LOG IT", fill: AnyShapeStyle(Color.white), ink: Theme.ink) {
+                        loggingWorkout = missed
+                    }
                 }
-                DayActionTile(title: "History", detail: "what you did", symbol: "clock.arrow.circlepath",
-                              fill: AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x3D5AFF), Color(hex: 0x8A4FFF)], startPoint: .leading, endPoint: .trailing))) {
-                    showsHistory = true
+            }
+            HStack(spacing: 8) {
+                workoutTile
+                if climbing && !items.contains(where: { if case .climb = $0 { true } else { false } }) {
+                    DayActionTile(title: "Log climb", detail: "this day's session", symbol: "figure.climbing",
+                                  fill: AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xFF6B3D), Color(hex: 0xFFA94D)], startPoint: .leading, endPoint: .trailing))) {
+                        newClimb = ClimbLog(start: evening)
+                    }
+                } else {
+                    DayActionTile(title: "Sport", detail: "climb, run, ride…", symbol: "plus",
+                                  fill: AnyShapeStyle(DayActionTile.sportFill)) { newSport = SportLog(start: evening) }
                 }
             }
         }
@@ -1152,10 +1191,173 @@ private struct PastDayCard: View {
                                      startPoint: .topLeading, endPoint: .bottomTrailing))
         }
         .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Color.white.opacity(0.15)))
-        .sheet(isPresented: $showsHistory) {
-            NavigationStack { HistoryView().toolbar { CloseToolbarItem { showsHistory = false } } }
+        .sheet(item: $record) { r in
+            NavigationStack { HistoryDetailView(recordId: r.id).toolbar { CloseToolbarItem { record = nil } } }
         }
-        .sheet(item: $logging) { LogSportView(initial: $0) }
+        .sheet(item: $climb) { LogClimbView(initial: $0, editing: true) }
+        .sheet(item: $newClimb) { LogClimbView(initial: $0) }
+        .sheet(item: $sport) { LogSportView(initial: $0, editing: true) }
+        .sheet(item: $newSport) { LogSportView(initial: $0) }
+        .sheet(item: $healthSport) { SportSessionSheet(entry: $0) }
+        .sheet(item: $loggingWorkout) { MissedLogSheet(session: $0, day: date) }
+        .sheet(item: $loggingHealth) { m in if let missed { MissedLogSheet(session: missed, fromHealth: m) } }
+    }
+
+    private func state(_ logged: Int) -> String {
+        if logged > 0 { return "\(logged) logged" }
+        if let missed { return model.skippedIds.contains(missed.id) ? "skipped" : "missed" }
+        return "rest day"
+    }
+
+    private func title(_ items: [HistoryItem]) -> String {
+        if let session { return session.displayTitle }
+        if climbing { return "Climbing day 🧗" }
+        return items.first?.title ?? "Rest day 😴"
+    }
+
+    /// A logged session: gym opens what was done, a climb or sport logged here opens to edit, Health ones their page.
+    @ViewBuilder private func row(_ item: HistoryItem) -> some View {
+        let fill = AnyShapeStyle(LinearGradient(colors: item.filter.colors, startPoint: .leading, endPoint: .trailing))
+        let value = History.duration(item.minutes)
+        switch item {
+        case .gym(let r):
+            DayLogRow(symbol: item.symbol, title: item.title, detail: item.subtitle, value: value, caption: "SEE ›", fill: fill) { record = r }
+        case .climb(let c):
+            if c.local, let log = model.climbLogs.first(where: { $0.id == c.id }) {
+                DayLogRow(symbol: item.symbol, title: item.title, detail: item.subtitle, value: value, caption: "EDIT ✎", fill: fill,
+                          onDelete: { deleteClimb(log.id) }) { climb = log }
+            } else {
+                // From Apple Health or MonkeyGrade: edited where it was recorded.
+                DayLogRow(symbol: item.symbol, title: item.title, detail: item.subtitle, value: value, caption: c.source.uppercased(), fill: fill, onTap: nil)
+            }
+        case .sport(let e):
+            if e.local, let log = model.sportLogs.first(where: { $0.id == e.id }), log.fromHealth != true {
+                DayLogRow(symbol: item.symbol, title: item.title, detail: item.subtitle, value: value, caption: "EDIT ✎", fill: fill,
+                          onDelete: { deleteSport(log.id) }) { sport = log }
+            } else {
+                DayLogRow(symbol: item.symbol, title: item.title, detail: item.subtitle, value: value, caption: "SEE ›", fill: fill) { healthSport = e }
+            }
+        }
+    }
+
+    private func deleteClimb(_ id: UUID) {
+        withAnimation { model.deleteClimb(id) }
+        Task {
+            await health.deleteClimb(id)
+            await health.refresh()
+        }
+    }
+
+    private func deleteSport(_ id: UUID) {
+        withAnimation { model.deleteSport(id) }
+        Task {
+            await health.deleteSport(id)
+            await health.refresh()
+        }
+    }
+
+    /// Add a forgotten workout: one of this week's workouts, logged on this day as an extra (the plan's stays as is).
+    @ViewBuilder private var workoutTile: some View {
+        let sessions = model.plan?.sessions ?? []
+        if sessions.isEmpty {
+            DayActionTile(title: "Workout", detail: "forgot one?", symbol: "plus", fill: AnyShapeStyle(Theme.lime), ink: Theme.ink) {
+                newSport = SportLog(start: evening)
+            }
+        } else {
+            Menu {
+                Section("Log a workout on this day") {
+                    ForEach(sessions) { s in
+                        Button(s.displayTitle, systemImage: "dumbbell.fill") { loggingWorkout = Self.extra(s) }
+                    }
+                }
+            } label: {
+                DayActionTileLabel(title: "Workout", detail: "forgot one?", symbol: "plus", fill: AnyShapeStyle(Theme.lime), ink: Theme.ink)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    /// A copy of a plan session with its own id, so logging it never marks the planned one done.
+    static func extra(_ s: Session) -> Session {
+        var c = s
+        c.id = "extra-\(UUID().uuidString)"
+        c.weekday = nil
+        return c
+    }
+}
+
+/// One thing logged on a past day (#592, design A): icon tile left, title over a detail line, big time right.
+private struct DayLogRow: View {
+    let symbol: String
+    let title: String
+    let detail: String
+    let value: String
+    /// Small caption under the time: "EDIT ✎", "SEE ›", "LOG IT" or where it was recorded.
+    let caption: String
+    let fill: AnyShapeStyle
+    var ink: Color = .white
+    /// Long press (#592): Delete under the tap's own action.
+    let onDelete: (() -> Void)?
+    let onTap: (() -> Void)?
+
+    init(symbol: String, title: String, detail: String, value: String, caption: String, fill: AnyShapeStyle,
+         ink: Color = .white, onDelete: (() -> Void)? = nil, onTap: (() -> Void)?) {
+        self.symbol = symbol
+        self.title = title
+        self.detail = detail
+        self.value = value
+        self.caption = caption
+        self.fill = fill
+        self.ink = ink
+        self.onDelete = onDelete
+        self.onTap = onTap
+    }
+
+    var body: some View {
+        Group {
+            if let onTap {
+                Button(action: onTap) { content }.buttonStyle(.plain)
+            } else {
+                content
+            }
+        }
+        // Long press edits too (#592): the same action as a tap, plus Delete for what was logged here.
+        .contextMenu {
+            if let onTap {
+                Button(menuTitle, systemImage: caption.hasPrefix("EDIT") ? "pencil" : caption.hasPrefix("LOG") ? "square.and.pencil" : "eye",
+                       action: onTap)
+            }
+            if let onDelete {
+                Button("Delete", systemImage: "trash", role: .destructive, action: onDelete)
+            }
+        }
+    }
+
+    private var menuTitle: String {
+        caption.hasPrefix("EDIT") ? "Edit \(title)" : caption.hasPrefix("LOG") ? "Log \(title)" : "See \(title)"
+    }
+
+    private var content: some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol).font(.system(size: 15, weight: .heavy))
+                .frame(width: 34, height: 34)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.black.opacity(0.18)))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(Theme.label(15)).lineLimit(1).minimumScaleFactor(0.7)
+                if !detail.isEmpty {
+                    Text(detail).font(Theme.label(10)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.7)
+                }
+            }
+            Spacer(minLength: 4)
+            VStack(alignment: .trailing, spacing: 0) {
+                Text(value).font(Theme.display(22)).monospacedDigit().lineLimit(1)
+                Text(caption).font(Theme.label(9)).opacity(0.85).lineLimit(1)
+            }
+        }
+        .foregroundStyle(ink)
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(fill))
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -1199,27 +1401,40 @@ private struct DayActionTile: View {
 
     var body: some View {
         Button(action: action) {
-            // Content in an overlay so label lengths never change a tile's size (#529).
-            Color.clear
-                .frame(maxWidth: .infinity)
-                .frame(height: 56)
-                .overlay(alignment: .leading) {
-                    HStack(spacing: 8) {
-                        Image(systemName: symbol).font(.system(size: 15, weight: .heavy))
-                            .frame(width: 32, height: 32)
-                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.black.opacity(0.18)))
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(title).font(Theme.label(15)).lineLimit(1).minimumScaleFactor(0.6)
-                            Text(detail).font(Theme.label(10)).opacity(0.8).lineLimit(1).minimumScaleFactor(0.7)
-                        }
-                    }
-                    .foregroundStyle(ink)
-                    .padding(.horizontal, 10)
-                }
-                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(fill))
-                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            DayActionTileLabel(title: title, detail: detail, symbol: symbol, fill: fill, ink: ink)
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// A day action tile's face, shared with tiles that open a menu (#592).
+private struct DayActionTileLabel: View {
+    let title: String
+    let detail: String
+    let symbol: String
+    let fill: AnyShapeStyle
+    var ink: Color = .white
+
+    var body: some View {
+        // Content in an overlay so label lengths never change a tile's size (#529).
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .overlay(alignment: .leading) {
+                HStack(spacing: 8) {
+                    Image(systemName: symbol).font(.system(size: 15, weight: .heavy))
+                        .frame(width: 32, height: 32)
+                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.black.opacity(0.18)))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(title).font(Theme.label(15)).lineLimit(1).minimumScaleFactor(0.6)
+                        Text(detail).font(Theme.label(10)).opacity(0.8).lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                }
+                .foregroundStyle(ink)
+                .padding(.horizontal, 10)
+            }
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(fill))
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 

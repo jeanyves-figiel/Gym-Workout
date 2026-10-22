@@ -43,6 +43,8 @@ struct MissedLogSheet: View {
     var restoring: Draft?
     /// Recorded on another watch (#549): its times prefill, its heart rate and calories go with the workout.
     var fromHealth: GymEntry?
+    /// Day it's logged on (#592: a workout added on a past day); nil = the session's own day.
+    var day: Date? = nil
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var start = Date()
@@ -116,9 +118,10 @@ struct MissedLogSheet: View {
         let kept = draft
         let s = self.session
         let fromHealth = self.fromHealth
+        let day = self.day
         return UndoOffer(title: "Log closed", detail: undoDetail(s.displayTitle, "\(kept.minutes) min"),
                          symbol: "calendar.badge.exclamationmark", colors: WorkoutEngine.Category.power.colors) {
-            AnyView(MissedLogSheet(session: s, restoring: kept, fromHealth: fromHealth))
+            AnyView(MissedLogSheet(session: s, restoring: kept, fromHealth: fromHealth, day: day))
         }
     }
 
@@ -187,7 +190,8 @@ struct MissedLogSheet: View {
 
     private func prefill() {
         guard baseline == nil else { return }
-        start = fromHealth?.start ?? model.defaultStart(of: session)
+        start = fromHealth?.start ?? day.flatMap { model.planCalendar.date(bySettingHour: 18, minute: 0, second: 0, of: $0) }
+            ?? model.defaultStart(of: session)
         minutes = fromHealth.map { min(240, max(5, $0.minutes)) } ?? max(5, (session.estMin + 4) / 5 * 5)
         for r in rows where r.loaded { if kg[r.exercise.id] == nil { kg[r.exercise.id] = model.lastWeight(r.exercise.id) } }
         baseline = draft

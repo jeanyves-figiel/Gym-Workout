@@ -163,11 +163,14 @@ struct LogClimbView: View {
     @FocusState private var gradeFocused: Bool
     private let initial: ClimbLog
     private let restoring: ClimbLog?
+    /// A logged climb opened from its day (#592): saved over itself, no draft, and it can be deleted.
+    private let editing: Bool
 
-    /// `restoring`: the climb brought back by Undo (#285).
-    init(initial: ClimbLog, restoring: ClimbLog? = nil) {
+    /// `restoring`: the climb brought back by Undo (#285). `editing`: `initial` is a climb already logged (#592).
+    init(initial: ClimbLog, restoring: ClimbLog? = nil, editing: Bool = false) {
         self.initial = initial
         self.restoring = restoring
+        self.editing = editing
         _log = State(initialValue: restoring ?? initial)
         _showNotes = State(initialValue: (restoring ?? initial).notes != nil)
     }
@@ -210,6 +213,12 @@ struct LogClimbView: View {
                          ? "Also saved to Apple Health as a Climbing workout."
                          : "Saved in MonkeyWorkout. Connect Apple Health in Progress → Body & Health to also save it there.")
                         .font(.footnote).foregroundStyle(Theme.muted)
+                    if editing {
+                        Button(role: .destructive) { delete() } label: {
+                            Label("Delete climb", systemImage: "trash").font(Theme.label(15)).frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.plain).foregroundStyle(Color(hex: 0xFF5F6D)).padding(.top, 4)
+                    }
                 }
                 .padding(16)
                 .animation(.spring(response: 0.4, dampingFraction: 0.85), value: log.kind)
@@ -226,7 +235,7 @@ struct LogClimbView: View {
                 .padding(.vertical, 8)
                 .background(Theme.bg.opacity(0.95).ignoresSafeArea())
             }
-            .navigationTitle("Log climb")
+            .navigationTitle(editing ? "Edit climb" : "Log climb")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }
         }
@@ -234,7 +243,7 @@ struct LogClimbView: View {
         .undoableClose(closeGuard, offer: undoOffer)
         .keepsDraft(draftKey, log, blank: initial)
         .onAppear {
-            guard draftKey == nil, restoring == nil else { return }
+            guard draftKey == nil, restoring == nil, !editing else { return }
             draftKey = "climb"
             if let d = DraftStore.load("climb", as: ClimbLog.self), d != initial {
                 log = d
@@ -347,7 +356,7 @@ struct LogClimbView: View {
         return UndoOffer(title: "Climb closed",
                          detail: undoDetail(kept.kind.label, Climbs.duration(kept.minutes), kept.topGrade),
                          symbol: kept.kind.symbol, colors: kept.kind.colors) {
-            AnyView(LogClimbView(initial: original, restoring: kept))
+            AnyView(LogClimbView(initial: original, restoring: kept, editing: editing))
         }
     }
 
@@ -356,10 +365,24 @@ struct LogClimbView: View {
         if let draftKey { DraftStore.clear(draftKey) }
         model.saveClimb(entry)
         let weight = model.body.weightKg ?? health.snapshot.weightKg
+        let replaces = editing
         Task {
+            // An edited climb replaces its Health workout instead of adding a second one (#592).
+            if replaces { await health.deleteClimb(entry.id) }
             if await health.saveClimb(entry, kcal: Climbs.kcal(entry, weightKg: weight)) {
                 await health.refresh()
             }
+        }
+        closeGuard.done()
+        dismiss()
+    }
+
+    private func delete() {
+        let id = initial.id
+        model.deleteClimb(id)
+        Task {
+            await health.deleteClimb(id)
+            await health.refresh()
         }
         closeGuard.done()
         dismiss()

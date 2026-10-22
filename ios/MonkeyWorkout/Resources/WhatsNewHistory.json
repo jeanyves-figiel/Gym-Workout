@@ -1,6 +1,37 @@
 {
   "releases": [
     {
+      "id": "2026-10-21.4",
+      "build": 59,
+      "date": "2026-10-21",
+      "items": [
+        {
+          "symbol": "person.crop.square.fill",
+          "tint": "mobility",
+          "title": "One profile",
+          "body": "Name, photo, posts, followers and community options, all on one Your profile page."
+        },
+        {
+          "symbol": "barcode.viewfinder",
+          "tint": "warmup",
+          "title": "Scans know a beer from a cheese 🍺",
+          "body": "Barcode first, drinks and 29 more foods, and a check list with Fix for anything unsure."
+        },
+        {
+          "symbol": "pills.fill",
+          "tint": "cardio",
+          "title": "Supplements on your schedule",
+          "body": "Times a day, days, courses, cycles and reminders."
+        },
+        {
+          "symbol": "figure.strengthtraining.traditional",
+          "tint": "strength",
+          "title": "Freestyle, smoother",
+          "body": "Pick, do, pick. Your trail on top, Coach picks always ready."
+        }
+      ]
+    },
+    {
       "id": "2026-10-21.3",
       "build": 58,
       "date": "2026-10-21",
