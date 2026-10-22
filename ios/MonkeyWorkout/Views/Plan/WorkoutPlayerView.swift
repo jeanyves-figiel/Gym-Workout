@@ -167,9 +167,9 @@ struct WorkoutPlayerView: View {
     /// Build as I go (#490): started empty, exercises added in the player.
     private var isFree: Bool { Freestyle.isFreestyle(sessionId) }
 
-    // Split in three so the Xcode 27 type-checker handles it (one chain timed out, #158).
+    // Split in four so the Xcode 27 type-checker handles it (one chain timed out, #158).
     var body: some View {
-        remoteControls(lifecycle(screen))
+        watchFeeds(remoteControls(lifecycle(screen)))
             // Gym buddy link (#626 B): a buddy's set or cheer, a few seconds at the top.
             .overlay(alignment: .top) { BuddyToast() }
             .onDisappear { LiveRoom.shared.player(nil, api: model.api) }
@@ -336,6 +336,11 @@ struct WorkoutPlayerView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .workoutStepKg)) { n in stepKgFromLockScreen(n.object as? Int ?? 0) }
         .onReceive(NotificationCenter.default.publisher(for: .workoutMain)) { _ in handle(.main) }
+    }
+
+    /// Siri, heart rate and Watch feeds (split from remoteControls for the type-checker).
+    private func watchFeeds(_ content: some View) -> some View {
+        content
         .onReceive(NotificationCenter.default.publisher(for: .workoutVoiceLog)) { n in
             siriLog(reps: n.userInfo?["reps"] as? Int, kg: n.userInfo?["kg"] as? Double)
         }
@@ -504,7 +509,7 @@ struct WorkoutPlayerView: View {
                         "Set \(i + 1) · \(LoadAdvisor.formatKg(v.kg)) × \(v.reps)" + (p.effort.map { " · \($0.caption.lowercased())" } ?? "")
                     }
                 } ?? "Set \(done) done",
-                onEffort: pickEffort, onExtend: extendRest, onDone: closePause)
+                onEffort: pickEffort, onExtend: { extendRest() }, onDone: closePause)
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.card))
