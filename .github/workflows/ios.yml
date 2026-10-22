@@ -26,13 +26,15 @@ jobs:
 
   app:
     name: App build (simulator)
-    # iOS 27 SDK / iPhone Duo + iPad simulators (#120).
-    runs-on: macos-26
+    # xcode-27 runner, Xcode 27.1: iOS 27.1 SDK / iPhone Duo + iPad simulators (#120, #158).
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v7
       - name: Select newest Xcode
         run: |
-          XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          # Xcode 27.1: iOS 27.1 SDK, full-screen iPhone Duo (#158). Xcode_27.2.app is a beta symlink.
+          XC=/Applications/Xcode_27.1.app
+          [ -d "$XC" ] || XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
           sudo xcode-select -s "$XC"
           xcodebuild -version
       - run: brew install xcodegen
@@ -52,6 +54,16 @@ jobs:
               || { grep -E 'error:' build.log | sort -u; tail -n 50 build.log; exit 1; }
             tail -n 50 build.log
           done
+      # Device-only code (RoomPlan, #417) never compiles for the simulator; unsigned device build of the
+      # TestFlight scheme catches it, and SDK breaks on the TestFlight Xcode, before an archive run (#158).
+      - name: Build Staging for device (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild build -project ios/MonkeyWorkout.xcodeproj -scheme "MonkeyWorkout Staging" -configuration Staging \
+            -destination 'generic/platform=iOS' -skipPackagePluginValidation -derivedDataPath build-device \
+            CODE_SIGNING_ALLOWED=NO > device.log 2>&1 \
+            || { grep -E 'error:' device.log | sort -u; tail -n 50 device.log; exit 1; }
+          tail -n 5 device.log
       # Complications (#190): the widget extension must sit in the Watch app's PlugIns with the WidgetKit extension point.
       - name: Check Watch complications are embedded
         run: |
@@ -103,13 +115,15 @@ jobs:
 
   ui-tests:
     name: UI tests (demo mode)
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - name: Select newest Xcode
         run: |
-          XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          # Xcode 27.1: iOS 27.1 SDK, full-screen iPhone Duo (#158). Xcode_27.2.app is a beta symlink.
+          XC=/Applications/Xcode_27.1.app
+          [ -d "$XC" ] || XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
           sudo xcode-select -s "$XC"
           xcodebuild -version
       - run: brew install xcodegen
@@ -118,7 +132,7 @@ jobs:
       - name: Run UI tests
         run: |
           set -o pipefail
-          DEVICE=$(xcrun simctl list devices available | grep -m1 -E "iPhone 1[5-7] Pro \(" | grep -oE '[0-9A-F-]{36}')
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -E "iPhone 1[5-8] Pro \(" | grep -oE '[0-9A-F-]{36}')
           echo "device=$DEVICE"
           xcrun simctl boot "$DEVICE" || true
           xcodebuild test -project ios/MonkeyWorkout.xcodeproj -scheme MonkeyWorkout -configuration Debug \
@@ -134,14 +148,16 @@ jobs:
     # 150: iPhone + iPad + Watch captures passed 100 on busy runners (#443).
     timeout-minutes: 150
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: macos-26
+    runs-on: xcode-27
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v7
       - name: Select newest Xcode
         run: |
-          XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          # Xcode 27.1: iOS 27.1 SDK, full-screen iPhone Duo (#158). Xcode_27.2.app is a beta symlink.
+          XC=/Applications/Xcode_27.1.app
+          [ -d "$XC" ] || XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
           sudo xcode-select -s "$XC"
           xcodebuild -version
       - run: brew install xcodegen
@@ -149,9 +165,9 @@ jobs:
       - name: Boot simulators during the build
         run: |
           # Cold boots took ~10 min of the job (iPad + Watch); start them now so they overlap the build.
-          for pat in "iPhone 1[5-7] Pro \(" "iPad Pro 13-inch" "Apple Watch"; do
+          for pat in "iPhone 1[5-8] Pro \(" "iPad Pro 13-inch" "Apple Watch"; do
             ID=$(xcrun simctl list devices available | grep -m1 -E "$pat" | grep -oE '[0-9A-F-]{36}' || true)
-            [ -n "$ID" ] && { xcrun simctl boot "$ID" || true; }
+            if [ -n "$ID" ]; then xcrun simctl boot "$ID" || true; else echo "::warning::No simulator for $pat"; fi
           done
       - name: Build for simulator
         run: |
@@ -161,7 +177,7 @@ jobs:
             -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO | tail -n 5
       - name: Capture screens
         run: |
-          DEVICE=$(xcrun simctl list devices available | grep -m1 -E "iPhone 1[5-7] Pro \(" | grep -oE '[0-9A-F-]{36}')
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -E "iPhone 1[5-8] Pro \(" | grep -oE '[0-9A-F-]{36}')
           echo "device=$DEVICE"
           xcrun simctl boot "$DEVICE" || true
           xcrun simctl bootstatus "$DEVICE" -b

@@ -27,8 +27,8 @@ permissions:
 jobs:
   upload:
     name: Archive + upload
-    # Newest Xcode on macos-26: iOS 27 SDK, full-screen iPhone Duo (#120).
-    runs-on: macos-26
+    # xcode-27 runner, Xcode 27.1: iOS 27.1 SDK, full-screen iPhone Duo (#120, #158).
+    runs-on: xcode-27
     timeout-minutes: 45
     env:
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -60,7 +60,9 @@ jobs:
       - name: Select newest Xcode
         if: steps.secrets.outputs.ok == 'true'
         run: |
-          XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          # Xcode 27.1: iOS 27.1 SDK, full-screen iPhone Duo (#158). Xcode_27.2.app is a beta symlink.
+          XC=/Applications/Xcode_27.1.app
+          [ -d "$XC" ] || XC=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
           sudo xcode-select -s "$XC"
           xcodebuild -version
       - name: API key
