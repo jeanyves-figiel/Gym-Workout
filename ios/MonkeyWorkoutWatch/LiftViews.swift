@@ -37,7 +37,7 @@ struct LiftPanel: View {
         }
         .padding(.horizontal, 8).padding(.vertical, 5)
         .overlay(alignment: .bottomLeading) {
-            RepBars(ranges: lift.reps.map(\.range)).padding(.leading, 8).padding(.bottom, -4)
+            RepBars(ranges: lift.reps.map(\.range), velocities: lift.reps.map(\.meanVelocity), limit: lift.lossLimit).padding(.leading, 8).padding(.bottom, -4)
         }
         .padding(.bottom, 6)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -61,19 +61,28 @@ struct ZoneBar: View {
     }
 }
 
-/// One bar per rep, its height the rep's range (#410): a short yellow bar is probably not a full rep
-/// (turn the Crown to fix the count; the Watch learns from it).
+/// Rep speed graph (#611 A, `apple-tech-radar/t9.png`): one bar per rep, its height the rep's speed against the
+/// fastest, so fatigue shows as the bars shrink; a rep `limit` slower than the first turns red ("stop here").
+/// A short yellow bar is probably not a full rep (#410): turn the Crown to fix the count; the Watch learns from it.
 struct RepBars: View {
     let ranges: [Double]
+    var velocities: [Double] = []
+    var limit: Double?
 
     var body: some View {
         let sorted = ranges.sorted()
         let median = sorted.isEmpty ? 1 : max(0.01, sorted[sorted.count / 2])
+        let top = max(0.01, velocities.max() ?? 0)
+        let first = velocities.first ?? 0
+        let shown = Array(ranges.indices.suffix(12))
         HStack(alignment: .bottom, spacing: 2) {
-            ForEach(Array(ranges.suffix(12).enumerated()), id: \.offset) { _, r in
+            ForEach(shown, id: \.self) { i in
+                let r = ranges[i]
+                let v = i < velocities.count ? velocities[i] : nil
+                let slow = v.map { limit != nil && first > 0 && $0 <= first * (1 - limit!) } ?? false
                 RoundedRectangle(cornerRadius: 1.5)
-                    .fill(r < 0.6 * median ? W.color(0xFFE14D) : .white)
-                    .frame(width: 4, height: max(2, min(10, 8 * r / median)))
+                    .fill(r < 0.6 * median ? W.color(0xFFE14D) : slow ? W.color(0xFF2D2D) : .white)
+                    .frame(width: 4, height: v.map { max(2, 10 * $0 / top) } ?? max(2, min(10, 8 * r / median)))
             }
         }
         .frame(height: 10, alignment: .bottom)
@@ -204,7 +213,7 @@ struct PracticeView: View {
         VStack(spacing: 4) {
             Eyebrow(text: "Practice", color: .white.opacity(0.9))
             Text("\(lift.count)").font(W.display(48)).monospacedDigit().contentTransition(.numericText())
-            RepBars(ranges: lift.reps.map(\.range))
+            RepBars(ranges: lift.reps.map(\.range), velocities: lift.reps.map(\.meanVelocity))
             Text((lift.lastVelocity.map { String(format: "%.2f m/s · ", $0) } ?? "") + "Watch the iPhone")
                 .font(.system(size: 11, weight: .semibold)).opacity(0.9).lineLimit(1).minimumScaleFactor(0.7)
             Button("Done") { store.practice = nil }.font(W.label(12)).buttonStyle(.plain).padding(.top, 4)

@@ -18,6 +18,13 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
             await HyroxTracker.shared.start(format, settings: h)
             return true
         }
+        // Swim (#624): "Start on Watch" from the iPhone's swim plan runs today's swim in the pool.
+        if let s = snap.sportStart, let at = sportAt, s.sport == "swim" {
+            handled.insert(at)
+            let swim = snap.swim ?? WSwim()
+            await SwimTracker.shared.start(.pool(swim.pool), workout: swim.today, buddyMinutes: swim.buddyMinutes)
+            return true
+        }
         if let s = snap.sportStart, let at = sportAt, let sport = TrackedSport(rawValue: s.sport) {
             handled.insert(at)
             await SportTracker.shared.start(sport, power: s.saver ? .saver : .full, run: s.run)
@@ -186,6 +193,9 @@ struct WatchRootView: View {
     /// Sport tracking (#418) takes the whole screen while it runs, then shows its summary.
     @State private var sports = SportTracker.shared
     @State private var hyrox = HyroxTracker.shared
+    /// Timers (#622) and swims (#624) take the whole screen too.
+    @State private var wod = WodTracker.shared
+    @State private var swim = SwimTracker.shared
 
     var body: some View {
         #if DEBUG
@@ -218,6 +228,14 @@ struct WatchRootView: View {
             HyroxRaceView()
         } else if let race = hyrox.result, player == nil {
             HyroxFinishView(race: race, pb: hyrox.pb)
+        } else if wod.running, player == nil {
+            TimerRunView()
+        } else if let summary = wod.summary, player == nil {
+            TimerSummaryView(summary: summary)
+        } else if swim.running, player == nil {
+            SwimRunView()
+        } else if let summary = swim.summary, player == nil {
+            SwimSummaryView(summary: summary)
         } else if sports.running, player == nil {
             SportTrackView()
         } else if let summary = sports.summary, player == nil {
@@ -226,6 +244,8 @@ struct WatchRootView: View {
             PhoneStartView()
         } else if let live = store.live, player == nil {
             MirrorView(live: live)
+        } else if let remote = store.remoteTimer, player == nil {
+            TimerRemoteView(remote: remote)
         } else if let level = store.practice, player == nil {
             PracticeView(level: level)
         } else if let player {

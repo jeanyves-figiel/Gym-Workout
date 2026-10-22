@@ -310,6 +310,8 @@ final class AppModel {
         // Personal copies outside state.json: cached Health readings, the data export, HTTP responses.
         HealthManager.clearCache()
         MoveStore.shared.signOut()
+        WodStore.shared.signOut()
+        SwimStore.shared.signOut()
         FuelStore.shared.signOut()
         NotificationManager.shared.resetPrefs()
         // The MonkeyGrade sign-in and the Watch upload key live in this device's Keychain, not in state.json.

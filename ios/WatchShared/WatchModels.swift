@@ -50,6 +50,10 @@ struct WatchSnapshot: Codable, Equatable {
     var water: WWater?
     /// Home gym with a map position (#612): the Smart Stack raises Next up when the Watch is there. nil = none.
     var gym: WGym?
+    /// WOD and combat timers saved on the iPhone (#622); nil from older phone apps.
+    var wods: [WodTimer]?
+    /// Swimming (#624): pool length, plan, today's and the next swim; nil when the member never set it up.
+    var swim: WSwim?
 
     func session(_ id: String) -> WSession? { (sessions + extras).first { $0.id == id } }
 }
@@ -584,6 +588,12 @@ enum WatchKeys {
     static let practiceState = "practiceState"
     /// Watch → phone: one glass of water for this day key (#496), sent with `transferUserInfo`.
     static let water = "water"
+    /// Big screen timer (#622 C): `WWodRemote` phone → Watch, `wodRemoteEnded` when it closes, `wodCommand` Watch → phone.
+    static let wodRemote = "wodRemote"
+    static let wodRemoteEnded = "wodRemoteEnded"
+    static let wodCommand = "wodCommand"
+    /// Open water buddy alert (#615 B): `WSwimBuddy` Watch → phone, sent with `transferUserInfo`.
+    static let swimBuddy = "swimBuddy"
 }
 
 extension JSONEncoder {
@@ -689,4 +699,31 @@ struct WHyrox: Codable, Equatable {
     /// "Start race on Watch" on the iPhone: the format and when it was asked (used for a few minutes).
     var start: HyroxFormat?
     var startAt: Date?
+}
+
+/// Swimming on the Watch (#624, #615), flattened by the iPhone.
+struct WSwim: Codable, Equatable {
+    /// Pool length, metres.
+    var pool = 25
+    /// "1 km non-stop · week 3 of 8", when a plan runs.
+    var plan: String?
+    /// Swim planned today: a plan day, or the swim block of today's gym session (gym-day swims, C).
+    var today: SwimWorkout?
+    var next: SwimWorkout?
+    var nextDay: Date?
+    /// Open water: the iPhone alerts after this many minutes unless the swim ended (#615 B).
+    var buddyMinutes = 60
+}
+
+/// Big screen timer on the iPhone (#622 C): the Watch shows it and double tap starts or pauses it.
+struct WWodRemote: Codable, Equatable {
+    var timer: WodTimer
+    var running: Bool
+}
+
+/// Open water swim started or ended on the Watch (#615 B): the iPhone schedules or cancels the buddy alert.
+struct WSwimBuddy: Codable, Equatable {
+    var start: Date
+    var minutes: Int
+    var ended: Bool
 }

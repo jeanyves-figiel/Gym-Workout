@@ -6,6 +6,8 @@ import WorkoutEngine
 extension Notification.Name {
     /// A `WCommand` from the Watch for the iPhone workout player (object: WCommand).
     static let watchCommand = Notification.Name("watchCommand")
+    /// Double tap on the Watch for the big screen timer (#622 C).
+    static let watchTimerToggle = Notification.Name("watchTimerToggle")
     /// Live lift sensor state from the Watch for the iPhone player (object: WLiftLive, #383).
     static let watchLift = Notification.Name("watchLift")
     /// Practice mode state from the Watch (object: WLiftPracticeState, #410).
@@ -240,6 +242,16 @@ final class WatchSync: NSObject {
         }
     }
 
+    /// Big screen timer (#622 C): shows it on the Watch with a double-tap start; nil closes it.
+    func sendWodRemote(_ remote: WWodRemote?) {
+        guard let session, session.activationState == .activated, session.isReachable else { return }
+        if let remote, let data = try? JSONEncoder.watch.encode(remote) {
+            session.sendMessage([WatchKeys.wodRemote: data], replyHandler: nil, errorHandler: nil)
+        } else {
+            session.sendMessage([WatchKeys.wodRemoteEnded: true], replyHandler: nil, errorHandler: nil)
+        }
+    }
+
     /// The Watch app is open and can take a message now.
     var watchReachable: Bool {
         guard let session, session.activationState == .activated else { return false }
@@ -410,6 +422,9 @@ final class WatchSync: NSObject {
         // Heart-rate zones (#609) and today's run (#618).
         s.zones = WZones(starts: model.heartZones.starts, buzz: ZonePrefs.buzz)
         s.run = model.todayRun.flatMap { model.runDone($0) ? nil : AppModel.watchRun($0.workout) }
+        // Timers (#622) and swimming (#624).
+        s.wods = WodStore.shared.timers
+        s.swim = model.watchSwim()
         let today = Date()
         let fuel = FuelStore.shared
         s.water = WWater(day: fuel.key(today), glasses: fuel.log(today).glasses, target: model.fuelPlan(on: today).glasses,
@@ -503,6 +518,11 @@ extension WatchSync: WCSessionDelegate {
             }
             return
         }
+        // Open water buddy alert (#615 B).
+        if let data = userInfo[WatchKeys.swimBuddy] as? Data, let buddy = try? JSONDecoder.watch.decode(WSwimBuddy.self, from: data) {
+            SwimStore.buddy(buddy)
+            return
+        }
         guard let data = userInfo[WatchKeys.event] as? Data, let event = try? JSONDecoder.watch.decode(WatchEvent.self, from: data) else { return }
         Task { @MainActor in self.apply(event) }
     }
@@ -526,6 +546,10 @@ extension WatchSync: WCSessionDelegate {
                 self.heartRate = (bpm, Date())
                 NotificationCenter.default.post(name: .watchHeartRate, object: nil)
             }
+            return
+        }
+        if message[WatchKeys.wodCommand] != nil {
+            Task { @MainActor in NotificationCenter.default.post(name: .watchTimerToggle, object: nil) }
             return
         }
         guard let raw = message[WatchKeys.command] as? String, let command = WCommand(rawValue: raw) else { return }

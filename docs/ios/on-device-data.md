@@ -13,6 +13,8 @@ All in the app's `Application Support` unless noted, written atomically with Dat
 | `fuel.json` | `FuelStore` | Fuel settings, daily logs, recipes (favourite, own), pantry, meal plans, shopping list, scanned products, supplements, water | **No**: Fuel stays on the device |
 | `daily-move.json` | `MoveStore` | Daily steps and stairs | No (from HealthKit) |
 | `lift-sets.json` | `LiftSets` | Watch lift-sensor sets | Via workouts |
+| `wod-timers.json` | `WodStore` | Saved WOD and boxing timers | No (sent to the Watch) |
+| `swim.json` | `SwimStore` | Swim plan, pool length, gym-day swim blocks, buddy alert minutes | No (today's swim sent to the Watch) |
 | `health-snapshot.json` | `HealthManager` | Last HealthKit readings (readiness, steps, gym workouts from other apps) | No |
 | `coach-voices/` | `CoachVoices` | Voice catalog and cached MP3 lines | No (downloaded) |
 | `gym-workout-export.json` (temporary directory) | `AccountView` | Data export while it is shared; protection `complete` | n/a |
@@ -39,4 +41,4 @@ Small UI preferences (style, toggles) live in `UserDefaults` / `@AppStorage`; no
 
 ## Sign-out and deletion
 
-Sign-out first tries a final sync (5 s at most), then wipes `state.json`, tokens and every account copy outside it (`AppModel.wipeAccountLocalData`): Pro state, lift sets, Health cache, daily move, Fuel, notification prefs, MonkeyGrade link, Watch upload key, the export file and the URL cache; the Watch and widgets get signed-out snapshots. The same runs when another account signs in and after account deletion.
+Sign-out first tries a final sync (5 s at most), then wipes `state.json`, tokens and every account copy outside it (`AppModel.wipeAccountLocalData`): Pro state, lift sets, Health cache, daily move, timers, swim, Fuel, notification prefs, MonkeyGrade link, Watch upload key, the export file and the URL cache; the Watch and widgets get signed-out snapshots. The same runs when another account signs in and after account deletion.

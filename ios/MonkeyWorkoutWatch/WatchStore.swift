@@ -14,6 +14,8 @@ final class WatchStore: NSObject {
     var reachable = false
     /// Practice mode level the iPhone asked for (#410); nil = no practice.
     var practice: Double?
+    /// Big screen timer open on the iPhone (#622 C).
+    var remoteTimer: WWodRemote?
     /// The iPhone started a workout and woke this Watch (#347): the start prompt shows.
     var offered = false
     /// Last store made by the app, for the app delegate the iPhone wakes (#347).
@@ -108,6 +110,19 @@ final class WatchStore: NSObject {
         WCSession.default.sendMessage([WatchKeys.command: command.rawValue], replyHandler: nil, errorHandler: nil)
     }
 
+    /// Big screen timer (#622 C): start or pause the iPhone's clock.
+    func sendTimerToggle() {
+        guard WCSession.isSupported(), WCSession.default.isReachable else { return }
+        WKInterfaceDevice.current().play(.click)
+        WCSession.default.sendMessage([WatchKeys.wodCommand: "toggle"], replyHandler: nil, errorHandler: nil)
+    }
+
+    /// Open water (#615 B): the iPhone alerts if the swim runs past `minutes`; queued so it arrives even out of reach.
+    func sendBuddy(_ buddy: WSwimBuddy) {
+        guard WCSession.isSupported(), let data = try? JSONEncoder.watch.encode(buddy) else { return }
+        WCSession.default.transferUserInfo([WatchKeys.swimBuddy: data])
+    }
+
     /// Live lift sensor state for the iPhone player (#383), best effort.
     func send(_ lift: WLiftLive) {
         guard WCSession.isSupported(), WCSession.default.isReachable, let data = try? JSONEncoder.watch.encode(lift) else { return }
@@ -163,6 +178,14 @@ final class WatchStore: NSObject {
     }
 
     fileprivate func receive(message: [String: Any]) {
+        if let data = message[WatchKeys.wodRemote] as? Data, let r = try? JSONDecoder.watch.decode(WWodRemote.self, from: data) {
+            remoteTimer = r
+            return
+        }
+        if message[WatchKeys.wodRemoteEnded] != nil {
+            remoteTimer = nil
+            return
+        }
         if let data = message[WatchKeys.practice] as? Data, let c = try? JSONDecoder.watch.decode(WLiftPracticeCommand.self, from: data) {
             practice = c.level
             return

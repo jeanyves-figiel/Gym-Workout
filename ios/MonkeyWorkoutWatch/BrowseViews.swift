@@ -1,3 +1,4 @@
+import LiftSensor
 import SwiftUI
 
 /// Watch home (#219): the member's pick of Monkey coach (default), Crown deck or Charge & go,
@@ -97,6 +98,18 @@ struct HomeStatRows: View {
                 // Hyrox plus every tracked sport.
                 HomeRow(symbol: "figure.mixed.cardio", title: "Track a sport", value: "\(TrackedSport.allCases.count + 1)",
                         tint: (0x00A3C4, 0x7DF9FF), unit: "SPORTS")
+            }
+            .buttonStyle(.plain)
+            // WOD and boxing timers (#622).
+            NavigationLink { TimerPickerView() } label: {
+                HomeRow(symbol: "timer", title: "Timers", value: "\(WodTimer.presets.count + (snap.wods?.count ?? 0))",
+                        tint: (0xFF3D8B, 0xFF9A5E), unit: "TIMERS")
+            }
+            .buttonStyle(.plain)
+            // Swimming (#624, #615): today's swim from the plan, pool, open water.
+            NavigationLink { SwimSetupView() } label: {
+                HomeRow(symbol: "figure.pool.swim", title: "Swim", value: snap.swim?.today.map { "\($0.totalMeters)" } ?? "›",
+                        tint: (0x00A3C4, 0x3D59FF), unit: snap.swim?.today == nil ? nil : "M TODAY")
             }
             .buttonStyle(.plain)
             // Home style (#389): moved here from the gear next to the clock.

@@ -2,6 +2,7 @@ import AVFoundation
 import CoreLocation
 import Foundation
 import HealthKit
+import LiftSensor
 import Observation
 import WatchKit
 
@@ -9,7 +10,7 @@ import WatchKit
 /// plan read the exact sport from the workout's metadata. Diving is left to dive apps (user, 2026-10-17).
 enum TrackedSport: String, CaseIterable, Identifiable {
     case snowboard, ski, crossCountrySki, mountainBike, roadBike, run, trailRun, hike, mountaineering
-    case crossfit, rowing, football, tennis, padel, surf, skate, other
+    case crossfit, rowing, football, tennis, padel, golf, surf, skate, other
 
     var id: String { rawValue }
 
@@ -29,6 +30,7 @@ enum TrackedSport: String, CaseIterable, Identifiable {
         case .football: "Football"
         case .tennis: "Tennis"
         case .padel: "Padel"
+        case .golf: "Golf"
         case .surf: "Surf"
         case .skate: "Skate"
         case .other: "Other"
@@ -50,6 +52,7 @@ enum TrackedSport: String, CaseIterable, Identifiable {
         case .football: "figure.soccer"
         case .tennis: "figure.tennis"
         case .padel: "figure.racquetball"
+        case .golf: "figure.golf"
         case .surf: "figure.surfing"
         case .skate: "figure.skating"
         case .other: "figure.mixed.cardio"
@@ -79,6 +82,7 @@ enum TrackedSport: String, CaseIterable, Identifiable {
         case .football: .soccer
         case .tennis: .tennis
         case .padel: .pickleball
+        case .golf: .golf
         case .surf: .surfingSports
         case .skate: .skatingSports
         case .other: .other
@@ -93,6 +97,14 @@ enum TrackedSport: String, CaseIterable, Identifiable {
     var laps: Bool { [TrackedSport.crossfit, .run, .rowing].contains(self) }
     /// Compass page with waypoints (#617).
     var compass: Bool { [TrackedSport.hike, .mountaineering, .trailRun].contains(self) }
+    /// Swing counter (#611 B): shoulder to racket or club head, metres; nil = not a swing sport.
+    var swingLever: Double? {
+        switch self {
+        case .tennis, .padel: 1.2
+        case .golf: 1.6
+        default: nil
+        }
+    }
 
     var locationActivity: CLActivityType {
         switch self {
@@ -187,6 +199,9 @@ final class SportTracker: NSObject {
         var trail: [CLLocationCoordinate2D] = []
         var rideSeconds: TimeInterval = 0
         var liftSeconds: TimeInterval = 0
+        /// Swing sports (#611 B): forehand, backhand, smash counts and the fastest swing (km/h).
+        var swings: [SwingCounter.Shot: Int] = [:]
+        var topSwing: Double = 0
     }
 
     var running: Bool { sport != nil }
@@ -205,9 +220,12 @@ final class SportTracker: NSObject {
     private var home: CLLocation?
     private var saverTimer: Timer?
     private let trailMax = 400
+    /// Swings counted from the batched sensors (#611 B).
+    let impacts = ImpactTracker()
 
     func start(_ sport: TrackedSport, power: TrackPower, run: WRun? = nil, target: Int? = nil) async {
-        guard HKHealthStore.isHealthDataAvailable(), !running, !WorkoutManager.shared.running, !HyroxTracker.shared.running else { return }
+        guard HKHealthStore.isHealthDataAvailable(), !running, !WorkoutManager.shared.running, !HyroxTracker.shared.running,
+              !WodTracker.shared.running, !SwimTracker.shared.running else { return }
         let share: Set<HKSampleType> = [HKObjectType.workoutType(), HKSeriesType.workoutRoute(), HKQuantityType(.activeEnergyBurned),
                                         HKQuantityType(.heartRate)]
         let read: Set<HKObjectType> = [HKQuantityType(.heartRate), HKQuantityType(.activeEnergyBurned), HKObjectType.workoutType()]
@@ -243,6 +261,8 @@ final class SportTracker: NSObject {
         }
         if sport.usesGPS { startLocation() }
         if run != nil { startRun() }
+        // Batched sensors only run inside the workout session.
+        if let lever = sport.swingLever { impacts.startSwings(lever: lever) }
     }
 
     private func reset() {
@@ -413,6 +433,7 @@ final class SportTracker: NSObject {
         guard let session, let builder, let sport else { discard(); return }
         stopLocation()
         flushRoute()
+        impacts.stop()
         session.end()
         let end = Date()
         let used = batteryStart.map { start -> Int in
@@ -421,9 +442,13 @@ final class SportTracker: NSObject {
         }
         summary = Summary(sport: sport, minutes: Int(end.timeIntervalSince(started ?? end) / 60), km: meters / 1000,
                           vertical: sport.downhill ? down : up, runs: runs, topKmh: topSpeed, batteryUsed: used,
-                          trail: trail, rideSeconds: rideSeconds, liftSeconds: liftSeconds)
+                          trail: trail, rideSeconds: rideSeconds, liftSeconds: liftSeconds,
+                          swings: sport.swingLever == nil ? [:] : impacts.swings.counts, topSwing: impacts.swings.top)
         do {
             var meta: [String: Any] = [HKMetadataKeyIndoorWorkout: !sport.usesGPS]
+            if sport.swingLever != nil, impacts.swings.total > 0 {
+                meta["MonkeyWorkoutSwings"] = SwingCounter.Shot.allCases.map { "\($0.short) \(impacts.swings.counts[$0] ?? 0)" }.joined(separator: " · ")
+            }
             if up > 0 { meta[HKMetadataKeyElevationAscended] = HKQuantity(unit: .meter(), doubleValue: up) }
             try? await builder.addMetadata(meta)
             try await builder.endCollection(at: end)
@@ -436,6 +461,7 @@ final class SportTracker: NSObject {
 
     func discard() {
         stopLocation()
+        impacts.stop()
         session?.end()
         builder?.discardWorkout()
         routeBuilder?.discard()
@@ -490,6 +516,15 @@ final class SportTracker: NSObject {
     fileprivate func setHeading(_ v: Double) {
         if v >= 0 { heading = v }
     }
+    #if DEBUG
+    /// CI screenshots: a padel match with its swing counts (#611 B).
+    func demo(_ sport: TrackedSport, minutes: Double) {
+        self.sport = sport
+        started = Date().addingTimeInterval(-minutes * 60)
+        heartRate = 142
+        impacts.demo(swings: 148, 96, 22, top: 71)
+    }
+    #endif
 
     private func cleanup() {
         runTimer?.invalidate()

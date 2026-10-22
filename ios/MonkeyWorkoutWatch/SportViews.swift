@@ -1,4 +1,5 @@
 import CoreLocation
+import LiftSensor
 import SwiftUI
 import WatchKit
 
@@ -99,6 +100,10 @@ struct SportTrackView: View {
 
     var body: some View {
         TabView {
+            // Swing sports open on the swing counter (#611 B).
+            if tracker.sport?.swingLever != nil {
+                TimelineView(.periodic(from: .now, by: dimmed ? 60 : 1)) { ctx in swingPage(now: ctx.date) }
+            }
             // Always on (#418 battery): wrist down redraws once a minute, no animation.
             TimelineView(.periodic(from: .now, by: dimmed ? 60 : 1)) { ctx in
                 dashboard(now: ctx.date)
@@ -199,6 +204,32 @@ struct SportTrackView: View {
     }
 
     static func pace(_ secPerKm: Int) -> String { String(format: "%d:%02d", secPerKm / 60, secPerKm % 60) }
+
+    /// Swing counter (#611 B, `apple-tech-radar/t9.png`): forehand and backhand tiles, smash tile with the top speed.
+    @ViewBuilder private func swingPage(now: Date) -> some View {
+        if let sport = tracker.sport {
+            let s = tracker.impacts.swings
+            VStack(alignment: .leading, spacing: 5) {
+                Text("\(sport.label.uppercased()) · \(Int(now.timeIntervalSince(tracker.started ?? now) / 60))′").font(W.label(11)).foregroundStyle(W.lime)
+                if sport == .golf {
+                    SwingTile(title: "SWINGS", value: s.total, tint: (0xFF3D8B, 0xB23DFF))
+                    SwingTile(title: "TOP \(Int(s.top.rounded())) KM/H", value: s.last.map { Int($0.kmh.rounded()) } ?? 0,
+                              tint: (0xFF7A00, 0xFF3D5A), unit: "last")
+                } else {
+                    HStack(spacing: 5) {
+                        SwingTile(title: "FH", value: s.counts[.forehand] ?? 0, tint: (0xFF3D8B, 0xB23DFF))
+                        SwingTile(title: "BH", value: s.counts[.backhand] ?? 0, tint: (0x3D59FF, 0x7D4DFF))
+                    }
+                    SwingTile(title: "SMASH · TOP \(Int(s.top.rounded())) KM/H", value: s.counts[.smash] ?? 0, tint: (0xFF7A00, 0xFF3D5A))
+                }
+                if !ImpactTracker.swingsAvailable {
+                    Text("Swing counting needs Apple Watch Series 8, Ultra or later").font(W.label(9)).opacity(0.7)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .watchMargins()
+        }
+    }
 
     private func header(_ sport: TrackedSport) -> String {
         // Live run / lift state (#445 C).
@@ -326,6 +357,29 @@ struct SportTrackView: View {
     }
 }
 
+/// One gradient count tile of the swing counter.
+struct SwingTile: View {
+    let title: String
+    let value: Int
+    let tint: (UInt32, UInt32)
+    var unit: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title).font(W.label(10)).lineLimit(1).minimumScaleFactor(0.6)
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text("\(value)").font(W.display(26)).monospacedDigit().contentTransition(.numericText())
+                if let unit { Text(unit).font(W.label(10)).opacity(0.85) }
+            }
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8).padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(W.gradient(tint.0, tint.1)))
+        .animation(.snappy, value: value)
+    }
+}
+
 /// After End: the main numbers and the battery it used (design C). Rated and shown in full on the iPhone.
 struct SportSummaryView: View {
     let summary: SportTracker.Summary
@@ -340,6 +394,10 @@ struct SportSummaryView: View {
                 if summary.sport.downhill { Text("\(summary.runs) runs · top \(Int(summary.topKmh.rounded())) km/h").font(W.label(13)) }
                 if summary.sport.downhill && summary.rideSeconds + summary.liftSeconds > 0 {
                     Text("Riding \(SportTrackView.clock(summary.rideSeconds)) · Lifts \(SportTrackView.clock(summary.liftSeconds))").font(W.label(11))
+                }
+                if !summary.swings.isEmpty {
+                    Text(SwingCounter.Shot.allCases.map { "\($0.short) \(summary.swings[$0] ?? 0)" }.joined(separator: " · ")).font(W.label(12))
+                    if summary.topSwing > 0 { Text("Top swing \(Int(summary.topSwing.rounded())) km/h").font(W.label(11)) }
                 }
                 if summary.trail.count >= 2 {
                     TrailView(trail: summary.trail, live: false).frame(height: 70)
