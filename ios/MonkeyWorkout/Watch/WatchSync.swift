@@ -1,3 +1,4 @@
+import APIClient
 import Foundation
 import LiftSensor
 import WatchConnectivity
@@ -252,6 +253,13 @@ final class WatchSync: NSObject {
         }
     }
 
+    /// Gym buddy link (#626 B): a buddy's set or a cheer, shown over the Watch screen (best effort, reachable only).
+    func sendBuddy(_ ping: WBuddyPing) {
+        guard let session, session.activationState == .activated, session.isReachable,
+              let data = try? JSONEncoder.watch.encode(ping) else { return }
+        session.sendMessage([WatchKeys.buddy: data], replyHandler: nil, errorHandler: nil)
+    }
+
     /// The Watch app is open and can take a message now.
     var watchReachable: Bool {
         guard let session, session.activationState == .activated else { return false }
@@ -357,6 +365,9 @@ final class WatchSync: NSObject {
             model.saveHyroxRace(race)
         case let .bikeFTP(watts, date):
             model.setBikeFTP(watts, testedAt: date)
+        case let .buddyCheer(userId, kind):
+            if let k = LiveCheer(rawValue: kind) { LiveRoom.shared.cheer(userId, k, api: model.api) }
+            return
         case let .liftSet(set):
             LiftSets.shared.add(set)
             // A correction changes what the Watch learned (pushed by LiftLearning).

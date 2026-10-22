@@ -247,6 +247,8 @@ enum WatchEvent: Codable, Equatable {
     case hyroxRace(HyroxRace)
     /// FTP from a 20′ test on the Watch (#623 C).
     case bikeFTP(watts: Int, date: Date)
+    /// Cheer for a gym buddy from the Watch (#626 B): `fire`, `banana` or `beast`.
+    case buddyCheer(userId: String, kind: String)
 }
 
 /// Reps and bar speed the Watch measured for one set (#383). Speeds in m/s, ranges in m, times in s.
@@ -598,6 +600,8 @@ enum WatchKeys {
     static let wodCommand = "wodCommand"
     /// Open water buddy alert (#615 B): `WSwimBuddy` Watch → phone, sent with `transferUserInfo`.
     static let swimBuddy = "swimBuddy"
+    /// Gym buddy (#626 B): `WBuddyPing` phone → Watch, a buddy's set or a cheer for you.
+    static let buddy = "buddy"
 }
 
 extension JSONEncoder {
@@ -730,4 +734,16 @@ struct WSwimBuddy: Codable, Equatable {
     var start: Date
     var minutes: Int
     var ended: Bool
+}
+
+/// Gym buddy link (#626 B), phone → Watch: a paired buddy just finished a set (`cheer` nil, the Watch offers
+/// 🔥 🍌 🦍 back) or cheered you (`cheer` set). Shown a few seconds over any screen, with a tap.
+struct WBuddyPing: Codable, Equatable, Identifiable {
+    var id = UUID()
+    var userId: String
+    var name: String
+    /// "Squat 70 kg × 8 ✓", or nil with a cheer.
+    var text: String?
+    /// Emoji of the cheer received.
+    var cheer: String?
 }

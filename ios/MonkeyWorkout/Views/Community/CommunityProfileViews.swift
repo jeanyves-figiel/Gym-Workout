@@ -465,6 +465,8 @@ struct MemberView: View {
                             .buttonStyle(LimeButtonStyle())
                             .opacity(on ? 0.7 : 1)
                             .disabled(following)
+                        // Gym buddy link (#626 B).
+                        BuddyButton(userId: author.userId)
                     }
                 }
                 ErrorText(message: error)

@@ -1,3 +1,4 @@
+import APIClient
 import SwiftUI
 import TipKit
 import UIKit
@@ -169,6 +170,9 @@ struct WorkoutPlayerView: View {
     // Split in three so the Xcode 27 type-checker handles it (one chain timed out, #158).
     var body: some View {
         remoteControls(lifecycle(screen))
+            // Gym buddy link (#626 B): a buddy's set or cheer, a few seconds at the top.
+            .overlay(alignment: .top) { BuddyToast() }
+            .onDisappear { LiveRoom.shared.player(nil, api: model.api) }
     }
 
     private var screen: some View {
@@ -1720,11 +1724,17 @@ struct WorkoutPlayerView: View {
     }
 
     private func updateLive() {
-        guard ready, !finished, !discarded else { return WatchSync.shared.sendLive(nil) }
+        guard ready, !finished, !discarded else {
+            LiveRoom.shared.player(nil, api: model.api)
+            return WatchSync.shared.sendLive(nil)
+        }
         let state = liveState()
         live.update(state)
         guard steps.indices.contains(index), let session else { return }
         let step = steps[index]
+        LiveRoom.shared.player(LiveSet(title: session.displayTitle, exercise: state.exercise,
+                                       detail: String([state.setLabel, state.detail].filter { !$0.isEmpty }.joined(separator: " · ").prefix(40)),
+                                       state: pause != nil ? .rest : .set), api: model.api)
         WatchSync.shared.sendLive(WLive(
             sessionTitle: session.displayTitle, exercise: state.exercise, setLabel: state.setLabel, detail: state.detail,
             restEnd: state.restEnd, next: state.next, tint: state.tint,

@@ -207,6 +207,7 @@ struct WatchRootView: View {
 
     private var main: some View {
         screens
+            .overlay(alignment: .top) { BuddyPingView() }
             .onAppear(perform: startFromActionButton)
             .onChange(of: ActionButton.shared.startRequested) { _, on in if on { startFromActionButton() } }
     }

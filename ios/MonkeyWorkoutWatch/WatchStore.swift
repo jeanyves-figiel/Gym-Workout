@@ -16,6 +16,8 @@ final class WatchStore: NSObject {
     var practice: Double?
     /// Big screen timer open on the iPhone (#622 C).
     var remoteTimer: WWodRemote?
+    /// Gym buddy link (#626 B): a buddy's set or a cheer for you, shown a few seconds.
+    var buddyPing: WBuddyPing?
     /// The iPhone started a workout and woke this Watch (#347): the start prompt shows.
     var offered = false
     /// Last store made by the app, for the app delegate the iPhone wakes (#347).
@@ -180,6 +182,11 @@ final class WatchStore: NSObject {
     }
 
     fileprivate func receive(message: [String: Any]) {
+        if let data = message[WatchKeys.buddy] as? Data, let p = try? JSONDecoder.watch.decode(WBuddyPing.self, from: data) {
+            buddyPing = p
+            WKInterfaceDevice.current().play(p.cheer == nil ? .click : .success)
+            return
+        }
         if let data = message[WatchKeys.wodRemote] as? Data, let r = try? JSONDecoder.watch.decode(WWodRemote.self, from: data) {
             remoteTimer = r
             return
