@@ -16,6 +16,9 @@ struct CoachChatMessage: Identifiable, Equatable {
     var action: CoachChatAction?
     /// Follow-up questions to tap (#412).
     var suggestions: [String] = []
+    /// Answered by the on-device model (#608): badge + how long it took.
+    var onDevice = false
+    var seconds: Double?
 }
 
 /// Today's conversation, kept while the app runs; a new day starts a fresh chat.
@@ -231,7 +234,7 @@ struct CoachChatView: View {
     // MARK: Messages
 
     private var greeting: some View {
-        coachBubble(store.available == false ? "Coach chat isn't switched on yet. Check back soon!" : hello)
+        coachBubble(store.available == false && !OnDeviceCoach.available ? "Coach chat isn't switched on yet. Check back soon!" : hello)
     }
 
     private var hello: String {
@@ -252,6 +255,7 @@ struct CoachChatView: View {
                 .padding(.leading, 48)
         case .coach:
             VStack(alignment: .leading, spacing: 10) {
+                if m.onDevice { OnDeviceBadge(seconds: m.seconds) }
                 if !m.text.isEmpty { coachBubble(m.text) }
                 if let a = m.action { actionButton(a) }
                 if let w = m.workout { workoutCard(w, message: m) }
@@ -385,7 +389,7 @@ struct CoachChatView: View {
         let last = store.messages.last
         let options: [String] = store.messages.isEmpty ? (focus?.starters.isEmpty == false ? focus!.starters : Self.starters)
             : (last?.workout != nil ? Self.tweaks : (last?.role == .coach ? last?.suggestions ?? [] : []))
-        if !options.isEmpty, store.available != false, !sending {
+        if !options.isEmpty, serverOpen || OnDeviceCoach.available, !sending {
             FlowLayout(spacing: 6) {
                 ForEach(options, id: \.self) { o in
                     Button { send(o) } label: {
@@ -466,11 +470,12 @@ struct CoachChatView: View {
     }
 
     private var canSend: Bool {
-        !sending && store.available != false && store.remaining != 0
-            && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        canTalk && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private var canTalk: Bool { !sending && store.available != false && store.remaining != 0 }
+    /// The on-device Coach (#608) keeps answering when the server one is off or out of messages.
+    private var canTalk: Bool { !sending && (serverOpen || OnDeviceCoach.available) }
+    private var serverOpen: Bool { store.available != false && store.remaining != 0 }
 
     private func listen() {
         guard canTalk else { return }
@@ -481,7 +486,7 @@ struct CoachChatView: View {
 
     private func send(_ text: String, spoken: Bool = false) {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty, !sending, store.available != false, store.remaining != 0 else { return }
+        guard !t.isEmpty, canTalk else { return }
         store.messages.append(CoachChatMessage(role: .member, text: t))
         draft = ""
         sending = true
@@ -489,8 +494,16 @@ struct CoachChatView: View {
         let history = store.messages
         let readiness = Readiness.assess(health.snapshot)?.0.title
         let focus = focus
+        // Short questions, or no server Coach: the on-device model answers (#608 A).
+        let local = OnDeviceCoach.available && (CoachRoute.onDevice(t) || !serverOpen)
+        let about = model.onDeviceCoachAbout(focus: focus)
         Task {
             defer { sending = false }
+            if local, await answerOnDevice(t, about: about, history: Array(history.dropLast())) { return }
+            guard serverOpen else {
+                store.messages.append(CoachChatMessage(role: .coach, text: "I couldn't answer that one here. Try again later."))
+                return
+            }
             do {
                 let a = try await model.coachChat(history, readiness: readiness, focus: focus)
                 store.remaining = a.remainingToday
@@ -512,11 +525,23 @@ struct CoachChatView: View {
                     if code == "daily_limit" { store.remaining = 0 }
                     if code == "coach_unavailable" { store.available = false }
                     store.messages.append(CoachChatMessage(role: .coach, text: message))
+                } else if OnDeviceCoach.available, await answerOnDevice(t, about: about, history: Array(history.dropLast())) {
+                    // No signal (#608 A): the on-device Coach answers instead.
                 } else {
                     store.messages.append(CoachChatMessage(role: .coach, text: "I couldn't reach the gym floor. Check your connection and try again."))
                 }
             }
         }
+    }
+
+    /// On-device answer (#608 A); false when the model couldn't answer, so the server Coach can.
+    private func answerOnDevice(_ question: String, about: String, history: [CoachChatMessage]) async -> Bool {
+        let start = Date()
+        guard let text = try? await OnDeviceCoach.answer(question, about: about, history: history) else { return false }
+        let reply = CoachChatMessage(role: .coach, text: text, onDevice: true, seconds: Date().timeIntervalSince(start))
+        store.messages.append(reply)
+        speak(reply.text)
+        return true
     }
 
     /// Reads the answer aloud (#412): after a spoken question, or always / never per Settings.

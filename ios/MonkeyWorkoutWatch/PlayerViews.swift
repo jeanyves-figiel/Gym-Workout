@@ -337,7 +337,10 @@ struct PlayerView: View {
             if case let .rest(end, total, effortSet) = player.phase {
                 RestOverlay(end: end, total: total, effort: effortSet != nil, next: player.upNext,
                             tint: block?.tint ?? 0xCCFF3D, tint2: block?.tint2 ?? 0x7B3DFF,
-                            note: restNote) { rir in
+                            note: restNote, advice: player.wristAdvice, onApply: { kg in
+                                player.applyKg(kg)
+                                WKInterfaceDevice.current().play(.click)
+                            }) { rir in
                     send(player.effort(rir))
                 } onAdd: {
                     player.addRest()
@@ -636,6 +639,9 @@ struct RestOverlay: View {
     var tint2: UInt32 = 0x7B3DFF
     /// Lift sensor (#383): the set just measured, machine → wrist reminder.
     var note: String?
+    /// Wrist Coach (#608 C): the question and its answer, Apply sets the weight.
+    var advice: WristCoach.Advice?
+    var onApply: (Double) -> Void = { _ in }
     let onEffort: (Int) -> Void
     /// Read here, not passed in, so each heart rate sample redraws this overlay instead of the whole player.
     @Environment(WorkoutManager.self) private var workout
@@ -654,7 +660,9 @@ struct RestOverlay: View {
             if effort {
                 EffortGrid(onEffort: onEffort, rowHeight: 28)
             } else {
-                if note != nil || heartRate != nil {
+                if let advice {
+                    coachTile(advice)
+                } else if note != nil || heartRate != nil {
                     VStack(spacing: 1) {
                         if let note { Text(note).font(W.label(10)).multilineTextAlignment(.center).lineLimit(2).minimumScaleFactor(0.8) }
                         if let heartRate { Text("♥ \(Int(heartRate))").font(W.label(10)).foregroundStyle(W.color(0xFF5A75)).monospacedDigit() }
@@ -681,6 +689,30 @@ struct RestOverlay: View {
             try? await Task.sleep(for: .seconds(max(0, end.timeIntervalSinceNow)))
             if !Task.isCancelled { WKInterfaceDevice.current().play(.notification) }
         }
+    }
+
+    /// Wrist Coach (#608 C): question, answer, Apply.
+    private func coachTile(_ a: WristCoach.Advice) -> some View {
+        HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("🐵 \"\(a.question)\"").font(W.label(9)).foregroundStyle(W.lime).lineLimit(1)
+                Text(a.answer).font(W.label(11)).lineLimit(2).minimumScaleFactor(0.75)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if let kg = a.kg {
+                Button { onApply(kg) } label: {
+                    Text("Apply").font(W.label(11)).foregroundStyle(W.ink).lineLimit(1).minimumScaleFactor(0.7)
+                        .frame(width: 46, height: 30)
+                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(W.lime))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Apply \(WatchPlayer.kg(kg)) kilos")
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 7).padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(0.14)))
+        .accessibilityElement(children: .contain)
     }
 
     /// Rest as a block-coloured tile (#538): time left, +15 and Skip as squares, a bar draining underneath.

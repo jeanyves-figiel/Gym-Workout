@@ -90,6 +90,8 @@ enum TrackedSport: String, CaseIterable, Identifiable {
     var downhill: Bool { self == .snowboard || self == .ski }
     /// Laps or stations with a big LAP button.
     var laps: Bool { [TrackedSport.crossfit, .run, .rowing].contains(self) }
+    /// Compass page with waypoints (#617).
+    var compass: Bool { [TrackedSport.hike, .mountaineering, .trailRun].contains(self) }
 
     var locationActivity: CLActivityType {
         switch self {
@@ -142,6 +144,17 @@ final class SportTracker: NSObject {
     private(set) var homeMeters: Double?
     private(set) var homeBearing: Double?
     private(set) var course: Double?
+    /// Compass (#617, hike / mountaineering / trail run): heading in degrees while the compass page is on screen,
+    /// waypoints marked on the way and the one the arrow points to.
+    private(set) var heading: Double?
+    private(set) var waypoints: [Waypoint] = []
+    private(set) var target: Int?
+
+    struct Waypoint: Identifiable {
+        let id: Int
+        let name: String
+        let coordinate: CLLocationCoordinate2D
+    }
     /// Ski / snowboard live state: on a lift (climbing) or riding, time in each, the last finished run.
     private(set) var onLift = false
     private(set) var rideSeconds: TimeInterval = 0
@@ -247,6 +260,9 @@ final class SportTracker: NSObject {
         homeMeters = nil
         homeBearing = nil
         course = nil
+        heading = nil
+        waypoints = []
+        target = nil
         onLift = false
         rideSeconds = 0
         liftSeconds = 0
@@ -339,6 +355,53 @@ final class SportTracker: NSObject {
     }
 
     func closeSummary() { summary = nil }
+
+    // MARK: Compass (#617)
+
+    /// Only while the compass page shows: the magnetometer costs battery.
+    func startHeading() {
+        guard CLLocationManager.headingAvailable() else { return }
+        location.delegate = self
+        location.headingFilter = 3
+        location.startUpdatingHeading()
+    }
+
+    func stopHeading() {
+        location.stopUpdatingHeading()
+        heading = nil
+    }
+
+    /// Drops a waypoint where you are; the arrow points to it from now on.
+    func markWaypoint() {
+        guard let here = last else { return }
+        let n = waypoints.count + 1
+        waypoints.append(Waypoint(id: n, name: "WP \(n)", coordinate: here.coordinate))
+        target = waypoints.count - 1
+        WKInterfaceDevice.current().play(.success)
+    }
+
+    /// Next waypoint for the arrow, round the list.
+    func nextTarget() {
+        guard !waypoints.isEmpty else { return }
+        target = ((target ?? -1) + 1) % waypoints.count
+        WKInterfaceDevice.current().play(.click)
+    }
+
+    /// Metres and bearing (degrees from north) from here to a point.
+    func toward(_ c: CLLocationCoordinate2D) -> (meters: Double, bearing: Double)? {
+        guard let here = last else { return nil }
+        let rad = Double.pi / 180
+        let lat1 = here.coordinate.latitude * rad, lat2 = c.latitude * rad
+        let dLon = (c.longitude - here.coordinate.longitude) * rad
+        let y = sin(dLon) * cos(lat2)
+        let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
+        let meters = here.distance(from: CLLocation(latitude: c.latitude, longitude: c.longitude))
+        return (meters, (atan2(y, x) / rad + 360).truncatingRemainder(dividingBy: 360))
+    }
+
+    fileprivate func setHeading(_ v: Double) {
+        if v >= 0 { heading = v }
+    }
 
     private func cleanup() {
         session = nil
@@ -451,6 +514,11 @@ extension SportTracker: CLLocationManagerDelegate {
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
+        let v = newHeading.trueHeading >= 0 ? newHeading.trueHeading : newHeading.magneticHeading
+        Task { @MainActor in self.setHeading(v) }
+    }
 }
 
 extension SportTracker: HKWorkoutSessionDelegate {

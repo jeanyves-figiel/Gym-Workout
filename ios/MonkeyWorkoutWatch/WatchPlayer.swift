@@ -30,6 +30,8 @@ final class WatchPlayer {
     var timedEnd: Date?
     var timedRemaining: TimeInterval?
     var endedAt: Date?
+    /// Wrist Coach advice applied for this exercise + set (#608 C), so it doesn't ask again.
+    var coachApplied: String?
 
     init(session: WSession) {
         self.session = session

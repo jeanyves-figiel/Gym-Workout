@@ -80,6 +80,7 @@ struct SportTrackView: View {
                 dashboard(now: ctx.date)
             }
             if tracker.sport?.usesGPS == true { mapPage }
+            if let sport = tracker.sport, sport.compass, CLLocationManager.headingAvailable() { compassPage }
             controls
         }
         .tabViewStyle(.verticalPage)
@@ -172,6 +173,58 @@ struct SportTrackView: View {
             }
         }
         .watchMargins()
+    }
+
+    /// Compass + waypoints (#617): heading, arrow to the waypoint and back to the start, both turned with the watch.
+    private var compassPage: some View {
+        let h = tracker.heading ?? 0
+        let wp = tracker.target.flatMap { tracker.waypoints.indices.contains($0) ? tracker.waypoints[$0] : nil }
+        return VStack(spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(tracker.heading.map { "\(Self.point($0)) \(Int($0.rounded()) % 360)°" } ?? "Compass…")
+                    .font(W.display(24)).foregroundStyle(W.lime).lineLimit(1).minimumScaleFactor(0.6)
+                Spacer(minLength: 0)
+            }
+            ZStack {
+                Circle().stroke(.white.opacity(0.25), lineWidth: 2)
+                Text("N").font(W.label(11)).foregroundStyle(W.color(0xFF5A75))
+                    .offset(y: -34).rotationEffect(.degrees(-h))
+                if let wp, let to = tracker.toward(wp.coordinate) {
+                    Image(systemName: "location.north.fill").font(.system(size: 26, weight: .black)).foregroundStyle(W.lime)
+                        .rotationEffect(.degrees(to.bearing - h))
+                } else if let b = tracker.homeBearing {
+                    Image(systemName: "house.fill").font(.system(size: 13, weight: .black)).offset(y: -22)
+                        .rotationEffect(.degrees(b - h))
+                }
+            }
+            .frame(width: 78, height: 78)
+            .accessibilityHidden(true)
+            if let wp, let to = tracker.toward(wp.coordinate) {
+                Button { tracker.nextTarget() } label: {
+                    Text("↗ \(wp.name) \(Self.distance(to.meters))").font(W.label(13)).lineLimit(1)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(wp.name), \(Self.distance(to.meters)). Tap for the next waypoint")
+            }
+            if let m = tracker.homeMeters, m >= 50 {
+                Text("⌂ Start \(Self.distance(m))").font(W.label(10)).opacity(0.85)
+            }
+            Button { tracker.markWaypoint() } label: {
+                Label("Mark waypoint", systemImage: "mappin.and.ellipse").font(W.label(12)).foregroundStyle(W.ink).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent).tint(W.lime).buttonBorderShape(.capsule)
+        }
+        .watchMargins()
+        .onAppear { tracker.startHeading() }
+        .onDisappear { tracker.stopHeading() }
+    }
+
+    static func point(_ deg: Double) -> String {
+        ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Int(((deg + 22.5).truncatingRemainder(dividingBy: 360)) / 45) % 8]
+    }
+
+    static func distance(_ m: Double) -> String {
+        m >= 1000 ? String(format: "%.1f km", m / 1000) : "\(Int(m.rounded())) m"
     }
 
     private var controls: some View {

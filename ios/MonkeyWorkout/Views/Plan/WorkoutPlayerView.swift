@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 import UIKit
 import WorkoutEngine
 
@@ -23,6 +24,9 @@ struct WorkoutPlayerView: View {
     @State private var reward: GameReward?
     /// Wins you missed (#501) on the finish sheet.
     @State private var wins: [Win] = []
+    /// Instant recap (#608 B), reworded by the on-device model when it can.
+    @State private var recap: WorkoutRecap?
+    @State private var recapOnDevice = false
 
     @State private var index = 0
     @State private var setsDone: [String: Int] = [:]
@@ -173,7 +177,7 @@ struct WorkoutPlayerView: View {
                 if finished {
                     SummaryView(session: session, elapsed: Date().timeIntervalSince(started), setsDone: setsDone.values.reduce(0, +),
                                 kcal: record?.kcal, healthSaved: health.connected && health.writeWorkouts, reward: reward,
-                                wins: wins, recordId: record?.id) {
+                                wins: wins, recordId: record?.id, recap: recap, recapOnDevice: recapOnDevice) {
                         dismiss()
                     }
                     .transition(.scale.combined(with: .opacity))
@@ -865,6 +869,7 @@ struct WorkoutPlayerView: View {
         .accessibilityLabel(listener.listening ? "Stop listening" : "Talk to Coach")
         .accessibilityHint("Say done, a weight, reps, skip rest, next, or ask a question")
         .accessibilityIdentifier("player.mic")
+        .popoverTip(VoiceLogTip())
     }
 
     /// What the mic hears, under the top bar.
@@ -928,6 +933,13 @@ struct WorkoutPlayerView: View {
             guard onCard else { return coach.reply("No reps to log on this one.") }
             log.setReps(row, n)
             coach.reply("\(log.rows[row].reps) reps.")
+        case let .set(reps, kg):
+            // "Eight at eighty" (#617): both values in, set logged.
+            guard onCard else { return coach.reply("No weight on this one.") }
+            log.setKg(row, kg)
+            log.setReps(row, reps)
+            coach.reply("\(log.rows[row].reps) at \(log.rows[row].kg).")
+            handle(.main)
         case .skipRest: handle(.skipRest)
         case .addRest:
             handle(.addRest)
@@ -1165,6 +1177,16 @@ struct WorkoutPlayerView: View {
             reward = GameReward(before: before.game, after: model.game, badgesBefore: before.badges, badgesAfter: model.badges)
             if reward?.weekCleared == true { model.markChestSeen() }
             wins = model.wins(for: r)
+            if let base = WorkoutRecap.build(r, history: model.history) {
+                recap = base
+                Task {
+                    guard let better = await OnDeviceCoach.recap(base) else { return }
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        recap = better
+                        recapOnDevice = true
+                    }
+                }
+            }
             // A Watch tracking this workout saves the Health workout with its heart rate (#347).
             if !WatchSync.shared.watchTracks(sessionId) {
                 Task {
@@ -1501,6 +1523,7 @@ struct WorkoutPlayerView: View {
         if demoMode == "done" {
             reward = Demo.reward
             wins = Demo.wins
+            recap = Demo.recap
             finished = true
         }
         if demoMode == "next", let s = steps.firstIndex(where: { $0.loggable }), s < steps.count - 1 {
@@ -1878,6 +1901,8 @@ private struct SummaryView: View {
     var reward: GameReward?
     var wins: [Win] = []
     var recordId: UUID?
+    var recap: WorkoutRecap?
+    var recapOnDevice = false
     let onDone: () -> Void
     @State private var pop = false
 
@@ -1898,6 +1923,7 @@ private struct SummaryView: View {
                 }
                 // Wins you missed (#501): three personal wins, even on a weak day, and how you feel now.
                 if !wins.isEmpty { WinsCard(wins: wins, recordId: recordId) }
+                if let recap { RecapCard(recap: recap, onDevice: recapOnDevice) }
                 HStack(spacing: 10) {
                     GradientStat(symbol: "stopwatch.fill", value: Format.elapsed(elapsed), label: "Time", gradient: WorkoutEngine.Category.cardio.gradient)
                     GradientStat(symbol: "square.stack.3d.up.fill", value: "\(setsDone)", label: "Sets", gradient: WorkoutEngine.Category.strength.gradient)

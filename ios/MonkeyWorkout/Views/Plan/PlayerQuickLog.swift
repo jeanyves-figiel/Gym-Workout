@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 import UIKit
 import WorkoutEngine
 
@@ -268,7 +269,10 @@ struct CurrentSetCard: View {
                     return "\(LoadAdvisor.formatKg(v.kg))×\(v.reps)"
                 } onTap: { j in
                     editing = editing == j ? nil : j
+                    EditSetTip().invalidate(reason: .actionPerformed)
                 }
+                .popoverTip(EditSetTip(), arrowEdge: .bottom)
+                .task(id: done) { if done > 0 { EditSetTip.setLogged = true } }
             }
         }
         .foregroundStyle(.white)

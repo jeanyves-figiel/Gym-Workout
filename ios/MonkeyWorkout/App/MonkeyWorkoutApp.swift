@@ -28,6 +28,8 @@ struct MonkeyWorkoutApp: App {
                 // Dynamic Type (#540): grows up to the third accessibility size, where the layouts still hold.
                 .dynamicTypeSize(...DynamicTypeSize.accessibility3)
                 .task {
+                    // Hints for hidden gestures (#617).
+                    HiddenGestureTips.configure()
                     model.health = health
                     FuelStore.shared.health = health
                     FuelStore.shared.planFor = { [model] in model.fuelPlan(on: $0) }
