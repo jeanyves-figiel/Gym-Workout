@@ -370,4 +370,45 @@ import Testing
         #expect(found?.proteinG == 3.5)
         #expect(Supplements.parse(label: "Shake well before use") == nil)
     }
+
+    // MARK: Products in meals (#599)
+
+    @Test func onDemandProductIsNeverScheduled() {
+        var huel = shake
+        huel.onDemand = true
+        #expect(Supplements.schedule([huel], plan: plan(trainingAt: nil), prefs: FuelPrefs(), calendar: cal).isEmpty)
+        #expect(Supplements.schedule([shake], plan: plan(trainingAt: nil), prefs: FuelPrefs(), calendar: cal).count == 1)
+    }
+
+    @Test func mealProductIsARecipeOnlyForMeals() {
+        let recipes = Supplements.recipes([shake, boost])
+        #expect(recipes.count == 1)
+        let r = recipes[0]
+        #expect(r.id == "product-shake")
+        #expect(r.protein == 40 && r.carbs == 24 && r.fat == 17)
+        #expect(r.slots.contains(.breakfast) && r.slots.contains(.dinner))
+        #expect(RecipeBook.recipe("product-shake", own: recipes)?.name == "Meal shake")
+        // Ticked as a meal it adds the same portions as the scheduled shake.
+        #expect(r.portions == shake.portions)
+    }
+
+    @Test func extraTakesGetTheirOwnTick() {
+        var log = FuelDayLog()
+        let whey = Supplement(id: "w", name: "Whey", kind: .protein, dose: "1 scoop", proteinG: 25, onDemand: true)
+        log.tick(Supplements.extra(whey, log: log, minute: 600))
+        log.tick(Supplements.extra(whey, log: log, minute: 900))
+        #expect(log.ticks["supp-w-x1"] != nil && log.ticks["supp-w-x2"] != nil)
+        #expect(log.eaten.palms == 2)
+    }
+
+    @Test func catalogHasHuelVariantsAndSearches() {
+        let huel = ProductCatalog.brands.first { $0.id == "huel" }
+        #expect((huel?.variants.count ?? 0) >= 4)
+        #expect(ProductCatalog.search("huel black").first?.variants.allSatisfy { $0.name.contains("Black") } == true)
+        #expect(ProductCatalog.search("yfood").map(\.id) == ["yfood"])
+        #expect(Set(ProductCatalog.brands.flatMap(\.variants).map(\.id)).count == ProductCatalog.brands.flatMap(\.variants).count)
+        let mine = ProductCatalog.mine(huel!.variants[0], servings: 1.5, onDemand: true)
+        #expect(mine.whenPicked && mine.id != huel!.variants[0].id)
+        #expect(mine.proteinG == 60)
+    }
 }
