@@ -35,7 +35,8 @@ final class MirroredWorkout: NSObject {
         heartRate = nil
         kcal = nil
         s.delegate = self
-        s.associatedWorkoutBuilder().delegate = self
+        // Heart rate and kcal from the mirrored builder need iOS 26; earlier the twin player shows the Watch's state only.
+        if #available(iOS 26.0, *) { s.associatedWorkoutBuilder().delegate = self }
     }
 
     private func ended() {
@@ -62,6 +63,7 @@ final class MirroredWorkout: NSObject {
         if last.finished { presented = false }
     }
 
+    @available(iOS 26.0, *)
     fileprivate func collected(_ builder: HKLiveWorkoutBuilder, _ types: Set<HKSampleType>) {
         if types.contains(HKQuantityType(.heartRate)), let q = builder.statistics(for: HKQuantityType(.heartRate))?.mostRecentQuantity() {
             heartRate = Int(q.doubleValue(for: HKUnit.count().unitDivided(by: .minute())).rounded())
@@ -93,6 +95,7 @@ extension MirroredWorkout: HKWorkoutSessionDelegate {
     }
 }
 
+@available(iOS 26.0, *)
 extension MirroredWorkout: HKLiveWorkoutBuilderDelegate {
     nonisolated func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {}
 
