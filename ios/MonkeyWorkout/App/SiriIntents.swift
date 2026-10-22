@@ -87,7 +87,7 @@ struct JustAteIntent: AppIntent {
 /// "Log eight at eighty": fills the coming set and logs it, like saying it to the player's mic.
 struct LogSetByVoiceIntent: AppIntent {
     static let title: LocalizedStringResource = "Log a set"
-    static let description = IntentDescription("Logs the coming set of the workout running on this iPhone.")
+    static let description = IntentDescription("Logs the coming set of the workout in progress.")
 
     @Parameter(title: "Reps", inclusiveRange: (1, 100)) var reps: Int
     @Parameter(title: "Weight (kg)") var kg: Double?
