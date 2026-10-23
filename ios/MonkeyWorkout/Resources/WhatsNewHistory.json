@@ -1,6 +1,103 @@
 {
   "releases": [
     {
+      "id": "2026-10-22.3",
+      "build": 65,
+      "date": "2026-10-22",
+      "items": [
+        {
+          "symbol": "applewatch",
+          "tint": "power",
+          "title": "iPhone and Watch, one workout",
+          "body": "Twin player, double tap to log, Siri and Controls for Start today and Log set."
+        },
+        {
+          "symbol": "bolt.fill",
+          "tint": "cardio",
+          "title": "Coach on your iPhone",
+          "body": "Quick answers without signal, a recap the second you finish, Too heavy? on the wrist."
+        },
+        {
+          "symbol": "waveform",
+          "tint": "warmup",
+          "title": "Say it, point it",
+          "body": "Say \"eight at eighty\" to log a set, compass on hikes, point the camera at a machine."
+        },
+        {
+          "symbol": "heart.text.square.fill",
+          "tint": "cardio",
+          "title": "Zones and race plans",
+          "body": "Heart-rate zones on your Watch, run plans for your next race, runs sent to Apple's Workout app."
+        },
+        {
+          "symbol": "bell.badge.fill",
+          "tint": "strength",
+          "title": "Health, alarms, Smart Stack",
+          "body": "Effort and mood go to Apple Health, rest timers ring through Silent, the Smart Stack shows the right card."
+        },
+        {
+          "symbol": "figure.pool.swim",
+          "tint": "cardio",
+          "title": "Swim, box, time it",
+          "body": "Watch swim player, boxing rounds that count punches, Tabata, EMOM and AMRAP on a big screen."
+        },
+        {
+          "symbol": "bicycle",
+          "tint": "power",
+          "title": "Ride with power",
+          "body": "Pair power meter, cadence and heart-rate strap with Apple Watch, ride by zones, test your FTP."
+        },
+        {
+          "symbol": "figure.cooldown",
+          "tint": "mobility",
+          "title": "Rest days that recover",
+          "body": "A short routine for what you trained hardest and a guided cool-down on Apple Watch."
+        },
+        {
+          "symbol": "figure.racquetball",
+          "tint": "warmup",
+          "title": "Get ready for your sport",
+          "body": "Season blocks for ski, padel, climbing, running, surf and football."
+        },
+        {
+          "symbol": "figure.gymnastics",
+          "tint": "strength",
+          "title": "Skill tree",
+          "body": "Unlock pull-ups, pistols and levers level by level, with a skill of the month."
+        },
+        {
+          "symbol": "figure.and.child.holdinghands",
+          "tint": "stretch",
+          "title": "Programmes for life's moments",
+          "body": "Pregnancy, after birth, 50+ and back to training: safe swaps that say why."
+        },
+        {
+          "symbol": "person.2.fill",
+          "tint": "power",
+          "title": "Train with buddies",
+          "body": "Share live sets with a gym buddy, get Watch cheers, join the weekly challenge room."
+        },
+        {
+          "symbol": "sparkles",
+          "tint": "mobility",
+          "title": "Liquid Glass",
+          "body": "On iOS 26 the tab bar and sheets turn to glass. Now needs iOS 18 or later."
+        },
+        {
+          "symbol": "nosign",
+          "tint": "mobility",
+          "title": "Can't train today?",
+          "body": "Long press the day card or a day: Skip today. Not moved, Next up moves on, Unskip any time."
+        },
+        {
+          "symbol": "arrow.right.circle.fill",
+          "tint": "strength",
+          "title": "Next up, right on the day",
+          "body": "On the Train day card the Next up chip now sits on the day's line."
+        }
+      ]
+    },
+    {
       "id": "2026-10-22.2",
       "build": 61,
       "date": "2026-10-22",
