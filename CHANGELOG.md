@@ -21,7 +21,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Send to Apple's Workout app** (#610, designs A + C from `t8.png`, WorkoutKit): any planned run or cardio session has **Send to Workout app** (Apple's preview sheet: send to Watch, alerts, Workout Buddy) built as a custom workout: warm-up, interval blocks with repeats, cool-down, pace alerts (±3 %) or heart-rate zone alerts. **Start** asks MonkeyFit player or Apple Workout, with *Remember for running* per sport. No automatic scheduling. Results come back through Apple Health and mark the run done.
 
 ### Changed
-- **What's new 2026-10-23.2** (bundle 67, 9 cards): same moves every day, add your own gym, where you train each day + hybrid, daily routines, Fuel set up later, live sharing choice, Style follows your layout, Gym map first time, tab bar stays put. Notes 2026-10-23.1 moved to the history as build 66.
+- **What's new 2026-10-23.2** (bundle 67, 10 cards): same moves every day, add your own gym, where you train each day + hybrid, daily routines, Fuel set up later, live sharing choice, sport tiles stay put, Style follows your layout, Gym map first time, tab bar stays put. Notes 2026-10-23.1 moved to the history as build 66.
 - **What's new 2026-10-23.1** (bundle 66, 5 cards): guided set-up, Community reorganised, Around any sport, Your gym in Explore, Recover on rest days. Notes 2026-10-22.3 moved to the history as build 65.
 - **Dependency bumps** (dependabot #645-#651): backend fastify 5.12.7, @fastify/compress 9.2.2, nodemailer 10.1.7, vitest 5.0.5; CI actions/setup-go v7, actions/setup-java v6, docker/build-push-action v7. Backend tests pass (240).
 

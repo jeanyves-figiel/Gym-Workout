@@ -38,6 +38,12 @@
       "body": "Choose whether buddies see your session live."
     },
     {
+      "symbol": "square.grid.3x1.below.line.grid.1x2",
+      "tint": "power",
+      "title": "Sport tiles stay put",
+      "body": "Sport tiles stay put when you pick one: the picked sport lights up in place."
+    },
+    {
       "symbol": "paintpalette.fill",
       "tint": "warmup",
       "title": "Style follows your layout",
