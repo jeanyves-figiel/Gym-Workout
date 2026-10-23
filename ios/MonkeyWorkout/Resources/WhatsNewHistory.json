@@ -1,6 +1,43 @@
 {
   "releases": [
     {
+      "id": "2026-10-23.1",
+      "build": 66,
+      "date": "2026-10-23",
+      "items": [
+        {
+          "symbol": "flag.checkered",
+          "tint": "warmup",
+          "title": "New here? Guided set-up",
+          "body": "Your gym, machines, map and plan step by step, then a tour. Run it again in Settings → Onboarding."
+        },
+        {
+          "symbol": "person.3.fill",
+          "tint": "power",
+          "title": "Community, reorganised",
+          "body": "Your gym today on top, small tiles, and new Plans, Fuel and Tips: copy a member's programme in one tap, share yours."
+        },
+        {
+          "symbol": "figure.climbing",
+          "tint": "cardio",
+          "title": "Around any sport",
+          "body": "Pick once how gym days fit around any sport, tweak each sport. Sport days get one block on Train: Track live, Log, Prep."
+        },
+        {
+          "symbol": "dumbbell.fill",
+          "tint": "strength",
+          "title": "Your gym in Explore",
+          "body": "My gym is pinned left of the chips: tap for only what your gym has, ▾ to draw the map and add machines."
+        },
+        {
+          "symbol": "leaf.fill",
+          "tint": "mobility",
+          "title": "Recover on rest days",
+          "body": "The Recover routine is offered on every rest day, next weeks too."
+        }
+      ]
+    },
+    {
       "id": "2026-10-22.3",
       "build": 65,
       "date": "2026-10-22",
