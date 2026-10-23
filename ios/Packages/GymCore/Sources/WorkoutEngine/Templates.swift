@@ -14,9 +14,11 @@ public struct WorkoutTemplate: Identifiable, Hashable, Sendable {
         public let group: String?
         /// Block it is played in; nil = from its category (warm-up, cool-down, else the main block).
         public let block: BlockKind?
+        /// How hard or how to do it ("Easy: 40–60 % bodyweight"), shown with the prescription (#689).
+        public let intensity: String?
 
         init(_ exerciseId: String, sets: Int = 3, reps: Int = 10, kcal: Int? = nil, rest: Int = WorkoutTemplate.restSec,
-             group: String? = nil, block: BlockKind? = nil) {
+             group: String? = nil, block: BlockKind? = nil, intensity: String? = nil) {
             self.exerciseId = exerciseId
             self.sets = sets
             self.reps = reps
@@ -24,6 +26,7 @@ public struct WorkoutTemplate: Identifiable, Hashable, Sendable {
             self.restSec = rest
             self.group = group
             self.block = block
+            self.intensity = intensity
         }
     }
 
@@ -107,7 +110,8 @@ public struct WorkoutTemplate: Identifiable, Hashable, Sendable {
             let restSec = it.group == nil ? (it.sets - 1) * rest : (last ? (it.sets - 1) * rest : 15 * it.sets)
             var p = PlannedExercise(
                 uid: "\(sessionId)-\(i)", exerciseId: it.exerciseId, slot: e.pattern,
-                prescription: Prescription(sets: it.sets, reps: measure.text(it.reps), restSec: rest, note: it.kcal.map { "≈ \($0) kcal" }),
+                prescription: Prescription(sets: it.sets, reps: measure.text(it.reps), restSec: rest, intensity: it.intensity,
+                                           note: it.kcal.map { "≈ \($0) kcal" }),
                 estSec: Int(perSet * Double(it.sets)) + restSec + (it.group == nil || last ? 60 : 0))
             p.group = it.group
             return (blockKind(it), p)
@@ -125,7 +129,9 @@ public struct WorkoutTemplate: Identifiable, Hashable, Sendable {
     }
 
     public static func find(sessionId: String) -> WorkoutTemplate? {
-        (all + [climbAddon] + WallSession.templates + SportPrep.templates + Recovery.templates + Skills.practices).first { $0.sessionId == sessionId }
+        let extras: [[WorkoutTemplate]] = [[climbAddon], WallSession.templates, SportPrep.templates, Recovery.templates,
+                                           Skills.practices, Routine.templates]
+        return all.first { $0.sessionId == sessionId } ?? extras.joined().first { $0.sessionId == sessionId }
     }
 
     /// Optional short session on climbing days (#47): push antagonists, shoulder health, finger extensors, core.

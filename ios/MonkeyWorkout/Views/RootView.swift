@@ -110,6 +110,8 @@ struct MainTabView: View {
             Task { await GarminSync.shared.pull() }
         }
         .onChange(of: health.snapshot.recentSports.count) { Task { await autoShare() } }
+        // Style picked here or on the Watch (#681): an edited Train layout follows it too.
+        .onChange(of: WatchHomePref.shared.style) { model.restyleTrainLayout() }
         // Coach voice (#402, C): the best matching studio voice, downloaded once in the background.
         .task(id: model.user?.id) { await CoachVoiceStore.shared.prepare(model: model) }
         .task(id: "\(Community.shared.profile?.userId ?? "")-\(model.game.level)") { await Community.shared.reportLevel(model.game.level, api: model.api) }
@@ -239,6 +241,7 @@ private struct DemoScreen: View {
         case "machine": NavigationStack { MachineDetailView(item: .cable) }
         // Training programmes (#255); train-programme and programme-test are the Train tab.
         case "explore-programmes": NavigationStack { LibraryView(mode: .programmes) }
+        case "explore-routines": NavigationStack { LibraryView(mode: .routines) }
         case "programme", "programme-running": NavigationStack { ProgrammeDetailView(programme: Programme.all[0]) }
         case "programme-length": NavigationStack { ProgrammeDetailView(programme: Programme.all[0], demoLength: true) }
         case "programme-grid", "programme-grid-running":
@@ -464,9 +467,10 @@ private struct DemoScreen: View {
         case "train-gallery": TrainWidgetGallery()
         case "train-customise": TrainCustomiseSheet()
         case "gyms": GymFinderView(place: "Zürich")
+        case "own-gym": OwnGymSheet(name: "Kraftwerk Garage Gym") { _ in }
         case "move": MoveSessionSheet(sessionId: second)
         // Fuel (#496).
-        case "fuel", "fuel-timeline", "fuel-portions": NavigationStack { FuelView() }
+        case "fuel", "fuel-timeline", "fuel-portions", "fuel-setup-card": NavigationStack { FuelView() }
         case "fuel-recipes": NavigationStack { RecipeBrowserView().navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }.fuelDestinations() }
         case "recipe": NavigationStack { RecipeDetailView(recipe: RecipeBook.catalog[0]) }
         case "cook-mode": CookModeView(recipe: RecipeBook.catalog[0], servings: RecipeBook.catalog[0].servings)

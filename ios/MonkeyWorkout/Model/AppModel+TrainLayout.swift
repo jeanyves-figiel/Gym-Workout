@@ -36,6 +36,13 @@ extension AppModel {
         Task { await sync() }
     }
 
+    /// Style changed (#681): an edited layout swaps the old look's card for the new one's, like the default does.
+    func restyleTrainLayout() {
+        guard let saved = state.synced?.trainLayout else { return }
+        let style = WatchHomePref.shared.style
+        setTrainLayout(saved.restyled(coach: style == .coach, levelBar: style == .rings))
+    }
+
     func editTrainLayout(_ change: (inout TrainLayout) -> Void) {
         var l = trainLayout
         change(&l)

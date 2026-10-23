@@ -432,6 +432,8 @@ struct WeekView: View {
                     if !arranging && showsToday && !sportHeroToday(plan) { SportPrepBar() }
                     // Skill of the month practice day (#621 C).
                     if !arranging { SkillPracticeBar() }
+                    // Daily routines (#689 A): stretch, hangs or mobility with a length, every day.
+                    if !arranging { DailyRoutinesRow() }
                     // Run & cardio plan (#618): race countdown or Hybrid, this week's runs.
                     if !arranging { RunGoalCard() }
                     if !arranging { notices(plan: plan, profile: profile) }
@@ -444,6 +446,7 @@ struct WeekView: View {
                     if !arranging, !small { TrainNoticeSlot() }
                     if !arranging, !small, showsToday { SportPrepBar() }
                     if !arranging, !small { SkillPracticeBar() }
+                    if !arranging, !small { DailyRoutinesRow() }
                     if !arranging, !small { RunGoalCard() }
                     if !arranging, !small { notices(plan: plan, profile: profile) }
                 }
@@ -1039,6 +1042,8 @@ private struct NextUpCard: View {
                         .frame(width: 55, height: 110)
                 }
             }
+            // Where and with what (#684, #685): lift at the day's gym, then its run, then climbing; the Coach's note.
+            if let d = later?.weekday ?? day { DayComboRow(session: session, day: d, thisWeek: later == nil, showNote: !compact) }
             if !compact { BlockStripe(blocks: session.blocks) }
         }
         .contentShape(Rectangle())

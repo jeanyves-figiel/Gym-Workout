@@ -349,6 +349,19 @@ public struct TrainLayout: Codable, Equatable, Sendable {
         }
     }
 
+    /// Game look changed (#681): a saved layout swaps the old look's card for the new one's in place, same size
+    /// (Coach card for Monkey coach, Level bar for Level bar), so Style keeps working after editing Train. Quest map
+    /// has no card of its own (This week follows the look); a layout with both cards, or neither, stays as it is.
+    public func restyled(coach: Bool, levelBar: Bool) -> TrainLayout {
+        let new: TrainWidgetKind? = coach ? .coach : levelBar ? .level : nil
+        guard let new, !contains(new) else { return self }
+        let old: TrainWidgetKind = new == .coach ? .level : .coach
+        guard let i = widgets.firstIndex(where: { $0.kind == old }) else { return self }
+        var l = self
+        l.widgets[i] = TrainWidget(new, size: widgets[i].size)
+        return l
+    }
+
     /// Same widgets, sizes and looks in the same order (ids ignored): which preset a layout matches.
     public func matches(_ other: TrainLayout) -> Bool {
         widgets.map { [$0.kind.rawValue, $0.size.rawValue, $0.resolvedLook?.rawValue ?? ""] }

@@ -200,6 +200,8 @@ public enum PlanCalendar {
         let untouched = blocked.isEmpty && travel.isEmpty && firstDay <= 1
         // Library extras without a day stay unscheduled (no tile) rather than re-planning the week.
         if untouched && plan.sessions.allSatisfy({ $0.weekday != nil || $0.isPlanInsert }) {
+            // Moved sessions take the gym of their new day (#684) and fit that day's run (#685).
+            plan = RunPlanner.blend(Generator.fitPlaces(plan, profile, skip: done), profile, weekStart: weekStart, cal)
             return Week(start: weekStart, days: days, plan: plan, off: off, travel: travel, climbing: climbing, trips: sportTrips,
                         dropped: 0, adapted: plan != unmoved)
         }
@@ -268,6 +270,8 @@ public enum PlanCalendar {
         }
         let moved = unmoved.pinning(fixed) != unmoved || placed.contains { s in regular[s.id].flatMap { $0 }.map { $0 != s.weekday } ?? false }
         plan.sessions = (pinned + placed).sorted { ($0.weekday ?? 0, $0.index) < ($1.weekday ?? 0, $1.index) }
+        let travelling = Set(placed.filter { $0.weekday.map { travel[$0] != nil } ?? false }.map(\.id))
+        plan = RunPlanner.blend(Generator.fitPlaces(plan, used, skip: done.union(travelling)), used, weekStart: weekStart, cal)
         return Week(start: weekStart, days: days, plan: plan, off: off, travel: travel, climbing: climbing, trips: sportTrips,
                     dropped: dropped, adapted: resplit || moved || dropped > 0 || !travel.isEmpty)
     }

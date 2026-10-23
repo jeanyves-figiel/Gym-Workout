@@ -74,6 +74,9 @@ struct ProfileFormView: View {
         if p.climbs && !p.climbingDays.isEmpty {
             lines.append("Sessions are placed around your climbing days: no heavy pulling, grip work or jumps the day before you climb.")
         }
+        if p.dayPlaces != nil {
+            lines.append("Each workout is built for that day's gym and its equipment.")
+        }
         let gym = p.gymDays.count
         if gym > 0 && gym < p.sessionsPerWeek {
             lines.append("\(gym) gym day\(gym == 1 ? "" : "s") picked for \(p.sessionsPerWeek) sessions — the rest go on the best free days.")
@@ -251,9 +254,17 @@ struct ProfileFormView: View {
             // Climbing and other sports as cards with day dots (#474 design C).
             MySportCards(profile: $p, programmeLink: !isNew, climbingDays: climbingDays)
 
-            VStack(alignment: .leading, spacing: 8) {
-                fieldLabel("Gym days", symbol: "dumbbell.fill", optional: true)
-                DayTiles(days: gymDays, symbol: "dumbbell.fill", fill: AnyShapeStyle(WorkoutEngine.Category.strength.gradient), ink: .white)
+            if model.otherGyms.isEmpty || isNew {
+                VStack(alignment: .leading, spacing: 8) {
+                    fieldLabel("Gym days", symbol: "dumbbell.fill", optional: true)
+                    DayTiles(days: gymDays, symbol: "dumbbell.fill", fill: AnyShapeStyle(WorkoutEngine.Category.strength.gradient), ink: .white)
+                }
+            } else {
+                // Several gyms (#684, design A): where each day's workout happens, any mix through the week.
+                VStack(alignment: .leading, spacing: 8) {
+                    fieldLabel("Where I train", symbol: "mappin.and.ellipse", optional: true)
+                    WeekPlacesEditor(profile: $p, climbingDays: climbingDays, gyms: [model.homeGym] + model.otherGyms, showClimb: p.climbs)
+                }
             }
 
             Text(scheduleHint).font(.footnote).foregroundStyle(Theme.muted)
@@ -669,6 +680,9 @@ struct GymPicker: View {
     @State private var nearbyPick: GymRef?
     /// New gym setup (#162): a searched place, or `custom` for one without a map place.
     @State private var settingUp: SetupTarget?
+    /// Your own gym (#680): the form, then its setup once the form has closed.
+    @State private var owning: OwnGymDraft?
+    @State private var ownPick: GymRef?
 
     struct SetupTarget: Identifiable {
         let ref: GymRef?
@@ -790,6 +804,9 @@ struct GymPicker: View {
                             Text("No gyms found").font(.footnote).foregroundStyle(Theme.muted).padding(.vertical, 12)
                         }
                         ForEach(results) { g in row(g, scoped: g.scoped != nil) }
+                        if !searching {
+                            AddOwnGymRow(name: query) { owning = OwnGymDraft(name: query) }.padding(.top, 6)
+                        }
                     } else {
                         ForEach(suggested) { g in row(g.ref, scoped: true) }
                     }
@@ -814,6 +831,11 @@ struct GymPicker: View {
             if let ref = nearbyPick { nearbyPick = nil; select(ref) }
         }) {
             GymFinderView { ref in nearbyPick = ref }
+        }
+        .sheet(item: $owning, onDismiss: {
+            if let ref = ownPick { ownPick = nil; select(ref) }
+        }) { d in
+            OwnGymSheet(name: d.name, pin: d.pin) { ownPick = $0 }
         }
         .sheet(item: $settingUp) { t in
             GymSetupView(ref: t.ref, actionTitle: "USE THIS GYM", preset: t.preset) { g in

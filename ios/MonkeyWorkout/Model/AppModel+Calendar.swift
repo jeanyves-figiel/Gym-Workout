@@ -57,7 +57,7 @@ extension AppModel {
     private func makeCalendarWeeks(count: Int, now: Date) -> [PlanCalendar.Week] {
         guard let sp = state.synced else { return [] }
         // Library extras and one-off moves (#113) show on their day this week.
-        return PlanCalendar.weeks(sp.profile, seed: sp.seed, currentWeek: sp.week, current: plan, done: doneIds,
+        return PlanCalendar.weeks(sp.placedProfile, seed: sp.seed, currentWeek: sp.week, current: plan, done: doneIds,
                                   away: away, now: now, count: count, fixed: movesThisWeek(now), calendar: planCalendar,
                                   future: programmeWeeks(sp), laterFixed: laterMoves(now))
     }
@@ -146,7 +146,8 @@ extension AppModel {
             let days = Dictionary(regular.sessions.map { ($0.id, $0.weekday) }, uniquingKeysWith: { a, _ in a })
             for i in target.sessions.indices { target.sessions[i].weekday = days[target.sessions[i].id] ?? nil }
             target.sessions.sort { $0.index < $1.index }
-            target = target.pinning(movesThisWeek(now))
+            // Moved sessions take the gym of their new day (#684).
+            target = Generator.fitPlaces(target.pinning(movesThisWeek(now)), sp.planProfile, skip: kept)
             if target != plan { state.plan = target }
         }
     }

@@ -1,35 +1,65 @@
 {
-  "id": "2026-10-23.1",
+  "id": "2026-10-23.2",
   "items": [
     {
-      "symbol": "flag.checkered",
-      "tint": "warmup",
-      "title": "New here? Guided set-up",
-      "body": "Your gym, machines, map and plan step by step, then a tour. Run it again in Settings → Onboarding."
-    },
-    {
-      "symbol": "person.3.fill",
-      "tint": "power",
-      "title": "Community, reorganised",
-      "body": "Your gym today on top, small tiles, and new Plans, Fuel and Tips: copy a member's programme in one tap, share yours."
-    },
-    {
-      "symbol": "figure.climbing",
-      "tint": "cardio",
-      "title": "Around any sport",
-      "body": "Pick once how gym days fit around any sport, tweak each sport. Sport days get one block on Train: Track live, Log, Prep."
-    },
-    {
-      "symbol": "dumbbell.fill",
+      "symbol": "calendar",
       "tint": "strength",
-      "title": "Your gym in Explore",
-      "body": "My gym is pinned left of the chips: tap for only what your gym has, ▾ to draw the map and add machines."
+      "title": "Same moves, every day",
+      "body": "Move, skip or plan a sport on any day, any week. A sport day can turn into a rest day."
     },
     {
-      "symbol": "leaf.fill",
+      "symbol": "mappin.and.ellipse",
+      "tint": "cardio",
+      "title": "Add your own gym",
+      "body": "Gym not on the map? Add your own with a name, an address or a pin."
+    },
+    {
+      "symbol": "figure.run",
+      "tint": "cardio",
+      "title": "Where you train, each day",
+      "body": "Pick where you train each day (home, gym, climbing). Hybrid now fits lifting and cardio together."
+    },
+    {
+      "symbol": "figure.flexibility",
       "tint": "mobility",
-      "title": "Recover on rest days",
-      "body": "The Recover routine is offered on every rest day, next weeks too."
+      "title": "Daily routines",
+      "body": "Stretch or hang every day, 5 to 30 minutes, from Train or Explore → Routines."
+    },
+    {
+      "symbol": "fork.knife",
+      "tint": "warmup",
+      "title": "Fuel, set up when you like",
+      "body": "Fuel no longer asks for settings first: set it up from the card or Settings → You → Onboarding."
+    },
+    {
+      "symbol": "dot.radiowaves.left.and.right",
+      "tint": "power",
+      "title": "Your call on live sharing",
+      "body": "Choose whether buddies see your session live."
+    },
+    {
+      "symbol": "square.grid.3x1.below.line.grid.1x2",
+      "tint": "power",
+      "title": "Sport tiles stay put",
+      "body": "Sport tiles stay put when you pick one: the picked sport lights up in place."
+    },
+    {
+      "symbol": "paintpalette.fill",
+      "tint": "warmup",
+      "title": "Style follows your layout",
+      "body": "Style now changes your Train screen even after you customised it."
+    },
+    {
+      "symbol": "map.fill",
+      "tint": "cardio",
+      "title": "Gym map, first time",
+      "body": "Gym map draws your zones the first time you open it."
+    },
+    {
+      "symbol": "rectangle.bottomthird.inset.filled",
+      "tint": "mobility",
+      "title": "Tab bar stays put",
+      "body": "The tab bar keeps its full size while you scroll."
     }
   ]
 }

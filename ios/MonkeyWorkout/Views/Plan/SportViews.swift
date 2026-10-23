@@ -473,36 +473,55 @@ struct LogSportView: View {
     }
 }
 
-/// The picked sport first, then the member's order; "All" opens the full grid again. Shared by Log sport and Log climb (#460).
+/// The member's order, fixed: the picked sport lights up where it is (#691, design A), "All" opens the full grid again.
+/// Shared by Log sport and Log climb (#460).
 struct SportStrip: View {
     let selected: Sport
     let sports: [Sport]
     let pick: (Sport) -> Void
     let all: () -> Void
 
+    /// First eight in the member's order; a picked sport further down takes the last slot.
+    private var shown: [Sport] {
+        let first = Array(sports.prefix(8))
+        return first.contains(selected) ? first : Array(sports.filter { $0 != selected }.prefix(7)) + [selected]
+    }
+
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach([selected] + sports.filter { $0 != selected }.prefix(7)) { s in
-                    SportTile(sport: s, selected: selected == s) { pick(s) }
-                        .frame(width: 74)
-                        .opacity(selected == s ? 1 : 0.55)
-                }
-                Button(action: all) {
-                    VStack(spacing: 6) {
-                        Image(systemName: "square.grid.3x3.fill").font(.system(size: 22, weight: .bold)).frame(height: 28)
-                        Text("All").font(Theme.label(12))
-                    }
-                    .foregroundStyle(.white)
-                    .frame(width: 74, height: 74)
-                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.cardStrong))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("All sports")
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                tiles
             }
-            .padding(.vertical, 3)
+            .scrollClipDisabled()
+            .onAppear { proxy.scrollTo(selected, anchor: .center) }
+            .onChange(of: selected) { _, s in
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { proxy.scrollTo(s) }
+            }
         }
-        .scrollClipDisabled()
+    }
+
+    private var tiles: some View {
+        HStack(spacing: 8) {
+            ForEach(shown) { s in
+                SportTile(sport: s, selected: selected == s) { pick(s) }
+                    .frame(width: 74)
+                    .opacity(selected == s ? 1 : 0.55)
+                    .id(s)
+            }
+            Button(action: all) {
+                VStack(spacing: 6) {
+                    Image(systemName: "square.grid.3x3.fill").font(.system(size: 22, weight: .bold)).frame(height: 28)
+                    Text("All").font(Theme.label(12))
+                }
+                .foregroundStyle(.white)
+                .frame(width: 74, height: 74)
+                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.cardStrong))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("All sports")
+        }
+        .padding(.vertical, 3)
+        .animation(.easeOut(duration: 0.2), value: selected)
     }
 }
 

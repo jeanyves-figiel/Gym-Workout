@@ -194,9 +194,9 @@ public struct SavedGym: Codable, Hashable, Sendable, Identifiable {
         self.layout = layout
     }
 
-    /// Gym without a map place (home, hotel room): an id of its own.
-    public static func customRef(name: String) -> GymRef {
-        GymRef(id: "custom:" + UUID().uuidString.lowercased(), name: name, address: "")
+    /// Gym without a map place (home, hotel room, a gym Apple Maps doesn't know, #680): an id of its own.
+    public static func customRef(name: String, address: String = "", latitude: Double? = nil, longitude: Double? = nil) -> GymRef {
+        GymRef(id: "custom:" + UUID().uuidString.lowercased(), name: name, address: address, latitude: latitude, longitude: longitude)
     }
 
     /// Map places and scoped gyms can be shared with other members (gym memory); custom ones can't.

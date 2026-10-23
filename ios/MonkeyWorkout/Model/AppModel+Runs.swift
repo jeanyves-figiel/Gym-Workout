@@ -26,7 +26,8 @@ extension AppModel {
         guard let goal = runGoal else { return [] }
         let cal = planCalendar
         let lifting = (plan?.sessions ?? []).compactMap { s in s.weekday.map { (weekday: $0, focus: s.focus) } }
-        return RunPlanner.week(goal, weekStart: Progression.weekStart(Date(), cal), lifting: lifting, cal)
+        // Hybrid sessions grow through the block (#685), like the plan's own weeks.
+        return RunPlanner.week(goal, weekStart: Progression.weekStart(Date(), cal), lifting: lifting, cal, step: plan.map(RunPlanner.step) ?? 0)
     }
 
     var todayRun: RunDay? { runWeek.first { $0.weekday == todayWeekday } }
