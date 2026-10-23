@@ -118,6 +118,7 @@ extension Profile {
     /// The sport of a day, dated trips first (#658): a Snowboard day on a weekly climbing day is a snowboard day.
     /// `weekday` 1 = Monday … 7 = Sunday; `key` the day key ("2026-10-23") for trips.
     public func sport(onWeekday weekday: Int, key: String?, date: Date = Date()) -> Sport? {
+        if let key, isSportOff(key) { return nil }
         if let key, let t = sportTrip(on: key) { return t.sport }
         if Generator.isClimber(self) && climbingDays.contains(weekday) { return .climbing }
         return (sports ?? []).filter { $0.sport != .climbing }.first { $0.days(on: date).contains { $0.weekday == weekday } }?.sport

@@ -373,10 +373,12 @@ extension Profile {
     public func sportDays(on date: Date = Date(), calendar cal: Calendar = Progression.calendar()) -> [SportDay] {
         let defaults = sportDefaults
         var out = (sports ?? []).filter { $0.sport != .climbing }.flatMap { $0.days(on: date, defaults: defaults) }
+        let keys = PlanCalendar.dayKeys(weekStart: Progression.weekStart(date, cal), cal)
+        // Days turned into rest days (#671) lose their sport.
+        out.removeAll { isSportOff(keys[$0.weekday - 1]) }
         // Dated sport days and trips (#474) of that week take their weekday over.
         guard let trips = sportTrips, !trips.isEmpty else { return out }
-        let keys = PlanCalendar.dayKeys(weekStart: Progression.weekStart(date, cal), cal)
-        for (i, key) in keys.enumerated() {
+        for (i, key) in keys.enumerated() where !isSportOff(key) {
             guard let t = trips.first(where: { $0.covers(key) }) else { continue }
             let plan = sports?.first { $0.sport == t.sport }
             out.removeAll { $0.weekday == i + 1 }
@@ -388,8 +390,11 @@ extension Profile {
 
     /// The dated sport day or trip covering a day key ("2027-02-13"), if any (#474).
     public func sportTrip(on key: String) -> SportTrip? {
-        sportTrips?.first { $0.covers(key) }
+        isSportOff(key) ? nil : sportTrips?.first { $0.covers(key) }
     }
+
+    /// The day was turned into a rest day (#671).
+    public func isSportOff(_ key: String) -> Bool { sportOff?.contains(key) ?? false }
 
     /// Picked sports other than climbing.
     public var otherSports: [SportPlan] { (sports ?? []).filter { $0.sport != .climbing } }

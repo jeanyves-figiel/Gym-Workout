@@ -3,44 +3,7 @@ import WorkoutEngine
 
 // Mobility & recovery days (#619, designs A + B from `apple-tech-radar/x2.png`).
 
-/// A: on today's or a coming rest day, a short routine for the area trained hardest this week.
-struct RecoverBar: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        let pick = model.recoverPick()
-        let t = pick.template
-        NavigationLink(value: t.sessionId) {
-            HStack(spacing: 12) {
-                Image(systemName: "figure.cooldown")
-                    .font(.system(size: 18, weight: .bold))
-                    .frame(width: 40, height: 40)
-                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.22)))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Rest day · recover").font(Theme.label(10)).tracking(1.2).textCase(.uppercase).opacity(0.85)
-                    Text(pick.area.label).font(Theme.display(18)).lineLimit(1).minimumScaleFactor(0.7)
-                    Text(pick.why).font(Theme.label(11)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.8)
-                }
-                Spacer(minLength: 0)
-                VStack(alignment: .trailing, spacing: 2) {
-                    HStack(alignment: .firstTextBaseline, spacing: 1) {
-                        Text("\(t.session.estMin)").font(Theme.display(26)).monospacedDigit()
-                        Text("′").font(Theme.label(13))
-                    }
-                    Label("Start", systemImage: "play.fill").font(Theme.label(11)).labelStyle(.titleAndIcon)
-                }
-            }
-            .foregroundStyle(Theme.ink)
-            .padding(12)
-            .frame(maxWidth: .infinity, minHeight: 64)
-            .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(WorkoutEngine.Category.cardio.gradient))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Recover, \(pick.area.label), \(t.session.estMin) minutes")
-        .accessibilityHint(pick.why)
-    }
-}
+// A: the rest day card's Recover tile (`RestDayCard`, #671) opens the routine for the area trained hardest this week.
 
 /// B: low readiness on a heavy day; Keep puts the card away for today, Swap moves the session to a free day.
 struct RecoverSwapCard: View {
