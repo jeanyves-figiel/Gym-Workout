@@ -7,10 +7,10 @@ import SwiftUI
 // iOS 18 keeps the solid look.
 
 extension View {
-    /// Tab bar (A): iOS 26 floats the glass bar over content and tucks it away while scrolling down.
+    /// Tab bar (A): iOS 26 floats the glass bar over content, always full size (never folds on scroll, #677).
     @ViewBuilder func glassTabBar() -> some View {
         if #available(iOS 26, *) {
-            tabBarMinimizeBehavior(.onScrollDown)
+            tabBarMinimizeBehavior(.never)
         } else {
             toolbarBackground(Theme.bg, for: .tabBar)
         }
