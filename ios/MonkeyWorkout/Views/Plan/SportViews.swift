@@ -1000,6 +1000,8 @@ struct SportPlanEditor: View {
     }
 
     private var days: Binding<[Int]> { Binding(get: { WeekSchedule.normalized(plan.weekdays) }, set: { plan.weekdays = $0 }) }
+    /// Around sport days default for all sports (#658): this sport only stores what differs.
+    private var defaults: SportDefaults { model.profile?.sportDefaults ?? SportDefaults() }
 
     var body: some View {
         NavigationStack {
@@ -1027,16 +1029,20 @@ struct SportPlanEditor: View {
 
                     Text("Gym around it").eyebrow().padding(.top, 4)
                     labelled("Day before") {
-                        neighbourChips(Binding(get: { plan.before ?? plan.sport.defaultBefore }, set: { plan.before = $0 == plan.sport.defaultBefore ? nil : $0 }))
+                        neighbourChips(Binding(get: { plan.before ?? defaults.dayBefore(plan.sport) }, set: { plan.before = $0 == defaults.dayBefore(plan.sport) ? nil : $0 }))
                     }
                     labelled("Day after") {
-                        neighbourChips(Binding(get: { plan.after ?? plan.sport.defaultAfter }, set: { plan.after = $0 == plan.sport.defaultAfter ? nil : $0 }))
+                        neighbourChips(Binding(get: { plan.after ?? defaults.dayAfter(plan.sport) }, set: { plan.after = $0 == defaults.dayAfter(plan.sport) ? nil : $0 }))
                     }
                     if plan.sport.allowsSameDayGym {
                         labelled("Same day") {
                             HStack(spacing: 8) {
-                                SportChip(title: "Skip gym", selected: plan.sameDay != .allow) { plan.sameDay = nil }
-                                SportChip(title: "Gym allowed", selected: plan.sameDay == .allow) { plan.sameDay = .allow }
+                                SportChip(title: "Skip gym", selected: (plan.sameDay ?? defaults.sameDay) != .allow) {
+                                    plan.sameDay = defaults.sameDay == .allow ? .avoid : nil
+                                }
+                                SportChip(title: "Gym allowed", selected: (plan.sameDay ?? defaults.sameDay) == .allow) {
+                                    plan.sameDay = defaults.sameDay == .allow ? nil : .allow
+                                }
                             }
                         }
                     } else {

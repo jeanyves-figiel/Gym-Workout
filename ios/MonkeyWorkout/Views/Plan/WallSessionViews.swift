@@ -86,7 +86,7 @@ struct WallSessionPage: View {
                 WallSessionCard(today: today, climbedToday: climbedToday,
                                 locked: ProStore.shared.locked, onGate: { gate = .climbing },
                                 onLogClimb: { logging = ClimbLog(start: Date().addingTimeInterval(-90 * 60)) })
-                AroundClimbingLink { ProStore.shared.run(.climbing, $gate) { settings = true } }
+                AroundSportLink(sport: .climbing) { settings = true }
             }
             .padding(16)
         }
@@ -94,7 +94,7 @@ struct WallSessionPage: View {
         .background(Theme.bg.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $logging) { LogClimbView(initial: $0) }
-        .sheet(isPresented: $settings) { ClimbSettingsView() }
+        .sheet(isPresented: $settings) { AroundSportView(initial: .climbing) }
         .proPaywall($gate)
     }
 }

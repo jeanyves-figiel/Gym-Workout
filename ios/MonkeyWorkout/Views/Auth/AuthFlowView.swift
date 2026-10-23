@@ -88,7 +88,7 @@ struct WelcomeView: View {
                             .animation(.spring(duration: 0.6).delay(Double(i) * 0.08), value: appear)
                     }
                 }
-                Text("Sessions built for your week, your gym and your climbing — with every muscle mapped.")
+                Text("Sessions built for your week, your gym and your sports — with every muscle mapped.")
                     .font(.body.weight(.medium))
                     .foregroundStyle(Theme.muted)
                 Spacer()

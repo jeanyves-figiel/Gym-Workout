@@ -227,7 +227,7 @@ struct NextUpCompactWidget: View {
             WidgetTile(kind: .nextUp, title: "This week") {
                 Label(missed > 0 ? "No more sessions" : "Week complete", systemImage: missed > 0 ? "moon.zzz.fill" : "trophy.fill")
                     .font(Theme.display(18))
-                caption(missed > 0 ? "\(missed) missed this week." : "Rest or climb. New week Monday.")
+                caption(missed > 0 ? "\(missed) missed this week." : "Rest or play your sport. New week Monday.")
             }
         }
     }

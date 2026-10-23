@@ -8,10 +8,11 @@ import WorkoutEngine
 struct SportPrepBar: View {
     @Environment(AppModel.self) private var model
 
+    /// Today's sport (#658), dated days first; climbing has its Wall session instead.
     private var todaySport: Sport? {
-        guard let profile = model.profile else { return nil }
-        let today = model.todayWeekday
-        return profile.sportDays(on: Date()).first { $0.weekday == today && SportPrep.family($0.sport) != nil }?.sport
+        guard let sport = model.profile?.sport(onWeekday: model.todayWeekday, key: PlanCalendar.key(Date(), model.planCalendar)),
+              SportPrep.family(sport) != nil else { return nil }
+        return sport
     }
 
     var body: some View {
@@ -49,6 +50,7 @@ struct SportPrepPage: View {
     let sport: Sport
 
     @State private var logging: SportLog?
+    @State private var around = false
 
     var body: some View {
         ScrollView {
@@ -82,6 +84,7 @@ struct SportPrepPage: View {
                     .buttonStyle(LimeButtonStyle())
                     .padding(.top, 6)
                 }
+                AroundSportLink(sport: sport) { around = true }.padding(.top, 6)
             }
             .padding(16)
         }
@@ -89,6 +92,7 @@ struct SportPrepPage: View {
         .background(Theme.bg.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $logging) { LogSportView(initial: $0, picked: true, live: sport.watchTrackable) }
+        .sheet(isPresented: $around) { AroundSportView(initial: sport) }
     }
 
     /// First few exercises: "Leg swings · Hip CARs · Knee-to-wall".

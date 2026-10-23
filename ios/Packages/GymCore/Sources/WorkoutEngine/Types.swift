@@ -272,6 +272,12 @@ public struct Profile: Codable, Hashable, Sendable {
     /// Other sports with their days (#416); nil = none. Climbing stays in the climbing fields above.
     public var sports: [SportPlan]?
 
+    /// Around sport days default for every sport (#658): gym day before / after a sport day and gym on sport days.
+    /// nil = `.light` / `.light` / `.avoid`. A sport's own choice (climbing's fields, `SportPlan`) overrides it.
+    public var sportBefore: ClimbNeighbour?
+    public var sportAfter: ClimbNeighbour?
+    public var sportSameDay: ClimbSameDay?
+
     /// Dated sport days and trips (#474), e.g. a snowboard week; nil = none. Planned like sport days, no gym on them.
     public var sportTrips: [SportTrip]?
 
