@@ -242,6 +242,10 @@ private struct DemoScreen: View {
         // Training programmes (#255); train-programme and programme-test are the Train tab.
         case "explore-programmes": NavigationStack { LibraryView(mode: .programmes) }
         case "explore-routines": NavigationStack { LibraryView(mode: .routines) }
+        // HIIT (#693): Explore → HIIT, the builder, the interval player.
+        case "explore-hiit": NavigationStack { LibraryView(mode: .hiit) }
+        case "hiit-builder": HiitBuilderSheet(format: .tabata)
+        case "hiit-player": WorkoutPlayerView(sessionId: HiitSpec(format: .tabata, minutes: 20, kit: .gym).sessionId)
         case "programme", "programme-running": NavigationStack { ProgrammeDetailView(programme: Programme.all[0]) }
         case "programme-length": NavigationStack { ProgrammeDetailView(programme: Programme.all[0], demoLength: true) }
         case "programme-grid", "programme-grid-running":
@@ -457,7 +461,7 @@ private struct DemoScreen: View {
         case "train-rest-day", "train-sport-day": NavigationStack { WeekView(demoPick: .rest) }
         case "train-skipped": NavigationStack { WeekView() }
         case "train-past-day": NavigationStack { WeekView(demoPick: .past) }
-        case "train-run", "train-hybrid": NavigationStack { WeekView() }
+        case "train-run", "train-hybrid", "train-hiit": NavigationStack { WeekView() }
         case "run-session", "run-start":
             if let day = model.runWeek.first(where: { $0.workout.kind == .intervals }) ?? model.runWeek.first {
                 RunSessionSheet(day: day, demoChoosing: Demo.screen == "run-start")

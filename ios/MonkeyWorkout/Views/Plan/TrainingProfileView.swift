@@ -45,6 +45,8 @@ struct TrainingProfileView: View {
                     LiftFocusCard()
                     // Run & cardio (#618): a race plan or Hybrid around lifting.
                     RunGoalProfileCard()
+                    // HIIT (#693): HIIT days, finisher, impact.
+                    HiitProfileCard()
                     // Start fresh (#492): a brand new plan, history kept.
                     FreshStartCard()
                 }

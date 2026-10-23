@@ -807,10 +807,11 @@ final class HealthManager {
     }
 
     /// Saves the session as an Apple Health workout; returns heart-rate stats measured during it (e.g. by a Watch).
-    func save(_ record: WorkoutRecord) async -> (avg: Double?, max: Double?) {
+    /// `activity`: HIIT sessions (#693) are saved as high intensity interval training.
+    func save(_ record: WorkoutRecord, activity: HKWorkoutActivityType = .functionalStrengthTraining) async -> (avg: Double?, max: Double?) {
         guard connected, available, writeWorkouts else { return (nil, nil) }
         let config = HKWorkoutConfiguration()
-        config.activityType = .functionalStrengthTraining
+        config.activityType = activity
         config.locationType = .indoor
         let builder = HKWorkoutBuilder(healthStore: store, configuration: config, device: .local())
         do {

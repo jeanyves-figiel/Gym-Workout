@@ -57,7 +57,8 @@ public enum Generator {
         if ctx.variety == .same && week != 1 {
             ctx.replay = record(profile, seed: seed, split: split)
         }
-        let plan = generateWeek(ctx)
+        // HIIT days and finishers (#693) before the gyms: a HIIT day at another gym is rebuilt with that gym's kit.
+        let plan = Hiit.addDays(generateWeek(ctx), profile)
         // Each day at its own gym (#684), then lifting and runs fitted together (#685); both off = as before.
         let placed = fitPlaces(plan, profile, split: split)
         let cal = Progression.calendar()

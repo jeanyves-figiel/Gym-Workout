@@ -296,6 +296,9 @@ public struct Profile: Codable, Hashable, Sendable {
     /// not part of the profile form. Days at the plan's own gym have no entry.
     public var dayKits: [String: DayKit]?
 
+    /// HIIT days and finishers (#693); nil = off (plans as before).
+    public var hiit: HiitPlan?
+
     /// Usually trains before 11:00: muscles start cooler, the warm-up gets one more minute of cardio (#377).
     public var trainsInMorning: Bool { workoutTime.map { $0 < 11 * 60 } ?? false }
 
@@ -415,6 +418,8 @@ public struct Session: Codable, Hashable, Sendable, Identifiable {
     public var place: String? = nil
     /// How the day's lifting and the planned run fit together (#685), e.g. "Long run tomorrow: leg work −1 set."
     public var synergy: String? = nil
+    /// HIIT timing (#693): set on HIIT days and HIIT workouts, played by the interval player; nil = any other session.
+    public var hiit: HiitWorkout? = nil
 }
 
 public struct WeekPlan: Codable, Hashable, Sendable {

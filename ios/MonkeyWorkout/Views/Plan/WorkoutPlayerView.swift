@@ -171,6 +171,15 @@ struct WorkoutPlayerView: View {
 
     // Split in four so the Xcode 27 type-checker handles it (one chain timed out, #158).
     var body: some View {
+        // HIIT sessions (#693) play in the interval player.
+        if let s = model.session(sessionId), s.hiit != nil {
+            HiitPlayerView(session: s)
+        } else {
+            classic
+        }
+    }
+
+    private var classic: some View {
         watchFeeds(remoteControls(lifecycle(screen)))
             // Gym buddy link (#626 B): a buddy's set or cheer, a few seconds at the top.
             .overlay(alignment: .top) { BuddyToast() }
@@ -2035,7 +2044,8 @@ enum PendingDiscard {
 }
 
 /// Finish screen: stats + the muscles this session hit.
-private struct SummaryView: View {
+/// Finish sheet, shared with the HIIT player (#693).
+struct SummaryView: View {
     let session: Session
     let elapsed: TimeInterval
     let setsDone: Int
