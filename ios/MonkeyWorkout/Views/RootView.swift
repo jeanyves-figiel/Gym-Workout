@@ -237,6 +237,11 @@ private struct DemoScreen: View {
         case "explore-machine-chips":
             NavigationStack { LibraryView(scrollTo: .arms) }
                 .onAppear { UserDefaults.standard.set(MachineFilter.area(.cables).key, forKey: MachineFilterStore.key) }
+        // Current gym in Explore (#662): pinned My gym tile and its sheet.
+        case "explore-gym-chip":
+            NavigationStack { LibraryView(scrollTo: .arms) }
+                .onAppear { UserDefaults.standard.set(MachineFilter.gym.key, forKey: MachineFilterStore.key) }
+        case "explore-gym": ExploreGymSheet()
         case "machine": NavigationStack { MachineDetailView(item: .cable) }
         // Training programmes (#255); train-programme and programme-test are the Train tab.
         case "explore-programmes": NavigationStack { LibraryView(mode: .programmes) }

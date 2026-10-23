@@ -62,6 +62,16 @@ extension AppModel {
         shareGymMap(layout)
     }
 
+    /// Machines and zones edited from Explore's gym sheet (#662): re-plans the week like Training profile → Your gym.
+    func setGymEquipment(_ equipment: [Equipment], layout: GymLayout?) {
+        guard var p = profile, p.equipment != equipment || p.gymLayout != layout else { return }
+        p.equipment = equipment
+        p.gymLayout = layout
+        updateProfile(p)
+        rememberHomeGym()
+        shareGymMap(layout)
+    }
+
     /// Zones (and ticks) set from the player (#352): saved now, re-planned when the workout ends so the running one
     /// keeps its exercise list.
     func setGymLayoutDuringWorkout(_ layout: GymLayout?, equipment: [Equipment]) {
