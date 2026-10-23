@@ -128,6 +128,7 @@ final class AppModel {
             state.synced?.profile.climbDayAddon = true
             if Demo.screen == "explore-volume" { state.synced?.profile.method = .volume }
             Community.shared.loadDemo(joined: Demo.screen != "community-join")
+            SharedPlans.shared.loadDemo()
             if ["paywall", "pro", "pro-offer", "pro-gate"].contains(Demo.screen) { ProStore.shared.loadDemo(pro: Demo.screen == "pro") }
             state.customExerciseList = [Demo.customExercise]
             state.synced?.away = Demo.away()

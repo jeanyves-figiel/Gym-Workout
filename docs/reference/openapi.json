@@ -3229,6 +3229,207 @@
         }
       }
     },
+    "/v1/community/programs": {
+      "get": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "Shared plans (#666), newest first: ?q= name, ?level=beginner|intermediate|advanced, ?mine=1 your own (private too), ?before=&beforeId=, ?limit= → {programs: [{id, name, about, level, goal, weeks, sessionsPerWeek, programme, author, mine, visibility, copies, copiedByMe, hidden}], nextBefore, nextBeforeId}; blocked and auto-hidden left out",
+        "description": "Errors / limits: 403 community_profile_required",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/community/programs/{id}": {
+      "get": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "One plan → {program}",
+        "description": "Errors / limits: 404 not_found",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "Create or update your plan: {name ≤60, about?, level, goal?, weeks, sessionsPerWeek, programme (app record), visibility? (default members)} → {program}",
+        "description": "Errors / limits: 400 objectionable_content, 409 conflict, 413, 429 daily_limit (20 new/day)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "Remove your plan → 204",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/community/programs/{id}/copy": {
+      "post": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "Counts a copy into My programmes (once per member; the app saves the copy) → {program}",
+        "description": "Errors / limits: 404",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/community/programs/{id}/report": {
+      "post": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "{reason, details?} → 202 {status: received, hidden}; auto-hidden after 3 distinct reporters",
+        "description": "Errors / limits: 20/hour",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/share/{id}": {
       "get": {
         "tags": [

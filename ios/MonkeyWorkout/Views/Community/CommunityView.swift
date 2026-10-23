@@ -2,10 +2,12 @@ import APIClient
 import SwiftUI
 import WorkoutEngine
 
-/// "Community" tab (#61): members' shared wins with cheers, your own progress log, and your profile.
+/// "Community" tab (#61): your gym today, members' wins, plans, fuel and tips (#666), and your own posts.
 struct CommunityView: View {
     @Environment(AppModel.self) private var model
     @State private var scope: CommunityFeedScope = .members
+    @State private var tab: CommunityTab = Self.initialTab
+    @State private var sheet: CommunitySheet?
     @State private var composing = false
     private var community: Community { .shared }
 
@@ -34,7 +36,31 @@ struct CommunityView: View {
         // Member feed draws its own header (#151): system toolbar items stretched into a capsule over the title.
         .toolbar(community.profile == nil ? .automatic : .hidden, for: .navigationBar)
         .sheet(isPresented: $composing) { ShareWinView() }
+        .sheet(item: $sheet) { s in
+            switch s {
+            case .plan: SharePlanSheet()
+            case .meal: ShareMealSheet()
+            case .tip: PostTipSheet()
+            case .fuelTip: PostTipSheet(topic: .fuel)
+            }
+        }
         .navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) }
+    }
+
+    private static let feedScopes: [(CommunityFeedScope, String)] = [(.members, "Members"), (.following, "Following")]
+
+    /// Demo screenshots open on a tab: community-plans, community-fuel, community-mine.
+    private static var initialTab: CommunityTab {
+        #if DEBUG
+        switch Demo.screen {
+        case "community-plans": return .plans
+        case "community-fuel": return .fuel
+        case "community-mine": return .mine
+        default: return .feed
+        }
+        #else
+        return .feed
+        #endif
     }
 
     /// Title, Share a win and the Me pill (#560): your community profile is in the Me sheet.
@@ -54,27 +80,32 @@ struct CommunityView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 header
-                CommunityGymCard()
-                FindMembersCard()
-                // Live group sessions (#626 B + C).
-                BuddiesCard()
-                ChallengeRoomCard()
-                TrainedTodayRow(posts: community.posts(.members))
-                GradientSegments(selection: $scope, items: [
-                    SegmentItem(value: .members, title: "Members", symbol: "person.3.fill"),
-                    SegmentItem(value: .following, title: "Following", symbol: "heart.fill"),
+                GymPulseCard(posts: community.posts(.members))
+                CommunityTiles()
+                QuickShareRow { sheet = $0 }
+                GradientSegments(selection: $tab, items: [
+                    SegmentItem(value: .feed, title: "Feed", symbol: "person.3.fill"),
+                    SegmentItem(value: .plans, title: "Plans", symbol: "calendar"),
+                    SegmentItem(value: .fuel, title: "Fuel", symbol: "fork.knife"),
                     SegmentItem(value: .mine, title: "Mine", symbol: "person.fill"),
                 ])
-                .padding(.bottom, 4)
-
+                .padding(.top, 4)
                 ErrorText(message: community.error)
-                let posts = community.posts(scope)
-                if posts.isEmpty && !community.loading {
-                    EmptyFeedCard(scope: scope) { composing = true }
-                }
-                ForEach(posts) { PostCard(post: $0) }
-                if community.hasMore(scope) {
-                    ProgressView().padding().task { await community.loadMore(scope, api: model.api) }
+                switch tab {
+                case .feed:
+                    FilterChips(selection: $scope, items: Self.feedScopes)
+                    TrainedTodayRow(posts: community.posts(.members))
+                    posts(scope)
+                case .plans:
+                    PlansSection { sheet = .plan }
+                case .fuel:
+                    FuelSection { sheet = $0 }
+                case .mine:
+                    ForEach(SharedPlans.shared.mine) { p in
+                        NavigationLink { SharedPlanView(plan: p) } label: { SharedPlanCard(plan: p) }
+                            .buttonStyle(.plain)
+                    }
+                    posts(.mine)
                 }
             }
             .padding(16)
@@ -83,8 +114,23 @@ struct CommunityView: View {
         .refreshable {
             await community.refresh(api: model.api)
             await LiveRoom.shared.load(api: model.api)
+            await SharedPlans.shared.load(api: model.api)
         }
-        .task { await LiveRoom.shared.load(api: model.api) }
+        .task {
+            await LiveRoom.shared.load(api: model.api)
+            if !SharedPlans.shared.loaded { await SharedPlans.shared.load(api: model.api) }
+        }
+    }
+
+    @ViewBuilder private func posts(_ scope: CommunityFeedScope) -> some View {
+        let posts = community.posts(scope)
+        if posts.isEmpty && !community.loading {
+            EmptyFeedCard(scope: scope) { composing = true }
+        }
+        ForEach(posts) { PostCard(post: $0) }
+        if community.hasMore(scope) {
+            ProgressView().padding().task { await community.loadMore(scope, api: model.api) }
+        }
     }
 }
 
@@ -167,7 +213,9 @@ struct PostCard: View {
                 }
             }
             if let q = CoachQuip.line(for: post) { CoachQuipRow(text: q) }
-            if let c = post.caption { Text(c).font(.subheadline.weight(.medium)) }
+            if let c = post.caption {
+                Text(c).font(post.tipTopic == nil ? .subheadline.weight(.medium) : .system(size: 17, weight: .bold, design: .rounded))
+            }
             if post.hidden {
                 Label("Hidden from members while reports are reviewed", systemImage: "eye.slash.fill").font(.caption.bold())
             }
@@ -397,6 +445,8 @@ extension CommunityCard {
     var colors: [Color] {
         // Sport and climb posts (#479): "sport:<Sport raw value>".
         if let s = style, s.hasPrefix("sport:"), let sport = Sport(rawValue: String(s.dropFirst(6))) { return sport.colors }
+        // Tips (#666): "tip:train|fuel".
+        if let s = style, s.hasPrefix("tip:"), let t = TipTopic(rawValue: String(s.dropFirst(4))) { return t.colors }
         // Moments (#566): "moment:pr|streak|level".
         if let s = style, s.hasPrefix("moment:"), let m = CommunityMoment(rawValue: String(s.dropFirst(7))) { return m.colors }
         return (style.flatMap(WorkoutEngine.Category.init(rawValue:)) ?? .strength).colors

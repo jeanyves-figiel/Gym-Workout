@@ -397,6 +397,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
          ON CONFLICT(user_id) DO UPDATE SET nickname = excluded.nickname, bio = excluded.bio, avatar_id = excluded.avatar_id, updated_at = excluded.updated_at`,
       ).run(ts, req.userId!);
       db.prepare('DELETE FROM community_posts WHERE user_id = ?').run(req.userId!);
+      db.prepare('DELETE FROM community_programs WHERE user_id = ?').run(req.userId!);
       db.prepare("UPDATE custom_workouts SET visibility = 'private', shared_at = NULL, updated_at = ? WHERE user_id = ? AND visibility != 'private'").run(ts, req.userId!);
       db.prepare('DELETE FROM community_reactions WHERE user_id = ?').run(req.userId!);
       db.prepare('DELETE FROM community_follows WHERE follower_id = ? OR followed_id = ?').run(req.userId!, req.userId!);

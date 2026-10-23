@@ -204,6 +204,30 @@
     "path": "/v1/community/posts/:id/reactions/:kind"
   },
   {
+    "method": "GET",
+    "path": "/v1/community/programs"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/community/programs/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/community/programs/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/community/programs/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/community/programs/:id/copy"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/community/programs/:id/report"
+  },
+  {
     "method": "POST",
     "path": "/v1/community/reports"
   },

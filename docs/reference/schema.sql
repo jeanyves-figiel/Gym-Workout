@@ -192,6 +192,28 @@ CREATE TABLE community_profiles (
       updated_at TEXT NOT NULL
     , show_gym INTEGER NOT NULL DEFAULT 0, level INTEGER, pronouns TEXT);
 
+CREATE TABLE community_program_copies (
+      program_id TEXT NOT NULL REFERENCES community_programs(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (program_id, user_id)
+    );
+
+CREATE TABLE community_programs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      data TEXT NOT NULL,
+      visibility TEXT NOT NULL CHECK (visibility IN ('private', 'members', 'public')),
+      copies INTEGER NOT NULL DEFAULT 0,
+      hidden_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+CREATE INDEX community_programs_updated ON community_programs(updated_at);
+
+CREATE INDEX community_programs_user ON community_programs(user_id);
+
 CREATE TABLE community_reactions (
       post_id TEXT NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
