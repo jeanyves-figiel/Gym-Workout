@@ -14,6 +14,24 @@
       "body": "Gym not on the map? Add your own with a name, an address or a pin."
     },
     {
+      "symbol": "figure.run",
+      "tint": "cardio",
+      "title": "Where you train, each day",
+      "body": "Pick where you train each day (home, gym, climbing). Hybrid now fits lifting and cardio together."
+    },
+    {
+      "symbol": "figure.flexibility",
+      "tint": "mobility",
+      "title": "Daily routines",
+      "body": "Stretch or hang every day, 5 to 30 minutes, from Train or Explore → Routines."
+    },
+    {
+      "symbol": "fork.knife",
+      "tint": "warmup",
+      "title": "Fuel, set up when you like",
+      "body": "Fuel no longer asks for settings first: set it up from the card or Settings → You → Onboarding."
+    },
+    {
       "symbol": "dot.radiowaves.left.and.right",
       "tint": "power",
       "title": "Your call on live sharing",
