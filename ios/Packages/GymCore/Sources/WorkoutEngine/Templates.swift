@@ -129,8 +129,9 @@ public struct WorkoutTemplate: Identifiable, Hashable, Sendable {
     }
 
     public static func find(sessionId: String) -> WorkoutTemplate? {
-        (all + [climbAddon] + WallSession.templates + SportPrep.templates + Recovery.templates + Skills.practices
-         + Routine.templates).first { $0.sessionId == sessionId }
+        let extras: [[WorkoutTemplate]] = [[climbAddon], WallSession.templates, SportPrep.templates, Recovery.templates,
+                                           Skills.practices, Routine.templates]
+        return all.first { $0.sessionId == sessionId } ?? extras.joined().first { $0.sessionId == sessionId }
     }
 
     /// Optional short session on climbing days (#47): push antagonists, shoulder health, finger extensors, core.
