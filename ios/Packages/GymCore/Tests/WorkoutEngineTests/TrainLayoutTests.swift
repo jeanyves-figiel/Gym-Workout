@@ -86,3 +86,23 @@ import Testing
         #expect(Set(TrainWidgetKind.allCases.map(\.stableId)).count == TrainWidgetKind.allCases.count)
     }
 }
+
+@Suite struct TrainLayoutRestyleTests {
+    @Test func swapsGameCardInPlace() {
+        var l = TrainLayout([TrainWidget(.actions), TrainWidget(.coach, size: .small), TrainWidget(.nextUp)])
+        l = l.restyled(coach: false, levelBar: true)
+        #expect(l.widgets.map(\.kind) == [.actions, .level, .nextUp])
+        #expect(l.widgets[1].size == .small)
+        l = l.restyled(coach: true, levelBar: false)
+        #expect(l.widgets.map(\.kind) == [.actions, .coach, .nextUp])
+    }
+
+    @Test func questMapAndBothCardsKeepLayout() {
+        let coach = TrainLayout([TrainWidget(.coach), TrainWidget(.nextUp)])
+        #expect(coach.restyled(coach: false, levelBar: false) == coach)
+        let both = TrainLayout([TrainWidget(.coach), TrainWidget(.level)])
+        #expect(both.restyled(coach: false, levelBar: true) == both)
+        let neither = TrainLayout([TrainWidget(.nextUp)])
+        #expect(neither.restyled(coach: true, levelBar: false) == neither)
+    }
+}

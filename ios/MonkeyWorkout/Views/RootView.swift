@@ -110,6 +110,8 @@ struct MainTabView: View {
             Task { await GarminSync.shared.pull() }
         }
         .onChange(of: health.snapshot.recentSports.count) { Task { await autoShare() } }
+        // Style picked here or on the Watch (#681): an edited Train layout follows it too.
+        .onChange(of: WatchHomePref.shared.style) { model.restyleTrainLayout() }
         // Coach voice (#402, C): the best matching studio voice, downloaded once in the background.
         .task(id: model.user?.id) { await CoachVoiceStore.shared.prepare(model: model) }
         .task(id: "\(Community.shared.profile?.userId ?? "")-\(model.game.level)") { await Community.shared.reportLevel(model.game.level, api: model.api) }

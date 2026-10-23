@@ -332,7 +332,7 @@ struct AccountView: View {
                 if search.matches(Find.widgets) {
                     NavigationLink { HomeWidgetsView() } label: {
                         let w = HomeWidgetSync.shared.settings
-                        SettingsRow(symbol: "square.grid.2x2.fill", title: "Widgets", value: "\(w.preset?.title ?? "Custom") · \(w.look.title)")
+                        SettingsRow(symbol: "square.grid.2x2.fill", title: "Home Screen widgets", value: "\(w.preset?.title ?? "Custom") · \(w.look.title)")
                     }
                     .buttonStyle(.plain)
                 }

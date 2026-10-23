@@ -34,7 +34,7 @@ struct HomeWidgetsView: View {
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Widgets")
+        .navigationTitle("Home Screen widgets")
         .toolbarTitleDisplayMode(.inline)
     }
 }
