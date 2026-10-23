@@ -5,7 +5,31 @@ import UIKit
 
 /// Live group sessions (#626, designs B + C). Gym buddies: while you train, your set goes to paired buddies, theirs
 /// and their cheers come to you (and to your Watch). Challenge room: the week's AMRAP with a live leaderboard.
-/// Only sent while a paired buddy exists or the challenge runs; polled, so it works without SharePlay or FaceTime.
+/// Only sent while a paired buddy exists or the challenge runs, and as the member chose (#675: Always / Ask / Never,
+/// LIVE ⇄ PRIVATE per workout); polled, so it works without SharePlay or FaceTime.
+/// Live sharing default (#675 B): Always starts each workout live, Ask starts it private (one tap in the player
+/// to go live), Never sends nothing.
+enum LiveSharePref: String, CaseIterable, Identifiable {
+    case always, ask, never
+    static let key = "live.share"
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .always: "Always"
+        case .ask: "Ask"
+        case .never: "Never"
+        }
+    }
+    var note: String {
+        switch self {
+        case .always: "Every workout starts live. Tap LIVE in the player to go private."
+        case .ask: "Every workout starts private. Tap PRIVATE in the player to go live."
+        case .never: "Nothing is sent. Buddies don't see you training."
+        }
+    }
+    static var current: LiveSharePref { UserDefaults.standard.string(forKey: key).flatMap(LiveSharePref.init) ?? .always }
+}
+
 @MainActor @Observable
 final class LiveRoom {
     static let shared = LiveRoom()
@@ -33,6 +57,11 @@ final class LiveRoom {
     private var challengeWeek: String?
     /// Newest state from the player, sent by the next tick when the 5″ limit held it back.
     private var latest: LiveSet?
+    /// This workout's choice (#675 C): live, or private ("Training" only, no exercise, sets or rest pings).
+    private(set) var sharing = LiveSharePref.current == .always
+    private var pref = LiveSharePref.current
+    /// The player shows the LIVE / PRIVATE tile: someone could see this workout.
+    var canShare: Bool { pref != .never && (!paired.isEmpty || challengeWeek != nil) }
 
     // MARK: Loading
 
@@ -82,9 +111,15 @@ final class LiveRoom {
         self.api = api
         guard !notMember else { return }
         guard var live else { return end() }
+        if poll == nil {
+            pref = LiveSharePref.current
+            sharing = pref == .always
+        }
         live.challengeWeek = challengeWeek
         latest = live
         if poll == nil { start() }
+        guard pref != .never else { return }
+        live = outgoing(live)
         guard !paired.isEmpty || challengeWeek != nil, live != sent else { return }
         if let sent, sent.state == live.state, Date().timeIntervalSince(sentAt) < 5 { return }
         send(live)
@@ -98,6 +133,28 @@ final class LiveRoom {
             player(LiveSet(title: "Week challenge", exercise: WeeklyChallenge.wod(for: week).name, detail: "AMRAP \(WeeklyChallenge.minutes)′", state: .set), api: api)
         } else {
             end()
+        }
+    }
+
+    /// LIVE ⇄ PRIVATE from the player; sent at once.
+    func toggleSharing() {
+        sharing.toggle()
+        if let latest, pref != .never, !paired.isEmpty || challengeWeek != nil { send(outgoing(latest)) }
+    }
+
+    /// Private: buddies see that you train, nothing more; the state stays "set" so no rest pings go out.
+    private func outgoing(_ live: LiveSet) -> LiveSet {
+        sharing ? live : LiveSet(title: "Training", exercise: "Training", state: .set, challengeWeek: live.challengeWeek)
+    }
+
+    /// Who sees it (#675 B): keep your live set from one buddy, or share it again.
+    func setShare(_ userId: String, _ share: Bool, api: APIClient) async {
+        guard let i = buddies.firstIndex(where: { $0.userId == userId }) else { return }
+        let before = buddies[i].shareLive
+        buddies[i].shareLive = share
+        do { try await api.setBuddyShareLive(userId, share) } catch {
+            buddies[i].shareLive = before
+            self.error = error.localizedDescription
         }
     }
 
@@ -132,7 +189,10 @@ final class LiveRoom {
     private func tick() async {
         guard let api else { return }
         guard !paired.isEmpty || challengeWeek != nil else { return }
-        if let latest, latest != sent || Date().timeIntervalSince(sentAt) > 120 { send(latest) }
+        if pref != .never, let latest {
+            let out = outgoing(latest)
+            if out != sent || Date().timeIntervalSince(sentAt) > 120 { send(out) }
+        }
         if let r = try? await api.liveCheers(after: lastCheer) {
             lastCheer = r.last
             for c in r.cheers { ping(WBuddyPing(userId: c.from.userId, name: c.from.nickname, cheer: c.kind.emoji)) }

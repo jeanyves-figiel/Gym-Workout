@@ -104,6 +104,10 @@
     "path": "/v1/community/buddies/:userId"
   },
   {
+    "method": "PATCH",
+    "path": "/v1/community/buddies/:userId"
+  },
+  {
     "method": "PUT",
     "path": "/v1/community/buddies/:userId"
   },
