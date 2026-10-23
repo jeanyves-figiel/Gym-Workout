@@ -1,0 +1,92 @@
+import Foundation
+import WorkoutEngine
+
+/// The same day actions on every day card and strip day, in any week (#671, design A from
+/// `day-card-consistency/proposals.png`): workout days Move · Plan sport · Skip, sport days Workout · Change · Rest day,
+/// rest days Workout · Plan sport · Recover.
+extension AppModel {
+    private func weekKey(_ date: Date) -> String { PlanCalendar.key(Progression.weekStart(date, planCalendar), planCalendar) }
+
+    // MARK: Later weeks
+
+    /// Sessions moved in later weeks: that week's Monday → session id → weekday.
+    func laterMoves(_ now: Date = Date()) -> [String: [String: Int]] {
+        let monday = weekKey(now)
+        var out: [String: [String: Int]] = [:]
+        for m in state.synced?.moves ?? [] where m.weekOf > monday { out[m.weekOf, default: [:]][m.sessionId] = m.weekday }
+        return out
+    }
+
+    /// Moves a session of a later week to another day of that week, that week only; a session already there swaps.
+    func moveSession(_ sessionId: String, to weekday: Int, in week: PlanCalendar.Week) {
+        guard var sp = state.synced else { return }
+        let changes = PlanCalendar.moving(sessionId, to: weekday, in: week.plan, done: [])
+        guard !changes.isEmpty else { return }
+        let weekOf = PlanCalendar.key(week.start, planCalendar)
+        var moves = sp.moves ?? []
+        for (id, wd) in changes {
+            moves.removeAll { $0.weekOf == weekOf && $0.sessionId == id }
+            moves.append(SessionMove(weekOf: weekOf, sessionId: id, weekday: wd))
+        }
+        sp.moves = moves
+        state.synced = sp
+        state.profileDirty = true
+        persist()
+        Task { await sync() }
+    }
+
+    /// Days a later week's session can move to: any day of that week but its own and days off.
+    func moveTargets(_ s: Session, in week: PlanCalendar.Week) -> [Int] {
+        WeekSchedule.weekdays.filter { $0 != s.weekday && week.off[$0] == nil }
+    }
+
+    /// A later week's session skipped ahead; it becomes a normal skip when its week starts.
+    func isSkipped(_ sessionId: String, in week: PlanCalendar.Week) -> Bool {
+        state.skippedAhead?[PlanCalendar.key(week.start, planCalendar)]?.contains(sessionId) ?? false
+    }
+
+    func setSkipped(_ skipped: Bool, _ sessionId: String, in week: PlanCalendar.Week) {
+        let key = PlanCalendar.key(week.start, planCalendar)
+        var all = state.skippedAhead ?? [:]
+        var ids = all[key] ?? []
+        ids.removeAll { $0 == sessionId }
+        if skipped { ids.append(sessionId) }
+        all[key] = ids.isEmpty ? nil : ids
+        state.skippedAhead = all.isEmpty ? nil : all
+        persist()
+    }
+
+    // MARK: Sport day → rest day
+
+    enum SportOffScope { case day, everyWeek, wholeTrip }
+
+    /// Turns the sport day `key` into a rest day: that day only, the weekday every week, or the whole trip.
+    /// Returns the profile before, for Undo.
+    @discardableResult
+    func dropSport(on key: String, weekday: Int, scope: SportOffScope) -> Profile? {
+        guard var p = profile else { return nil }
+        let before = p
+        switch scope {
+        case .day:
+            let cutoff = PlanCalendar.key(planCalendar.date(byAdding: .day, value: -56, to: Date())!, planCalendar)
+            p.sportOff = ((p.sportOff ?? []).filter { $0 >= cutoff && $0 != key }) + [key]
+        case .wholeTrip:
+            guard let trip = p.sportTrip(on: key) else { return nil }
+            p.sportTrips?.removeAll { $0.id == trip.id }
+            if p.sportTrips?.isEmpty == true { p.sportTrips = nil }
+        case .everyWeek:
+            guard let sport = p.sport(onWeekday: weekday, key: nil) else { return nil }
+            if sport == .climbing {
+                p.climbingWeekdays = p.climbingDays.filter { $0 != weekday }
+                p.syncClimbingDays()
+            } else if let i = p.sports?.firstIndex(where: { $0.sport == sport }) {
+                p.sports?[i].weekdays.removeAll { $0 == weekday }
+            }
+        }
+        updateProfile(p)
+        return before
+    }
+
+    /// Puts the profile back after Rest day's Undo.
+    func restoreSportDay(_ before: Profile) { updateProfile(before) }
+}

@@ -281,6 +281,9 @@ public struct Profile: Codable, Hashable, Sendable {
     /// Dated sport days and trips (#474), e.g. a snowboard week; nil = none. Planned like sport days, no gym on them.
     public var sportTrips: [SportTrip]?
 
+    /// Day keys ("2026-11-03") turned into rest days (#671): no weekly sport, climbing or trip that day; nil = none.
+    public var sportOff: [String]?
+
     /// Hyrox hub (#426): division and goal; nil = not set. The race date is the Hyrox sport's event date.
     public var hyrox: HyroxProfile?
 

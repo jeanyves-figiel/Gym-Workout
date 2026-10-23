@@ -225,9 +225,16 @@ struct WeekDayStrip: View {
     @State private var editing: String?
     @State private var planningSport: String?
     @State private var addingDay: DayPick?
+    /// Long press on any day, any week (#671): the same moves as its day card's tiles.
+    @State private var movingLater: LaterPick?
+    @State private var movingHere: LaterDay?
+    @State private var editingTrip: SportTrip?
+    @State private var restRequest: SportOffRequest?
 
     struct DayPick: Identifiable { let id: Int }
     struct SessionPick: Identifiable { let id: String }
+    struct LaterPick: Identifiable { let session: String; let week: PlanCalendar.Week; var id: String { session + week.days[0] } }
+    struct LaterDay: Identifiable { let week: PlanCalendar.Week; let weekday: Int; var id: String { week.days[weekday - 1] } }
 
     /// Days shown are at most 1 week back and 2 weeks ahead (#464); 3 blank cells each side let the end days reach the lens (#486).
     static let daysBack = 7
@@ -254,6 +261,10 @@ struct WeekDayStrip: View {
                 PlanSportSheet(day: $0.id, sport: model.profile?.otherSports.first?.sport)
             }
             .sheet(item: $addingDay) { AddWorkoutSheet(weekday: $0.id) }
+            .sheet(item: $movingLater) { MoveSessionSheet(sessionId: $0.session, later: $0.week) }
+            .sheet(item: $movingHere) { MoveHereSheet(week: $0.week, weekday: $0.weekday) }
+            .sheet(item: $editingTrip) { PlanSportSheet(day: $0.start, editing: $0) }
+            .sportOffFlow($restRequest)
             .navigationDestination(item: $editing) { SessionView(sessionId: $0) }
         }
     }
@@ -284,6 +295,38 @@ struct WeekDayStrip: View {
             }
         } else if model.skippedIds.contains(s.id), wd >= model.todayWeekday {
             Button("Unskip", systemImage: "arrow.uturn.backward") { withAnimation { model.unskip(s.id) } }
+        }
+    }
+
+    /// Long press on a later week's day (#671): a workout moves or is skipped there, that week only; a rest or sport day
+    /// gets a workout moved to it, a sport planned, changed or dropped.
+    @ViewBuilder
+    private func laterMenu(_ s: Session?, week w: PlanCalendar.Week, wd: Int, date: Date, day: Int) -> some View {
+        Button("Show in card", systemImage: "rectangle.on.rectangle") { onPick(day) }
+        if let s {
+            let skipped = model.isSkipped(s.id, in: w)
+            Button("Move to…", systemImage: "arrow.left.arrow.right") { movingLater = LaterPick(session: s.id, week: w) }
+            Button("Plan a sport", systemImage: "figure.snowboarding") { planningSport = w.days[wd - 1] }
+            Button(skipped ? "Unskip" : "Skip \(WeekSchedule.name(wd))", systemImage: skipped ? "arrow.uturn.backward" : "nosign",
+                   role: skipped ? nil : .destructive) { toggleSkip(model, s, in: w) }
+        } else {
+            Button("Workout here", systemImage: "plus") { movingHere = LaterDay(week: w, weekday: wd) }
+            sportMenu(key: w.days[wd - 1], wd: wd, date: date)
+        }
+    }
+
+    /// A sport day: change it or make it a rest day; a rest day: plan a sport (#671).
+    @ViewBuilder
+    private func sportMenu(key: String, wd: Int, date: Date) -> some View {
+        if let r = model.sportOffRequest(key: key, weekday: wd, date: date) {
+            if let trip = r.trip {
+                Button(trip.isTrip ? "Edit sport trip" : "Edit sport day", systemImage: "arrow.triangle.2.circlepath") { editingTrip = trip }
+            } else {
+                Button("Change sport", systemImage: "arrow.triangle.2.circlepath") { planningSport = key }
+            }
+            Button("Make it a rest day", systemImage: "moon.fill", role: .destructive) { restRequest = r }
+        } else {
+            Button("Plan a sport", systemImage: "figure.snowboarding") { planningSport = key }
         }
     }
 
@@ -327,16 +370,12 @@ struct WeekDayStrip: View {
             let daySport = w.off[wd] == nil ? model.profile?.sport(onWeekday: wd, key: w.days[wd - 1], date: date) : nil
             let climb = daySport == .climbing
             let sport = climb ? nil : daySport
-            let state: DayState = session != nil ? .planned : climb ? .climb : sport.map { DayState.sport($0) } ?? .rest
+            let skipped = session.map { model.isSkipped($0.id, in: w) } ?? false
+            let state: DayState = session != nil ? (skipped ? .skipped : .planned) : climb ? .climb : sport.map { DayState.sport($0) } ?? .rest
             Button { onPick(fromMonday + 1) } label: { cell(wd, day: n, isToday: false, state: state, picked: selected == fromMonday + 1) }
                 .buttonStyle(.plain)
-                // Later weeks follow the plan (#488): moves are this week only, so show the day or plan a sport there.
-                .contextMenu {
-                    if session != nil {
-                        Button("Show in card", systemImage: "rectangle.on.rectangle") { onPick(fromMonday + 1) }
-                        Button("Plan a sport", systemImage: "figure.snowboarding") { planningSport = PlanCalendar.key(date, cal) }
-                    }
-                }
+                // Later weeks get the same moves as this week's days (#671).
+                .contextMenu { laterMenu(session, week: w, wd: wd, date: date, day: fromMonday + 1) }
                 .accessibilityAddTraits(selected == fromMonday + 1 ? .isSelected : [])
                 .accessibilityLabel("\(label): \(session?.displayTitle ?? (climb ? "climbing day" : sport.map { "\($0.label) day" } ?? "rest day"))")
         } else if week < 0 {
@@ -387,6 +426,14 @@ struct WeekDayStrip: View {
                 cell(wd, day: n, isToday: isToday, state: climb ? .climb : sport.map { DayState.sport($0) } ?? .rest, picked: selected == wd)
             }
                 .buttonStyle(.plain)
+                // Same moves as the day card's tiles (#671); earlier days are logged on their card.
+                .contextMenu {
+                    if wd >= model.todayWeekday {
+                        Button("Show in card", systemImage: "rectangle.on.rectangle") { onPick(wd) }
+                        Button("Add workout this day", systemImage: "plus") { addingDay = DayPick(id: wd) }
+                        sportMenu(key: PlanCalendar.key(date, model.planCalendar), wd: wd, date: date)
+                    }
+                }
                 .accessibilityLabel("\(WeekSchedule.name(wd)): \(climb ? "climbing day" : sport.map { "\($0.label) day" } ?? "rest day")")
                 .accessibilityHint("Add a workout")
                 .accessibilityAddTraits(selected == wd ? .isSelected : [])

@@ -38,18 +38,21 @@ private let dayFormat: Date.FormatStyle = .dateTime.weekday(.wide).day().month(.
 /// Pick another day of this week for one session; a session already there swaps days.
 struct MoveSessionSheet: View {
     let sessionId: String
+    /// A later week's session (#671); nil = this week.
+    var later: PlanCalendar.Week? = nil
     var onMoved: (Int) -> Void = { _ in }
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
-    init(sessionId: String, onMoved: @escaping (Int) -> Void = { _ in }) {
+    init(sessionId: String, later: PlanCalendar.Week? = nil, onMoved: @escaping (Int) -> Void = { _ in }) {
         self.sessionId = sessionId
+        self.later = later
         self.onMoved = onMoved
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView { MoveDayPicker(sessionId: sessionId) { wd in onMoved(wd); dismiss() }.padding(16) }
+            ScrollView { MoveDayPicker(sessionId: sessionId, later: later) { wd in onMoved(wd); dismiss() }.padding(16) }
                 .readableWidth()
                 .background(Theme.bg.ignoresSafeArea())
                 .navigationTitle("Move to…")
@@ -64,14 +67,16 @@ struct MoveSessionSheet: View {
 /// The days of this week as vivid rows: what's planned there, today marked, days off and the session's own day locked.
 struct MoveDayPicker: View {
     let sessionId: String
+    /// A later week's session (#671): its days, that week only; nil = this week.
+    var later: PlanCalendar.Week? = nil
     let onMoved: (Int) -> Void
     @Environment(AppModel.self) private var model
 
     var body: some View {
         let cal = model.planCalendar
-        let week = model.calendarWeeks(count: 1).first
+        let week = later ?? model.calendarWeeks(count: 1).first
         let session = week?.plan.sessions.first { $0.id == sessionId }
-        let targets = Set(model.moveTargets(sessionId))
+        let targets = Set(later.flatMap { w in session.map { model.moveTargets($0, in: w) } } ?? model.moveTargets(sessionId))
         let today = PlanCalendar.key(Date(), cal)
         VStack(alignment: .leading, spacing: 10) {
             if let session, let week {
@@ -82,7 +87,7 @@ struct MoveDayPicker: View {
                                      today: week.days[wd - 1] == today, cal: cal)
                     if targets.contains(wd) {
                         Button {
-                            model.moveSession(sessionId, to: wd)
+                            if let later { model.moveSession(sessionId, to: wd, in: later) } else { model.moveSession(sessionId, to: wd) }
                             onMoved(wd)
                         } label: { row }
                         .buttonStyle(.plain)
@@ -90,7 +95,8 @@ struct MoveDayPicker: View {
                         row
                     }
                 }
-                Text("This week only: next week follows your plan again. A day with a session swaps with it.")
+                Text(later == nil ? "This week only: next week follows your plan again. A day with a session swaps with it."
+                     : "That week only: the weeks after follow your plan again. A day with a session swaps with it.")
                     .font(.footnote).foregroundStyle(Theme.muted)
             } else {
                 ContentUnavailableView("Not in this week", systemImage: "calendar.badge.exclamationmark")
