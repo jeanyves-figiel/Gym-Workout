@@ -176,6 +176,12 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | GET | `/v1/community/live/cheers` | Bearer | `?after=` last id seen → `{cheers: [{id, from: {userId, nickname}, kind, at}], last}`; last 10′ only | |
 | GET | `/v1/community/challenge` | Bearer | Weekly challenge room: `?week=YYYY-Www` (default this ISO week) → `{week, joined, training, leaderboard[≤20]: {rank, userId, nickname, avatarUrl, level, rounds, reps, live, me}, me}`; blocks and hidden members left out | 403 `community_profile_required` |
 | PUT | `/v1/community/challenge/score` | Bearer | `{week, rounds 0–200, reps 0–999}` → `{week, rounds, reps, rank, best}`; the best score stays | 400 `week_closed` |
+| GET | `/v1/community/programs` | Bearer | Shared plans (#666), newest first: `?q=` name, `?level=beginner\|intermediate\|advanced`, `?mine=1` your own (private too), `?before=&beforeId=`, `?limit=` → `{programs: [{id, name, about, level, goal, weeks, sessionsPerWeek, programme, author, mine, visibility, copies, copiedByMe, hidden}], nextBefore, nextBeforeId}`; blocked and auto-hidden left out | 403 `community_profile_required` |
+| GET | `/v1/community/programs/:id` | Bearer | One plan → `{program}` | 404 `not_found` |
+| PUT | `/v1/community/programs/:id` | Bearer | Create or update your plan: `{name ≤60, about?, level, goal?, weeks, sessionsPerWeek, programme (app record), visibility? (default members)}` → `{program}` | 400 `objectionable_content`, 409 `conflict`, 413, 429 `daily_limit` (20 new/day) |
+| DELETE | `/v1/community/programs/:id` | Bearer | Remove your plan → 204 | |
+| POST | `/v1/community/programs/:id/copy` | Bearer | Counts a copy into My programmes (once per member; the app saves the copy) → `{program}` | 404 |
+| POST | `/v1/community/programs/:id/report` | Bearer | `{reason, details?}` → 202 `{status: received, hidden}`; auto-hidden after 3 distinct reporters | 20/hour |
 | GET | `/share/:id` | – | Public web card of a `public` post (HTML, Open Graph) | 404 |
 
 ## Workout library

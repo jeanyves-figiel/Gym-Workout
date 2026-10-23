@@ -9,6 +9,7 @@ import { ApiError } from '../errors.ts';
 import { HOUR, throttleTake } from '../throttle.ts';
 import { pushExport } from '../push/schema.ts';
 import { communityExport } from './community.ts';
+import { programExport } from './programs.ts';
 import { liveExport } from './live.ts';
 import { gymExport, gymMapExport } from './gyms.ts';
 import { listCustomExercises } from './customExercises.ts';
@@ -191,6 +192,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
     ['customWorkouts', () => listCustomWorkouts(db, userId)],
     ['community', () => communityExport(db, userId)],
     ['live', () => liveExport(db, userId)],
+    ['programs', () => programExport(db, userId)],
     ['customExercises', () => listCustomExercises(db, userId)],
     ['prAttempts', () => listPrAttempts(db, userId)],
     ['climbs', () => listClimbs(db, userId)],

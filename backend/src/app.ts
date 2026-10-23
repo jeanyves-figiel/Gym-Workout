@@ -38,6 +38,7 @@ import { dataRoutes } from './routes/data.ts';
 import { gymRoutes } from './routes/gyms.ts';
 import { pushRoutes } from './routes/push.ts';
 import { libraryRoutes } from './routes/library.ts';
+import { programRoutes } from './routes/programs.ts';
 import { appStoreNotificationRoutes, subscriptionRoutes } from './routes/subscriptions.ts';
 import { type AppStoreDecoder, createAppStoreDecoder } from './subscriptions/appStore.ts';
 import { SubscriptionService } from './subscriptions/service.ts';
@@ -307,6 +308,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       bodyMeasurementRoutes(r, deps.db, deps.now ?? (() => new Date()));
       pushRoutes(r, push, deps.config.appleBundleIds, (id) => sharing(id)?.nickname ?? null);
       libraryRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
+      programRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
       subscriptionRoutes(r, subscriptions);
       gymRoutes(r, deps.db, now);
       const coach = deps.coach ?? (deps.config.coachChat.apiKey ? claudeCoach(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);

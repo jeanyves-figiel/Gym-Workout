@@ -79,6 +79,25 @@ export const ensureCommunitySchema = (db: DB): void => {
     CREATE INDEX IF NOT EXISTS community_reports_target ON community_reports(target_type, target_id);
     -- Member search hides members with open reports about them as a person (memberNotHiddenSql).
     CREATE INDEX IF NOT EXISTS community_reports_target_user ON community_reports(target_user_id, target_type);
+    -- Shared plans (#666): member-made programmes others browse and copy into their own programmes.
+    CREATE TABLE IF NOT EXISTS community_programs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      data TEXT NOT NULL,
+      visibility TEXT NOT NULL CHECK (visibility IN ('private', 'members', 'public')),
+      copies INTEGER NOT NULL DEFAULT 0,
+      hidden_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS community_programs_updated ON community_programs(updated_at);
+    CREATE INDEX IF NOT EXISTS community_programs_user ON community_programs(user_id);
+    CREATE TABLE IF NOT EXISTS community_program_copies (
+      program_id TEXT NOT NULL REFERENCES community_programs(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (program_id, user_id)
+    );
   `);
   // Show my gym (#152): members opt in to being found by the gym they train at.
   const cols = db.prepare('PRAGMA table_info(community_profiles)').all() as { name: string }[];

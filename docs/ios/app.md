@@ -94,7 +94,7 @@ Day strip (past = counted, coming = plan) and the day's plate. Next planned meal
 
 ### Community (`Views/Community`)
 
-Feed of members' wins (`PostCard`, cheers `ReactionBar`), Trained today row, moment cards, share a win (`ShareWinView`), find members (`FindMembersView`), member pages, follow / block / report, your profile (`ProfileView`, one page for account and community). Joining needs accepting the guidelines.
+Top (#666, `CommunityHub`): **gym today** card (`GymPulseCard`: trained today, live, week challenge bar + top 3), three small tiles (`CommunityTiles`: gym, following, buddies → `BuddiesScreen`), quick **Share plan / Share meal / Post a tip** (`QuickShareRow`), then tabs **Feed · Plans · Fuel · Mine**. Plans (`PlansSection`, `SharedPlanView`, `SharePlanSheet`, store `SharedPlans`, APIClient `SharedPlans.swift`): member-made programmes shared via `/v1/community/programs`, filtered by level, copied into My programmes (`Programme.copy`). Fuel (`FuelSection`): recipe notes and fuel tips. Tips (`PostTipSheet`): note posts with style `tip:train|fuel`. Feed of members' wins (`PostCard`, cheers `ReactionBar`), Trained today row, moment cards, share a win (`ShareWinView`), find members (`FindMembersView`), member pages, follow / block / report, your profile (`ProfileView`, one page for account and community). Joining needs accepting the guidelines.
 
 ## Me sheet and Settings (`Views/Account`)
 

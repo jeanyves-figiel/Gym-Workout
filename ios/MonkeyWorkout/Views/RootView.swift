@@ -339,7 +339,11 @@ private struct DemoScreen: View {
         }
         case "account-recovery": NavigationStack { RecoveryCodesView(codes: Demo.recoveryCodes) }
         case "account-passkeys": NavigationStack { PasskeysView(passkeys: Demo.security.passkeys) }
-        case "community", "community-join": NavigationStack { CommunityView() }
+        case "community", "community-join", "community-plans", "community-fuel", "community-mine": NavigationStack { CommunityView() }
+        case "community-plan":
+            NavigationStack { SharedPlanView(plan: SharedPlans.shared.plans[0]).navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) } }
+        case "community-share-plan": SharePlanSheet()
+        case "community-tip": PostTipSheet()
         case "community-share": ShareWinView()
         case "community-profile": NavigationStack { ProfileView() }
         case "community-members":

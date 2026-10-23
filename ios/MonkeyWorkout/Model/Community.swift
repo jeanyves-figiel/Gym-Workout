@@ -72,6 +72,7 @@ final class Community {
             mine = []
             following = []
             next = [:]
+            SharedPlans.shared.reset()
         }
         do {
             async let pub = api.publicProfile()
@@ -173,6 +174,7 @@ final class Community {
         mine = []
         following = []
         next = [:]
+        SharedPlans.shared.reset()
         persist()
     }
 
@@ -331,6 +333,18 @@ final class Community {
                 payload: CommunityCard(title: "Running", subtitle: "Today", metric: .init(value: "8.4", unit: "km"), style: "sport:run",
                                        stats: [.init(label: "min", value: "44")]),
                 createdAt: now.addingTimeInterval(-4 * 3600), reactions: ["clap": 2]),
+            CommunityPost(
+                id: "p7", author: tom, mine: false, kind: "note", visibility: .members,
+                caption: "Prep 3 chicken and rice boxes on Sunday: 150 g protein a day all week without thinking.",
+                payload: PostTipSheet.card(.fuel), createdAt: now.addingTimeInterval(-5 * 3600), reactions: ["banana": 24, "beast": 6]),
+            CommunityPost(
+                id: "p8", author: bea, mine: false, kind: "note", refId: "recipe-\(RecipeBook.catalog[0].id)", visibility: .members,
+                caption: "My post-bench bowl.", payload: ShareRecipeSheet.card(RecipeBook.catalog[0]),
+                createdAt: now.addingTimeInterval(-6 * 3600), reactions: ["like": 8]),
+            CommunityPost(
+                id: "p9", author: crimpy, mine: false, kind: "note", visibility: .members,
+                caption: "Film your squat from the side once a month. Depth lies.",
+                payload: PostTipSheet.card(.train), createdAt: now.addingTimeInterval(-8 * 3600), reactions: ["strong": 5]),
             CommunityPost(
                 id: "p6", author: crimpy, mine: false, kind: "badge", visibility: .members,
                 payload: CommunityCard(title: "Now Regular", subtitle: "Level 4 → 5", metric: .init(value: "5", unit: "level"), style: "moment:level"),
