@@ -42,7 +42,7 @@ struct AccountView: View {
         static let flow = "After last set workout flow next exercise countdown auto"
         static let coach = "Workout coach voice monkey hype chill drill haptics ask coach bubble microphone talk mic hands-free"
         static let reminders = "Reminders alerts notifications quiet hours check-in achievements alarm ring silent focus rest timer"
-        static let climbing = "Around climbing days climbing wall session before after"
+        static let climbing = "Around sport days climbing wall session before after run snowboard bike rest light"
         static let fuel = "Fuel nutrition food diet meals protein water allergies vegan vegetarian halal recipes no numbers"
         static let watchStart = "Start from iPhone apple watch ask auto"
         static let action = "Action button apple watch ultra"
@@ -123,7 +123,7 @@ struct AccountView: View {
         .navigationTitle("Settings")
         .task { await loadDeviceCount() }
         .proPaywall($gate)
-        .sheet(isPresented: $climbSettings) { ClimbSettingsView() }
+        .sheet(isPresented: $climbSettings) { AroundSportView() }
         .sheet(item: $webPage) { SafariView(url: $0.url).ignoresSafeArea() }
         .confirmationDialog("Sign out everywhere?", isPresented: $confirmSignOutAll, titleVisibility: .visible) {
             Button("Sign out all devices", role: .destructive) {
@@ -259,12 +259,10 @@ struct AccountView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                // Around climbing days (#390): also linked under Train → Climbing. Climbers only.
-                if model.profile.map(Generator.isClimber) ?? false, search.matches(Find.climbing) {
-                    Button { ProStore.shared.run(.climbing, $gate) { climbSettings = true } } label: {
-                        SettingsRow(symbol: "figure.climbing", title: "Around climbing days") {
-                            if ProStore.shared.locked { ProBadge() } else { AccountChevron() }
-                        }
+                // Around sport days (#390, any sport #658): also on the Wall session and Sport prep pages. Members with a sport.
+                if let p = model.profile, Generator.isClimber(p) || !p.otherSports.isEmpty, search.matches(Find.climbing) {
+                    Button { climbSettings = true } label: {
+                        SettingsRow(symbol: "figure.mixed.cardio", title: "Around sport days") { AccountChevron() }
                     }
                     .buttonStyle(.plain)
                 }

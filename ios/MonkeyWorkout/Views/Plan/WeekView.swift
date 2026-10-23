@@ -190,6 +190,14 @@ struct WeekView: View {
         chestReveal = true
     }
 
+    /// Today's rest-day card shows its sport block with Prep (#658): no separate prep or Wall session bar then.
+    private func sportHeroToday(_ plan: WeekPlan) -> Bool {
+        let today = model.todayWeekday
+        guard pickedDay == nil, !plan.sessions.contains(where: { $0.weekday == today }),
+              let next = model.nextSession?.weekday, next != today else { return false }
+        return model.profile?.sport(onWeekday: today, key: PlanCalendar.key(Date(), model.planCalendar)) != nil
+    }
+
     /// Next up (#266), or the day picked in its strip (#277): that day's workout, or a rest day with Add workout.
     @ViewBuilder private func nextUpCard(_ plan: WeekPlan) -> some View {
         let next = model.nextSession
@@ -417,8 +425,8 @@ struct WeekView: View {
                     nextUpCard(plan)
                     // One slot for the cards that only show for a while (#538): Start workout never moves down for them.
                     if !arranging { TrainNoticeSlot() }
-                    // Sport prep on a planned sport day (#523).
-                    if !arranging { SportPrepBar() }
+                    // Sport prep on a planned sport day (#523), unless today's sport block already has it (#658).
+                    if !arranging && !sportHeroToday(plan) { SportPrepBar() }
                     // Skill of the month practice day (#621 C).
                     if !arranging { SkillPracticeBar() }
                     // Run & cardio plan (#618): race countdown or Hybrid, this week's runs.
@@ -441,7 +449,7 @@ struct WeekView: View {
             if small {
                 ClimbSmallWidget()
             } else if Generator.isClimber(profile) {
-                ClimbSection(arranging: arranging)
+                ClimbSection(arranging: arranging, wallInCard: sportHeroToday(plan))
             } else {
                 Button { editing = true } label: {
                     WidgetTile(kind: .climbing, title: "Climbing") {
@@ -1171,7 +1179,7 @@ private struct PastDayCard: View {
     /// 1 = Monday … 7 = Sunday.
     private var weekday: Int { ((day - 1) % 7 + 7) % 7 + 1 }
     private var climbing: Bool {
-        (model.profile.map(Generator.isClimber) ?? false) && (model.profile?.climbingDays.contains(weekday) ?? false)
+        model.profile?.sport(onWeekday: weekday, key: PlanCalendar.key(date, model.planCalendar), date: date) == .climbing
     }
     /// 18:00 on this day: the default start of anything added here.
     private var evening: Date { model.planCalendar.date(bySettingHour: 18, minute: 0, second: 0, of: date) ?? date }
@@ -1501,6 +1509,16 @@ private struct RestDayCard: View {
     /// Plan sport (#474): a sport once, every week or a trip from this day; or the dated day / trip on it.
     @State private var planningSport = false
     @State private var editingTrip: SportTrip?
+    /// Around sport days (#658) opened from the sport hero's menu.
+    @State private var around: Sport?
+    /// Log or Track live from the sport hero (#658): the day's sport already picked.
+    @State private var heroSport: HeroLog?
+
+    struct HeroLog: Identifiable {
+        let log: SportLog
+        let live: Bool
+        var id: UUID { log.id }
+    }
 
     /// This day's key ("2026-10-21") in the current week.
     private var dayKey: String {
@@ -1512,10 +1530,8 @@ private struct RestDayCard: View {
     /// A dated sport day or trip on this day.
     private var trip: SportTrip? { model.profile?.sportTrip(on: dayKey) }
 
-    /// Climbers get Log climb next to Add workout on every rest day (#304).
-    private var climber: Bool { model.profile.map(Generator.isClimber) ?? false }
-    /// One of the climber's planned climbing days.
-    private var climbing: Bool { climber && (model.profile?.climbingDays.contains(weekday) ?? false) }
+    /// The day's sport (#658): a dated sport day or trip beats the weekly climbing day.
+    private var daySport: Sport? { model.profile?.sport(onWeekday: weekday, key: dayKey, date: date ?? Date()) }
     /// A later day (#343): a workout can be planned, a climb is only logged on or after its day.
     private var ahead: Bool { date != nil || weekday > model.todayWeekday }
     /// A day of a later week (#481): Add workout only plans this week, so it's left out.
@@ -1541,20 +1557,21 @@ private struct RestDayCard: View {
             HStack(alignment: .center, spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(Theme.label(12)).tracking(1.4).textCase(.uppercase).foregroundStyle(.white.opacity(0.8))
-                    if let trip {
-                        Button { editingTrip = trip } label: {
-                            Label(trip.title, systemImage: trip.sport.symbol).font(Theme.display(22)).foregroundStyle(.white)
-                                .lineLimit(1).minimumScaleFactor(0.7)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityHint("Edit this sport day")
-                    } else {
-                        Text(climbing ? "Climbing day 🧗" : "Rest day 😴").font(Theme.display(26)).foregroundStyle(.white)
+                    // A sport day shows its sport in the hero block below (#658, design B).
+                    if daySport == nil {
+                        Text("Rest day 😴").font(Theme.display(26)).foregroundStyle(.white)
                             .lineLimit(1).minimumScaleFactor(0.7)
                     }
                 }
                 Spacer(minLength: 0)
                 DayJumpChip(label: backTitle ?? backChipTitle(model, toToday: backToToday), action: onBack)
+            }
+            if let sport = daySport {
+                SportDayHero(sport: sport, trip: trip, today: isToday, past: past,
+                             onChange: { if let trip { editingTrip = trip } else { planningSport = true } },
+                             onAround: { around = sport },
+                             onLog: { log(sport) },
+                             onTrack: { heroSport = HeroLog(log: SportLog(sport: sport, start: Date()), live: true) })
             }
             HStack(spacing: 8) {
                 if !laterWeek && weekday < model.todayWeekday {
@@ -1565,27 +1582,27 @@ private struct RestDayCard: View {
                     DayActionTile(title: "Add workout", detail: ahead ? "plan this day" : "plan today", symbol: "plus",
                                   fill: AnyShapeStyle(Theme.lime), ink: Theme.ink, action: onAdd)
                 }
-                if climbing && !ahead {
-                    DayActionTile(title: "Log climb", detail: "today's session", symbol: "figure.climbing",
-                                  fill: AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xFF6B3D), Color(hex: 0xFFA94D)], startPoint: .leading, endPoint: .trailing))) {
-                        logging = ClimbLog(start: climbStart())
+                if daySport != nil {
+                    // Sport actions live in the hero (#658): gym ones stay here, Freestyle today.
+                    if isToday {
+                        DayActionTile(title: "Freestyle", detail: model.freestyleInProgress != nil ? "resume" : "add as you train",
+                                      symbol: "plus.square.on.square", fill: AnyShapeStyle(LinearGradient.freestyle)) {
+                            Haptics.start()
+                            freestyle = model.freestyleInProgress ?? model.startFreestyle()
+                        }
+                        .accessibilityIdentifier("train.freestyle")
                     }
-                    .accessibilityHint("Log a climbing session")
-                }
-                if let trip {
-                    DayActionTile(title: trip.isTrip ? "Sport trip" : "Sport day", detail: "edit", symbol: trip.sport.symbol,
-                                  fill: AnyShapeStyle(trip.sport.gradient)) { editingTrip = trip }
                 } else if laterWeek || weekday >= model.todayWeekday {
                     // Plan sport (#474): once, every week or a trip from this day.
                     DayActionTile(title: "Plan sport", detail: "once · weekly · trip", symbol: "figure.mixed.cardio",
                                   fill: AnyShapeStyle(DayActionTile.sportFill)) { planningSport = true }
                 }
             }
-            if (laterWeek || weekday >= model.todayWeekday) && trip == nil && !climbing {
+            if (laterWeek || weekday >= model.todayWeekday) && daySport == nil {
                 // Recover (#619 A): a short routine for what this week loaded most, on every coming rest day (#659).
                 RecoverBar()
             }
-            if date == nil && weekday == model.todayWeekday {
+            if isToday && daySport == nil {
                 // Any other sport (#416), dated like a climb; Track live with a Watch (#462, design C).
                 SportSplitPill(onFree: { Haptics.start(); freestyle = model.freestyleInProgress ?? model.startFreestyle() },
                                freeResumes: model.freestyleInProgress != nil,
@@ -1603,9 +1620,108 @@ private struct RestDayCard: View {
         .sheet(item: $logging) { LogClimbView(initial: $0) }
         .sheet(item: $loggingSport) { LogSportView(initial: $0) }
         .sheet(item: $trackingSport) { LogSportView(initial: $0, live: true) }
+        .sheet(item: $heroSport) { LogSportView(initial: $0.log, picked: true, live: $0.live) }
         .fullScreenCover(item: $freestyle) { WorkoutPlayerView(sessionId: $0.id) }
         .sheet(isPresented: $planningSport) { PlanSportSheet(day: dayKey, sport: model.profile?.otherSports.first?.sport) }
         .sheet(item: $editingTrip) { PlanSportSheet(day: $0.start, editing: $0) }
+        .sheet(item: $around) { AroundSportView(initial: $0) }
+    }
+
+    private var isToday: Bool { date == nil && weekday == model.todayWeekday }
+    /// An earlier day of this week: logged, never planned.
+    private var past: Bool { !laterWeek && weekday < model.todayWeekday }
+
+    /// Log the day's sport: a climb opens the climb log, any other sport Log sport with it picked.
+    private func log(_ sport: Sport) {
+        if sport == .climbing { logging = ClimbLog(start: climbStart()) } else { heroSport = HeroLog(log: SportLog(sport: sport, start: climbStart()), live: false) }
+    }
+}
+
+/// The day's sport on Train (#658, design B from `around-sport/train-proposals.png`): one block in the sport's colours
+/// with Change, and Track live · Log · Prep today (Log on earlier days). Gym tiles stay under it.
+private struct SportDayHero: View {
+    let sport: Sport
+    let trip: SportTrip?
+    let today: Bool
+    let past: Bool
+    let onChange: () -> Void
+    let onAround: () -> Void
+    let onLog: () -> Void
+    let onTrack: () -> Void
+    @Environment(AppModel.self) private var model
+    @State private var link = WatchLink.shared
+
+    /// Climbing's Wall session (unless turned off), else the sport's prep (#523).
+    private var hasPrep: Bool {
+        sport == .climbing ? model.profile?.climbDayAddon != false : SportPrep.before(sport) != nil
+    }
+
+    private var detail: String {
+        let around = sport.isLightLoad ? "train as usual around it" : "\(sport.loadLabel) kept light around it"
+        if sport == .climbing, hasPrep { return "Wall session · \(around)" }
+        if let m = SportPrep.before(sport)?.session.estMin { return "Prep \(m)′ · \(around)" }
+        return around.prefix(1).uppercased() + around.dropFirst()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: sport.symbol).font(.system(size: 22, weight: .bold))
+                Text(trip?.name.flatMap { $0.isEmpty ? nil : $0 } ?? sport.label)
+                    .font(Theme.display(26)).lineLimit(1).minimumScaleFactor(0.7)
+                Spacer(minLength: 0)
+                Menu {
+                    Button(trip.map { $0.isTrip ? "Edit sport trip" : "Edit sport day" } ?? "Change sport",
+                           systemImage: "arrow.triangle.2.circlepath", action: onChange)
+                    Button("Gym around it", systemImage: "slider.horizontal.3", action: onAround)
+                } label: {
+                    Text("Change ›").font(Theme.label(13))
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(Capsule().fill(.white.opacity(0.22)))
+                }
+                .accessibilityLabel("Change \(sport.label.lowercased()) day")
+            }
+            Text(detail).font(Theme.label(12)).opacity(0.9).lineLimit(1).minimumScaleFactor(0.8)
+            if today || past {
+                HStack(spacing: 6) {
+                    if today && link.ready {
+                        button("Track live", symbol: "applewatch.radiowaves.left.and.right", primary: true, action: onTrack)
+                    }
+                    button(past ? "Log \(sport.short.lowercased())" : "Log", symbol: "plus.circle.fill", primary: !(today && link.ready), action: onLog)
+                    if today && hasPrep {
+                        NavigationLink {
+                            if sport == .climbing {
+                                WallSessionPage(today: true, climbedToday: false)
+                            } else {
+                                SportPrepPage(sport: sport)
+                            }
+                        } label: {
+                            label("Prep", symbol: "flame.fill", primary: false)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(sport.gradient))
+    }
+
+    private func button(_ title: String, symbol: String, primary: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) { label(title, symbol: symbol, primary: primary) }
+            .buttonStyle(.plain)
+    }
+
+    private func label(_ title: String, symbol: String, primary: Bool) -> some View {
+        Label(title, systemImage: symbol)
+            .font(.system(size: 14, weight: .heavy, design: .rounded))
+            .lineLimit(1).minimumScaleFactor(0.7)
+            .foregroundStyle(primary ? sport.colors.first ?? Theme.ink : .white)
+            .frame(maxWidth: .infinity, minHeight: 40)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(primary ? AnyShapeStyle(Color.white) : AnyShapeStyle(.white.opacity(0.22))))
+            .contentShape(Rectangle())
     }
 }
 
@@ -1623,7 +1739,7 @@ private struct WeekCompleteCard: View {
             Text(missed > 0 ? "No more sessions this week" : "Week complete").font(Theme.display(28))
                 .multilineTextAlignment(.center)
             Text(missed > 0 ? "\(missed) missed: tap the red day to log it, mark it done or do it today. A fresh week starts Monday."
-                            : "A fresh week starts Monday. Rest and climb meanwhile.").font(.footnote).foregroundStyle(Theme.muted)
+                            : "A fresh week starts Monday. Rest or play your sport meanwhile.").font(.footnote).foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)

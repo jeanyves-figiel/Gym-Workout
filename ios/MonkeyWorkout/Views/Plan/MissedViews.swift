@@ -377,9 +377,10 @@ struct WeekDayStrip: View {
                 .accessibilityLabel("\(WeekSchedule.name(wd)): \(s.displayTitle)\(allDone ? ", done" : skipped ? ", skipped" : "")")
                 .accessibilityAddTraits(selected == wd ? .isSelected : [])
         } else {
-            // Climbing days of a climber show orange (#277); other sports' days (#416) show their icon.
-            let climb = model.profile.map { Generator.isClimber($0) && $0.climbingDays.contains(wd) } ?? false
-            let sport = climb ? nil : model.profile?.sportDays().first { $0.weekday == wd }?.sport
+            // Climbing days of a climber show orange (#277); other sports' days (#416) show their icon. Dated days first (#658).
+            let daySport = model.profile?.sport(onWeekday: wd, key: PlanCalendar.key(date, model.planCalendar), date: date)
+            let climb = daySport == .climbing
+            let sport = climb ? nil : daySport
             Button { onPick(wd) } label: {
                 cell(wd, day: n, isToday: isToday, state: climb ? .climb : sport.map { DayState.sport($0) } ?? .rest, picked: selected == wd)
             }

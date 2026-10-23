@@ -80,7 +80,7 @@ Pro (PRO badge; tap opens the paywall sheet when `enforced`):
 | Attempt a PR (exercise page, player) | `.prAttempt` |
 | Progress charts, trends, heat map beyond 28 days | `.progress` (history list stays complete) |
 | Start a workout on Apple Watch | `WatchSnapshot.pro` (mirroring an iPhone workout stays free) |
-| Around climbing days, climbing add-on | `.climbing` |
+| Wall session (climbing add-on); Around sport days is free for every sport (#658) | `.climbing` |
 | Connect MonkeyGrade | `.monkeyGrade` (an existing connection keeps working) |
 
 Generate a workout by muscle (#119, today or a chosen day): `ProStore.shared.run(.generateWorkout, $gate)` + `.proPaywall($gate)` + `ProBadge()`, wired in that PR.

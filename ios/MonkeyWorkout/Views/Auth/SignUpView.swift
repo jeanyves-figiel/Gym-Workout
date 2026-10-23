@@ -18,8 +18,8 @@ struct SignUpView: View {
 
     var body: some View {
         AuthScreen(title: "Create account") {
-            AccountHeader(symbol: "figure.climbing", title: "Create account",
-                          subtitle: "Your plan, sessions and climbs, synced across your devices.",
+            AccountHeader(symbol: "figure.mixed.cardio", title: "Create account",
+                          subtitle: "Your plan, workouts and sports, synced across your devices.",
                           gradient: WorkoutEngine.Category.power.gradient)
 
             VStack(alignment: .leading, spacing: 14) {

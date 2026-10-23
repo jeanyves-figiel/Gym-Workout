@@ -154,7 +154,7 @@ enum Demo {
 
     /// Missed session screens (#266): the first session of the week not done and today on the second one's day.
     @MainActor static func missed(_ model: AppModel) {
-        if ["train-missed", "missed-catchup", "missed-log", "calendar-missed", "train-day-picked", "train-rest-day", "train-past-day", "train-skipped"].contains(screen) {
+        if ["train-missed", "missed-catchup", "missed-log", "calendar-missed", "train-day-picked", "train-rest-day", "train-past-day", "train-skipped", "train-sport-day"].contains(screen) {
             // No away periods: they re-plan undone sessions from the real today, so nothing would be missed.
             model.state.synced?.away = nil
             model.state.done = [:]
@@ -162,6 +162,12 @@ enum Demo {
             var p = Demo.profile
             p.gymWeekdays = [1, 3, 5, 7]
             p.climbingWeekdays = [2, 6]
+            if screen == "train-sport-day" {
+                // Sport block (#658): every non-gym day a snowboard day, no climbing.
+                p.climbingWeekdays = []
+                p.climbingDaysPerWeek = 0
+                p.sports = [SportPlan(sport: .snowboard, weekdays: [2, 4, 6])]
+            }
             model.state.synced?.profile = p
             model.state.plan = Generator.generateWeek(p, week: Demo.week, seed: 7)
             model.replanCurrentWeek()

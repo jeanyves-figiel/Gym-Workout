@@ -31,7 +31,7 @@ extension Climbs {
 }
 
 /// Train tab climbing widget: Wall session on climbing days only (#521, design B) and the hard-climb note.
-/// Logging a climb lives in Log sport → Climbing; Around climbing days in Settings and on the Wall session page.
+/// Logging a climb lives in Log sport → Climbing; Around sport days in Settings and on the Wall session page.
 struct ClimbSection: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
@@ -44,15 +44,17 @@ struct ClimbSection: View {
 
     /// Train is being arranged: keep a tile to move even on a day with nothing to show.
     var arranging = false
+    /// Today's sport block on Train already opens the Wall session (#658).
+    var wallInCard = false
 
     var body: some View {
         let all = climbs
-        let wall = isClimbingDay && model.profile?.climbDayAddon != false
+        let wall = isClimbingDay && model.profile?.climbDayAddon != false && !wallInCard
         let hard = Climbs.recentHard(all)
         // Nothing to show: no view at all, so Train keeps no gap for it.
         if wall || hard != nil || arranging {
             VStack(alignment: .leading, spacing: 12) {
-                // Wall session (#366): on unless turned off in Around climbing days.
+                // Wall session (#366): on unless turned off in Around sport days.
                 if wall {
                     NavigationLink {
                         WallSessionPage(today: true, climbedToday: all.contains { Calendar.current.isDateInToday($0.start) })
@@ -74,9 +76,10 @@ struct ClimbSection: View {
         }
     }
 
+    /// Today's sport is climbing (#658): a dated snowboard day on a weekly climbing day shows its own prep instead.
     private var isClimbingDay: Bool {
         let today = WeekSchedule.fromCalendar(Calendar.current.component(.weekday, from: Date()))
-        return model.profile?.climbingDays.contains(today) ?? false
+        return model.profile?.sport(onWeekday: today, key: PlanCalendar.key(Date(), model.planCalendar)) == .climbing
     }
 }
 
@@ -109,18 +112,16 @@ private struct ClimbBar: View {
     }
 }
 
-/// "Around climbing days" link under the climbing cards and on the Wall session page.
-struct AroundClimbingLink: View {
+/// "Around climbing days" link on the Wall session and Sport prep pages (#658: free for every sport).
+struct AroundSportLink: View {
+    let sport: Sport
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
-                Label("Around climbing days", systemImage: "slider.horizontal.3")
-                    .font(Theme.label(13))
-                    .foregroundStyle(Theme.lime)
-                ProBadge()
-            }
+            Label("Around \(sport.activity) days", systemImage: "slider.horizontal.3")
+                .font(Theme.label(13))
+                .foregroundStyle(Theme.lime)
         }
         .buttonStyle(.plain)
     }
@@ -389,27 +390,9 @@ struct LogClimbView: View {
     }
 }
 
-// MARK: - Around climbing days (#47)
+// MARK: - Around sport days (#47, any sport #658)
 
 extension ClimbNeighbour {
-    var label: String {
-        switch self {
-        case .light: "Keep it light"
-        case .strong: "Strong push or legs"
-        case .rest: "Rest"
-        case .any: "No adjustment"
-        }
-    }
-
-    func blurb(before: Bool) -> String {
-        switch self {
-        case .light: before ? "No heavy pulling, grip or jumps. Push and legs preferred." : "Light on pulling and grip while fingers recover."
-        case .strong: before ? "Hard push or leg day welcome. Only pulling and grip kept light." : "Hard push or leg day welcome. Pulling kept light."
-        case .rest: "Keep this day free of gym sessions when the week allows."
-        case .any: "Plan the gym session as if you weren't climbing."
-        }
-    }
-
     var symbol: String {
         switch self {
         case .light: "leaf.fill"
@@ -429,116 +412,8 @@ extension ClimbNeighbour {
     }
 }
 
-extension ClimbSameDay {
-    var label: String {
-        switch self {
-        case .avoid: "Climb only"
-        case .allow: "Gym allowed"
-        }
-    }
-
-    var blurb: String {
-        switch self {
-        case .avoid: "Gym sessions go on climbing days only when the week has no room."
-        case .allow: "A gym session can share the day, e.g. gym in the morning, climb in the evening."
-        }
-    }
-
-    var symbol: String { self == .avoid ? "figure.climbing" : "dumbbell.fill" }
-
-    var colors: [Color] {
-        self == .avoid ? ClimbKind.boulder.colors : ClimbKind.lead.colors
-    }
-}
-
-/// How gym days around climbing are planned. Saving rebuilds this week's plan.
-struct ClimbSettingsView: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-    @State private var before: ClimbNeighbour = .light
-    @State private var after: ClimbNeighbour = .light
-    @State private var sameDay: ClimbSameDay = .avoid
-    @State private var addon = false
-    @State private var loaded = false
-
-    /// What's picked, saved on its own (#437).
-    struct Picks: Equatable {
-        var before: ClimbNeighbour, after: ClimbNeighbour, sameDay: ClimbSameDay, addon: Bool
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Day before climbing").eyebrow()
-                    ForEach(ClimbNeighbour.allCases) { o in
-                        OptionCard(symbol: o.symbol, title: o.label, blurb: o.blurb(before: true), colors: o.colors,
-                                   selected: before == o) { before = o }
-                    }
-                    Text("Day after climbing").eyebrow().padding(.top, 8)
-                    ForEach(ClimbNeighbour.allCases) { o in
-                        OptionCard(symbol: o.symbol, title: o.label, blurb: o.blurb(before: false), colors: o.colors,
-                                   selected: after == o) { after = o }
-                    }
-                    Text("On climbing days").eyebrow().padding(.top, 8)
-                    ForEach(ClimbSameDay.allCases) { o in
-                        OptionCard(symbol: o.symbol, title: o.label, blurb: o.blurb, colors: o.colors,
-                                   selected: sameDay == o) { sameDay = o }
-                    }
-                    Toggle(isOn: $addon) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Wall session").font(Theme.display(18))
-                            Text("Show warm-up, hangboard and after-climb sessions for the climbing gym on Train.")
-                                .font(.footnote).foregroundStyle(Theme.muted)
-                        }
-                    }
-                    .tint(Theme.lime)
-                    .card(padding: 16)
-                    .padding(.top, 8)
-
-                    Text("Changes save on their own and rebuild this week's plan around your climbing days.")
-                        .font(.footnote).foregroundStyle(Theme.muted)
-                }
-                .padding(16)
-            }
-            .readableWidth()
-            .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle("Around climbing")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                CloseToolbarItem { dismiss() }
-            }
-            .autoSave(loaded ? Picks(before: before, after: after, sameDay: sameDay, addon: addon) : nil,
-                      title: "Climbing days", symbol: "figure.climbing",
-                      detail: { _ in "This week's plan rebuilt" },
-                      save: { [model] in Self.store($0, model: model) })
-        }
-        .preferredColorScheme(.dark)
-        .onAppear {
-            guard !loaded, let p = model.profile else { return }
-            before = p.climbPrefs.before
-            after = p.climbPrefs.after
-            sameDay = p.climbPrefs.sameDay
-            addon = p.climbDayAddon ?? true
-            loaded = true
-        }
-    }
-
-    private static func store(_ k: Picks, model: AppModel) {
-        guard var p = model.profile else { return }
-        p.climbBefore = k.before == .light ? nil : k.before
-        p.climbAfter = k.after == .light ? nil : k.after
-        p.climbSameDay = k.sameDay == .avoid ? nil : k.sameDay
-        // Wall session (#366) is on by default; only "off" is stored.
-        p.climbDayAddon = k.addon ? (p.climbDayAddon == true ? true : nil) : false
-        if p != model.profile {
-            model.updateProfile(p)
-        }
-    }
-}
-
 /// Explore-style selectable option: icon tile, title + blurb, gradient when picked.
-private struct OptionCard: View {
+struct OptionCard: View {
     let symbol: String
     let title: String
     let blurb: String
