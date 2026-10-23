@@ -167,8 +167,9 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | GET | `/v1/community/blocks` | Bearer | → blocked members | |
 | POST | `/v1/community/blocks` | Bearer | `{userId}` → 204; also removes follows both ways | |
 | DELETE | `/v1/community/blocks/:userId` | Bearer | Unblock → 204 | |
-| GET | `/v1/community/buddies` | Bearer | Gym buddies (#626) → `{buddies: [{userId, nickname, avatarUrl, level, status paired\|invited\|invites_you, live}]}`; `live` (`title, exercise, detail, state set\|rest\|done, updatedAt`) only when paired and sent in the last 10′ | 403 `community_profile_required` |
+| GET | `/v1/community/buddies` | Bearer | Gym buddies (#626) → `{buddies: [{userId, nickname, avatarUrl, level, status paired\|invited\|invites_you, live, shareLive}]}`; `shareLive` false when you keep your live set from them (#675); `live` (`title, exercise, detail, state set\|rest\|done, updatedAt`) only when paired and sent in the last 10′ | 403 `community_profile_required` |
 | PUT | `/v1/community/buddies/:userId` | Bearer | Invite, or accept an invite → `{status: paired\|invited}`; up to 20; push `buddy_invite` (`actorId`, `actorName`) to the invitee, or to the inviter once paired | 400 `own_content`, `too_many_buddies`; 404 |
+| PATCH | `/v1/community/buddies/:userId` | Bearer | `{shareLive}` → `{shareLive}`: keep your live set from this buddy or share it again (#675) | 404 not your buddy |
 | DELETE | `/v1/community/buddies/:userId` | Bearer | Unpair, cancel or decline → 204; blocking or leaving the community also unpairs | |
 | POST | `/v1/community/buddies/:userId/cheers` | Bearer | `{kind fire\|banana\|beast}` to a paired buddy → 204 | 404 not paired; 60/min |
 | PUT | `/v1/community/live` | Bearer | Live set for buddies and the challenge room: `{title, exercise, detail?, state set\|rest\|done, challengeWeek?}` → 204; one row, replaced per set | 400 `objectionable_content`; 403 `community_profile_required` |

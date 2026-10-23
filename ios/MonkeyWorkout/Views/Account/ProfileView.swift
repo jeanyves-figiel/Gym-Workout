@@ -103,6 +103,11 @@ struct ProfileView: View {
                     ShowGymCard()
                     AccountNote(text: "Default visibility of your posts, auto-share and your gym.")
                     Group {
+                        NavigationLink { LiveSharingView() } label: {
+                            AccountCard(symbol: "dot.radiowaves.left.and.right", title: "Live sharing",
+                                        subtitle: "Always, ask or never · who sees your sets",
+                                        gradient: WorkoutEngine.Category.cardio.gradient)
+                        }
                         NavigationLink { BlockedMembersView() } label: {
                             AccountCard(symbol: "hand.raised.fill", title: "Blocked members", gradient: WorkoutEngine.Category.mobility.gradient)
                         }

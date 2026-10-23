@@ -114,7 +114,7 @@ CREATE TABLE community_blocks (
 CREATE TABLE community_buddies (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       buddy_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      created_at TEXT NOT NULL,
+      created_at TEXT NOT NULL, share_live INTEGER NOT NULL DEFAULT 1,
       PRIMARY KEY (user_id, buddy_id)
     );
 

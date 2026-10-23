@@ -164,4 +164,7 @@ export const ensureLiveSchema = (db: DB): void => {
     );
     CREATE INDEX IF NOT EXISTS community_challenge_board ON community_challenge_scores(week, score DESC);
   `);
+  // #675: a member can keep their live set from one buddy (their row toward that buddy).
+  const cols = db.prepare('PRAGMA table_info(community_buddies)').all() as { name: string }[];
+  if (!cols.some((c) => c.name === 'share_live')) db.exec('ALTER TABLE community_buddies ADD COLUMN share_live INTEGER NOT NULL DEFAULT 1');
 };

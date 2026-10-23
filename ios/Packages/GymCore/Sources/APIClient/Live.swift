@@ -44,16 +44,20 @@ public struct GymBuddy: Decodable, Sendable, Identifiable, Equatable, Hashable {
     public var status: Status
     /// Only for a paired buddy training in the last 10′.
     public var live: LiveSet?
+    /// False when you keep your live set from this buddy (#675). Nil from older servers: shared.
+    public var shareLive: Bool?
+    public var sharesLive: Bool { shareLive ?? true }
     public var id: String { userId }
     public var author: CommunityAuthor { CommunityAuthor(userId: userId, nickname: nickname, avatarUrl: avatarUrl, level: level) }
 
-    public init(userId: String, nickname: String, avatarUrl: String? = nil, level: Int? = nil, status: Status, live: LiveSet? = nil) {
+    public init(userId: String, nickname: String, avatarUrl: String? = nil, level: Int? = nil, status: Status, live: LiveSet? = nil, shareLive: Bool? = nil) {
         self.userId = userId
         self.nickname = nickname
         self.avatarUrl = avatarUrl
         self.level = level
         self.status = status
         self.live = live
+        self.shareLive = shareLive
     }
 }
 
@@ -134,6 +138,12 @@ extension APIClient {
 
     public func removeBuddy(_ userId: String) async throws {
         _ = try await authorizedRaw("DELETE", "/v1/community/buddies/\(userId)", Empty?.none)
+    }
+
+    /// Keep your live set from this buddy, or share it again (#675).
+    public func setBuddyShareLive(_ userId: String, _ share: Bool) async throws {
+        struct Body: Encodable { var shareLive: Bool }
+        _ = try await authorizedRaw("PATCH", "/v1/community/buddies/\(userId)", Body(shareLive: share))
     }
 
     public func cheerBuddy(_ userId: String, _ kind: LiveCheer) async throws {

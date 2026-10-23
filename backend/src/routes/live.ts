@@ -62,7 +62,7 @@ export const unpair = (db: DB, a: string, b: string) =>
   db.prepare('DELETE FROM community_buddies WHERE (user_id = ? AND buddy_id = ?) OR (user_id = ? AND buddy_id = ?)').run(a, b, b, a);
 
 export const liveExport = (db: DB, userId: string) => ({
-  buddies: db.prepare('SELECT buddy_id, created_at FROM community_buddies WHERE user_id = ?').all(userId),
+  buddies: db.prepare('SELECT buddy_id, share_live, created_at FROM community_buddies WHERE user_id = ?').all(userId),
   challengeScores: db.prepare('SELECT week, rounds, reps, updated_at FROM community_challenge_scores WHERE user_id = ? ORDER BY week').all(userId),
 });
 
@@ -77,7 +77,10 @@ export const liveRoutes = (r: FastifyInstance, db: DB, now: () => Date, push?: P
   const paired = (a: string, b: string) =>
     (db.prepare('SELECT COUNT(*) AS n FROM community_buddies WHERE (user_id = ? AND buddy_id = ?) OR (user_id = ? AND buddy_id = ?)').get(a, b, b, a) as { n: number }).n === 2;
   const fresh = (row: { updated_at: string } | undefined) => !!row && now().getTime() - Date.parse(row.updated_at) < LIVE_TTL_MS;
-  const liveOf = (userId: string) => {
+  /** `userId`'s live set, for `viewer` unless `userId` keeps it from them (#675). */
+  const liveOf = (userId: string, viewer: string) => {
+    const share = db.prepare('SELECT share_live FROM community_buddies WHERE user_id = ? AND buddy_id = ?').get(userId, viewer) as { share_live: number } | undefined;
+    if (share?.share_live === 0) return null;
     const row = db.prepare('SELECT * FROM community_live WHERE user_id = ?').get(userId) as LiveRow | undefined;
     return fresh(row) ? { title: row!.title, exercise: row!.exercise, detail: row!.detail, state: row!.state, updatedAt: row!.updated_at } : null;
   };
@@ -91,13 +94,14 @@ export const liveRoutes = (r: FastifyInstance, db: DB, now: () => Date, push?: P
       .prepare(
         `SELECT cp.user_id, cp.nickname, cp.avatar_id, cp.level,
            EXISTS (SELECT 1 FROM community_buddies x WHERE x.user_id = ? AND x.buddy_id = cp.user_id) AS mine,
-           EXISTS (SELECT 1 FROM community_buddies x WHERE x.user_id = cp.user_id AND x.buddy_id = ?) AS theirs
+           EXISTS (SELECT 1 FROM community_buddies x WHERE x.user_id = cp.user_id AND x.buddy_id = ?) AS theirs,
+           COALESCE((SELECT x.share_live FROM community_buddies x WHERE x.user_id = ? AND x.buddy_id = cp.user_id), 1) AS share_live
          FROM community_profiles cp
          WHERE cp.user_id IN (SELECT buddy_id FROM community_buddies WHERE user_id = ? UNION SELECT user_id FROM community_buddies WHERE buddy_id = ?)
            AND NOT EXISTS (SELECT 1 FROM community_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = cp.user_id) OR (b.blocker_id = cp.user_id AND b.blocked_id = ?))
          ORDER BY cp.nickname`,
       )
-      .all(me, me, me, me, me, me) as { user_id: string; nickname: string; avatar_id: string | null; level: number | null; mine: number; theirs: number }[];
+      .all(me, me, me, me, me, me, me) as { user_id: string; nickname: string; avatar_id: string | null; level: number | null; mine: number; theirs: number; share_live: number }[];
     return {
       buddies: rows.map((b) => {
         const status = b.mine && b.theirs ? 'paired' : b.mine ? 'invited' : 'invites_you';
@@ -107,7 +111,8 @@ export const liveRoutes = (r: FastifyInstance, db: DB, now: () => Date, push?: P
           avatarUrl: avatarUrl(b.avatar_id),
           level: b.level ?? null,
           status,
-          live: status === 'paired' ? liveOf(b.user_id) : null,
+          live: status === 'paired' ? liveOf(b.user_id, me) : null,
+          shareLive: b.share_live !== 0,
         };
       }),
     };
@@ -136,6 +141,16 @@ export const liveRoutes = (r: FastifyInstance, db: DB, now: () => Date, push?: P
       });
     }
     return { status };
+  });
+
+  /** Who sees my live set (#675): keep it from one buddy, or share it again. */
+  r.patch('/community/buddies/:userId', async (req) => {
+    const { userId } = userIdParam.parse(req.params);
+    const { shareLive } = z.object({ shareLive: z.boolean() }).parse(req.body);
+    const me = req.userId!;
+    const changed = Number(db.prepare('UPDATE community_buddies SET share_live = ? WHERE user_id = ? AND buddy_id = ?').run(shareLive ? 1 : 0, me, userId).changes);
+    if (!changed) throw new ApiError(404, 'not_found', 'Not your gym buddy.');
+    return { shareLive };
   });
 
   /** Unpair, cancel an invite or decline one. */
