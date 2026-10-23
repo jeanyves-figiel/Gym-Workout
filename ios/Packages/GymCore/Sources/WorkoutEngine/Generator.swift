@@ -57,7 +57,11 @@ public enum Generator {
         if ctx.variety == .same && week != 1 {
             ctx.replay = record(profile, seed: seed, split: split)
         }
-        return generateWeek(ctx)
+        let plan = generateWeek(ctx)
+        // Each day at its own gym (#684), then lifting and runs fitted together (#685); both off = as before.
+        let placed = fitPlaces(plan, profile, split: split)
+        let cal = Progression.calendar()
+        return RunPlanner.blend(placed, profile, weekStart: Progression.weekStart(Date(), cal), cal)
     }
 
     static func generateWeek(_ ctx: Ctx) -> WeekPlan {

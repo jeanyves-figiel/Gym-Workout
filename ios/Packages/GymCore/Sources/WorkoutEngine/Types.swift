@@ -287,6 +287,12 @@ public struct Profile: Codable, Hashable, Sendable {
     /// Run & cardio programme (#618): a race with a goal time, or Hybrid; nil = none. Runs are planned around lifting.
     public var runGoal: RunGoal?
 
+    /// Where the member lifts on each weekday (#684), weekday "1"…"7" → saved gym id; nil = the plan's gym every day.
+    public var dayPlaces: [String: String]?
+    /// Equipment of those gyms (#684), keyed like `dayPlaces`. Set by the app from the saved gyms when generating;
+    /// not part of the profile form. Days at the plan's own gym have no entry.
+    public var dayKits: [String: DayKit]?
+
     /// Usually trains before 11:00: muscles start cooler, the warm-up gets one more minute of cardio (#377).
     public var trainsInMorning: Bool { workoutTime.map { $0 < 11 * 60 } ?? false }
 
@@ -402,6 +408,10 @@ public struct Session: Codable, Hashable, Sendable, Identifiable {
     public var blocks: [Block]
     /// 1 = Monday … 7 = Sunday when the plan is laid out on weekdays (climbing/gym days set); nil otherwise.
     public var weekday: Int? = nil
+    /// Gym the session is planned for when it isn't the plan's gym (#684): "Home", "Puls 5"; nil = the plan's gym.
+    public var place: String? = nil
+    /// How the day's lifting and the planned run fit together (#685), e.g. "Long run tomorrow: leg work −1 set."
+    public var synergy: String? = nil
 }
 
 public struct WeekPlan: Codable, Hashable, Sendable {

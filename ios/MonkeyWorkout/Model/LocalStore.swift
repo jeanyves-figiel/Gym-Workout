@@ -68,10 +68,26 @@ struct SyncedProfile: Codable, Equatable, Sendable {
 
     /// Training profile with this week's learned tastes (#299): quick sessions and plan variations.
     var tasteProfile: Profile {
-        var p = profile
+        var p = placedProfile
         p.learnedTaste = weekTaste
         // Longer warm-up cardio from 50 (#375).
         p.birthYear = body?.birthYear
+        return p
+    }
+
+    /// The training profile with the kit of each weekday's gym (#684), from the saved gyms. Days at the plan's own
+    /// gym (or a gym no longer saved) have no kit.
+    var placedProfile: Profile {
+        var p = profile
+        guard let places = p.dayPlaces else { return p }
+        let own = p.gym?.id ?? Gym.puls5.ref.id
+        var kits: [String: DayKit] = [:]
+        for (day, id) in places where id != own {
+            if let g = savedGyms?.first(where: { $0.id == id }) {
+                kits[day] = DayKit(gymId: g.id, name: g.ref.name, equipment: g.equipment, layout: g.layout)
+            }
+        }
+        p.dayKits = kits.isEmpty ? nil : kits
         return p
     }
 
