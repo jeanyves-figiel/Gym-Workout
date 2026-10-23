@@ -150,6 +150,75 @@ struct BuddyToast: View {
     }
 }
 
+/// Player top bar (#675 C): green LIVE while buddies see your sets, grey PRIVATE while they only see "Training".
+struct LiveShareTile: View {
+    private var live: LiveRoom { .shared }
+
+    var body: some View {
+        let on = live.sharing
+        Button { live.toggleSharing() } label: {
+            Image(systemName: on ? "dot.radiowaves.left.and.right" : "eye.slash.fill").font(.system(size: 15, weight: .heavy))
+                .foregroundStyle(on ? Theme.ink : .white)
+                .frame(width: 44, height: 44)
+                .background(RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .fill(on ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x00B86B), Color(hex: 0x1E9BFF)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                             : AnyShapeStyle(Theme.cardStrong)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(on ? "Live with buddies" : "Private")
+        .accessibilityHint(on ? "Go private: buddies only see that you train" : "Go live: buddies see your sets")
+        .accessibilityIdentifier("player.liveShare")
+    }
+}
+
+/// Your profile › Community (#675 B): the live sharing default and who sees it.
+struct LiveSharingView: View {
+    @Environment(AppModel.self) private var model
+    @AppStorage(LiveSharePref.key) private var pref = LiveSharePref.always.rawValue
+    private var live: LiveRoom { .shared }
+
+    var body: some View {
+        let current = LiveSharePref(rawValue: pref) ?? .always
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Live sharing").font(Theme.display(22))
+                    Picker("Live sharing", selection: $pref) {
+                        ForEach(LiveSharePref.allCases) { Text($0.title).tag($0.rawValue) }
+                    }
+                    .pickerStyle(.segmented)
+                    Text(current.note).font(Theme.label(13)).opacity(0.92)
+                }
+                .foregroundStyle(.white)
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(LinearGradient(colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E88FF)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+                if current != .never {
+                    Text("Who sees it").font(Theme.label(13)).tracking(1.2).textCase(.uppercase).foregroundStyle(Theme.muted).padding(.top, 8)
+                    if live.paired.isEmpty {
+                        AccountNote(text: "No gym buddies yet. Pair from a member's page in Community.")
+                    }
+                    ForEach(live.paired) { b in
+                        Toggle(isOn: Binding(get: { b.sharesLive }, set: { on in Task { await live.setShare(b.userId, on, api: model.api) } })) {
+                            Text(b.nickname).font(.system(.body, design: .rounded).weight(.heavy))
+                        }
+                        .tint(Theme.lime)
+                        .card(padding: 14)
+                    }
+                    AccountNote(text: "Off: that buddy doesn't see you training. Cheers still come through from buddies who see you.")
+                }
+                ErrorText(message: live.error)
+            }
+            .padding(16)
+        }
+        .background(Theme.bg.ignoresSafeArea())
+        .navigationTitle("Live sharing")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await live.load(api: model.api) }
+    }
+}
+
 // MARK: C: weekly challenge room
 
 private let challengeGradient = LinearGradient(colors: [Color(hex: 0xFF7A00), Color(hex: 0xFF3D8B)], startPoint: .topLeading, endPoint: .bottomTrailing)

@@ -16,7 +16,7 @@ struct SessionView: View {
     /// Swap from a card that changes this workout's own list (#295) rather than the plan.
     @State private var pickingSwap: ExerciseRef?
     /// Gym map opened from the route card (#406); saved when it closes.
-    @State private var mapDraft: GymLayout?
+    @State private var mapDraft: GymLayout = .starter
     @State private var mapOpen = false
     /// A missed day's session logged after the fact (#537).
     @State private var loggingMissed = false
@@ -82,11 +82,10 @@ struct SessionView: View {
             }
             .sheet(item: $editingCustom) { w in CustomWorkoutEditor(initial: w) }
             .sheet(isPresented: $mapOpen, onDismiss: {
-                if let d = mapDraft { model.setGymLayout(d) }
-                mapDraft = nil
+                model.setGymLayout(mapDraft)
             }) {
-                FloorPlanSheet(layout: Binding(get: { mapDraft ?? .starter }, set: { mapDraft = $0 }),
-                               equipment: model.profile?.equipment ?? [])
+                // Plain @State binding (#673): see ExploreGymSheet.
+                FloorPlanSheet(layout: $mapDraft, equipment: model.profile?.equipment ?? [])
             }
             .sheet(item: $swapping) { ref in
                 if let uid = ref.uid { SwapExerciseSheet(exerciseId: ref.exerciseId, uid: uid) }
