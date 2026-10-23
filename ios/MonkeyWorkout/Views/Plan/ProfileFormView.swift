@@ -22,15 +22,19 @@ struct ProfileFormView: View {
     private let isNew: Bool
     /// Section to scroll to on appear (demo screenshots).
     private let scrollTo: String?
+    /// Guided onboarding (#664) picked the gym in its own step: the form leaves it out.
+    private let hideGym: Bool
 
     /// `restoring`: the section's values brought back by Undo (#285).
+    /// `newMember`: a first plan from a draft the guided onboarding (#664) started (gym and machines picked).
     init(initial: Profile?, section: ProfileSection? = nil, scrollTo: String? = nil, onGymChange: ((Profile) -> Void)? = nil,
-         restoring: Profile? = nil, onSave: @escaping (Profile) -> Void) {
+         restoring: Profile? = nil, newMember: Bool = false, onSave: @escaping (Profile) -> Void) {
         self.onSave = onSave
         self.onGymChange = onGymChange
         self.section = section
         self.scrollTo = scrollTo
-        isNew = initial == nil
+        hideGym = newMember
+        isNew = initial == nil || newMember
         var start = initial ?? Profile()
         if initial == nil {
             start.applyGoal(start.goal)
@@ -97,8 +101,10 @@ struct ProfileFormView: View {
                         content(.flow)
                         Text("Training method").eyebrow().padding(.top, 14).id("method")
                         content(.method)
-                        Text("Your gym").eyebrow().padding(.top, 14)
-                        content(.gym)
+                        if !hideGym {
+                            Text("Your gym").eyebrow().padding(.top, 14)
+                            content(.gym)
+                        }
 
                         if isNew {
                             Text("Your body figure").eyebrow().padding(.top, 14).id("figure")
@@ -633,8 +639,16 @@ struct DayTiles: View {
 
 // MARK: - Gym
 
-private struct GymPicker: View {
+/// Also the guided onboarding's gym step (#664), with the ways to add a gym open.
+struct GymPicker: View {
     @Binding var profile: Profile
+    /// Opens on Near me / Search by name / Home or hotel (#664): a new member picks their gym first.
+    var openAdd = false
+
+    init(profile: Binding<Profile>, openAdd: Bool = false) {
+        _profile = profile
+        self.openAdd = openAdd
+    }
     @Environment(AppModel.self) private var model
     @State private var query = ""
     @State private var results: [GymRef] = []
@@ -809,6 +823,7 @@ private struct GymPicker: View {
                 profile.gymLayout = model.savedGyms.first { $0.id == g.id }?.layout
             }
         }
+        .onAppear { if openAdd, profile.gym == nil { adding = true } }
         .task(id: query) {
             let q = query.trimmingCharacters(in: .whitespaces)
             guard q.count >= 2 else {
