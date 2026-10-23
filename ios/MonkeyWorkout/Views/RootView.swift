@@ -239,6 +239,7 @@ private struct DemoScreen: View {
         case "machine": NavigationStack { MachineDetailView(item: .cable) }
         // Training programmes (#255); train-programme and programme-test are the Train tab.
         case "explore-programmes": NavigationStack { LibraryView(mode: .programmes) }
+        case "explore-routines": NavigationStack { LibraryView(mode: .routines) }
         case "programme", "programme-running": NavigationStack { ProgrammeDetailView(programme: Programme.all[0]) }
         case "programme-length": NavigationStack { ProgrammeDetailView(programme: Programme.all[0], demoLength: true) }
         case "programme-grid", "programme-grid-running":
