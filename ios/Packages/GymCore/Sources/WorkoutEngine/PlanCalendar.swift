@@ -194,7 +194,7 @@ public enum PlanCalendar {
         // No gym on can't-train days or sport trip days.
         let blocked = Set(off.keys).union(sportTrips.keys)
         // No climbing at home while away.
-        let climbing = profile.climbingDays.filter { !blocked.contains($0) && travel[$0] == nil }
+        let climbing = profile.climbingDays.filter { !blocked.contains($0) && travel[$0] == nil && !profile.isSportOff(days[$0 - 1]) }
         let unmoved = base ?? Generator.generateWeek(profile, week: week, seed: seed)
         var plan = unmoved.pinning(fixed)
         let untouched = blocked.isEmpty && travel.isEmpty && firstDay <= 1
@@ -296,7 +296,7 @@ public enum PlanCalendar {
     public static func weeks(
         _ profile: Profile, seed: UInt32, currentWeek: Int, current: WeekPlan?, done: Set<String>,
         away: [AwayPeriod], now: Date = Date(), count: Int = horizonWeeks, fixed: [String: Int] = [:], calendar cal: Calendar,
-        future: ((Int) -> (profile: Profile, week: Int, seed: UInt32))? = nil
+        future: ((Int) -> (profile: Profile, week: Int, seed: UInt32))? = nil, laterFixed: [String: [String: Int]] = [:]
     ) -> [Week] {
         let thisMonday = Progression.weekStart(now, cal)
         let today = WeekSchedule.fromCalendar(cal.component(.weekday, from: now))
@@ -310,11 +310,13 @@ public enum PlanCalendar {
                              base: current, done: done, firstDay: touched ? today : 1, fixed: fixed, calendar: cal)
             }
             // A training programme (#255) sets each coming week's profile, cycle week and seed.
+            // Sessions moved in a later week (#671) keep their day there, keyed by that week's Monday.
+            let moved = laterFixed[key(start, cal)] ?? [:]
             if let f = future?(offset) {
-                return adapt(f.profile, week: f.week, seed: f.seed, weekStart: start, away: away, calendar: cal)
+                return adapt(f.profile, week: f.week, seed: f.seed, weekStart: start, away: away, fixed: moved, calendar: cal)
             }
             return adapt(profile, week: cycleWeek(current: currentWeek, offset: offset), seed: seed,
-                         weekStart: start, away: away, calendar: cal)
+                         weekStart: start, away: away, fixed: moved, calendar: cal)
         }
     }
 

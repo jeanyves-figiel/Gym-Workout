@@ -59,7 +59,7 @@ extension AppModel {
         // Library extras and one-off moves (#113) show on their day this week.
         return PlanCalendar.weeks(sp.profile, seed: sp.seed, currentWeek: sp.week, current: plan, done: doneIds,
                                   away: away, now: now, count: count, fixed: movesThisWeek(now), calendar: planCalendar,
-                                  future: programmeWeeks(sp))
+                                  future: programmeWeeks(sp), laterFixed: laterMoves(now))
     }
 
     /// First session of a later week (#473), for Next up once this week has nothing left.
@@ -182,20 +182,21 @@ extension AppModel {
         if !swap { changes = changes.filter { $0.key == sessionId } }
         guard !changes.isEmpty else { return }
         let monday = mondayKey(now)
-        var moves = (sp.moves ?? []).filter { $0.weekOf == monday }
+        // Later weeks' moves (#671) stay; earlier weeks' are dropped.
+        var moves = (sp.moves ?? []).filter { $0.weekOf >= monday }
         for (id, wd) in changes {
             if let insId = week.plan.sessions.first(where: { $0.id == id })?.planInsertId,
                let i = sp.planInserts?.firstIndex(where: { $0.id == insId }) {
                 if let r = sp.planInserts?[i].replacing {
                     // A library workout in place of a planned day moves with that day's slot.
                     guard let base = state.plan, base.sessions.indices.contains(r) else { continue }
-                    moves.removeAll { $0.sessionId == base.sessions[r].id }
+                    moves.removeAll { $0.weekOf == monday && $0.sessionId == base.sessions[r].id }
                     moves.append(SessionMove(weekOf: monday, sessionId: base.sessions[r].id, weekday: wd))
                 } else {
                     sp.planInserts?[i].weekday = wd
                 }
             } else {
-                moves.removeAll { $0.sessionId == id }
+                moves.removeAll { $0.weekOf == monday && $0.sessionId == id }
                 moves.append(SessionMove(weekOf: monday, sessionId: id, weekday: wd))
             }
         }
