@@ -21,9 +21,10 @@ flowchart TD
   Launch --> Phase{AppModel.phase}
   Phase -- signedOut --> Auth["AuthFlowView<br/>Welcome · Sign in with Apple · email sign up / sign in · verify code · reset · passkey · 2-step"]
   Phase -- signedIn --> Onb{"Profile set?"}
-  Onb -- no --> Profile["Your training (ProfileFormView)<br/>goal, days, level, body, climbing, gym<br/>then one skippable Pro offer"]
+  Onb -- no --> Guided["Guided onboarding (OnboardingFlowView, #664)<br/>Gym → Machines → Map → Plan or programme → Tour<br/>each step skippable; plan step = ProfileFormView or a programme"]
   Onb -- yes --> Tabs
-  Profile --> Tabs
+  Guided --> Tour["App tour (AppTourOverlay) over the tabs<br/>then one skippable Pro offer"]
+  Tour --> Tabs
   subgraph Tabs["MainTab"]
     Train
     Explore
@@ -36,6 +37,13 @@ flowchart TD
 ```
 
 The app turns signed-in from the Keychain token before any network call, so every tab renders from the local cache on the first frame. Every tab header is a `TabHeader` with tab actions as 44 pt square tiles and the **Me pill** (level + photo) at the right.
+
+### Onboarding (`Views/Onboarding`, #664)
+
+- **Guided flow** (`OnboardingFlowView`, mode `newMember` / `rerun` / `single(step)`): Gym (`GymPicker`, add choices open) → Machines (`EquipmentSheet`) → Map (zones + `FloorPlanSheet`) → Plan (Build my plan = `ProfileFormView(newMember:)` without the gym section, or one of 4 one-tap programmes; re-run adds Keep my plan) → Tour. Skip on every step; a new member's skipped plan step makes the draft a starter plan. Nothing is saved before the plan step; `AppModel.onboardingOpen` keeps the flow up after it.
+- **App tour** (`AppTourOverlay`, `AppTour.steps`): six stops (Train, Explore, Progress, Fuel, Community, Coach Monkey), switches `model.tab`, Next / Skip tour. The first Pro offer waits for its end (`proAfterTour`).
+- **Set-up card** (`SetupCard`, first in Train's notice slot): steps not done, each opens the step on its own; ✕ hides it (`hideSetupCard`). State `SyncedProfile.onboarding` (engine `OnboardingProgress`: `done`, `cardHidden`); nil = member from before #664, no card.
+- Demo screens `onboarding-gym`, `onboarding-machines`, `onboarding-map`, `onboarding-plan`, `onboarding-tour`, `app-tour`, `train-setup`, `onboarding-hub`.
 
 ## Tabs
 
@@ -94,7 +102,7 @@ Me sheet: photo, name, @nickname, level bar → **Your profile**, Levels, Settin
 
 | Chapter | Contents |
 |---|---|
-| You | Profile, body, pronouns and coach call name, your gym (`YourGymCard`) |
+| You | Profile, body, pronouns and coach call name, your gym (`YourGymCard`), **Onboarding** (`OnboardingHubView`: run it all again or one step, tour, set-up card on/off) |
 | Training | Training preferences, coach settings and voices, auto-next, lift sensor |
 | Watches | Apple Watch home style and options (`WatchHomeView`), Garmin pairing (`GarminView`) |
 | Look & apps | App style, Home Screen widgets (`HomeWidgetsView`), MonkeyGrade link |

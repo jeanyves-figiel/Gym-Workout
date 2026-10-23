@@ -39,6 +39,12 @@ final class AppModel {
     var settingsOpen = false
     /// Me sheet (#560): profile, level and Settings from the Me pill.
     var meOpen = false
+    /// Guided onboarding on screen (#664): keeps it up after its plan step made the profile, until the tour step.
+    var onboardingOpen = false
+    /// App tour bubble showing (#664), index into `AppTour.steps`; nil = no tour.
+    var tourStep: Int?
+    /// Pro offer waiting for the end of the first tour (#664).
+    var proAfterTour = false
     /// Progress section to scroll to when Progress opens from a Train widget (#260).
     var progressJump: ProgressSection?
     /// Explore mode to show when Explore opens from elsewhere, e.g. Progress → Programmes with none started (#345).
@@ -170,6 +176,7 @@ final class AppModel {
             Demo.missed(self)
             Demo.sportTrips(self)
             Demo.runs(self)
+            Demo.onboarding(self)
             if Demo.screen == "workout-style", let id = state.plan?.sessions.dropFirst().first?.id {
                 setSessionStyle(id, SessionStyle(rest: .short, grouping: .supersets))
             }
@@ -428,12 +435,23 @@ final class AppModel {
                                taste: state.synced?.taste,
                                weekTaste: newWeek ? freshWeekTaste : state.synced?.weekTaste)
         let keptGrowth = state.synced?.growth
+        let outside = (sportAddOn: state.synced?.sportAddOn, skills: state.synced?.skills, bikeFTP: state.synced?.bikeFTP,
+                    bikeFTPTestedAt: state.synced?.bikeFTPTestedAt, lifeStage: state.synced?.lifeStage,
+                    onboarding: state.synced?.onboarding)
         let learning = (tasteOff: state.synced?.tasteOff, recap: newWeek ? nil : state.synced?.tasteRecap)
         state.synced = sp
         state.synced?.tasteOff = learning.tasteOff
         state.synced?.tasteRecap = learning.recap
         // Growing with the member (#495) outlives every week and profile edit.
         state.synced?.growth = keptGrowth
+        // Settings kept outside the profile also outlive it (#664 found the sport add-on, skills, FTP and
+        // life-stage check-in dropped on every profile edit).
+        state.synced?.sportAddOn = outside.sportAddOn
+        state.synced?.skills = outside.skills
+        state.synced?.bikeFTP = outside.bikeFTP
+        state.synced?.bikeFTPTestedAt = outside.bikeFTPTestedAt
+        state.synced?.lifeStage = outside.lifeStage
+        state.synced?.onboarding = outside.onboarding
         // A profile edit (goal, days, gym…) re-plans the rest of this week (#194): sessions already done and the
         // one in progress keep their content; everything else follows the new profile.
         let kept = newWeek ? [] : doneIds.union([state.activeWorkout?.sessionId].compactMap { $0 })

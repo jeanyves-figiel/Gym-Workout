@@ -14,17 +14,9 @@ struct RootView: View {
             case .signedOut:
                 AuthFlowView()
             case .signedIn:
-                if model.profile == nil {
-                    NavigationStack {
-                        ProfileFormView(initial: nil) { p in
-                            model.applyProfile(p)
-                            // New accounts start on this release: no "What's new" for them (#183).
-                            WhatsNew.markSeen()
-                            // Pro (#126): one offer, right after the first plan, skippable. Never shown again at launch.
-                            model.offerPro = ProStore.shared.badged
-                        }
-                            .navigationTitle("Your training")
-                    }
+                // Guided onboarding (#664): stays up after its plan step made the profile, until the tour step.
+                if model.profile == nil || model.onboardingOpen {
+                    OnboardingFlowView(mode: .newMember, profile: nil)
                 } else {
                     #if DEBUG
                     if model.demo { DemoScreen() } else { MainTabView() }
@@ -88,6 +80,8 @@ struct MainTabView: View {
         .sidebarAdaptableTabs()
         // Ask Coach everywhere (#412 A): the floating 🐵 and its chat, which knows the screen on top.
         .overlay { if coachBubble { AskCoachBubble() } }
+        // App tour (#664): over everything on the tabs, the bubble for the tab showing.
+        .overlay { if model.tourStep != nil { AppTourOverlay() } }
         .sheet(item: $ask.request) { r in CoachChatView(ask: r).remotePaused(.askCoach) }
         .sheet(item: $exerciseLaunch.item) { i in NavigationStack { ExerciseDetailView(exerciseId: i.id) } }
         // Me sheet (#560): the Me pill at the top right of every tab.
@@ -372,6 +366,13 @@ private struct DemoScreen: View {
                                                question: "My shoulder clicks on this one"))
         case "ask-coach-bubble":
             NavigationStack { ExerciseDetailView(exerciseId: "bench-press") }.overlay { AskCoachBubble() }
+        // Guided onboarding (#664): each step, the app tour, the set-up card and Settings → Onboarding.
+        case "onboarding-gym", "onboarding-machines", "onboarding-map", "onboarding-plan", "onboarding-tour":
+            OnboardingFlowView(mode: .newMember, profile: nil,
+                               startAt: OnboardingStep(rawValue: String(Demo.screen.dropFirst("onboarding-".count))) ?? .gym)
+        case "app-tour": MainTabView()
+        case "train-setup": NavigationStack { WeekView() }
+        case "onboarding-hub": NavigationStack { OnboardingHubView() }
         case "onboarding", "onboarding-climbing":
             NavigationStack {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
