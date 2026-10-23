@@ -460,6 +460,8 @@ struct OnboardingHubView: View {
     @Environment(AppModel.self) private var model
     @State private var rerun = false
     @State private var open: OnboardingStep?
+    @State private var fuel = false
+    @State private var fuelStore = FuelStore.shared
 
     private var progress: OnboardingProgress? { model.onboarding }
 
@@ -492,6 +494,10 @@ struct OnboardingHubView: View {
                     Button { if s == .tour { model.startTour() } else { open = s } } label: { row(s) }
                         .buttonStyle(.plain)
                 }
+                // Fuel set-up (#686): left for later from the Set up Fuel card.
+                Button { fuel = true } label: { fuelRow }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("onboarding.fuel")
 
                 if let progress, !progress.finished {
                     Toggle(isOn: Binding(get: { !progress.cardHidden }, set: { model.hideSetupCard(!$0) })) {
@@ -514,6 +520,26 @@ struct OnboardingHubView: View {
         .sheet(item: $open) { s in
             OnboardingFlowView(mode: .single(s), profile: model.profile) { open = nil }
         }
+        .sheet(isPresented: $fuel) { NavigationStack { FuelSetupView(sheet: true) } }
+    }
+
+    private var fuelRow: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "fork.knife")
+                .font(.system(size: 20, weight: .bold))
+                .frame(width: 46, height: 46)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.22)))
+            Text("Fuel").font(Theme.display(19)).lineLimit(1)
+            Spacer(minLength: 4)
+            Text(fuelStore.saved.setUp ? "DONE ✓" : "LATER")
+                .font(Theme.label(11)).tracking(1)
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(Capsule().fill(.black.opacity(0.18)))
+            Image(systemName: "chevron.right").font(.footnote.bold()).opacity(0.7)
+        }
+        .foregroundStyle(Theme.ink)
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(FuelPalette.lime))
     }
 
     private func row(_ s: OnboardingStep) -> some View {
