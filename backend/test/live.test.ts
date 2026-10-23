@@ -38,7 +38,7 @@ beforeEach(() => {
 });
 afterEach(() => app.close());
 
-const req = (method: 'GET' | 'POST' | 'PUT' | 'DELETE', url: string, t: string, payload?: object) =>
+const req = (method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', url: string, t: string, payload?: object) =>
   app.inject({ method, url, headers: { authorization: `Bearer ${t}` }, ...(payload ? { payload } : {}) });
 
 const signUp = async (email: string) => {
@@ -90,6 +90,21 @@ describe('gym buddies', () => {
     clock = new Date(clock.getTime() + 11 * 60_000);
     expect((await req('GET', '/v1/community/buddies', tom.t)).json().buddies[0].live).toBeNull();
     expect((await req('GET', '/v1/community/live/cheers', ana.t)).json().cheers).toEqual([]);
+  });
+
+  it('keeps the live set from one buddy (#675)', async () => {
+    const ana = await join('ana@example.com', 'ana');
+    const tom = await join('tom@example.com', 'tom');
+    await req('PUT', `/v1/community/buddies/${tom.id}`, ana.t);
+    await req('PUT', `/v1/community/buddies/${ana.id}`, tom.t);
+    await req('PUT', '/v1/community/live', ana.t, set);
+    expect((await req('GET', '/v1/community/buddies', ana.t)).json().buddies[0]).toMatchObject({ shareLive: true });
+    expect((await req('PATCH', `/v1/community/buddies/${tom.id}`, ana.t, { shareLive: false })).json()).toEqual({ shareLive: false });
+    expect((await req('GET', '/v1/community/buddies', ana.t)).json().buddies[0]).toMatchObject({ shareLive: false });
+    expect((await req('GET', '/v1/community/buddies', tom.t)).json().buddies[0]).toMatchObject({ status: 'paired', live: null });
+    await req('PATCH', `/v1/community/buddies/${tom.id}`, ana.t, { shareLive: true });
+    expect((await req('GET', '/v1/community/buddies', tom.t)).json().buddies[0].live).toMatchObject({ exercise: 'Squat' });
+    expect((await req('PATCH', `/v1/community/buddies/${ana.id}x`, ana.t, { shareLive: false })).statusCode).toBe(404);
   });
 
   it('pushes the invite, and the pairing back, once', async () => {

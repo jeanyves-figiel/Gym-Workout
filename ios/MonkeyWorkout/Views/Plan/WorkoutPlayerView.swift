@@ -955,6 +955,8 @@ struct WorkoutPlayerView: View {
             .accessibilityLabel("Exercise \(index + 1) of \(steps.count). Open workout map")
             // Coach voice (#379): glows while talking, tap mutes it for this workout.
             if coach.hasVoice { CoachPill(coach: coach) }
+            // Gym buddies (#675 C): LIVE ⇄ PRIVATE for this workout, only while someone could see it.
+            if LiveRoom.shared.canShare { LiveShareTile() }
             // Hands-free (#412 C): say a command, or ask Coach about this exercise.
             if AskCoachPref.playerMic { micButton }
             // Tap the clock to finish early (#300); after a fit it counts down to the time to be done by.

@@ -2977,7 +2977,7 @@
         "tags": [
           "Community"
         ],
-        "summary": "Gym buddies (#626) → {buddies: [{userId, nickname, avatarUrl, level, status paired|invited|invites_you, live}]}; live (title, exercise, detail, state set|rest|done, updatedAt) only when paired and sent in the last 10′",
+        "summary": "Gym buddies (#626) → {buddies: [{userId, nickname, avatarUrl, level, status paired|invited|invites_you, live, shareLive}]}; shareLive false when you keep your live set from them (#675); live (title, exercise, detail, state set|rest|done, updatedAt) only when paired and sent in the last 10′",
         "description": "Errors / limits: 403 community_profile_required",
         "security": [
           {
@@ -3005,6 +3005,40 @@
         ],
         "summary": "Invite, or accept an invite → {status: paired|invited}; up to 20; push buddy_invite (actorId, actorName) to the invitee, or to the inviter once paired",
         "description": "Errors / limits: 400 own_content, too_many_buddies; 404",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "{shareLive} → {shareLive}: keep your live set from this buddy or share it again (#675)",
+        "description": "Errors / limits: 404 not your buddy",
         "parameters": [
           {
             "name": "userId",
