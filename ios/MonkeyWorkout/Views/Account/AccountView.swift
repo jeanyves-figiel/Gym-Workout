@@ -38,6 +38,7 @@ struct AccountView: View {
         static let profile = "Your profile name nickname photo about avatar community gender pronouns coach calls you how we talk to you"
         static let gym = "Your gym equipment trip travel"
         static let body = "Body & Health height weight sex figure apple health"
+        static let onboarding = "Onboarding set up setup guide tour show me round gym machines map first plan programme start again"
         static let method = "Training method block dup rir volume minimal"
         static let flow = "After last set workout flow next exercise countdown auto"
         static let coach = "Workout coach voice monkey hype chill drill haptics ask coach bubble microphone talk mic hands-free"
@@ -66,7 +67,7 @@ struct AccountView: View {
         static let support = "Support help contact"
         static let report = "Report a problem bug feedback broken idea shake screenshot"
 
-        static let you = [pro, profile, gym, body]
+        static let you = [pro, profile, gym, body, onboarding]
         static let training = [method, flow, coach, reminders, climbing, fuel]
         static let watch = [watchStart, action, lift, garmin, bike]
         static let look = [style, widgets, monkeyGrade]
@@ -217,6 +218,16 @@ struct AccountView: View {
                                     value: kg.map { Format.kg(($0 * 10).rounded() / 10) + " kg" } ?? (health.connected ? "Health on" : nil))
                     }
                     .buttonStyle(.plain)
+                }
+                // Onboarding again (#664): every step or one, and the app tour.
+                if search.matches(Find.onboarding) {
+                    NavigationLink { OnboardingHubView() } label: {
+                        let left = model.onboarding?.later.count
+                        SettingsRow(symbol: "flag.checkered", title: "Onboarding",
+                                    value: left.map { $0 == 0 ? "Done" : "\($0) to do" })
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("settings.onboarding")
                 }
             }
         }

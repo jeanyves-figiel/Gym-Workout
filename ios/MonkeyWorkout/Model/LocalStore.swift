@@ -63,6 +63,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var bikeFTPTestedAt: Date?
     /// Life-stage programme check-in (#625): due date, birth, weeks off, doctor's OK.
     var lifeStage: LifeStageCheckIn?
+    /// New member onboarding (#664): steps done and the set-up card closed; nil = member from before it.
+    var onboarding: OnboardingProgress?
 
     /// Training profile with this week's learned tastes (#299): quick sessions and plan variations.
     var tasteProfile: Profile {
