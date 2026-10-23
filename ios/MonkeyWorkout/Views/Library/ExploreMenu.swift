@@ -84,10 +84,10 @@ extension LibraryView.Mode {
         case exercises, readyMade
         var label: String { self == .exercises ? "Exercises" : "Ready-made" }
         var symbol: String { self == .exercises ? "dumbbell.fill" : "list.bullet.rectangle.fill" }
-        var modes: [LibraryView.Mode] { self == .exercises ? [.muscles, .machines, .categories] : [.workouts, .programmes] }
+        var modes: [LibraryView.Mode] { self == .exercises ? [.muscles, .machines, .categories] : [.workouts, .routines, .programmes] }
     }
 
-    var group: MenuGroup { [.workouts, .programmes].contains(self) ? .readyMade : .exercises }
+    var group: MenuGroup { [.workouts, .routines, .programmes].contains(self) ? .readyMade : .exercises }
 
     /// Tile label under the Exercises / Ready-made switch.
     var short: String {
@@ -96,6 +96,7 @@ extension LibraryView.Mode {
         case .machines: "By machine"
         case .categories: "By type"
         case .workouts: "Workouts"
+        case .routines: "Routines"
         case .programmes: "Plans"
         }
     }
@@ -106,6 +107,7 @@ extension LibraryView.Mode {
         case .machines: "gearshape.2.fill"
         case .categories: "square.grid.2x2.fill"
         case .workouts: "list.bullet.rectangle.fill"
+        case .routines: "figure.flexibility"
         case .programmes: "flag.checkered"
         }
     }
@@ -117,6 +119,7 @@ extension LibraryView.Mode {
         case .machines: .warmup
         case .categories: .stretch
         case .workouts: .cardio
+        case .routines: .stretch
         case .programmes: .power
         }
     }
