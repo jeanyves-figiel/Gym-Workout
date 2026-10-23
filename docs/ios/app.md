@@ -83,6 +83,7 @@ Two-level menu (`ExploreMenu`): **Exercises** by muscle (2D/3D body map, `Muscle
 - Exercise page (`ExerciseDetailView`, `ExerciseJumpBar`): animation, technique cues (`TechniqueView`), position guide, variations (`VariationSheet`), history and records (`ExerciseHistoryView`), PR attempt (`PRAttemptView`), machine setup notes with photo (`MachineNoteViews`).
 - Custom exercises (`CustomExerciseBuilderView`, pose designer) and custom workouts (`CustomWorkoutViews`, share to library).
 - Gyms (`Views/Gyms`): gym finder and place search, equipment setup (`GymSetupView`, `EquipmentViews`), gym scan by photo, gym map with zones and *Taken?* (`GymMapViews`, `GymZoneViews`), *Not here* reports.
+- **Your own gym** (#680, `OwnGymViews`): Search by name (`GymPicker`) and Find a gym (`GymFinderView` with `onPick`) end with `AddOwnGymRow` (*Add "<name>"*); long-press the finder map drops a pin. `OwnGymSheet`: name required, address + pin optional (tap map, typed address geocoded, Use my location; pin reverse-geocoded) → `SavedGym.customRef(name:address:latitude:longitude:)` (`custom:` id, private, never in gym memory) → `GymSetupView`. Demo screen `own-gym`.
 
 ### Progress (`Views/Progress`)
 

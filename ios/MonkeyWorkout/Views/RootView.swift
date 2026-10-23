@@ -464,6 +464,7 @@ private struct DemoScreen: View {
         case "train-gallery": TrainWidgetGallery()
         case "train-customise": TrainCustomiseSheet()
         case "gyms": GymFinderView(place: "Zürich")
+        case "own-gym": OwnGymSheet(name: "Kraftwerk Garage Gym") { _ in }
         case "move": MoveSessionSheet(sessionId: second)
         // Fuel (#496).
         case "fuel", "fuel-timeline", "fuel-portions": NavigationStack { FuelView() }

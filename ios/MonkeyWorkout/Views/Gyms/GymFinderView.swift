@@ -141,6 +141,9 @@ struct GymFinderView: View {
     @State private var guess: String?
     @State private var previewTask: Task<Void, Never>?
     @State private var previewKey = ""
+    /// Your own gym (#680): the form, and the gym it made, picked once the form has closed.
+    @State private var owning: OwnGymDraft?
+    @State private var ownPick: GymRef?
 
     enum Mode: Hashable { case nearMe, place }
 
@@ -200,7 +203,11 @@ struct GymFinderView: View {
                     ForEach(gyms) { g in
                         Button { selected = g } label: { GymRow(gym: g) }.buttonStyle(.plain)
                     }
-                    Text("Results from Apple Maps. Check opening hours and day passes with the gym.")
+                    if onPick != nil && !loading && !typing {
+                        AddOwnGymRow { owning = OwnGymDraft(pin: center?.coordinate) }
+                    }
+                    Text(onPick == nil ? "Results from Apple Maps. Check opening hours and day passes with the gym."
+                         : "Results from Apple Maps. Not there? Long-press the map to drop a pin on your gym.")
                         .font(.footnote).foregroundStyle(Theme.muted)
                 }
                 .padding(16)
@@ -211,6 +218,15 @@ struct GymFinderView: View {
             .navigationTitle("Find a gym")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }
+            .sheet(item: $owning, onDismiss: {
+                if let ref = ownPick {
+                    ownPick = nil
+                    onPick?(ref)
+                    dismiss()
+                }
+            }) { d in
+                OwnGymSheet(name: d.name, pin: d.pin) { ownPick = $0 }
+            }
             .navigationDestination(item: $selected) { g in
                 GymDetailView(gym: g, onPick: onPick == nil ? nil : { ref in
                     onPick?(ref)
@@ -263,11 +279,23 @@ struct GymFinderView: View {
     }
 
     private var map: some View {
-        Map(position: $camera) {
-            if mode == .nearMe { UserAnnotation() }
-            ForEach(gyms) { g in
-                Marker(g.name, systemImage: "dumbbell.fill", coordinate: g.coordinate).tint(Theme.lime)
+        MapReader { proxy in
+            Map(position: $camera) {
+                if mode == .nearMe { UserAnnotation() }
+                ForEach(gyms) { g in
+                    Marker(g.name, systemImage: "dumbbell.fill", coordinate: g.coordinate).tint(Theme.lime)
+                }
             }
+            // Design B (#680): long-press drops a pin for a gym the map doesn't know.
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.5)
+                    .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
+                    .onEnded { value in
+                        guard onPick != nil, case .second(true, let drag?) = value,
+                              let c = proxy.convert(drag.location, from: .local) else { return }
+                        owning = OwnGymDraft(pin: c)
+                    }
+            )
         }
         .frame(height: typing ? 300 : 220)
         .overlay(alignment: .top) {

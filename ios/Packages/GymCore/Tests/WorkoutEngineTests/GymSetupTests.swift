@@ -40,6 +40,16 @@ import Testing
         let bench = Exercise.catalog.first { $0.equipment.contains(.bench) && $0.equipment.contains(.barbell) }!
         #expect(bench.missing(from: [.bench]).contains(.barbell))
     }
+
+    @Test func ownGymKeepsAddressAndPinButStaysPrivate() {
+        let r = SavedGym.customRef(name: "Kraftwerk", address: "Badenerstrasse 12, Schlieren", latitude: 47.39, longitude: 8.45)
+        let g = SavedGym(ref: r, equipment: [.dumbbells])
+        #expect(!g.isPlace)
+        #expect(r.id.hasPrefix("custom:"))
+        #expect(r.address == "Badenerstrasse 12, Schlieren")
+        #expect(r.latitude == 47.39 && r.longitude == 8.45)
+        #expect(SavedGym.customRef(name: "Kraftwerk").id != r.id)
+    }
 }
 
 @Suite struct EquipmentPictureTests {

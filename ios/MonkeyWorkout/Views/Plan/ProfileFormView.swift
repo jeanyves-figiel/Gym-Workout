@@ -669,6 +669,9 @@ struct GymPicker: View {
     @State private var nearbyPick: GymRef?
     /// New gym setup (#162): a searched place, or `custom` for one without a map place.
     @State private var settingUp: SetupTarget?
+    /// Your own gym (#680): the form, then its setup once the form has closed.
+    @State private var owning: OwnGymDraft?
+    @State private var ownPick: GymRef?
 
     struct SetupTarget: Identifiable {
         let ref: GymRef?
@@ -790,6 +793,9 @@ struct GymPicker: View {
                             Text("No gyms found").font(.footnote).foregroundStyle(Theme.muted).padding(.vertical, 12)
                         }
                         ForEach(results) { g in row(g, scoped: g.scoped != nil) }
+                        if !searching {
+                            AddOwnGymRow(name: query) { owning = OwnGymDraft(name: query) }.padding(.top, 6)
+                        }
                     } else {
                         ForEach(suggested) { g in row(g.ref, scoped: true) }
                     }
@@ -814,6 +820,11 @@ struct GymPicker: View {
             if let ref = nearbyPick { nearbyPick = nil; select(ref) }
         }) {
             GymFinderView { ref in nearbyPick = ref }
+        }
+        .sheet(item: $owning, onDismiss: {
+            if let ref = ownPick { ownPick = nil; select(ref) }
+        }) { d in
+            OwnGymSheet(name: d.name, pin: d.pin) { ownPick = $0 }
         }
         .sheet(item: $settingUp) { t in
             GymSetupView(ref: t.ref, actionTitle: "USE THIS GYM", preset: t.preset) { g in
