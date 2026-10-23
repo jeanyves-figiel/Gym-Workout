@@ -42,4 +42,23 @@ import Testing
         p.sportTrips = [SportTrip(sport: .snowboard, start: "2026-10-23", end: "2026-10-23")]
         #expect(p.sport(onWeekday: 5, key: "2026-10-23") == .snowboard)
     }
+
+    @Test func defaultForAllSportsAndOverrides() {
+        var p = Profile(goal: .balanced, sessionsPerWeek: 3, experience: .intermediate, climbingDaysPerWeek: 1, climbingWeekdays: [5])
+        p.sports = [SportPlan(sport: .run, weekdays: [2]), SportPlan(sport: .scubaDiving, weekdays: [6]),
+                    SportPlan(sport: .snowboard, weekdays: [7], before: .any)]
+        p.sportBefore = .strong
+        p.sportAfter = .any
+        let days = p.sportDays()
+        let run = days.first { $0.sport == .run }!
+        #expect(run.before == .strong && run.after == .any)
+        // Diving keeps its rest day after; a sport's own choice wins.
+        #expect(days.first { $0.sport == .scubaDiving }!.after == .rest)
+        #expect(days.first { $0.sport == .snowboard }!.before == .any)
+        // Climbing follows the default unless it has its own.
+        #expect(p.climbPrefs.before == .strong && p.climbPrefs.after == .any)
+        p.climbBefore = .light
+        #expect(p.climbPrefs.before == .light)
+        #expect(Profile().climbPrefs == ClimbPrefs())
+    }
 }

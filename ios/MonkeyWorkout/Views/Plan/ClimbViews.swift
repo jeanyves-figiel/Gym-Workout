@@ -44,10 +44,12 @@ struct ClimbSection: View {
 
     /// Train is being arranged: keep a tile to move even on a day with nothing to show.
     var arranging = false
+    /// Today's sport block on Train already opens the Wall session (#658).
+    var wallInCard = false
 
     var body: some View {
         let all = climbs
-        let wall = isClimbingDay && model.profile?.climbDayAddon != false
+        let wall = isClimbingDay && model.profile?.climbDayAddon != false && !wallInCard
         let hard = Climbs.recentHard(all)
         // Nothing to show: no view at all, so Train keeps no gap for it.
         if wall || hard != nil || arranging {
@@ -406,178 +408,6 @@ extension ClimbNeighbour {
         case .strong: [Color(red: 1.0, green: 0.18, blue: 0.33), Color(red: 1.0, green: 0.54, blue: 0.0)]
         case .rest: [Color(red: 0.18, green: 0.42, blue: 1.0), Color(red: 0.54, green: 0.30, blue: 1.0)]
         case .any: [Color(white: 0.35), Color(white: 0.55)]
-        }
-    }
-}
-
-/// How gym days around each sport are planned (design A, #658): a strip of the member's sports on top, the
-/// "Around climbing" cards below, worded from the picked sport's load. Climbing keeps its own fields and Wall session;
-/// other sports save into their `SportPlan`. Saving rebuilds this week's plan.
-struct AroundSportView: View {
-    /// Sport shown first; nil = the first of the member's sports.
-    var initial: Sport? = nil
-    @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-    @State private var sport: Sport = .climbing
-    @State private var picks = Picks()
-    @State private var loaded = false
-
-    /// What's picked, saved on its own (#437).
-    struct Picks: Equatable {
-        var climbBefore: ClimbNeighbour = .light, climbAfter: ClimbNeighbour = .light, climbSameDay: ClimbSameDay = .avoid
-        var addon = true
-        var sports: [SportPlan] = []
-    }
-
-    /// Climbing (for climbers) first, then the member's other sports.
-    private var sports: [Sport] {
-        guard let p = model.profile else { return [] }
-        return (Generator.isClimber(p) ? [.climbing] : []) + p.otherSports.map(\.sport)
-    }
-
-    private var before: Binding<ClimbNeighbour> {
-        Binding(get: { sport == .climbing ? picks.climbBefore : plan.before ?? sport.defaultBefore },
-                set: { v in
-                    if sport == .climbing { picks.climbBefore = v } else { update { $0.before = v == sport.defaultBefore ? nil : v } }
-                })
-    }
-
-    private var after: Binding<ClimbNeighbour> {
-        Binding(get: { sport == .climbing ? picks.climbAfter : plan.after ?? sport.defaultAfter },
-                set: { v in
-                    if sport == .climbing { picks.climbAfter = v } else { update { $0.after = v == sport.defaultAfter ? nil : v } }
-                })
-    }
-
-    private var sameDay: Binding<ClimbSameDay> {
-        Binding(get: { sport == .climbing ? picks.climbSameDay : plan.sameDay ?? .avoid },
-                set: { v in
-                    if sport == .climbing { picks.climbSameDay = v } else { update { $0.sameDay = v == .avoid ? nil : v } }
-                })
-    }
-
-    private var plan: SportPlan { picks.sports.first { $0.sport == sport } ?? SportPlan(sport: sport) }
-
-    private func update(_ change: (inout SportPlan) -> Void) {
-        guard let i = picks.sports.firstIndex(where: { $0.sport == sport }) else { return }
-        change(&picks.sports[i])
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    if sports.isEmpty {
-                        Text("Add a sport in Train → Edit plan or on a Calendar day, then pick how gym days fit around it here.")
-                            .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
-                    } else {
-                        if sports.count > 1 { strip }
-                        options
-                    }
-                }
-                .padding(16)
-            }
-            .readableWidth()
-            .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle(sports.count == 1 ? "Around \(sport.activity)" : "Around your sports")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                CloseToolbarItem { dismiss() }
-            }
-            .autoSave(loaded ? picks : nil, title: "Sport days", symbol: sport.symbol,
-                      detail: { _ in "This week's plan rebuilt" },
-                      save: { [model] in Self.store($0, model: model) })
-        }
-        .preferredColorScheme(.dark)
-        .onAppear {
-            guard !loaded, let p = model.profile else { return }
-            picks = Picks(climbBefore: p.climbPrefs.before, climbAfter: p.climbPrefs.after, climbSameDay: p.climbPrefs.sameDay,
-                          addon: p.climbDayAddon ?? true, sports: p.otherSports)
-            sport = initial.flatMap { s in sports.contains(s) ? s : nil } ?? sports.first ?? .climbing
-            loaded = true
-        }
-    }
-
-    private var strip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(sports) { s in
-                    Button { withAnimation(.snappy) { sport = s } } label: {
-                        Label(s.short, systemImage: s.symbol)
-                            .font(.system(size: 14, weight: .heavy, design: .rounded))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 12).padding(.vertical, 9)
-                            .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(sport == s ? AnyShapeStyle(s.gradient) : AnyShapeStyle(Theme.cardStrong)))
-                            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white, lineWidth: sport == s ? 2 : 0))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(sport == s ? .isSelected : [])
-                }
-            }
-            .padding(2)
-        }
-        .scrollClipDisabled()
-    }
-
-    @ViewBuilder private var options: some View {
-        Text("Day before \(sport.activity)").eyebrow()
-        ForEach(ClimbNeighbour.allCases) { o in
-            OptionCard(symbol: o.symbol, title: sport.aroundLabel(o), blurb: sport.aroundBlurb(o, before: true), colors: o.colors,
-                       selected: before.wrappedValue == o) { before.wrappedValue = o }
-        }
-        Text("Day after \(sport.activity)").eyebrow().padding(.top, 8)
-        if sport == .scubaDiving {
-            Text("Rest is advised the day after diving: hard exercise after a dive raises the risk of decompression sickness.")
-                .font(.footnote.weight(.semibold)).foregroundStyle(Theme.lime)
-        }
-        ForEach(ClimbNeighbour.allCases) { o in
-            OptionCard(symbol: o.symbol, title: sport.aroundLabel(o), blurb: sport.aroundBlurb(o, before: false), colors: o.colors,
-                       selected: after.wrappedValue == o) { after.wrappedValue = o }
-        }
-        Text("On \(sport.activity) days").eyebrow().padding(.top, 8)
-        if sport.allowsSameDayGym {
-            ForEach(ClimbSameDay.allCases) { o in
-                OptionCard(symbol: o == .avoid ? sport.symbol : "dumbbell.fill", title: sport.sameDayLabel(o), blurb: sport.sameDayBlurb(o),
-                           colors: o == .avoid ? sport.colors : ClimbKind.lead.colors, selected: sameDay.wrappedValue == o) { sameDay.wrappedValue = o }
-            }
-        } else {
-            Text("No gym on dive days.").font(.footnote.weight(.semibold)).foregroundStyle(Theme.lime)
-        }
-        if sport == .climbing {
-            Toggle(isOn: $picks.addon) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Wall session").font(Theme.display(18))
-                    Text("Show warm-up, hangboard and after-climb sessions for the climbing gym on Train.")
-                        .font(.footnote).foregroundStyle(Theme.muted)
-                }
-            }
-            .tint(Theme.lime)
-            .card(padding: 16)
-            .padding(.top, 8)
-        }
-        Text("Changes save on their own and rebuild this week's plan around your sport days.")
-            .font(.footnote).foregroundStyle(Theme.muted)
-    }
-
-    private static func store(_ k: Picks, model: AppModel) {
-        guard var p = model.profile else { return }
-        p.climbBefore = k.climbBefore == .light ? nil : k.climbBefore
-        p.climbAfter = k.climbAfter == .light ? nil : k.climbAfter
-        p.climbSameDay = k.climbSameDay == .avoid ? nil : k.climbSameDay
-        // Wall session (#366) is on by default; only "off" is stored.
-        p.climbDayAddon = k.addon ? (p.climbDayAddon == true ? true : nil) : false
-        // Only the around-day fields: days, season and event may have changed elsewhere meanwhile.
-        p.sports = p.sports?.map { sp in
-            guard let edited = k.sports.first(where: { $0.sport == sp.sport }) else { return sp }
-            var out = sp
-            out.before = edited.before
-            out.after = edited.after
-            out.sameDay = edited.sameDay
-            return out
-        }
-        if p != model.profile {
-            model.updateProfile(p)
         }
     }
 }

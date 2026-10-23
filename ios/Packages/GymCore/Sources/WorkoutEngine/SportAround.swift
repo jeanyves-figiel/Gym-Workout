@@ -112,6 +112,9 @@ extension Sport {
 }
 
 extension Profile {
+    /// Around sport days default for all sports (#658).
+    public var sportDefaults: SportDefaults { SportDefaults(before: sportBefore, after: sportAfter, sameDay: sportSameDay) }
+
     /// The sport of a day, dated trips first (#658): a Snowboard day on a weekly climbing day is a snowboard day.
     /// `weekday` 1 = Monday … 7 = Sunday; `key` the day key ("2026-10-23") for trips.
     public func sport(onWeekday weekday: Int, key: String?, date: Date = Date()) -> Sport? {

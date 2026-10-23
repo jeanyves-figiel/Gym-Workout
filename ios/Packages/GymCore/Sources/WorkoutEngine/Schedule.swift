@@ -262,7 +262,8 @@ extension Profile {
 
     /// Scheduling choices around climbing days (#47).
     public var climbPrefs: ClimbPrefs {
-        ClimbPrefs(before: climbBefore ?? .light, after: climbAfter ?? .light, sameDay: climbSameDay ?? .avoid, sports: sportDays())
+        ClimbPrefs(before: climbBefore ?? sportBefore ?? .light, after: climbAfter ?? sportAfter ?? .light,
+                   sameDay: climbSameDay ?? sportSameDay ?? .avoid, sports: sportDays())
     }
 
     /// Keeps `climbingDaysPerWeek` equal to the number of picked climbing weekdays, when any are picked.

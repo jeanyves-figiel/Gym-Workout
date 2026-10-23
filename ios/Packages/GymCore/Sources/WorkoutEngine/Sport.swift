@@ -124,6 +124,23 @@ public enum Sport: String, Codable, CaseIterable, Identifiable, Sendable {
     public var loadLabel: String { load.label }
 }
 
+/// The member's Around sport days choice for all sports (#658); nil fields = each sport's own default.
+public struct SportDefaults: Hashable, Sendable {
+    public var before: ClimbNeighbour?
+    public var after: ClimbNeighbour?
+    public var sameDay: ClimbSameDay?
+
+    public init(before: ClimbNeighbour? = nil, after: ClimbNeighbour? = nil, sameDay: ClimbSameDay? = nil) {
+        self.before = before
+        self.after = after
+        self.sameDay = sameDay
+    }
+
+    public func dayBefore(_ s: Sport) -> ClimbNeighbour { before ?? s.defaultBefore }
+    /// Diving keeps its rest day after unless that sport itself is set otherwise (decompression safety).
+    public func dayAfter(_ s: Sport) -> ClimbNeighbour { s.defaultAfter == .rest ? .rest : after ?? s.defaultAfter }
+}
+
 /// How hard a sport works each area, 0 … 1.
 public struct SportLoad: Hashable, Sendable {
     public var legs: Double
@@ -165,10 +182,10 @@ public struct SportPlan: Codable, Hashable, Sendable, Identifiable {
     public var seasonMonths: [Int]?
     /// Race or event day ("2027-03-14"), e.g. a Hyrox; nil = none.
     public var eventDate: String?
-    /// Gym day before / after a sport day; nil = `.light`.
+    /// Gym day before / after a sport day; nil = the member's default for all sports (#658), else the sport's.
     public var before: ClimbNeighbour?
     public var after: ClimbNeighbour?
-    /// Gym on sport days; nil = `.avoid`.
+    /// Gym on sport days; nil = the member's default (#658), else `.avoid`.
     public var sameDay: ClimbSameDay?
     /// Switched off for now on its card in Your week (#474): days kept, not planned around. nil = on.
     public var paused: Bool?
@@ -194,12 +211,13 @@ public struct SportPlan: Codable, Hashable, Sendable, Identifiable {
         return months.contains(calendar.component(.month, from: date))
     }
 
-    /// Days of the week planned around this sport on `date`: none out of season.
-    public func days(on date: Date) -> [SportDay] {
+    /// Days of the week planned around this sport on `date`: none out of season. `defaults`: the member's choice for
+    /// all sports (#658), used where this sport has none.
+    public func days(on date: Date, defaults: SportDefaults = SportDefaults()) -> [SportDay] {
         guard isOn, inSeason(date) else { return [] }
         return WeekSchedule.normalized(weekdays).map {
-            SportDay(weekday: $0, sport: sport, before: before ?? sport.defaultBefore, after: after ?? sport.defaultAfter,
-                     sameDay: sport.allowsSameDayGym ? sameDay ?? .avoid : .avoid)
+            SportDay(weekday: $0, sport: sport, before: before ?? defaults.dayBefore(sport), after: after ?? defaults.dayAfter(sport),
+                     sameDay: sport.allowsSameDayGym ? sameDay ?? defaults.sameDay ?? .avoid : .avoid)
         }
     }
 
@@ -353,7 +371,8 @@ extension WeekSchedule {
 extension Profile {
     /// Other sports' days planned around this week (#416); empty without sports or out of season.
     public func sportDays(on date: Date = Date(), calendar cal: Calendar = Progression.calendar()) -> [SportDay] {
-        var out = (sports ?? []).filter { $0.sport != .climbing }.flatMap { $0.days(on: date) }
+        let defaults = sportDefaults
+        var out = (sports ?? []).filter { $0.sport != .climbing }.flatMap { $0.days(on: date, defaults: defaults) }
         // Dated sport days and trips (#474) of that week take their weekday over.
         guard let trips = sportTrips, !trips.isEmpty else { return out }
         let keys = PlanCalendar.dayKeys(weekStart: Progression.weekStart(date, cal), cal)
@@ -361,8 +380,8 @@ extension Profile {
             guard let t = trips.first(where: { $0.covers(key) }) else { continue }
             let plan = sports?.first { $0.sport == t.sport }
             out.removeAll { $0.weekday == i + 1 }
-            out.append(SportDay(weekday: i + 1, sport: t.sport, before: plan?.before ?? t.sport.defaultBefore,
-                                after: plan?.after ?? t.sport.defaultAfter, sameDay: .avoid))
+            out.append(SportDay(weekday: i + 1, sport: t.sport, before: plan?.before ?? defaults.dayBefore(t.sport),
+                                after: plan?.after ?? defaults.dayAfter(t.sport), sameDay: .avoid))
         }
         return out.sorted { $0.weekday < $1.weekday }
     }
