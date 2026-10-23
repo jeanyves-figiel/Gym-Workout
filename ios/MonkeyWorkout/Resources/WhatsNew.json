@@ -8,6 +8,12 @@
       "body": "Move, skip or plan a sport on any day, any week. A sport day can turn into a rest day."
     },
     {
+      "symbol": "mappin.and.ellipse",
+      "tint": "cardio",
+      "title": "Add your own gym",
+      "body": "Gym not on the map? Add your own with a name, an address or a pin."
+    },
+    {
       "symbol": "dot.radiowaves.left.and.right",
       "tint": "power",
       "title": "Your call on live sharing",
