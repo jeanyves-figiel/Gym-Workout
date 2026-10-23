@@ -260,7 +260,7 @@ private struct DemoScreen: View {
         case "programme-finished":
             if let r = model.programmeHistory.last { ProgrammeFinishedSheet(record: r) }
         case "monkeygrade": NavigationStack { MonkeyGradeView() }
-        case "climb-settings": ClimbSettingsView()
+        case "climb-settings", "around-sport": AroundSportView()
         // Climbing gym (#366): Wall session card, Explore → Climbing, the hangboard session, a hangboard drill.
         case "wall-session":
             NavigationStack {

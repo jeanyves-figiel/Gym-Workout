@@ -12,7 +12,7 @@ struct SignInView: View {
     var body: some View {
         AuthScreen(title: "Sign in") {
             AccountHeader(symbol: "person.crop.circle.fill", title: "Welcome back",
-                          subtitle: "Sign in to sync your plan, sessions and climbs.",
+                          subtitle: "Sign in to sync your plan, workouts and sports.",
                           gradient: WorkoutEngine.Category.strength.gradient)
             AccountField(label: "Email") {
                 TextField("you@example.com", text: $email)

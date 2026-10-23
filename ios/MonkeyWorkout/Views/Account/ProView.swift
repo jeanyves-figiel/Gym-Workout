@@ -30,7 +30,7 @@ enum ProFeature: CaseIterable {
         case .prAttempts: "PR attempts and share cards"
         case .progress: "Full progress and muscle heat map"
         case .watch: "Apple Watch workouts"
-        case .climbing: "Climbing days and integration with MonkeyGrade"
+        case .climbing: "Wall session and integration with MonkeyGrade"
         }
     }
 }
@@ -89,7 +89,7 @@ enum ProGate: String, Identifiable {
         case .prAttempt: "Attempt a PR is Pro"
         case .progress: "Full progress is Pro"
         case .watch: "Apple Watch is Pro"
-        case .climbing: "Climbing days are Pro"
+        case .climbing: "Wall session is Pro"
         case .monkeyGrade: "MonkeyGrade is Pro"
         case .gymScan: "Gym scan is Pro"
         case .foodScan: "Fridge scan is Pro"
@@ -108,7 +108,7 @@ enum ProGate: String, Identifiable {
         case .prAttempt: "Warm-up ramp, attempts and a share card."
         case .progress: "All your history, trends and the muscle heat map."
         case .watch: "Start and log workouts from your wrist."
-        case .climbing: "Plan gym days around climbing, climbing add-on."
+        case .climbing: "Warm-up, hangboard and cool-down for climbing days."
         case .monkeyGrade: "Import your climbing sessions from MonkeyGrade."
         case .gymScan: "Snap each area of your gym, the equipment sorts itself."
         case .foodScan: "Snap your fridge or a receipt, get meals that fit your day."

@@ -1171,7 +1171,7 @@ private struct PastDayCard: View {
     /// 1 = Monday … 7 = Sunday.
     private var weekday: Int { ((day - 1) % 7 + 7) % 7 + 1 }
     private var climbing: Bool {
-        (model.profile.map(Generator.isClimber) ?? false) && (model.profile?.climbingDays.contains(weekday) ?? false)
+        model.profile?.sport(onWeekday: weekday, key: PlanCalendar.key(date, model.planCalendar), date: date) == .climbing
     }
     /// 18:00 on this day: the default start of anything added here.
     private var evening: Date { model.planCalendar.date(bySettingHour: 18, minute: 0, second: 0, of: date) ?? date }
@@ -1514,8 +1514,10 @@ private struct RestDayCard: View {
 
     /// Climbers get Log climb next to Add workout on every rest day (#304).
     private var climber: Bool { model.profile.map(Generator.isClimber) ?? false }
-    /// One of the climber's planned climbing days.
-    private var climbing: Bool { climber && (model.profile?.climbingDays.contains(weekday) ?? false) }
+    /// The day's sport (#658): a dated sport day or trip beats the weekly climbing day.
+    private var daySport: Sport? { model.profile?.sport(onWeekday: weekday, key: dayKey) }
+    /// One of the climber's planned climbing days, unless a dated sport day took it over.
+    private var climbing: Bool { climber && daySport == .climbing }
     /// A later day (#343): a workout can be planned, a climb is only logged on or after its day.
     private var ahead: Bool { date != nil || weekday > model.todayWeekday }
     /// A day of a later week (#481): Add workout only plans this week, so it's left out.
@@ -1623,7 +1625,7 @@ private struct WeekCompleteCard: View {
             Text(missed > 0 ? "No more sessions this week" : "Week complete").font(Theme.display(28))
                 .multilineTextAlignment(.center)
             Text(missed > 0 ? "\(missed) missed: tap the red day to log it, mark it done or do it today. A fresh week starts Monday."
-                            : "A fresh week starts Monday. Rest and climb meanwhile.").font(.footnote).foregroundStyle(Theme.muted)
+                            : "A fresh week starts Monday. Rest or play your sport meanwhile.").font(.footnote).foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
