@@ -71,6 +71,7 @@ Customisable widget board (Edit Train, `TrainEditViews`, `TrainWidgets`): by def
 
 Two-level menu (`ExploreMenu`): **Exercises** by muscle (2D/3D body map, `MuscleHero`), by machine, by type; **Ready-made** workouts and plans (`WorkoutLibraryViews`, shared library from members).
 
+- Machine chips (`MachineChips`, `MachineViews`): **My gym** pinned on the left as a sunset tile (`GymChipTile`, `ExploreGymViews`, #662): gym name and machine count, tap = only what the gym has, ▾ = gym sheet (`ExploreGymSheet`: **Gym map** → `FloorPlanSheet`, **Here** and **Add missing** → `EquipmentSheet` with zones, saved by `AppModel.setGymEquipment`). Other chips slide under it.
 - Exercise page (`ExerciseDetailView`, `ExerciseJumpBar`): animation, technique cues (`TechniqueView`), position guide, variations (`VariationSheet`), history and records (`ExerciseHistoryView`), PR attempt (`PRAttemptView`), machine setup notes with photo (`MachineNoteViews`).
 - Custom exercises (`CustomExerciseBuilderView`, pose designer) and custom workouts (`CustomWorkoutViews`, share to library).
 - Gyms (`Views/Gyms`): gym finder and place search, equipment setup (`GymSetupView`, `EquipmentViews`), gym scan by photo, gym map with zones and *Taken?* (`GymMapViews`, `GymZoneViews`), *Not here* reports.
