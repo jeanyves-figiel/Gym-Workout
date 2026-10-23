@@ -323,8 +323,10 @@ struct WeekDayStrip: View {
         } else if week > 0, week < weeks.count {
             let w = weeks[week]
             let session = w.plan.sessions.first { $0.weekday == wd }
-            let climb = w.climbing.contains(wd)
-            let sport = model.profile?.sportDays(on: date).first { $0.weekday == wd }?.sport
+            // The same sport the day card shows (#670): dated days first, then weekly climbing and other sports.
+            let daySport = w.off[wd] == nil ? model.profile?.sport(onWeekday: wd, key: w.days[wd - 1], date: date) : nil
+            let climb = daySport == .climbing
+            let sport = climb ? nil : daySport
             let state: DayState = session != nil ? .planned : climb ? .climb : sport.map { DayState.sport($0) } ?? .rest
             Button { onPick(fromMonday + 1) } label: { cell(wd, day: n, isToday: false, state: state, picked: selected == fromMonday + 1) }
                 .buttonStyle(.plain)

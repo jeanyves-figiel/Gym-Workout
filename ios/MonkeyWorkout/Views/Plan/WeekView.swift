@@ -198,6 +198,9 @@ struct WeekView: View {
         return model.profile?.sport(onWeekday: today, key: PlanCalendar.key(Date(), model.planCalendar)) != nil
     }
 
+    /// Today's prep and Wall session bars (#670) only while the card shows today, not under another picked day.
+    private var showsToday: Bool { pickedDay.map { $0 == model.todayWeekday } ?? true }
+
     /// Next up (#266), or the day picked in its strip (#277): that day's workout, or a rest day with Add workout.
     @ViewBuilder private func nextUpCard(_ plan: WeekPlan) -> some View {
         let next = model.nextSession
@@ -426,7 +429,7 @@ struct WeekView: View {
                     // One slot for the cards that only show for a while (#538): Start workout never moves down for them.
                     if !arranging { TrainNoticeSlot() }
                     // Sport prep on a planned sport day (#523), unless today's sport block already has it (#658).
-                    if !arranging && !sportHeroToday(plan) { SportPrepBar() }
+                    if !arranging && showsToday && !sportHeroToday(plan) { SportPrepBar() }
                     // Skill of the month practice day (#621 C).
                     if !arranging { SkillPracticeBar() }
                     // Run & cardio plan (#618): race countdown or Hybrid, this week's runs.
@@ -439,7 +442,7 @@ struct WeekView: View {
                         .frame(maxHeight: small ? .infinity : nil, alignment: .top)
                     // A small Next up gets the slot under its row instead (#538).
                     if !arranging, !small { TrainNoticeSlot() }
-                    if !arranging, !small { SportPrepBar() }
+                    if !arranging, !small, showsToday { SportPrepBar() }
                     if !arranging, !small { SkillPracticeBar() }
                     if !arranging, !small { RunGoalCard() }
                     if !arranging, !small { notices(plan: plan, profile: profile) }
@@ -449,7 +452,7 @@ struct WeekView: View {
             if small {
                 ClimbSmallWidget()
             } else if Generator.isClimber(profile) {
-                ClimbSection(arranging: arranging, wallInCard: sportHeroToday(plan))
+                ClimbSection(arranging: arranging, wallInCard: sportHeroToday(plan) || !showsToday)
             } else {
                 Button { editing = true } label: {
                     WidgetTile(kind: .climbing, title: "Climbing") {
