@@ -20,6 +20,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Dependency bumps** (dependabot #645-#651): backend fastify 5.12.7, @fastify/compress 9.2.2, nodemailer 10.1.7, vitest 5.0.5; CI actions/setup-go v7, actions/setup-java v6, docker/build-push-action v7. Backend tests pass (240).
 
 ### Fixed
+- **Gym map empty on first open** (#673): the Gym map from Explore's gym sheet or a workout's route card showed an empty grid with only the door the first time, the drawn zones only on the second open. The plan sheet now gets a real binding to its draft, so the zones it lays out show at once.
 - **Profile edits dropped settings kept beside the profile** (#664): any training profile edit or new week rebuilt the synced profile without the sport add-on (#620), calisthenics skills (#621), cycling FTP (#623) and the life-stage check-in (#625), so they were lost (the life-stage check-in already on starting its programme). They are now kept, like Growing with you.
 - **Recover card only on this week's rest days** (#659): the rest-day **Recover** routine (#619) showed on today's and this week's coming rest days only; a rest day picked in a later week showed none. It now shows on every coming rest day (not on climbing or sport days).
 - **Climbing showed on a snowboard day** (#658): a dated sport day on a weekly climbing day kept Log climb, the Wall session bar and the climbing icon in the week strip. The day's sport now puts dated sport days and trips first everywhere on Train.

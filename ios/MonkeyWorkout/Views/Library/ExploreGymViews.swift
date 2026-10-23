@@ -75,7 +75,9 @@ struct GymChipTile: View {
 struct ExploreGymSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    @State private var mapDraft: GymLayout?
+    // Plain @State binding (#673): a Binding(get:set:) over a value this body never reads left the plan stale, so the
+    // auto-placed zones only showed on the second open.
+    @State private var mapDraft: GymLayout = .starter
     @State private var mapOpen = false
     @State private var kitDraft: [Equipment] = []
     @State private var zonesDraft: GymLayout?
@@ -107,11 +109,9 @@ struct ExploreGymSheet: View {
         }
         .presentationDetents([.medium, .large])
         .sheet(isPresented: $mapOpen, onDismiss: {
-            if let d = mapDraft { model.setGymLayout(d) }
-            mapDraft = nil
+            model.setGymLayout(mapDraft)
         }) {
-            FloorPlanSheet(layout: Binding(get: { mapDraft ?? .starter }, set: { mapDraft = $0 }),
-                           equipment: model.profile?.equipment ?? [])
+            FloorPlanSheet(layout: $mapDraft, equipment: model.profile?.equipment ?? [])
         }
         .sheet(isPresented: $kitOpen, onDismiss: { model.setGymEquipment(kitDraft, layout: zonesDraft) }) {
             EquipmentSheet(equipment: $kitDraft, layout: $zonesDraft)
