@@ -148,6 +148,14 @@ enum Demo {
         let race = cal.date(byAdding: .day, value: 7 * 7 + 6, to: Progression.weekStart(Date(), cal)) ?? Date()
         p.runGoal = screen == "train-hybrid" ? RunGoal(mode: .hybrid)
             : RunGoal(distance: .k10, raceDate: RunPlanner.dayKey(race, cal), targetSeconds: 49 * 60 + 30, raceName: "Zürich")
+        if screen == "train-hybrid" {
+            // Week places (#684): Monday and Thursday at the hotel gym, Wednesday at the home gym, so the day card
+            // shows lift at its gym, the run after it and the Coach's note (#685).
+            let own = p.gym?.id ?? Gym.puls5.ref.id
+            for (day, gym) in [(1, savedGyms[0].id), (3, own), (4, savedGyms[0].id), (6, own)] { p.setPlace(gym, onWeekday: day) }
+            p.climbingWeekdays = []
+            p.climbingDaysPerWeek = 0
+        }
         model.state.synced?.profile = p
         model.replanCurrentWeek()
     }

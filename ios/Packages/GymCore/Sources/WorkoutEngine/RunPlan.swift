@@ -188,11 +188,13 @@ public enum RunPlanner {
 
     /// The week's runs placed around lifting (design A): long run on Saturday, never on or the day after a legs day;
     /// hard runs not the day after legs; gym-free days first. Hybrid adds two Zone 2 sessions and one interval day.
-    public static func week(_ goal: RunGoal, weekStart: Date, lifting: [(weekday: Int, focus: Focus)], _ cal: Calendar) -> [RunDay] {
+    /// `step` (#685): Hybrid sessions grow a little each week of the block (0, 1, 2) and ease off in a deload (-1).
+    public static func week(_ goal: RunGoal, weekStart: Date, lifting: [(weekday: Int, focus: Focus)], _ cal: Calendar,
+                            step: Int = 0) -> [RunDay] {
         let workouts: [RunWorkout]
         var fixed: [Int: RunWorkout] = [:]
         if goal.mode == .hybrid {
-            workouts = hybrid(goal)
+            workouts = hybrid(goal, step: step)
         } else {
             guard let phase = phase(goal, weekStart: weekStart, cal), let race = goal.race(cal) else { return [] }
             let weeksLeft = cal.dateComponents([.weekOfYear], from: weekStart, to: Progression.weekStart(race, cal)).weekOfYear ?? 0
@@ -263,21 +265,76 @@ public enum RunPlanner {
         return Array(order.prefix(min(max(goal.perWeek, 2), 4)))
     }
 
-    private static func hybrid(_ goal: RunGoal) -> [RunWorkout] {
-        var bike = steady(.bike, "Zone 2 ride", minutes: 40, pace: nil)
+    private static func hybrid(_ goal: RunGoal, step: Int = 0) -> [RunWorkout] {
+        let rideMin = 40 + 5 * step, rowMin = 30 + 5 * step, runMin = 30 + 5 * step, reps = 8 + 2 * step
+        var bike = steady(.bike, "Zone 2 ride", minutes: rideMin, pace: nil)
         bike.sport = .roadBike
-        bike.detail = "40′ bike or run, Zone 2"
-        var row = steady(.row, "Zone 2 row", minutes: 30, pace: nil)
+        bike.detail = "\(rideMin)′ bike or run, Zone 2"
+        var row = steady(.row, "Zone 2 row", minutes: rowMin, pace: nil)
         row.sport = .rowing
-        row.detail = "30′ row, Zone 2"
+        row.detail = "\(rowMin)′ row, Zone 2"
         var steps = [RunStep(.warmup, seconds: 600, zone: 2)]
-        for i in 1...8 {
-            steps.append(RunStep(.work, seconds: 60, zone: 4, rep: i, of: 8))
+        for i in 1...reps {
+            steps.append(RunStep(.work, seconds: 60, zone: 4, rep: i, of: reps))
             steps.append(RunStep(.recover, seconds: 60, zone: 2))
         }
         steps.append(RunStep(.cooldown, seconds: 300, zone: 1))
-        let hard = RunWorkout(id: "", kind: .intervals, title: "Intervals", detail: "8 × 1′ hard, 1′ easy", steps: steps, zone: nil, sport: .run)
-        return Array([bike, hard, row, steady(.easy, "Easy run", minutes: 30, pace: nil)].prefix(min(max(goal.perWeek, 2), 4)))
+        let hard = RunWorkout(id: "", kind: .intervals, title: "Intervals", detail: "\(reps) × 1′ hard, 1′ easy", steps: steps, zone: nil, sport: .run)
+        return Array([bike, hard, row, steady(.easy, "Easy run", minutes: runMin, pace: nil)].prefix(min(max(goal.perWeek, 2), 4)))
+    }
+
+    /// Hybrid step of a plan week (#685): 0, 1, 2 through the block, -1 in a deload week.
+    public static func step(_ plan: WeekPlan) -> Int { plan.deload ? -1 : min(2, max(0, plan.week - 1)) }
+
+    /// Lower-body strength patterns trimmed before a hard or long run (#685).
+    static let legPatterns: Set<Pattern> = [.squat, .hinge, .singleLeg, .calves, .kneeFlex, .kneeExt, .jump]
+
+    /// Lifting and runs as one week (#685): on a day with a run the lift comes first and the run replaces its
+    /// cardio block; a leg-heavy session before (or on the day of) a long or hard run keeps one set less on leg
+    /// work. Each change is explained in `Session.synergy`. No run goal or no weekdays = the plan unchanged.
+    public static func blend(_ plan: WeekPlan, _ profile: Profile, weekStart: Date, _ cal: Calendar) -> WeekPlan {
+        guard let goal = profile.runGoal else { return plan }
+        let lifting = plan.sessions.compactMap { s in s.weekday.map { (weekday: $0, focus: s.focus) } }
+        guard !lifting.isEmpty else { return plan }
+        let runs = Dictionary(week(goal, weekStart: weekStart, lifting: lifting, cal, step: step(plan)).map { ($0.weekday, $0.workout) },
+                              uniquingKeysWith: { a, _ in a })
+        var plan = plan
+        // Sessions already fitted keep their changes (blending twice would trim twice).
+        for i in plan.sessions.indices where plan.sessions[i].synergy == nil {
+            guard let wd = plan.sessions[i].weekday else { continue }
+            var s = plan.sessions[i]
+            var notes: [String] = []
+            if let run = runs[wd] {
+                if let k = s.blocks.firstIndex(where: { $0.kind == .cardio }) {
+                    s.blocks.remove(at: k)
+                    notes.append("Lift first, then \(run.title) \(run.minutes)′: it replaces today's cardio.")
+                } else {
+                    notes.append("Lift first, then \(run.title) \(run.minutes)′.")
+                }
+            }
+            let next = runs[WeekSchedule.next(wd)]
+            let tough: (RunWorkout?) -> Bool = { run in run.map { w in w.kind == .long || w.kind.hard } ?? false }
+            if legHeavy(s.focus), tough(next) || tough(runs[wd]) {
+                var trimmed = false
+                for b in s.blocks.indices where s.blocks[b].kind == .strength {
+                    for j in s.blocks[b].items.indices where legPatterns.contains(s.blocks[b].items[j].slot) {
+                        let sets = s.blocks[b].items[j].prescription.sets
+                        guard sets > 2 else { continue }
+                        s.blocks[b].items[j].prescription.sets = sets - 1
+                        s.blocks[b].items[j].estSec = s.blocks[b].items[j].estSec * (sets - 1) / sets
+                        trimmed = true
+                    }
+                }
+                if trimmed, let r = tough(next) ? next : runs[wd] {
+                    notes.append("\(r.title) \(tough(next) ? "tomorrow" : "today"): leg work −1 set.")
+                }
+            }
+            guard !notes.isEmpty else { continue }
+            s.estMin = Int(s.blocks.reduce(0) { $0 + $1.estMin }.rounded())
+            s.synergy = notes.joined(separator: " ")
+            plan.sessions[i] = s
+        }
+        return plan
     }
 
     private static func steady(_ kind: RunKind, _ title: String, minutes: Int, pace: Int?) -> RunWorkout {

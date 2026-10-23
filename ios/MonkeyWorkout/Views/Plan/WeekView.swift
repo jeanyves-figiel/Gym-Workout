@@ -1039,6 +1039,8 @@ private struct NextUpCard: View {
                         .frame(width: 55, height: 110)
                 }
             }
+            // Where and with what (#684, #685): lift at the day's gym, then its run, then climbing; the Coach's note.
+            if let d = later?.weekday ?? day { DayComboRow(session: session, day: d, thisWeek: later == nil, showNote: !compact) }
             if !compact { BlockStripe(blocks: session.blocks) }
         }
         .contentShape(Rectangle())
