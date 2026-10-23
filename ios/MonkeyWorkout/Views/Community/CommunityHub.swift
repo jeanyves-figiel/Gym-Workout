@@ -1,4 +1,5 @@
 import APIClient
+import LiftSensor
 import SwiftUI
 import WorkoutEngine
 
