@@ -14,6 +14,12 @@
       "body": "Choose whether buddies see your session live."
     },
     {
+      "symbol": "paintpalette.fill",
+      "tint": "warmup",
+      "title": "Style follows your layout",
+      "body": "Style now changes your Train screen even after you customised it."
+    },
+    {
       "symbol": "map.fill",
       "tint": "cardio",
       "title": "Gym map, first time",
