@@ -18,36 +18,45 @@ enum MachineFilterStore {
     static let key = "explore.machineFilter"
 }
 
-/// Chip row: All · My gym · Barbells · Dumbbells · Cables · Machines · Bars & rings · Functional · Body weight.
+/// Chip row: My gym pinned on the left (#662) · All · Barbells · Dumbbells · Cables · Machines · Bars & rings · Functional ·
+/// Body weight sliding under it.
 struct MachineChips: View {
     @AppStorage(MachineFilterStore.key) private var stored = MachineFilter.all.key
 
     var body: some View {
         let current = MachineFilter(key: stored)
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(MachineFilter.chips, id: \.key) { f in
-                    let on = f == current
-                    Button {
-                        withAnimation(.snappy(duration: 0.25)) { stored = (on && f != .all ? MachineFilter.all : f).key }
-                    } label: {
-                        HStack(spacing: 5) {
-                            Text(f.label)
-                            if on && f != .all { Image(systemName: "xmark").font(.system(size: 10, weight: .heavy)) }
-                        }
-                        .font(Theme.label(13))
-                        .foregroundStyle(on ? Theme.ink : .white)
-                        .padding(.horizontal, 13).padding(.vertical, 8)
-                        .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(on ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Theme.card)))
-                        .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(on ? Color.clear : Theme.stroke, lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(on ? .isSelected : [])
-                }
+        HStack(spacing: 8) {
+            GymChipTile(on: current == .gym) {
+                withAnimation(.snappy(duration: 0.25)) { stored = (current == .gym ? MachineFilter.all : .gym).key }
             }
-            .padding(.vertical, 1)
+            .zIndex(1)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(MachineFilter.chips.filter { $0 != .gym }, id: \.key) { f in
+                        let on = f == current
+                        Button {
+                            withAnimation(.snappy(duration: 0.25)) { stored = (on && f != .all ? MachineFilter.all : f).key }
+                        } label: {
+                            HStack(spacing: 5) {
+                                Text(f.label)
+                                if on && f != .all { Image(systemName: "xmark").font(.system(size: 10, weight: .heavy)) }
+                            }
+                            .font(Theme.label(13))
+                            .foregroundStyle(on ? Theme.ink : .white)
+                            .padding(.horizontal, 13).padding(.vertical, 8)
+                            .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(on ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Theme.card)))
+                            .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(on ? Color.clear : Theme.stroke, lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(on ? .isSelected : [])
+                    }
+                }
+                .padding(.vertical, 1)
+            }
+            // Chips slide under the pinned tile, fading in at its edge.
+            .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.04)],
+                                 startPoint: .leading, endPoint: .trailing))
         }
-        .scrollClipDisabled()
         .sensoryFeedback(.selection, trigger: stored)
     }
 }

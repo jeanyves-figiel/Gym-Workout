@@ -1598,8 +1598,8 @@ private struct RestDayCard: View {
                                   fill: AnyShapeStyle(DayActionTile.sportFill)) { planningSport = true }
                 }
             }
-            if date == nil && weekday >= model.todayWeekday && daySport == nil {
-                // Recover (#619 A): a short routine for what this week loaded most.
+            if (laterWeek || weekday >= model.todayWeekday) && daySport == nil {
+                // Recover (#619 A): a short routine for what this week loaded most, on every coming rest day (#659).
                 RecoverBar()
             }
             if isToday && daySport == nil {
