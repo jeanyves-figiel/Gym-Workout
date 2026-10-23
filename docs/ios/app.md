@@ -93,7 +93,7 @@ Widget board (`ProgressBoardViews`) of gradient tiles: training (live tiles, con
 
 ### Fuel (`Views/Fuel`)
 
-Day strip (past = counted, coming = plan) and the day's plate. Next planned meal with Ate it / Swap / Other, **Just ate** (+), meal plans (named plans, blocks, schedule, timeline lanes, `MealPlanViews`, `MealBlockViews`), recipes (`RecipeViews`, share), pantry and shopping basket with budget (`PantryViews`, `BudgetViews`), food scan (barcode, label text, Snap the fridge) with check list (`ScanCheckViews`), supplements with schedules or "only when I pick it" (`SupplementViews`), meal replacements and supplements from a brand list with variants (`ProductCatalogSheet`, engine `ProductCatalog`) shown as **Mine** in Just ate (`MineStrip`) and in a planned meal's Swap (Recipes / Mine, every planned meal of that kind), water with pace and reminders (`WaterViews`).
+First open (#686): no forced sheet; the day shows with default pointers and a **Set up Fuel** card (`FuelSetupCard`) opens `FuelSetupView` (✕ = later, Save my fuel saves); Later / ✕ hides the card with an Undo bar (`FuelStore.saved.setupCardHidden`), Settings → You → Onboarding keeps a Fuel row. Day strip (past = counted, coming = plan) and the day's plate. Next planned meal with Ate it / Swap / Other, **Just ate** (+), meal plans (named plans, blocks, schedule, timeline lanes, `MealPlanViews`, `MealBlockViews`), recipes (`RecipeViews`, share), pantry and shopping basket with budget (`PantryViews`, `BudgetViews`), food scan (barcode, label text, Snap the fridge) with check list (`ScanCheckViews`), supplements with schedules or "only when I pick it" (`SupplementViews`), meal replacements and supplements from a brand list with variants (`ProductCatalogSheet`, engine `ProductCatalog`) shown as **Mine** in Just ate (`MineStrip`) and in a planned meal's Swap (Recipes / Mine, every planned meal of that kind), water with pace and reminders (`WaterViews`).
 
 ### Community (`Views/Community`)
 
@@ -105,7 +105,7 @@ Me sheet: photo, name, @nickname, level bar → **Your profile**, Levels, Settin
 
 | Chapter | Contents |
 |---|---|
-| You | Profile, body, pronouns and coach call name, your gym (`YourGymCard`), **Onboarding** (`OnboardingHubView`: run it all again or one step, tour, set-up card on/off) |
+| You | Profile, body, pronouns and coach call name, your gym (`YourGymCard`), **Onboarding** (`OnboardingHubView`: run it all again or one step, tour, Fuel set-up, set-up card on/off) |
 | Training | Training preferences, coach settings and voices, auto-next, lift sensor |
 | Watches | Apple Watch home style and options (`WatchHomeView`), Garmin pairing (`GarminView`) |
 | Look & apps | App style, Home Screen widgets (`HomeWidgetsView`), MonkeyGrade link |

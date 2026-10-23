@@ -469,7 +469,7 @@ private struct DemoScreen: View {
         case "own-gym": OwnGymSheet(name: "Kraftwerk Garage Gym") { _ in }
         case "move": MoveSessionSheet(sessionId: second)
         // Fuel (#496).
-        case "fuel", "fuel-timeline", "fuel-portions": NavigationStack { FuelView() }
+        case "fuel", "fuel-timeline", "fuel-portions", "fuel-setup-card": NavigationStack { FuelView() }
         case "fuel-recipes": NavigationStack { RecipeBrowserView().navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }.fuelDestinations() }
         case "recipe": NavigationStack { RecipeDetailView(recipe: RecipeBook.catalog[0]) }
         case "cook-mode": CookModeView(recipe: RecipeBook.catalog[0], servings: RecipeBook.catalog[0].servings)

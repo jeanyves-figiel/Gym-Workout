@@ -214,7 +214,8 @@ struct FuelLearnView: View {
     }
 }
 
-/// Goal, diet, avoid list, meals, day times, glass size, reminders and No numbers. First open shows it as a sheet.
+/// Goal, diet, avoid list, meals, day times, glass size, reminders and No numbers. As a sheet from the Set up Fuel
+/// card or Settings → You → Onboarding (#686): ✕ leaves it for later, Save my fuel saves it.
 struct FuelSetupView: View {
     var sheet = false
     @Environment(AppModel.self) private var model
@@ -226,7 +227,7 @@ struct FuelSetupView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if sheet {
-                    Text("Pointers that follow your training. Everything here is optional and can change any time in Settings → Fuel.")
+                    Text("Pointers that follow your training. Everything here is optional: ✕ leaves it for later, and it can change any time in Settings → Fuel.")
                         .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
                 }
                 section("🎯", "Goal", FuelPalette.coach) {
@@ -298,6 +299,18 @@ struct FuelSetupView: View {
                         .font(.system(size: 12, weight: .semibold, design: .rounded)).opacity(0.85)
                 }
                 Text(FuelLearn.disclaimer).font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
+                if sheet {
+                    Button {
+                        store.setPrefs(prefs)
+                        dismiss()
+                    } label: {
+                        Text("SAVE MY FUEL").font(Theme.display(17)).foregroundStyle(Theme.ink)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .background(Capsule().fill(Theme.lime))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("fuel.setup.save")
+                }
             }
             .padding(16)
         }
@@ -307,18 +320,13 @@ struct FuelSetupView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if sheet {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        store.setPrefs(prefs)
-                        dismiss()
-                    }
-                    .bold()
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { dismiss() } label: { Image(systemName: "xmark") }.accessibilityLabel("Close")
                 }
             }
         }
         // Settings page: saved as you go (auto save).
         .onChange(of: prefs) { if !sheet { store.setPrefs(prefs) } }
-        .onDisappear { if sheet { store.markSetUp() } }
     }
 
     private func section<C: View>(_ emoji: String, _ title: String, _ g: LinearGradient, ink: Color = .white, @ViewBuilder _ content: () -> C) -> some View {
@@ -433,5 +441,80 @@ struct RecoveryFuelCard: View {
                 await NotificationManager.shared.scheduleRefuel(dayKey: k)
             }
         }
+    }
+}
+
+/// First open of Fuel (#686, design A from `fuel-setup-skip/proposals.png`): Fuel shows the day at once with default
+/// pointers; this card offers the settings. Later or ✕ hides it, Settings → You → Onboarding keeps the set-up.
+struct FuelSetupCard: View {
+    let setUp: () -> Void
+    let later: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("FIRST TIME HERE").font(Theme.label(10)).tracking(1.2).opacity(0.75)
+                    Text("Set up Fuel").font(Theme.display(24))
+                    Text("Goal, diet, avoid list and meals a day. Defaults until then.")
+                        .font(.footnote.weight(.semibold)).opacity(0.8)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 4)
+                Button(action: later) {
+                    Image(systemName: "xmark").font(.system(size: 14, weight: .heavy))
+                        .frame(width: 32, height: 32)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.ink.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Hide")
+            }
+            HStack(spacing: 8) {
+                Button(action: setUp) {
+                    Text("SET UP · 1 MIN").font(Theme.label(14)).foregroundStyle(Theme.lime)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.ink))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("fuel.setupCard.setUp")
+                Button(action: later) {
+                    Text("LATER").font(Theme.label(14))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.ink.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("fuel.setupCard.later")
+            }
+        }
+        .foregroundStyle(Theme.ink)
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(FuelPalette.lime))
+    }
+}
+
+/// Gradient Undo bar after Later on the Set up Fuel card (#686).
+struct FuelSetupLaterBar: View {
+    let undo: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Fuel set-up later").font(Theme.display(15))
+                Text("Settings → You → Onboarding").font(.caption.weight(.semibold)).opacity(0.85)
+            }
+            Spacer(minLength: 4)
+            Button {
+                Haptics.undo()
+                undo()
+            } label: {
+                Text("UNDO").font(Theme.label(13))
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(Capsule().fill(.black.opacity(0.2)))
+            }
+            .buttonStyle(.plain)
+        }
+        .foregroundStyle(.white)
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(FuelPalette.coach))
     }
 }

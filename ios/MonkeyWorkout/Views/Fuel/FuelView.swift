@@ -73,6 +73,8 @@ struct FuelView: View {
     @State private var setup = false
     @State private var slot: FuelSlot?
     @State private var justAte = false
+    /// Undo bar after Later / ✕ on the Set up Fuel card (#686).
+    @State private var setupLater = false
     @AppStorage(AskCoachPref.bubbleRightKey) private var coachRight = true
 
     private func dropStaleDay() {
@@ -102,6 +104,10 @@ struct FuelView: View {
                     SegmentItem(value: $0, title: $0.label, symbol: $0.symbol)
                 }, gradient: FuelPalette.hot)
                 FuelDayStrip(day: $day)
+                if store.showsSetupCard {
+                    FuelSetupCard(setUp: { setup = true }, later: hideSetupCard)
+                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                }
                 FuelToolRow()
                 if let e = plan.event { FuelEventCard(event: e) }
                 switch store.prefs.layout {
@@ -131,6 +137,18 @@ struct FuelView: View {
             }
         }
         .sheet(isPresented: $justAte) { JustAteSheet(plan: plan, day: day) }
+        .overlay(alignment: .bottom) {
+            if setupLater {
+                FuelSetupLaterBar {
+                    withAnimation(.snappy) {
+                        store.hideSetupCard(false)
+                        setupLater = false
+                    }
+                }
+                .padding(.horizontal, 16).padding(.bottom, 76)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
         .onChange(of: FuelLaunch.shared.justAte, initial: true) { _, open in
             guard open else { return }
             FuelLaunch.shared.justAte = false
@@ -138,14 +156,23 @@ struct FuelView: View {
         }
         .navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }
         .fuelDestinations()
-        .onAppear {
-            if !store.saved.setUp && !model.demo { setup = true }
-            model.topUpMealPlan()
-        }
+        .onAppear { model.topUpMealPlan() }
         .onChange(of: scenePhase) { if scenePhase == .active { dropStaleDay() } }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in dropStaleDay() }
         .coachFocus(CoachFocus(screen: "fuel", title: "Fuel", detail: Self.coachDetail(plan, log: log, prefs: store.prefs),
                                starters: CoachFocus.tab(.fuel).starters))
+    }
+
+    private func hideSetupCard() {
+        withAnimation(.snappy) {
+            store.hideSetupCard(true)
+            setupLater = true
+        }
+        Haptics.undo()
+        Task {
+            try? await Task.sleep(for: .seconds(5))
+            withAnimation(.snappy) { setupLater = false }
+        }
     }
 
     /// Today's targets and what was counted, for Ask Coach (not shown).

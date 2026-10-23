@@ -10,8 +10,10 @@ final class FuelStore {
 
     struct Saved: Codable {
         var prefs = FuelPrefs()
-        /// Setup sheet seen (or skipped).
+        /// Fuel settings saved once (Done on the set-up sheet or any settings change).
         var setUp = false
+        /// Set up Fuel card hidden with Later or ✕ (#686); Settings → You → Onboarding keeps the set-up.
+        var setupCardHidden: Bool?
         /// Day key → log.
         var logs: [String: FuelDayLog] = [:]
         /// Day key → XP earned that day (protein + water targets).
@@ -102,10 +104,12 @@ final class FuelStore {
         Task { await NotificationManager.shared.scheduleWater() }
     }
 
-    func markSetUp() {
-        guard !saved.setUp else { return }
+    /// Set up Fuel card on top of Fuel (#686): until the settings are saved once, unless hidden.
+    var showsSetupCard: Bool { !saved.setUp && saved.setupCardHidden != true }
+
+    func hideSetupCard(_ hidden: Bool) {
         var s = saved
-        s.setUp = true
+        s.setupCardHidden = hidden
         save(s)
     }
 
@@ -387,9 +391,9 @@ final class FuelStore {
 
     #if DEBUG
     /// Demo screens: a counted morning, a few favourites, a stocked fridge and a planned week. Not saved.
-    func demo(layout: FuelLayout, now: Date = Date()) {
+    func demo(layout: FuelLayout, setUp: Bool = true, now: Date = Date()) {
         var s = Saved()
-        s.setUp = true
+        s.setUp = setUp
         s.prefs = FuelPrefs(goal: .build, meals: 5, layout: layout)
         let k = key(now)
         s.logs[k] = FuelDayLog(glasses: 6, eaten: Portions(palms: 3, cups: 3, fists: 2, thumbs: 2),
