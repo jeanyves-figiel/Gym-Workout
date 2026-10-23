@@ -77,16 +77,18 @@ public struct SharedPlanDraft<Programme: Codable & Sendable>: Encodable, Sendabl
     }
 }
 
+/// Stands in for a plan this app version can't read, so the list decoder moves past it.
+private struct SkippedPlan: Decodable {}
+
 struct SharedPlansResponse<P: Codable & Sendable & Hashable>: Decodable, Sendable {
     /// Lossy: a plan this app version can't read is skipped, not the whole list.
     var programs: [SharedPlan<P>]
 
     init(from decoder: any Decoder) throws {
-        struct Skip: Decodable {}
         var c = try decoder.container(keyedBy: CodingKeys.self).nestedUnkeyedContainer(forKey: .programs)
         var list: [SharedPlan<P>] = []
         while !c.isAtEnd {
-            if let p = try? c.decode(SharedPlan<P>.self) { list.append(p) } else { _ = try? c.decode(Skip.self) }
+            if let p = try? c.decode(SharedPlan<P>.self) { list.append(p) } else { _ = try? c.decode(SkippedPlan.self) }
         }
         programs = list
     }
