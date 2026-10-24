@@ -78,6 +78,16 @@ extension Theme {
     static let hiitColors = [hex(0xFF3D8B), hex(0xFF7A3C)]
     /// Gym buddies and Live: green to blue.
     static let buddiesColors = [hex(0x00B86B), hex(0x1E9BFF)]
+    /// Daily routines (#732): the newer built-ins and the colours a member's own routine can take. White type on each.
+    static let routinePalette: [[Color]] = [
+        [hex(0xFF4F8B), hex(0xFFA23C)], [hex(0x1FB5FF), hex(0x6A5CFF)], [hex(0x00B38F), hex(0x7FD94E)],
+        [hex(0xFF3D3D), hex(0xB23CFF)], [hex(0xE8A800), hex(0xFF6A3D)], [hex(0x7A2CFF), hex(0xFF2CA8)],
+    ]
+
+    static func routineGradient(_ i: Int) -> LinearGradient {
+        LinearGradient(colors: routinePalette[((i % routinePalette.count) + routinePalette.count) % routinePalette.count],
+                       startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
 }
 
 extension BlockKind {

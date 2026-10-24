@@ -182,17 +182,14 @@ final class AppSmokeUITests: XCTestCase {
         launchTabs()
         openTab("Fuel")
         XCTAssertTrue(app.staticTexts["Fuel"].firstMatch.waitForExistence(timeout: 10))
-        let empty = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ AND NOT (label CONTAINS %@)", "Glass ", "drunk")).firstMatch
-        if !empty.waitForExistence(timeout: 5) {
-            // Timeline layout first: the Day layout has the water card.
-            let day = app.buttons["Day"].firstMatch
-            if day.exists { day.tap() }
-        }
-        XCTAssertTrue(empty.waitForExistence(timeout: 10), "An empty glass")
-        XCTAssertTrue(scrollTo(empty), "Glass on screen")
-        let label = empty.label
-        empty.tap()
-        XCTAssertTrue(app.buttons["\(label), drunk"].waitForExistence(timeout: 5), "Glass counted")
+        // The tank's water square adds a glass per tap (#733).
+        let water = app.descendants(matching: .any)["fuel.tank.water"].firstMatch
+        XCTAssertTrue(water.waitForExistence(timeout: 10), "Water square")
+        let before = water.label
+        water.tap()
+        let counted = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@ AND label != %@", "fuel.tank.water", before)).firstMatch
+        XCTAssertTrue(counted.waitForExistence(timeout: 5), "Glass counted")
     }
 
     // MARK: Social
@@ -213,6 +210,16 @@ final class AppSmokeUITests: XCTestCase {
         let settings = app.buttons["me.settings"].firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings row in the Me sheet")
         settings.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "Settings page")
+    }
+
+    /// A chapter tile in the Me sheet opens Settings (#736).
+    func testMeSheetChapterOpensSettings() {
+        launchTabs()
+        app.buttons["me.pill"].firstMatch.tap()
+        let watch = app.buttons["me.chapter.watch"].firstMatch
+        XCTAssertTrue(watch.waitForExistence(timeout: 10), "Watches tile in the Me sheet")
+        watch.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "Settings page")
     }
 

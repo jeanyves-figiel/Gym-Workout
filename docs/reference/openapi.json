@@ -1333,7 +1333,7 @@
         "tags": [
           "Sync: member content"
         ],
-        "summary": "→ {workouts, deleted?, serverTime} member-built workouts (id, name, items[].exerciseId, visibility)",
+        "summary": "→ {workouts, deleted?, serverTime} member-built workouts (id, name, items[].exerciseId, visibility; other app fields kept as sent, e.g. routine {color, symbol} for own daily routines, #732)",
         "security": [
           {
             "bearer": []
@@ -3886,7 +3886,7 @@
         "tags": [
           "Coach (AI and voices)"
         ],
-        "summary": "{photo, catalog[≤400], mode? fridge|plate} → {items, found[{id | new food, sure, alcohol, per100}], remainingToday}; plate (#723, a cooked meal) adds dish and per food grams, caffeine (mg/100 g); one daily count for both",
+        "summary": "{photo, catalog[≤400], mode? fridge|plate|auto} → {items, found[{id | new food, sure, alcohol, per100}], remainingToday}; plate (#723, a cooked meal) adds dish and per food grams, caffeine (mg/100 g); auto (#733, Magic Snap) answers like plate plus kind meal|stock (stock: dish \"\"); one daily count for all modes",
         "description": "Errors / limits: as gym scan",
         "security": [
           {

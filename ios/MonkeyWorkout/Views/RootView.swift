@@ -255,7 +255,20 @@ private struct DemoScreen: View {
         case "explore-programmes": NavigationStack { LibraryView(mode: .programmes) }
         case "explore-routines": NavigationStack { LibraryView(mode: .routines) }
         // Daily routines opt-in (#696 B): the picker behind Train's Add a daily routine prompt.
-        case "daily-pick": DailyRoutinePicker(initial: [.stretch, .hangs])
+        case "daily-pick": DailyRoutinePicker(initial: [Routine.stretch.rawValue, Routine.hangs.rawValue])
+        // More daily routines (#732): Train's add cards (A starter pack, C coach pick) and the own-routine editor.
+        case "daily-offer":
+            NavigationStack {
+                ScrollView {
+                    VStack(spacing: 18) {
+                        DailyStarterCard(starters: Routine.starters(climber: true), count: Routine.allCases.count, add: { _ in }, open: { _ in }, close: {})
+                        CoachRoutineCard(open: { _ in }, close: {})
+                    }
+                    .padding(16)
+                }
+                .background(Theme.bg.ignoresSafeArea())
+            }
+        case "routine-builder": MyRoutineEditor(initial: Demo.myRoutine)
         // HIIT (#693): Explore → HIIT, the builder, the interval player.
         case "explore-hiit": NavigationStack { LibraryView(mode: .hiit) }
         case "hiit-builder": HiitBuilderSheet(format: .tabata)
@@ -486,7 +499,9 @@ private struct DemoScreen: View {
         case "own-gym": OwnGymSheet(name: "Kraftwerk Garage Gym") { _ in }
         case "move": MoveSessionSheet(sessionId: second)
         // Fuel (#496).
-        case "fuel", "fuel-timeline", "fuel-portions", "fuel-setup-card": NavigationStack { FuelView() }
+        case "fuel", "fuel-setup-card": NavigationStack { FuelView() }
+        // Fuel home redesign (#733): the Log sheet with Magic Snap on top, and the Magic Snap camera.
+        case "fuel-log": JustAteSheet(plan: model.fuelPlan(on: Date()), day: Date())
         case "fuel-recipes": NavigationStack { RecipeBrowserView().navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }.fuelDestinations() }
         case "recipe": NavigationStack { RecipeDetailView(recipe: RecipeBook.catalog[0]) }
         case "cook-mode": CookModeView(recipe: RecipeBook.catalog[0], servings: RecipeBook.catalog[0].servings)
@@ -506,6 +521,10 @@ private struct DemoScreen: View {
         case "fuel-snap-plate":
             if let slot = model.fuelPlan(on: Date()).slots.first(where: { $0.kind == .lunch }) ?? model.fuelPlan(on: Date()).slots.first {
                 PlateScanSheet(plan: model.fuelPlan(on: Date()), day: Date(), slot: slot)
+            }
+        case "fuel-snap":
+            if let slot = model.fuelPlan(on: Date()).slots.first(where: { $0.kind == .lunch }) ?? model.fuelPlan(on: Date()).slots.first {
+                MagicSnapSheet(plan: model.fuelPlan(on: Date()), day: Date(), slot: slot)
             }
         case "fuel-water": WaterSheet(plan: model.fuelPlan(on: Date()), glasses: FuelStore.shared.log(Date()).glasses, day: Date())
         case "fuel-setup": NavigationStack { FuelSetupView(sheet: true) }

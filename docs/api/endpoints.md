@@ -99,7 +99,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 
 | Method | Path | Auth | Summary | Errors / limits |
 |---|---|---|---|---|
-| GET | `/v1/me/custom-workouts` | Bearer | → `{workouts, deleted?, serverTime}` member-built workouts (`id`, `name`, `items[].exerciseId`, `visibility`) | |
+| GET | `/v1/me/custom-workouts` | Bearer | → `{workouts, deleted?, serverTime}` member-built workouts (`id`, `name`, `items[].exerciseId`, `visibility`; other app fields kept as sent, e.g. `routine` `{color, symbol}` for own daily routines, #732) | |
 | POST | `/v1/me/custom-workouts` | Bearer | `{workouts[≤100]}` → `{saved, serverTime, conflicts?}`; `visibility` members/public shares it to the library | 403 `community_profile_required` to share; 409 `quota_exceeded`; 413 `too_large` |
 | DELETE | `/v1/me/custom-workouts/:id` | Bearer | → 204 | |
 | GET | `/v1/me/custom-exercises` | Bearer | → `{exercises, deleted: [], serverTime}` (deletion = `archived` flag) | |
@@ -217,7 +217,7 @@ Paid model calls: Pro once subscriptions are enforced, per-member daily caps, gl
 | GET | `/v1/me/coach-chat` | Bearer | → `{available, remainingToday}` | |
 | POST | `/v1/me/coach-chat` | Bearer | `{turns[1–30]{role member\|coach, text}, context{goal, level, sessionMinutes, equipment, readiness, todayPlanned, method, screen, focus, pronouns, callName, memory}}` → `{reply, workout?, action?, suggestions, remainingToday}` | 402 `pro_required`; 429 `daily_limit`, `busy`; 502 `coach_failed`; 503 `coach_unavailable` |
 | POST | `/v1/me/gym-scan` | Bearer | `{photo (base64 JPEG ≤ 1.5 MB), catalog[≤150]{id, label}}` → `{items, remainingToday}` equipment seen | 402; 403 `verification_required`; 429; 502 `scan_failed`; 503 `scan_unavailable` |
-| POST | `/v1/me/food-scan` | Bearer | `{photo, catalog[≤400], mode? fridge\|plate}` → `{items, found[{id \| new food, sure, alcohol, per100}], remainingToday}`; `plate` (#723, a cooked meal) adds `dish` and per food `grams`, `caffeine` (mg/100 g); one daily count for both | as gym scan |
+| POST | `/v1/me/food-scan` | Bearer | `{photo, catalog[≤400], mode? fridge\|plate\|auto}` → `{items, found[{id \| new food, sure, alcohol, per100}], remainingToday}`; `plate` (#723, a cooked meal) adds `dish` and per food `grams`, `caffeine` (mg/100 g); `auto` (#733, Magic Snap) answers like `plate` plus `kind` meal\|stock (stock: `dish` ""); one daily count for all modes | as gym scan |
 | GET | `/v1/me/coach-voices` | Bearer | → `{available, voices, lines[{id, text, hash}]}`; `available: false` (200) when voices aren't configured | |
 | GET | `/v1/me/coach-voices/:voice/:line` | Bearer | MP3 of one line (made once with Polly, cached on the volume) | 404; 502 `voice_failed`; 600/min |
 | GET | `/v1/me/coach-voices/:voice/call/:style` | Bearer | MP3 of the short call with the member's name (`X-Call-Name` header); kept in memory for an hour, never on disk; a new name counts against `AI_DAILY_LIMIT` | 400 `bad_name`; 429 `daily_limit`, `busy`; 30/min |

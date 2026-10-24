@@ -132,6 +132,14 @@ public struct FuelDayLog: Codable, Hashable, Sendable {
         return Double(ticks.keys.filter { id in plan.slots.contains { $0.id == id } }.count) / Double(plan.slots.count)
     }
 
+    /// Protein and carb grams counted so far (#733): portions eaten against the day's grams per portion.
+    public func eatenGrams(_ plan: FuelPlan) -> (protein: Int, carbs: Int) {
+        func g(_ have: Int, _ target: Int, _ grams: Int) -> Int {
+            target > 0 ? Int((Double(grams) * Double(max(0, have)) / Double(target)).rounded()) : 0
+        }
+        return (g(eaten.palms, plan.portions.palms, plan.protein), g(eaten.cups, plan.portions.cups, plan.carbs))
+    }
+
     public func proteinHit(_ plan: FuelPlan) -> Bool { plan.portions.palms > 0 && eaten.palms >= plan.portions.palms }
     public func waterHit(_ plan: FuelPlan) -> Bool { glasses >= plan.glasses }
 }
