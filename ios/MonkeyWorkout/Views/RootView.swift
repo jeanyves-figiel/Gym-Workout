@@ -242,6 +242,8 @@ private struct DemoScreen: View {
         // Training programmes (#255); train-programme and programme-test are the Train tab.
         case "explore-programmes": NavigationStack { LibraryView(mode: .programmes) }
         case "explore-routines": NavigationStack { LibraryView(mode: .routines) }
+        // Daily routines opt-in (#696 B): the picker behind Train's Add a daily routine prompt.
+        case "daily-pick": DailyRoutinePicker(initial: [.stretch, .hangs])
         // HIIT (#693): Explore → HIIT, the builder, the interval player.
         case "explore-hiit": NavigationStack { LibraryView(mode: .hiit) }
         case "hiit-builder": HiitBuilderSheet(format: .tabata)
