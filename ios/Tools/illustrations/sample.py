@@ -53,7 +53,9 @@ def sheet(ids, out, width=800):
         c0, c1 = GRADIENT[ex["category"]]
         y = 8 + r * (ch + 30)
         d.text((8, y), ex["name"].upper(), fill="#FFFFFF", font=font)
-        for f, svg in enumerate(render(ex_id, cat)):
+        svgs = render(ex_id, cat)
+        # Start, middle and end (#719: the first three frames were in-betweens of the start).
+        for f, svg in enumerate(svgs[i] for i in sorted({0, len(svgs) // 2, len(svgs) - 1})):
             x, y0, w, h = re.search(r'viewBox="([^"]+)"', svg).group(1).split()
             head, rest = svg.split(">", 1)
             g = (head + f'><defs><linearGradient id="bg" x2="1" y2="1"><stop offset="0" stop-color="{c0}"/>'
