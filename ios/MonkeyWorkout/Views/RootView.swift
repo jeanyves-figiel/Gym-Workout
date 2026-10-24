@@ -489,6 +489,10 @@ private struct DemoScreen: View {
         case "fuel-plate":
             JustAteSheet(plan: model.fuelPlan(on: Date()), day: Date(),
                          plate: [FoodServing(foodId: "coffee"), FoodServing(foodId: "cornflakes", servings: 1.5)])
+        case "fuel-snap-plate":
+            if let slot = model.fuelPlan(on: Date()).slots.first(where: { $0.kind == .lunch }) ?? model.fuelPlan(on: Date()).slots.first {
+                PlateScanSheet(plan: model.fuelPlan(on: Date()), day: Date(), slot: slot)
+            }
         case "fuel-water": WaterSheet(plan: model.fuelPlan(on: Date()), glasses: FuelStore.shared.log(Date()).glasses, day: Date())
         case "fuel-setup": NavigationStack { FuelSetupView(sheet: true) }
         case "share-recipe": ShareRecipeSheet(recipe: RecipeBook.catalog[0])

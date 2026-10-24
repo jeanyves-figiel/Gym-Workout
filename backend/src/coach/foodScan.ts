@@ -118,3 +118,98 @@ export const claudeFoodScan = (apiKey: string, workspaceId?: string): FoodScanMo
     return cleanFoodScan((JSON.parse(text) as { items: Partial<FoodSeen>[] }).items, catalog);
   };
 };
+
+/** One food on a cooked plate (#723): like `FoodSeen`, with the grams on the plate and caffeine per 100 g. */
+export interface PlateFood extends FoodSeen {
+  grams: number;
+  caffeine: number;
+}
+
+export interface PlateSeen {
+  /** Short dish name ("Chicken teriyaki bowl"), empty when the plate is just separate foods. */
+  dish: string;
+  items: PlateFood[];
+}
+
+export type PlateScanModel = (jpeg: Buffer, catalog: ScanItem[]) => Promise<PlateSeen>;
+
+const PLATE_SYSTEM = `You look at a photo of a meal someone is about to eat or a drink they have: a plate, a bowl, a lunch box, a sandwich, a mug.
+- Name the dish in a few plain words (max 40 characters), e.g. "Chicken teriyaki bowl". Use "" when it is not one dish.
+- List each component you can see or that the dish clearly contains (rice, chicken, sauce, oil for frying, cheese on top). Several pieces of the same count once.
+- "grams": your best estimate of how much of it is on the plate, cooked weight as served (ml for drinks). Use the plate, cutlery, hands and packaging for scale. A dinner plate is about 26 cm wide.
+- Then match: give "id" from the list only when the component is that same food in the same state (cooked rice is not dry rice; use "" and a plain name like "Rice, cooked" instead). If nothing on the list fits, give "id": "" and a short plain name (max 40 characters).
+- "per100": your best estimate per 100 g as served; "caffeine" mg per 100 g (coffee about 40, tea about 20, else 0); "alcohol" true for alcoholic drinks.
+- "group" is the closest group. "sure" is false when the component is partly hidden or you are guessing what or how much it is.
+- If the photo shows no food or drink, return an empty list.`;
+
+const plateSchema = {
+  type: 'object',
+  properties: {
+    dish: { type: 'string' },
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          ...schema.properties.items.items.properties,
+          grams: { type: 'number' },
+          caffeine: { type: 'number' },
+        },
+        required: [...schema.properties.items.items.required, 'grams', 'caffeine'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['dish', 'items'],
+  additionalProperties: false,
+} as const;
+
+/** Same clean-up as the fridge scan, plus grams (1 g–2 kg) and caffeine; the same id twice adds up its grams. */
+export const cleanPlateScan = (raw: { dish?: unknown; items?: Partial<PlateFood>[] }, catalog: ScanItem[]): PlateSeen => {
+  const items = raw.items ?? [];
+  const grams = new Map<string, number>();
+  const caffeine = new Map<string, number>();
+  const known = new Set(catalog.map((c) => c.id));
+  for (const r of items) {
+    const key = r.id && known.has(r.id) ? r.id : String(r.name ?? '').replace(/\s+/g, ' ').trim().slice(0, 40).toLowerCase();
+    grams.set(key, (grams.get(key) ?? 0) + clamp(r.grams, 2000));
+    if (!caffeine.has(key)) caffeine.set(key, clamp(r.caffeine, 400));
+  }
+  const out = cleanFoodScan(items, catalog).map((f) => {
+    const key = f.id ?? f.name.toLowerCase();
+    return { ...f, grams: Math.max(1, Math.round(Math.min(2000, grams.get(key) ?? 0))), caffeine: caffeine.get(key) ?? 0 };
+  });
+  return { dish: String(raw.dish ?? '').replace(/\s+/g, ' ').trim().slice(0, 40), items: out };
+};
+
+/** Plate scan (#723): same model and settings as the fridge scan, its own prompt and schema. */
+export const claudePlateScan = (apiKey: string, workspaceId?: string): PlateScanModel => {
+  const client = new Anthropic({
+    apiKey,
+    timeout: 60_000,
+    maxRetries: 1,
+    defaultHeaders: workspaceId ? { 'anthropic-workspace-id': workspaceId } : undefined,
+  });
+  return async (jpeg, catalog) => {
+    const res = await client.beta.messages.create({
+      model: COACH_MODEL_ID,
+      max_tokens: 6000,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      system: PLATE_SYSTEM,
+      output_config: { effort: 'medium', format: { type: 'json_schema', schema: plateSchema } },
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: jpeg.toString('base64') } },
+            { type: 'text', text: `Food ids (id: name):\n${catalog.map((c) => `${c.id}: ${c.label}`).join('\n')}` },
+          ],
+        },
+      ],
+    });
+    if (res.stop_reason === 'refusal') return { dish: '', items: [] };
+    const text = res.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
+    return cleanPlateScan(JSON.parse(text) as { dish?: unknown; items?: Partial<PlateFood>[] }, catalog);
+  };
+};

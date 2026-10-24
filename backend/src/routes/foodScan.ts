@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import type { FoodScanModel, FoodSeen } from '../coach/foodScan.ts';
+import type { FoodScanModel, FoodSeen, PlateScanModel, PlateSeen } from '../coach/foodScan.ts';
 import type { DB } from '../db.ts';
 import { ApiError } from '../errors.ts';
 import { inFlight, refundAiCall, reserveAiCall, trustedAccount } from '../quota.ts';
@@ -14,11 +14,15 @@ const body = z.object({
     .array(z.object({ id: z.string().regex(/^[a-z0-9-]{1,40}$/), label: z.string().trim().min(1).max(60) }))
     .min(1)
     .max(400),
+  /** "plate" (#723): a cooked meal, answered with the dish and grams per food. */
+  mode: z.enum(['fridge', 'plate']).default('fridge'),
 });
 
 /**
  * Food scan (#496): POST /v1/me/food-scan with one photo (fridge, cupboard, shopping, receipt); answers the food ids
- * seen on it (`items`, older apps) and every food or drink seen, known or not, with sure/unsure (`found`, #573). Pro once subscriptions are enforced; daily cap per member bounds the spend.
+ * seen on it (`items`, older apps) and every food or drink seen, known or not, with sure/unsure (`found`, #573). With `mode: "plate"`
+ * (#723) the photo is a meal: `dish` plus each food with its grams and caffeine. Pro once subscriptions are enforced; one
+ * daily cap per member (both modes) bounds the spend.
  */
 export const foodScanRoutes = (
   r: FastifyInstance,
@@ -28,20 +32,23 @@ export const foodScanRoutes = (
   dailyLimit: number,
   hasAccess: (userId: string) => boolean,
   globalLimit: number,
+  plate?: PlateScanModel,
 ) => {
   const busy = inFlight(2);
 
   r.post('/me/food-scan', { bodyLimit: 2_200_000 }, async (req) => {
-    if (!scan) throw new ApiError(503, 'scan_unavailable', 'Food scan is not available right now.');
+    const b = body.parse(req.body);
+    const model = b.mode === 'plate' ? plate : scan;
+    if (!model) throw new ApiError(503, 'scan_unavailable', 'Food scan is not available right now.');
     if (!hasAccess(req.userId!)) throw new ApiError(402, 'pro_required', 'Food scan is part of MonkeyWorkout Pro.');
     if (!trustedAccount(db, req.userId!, now()))
       throw new ApiError(403, 'verification_required', 'Verify your email to scan, or try again tomorrow.');
-    const b = body.parse(req.body);
     const jpeg = Buffer.from(b.photo, 'base64');
     if (jpeg.length > MAX_PHOTO || jpeg[0] !== 0xff || jpeg[1] !== 0xd8) throw new ApiError(400, 'bad_photo', 'Send one JPEG photo up to 1.5 MB.');
     const day = now().toISOString().slice(0, 10);
     if (!busy.enter(req.userId!)) throw new ApiError(429, 'busy', 'Still reading your last photo.');
     let found: FoodSeen[];
+    let dish: string | undefined;
     let count: number | undefined;
     try {
       const slot = reserveAiCall(db, 'food_scan_usage', req.userId!, day, dailyLimit, globalLimit);
@@ -49,7 +56,13 @@ export const foodScanRoutes = (
       if (slot === 'all') throw new ApiError(429, 'daily_limit', 'Scanning is very busy today. Try again tomorrow!');
       count = slot;
       try {
-        found = await scan(jpeg, b.catalog);
+        if (b.mode === 'plate') {
+          const seen: PlateSeen = await plate!(jpeg, b.catalog);
+          found = seen.items;
+          dish = seen.dish;
+        } else {
+          found = await scan!(jpeg, b.catalog);
+        }
       } catch (e) {
         refundAiCall(db, 'food_scan_usage', req.userId!, day);
         req.log.warn(`food scan failed: ${(e as Error).message}`);
@@ -59,6 +72,6 @@ export const foodScanRoutes = (
       busy.leave(req.userId!);
     }
     const ids = new Set(found.flatMap((f) => (f.id ? [f.id] : [])));
-    return { items: b.catalog.map((c) => c.id).filter((id) => ids.has(id)), found, remainingToday: Math.max(0, dailyLimit - count) };
+    return { ...(dish !== undefined ? { dish } : {}), items: b.catalog.map((c) => c.id).filter((id) => ids.has(id)), found, remainingToday: Math.max(0, dailyLimit - count) };
   });
 };
