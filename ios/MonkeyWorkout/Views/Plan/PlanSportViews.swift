@@ -50,6 +50,8 @@ struct PlanSportSheet: View {
     @State private var mode: Mode
     @State private var until: Date
     @State private var name: String
+    /// Removed: nothing left to auto save.
+    @State private var removed = false
 
     init(day: String, editing: SportTrip? = nil, sport: Sport? = nil) {
         self.day = editing?.start ?? day
@@ -80,10 +82,7 @@ struct PlanSportSheet: View {
                     card
                     Text(footnote).font(.footnote).foregroundStyle(Theme.muted)
                     if let editing {
-                        Button(role: .destructive) {
-                            model.deleteSportTrip(editing.id)
-                            dismiss()
-                        } label: { Label("Remove \(editing.title)", systemImage: "trash") }
+                        Button(role: .destructive) { remove(editing) } label: { Label("Remove \(editing.title)", systemImage: "trash") }
                             .font(Theme.label(14))
                     }
                 }
@@ -93,14 +92,19 @@ struct PlanSportSheet: View {
             .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
             .safeAreaInset(edge: .bottom) {
-                Button { save() } label: { Label(saveTitle, systemImage: "checkmark") }
-                    .buttonStyle(LimeButtonStyle())
-                    .padding(.horizontal, 16).padding(.vertical, 8)
-                    .background(Theme.bg.opacity(0.95).ignoresSafeArea())
+                // A new sport day is planned with the button; an existing one saves itself (#717, #437).
+                if editing == nil {
+                    Button { save() } label: { Label(saveTitle, systemImage: "checkmark") }
+                        .buttonStyle(LimeButtonStyle())
+                        .padding(.horizontal, 16).padding(.vertical, 8)
+                        .background(Theme.bg.opacity(0.95).ignoresSafeArea())
+                }
             }
             .navigationTitle("Plan sport · \(startDate.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }
+            .autoSave(removed ? nil : editing.map { _ in trip }, title: "Sport day", symbol: sport.symbol, detail: { $0.title },
+                      save: { [model] t in model.saveSportTrip(t) })
         }
         .preferredColorScheme(.dark)
     }
@@ -158,17 +162,28 @@ struct PlanSportSheet: View {
         }
     }
 
+    /// The dated day or trip as on screen.
+    private var trip: SportTrip {
+        let end = mode == .trip ? PlanCalendar.key(until, cal) : day
+        let n = name.trimmingCharacters(in: .whitespaces)
+        return SportTrip(id: editing?.id ?? UUID(), sport: sport, start: day, end: end, name: mode == .trip && !n.isEmpty ? n : nil)
+    }
+
     private func save() {
         switch mode {
-        case .weekly:
-            model.addWeeklySportDay(sport, weekday: weekday)
-        case .once, .trip:
-            let end = mode == .trip ? PlanCalendar.key(until, cal) : day
-            let n = name.trimmingCharacters(in: .whitespaces)
-            model.saveSportTrip(SportTrip(id: editing?.id ?? UUID(), sport: sport, start: day, end: end,
-                                          name: mode == .trip && !n.isEmpty ? n : nil))
+        case .weekly: model.addWeeklySportDay(sport, weekday: weekday)
+        case .once, .trip: model.saveSportTrip(trip)
         }
         dismiss()
+    }
+
+    /// Removed at once (#717); the Undo bar puts it back as it was saved.
+    private func remove(_ editing: SportTrip) {
+        let saved = model.profile?.sportTrips?.first { $0.id == editing.id } ?? editing
+        removed = true
+        model.deleteSportTrip(editing.id)
+        dismiss()
+        UndoCloseCenter.shared.deleted("\(saved.title) removed", symbol: saved.sport.symbol) { [model] in model.saveSportTrip(saved) }
     }
 }
 

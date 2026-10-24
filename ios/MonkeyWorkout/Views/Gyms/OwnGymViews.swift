@@ -50,15 +50,18 @@ struct OwnGymSheet: View {
     @State private var coordinate: CLLocationCoordinate2D?
     @State private var camera: MapCameraPosition = .automatic
     @State private var locating = false
+    @State private var closeGuard = CloseGuard()
     @FocusState private var focus: Field?
 
     enum Field { case name, address }
 
-    init(name: String = "", pin: CLLocationCoordinate2D? = nil, onDone: @escaping (GymRef) -> Void) {
+    /// `address`: brought back by Undo (#717) with the name and pin.
+    init(name: String = "", pin: CLLocationCoordinate2D? = nil, address: String = "", onDone: @escaping (GymRef) -> Void) {
         self.name = name
         self.pin = pin
         self.onDone = onDone
         _gymName = State(initialValue: name.trimmingCharacters(in: .whitespaces))
+        _address = State(initialValue: address)
         _coordinate = State(initialValue: pin)
         if let pin {
             _camera = State(initialValue: .region(MKCoordinateRegion(center: pin, latitudinalMeters: 800, longitudinalMeters: 800)))
@@ -98,6 +101,7 @@ struct OwnGymSheet: View {
                         }
                     }
                     Button("NEXT · SET UP MACHINES") {
+                        closeGuard.done()
                         onDone(SavedGym.customRef(name: trimmedName, address: address.trimmingCharacters(in: .whitespaces),
                                                   latitude: coordinate?.latitude, longitude: coordinate?.longitude))
                         dismiss()
@@ -118,11 +122,26 @@ struct OwnGymSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }
             .task {
-                if let pin { address = await Self.address(at: pin) ?? "" }
+                if let pin, address.isEmpty { address = await Self.address(at: pin) ?? "" }
                 if pin == nil && trimmedName.isEmpty { focus = .name }
             }
         }
         .preferredColorScheme(.dark)
+        .undoableClose(closeGuard, offer: undoOffer)
+    }
+
+    /// Undo bar when a name, address or pin was entered (#717): reopens the form with them.
+    private var undoOffer: UndoOffer? {
+        let typedAddress = address.trimmingCharacters(in: .whitespaces)
+        let moved = coordinate?.latitude != pin?.latitude || coordinate?.longitude != pin?.longitude
+        guard trimmedName != name.trimmingCharacters(in: .whitespaces) || moved || pin == nil && !typedAddress.isEmpty
+        else { return nil }
+        let kept = (gymName, coordinate, address)
+        let done = onDone
+        return UndoOffer(title: "Gym closed", detail: undoDetail(trimmedName, typedAddress), symbol: "dumbbell.fill",
+                         colors: WorkoutEngine.Category.power.colors) {
+            AnyView(OwnGymSheet(name: kept.0, pin: kept.1, address: kept.2, onDone: done))
+        }
     }
 
     private func field(_ symbol: String, _ prompt: String, text: Binding<String>, focus f: Field) -> some View {

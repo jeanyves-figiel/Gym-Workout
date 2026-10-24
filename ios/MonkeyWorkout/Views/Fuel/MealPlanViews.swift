@@ -252,6 +252,7 @@ struct GroceriesView: View {
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Groceries")
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $pricing) { PriceSheet(food: $0).presentationDetents([.medium]) }
         .toolbar {
             if !items.isEmpty {

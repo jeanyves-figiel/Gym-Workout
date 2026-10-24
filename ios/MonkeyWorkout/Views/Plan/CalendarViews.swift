@@ -426,7 +426,7 @@ struct DaySheet: View {
                         let missed = selection.current && model.missedSessions.contains { $0.id == session.id }
                         if missed && model.skippedIds.contains(session.id) {
                             // Skipped (#340): let go, no more catch-up actions.
-                            Label("Skipped", systemImage: "minus.circle.fill")
+                            Label("Skipped", systemImage: "nosign")
                                 .font(Theme.label(13)).foregroundStyle(Theme.muted)
                         } else if missed {
                             // Missed (#266): log it, mark it done, do it today or skip.

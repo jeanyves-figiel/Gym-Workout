@@ -7,7 +7,7 @@ import WorkoutEngine
 struct MissedActionsRow: View {
     let session: Session
     var primary: Color = .white
-    var primaryInk: Color = Color(red: 0.91, green: 0.2, blue: 0.35)
+    var primaryInk: Color = MissedStyle.ink
     let onLog: () -> Void
     @Environment(AppModel.self) private var model
 
@@ -16,7 +16,7 @@ struct MissedActionsRow: View {
             action("Log it", "square.and.pencil", fill: primary, ink: primaryInk, onLog)
             action("Mark done", "checkmark") { withAnimation { model.markMissedDone(session) } }
             action("Do today", "arrow.uturn.forward") { withAnimation { model.doMissedToday(session.id) } }
-            action("Skip", "xmark") { withAnimation { model.skipMissed(session.id) } }
+            action("Skip", "nosign") { withAnimation { model.skipMissed(session.id) } }
         }
     }
 
@@ -207,6 +207,8 @@ struct MissedLogSheet: View {
 enum MissedStyle {
     static let gradient = LinearGradient(colors: [Color(hex: 0xFF3D6E), Color(hex: 0xFF8A3D)],
                                          startPoint: .topLeading, endPoint: .bottomTrailing)
+    /// Type on white over the missed gradient.
+    static let ink = Color(hex: 0xFF3D6E)
 }
 
 /// The week as seven day cells (design C, #266): missed days red, done days lime, today ringed, planned days lit.

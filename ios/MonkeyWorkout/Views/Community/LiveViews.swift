@@ -52,7 +52,7 @@ struct BuddiesCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous)
-            .fill(LinearGradient(colors: [Color(hex: 0x00B86B), Color(hex: 0x1E9BFF)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+            .fill(LinearGradient.buddies))
     }
 }
 
@@ -141,7 +141,7 @@ struct BuddyToast: View {
             }
             .foregroundStyle(.white)
             .padding(.horizontal, 16).padding(.vertical, 10)
-            .background(Capsule().fill(LinearGradient(colors: [Color(hex: 0x00B86B), Color(hex: 0x1E9BFF)], startPoint: .leading, endPoint: .trailing)))
+            .background(Capsule().fill(LinearGradient.buddies))
             .padding(.top, 6)
             .transition(.move(edge: .top).combined(with: .opacity))
             .id(p.id)
@@ -161,11 +161,11 @@ struct LiveShareTile: View {
                 .foregroundStyle(on ? Theme.ink : .white)
                 .frame(width: 44, height: 44)
                 .background(RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .fill(on ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x00B86B), Color(hex: 0x1E9BFF)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .fill(on ? AnyShapeStyle(LinearGradient.buddies)
                              : AnyShapeStyle(Theme.cardStrong)))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(on ? "Live with buddies" : "Private")
+        .accessibilityLabel(on ? "Live" : "Private")
         .accessibilityHint(on ? "Go private: buddies only see that you train" : "Go live: buddies see your sets")
         .accessibilityIdentifier("player.liveShare")
     }
@@ -182,8 +182,8 @@ struct LiveSharingView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Live sharing").font(Theme.display(22))
-                    Picker("Live sharing", selection: $pref) {
+                    Text("Live").font(Theme.display(22))
+                    Picker("Live", selection: $pref) {
                         ForEach(LiveSharePref.allCases) { Text($0.title).tag($0.rawValue) }
                     }
                     .pickerStyle(.segmented)
@@ -193,11 +193,11 @@ struct LiveSharingView: View {
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(LinearGradient(colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E88FF)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+                    .fill(LinearGradient.buddies))
                 if current != .never {
                     Text("Who sees it").font(Theme.label(13)).tracking(1.2).textCase(.uppercase).foregroundStyle(Theme.muted).padding(.top, 8)
                     if live.paired.isEmpty {
-                        AccountNote(text: "No gym buddies yet. Pair from a member's page in Community.")
+                        AccountNote(text: "No gym buddies yet. Pair from a member's page in Social.")
                     }
                     ForEach(live.paired) { b in
                         Toggle(isOn: Binding(get: { b.sharesLive }, set: { on in Task { await live.setShare(b.userId, on, api: model.api) } })) {
@@ -213,7 +213,7 @@ struct LiveSharingView: View {
             .padding(16)
         }
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle("Live sharing")
+        .navigationTitle("Live")
         .navigationBarTitleDisplayMode(.inline)
         .task { await live.load(api: model.api) }
     }

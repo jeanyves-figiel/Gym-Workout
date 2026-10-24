@@ -4,7 +4,7 @@ import WorkoutEngine
 /// "Explore" tab: exercises by body map / muscle group or training category, and the workout library.
 struct LibraryView: View {
     enum Mode: String, CaseIterable, Identifiable {
-        case muscles = "Muscles", machines = "Machines", categories = "Categories", workouts = "Workouts", hiit = "HIIT", routines = "Routines", programmes = "Programmes"
+        case muscles = "Muscles", machines = "Machines", categories = "Categories", workouts = "Workouts", hiit = "HIIT", routines = "Daily", programmes = "Programmes"
         var id: String { rawValue }
     }
 

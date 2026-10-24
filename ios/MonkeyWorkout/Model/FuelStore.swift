@@ -152,10 +152,26 @@ final class FuelStore {
         Task { await NotificationManager.shared.scheduleSupplements() }
     }
 
-    func deleteSupplement(_ id: String) {
+    /// Removes it at once and returns what Undo needs to put it back (#717): the supplement and its meal plan meals.
+    @discardableResult
+    func deleteSupplement(_ id: String) -> (supplement: Supplement, meals: [PlannedMeal])? {
         var s = saved
+        let removed = s.supplements?.first { $0.id == id }
+        let meals = s.plan.filter { $0.recipeId == Supplements.recipePrefix + id }
         s.supplements?.removeAll { $0.id == id }
         s.plan.removeAll { $0.recipeId == Supplements.recipePrefix + id }
+        save(s)
+        Task { await NotificationManager.shared.scheduleSupplements() }
+        return removed.map { ($0, meals) }
+    }
+
+    /// Undo of `deleteSupplement` (#717).
+    func restoreSupplement(_ x: Supplement, meals: [PlannedMeal]) {
+        var s = saved
+        var list = s.supplements ?? []
+        if !list.contains(where: { $0.id == x.id }) { list.append(x) }
+        s.supplements = list
+        s.plan += meals.filter { m in !s.plan.contains { $0.id == m.id } }
         save(s)
         Task { await NotificationManager.shared.scheduleSupplements() }
     }

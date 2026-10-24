@@ -417,7 +417,7 @@ struct HiitPlayerView: View {
         let id = r.id
         UndoCloseCenter.shared.show(UndoOffer(
             title: "HIIT saved", detail: "\(r.totalSets) intervals · \(max(1, r.durationSec / 60))′",
-            colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF7A3C)], reopen: { AnyView(EmptyView()) },
+            colors: Theme.hiitColors, reopen: { AnyView(EmptyView()) },
             revert: { [model] in _ = model.undoWorkout(id) }))
     }
 

@@ -15,6 +15,18 @@ struct ProductCatalogSheet: View {
     @State private var brand: String?
     @State private var variant: Supplement?
     @State private var servings = 1.0
+    @State private var draftRestored = false
+
+    /// What's searched and picked, kept on the device until it's added (#717, #437 drafts).
+    struct Draft: Codable, Equatable {
+        var query = ""
+        var brand: String?
+        var variant: Supplement?
+        var servings = 1.0
+    }
+
+    private static let draftKey = "product"
+    private var draft: Draft { Draft(query: query, brand: brand, variant: variant, servings: servings) }
 
     private static let colours: [LinearGradient] = [FuelPalette.hot, FuelPalette.violet, FuelPalette.mint, FuelPalette.coach,
                                                      FuelPalette.water, FuelPalette.protein]
@@ -25,6 +37,13 @@ struct ProductCatalogSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
+                    if draftRestored {
+                        DraftRestoredStrip {
+                            DraftStore.clear(Self.draftKey)
+                            query = ""; brand = nil; variant = nil; servings = 1
+                            draftRestored = false
+                        }
+                    }
                     TextField("Brand or product", text: $query)
                         .font(Theme.label(15)).padding(12)
                         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.card))
@@ -51,6 +70,7 @@ struct ProductCatalogSheet: View {
                         servingsPicker
                         let one = ProductCatalog.mine(variant, servings: servings, onDemand: true)
                         Button {
+                            DraftStore.clear(Self.draftKey)
                             picked(variant, servings)
                             dismiss()
                         } label: {
@@ -60,6 +80,7 @@ struct ProductCatalogSheet: View {
                     }
                     if let own {
                         Button {
+                            DraftStore.clear(Self.draftKey)
                             dismiss()
                             own()
                         } label: {
@@ -80,6 +101,13 @@ struct ProductCatalogSheet: View {
             .toolbar { CloseToolbarItem { dismiss() } }
         }
         .preferredColorScheme(.dark)
+        // Closing with X keeps the pick (#717): opening again brings it back.
+        .keepsDraft(Self.draftKey, draft, blank: Draft())
+        .onAppear {
+            guard !draftRestored, draft == Draft(), let d = DraftStore.load(Self.draftKey, as: Draft.self), d != Draft() else { return }
+            query = d.query; brand = d.brand; variant = d.variant; servings = d.servings
+            draftRestored = true
+        }
     }
 
     private func row(_ s: Supplement, on: Bool) -> some View {

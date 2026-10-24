@@ -249,7 +249,7 @@ struct NextUpCompactWidget: View {
                 .foregroundStyle(Theme.ink)
                 .padding(.horizontal, 14).padding(.vertical, 10)
                 .frame(maxWidth: wide ? nil : .infinity)
-                .background(Capsule().fill(Theme.lime))
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(model.activeWorkout(s.id) == nil ? "Start" : "Resume") \(s.displayTitle)")

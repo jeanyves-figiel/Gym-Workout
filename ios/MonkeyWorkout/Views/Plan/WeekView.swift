@@ -946,12 +946,14 @@ private struct NextUpCard: View {
         VStack(alignment: .leading, spacing: 10) {
             // The week at a glance (#266): missed days red (tap to catch up), today ringed; any other day shows here (#277).
             WeekDayStrip(selected: stripDay, onPick: onPick)
-            if showsJump {
+            if showsJump || placeDay != nil {
                 // A picked day's way back on the day's label line (#652, design A), outside the tappable summary.
-                HStack(alignment: .center, spacing: 10) {
+                // Where the day happens sits on the same line (#717, design 1A).
+                HStack(alignment: .center, spacing: 6) {
                     eyebrowText
+                    if let d = placeDay { PlaceMenuChip(weekday: d) }
                     Spacer(minLength: 0)
-                    DayJumpChip(label: backChipTitle(model, toToday: backToToday), action: onBack)
+                    if showsJump { DayJumpChip(label: backChipTitle(model, toToday: backToToday), action: onBack) }
                 }
             }
             // Tapping the card opens the session page, same as the list button (#150).
@@ -969,10 +971,6 @@ private struct NextUpCard: View {
                 // Long press (#643, design A): move it, or skip it without moving it.
                 .contextMenu { cardMenu }
                 .accessibilityHint("Opens the session overview")
-            }
-            // Where today happens (#700, design A): just this day or every week; Home always a choice (#703).
-            if later == nil, !done, !past, let d = day {
-                HStack { PlaceMenuChip(weekday: d); Spacer(minLength: 0) }
             }
             actions
         }
@@ -1053,7 +1051,7 @@ private struct NextUpCard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
-                    if !showsJump { eyebrowText }
+                    if !showsJump && placeDay == nil { eyebrowText }
                     // Long titles wrap instead of shrinking or cutting off (#538).
                     Text(session.displayTitle).font(Theme.display(compact ? 26 : 30)).foregroundStyle(.white)
                         .lineLimit(3).minimumScaleFactor(0.9).fixedSize(horizontal: false, vertical: true)
@@ -1062,7 +1060,7 @@ private struct NextUpCard: View {
                         // XP it earns (#227).
                         Text("+\(model.xp(for: session)) XP").font(Theme.label(13)).foregroundStyle(Theme.lime)
                             .padding(.horizontal, 9).padding(.vertical, 4)
-                            .background(Capsule().fill(Theme.ink.opacity(0.85)))
+                            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.ink.opacity(0.85)))
                     }
                     if !compact {
                         // As many of the top muscles as fit on one line.
@@ -1080,7 +1078,7 @@ private struct NextUpCard: View {
                 }
             }
             // Where and with what (#684, #685): lift at the day's gym, then its run, then climbing; the Coach's note.
-            if let d = later?.weekday ?? day { DayComboRow(session: session, day: d, thisWeek: later == nil, showNote: !compact) }
+            if let d = later?.weekday ?? day { DayComboRow(session: session, day: d, thisWeek: later == nil, showNote: !compact, showPlace: placeDay == nil) }
             if !compact { BlockStripe(blocks: session.blocks) }
         }
         .contentShape(Rectangle())
@@ -1096,6 +1094,12 @@ private struct NextUpCard: View {
     /// The next session's card needs a way back too when back means today.
     private var showsJump: Bool { picked != nil && (!isNext || backToToday) }
     private var isNext: Bool { session.id == model.nextSession?.id }
+    /// Where the day happens (#700), in the eyebrow (#717, design 1A): just this day or every week; Home always a
+    /// choice (#703).
+    private var placeDay: Int? {
+        guard later == nil, !done, !past else { return nil }
+        return day
+    }
 
     private var eyebrowText: some View {
         Text(eyebrow).font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
@@ -1137,7 +1141,7 @@ private struct NextUpCard: View {
                     // Recorded on another watch (#549, design A): mark it done or log its sets.
                     HealthMatchBox(entry: match, onDone: { withAnimation { model.markDone(session, from: match) } },
                                    onLog: { loggingHealth = match })
-                } else if let onStart, model.activeWorkout(session.id) != nil || !past && (day == nil || day == model.todayWeekday) {
+                } else if let onStart, model.startableToday(session) {
                     // Only today's session starts (#537); one in progress always resumes.
                     Button(action: onStart) {
                         Label(model.activeWorkout(session.id) == nil ? "Start workout" : "Resume workout", systemImage: "play.fill")

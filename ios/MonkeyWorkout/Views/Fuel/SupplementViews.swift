@@ -254,7 +254,6 @@ struct SupplementEditor: View {
     @State private var store = FuelStore.shared
     @State private var draft: Supplement?
     @State private var scanning = false
-    @State private var confirmDelete = false
 
     private var cal: Calendar { .current }
 
@@ -289,18 +288,12 @@ struct SupplementEditor: View {
                 }
                 amounts(d)
                 if !isNew {
-                    Button(role: .destructive) { confirmDelete = true } label: {
+                    Button(role: .destructive) { remove() } label: {
                         Text("Remove from my stack").font(Theme.label(14)).frame(maxWidth: .infinity).padding(14)
                             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(hex: 0xFF3D6E).opacity(0.18)))
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(Color(hex: 0xFF6B9A))
-                    .confirmationDialog("Remove \(supplement.name)?", isPresented: $confirmDelete) {
-                        Button("Remove", role: .destructive) {
-                            store.deleteSupplement(supplement.id)
-                            dismiss()
-                        }
-                    }
                 }
                 Text("Pointers only, not medical advice: amounts and timings come from your label or your coach.")
                     .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
@@ -339,6 +332,18 @@ struct SupplementEditor: View {
                 if found.fatG > 0 { s.fatG = found.fatG }
                 draft = s
             }
+        }
+    }
+
+    /// Removed at once (#717); the Undo bar puts it back with its meal plan meals.
+    private func remove() {
+        // No auto save of the open edits after it's gone.
+        draft = nil
+        let removed = store.deleteSupplement(supplement.id)
+        dismiss()
+        guard let removed else { return }
+        UndoCloseCenter.shared.deleted("\(removed.supplement.name) removed", detail: "From my stack") {
+            FuelStore.shared.restoreSupplement(removed.supplement, meals: removed.meals)
         }
     }
 
@@ -620,13 +625,8 @@ private struct SupplementRhythmBuilder: View {
     private func chips(_ items: [String], on: String, pick: @escaping (String) -> Void) -> some View {
         FlowLayout(spacing: 6) {
             ForEach(items, id: \.self) { v in
-                Button { pick(v) } label: {
-                    Text(v).font(Theme.label(12)).foregroundStyle(v == on ? Theme.ink : .white)
-                        .padding(.horizontal, 11).padding(.vertical, 8)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(v == on ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(Theme.cardStrong)))
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(v == on ? .isSelected : [])
+                SelectChip(title: v, on: v == on, onFill: AnyShapeStyle(Theme.lime), offFill: AnyShapeStyle(Theme.cardStrong),
+                           offInk: .white, size: 12, height: 32, fills: false) { pick(v) }
             }
         }
     }

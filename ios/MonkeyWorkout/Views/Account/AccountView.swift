@@ -34,7 +34,7 @@ struct AccountView: View {
     // Row search texts: title first, then the words a member might type.
     private enum Find {
         static let pro = "MonkeyWorkout Pro membership subscription trial lifetime"
-        static let profile = "Your profile name nickname photo about avatar community gender pronouns coach calls you how we talk to you"
+        static let profile = "Your profile name nickname photo about avatar community social gym buddies live sharing blocked gender pronouns coach calls you how we talk to you"
         static let gym = "Your gym equipment trip travel"
         static let body = "Body & Health height weight sex figure apple health"
         static let onboarding = "Onboarding set up setup guide tour show me round gym machines map first plan programme start again"

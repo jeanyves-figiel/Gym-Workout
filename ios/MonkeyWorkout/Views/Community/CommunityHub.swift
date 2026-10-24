@@ -105,9 +105,9 @@ struct GymPulseCard: View {
                 ForEach(order, id: \.self) { i in
                     let e = top[i]
                     VStack(spacing: 1) {
-                        Text(["🥇", "🥈", "🥉"][min(i, 2)]).font(.system(size: 14))
+                        Text(["🥇", "🥈", "🥉"][min(i, 2)]).font(Theme.label(14))
                         Text(e.me ? "You" : e.nickname).font(Theme.label(11)).lineLimit(1).minimumScaleFactor(0.7)
-                        Text(ChallengeRoomView.score(e)).font(.system(size: 10, weight: .bold, design: .rounded)).opacity(0.85)
+                        Text(ChallengeRoomView.score(e)).font(Theme.label(10)).opacity(0.85)
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: [58, 48, 42][min(i, 2)])
@@ -145,12 +145,12 @@ struct CommunityTiles: View {
             }
             .accessibilityLabel("Your gym, \(model.profile?.equipment.count ?? 0) items")
             NavigationLink { FindMembersView() } label: {
-                tile("magnifyingglass", "\(community.profile?.following ?? 0)", "Following", WorkoutEngine.Category.cardio.gradient)
+                tile("magnifyingglass", "\(community.profile?.following ?? 0)", "Find members · following", WorkoutEngine.Category.cardio.gradient)
             }
             .accessibilityLabel("Find members. Following \(community.profile?.following ?? 0).")
             NavigationLink { BuddiesScreen() } label: {
-                tile("figure.2", live.invites.isEmpty ? "\(liveCount)" : "\(live.invites.count)", live.invites.isEmpty ? "Buddies live" : "Invites",
-                     LinearGradient(colors: [Color(hex: 0x00B86B), Color(hex: 0x1E9BFF)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                tile("figure.2", live.invites.isEmpty ? "\(liveCount)" : "\(live.invites.count)", live.invites.isEmpty ? "Gym buddies · live" : "Invites",
+                     LinearGradient.buddies,
                      badge: !live.invites.isEmpty)
             }
             .accessibilityLabel(live.invites.isEmpty ? "Gym buddies, \(liveCount) live" : "Gym buddies, \(live.invites.count) invites")
@@ -165,7 +165,7 @@ struct CommunityTiles: View {
                     .frame(width: 32, height: 32)
                     .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.22)))
                 Spacer(minLength: 0)
-                if badge { Circle().fill(Theme.lime).frame(width: 10, height: 10) }
+                if badge { RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Theme.lime).frame(width: 10, height: 10) }
             }
             Spacer(minLength: 6)
             Text(value).font(Theme.display(24)).monospacedDigit().lineLimit(1)
@@ -351,7 +351,6 @@ struct SharedPlanView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var copied: Programme?
     @State private var copying = false
-    @State private var confirmUnshare = false
     @State private var confirmBlock = false
     @State private var notice: String?
 
@@ -414,16 +413,6 @@ struct SharedPlanView: View {
                 }
             }
         }
-        .confirmationDialog("Stop sharing this plan?", isPresented: $confirmUnshare, titleVisibility: .visible) {
-            Button("Stop sharing", role: .destructive) {
-                Task {
-                    await SharedPlans.shared.unshare(plan, api: model.api)
-                    dismiss()
-                }
-            }
-        } message: {
-            Text("Members who copied it keep their copy. Your programme stays in My programmes.")
-        }
         .confirmationDialog("Block \(plan.author.nickname)?", isPresented: $confirmBlock, titleVisibility: .visible) {
             Button("Block", role: .destructive) { block() }
         } message: {
@@ -481,7 +470,7 @@ struct SharedPlanView: View {
 
     @ViewBuilder private var actions: some View {
         if plan.mine {
-            Button("STOP SHARING") { confirmUnshare = true }
+            Button("STOP SHARING") { unshare() }
                 .buttonStyle(LimeButtonStyle(fill: Theme.cardStrong, text: .white))
         } else if let copied {
             NavigationLink { ProgrammeDetailView(programme: copied) } label: {
@@ -499,6 +488,20 @@ struct SharedPlanView: View {
             }
             .buttonStyle(LimeButtonStyle())
             .disabled(copying)
+        }
+    }
+
+    /// Stops at once (#717); the Undo bar shares it again as it was. Copies members made stay theirs.
+    private func unshare() {
+        let api = model.api
+        Task {
+            await SharedPlans.shared.unshare(plan, api: api)
+            dismiss()
+            UndoCloseCenter.shared.deleted("Plan no longer shared", detail: plan.name, symbol: "eye.slash.fill") { [plan] in
+                Task { @MainActor in
+                    try? await SharedPlans.shared.share(plan.programme, level: plan.level, about: plan.about, visibility: plan.visibility, api: api)
+                }
+            }
         }
     }
 
@@ -527,11 +530,23 @@ struct SharedPlanView: View {
 struct SharePlanSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    /// Values brought back by Undo (#717).
+    var restoring: Draft?
+
+    /// What's picked and typed, kept for Undo.
+    struct Draft {
+        var picked: Programme
+        var level: SharedPlanLevel
+        var about: String
+        var visibility: CommunityVisibility
+    }
+
     @State private var picked: Programme?
     @State private var level: SharedPlanLevel = .intermediate
     @State private var about = ""
     @State private var visibility: CommunityVisibility = .members
     @State private var task = FormTask()
+    @State private var closeGuard = CloseGuard()
 
     var body: some View {
         NavigationStack {
@@ -578,6 +593,23 @@ struct SharePlanSheet: View {
             .task { if !SharedPlans.shared.loaded { await SharedPlans.shared.load(api: model.api) } }
         }
         .preferredColorScheme(.dark)
+        .undoableClose(closeGuard, offer: undoOffer)
+        .onAppear {
+            guard let restoring, picked == nil else { return }
+            picked = restoring.picked
+            level = restoring.level
+            about = restoring.about
+            visibility = restoring.visibility
+        }
+    }
+
+    /// Undo bar when a programme was picked and something typed (#717).
+    private var undoOffer: UndoOffer? {
+        guard let picked, !about.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        let kept = Draft(picked: picked, level: level, about: about, visibility: visibility)
+        return UndoOffer(title: "Share closed", detail: undoDetail(picked.name, "“\(about)”"), symbol: "calendar") {
+            AnyView(SharePlanSheet(restoring: kept))
+        }
     }
 
     private var alreadyShared: Bool { picked.map { SharedPlans.shared.sharedPlan(of: $0) != nil } ?? false }
@@ -614,8 +646,10 @@ struct SharePlanSheet: View {
     private func share() {
         guard let picked else { return }
         let text = about.trimmingCharacters(in: .whitespacesAndNewlines)
+        let closing = closeGuard
         task.run {
             try await SharedPlans.shared.share(picked, level: level, about: text.isEmpty ? nil : text, visibility: visibility, api: model.api)
+            closing.done()
             dismiss()
         }
     }
@@ -693,12 +727,15 @@ struct ShareMealSheet: View {
 /// Post a tip: train or fuel, up to 280 characters, members by default.
 struct PostTipSheet: View {
     var topic: TipTopic = .train
+    /// Text brought back by Undo (#717).
+    var restoring: String?
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var picked: TipTopic?
     @State private var text = ""
     @State private var visibility: CommunityVisibility = .members
     @State private var task = FormTask()
+    @State private var closeGuard = CloseGuard()
 
     private var current: TipTopic { picked ?? topic }
 
@@ -747,6 +784,18 @@ struct PostTipSheet: View {
             .toolbar { CloseToolbarItem { dismiss() } }
         }
         .preferredColorScheme(.dark)
+        .undoableClose(closeGuard, offer: undoOffer)
+        .onAppear { if let restoring, text.isEmpty { text = restoring } }
+    }
+
+    /// Undo bar when something was typed (#717).
+    private var undoOffer: UndoOffer? {
+        guard !trimmed.isEmpty else { return nil }
+        let kept = text
+        let t = current
+        return UndoOffer(title: "Tip closed", detail: "“\(trimmed)”", symbol: "lightbulb.fill", colors: t.colors) {
+            AnyView(PostTipSheet(topic: t, restoring: kept))
+        }
     }
 
     private var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -758,18 +807,21 @@ struct PostTipSheet: View {
     private func post() {
         let t = current
         let tip = trimmed
+        let closing = closeGuard
         task.run {
             #if DEBUG
             if model.demo {
                 let me = CommunityAuthor(userId: "demo", nickname: Community.shared.profile?.nickname ?? "me")
                 Community.shared.insert(CommunityPost(id: UUID().uuidString, author: me, mine: true, kind: "note", visibility: visibility,
                                                       caption: tip, payload: Self.card(t), createdAt: Date()))
+                closing.done()
                 dismiss()
                 return
             }
             #endif
             let post = try await model.api.sharePost(kind: "note", refId: nil, visibility: visibility, caption: tip, card: Self.card(t))
             Community.shared.insert(post)
+            closing.done()
             dismiss()
         }
     }
