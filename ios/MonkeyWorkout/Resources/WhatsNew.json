@@ -1,53 +1,29 @@
 {
-  "id": "2026-10-24.4",
+  "id": "2026-10-24.5",
   "items": [
     {
-      "symbol": "tv.fill",
-      "tint": "cardio",
-      "title": "Workout on your TV",
-      "body": "Cast button in the player: Chromecast, Google TV or AirPlay show a big timer, your set and what's next."
-    },
-    {
-      "symbol": "camera.fill",
-      "tint": "power",
-      "title": "Snap your plate",
-      "body": "Photo of your meal: Monkey names the dish, guesses grams and logs protein, carbs and caffeine."
-    },
-    {
-      "symbol": "cup.and.saucer.fill",
+      "symbol": "sparkles",
       "tint": "warmup",
-      "title": "Coffee and cereals count",
-      "body": "Search foods in Just ate, build a plate and save your usual breakfast. Coffee fills the caffeine meter."
+      "title": "Fuel, clearer",
+      "body": "One tank for today, one Log button, and Magic Snap: photo your plate or your fridge, Monkey sorts it."
     },
     {
-      "symbol": "gift.fill",
-      "tint": "strength",
-      "title": "More free",
-      "body": "Variations, own workouts, PR attempts, full progress and Watch workouts no longer need Pro."
-    },
-    {
-      "symbol": "text.badge.checkmark",
+      "symbol": "figure.cooldown",
       "tint": "mobility",
-      "title": "Clearer names, fewer pop-ups",
-      "body": "Your gym sits on the day card, routines are now Daily, Gym buddies and Live are easy to find, and removing something gives you Undo."
+      "title": "More daily routines",
+      "body": "6 new ones (hips, shoulders, roll out, legs, wrists, splits), build your own, and Coach picks one for your day on Train."
     },
     {
-      "symbol": "figure.run",
+      "symbol": "person.3.fill",
       "tint": "cardio",
-      "title": "Real-life moves",
-      "body": "Runs, walks, carries and bikes now move forward, not back and forth."
+      "title": "Social, simpler",
+      "body": "Stories of who trained today, one feed, one Share button."
     },
     {
-      "symbol": "checkmark.seal.fill",
+      "symbol": "person.crop.square",
       "tint": "strength",
-      "title": "Steadier logging",
-      "body": "Workouts past midnight, Siri set logs and Watch supersets work as expected."
-    },
-    {
-      "symbol": "rectangle.topthird.inset.filled",
-      "tint": "stretch",
-      "title": "Cleaner headers",
-      "body": "Search and chips sit on a solid bar, nothing shows through."
+      "title": "Me, simpler",
+      "body": "One card for you and your level, Settings one tap away."
     }
   ]
 }
