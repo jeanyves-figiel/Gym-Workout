@@ -216,7 +216,7 @@ final class TVStreamServer: NSObject, AVAssetWriterDelegate, @unchecked Sendable
         c.receive(minimumIncompleteLength: 1, maximumLength: 16 * 1024) { [weak self] data, _, _, _ in
             guard let self, let data, let request = String(data: data, encoding: .utf8) else { return c.cancel() }
             let parts = request.split(separator: "\r\n").first?.split(separator: " ") ?? []
-            let method = parts.first.map(String.init) ?? ""
+            let method = parts.first.map { String($0) } ?? ""
             let path = parts.count > 1 ? String(parts[1].split(separator: "?").first ?? "") : ""
             let (status, type, body) = method == "OPTIONS" ? ("204 No Content", "text/plain", Data()) : self.respond(path)
             var head = "HTTP/1.1 \(status)\r\nContent-Type: \(type)\r\nContent-Length: \(body.count)\r\n"
