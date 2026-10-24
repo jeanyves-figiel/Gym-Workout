@@ -50,7 +50,7 @@ struct CoachFocus: Equatable {
         case .explore: CoachFocus(screen: "explore", title: "Explore", starters: ["Best exercises for my back", "A programme for my goal?"])
         case .progress: CoachFocus(screen: "progress", title: "Progress", starters: ["How am I doing?", "What should I improve?"])
         case .fuel: CoachFocus(screen: "fuel", title: "Fuel", starters: ["What should I eat after training?", "High-protein breakfast ideas", "What can I cook with eggs and rice?"])
-        case .community: CoachFocus(screen: "community", title: "Community", starters: ["How do I stay motivated?"])
+        case .community: CoachFocus(screen: "community", title: "Social", starters: ["How do I stay motivated?"])
         }
     }
 }

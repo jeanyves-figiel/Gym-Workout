@@ -71,7 +71,7 @@ struct MainTabView: View {
                 .tabItem { Label("Fuel", systemImage: "fork.knife") }
                 .tag(MainTab.fuel)
             NavigationStack { CommunityView() }
-                .tabItem { Label("Community", systemImage: "person.3.fill") }
+                .tabItem { Label("Social", systemImage: "person.3.fill") }
                 .tag(MainTab.community)
         }
         // Liquid Glass tab bar on iOS 26 (#616 A).

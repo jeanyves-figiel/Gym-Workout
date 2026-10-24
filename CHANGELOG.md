@@ -25,6 +25,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 - **Coach 🐵 in the header** (#707, design A from `coach-talk-header/proposals.png`): the floating Ask Coach bubble sat over cards (Train's Skip tile). It is now a lime 44 pt 🐵 tile at a fixed spot in the top-right header of every tab (Train, Explore, Progress, Fuel, Community), left of the other header tiles; tap to ask, hold to talk. Settings → Ask Coach toggle now hides the tile. Fuel's Just ate button stays bottom right. App `CoachHeaderTile` (replaces `AskCoachBubble`, its drag position keys and the Duo rail docking); demo screen `ask-coach-bubble` removed.
+- **Community tab is now Social** (#707): tab bar, title, app tour stop, Ask Coach focus, Your profile section and Report a problem area say **Social**. Code names, API (`/v1/community/*`) and settings keys unchanged.
 - **What's new 2026-10-24.2** (bundle 69, 3 cards): daily routines your way, skipped = rest day, today's place + routine Where. Notes 2026-10-24.1 moved to the history as build 68.
 - **What's new 2026-10-24.1** (bundle 68, 1 card): HIIT sessions. Notes 2026-10-23.2 moved to the history as build 67.
 - **What's new 2026-10-23.2** (bundle 67, 10 cards): same moves every day, add your own gym, where you train each day + hybrid, daily routines, Fuel set up later, live sharing choice, sport tiles stay put, Style follows your layout, Gym map first time, tab bar stays put. Notes 2026-10-23.1 moved to the history as build 66.
