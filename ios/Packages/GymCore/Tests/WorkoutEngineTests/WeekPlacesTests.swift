@@ -39,6 +39,32 @@ import Testing
         }
     }
 
+    @Test func oneOffPlaceOverridesItsDayOnlyInItsWeek() {
+        var p = profile()
+        p.dayKits = ["1": home, "3": home]
+        let monday = Progression.weekStart(cal.date(from: DateComponents(year: 2027, month: 1, day: 25))!, cal)
+        let gym = DayKit(gymId: "map:1,2", name: "Puls 5", equipment: Gym.puls5.equipment)
+        // Wednesday 27 Jan at the gym, Monday back to the plan's gym; a day of another week changes nothing.
+        let dated = ["2027-01-27": "map:1,2", "2027-01-25": "own", "2027-02-03": "map:1,2"]
+        let q = p.placing(dated, weekStart: monday, cal) { $0 == gym.gymId ? gym : nil }
+        #expect(q.kit(onWeekday: 3) == gym)
+        #expect(q.kit(onWeekday: 1) == nil)
+        #expect(p.placing([:], weekStart: monday, cal) { _ in gym } == p)
+        let plan = Generator.generateWeek(q, week: 1, seed: 3)
+        #expect(plan.sessions.first { $0.weekday == 3 }?.place == "Puls 5")
+        #expect(plan.sessions.first { $0.weekday == 1 }?.place == nil)
+    }
+
+    @Test func sessionGoesBackToThePlansGymWhenItsDayIsMovedBack() {
+        var p = profile()
+        p.dayKits = ["1": home]
+        let away = Generator.generateWeek(p, week: 1, seed: 3)
+        let back = Generator.fitPlaces(away, profile())
+        let base = Generator.generateWeek(profile(), week: 1, seed: 3)
+        #expect(back.sessions.allSatisfy { $0.place == nil })
+        #expect(back.sessions.map(\.blocks) == base.sessions.map(\.blocks))
+    }
+
     @Test func settingAPlaceMakesItAGymDay() {
         var p = profile()
         p.setPlace("custom:home", onWeekday: 2)

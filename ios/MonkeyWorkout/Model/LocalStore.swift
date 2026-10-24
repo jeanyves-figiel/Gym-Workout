@@ -65,6 +65,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var lifeStage: LifeStageCheckIn?
     /// New member onboarding (#664): steps done and the set-up card closed; nil = member from before it.
     var onboarding: OnboardingProgress?
+    /// One-off places (#700): day ("yyyy-MM-dd") → saved gym id, picked on Train for just that day.
+    var placeOnDay: [String: String]?
 
     /// Training profile with this week's learned tastes (#299): quick sessions and plan variations.
     var tasteProfile: Profile {
@@ -80,15 +82,18 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var placedProfile: Profile {
         var p = profile
         guard let places = p.dayPlaces else { return p }
-        let own = p.gym?.id ?? Gym.puls5.ref.id
         var kits: [String: DayKit] = [:]
-        for (day, id) in places where id != own {
-            if let g = savedGyms?.first(where: { $0.id == id }) {
-                kits[day] = DayKit(gymId: g.id, name: g.ref.name, equipment: g.equipment, layout: g.layout)
-            }
+        for (day, id) in places {
+            if let k = kit(id) { kits[day] = k }
         }
         p.dayKits = kits.isEmpty ? nil : kits
         return p
+    }
+
+    /// Kit of a saved gym; nil for the plan's own gym or a gym no longer saved.
+    func kit(_ gymId: String) -> DayKit? {
+        guard gymId != profile.gym?.id ?? Gym.puls5.ref.id, let g = savedGyms?.first(where: { $0.id == gymId }) else { return nil }
+        return DayKit(gymId: g.id, name: g.ref.name, equipment: g.equipment, layout: g.layout)
     }
 
     /// Profile the plan is generated from: the training profile plus this week's per-workout overrides.
@@ -96,6 +101,12 @@ struct SyncedProfile: Codable, Equatable, Sendable {
         var p = tasteProfile
         p.sessionStyles = sessionStyles?.filter { $0.key.hasPrefix("w\(week)s") }
         p.sessionFoci = sessionFoci?.filter { $0.key.hasPrefix("w\(week)s") }
+        // This week's one-off places (#700) over the weekly ones.
+        if let dated = placeOnDay, !dated.isEmpty {
+            let cal = Progression.calendar()
+            let monday = weekOf.flatMap { PlanCalendar.date($0, cal) } ?? Progression.weekStart(Date(), cal)
+            p = p.placing(dated, weekStart: monday, cal) { kit($0) }
+        }
         return p
     }
 }

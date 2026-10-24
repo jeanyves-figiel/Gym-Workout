@@ -41,6 +41,22 @@ enum RoutinePrefs {
     static let suggestionKey = "dailyRoutineSuggestion"
     /// "stretch:10,hangs:15".
     static let lengthsKey = "dailyRoutineLengths"
+    /// Where each routine happens (#700, design C): "hangs:home,stretch:gym"; missing = the routine's default.
+    static let placesKey = "dailyRoutinePlaces"
+
+    static func place(_ raw: String, _ r: Routine) -> RoutinePlace {
+        for part in raw.split(separator: ",") {
+            let kv = part.split(separator: ":")
+            if kv.count == 2, kv[0] == r.rawValue, let p = RoutinePlace(rawValue: String(kv[1])) { return p }
+        }
+        return r == .hangs ? .home : .anywhere
+    }
+
+    static func setting(_ raw: String, _ r: Routine, place: RoutinePlace) -> String {
+        var parts = raw.split(separator: ",").map(String.init).filter { !$0.hasPrefix(r.rawValue + ":") }
+        parts.append("\(r.rawValue):\(place.rawValue)")
+        return parts.joined(separator: ",")
+    }
 
     /// Daily is the member's choice (#696): nothing until picked, except routines they already did.
     static func tiles(_ raw: String, used: [Routine] = []) -> [Routine] {
@@ -79,5 +95,28 @@ enum RoutinePrefs {
         if t.contains(r) { return t.map(\.rawValue).joined(separator: ",") }
         if let replacing, let i = t.firstIndex(of: replacing) { t[i] = r } else { t.insert(r, at: 0) }
         return t.prefix(2).map(\.rawValue).joined(separator: ",")
+    }
+}
+
+/// Where a daily routine happens (#700): at home, at the day's gym, or anywhere (no kit needed).
+enum RoutinePlace: String, CaseIterable, Identifiable {
+    case home, gym, anywhere
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .home: "Home"
+        case .gym: "Gym"
+        case .anywhere: "Anywhere"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .home: "house.fill"
+        case .gym: "dumbbell.fill"
+        case .anywhere: "location.circle"
+        }
     }
 }

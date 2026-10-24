@@ -31,6 +31,23 @@ extension Profile {
         gymWeekdays = days.isEmpty ? nil : days
     }
 
+    /// One-off places (#700, "just today"): `dated` maps a day ("yyyy-MM-dd") to a gym id; the days of the week
+    /// starting `weekStart` take that gym's kit instead of their weekday's. `kit` resolves a gym id: nil = the plan's
+    /// own gym (or one no longer saved), so the day goes back to the plan's kit.
+    public func placing(_ dated: [String: String], weekStart: Date, _ cal: Calendar, kit: (String) -> DayKit?) -> Profile {
+        var kits = dayKits ?? [:]
+        var touched = false
+        for (i, key) in PlanCalendar.dayKeys(weekStart: weekStart, cal).enumerated() {
+            guard let id = dated[key] else { continue }
+            kits[String(i + 1)] = kit(id)
+            touched = true
+        }
+        guard touched else { return self }
+        var p = self
+        p.dayKits = kits.isEmpty ? nil : kits
+        return p
+    }
+
     /// Kit for `weekday` when it isn't the plan's own gym.
     public func kit(onWeekday weekday: Int) -> DayKit? { dayKits?[String(weekday)] }
 
@@ -52,7 +69,8 @@ extension Generator {
     /// gym's equipment, so the session type and day stay. Sessions already at the right gym, `skip` ids and library
     /// workouts are kept. Without per-day kits the plan is returned unchanged.
     public static func fitPlaces(_ plan: WeekPlan, _ profile: Profile, skip: Set<String> = [], split: [Focus]? = nil) -> WeekPlan {
-        guard let kits = profile.dayKits, !kits.isEmpty else { return plan }
+        // No kits and nothing placed elsewhere: as before. A session still at another gym goes back (#700).
+        guard profile.dayKits?.isEmpty == false || plan.sessions.contains(where: { $0.place != nil }) else { return plan }
         var plan = plan
         var weeks: [String: WeekPlan] = [:]
         for i in plan.sessions.indices {
