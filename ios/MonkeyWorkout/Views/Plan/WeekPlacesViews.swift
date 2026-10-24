@@ -131,3 +131,46 @@ struct DayComboRow: View {
             .fill(LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)))
     }
 }
+
+// MARK: - Today's place (#700, design A)
+
+/// On a workout day card: where the day happens ("📍 Puls 5 ▾"). The menu moves just this day, or this weekday
+/// every week, to another saved gym; the workout is rebuilt for that gym's kit, same session type.
+struct PlaceMenuChip: View {
+    let weekday: Int
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let current = model.placeId(onWeekday: weekday)
+        let day = WeekSchedule.name(weekday)
+        Menu {
+            Section("Just this \(day)") {
+                ForEach(model.placeChoices) { g in
+                    Button { model.setPlaceToday(g.id, onWeekday: weekday) } label: { choice(g, on: g.id == current) }
+                }
+            }
+            Section("Every \(day)") {
+                ForEach(model.placeChoices) { g in
+                    Button { model.setPlaceEveryWeek(g.id, onWeekday: weekday) } label: {
+                        choice(g, on: g.id == (model.profile?.place(onWeekday: weekday) ?? model.homeGym.id))
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "mappin.and.ellipse").font(.system(size: 11, weight: .bold))
+                Text(model.placeName(onWeekday: weekday)).font(Theme.label(12)).lineLimit(1)
+                Image(systemName: "chevron.down").font(.system(size: 9, weight: .heavy))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 9).padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.black.opacity(0.28)))
+        }
+        .accessibilityLabel("Where on \(day): \(model.placeName(onWeekday: weekday))")
+        .accessibilityIdentifier("train.placeChip")
+    }
+
+    private func choice(_ g: SavedGym, on: Bool) -> some View {
+        Label(g.ref.name, systemImage: on ? "checkmark" : g.kind?.symbol ?? (g.isPlace ? "dumbbell.fill" : "house.fill"))
+    }
+}

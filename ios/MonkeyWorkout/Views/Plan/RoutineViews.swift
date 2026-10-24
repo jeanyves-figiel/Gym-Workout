@@ -54,6 +54,7 @@ struct DailyRoutinesRow: View {
     @Environment(AppModel.self) private var model
     @AppStorage(RoutinePrefs.tilesKey) private var tilesRaw = ""
     @AppStorage(RoutinePrefs.lengthsKey) private var lengthsRaw = ""
+    @AppStorage(RoutinePrefs.placesKey) private var placesRaw = ""
 
     var body: some View {
         let tiles = RoutinePrefs.tiles(tilesRaw, climber: model.isClimber)
@@ -110,6 +111,14 @@ struct DailyRoutinesRow: View {
         .frame(maxWidth: .infinity, minHeight: 150, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(r.gradient).opacity(done ? 0.7 : 1))
         .contextMenu {
+            // Where it happens (#700, design C): home, the day's gym or anywhere.
+            Menu("Where", systemImage: "mappin.and.ellipse") {
+                ForEach(RoutinePlace.allCases) { p in
+                    Button(p.label, systemImage: RoutinePrefs.place(placesRaw, r) == p ? "checkmark" : p.symbol) {
+                        placesRaw = RoutinePrefs.setting(placesRaw, r, place: p)
+                    }
+                }
+            }
             Menu("Swap for…", systemImage: "arrow.left.arrow.right") {
                 ForEach(others) { o in
                     Button(o.label, systemImage: o.symbol) {
@@ -124,7 +133,12 @@ struct DailyRoutinesRow: View {
     private func detail(_ r: Routine, done: Bool) -> String {
         if done { return "Done today · again?" }
         if r == .hangs && model.climbingToday { return "Climb day · keep it easy" }
-        return r.tag
+        // Where (#700): home, or today's gym by name.
+        switch RoutinePrefs.place(placesRaw, r) {
+        case .home: return "At home · \(r.tag)"
+        case .gym: return "At \(model.placeName(onWeekday: model.todayWeekday)) · \(r.tag)"
+        case .anywhere: return r.tag
+        }
     }
 }
 
@@ -144,6 +158,7 @@ struct RoutineLibrarySection: View {
     @Environment(AppModel.self) private var model
     @AppStorage(RoutinePrefs.tilesKey) private var tilesRaw = ""
     @AppStorage(RoutinePrefs.lengthsKey) private var lengthsRaw = ""
+    @AppStorage(RoutinePrefs.placesKey) private var placesRaw = ""
     @State private var filter: Routine.Kind?
 
     var body: some View {
@@ -203,6 +218,22 @@ struct RoutineLibrarySection: View {
             HStack(spacing: 8) {
                 RoutineLengthChips(routine: r, selected: minutes) { lengthsRaw = RoutinePrefs.setting(lengthsRaw, r, to: $0) }
                 Spacer(minLength: 0)
+                // Where (#700, design C).
+                let place = RoutinePrefs.place(placesRaw, r)
+                Menu {
+                    ForEach(RoutinePlace.allCases) { p in
+                        Button(p.label, systemImage: place == p ? "checkmark" : p.symbol) {
+                            placesRaw = RoutinePrefs.setting(placesRaw, r, place: p)
+                        }
+                    }
+                } label: {
+                    Image(systemName: place.symbol)
+                        .font(.system(size: 13, weight: .bold))
+                        .frame(width: 32, height: 28)
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.black.opacity(0.22)))
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("Where: \(place.label)")
                 Button {
                     tilesRaw = RoutinePrefs.pinning(tilesRaw == "off" ? "" : tilesRaw, r, climber: model.isClimber)
                 } label: {

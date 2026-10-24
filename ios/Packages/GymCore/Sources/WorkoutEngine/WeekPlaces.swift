@@ -31,6 +31,23 @@ extension Profile {
         gymWeekdays = days.isEmpty ? nil : days
     }
 
+    /// One-off places (#700, "just today"): `dated` maps a day ("yyyy-MM-dd") to a gym id; the days of the week
+    /// starting `weekStart` take that gym's kit instead of their weekday's. `kit` resolves a gym id: nil = the plan's
+    /// own gym (or one no longer saved), so the day goes back to the plan's kit.
+    public func placing(_ dated: [String: String], weekStart: Date, _ cal: Calendar, kit: (String) -> DayKit?) -> Profile {
+        var kits = dayKits ?? [:]
+        var touched = false
+        for (i, key) in PlanCalendar.dayKeys(weekStart: weekStart, cal).enumerated() {
+            guard let id = dated[key] else { continue }
+            kits[String(i + 1)] = kit(id)
+            touched = true
+        }
+        guard touched else { return self }
+        var p = self
+        p.dayKits = kits.isEmpty ? nil : kits
+        return p
+    }
+
     /// Kit for `weekday` when it isn't the plan's own gym.
     public func kit(onWeekday weekday: Int) -> DayKit? { dayKits?[String(weekday)] }
 

@@ -434,7 +434,9 @@ final class AppModel {
                                sessionEdits: state.synced?.sessionEdits.map { list in list.filter { $0.week == nil || !newWeek } }.flatMap { $0.isEmpty ? nil : $0 },
                                // Learned tastes (#299) shape the plan from the next new week on.
                                taste: state.synced?.taste,
-                               weekTaste: newWeek ? freshWeekTaste : state.synced?.weekTaste)
+                               weekTaste: newWeek ? freshWeekTaste : state.synced?.weekTaste,
+                               // One-off places (#700) from today on.
+                               placeOnDay: state.synced?.placeOnDay?.filter { $0.key >= PlanCalendar.key(Date(), planCalendar) })
         let keptGrowth = state.synced?.growth
         let outside = (sportAddOn: state.synced?.sportAddOn, skills: state.synced?.skills, bikeFTP: state.synced?.bikeFTP,
                     bikeFTPTestedAt: state.synced?.bikeFTPTestedAt, lifeStage: state.synced?.lifeStage,
