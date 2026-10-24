@@ -89,7 +89,7 @@ struct ProfileView: View {
                 }
                 AccountNote(text: "Gender stays on your device and account, never in calculations. Pronouns are used by the coach and Ask Coach, and shown in Community only if you turn it on.")
 
-                section("Community")
+                section("Social")
                 if member {
                     VisibilityPicker(selection: $visibility)
                     Toggle(isOn: $autoShare) {

@@ -50,7 +50,6 @@ struct MainTabView: View {
     @State private var ask = CoachAsk.shared
     /// Exercise page opened by Visual Intelligence or Shortcuts (#617).
     @State private var exerciseLaunch = ExerciseLaunch.shared
-    @AppStorage(AskCoachPref.bubbleKey) private var coachBubble = true
 
     /// What's new with the X top right (#556); its own function keeps `body` quick to type-check.
     private func whatsNewSheet(_ notes: WhatsNew) -> some View {
@@ -72,14 +71,13 @@ struct MainTabView: View {
                 .tabItem { Label("Fuel", systemImage: "fork.knife") }
                 .tag(MainTab.fuel)
             NavigationStack { CommunityView() }
-                .tabItem { Label("Community", systemImage: "person.3.fill") }
+                .tabItem { Label("Social", systemImage: "person.3.fill") }
                 .tag(MainTab.community)
         }
         // Liquid Glass tab bar on iOS 26 (#616 A).
         .glassTabBar()
         .sidebarAdaptableTabs()
-        // Ask Coach everywhere (#412 A): the floating 🐵 and its chat, which knows the screen on top.
-        .overlay { if coachBubble { AskCoachBubble() } }
+        // Ask Coach everywhere (#412 A): the chat opened by the 🐵 header tile (#707), which knows the screen on top.
         // App tour (#664): over everything on the tabs, the bubble for the tab showing.
         .overlay { if model.tourStep != nil { AppTourOverlay() } }
         .sheet(item: $ask.request) { r in CoachChatView(ask: r).remotePaused(.askCoach) }
@@ -373,8 +371,6 @@ private struct DemoScreen: View {
         case "ask-coach":
             CoachChatView(ask: AskCoachRequest(focus: CoachFocus(screen: "exercise", title: "Barbell bench press"),
                                                question: "My shoulder clicks on this one"))
-        case "ask-coach-bubble":
-            NavigationStack { ExerciseDetailView(exerciseId: "bench-press") }.overlay { AskCoachBubble() }
         // Guided onboarding (#664): each step, the app tour, the set-up card and Settings → Onboarding.
         case "onboarding-gym", "onboarding-machines", "onboarding-map", "onboarding-plan", "onboarding-tour":
             OnboardingFlowView(mode: .newMember, profile: nil,

@@ -97,11 +97,11 @@ enum AppTour {
         AppTourStep(id: "fuel", tab: .fuel, symbol: "fork.knife", title: "Fuel",
                     text: "Meals, meal plans, water and supplements. Snap the fridge to log what you ate.",
                     category: .warmup),
-        AppTourStep(id: "community", tab: .community, symbol: "person.3.fill", title: "Community",
+        AppTourStep(id: "community", tab: .community, symbol: "person.3.fill", title: "Social",
                     text: "Share workouts, find gym buddies and join the week challenge.",
                     category: .mobility),
         AppTourStep(id: "coach", tab: .train, symbol: "bubble.left.and.text.bubble.right.fill", title: "Coach Monkey",
-                    text: "Tap 🐵 to ask Coach anything, hold to talk. The Me pill at the top right has Settings, and this tour again under Onboarding.",
+                    text: "Tap 🐵 at the top right to ask Coach anything, hold to talk. The Me pill at the top right has Settings, and this tour again under Onboarding.",
                     category: .stretch),
     ]
 }

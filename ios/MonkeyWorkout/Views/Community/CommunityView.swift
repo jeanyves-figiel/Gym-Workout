@@ -2,7 +2,7 @@ import APIClient
 import SwiftUI
 import WorkoutEngine
 
-/// "Community" tab (#61): your gym today, members' wins, plans, fuel and tips (#666), and your own posts.
+/// "Social" tab (#61, was Community until #707): your gym today, members' wins, plans, fuel and tips (#666), and your own posts.
 struct CommunityView: View {
     @Environment(AppModel.self) private var model
     @State private var scope: CommunityFeedScope = .members
@@ -31,7 +31,7 @@ struct CommunityView: View {
             }
         }
         .background(Theme.bg.ignoresSafeArea())
-        .navigationTitle(community.loaded && community.profile == nil ? "Join the community" : "Community")
+        .navigationTitle(community.loaded && community.profile == nil ? "Join the community" : "Social")
         .toolbarTitleDisplayMode(.inlineLarge)
         // Member feed draws its own header (#151): system toolbar items stretched into a capsule over the title.
         .toolbar(community.profile == nil ? .automatic : .hidden, for: .navigationBar)
@@ -66,8 +66,9 @@ struct CommunityView: View {
     /// Title, Share a win and the Me pill (#560): your community profile is in the Me sheet.
     private var header: some View {
         HStack(spacing: 12) {
-            Text("Community").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
+            Text("Social").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
             Spacer(minLength: 4)
+            CoachHeaderTile()
             Button { composing = true } label: { HeaderTile(symbol: "plus", lime: true) }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Share a win")

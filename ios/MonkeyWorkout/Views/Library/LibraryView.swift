@@ -33,6 +33,7 @@ struct LibraryView: View {
                 HStack(spacing: 10) {
                     Text("Explore").font(Theme.display(34)).lineLimit(1)
                     Spacer()
+                    CoachHeaderTile()
                     MePill()
                 }
                 .padding(.top, 4)
