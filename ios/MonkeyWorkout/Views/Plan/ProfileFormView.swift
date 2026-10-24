@@ -254,7 +254,7 @@ struct ProfileFormView: View {
             // Climbing and other sports as cards with day dots (#474 design C).
             MySportCards(profile: $p, programmeLink: !isNew, climbingDays: climbingDays)
 
-            if model.otherGyms.isEmpty || isNew {
+            if isNew {
                 VStack(alignment: .leading, spacing: 8) {
                     fieldLabel("Gym days", symbol: "dumbbell.fill", optional: true)
                     DayTiles(days: gymDays, symbol: "dumbbell.fill", fill: AnyShapeStyle(WorkoutEngine.Category.strength.gradient), ink: .white)
@@ -263,7 +263,7 @@ struct ProfileFormView: View {
                 // Several gyms (#684, design A): where each day's workout happens, any mix through the week.
                 VStack(alignment: .leading, spacing: 8) {
                     fieldLabel("Where I train", symbol: "mappin.and.ellipse", optional: true)
-                    WeekPlacesEditor(profile: $p, climbingDays: climbingDays, gyms: [model.homeGym] + model.otherGyms, showClimb: p.climbs)
+                    WeekPlacesEditor(profile: $p, climbingDays: climbingDays, gyms: model.placeChoices, showClimb: p.climbs)
                 }
             }
 
