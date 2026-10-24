@@ -92,7 +92,9 @@ struct SyncedProfile: Codable, Equatable, Sendable {
 
     /// Kit of a saved gym; nil for the plan's own gym or a gym no longer saved.
     func kit(_ gymId: String) -> DayKit? {
-        guard gymId != profile.gym?.id ?? Gym.puls5.ref.id, let g = savedGyms?.first(where: { $0.id == gymId }) else { return nil }
+        // Home without a saved kit (#703) is bodyweight.
+        guard gymId != profile.gym?.id ?? Gym.puls5.ref.id,
+              let g = savedGyms?.first(where: { $0.id == gymId }) ?? (gymId == SavedGym.builtInHome.id ? SavedGym.builtInHome : nil) else { return nil }
         return DayKit(gymId: g.id, name: g.ref.name, equipment: g.equipment, layout: g.layout)
     }
 
