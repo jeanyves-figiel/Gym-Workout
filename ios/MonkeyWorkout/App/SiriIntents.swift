@@ -84,6 +84,11 @@ struct JustAteIntent: AppIntent {
     }
 }
 
+/// Filled in by the player as it takes a Siri set log (#716), so the answer only says Logged when it did.
+final class VoiceLogReply {
+    var logged = false
+}
+
 /// "Log eight at eighty": fills the coming set and logs it, like saying it to the player's mic.
 struct LogSetByVoiceIntent: AppIntent {
     static let title: LocalizedStringResource = "Log a set"
@@ -99,7 +104,11 @@ struct LogSetByVoiceIntent: AppIntent {
         guard workoutRunning else {
             return .result(dialog: "No workout is running. Start one first.", view: EmptyView().eraseToAny())
         }
-        NotificationCenter.default.post(name: .workoutVoiceLog, object: nil, userInfo: ["reps": reps, "kg": kg as Any])
+        let reply = VoiceLogReply()
+        NotificationCenter.default.post(name: .workoutVoiceLog, object: nil, userInfo: ["reps": reps, "kg": kg as Any, "reply": reply])
+        guard reply.logged else {
+            return .result(dialog: "Couldn't log that set. Log it in the workout.", view: EmptyView().eraseToAny())
+        }
         let weight = kg.map { " at \(WatchPlayerFormat.kg($0)) kg" } ?? ""
         return .result(dialog: "Logged \(reps) reps\(weight).",
                        view: SiriCard(eyebrow: "LOGGED", title: "\(reps) reps", big: kg.map { "\(WatchPlayerFormat.kg($0)) kg" } ?? "✓",

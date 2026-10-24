@@ -353,7 +353,7 @@ struct WorkoutPlayerView: View {
     private func watchFeeds(_ content: some View) -> some View {
         content
         .onReceive(NotificationCenter.default.publisher(for: .workoutVoiceLog)) { n in
-            siriLog(reps: n.userInfo?["reps"] as? Int, kg: n.userInfo?["kg"] as? Double)
+            siriLog(reps: n.userInfo?["reps"] as? Int, kg: n.userInfo?["kg"] as? Double, reply: n.userInfo?["reply"] as? VoiceLogReply)
         }
         .onReceive(NotificationCenter.default.publisher(for: .watchHeartRate)) { _ in updateLive() }
         .onChange(of: timed) { updateLive() }
@@ -1039,17 +1039,27 @@ struct WorkoutPlayerView: View {
         listener.start { said in runVoice(said) }
     }
 
-    /// Siri "log 8 at 80" (#605): the coming set's reps and kg, then logged as the lime button does.
-    private func siriLog(reps: Int?, kg: Double?) {
+    /// Siri "log 8 at 80" (#605): the coming set's reps and kg, then logged as the lime button does. During the rest
+    /// or the "Next in" countdown (#716) it corrects the set just done instead of moving on.
+    private func siriLog(reps: Int?, kg: Double?, reply: VoiceLogReply?) {
         guard ready, !finished, steps.indices.contains(index) else { return }
         let step = steps[index]
         let done = setsDone[step.item.uid] ?? 0
-        if step.loggable, log.item?.uid == step.item.uid, !log.rows.isEmpty {
+        let onCard = step.loggable && log.item?.uid == step.item.uid && !log.rows.isEmpty
+        if pause != nil || autoNext != nil {
+            guard onCard, done > 0, log.rows.indices.contains(done - 1) else { return }
+            if let kg { log.setKg(done - 1, kg) }
+            if let reps { log.setReps(done - 1, reps) }
+            reply?.logged = log.log(done - 1, model: model)
+            return
+        }
+        if onCard {
             let row = min(done, log.rows.count - 1)
             if let kg { log.setKg(row, kg) }
             if let reps { log.setReps(row, reps) }
         }
         handle(.main)
+        reply?.logged = (setsDone[step.item.uid] ?? 0) > done
     }
 
     /// Runs what the member said: set done (with effort), weight, reps, rest, next / previous; anything else is a question.
