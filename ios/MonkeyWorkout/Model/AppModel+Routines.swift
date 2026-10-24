@@ -89,6 +89,11 @@ enum RoutinePrefs {
         return parts.joined(separator: ",")
     }
 
+    /// Takes `r` off Train (#703); the last one off hides the row (Explore pins one back).
+    static func removing(_ raw: String, _ r: Routine, used: [Routine] = []) -> String {
+        choosing(tiles(raw, used: used).filter { $0 != r })
+    }
+
     /// Puts `r` on Train in place of `replacing` (or first, pushing the second off).
     static func pinning(_ raw: String, _ r: Routine, replacing: Routine? = nil, used: [Routine] = []) -> String {
         var t = tiles(raw == "off" ? "" : raw, used: used)
