@@ -85,7 +85,7 @@ struct FoodPlateCard: View {
                 .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.black.opacity(0.2)))
             VStack(alignment: .leading, spacing: 1) {
                 Text(food.name).font(Theme.display(14)).lineLimit(1).minimumScaleFactor(0.75)
-                Text("\(FoodPlate.amount(item.servings)) × \(food.portion.label)").font(.system(size: 11, weight: .bold, design: .rounded)).opacity(0.85)
+                Text(FoodPlate.amount(item, food)).font(.system(size: 11, weight: .bold, design: .rounded)).opacity(0.85)
             }
             Spacer(minLength: 4)
             step("minus", "Less \(food.name)") { add(food.id, -0.5) }
@@ -119,6 +119,11 @@ enum FoodPlate {
         return whole == 0 ? "½" : half ? "\(whole)½" : "\(whole)"
     }
 
+    /// "1½ × 1 bowl", or "≈ 180 g" for a food logged by weight (#723).
+    static func amount(_ item: FoodServing, _ food: Food) -> String {
+        item.byWeight ? "≈ \(Int(item.grams(food).rounded())) g" : "\(amount(item.servings)) × \(food.portion.label)"
+    }
+
     /// Adds (or with a negative step takes off) servings; under ½ removes the food.
     static func adding(_ id: String, _ by: Double, to plate: [FoodServing]) -> [FoodServing] {
         var p = plate
@@ -134,7 +139,9 @@ enum FoodPlate {
     /// "Coffee, Cornflakes ×2, Milk ½".
     static func names(_ items: [FoodServing], own: [Food]) -> String {
         items.compactMap { i in
-            FoodBook.food(i.foodId, own: own).map { i.servings == 1 ? $0.name : "\($0.name) ×\(amount(i.servings))" }
+            FoodBook.food(i.foodId, own: own).map {
+                i.byWeight ? "\($0.name) \(Int(i.grams($0).rounded())) g" : i.servings == 1 ? $0.name : "\($0.name) ×\(amount(i.servings))"
+            }
         }
         .joined(separator: ", ")
     }

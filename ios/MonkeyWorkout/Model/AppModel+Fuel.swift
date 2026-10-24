@@ -187,6 +187,36 @@ extension AppModel {
         }
     }
 
+    /// A cooked plate (#723): the dish and each food with Monkey's grams. Foods not on the list come back as new foods
+    /// with their caffeine; they are kept on the device once logged.
+    func scanPlate(jpeg: Data) async throws -> PlateScan {
+        #if DEBUG
+        if demo { return Self.demoPlate }
+        #endif
+        let own = FuelStore.shared.saved.foods
+        let catalog = (FoodBook.catalog + own).prefix(400).map { GymScanItem(id: $0.id, label: String($0.name.prefix(60))) }
+        let result = try await api.foodScan(jpeg: jpeg, catalog: catalog, plate: true)
+        let items = (result.found ?? []).compactMap { seen -> PlateScan.Item? in
+            let food = seen.id.flatMap { FoodBook.food($0, own: own) } ?? Self.food(seen)
+            return PlateScan.Item(food: food, grams: seen.grams ?? food.portion.g, sure: seen.sure)
+        }
+        return PlateScan(dish: result.dish ?? "", items: items)
+    }
+
+    #if DEBUG
+    static var demoPlate: PlateScan {
+        let rice = Food(id: "scan-rice-cooked", name: "Rice, cooked", emoji: "🍚", group: .grain,
+                        per100: Macros(protein: 2.7, carbs: 28, fat: 0.3, kcal: 130), portion: Food.Serving(g: 100, label: "1 serving"), base: .vegan)
+        let sauce = Food(id: "scan-teriyaki-sauce", name: "Teriyaki sauce", emoji: "🥫", group: .sauce,
+                         per100: Macros(protein: 1, carbs: 40, fat: 0, kcal: 170), portion: Food.Serving(g: 100, label: "1 serving"), base: .vegan)
+        let items: [PlateScan.Item] = [FoodBook.food("chicken-breast").map { PlateScan.Item(food: $0, grams: 150) },
+                                       PlateScan.Item(food: rice, grams: 180),
+                                       FoodBook.food("broccoli").map { PlateScan.Item(food: $0, grams: 90) },
+                                       PlateScan.Item(food: sauce, grams: 15, sure: false)].compactMap { $0 }
+        return PlateScan(dish: "Chicken teriyaki bowl", items: items)
+    }
+    #endif
+
     /// A food the photo scan saw that isn't on the list, kept on the device like a scanned barcode.
     static func food(_ seen: FoodSeen) -> Food {
         let group = FoodGroup(rawValue: seen.group) ?? .snack
@@ -198,6 +228,7 @@ extension AppModel {
                         base: [.protein].contains(group) ? .poultry : [.dairy].contains(group) ? .vegetarian : .vegan,
                         contains: seen.alcohol ? [.alcohol] : [])
         food.aisle = drink ? "drinks" : nil
+        food.caffeine = seen.caffeine.flatMap { $0 > 0 ? $0 : nil }
         return food
     }
 
