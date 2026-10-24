@@ -79,17 +79,18 @@ export const reportRoutes = (
         'user-agent': 'MonkeyWorkout-reports',
       },
       body: JSON.stringify({
-        title: `[${KINDS[b.kind]}] ${b.area}: ${oneLine(redact(b.text))}`,
+        title: `[${KINDS[b.kind]}] ${redact(b.area)}: ${oneLine(redact(b.text))}`,
+        // Everything the member typed is redacted, the facts too (an error message can carry an address, #713).
         body: [
           '**Member report** (in-app)',
           '',
-          ...facts(b).map((f) => `- ${f}`),
+          ...facts(b).map((f) => `- ${redact(f)}`),
           `- Screenshots: ${shots} (sent to the team by email)`,
           `- Report id: \`${id}\``,
           '',
           '---',
           '',
-          b.text.replace(/@/g, '@​'),
+          redact(b.text).replace(/@/g, '@​'),
         ].join('\n'),
         labels: ['member-report', b.kind === 'idea' ? 'enhancement' : 'bug'],
       }),

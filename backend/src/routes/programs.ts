@@ -42,11 +42,18 @@ interface Row {
   level: number | null;
 }
 
-const SELECT = `SELECT p.*, cp.nickname, cp.avatar_id, cp.level FROM community_programs p LEFT JOIN community_profiles cp ON cp.user_id = p.user_id`;
+/** `copies` is counted from the copies table (#714), so a copier who deletes their account no longer counts. */
+const SELECT = `SELECT p.*, (SELECT COUNT(*) FROM community_program_copies c WHERE c.program_id = p.id) AS copies, cp.nickname, cp.avatar_id, cp.level
+  FROM community_programs p LEFT JOIN community_profiles cp ON cp.user_id = p.user_id`;
 const VISIBLE = `cp.user_id IS NOT NULL AND ${visibleToOthersSql('p.user_id', 'p.visibility', 'p.hidden_at')}`;
 
 export const programExport = (db: DB, userId: string) =>
-  (db.prepare('SELECT id, data, visibility, copies, created_at, updated_at FROM community_programs WHERE user_id = ? ORDER BY created_at').all(userId) as {
+  (db
+    .prepare(
+      `SELECT id, data, visibility, (SELECT COUNT(*) FROM community_program_copies c WHERE c.program_id = p.id) AS copies, created_at, updated_at
+       FROM community_programs p WHERE user_id = ? ORDER BY created_at`,
+    )
+    .all(userId) as {
     data: string;
   }[]).map((r) => ({ ...r, data: JSON.parse(r.data) as unknown }));
 
@@ -55,18 +62,29 @@ export const programRoutes = (r: FastifyInstance, db: DB, now: () => Date, maile
     if (!hasAcceptedGuidelines(db, userId)) throw new ApiError(403, 'community_profile_required', 'Create your community profile first.');
   };
 
-  const toProgram = (p: Row, viewer: string) => ({
-    id: p.id,
-    ...(JSON.parse(p.data) as object),
-    author: { userId: p.user_id, nickname: p.nickname ?? 'member', avatarUrl: p.avatar_id ? `/v1/community/avatars/${p.avatar_id}` : null, level: p.level ?? null },
-    mine: p.user_id === viewer,
-    visibility: p.visibility,
-    copies: p.copies,
-    copiedByMe: !!db.prepare('SELECT 1 FROM community_program_copies WHERE program_id = ? AND user_id = ?').get(p.id, viewer),
-    hidden: !!p.hidden_at,
-    createdAt: p.created_at,
-    updatedAt: p.updated_at,
-  });
+  /** Plans as the app reads them; whether the viewer copied each is read in one query for the page (#715). */
+  const toPrograms = (rows: Row[], viewer: string) => {
+    const copied = rows.length
+      ? new Set(
+          (db
+            .prepare(`SELECT program_id FROM community_program_copies WHERE user_id = ? AND program_id IN (${rows.map(() => '?').join(',')})`)
+            .all(viewer, ...rows.map((p) => p.id)) as { program_id: string }[]).map((c) => c.program_id),
+        )
+      : new Set<string>();
+    return rows.map((p) => ({
+      id: p.id,
+      ...(JSON.parse(p.data) as object),
+      author: { userId: p.user_id, nickname: p.nickname ?? 'member', avatarUrl: p.avatar_id ? `/v1/community/avatars/${p.avatar_id}` : null, level: p.level ?? null },
+      mine: p.user_id === viewer,
+      visibility: p.visibility,
+      copies: p.copies,
+      copiedByMe: copied.has(p.id),
+      hidden: !!p.hidden_at,
+      createdAt: p.created_at,
+      updatedAt: p.updated_at,
+    }));
+  };
+  const toProgram = (p: Row, viewer: string) => toPrograms([p], viewer)[0]!;
 
   const visible = (id: string, viewer: string) => {
     const row = db.prepare(`${SELECT} WHERE p.id = ? AND (p.user_id = ? OR (${VISIBLE}))`).get(id.toLowerCase(), viewer, viewer, viewer) as Row | undefined;
@@ -74,7 +92,10 @@ export const programRoutes = (r: FastifyInstance, db: DB, now: () => Date, maile
     return row;
   };
 
-  /** Members' plans newest first (`?mine=1`: your own, private included); `q` matches name, `level` filters. */
+  /**
+   * Members' plans newest first by when they were shared (#714: an edit no longer moves a plan between pages);
+   * `?mine=1`: your own, private included; `q` matches name, `level` filters.
+   */
   r.get('/community/programs', async (req) => {
     const q = z
       .object({
@@ -88,17 +109,17 @@ export const programRoutes = (r: FastifyInstance, db: DB, now: () => Date, maile
     const viewer = req.userId!;
     requireProfile(viewer);
     const like = q.q ? `%${q.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : '%';
-    const page = beforeSql('p.updated_at', 'p.id', q);
+    const page = beforeSql('p.created_at', 'p.id', q);
     const who = q.mine === '1' ? 'p.user_id = ?' : `p.user_id != ? AND ${VISIBLE}`;
     const whoArgs = q.mine === '1' ? [viewer] : [viewer, viewer, viewer];
     const rows = db
       .prepare(
         `${SELECT} WHERE ${who} AND ${page.sql} AND json_extract(p.data, '$.name') LIKE ? ESCAPE '\\'
-         AND (? IS NULL OR json_extract(p.data, '$.level') = ?) ORDER BY p.updated_at DESC, p.id DESC LIMIT ?`,
+         AND (? IS NULL OR json_extract(p.data, '$.level') = ?) ORDER BY p.created_at DESC, p.id DESC LIMIT ?`,
       )
       .all(...whoArgs, ...page.args, like, q.level ?? null, q.level ?? null, q.limit) as unknown as Row[];
     const last = rows.length === q.limit ? rows.at(-1)! : undefined;
-    return { programs: rows.map((p) => toProgram(p, viewer)), nextBefore: last?.updated_at ?? null, nextBeforeId: last?.id ?? null };
+    return { programs: toPrograms(rows, viewer), nextBefore: last?.created_at ?? null, nextBeforeId: last?.id ?? null };
   });
 
   r.get('/community/programs/:id', async (req) => {
@@ -133,6 +154,9 @@ export const programRoutes = (r: FastifyInstance, db: DB, now: () => Date, maile
 
   r.delete('/community/programs/:id', async (req, reply) => {
     const { id } = z.object({ id: z.uuid() }).parse(req.params);
+    const owner = db.prepare('SELECT user_id FROM community_programs WHERE id = ?').get(id.toLowerCase()) as { user_id: string } | undefined;
+    // Someone else's plan is not found (#714); one already gone is (retries stay 204).
+    if (owner && owner.user_id !== req.userId) throw new ApiError(404, 'not_found', 'Plan not found.');
     db.prepare('DELETE FROM community_programs WHERE id = ? AND user_id = ?').run(id.toLowerCase(), req.userId!);
     return reply.status(204).send();
   });
@@ -144,10 +168,7 @@ export const programRoutes = (r: FastifyInstance, db: DB, now: () => Date, maile
     requireProfile(uid);
     const row = visible(id, uid);
     if (row.user_id !== uid)
-      tx(db, () => {
-        const fresh = Number(db.prepare('INSERT OR IGNORE INTO community_program_copies (program_id, user_id, created_at) VALUES (?, ?, ?)').run(row.id, uid, now().toISOString()).changes);
-        if (fresh) db.prepare('UPDATE community_programs SET copies = copies + 1 WHERE id = ?').run(row.id);
-      });
+      db.prepare('INSERT OR IGNORE INTO community_program_copies (program_id, user_id, created_at) VALUES (?, ?, ?)').run(row.id, uid, now().toISOString());
     return { program: toProgram(visible(id, uid), uid) };
   });
 

@@ -237,6 +237,10 @@ describe('sandbox purchases and notification retries (#432)', () => {
     expect(loadConfig({ ...prod, SUBSCRIPTION_TESTS: 'on' }).subscriptions.sandbox).toBe(true);
     expect(loadConfig({ ...prod, SUBSCRIPTION_SANDBOX: 'on' }).subscriptions.sandbox).toBe(true);
     expect(loadConfig({ NODE_ENV: 'test' }).subscriptions.sandbox).toBe(true);
+    // #712: fake purchases never start on the production host.
+    expect(() => loadConfig({ ...prod, SUBSCRIPTION_TESTS: 'on', WEBAUTHN_RP_ID: 'workout.monkeygrade.cloud' })).toThrow(/SUBSCRIPTION_TESTS/);
+    expect(() => loadConfig({ ...prod, SUBSCRIPTION_TESTS: 'on', WEBAUTHN_ORIGINS: 'https://Workout.monkeygrade.cloud' })).toThrow(/SUBSCRIPTION_TESTS/);
+    expect(loadConfig({ ...prod, SUBSCRIPTION_TESTS: 'on', WEBAUTHN_RP_ID: 'workout-staging.monkeygrade.cloud' }).subscriptions.tests).toBe(true);
 
     start({ SUBSCRIPTIONS: 'enforced', SUBSCRIPTION_SANDBOX: 'off' });
     const u = await signUp('a@example.com');

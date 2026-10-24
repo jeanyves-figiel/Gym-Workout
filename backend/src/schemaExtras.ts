@@ -147,4 +147,59 @@ export const ensureSchemaExtras = (db: DB): void => {
     );
     CREATE INDEX IF NOT EXISTS sync_tombstones_deleted ON sync_tombstones(user_id, kind, deleted_at);
   `);
+  // Access tokens issued before this instant are refused (#712): set by password change / reset and logout-all.
+  const userCols = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
+  if (!userCols.some((c) => c.name === 'tokens_valid_after')) db.exec('ALTER TABLE users ADD COLUMN tokens_valid_after TEXT');
+  // The export lists records by their own instant, not their text (#714): `julianday()` reads any offset.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS logs_user_time ON workout_logs(user_id, julianday(date));
+    CREATE INDEX IF NOT EXISTS workouts_user_time ON workouts(user_id, julianday(started_at));
+    CREATE INDEX IF NOT EXISTS pr_attempts_user_time ON pr_attempts(user_id, julianday(date));
+    CREATE INDEX IF NOT EXISTS body_measurements_user_time ON body_measurements(user_id, julianday(date));
+    CREATE INDEX IF NOT EXISTS climbs_user_time ON climbs(user_id, julianday(start));
+    CREATE INDEX IF NOT EXISTS sports_user_time ON sports(user_id, julianday(start));
+  `);
+  once(db, 'lowercase-sync-ids', lowercaseSyncIds);
+};
+
+/** Runs `fix` the first time a database starts with it, in one transaction (data fixes, unlike the schema above). */
+const once = (db: DB, name: string, fix: (db: DB) => void): void => {
+  db.exec('CREATE TABLE IF NOT EXISTS schema_fixes (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
+  if (db.prepare('SELECT 1 FROM schema_fixes WHERE name = ?').get(name)) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    fix(db);
+    db.prepare('INSERT INTO schema_fixes (name, applied_at) VALUES (?, ?)').run(name, new Date().toISOString());
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+};
+
+/** Synced tables keyed by a client UUID (#714). */
+export const SYNC_TABLES = ['workout_logs', 'workouts', 'climbs', 'sports', 'pr_attempts', 'body_measurements', 'custom_workouts', 'custom_exercises', 'machine_notes'];
+
+/**
+ * Sync ids are lower-cased on parse since #714; rows stored before keep the app's upper-case `uuidString`. Lower-case
+ * them once so the next upload updates the row instead of adding a twin. Where both spellings exist for one member,
+ * the newer row stays. Ids another account holds in lower case are left alone.
+ */
+const lowercaseSyncIds = (db: DB): void => {
+  db.exec('PRAGMA defer_foreign_keys = ON');
+  for (const t of SYNC_TABLES) {
+    db.exec(`
+      DELETE FROM ${t} WHERE id != lower(id) AND EXISTS
+        (SELECT 1 FROM ${t} o WHERE o.id = lower(${t}.id) AND o.user_id = ${t}.user_id AND o.updated_at >= ${t}.updated_at);
+      DELETE FROM ${t} WHERE id = lower(id) AND EXISTS
+        (SELECT 1 FROM ${t} o WHERE o.id != lower(o.id) AND lower(o.id) = ${t}.id AND o.user_id = ${t}.user_id AND o.updated_at > ${t}.updated_at);
+      UPDATE OR IGNORE ${t} SET id = lower(id) WHERE id != lower(id);
+    `);
+  }
+  db.exec(`
+    UPDATE OR IGNORE library_saves SET workout_id = lower(workout_id)
+      WHERE workout_id != lower(workout_id) AND EXISTS (SELECT 1 FROM custom_workouts w WHERE w.id = lower(library_saves.workout_id));
+    DELETE FROM library_saves WHERE NOT EXISTS (SELECT 1 FROM custom_workouts w WHERE w.id = library_saves.workout_id);
+    UPDATE machine_note_photos SET note_id = lower(note_id) WHERE note_id != lower(note_id);
+  `);
 };

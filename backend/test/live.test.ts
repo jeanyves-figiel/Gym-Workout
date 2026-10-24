@@ -123,6 +123,16 @@ describe('gym buddies', () => {
     expect(pushed).toHaveLength(2);
     expect(pushed[1]).toMatchObject({ token: 'a'.repeat(64), payload: { kind: 'buddy_invite', actorId: tom.id } });
     expect(JSON.stringify(pushed[1]!.payload)).toContain('tom is your gym buddy');
+    // Unpair and invite again: no second ring the same day (#712), one the next day.
+    await req('DELETE', `/v1/community/buddies/${tom.id}`, ana.t);
+    await req('PUT', `/v1/community/buddies/${tom.id}`, ana.t);
+    await app.push.idle();
+    expect(pushed).toHaveLength(2);
+    await req('DELETE', `/v1/community/buddies/${tom.id}`, ana.t);
+    db.prepare("UPDATE throttle_hits SET at = '2026-01-01T00:00:00.000Z' WHERE key LIKE 'buddy-push:%'").run(); // a day later
+    await req('PUT', `/v1/community/buddies/${tom.id}`, ana.t);
+    await app.push.idle();
+    expect(pushed).toHaveLength(3);
   });
 
   it('a block or leaving ends the pair', async () => {

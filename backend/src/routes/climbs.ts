@@ -1,13 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type DB, tx } from '../db.ts';
-import { baseUpdatedAt, conflictsField, deletedField, opaqueCopy, reviveUploaded, recordTombstone, sinceQuery, takeConflicts } from './sync.ts';
-import { assertRowQuota } from '../quota.ts';
+import { baseUpdatedAt, conflictsField, opaqueCopy, reviveUploaded, recordTombstone, sendPull, type SyncTable, syncId, syncIdParams, takeConflicts } from './sync.ts';
+import { assertByteQuota, assertItemSize, assertRowQuota } from '../quota.ts';
 
 /** Climbing sessions (#312): were kept only on the device; now synced like PR attempts (upsert by client id). */
 const climb = z
   .object({
-    id: z.uuid(),
+    id: syncId,
     baseUpdatedAt,
     start: z.iso.datetime({ offset: true }),
     minutes: z.number().int().min(0).max(24 * 60),
@@ -18,21 +18,10 @@ const climb = z
   })
   .catchall(z.unknown());
 
-export const listClimbs = (db: DB, userId: string, since?: string) =>
-  (
-    (since
-      ? db.prepare('SELECT data, updated_at FROM climbs WHERE user_id = ? AND updated_at >= ? ORDER BY start').all(userId, since)
-      : db.prepare('SELECT data, updated_at FROM climbs WHERE user_id = ? ORDER BY start').all(userId)) as unknown as {
-      data: string;
-      updated_at: string;
-    }[]
-  ).map((r) => ({ ...(JSON.parse(r.data) as object), updatedAt: r.updated_at }));
+export const climbTable: SyncTable<{ data: string; updated_at: string }> = { table: 'climbs', cols: 'data, updated_at', timeCol: 'start', map: opaqueCopy };
 
 export const climbRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
-  r.get('/me/climbs', async (req) => {
-    const q = sinceQuery.parse(req.query);
-    return { climbs: listClimbs(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'climbs', q.since, now()), serverTime: now().toISOString() };
-  });
+  r.get('/me/climbs', async (req, reply) => sendPull(reply, db, climbTable, { key: 'climbs', kind: 'climbs', userId: req.userId!, query: req.query, now }));
 
   r.post('/me/climbs', async (req) => {
     const b = z.object({ climbs: z.array(climb).max(200) }).parse(req.body);
@@ -45,20 +34,19 @@ export const climbRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
     const { saved, conflicts } = tx(db, () => {
       const { fresh, conflicts } = takeConflicts(db, 'climbs', req.userId!, b.climbs, opaqueCopy);
       const climbs = reviveUploaded(db, req.userId!, 'climbs', fresh);
+      const jsons = climbs.map((c) => JSON.stringify(c));
+      for (const j of jsons) assertItemSize(j, 10_000, 'Climb');
       assertRowQuota(db, 'climbs', req.userId!, climbs.map((c) => c.id));
+      assertByteQuota(db, 'climbs', req.userId!, climbs.map((c, i) => ({ id: c.id, bytes: Buffer.byteLength(jsons[i]!) })));
       let count = 0;
-      for (const c of climbs) {
-        const json = JSON.stringify(c);
-        if (json.length > 10_000) throw Object.assign(new Error('Climb too large'), { statusCode: 413 });
-        count += Number(up.run(c.id, req.userId!, c.start, json, ts).changes);
-      }
+      climbs.forEach((c, i) => (count += Number(up.run(c.id, req.userId!, c.start, jsons[i]!, ts).changes)));
       return { saved: count, conflicts };
     });
     return { saved, serverTime: ts, ...conflictsField(conflicts) };
   });
 
   r.delete('/me/climbs/:id', async (req, reply) => {
-    const { id } = z.object({ id: z.uuid() }).parse(req.params);
+    const { id } = syncIdParams.parse(req.params);
     tx(db, () => {
       db.prepare('DELETE FROM climbs WHERE id = ? AND user_id = ?').run(id, req.userId!);
       recordTombstone(db, req.userId!, 'climbs', id, now().toISOString());

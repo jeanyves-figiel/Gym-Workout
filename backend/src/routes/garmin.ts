@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { randomToken, sha256 } from '../crypto.ts';
 import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
+import { assertItemSize } from '../quota.ts';
 
 /**
  * Garmin watches (#550). The Connect IQ app talks to this API through the Garmin Connect phone app, so it works with
@@ -96,7 +97,7 @@ export const garminWatchRoutes = (app: FastifyInstance, db: DB, now: () => Date)
       let n = 0;
       for (const e of b.events) {
         const json = JSON.stringify(e);
-        if (json.length > 8_000) throw Object.assign(new Error('Event too large'), { statusCode: 413 });
+        assertItemSize(json, 8_000, 'Event');
         n += Number(ins.run(`${d.id}:${e.id}`, userId, d.id, json, t).changes);
       }
       return n;
@@ -145,7 +146,7 @@ export const garminRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.put('/me/garmin/snapshot', async (req) => {
     const b = z.object({ snapshot: z.record(z.string(), z.unknown()) }).parse(req.body);
     const json = JSON.stringify(b.snapshot);
-    if (json.length > 32_000) throw Object.assign(new Error('Snapshot too large'), { statusCode: 413 });
+    assertItemSize(json, 32_000, 'Snapshot');
     const t = now().toISOString();
     db.prepare(
       `INSERT INTO garmin_snapshots (user_id, data, updated_at) VALUES (?, ?, ?)
@@ -161,7 +162,11 @@ export const garminRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
         data: string;
         created_at: string;
       }[]
-    ).map((e) => ({ ...(JSON.parse(e.data) as object), id: e.id, receivedAt: e.created_at })),
+    ).map((e) => {
+      // `id` is the inbox id the ack takes (`<device>:<event id>`); `eventId` the watch's own id (#714).
+      const data = JSON.parse(e.data) as { id?: string };
+      return { ...data, id: e.id, eventId: data.id ?? null, receivedAt: e.created_at };
+    }),
   }));
 
   r.post('/me/garmin/inbox/ack', async (req) => {

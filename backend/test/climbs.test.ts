@@ -45,7 +45,7 @@ const signUp = async (email: string) => {
 };
 
 
-const sample = (id: string = randomUUID().toUpperCase()) => ({
+const sample = (id: string = randomUUID()) => ({
   id,
   kind: 'boulder',
   start: '2026-10-07T18:00:00Z',
@@ -108,12 +108,12 @@ describe('climbs sync (#312)', () => {
     const { id: userId } = db.prepare('SELECT id FROM users WHERE email = ?').get('climber@example.com') as { id: string };
     const fill = db.prepare('INSERT INTO climbs (id, user_id, start, data, updated_at) VALUES (?, ?, ?, ?, ?)');
     db.exec('BEGIN');
-    for (let i = 0; i < 19_999; i++) fill.run(randomUUID(), userId, '2026-01-01T00:00:00Z', '{}', clock.toISOString());
+    for (let i = 0; i < 9_999; i++) fill.run(randomUUID(), userId, '2026-01-01T00:00:00Z', '{}', clock.toISOString());
     db.exec('COMMIT');
     const a = sample();
     const over = await post('/v1/me/climbs', { climbs: [a, sample()] }, t);
-    expect(over.statusCode).toBe(413);
-    expect(over.json()).toMatchObject({ error: 'quota_exceeded', limit: 20_000 });
+    expect(over.statusCode).toBe(409);
+    expect(over.json()).toMatchObject({ error: 'quota_exceeded', limit: 10_000 });
     expect((await post('/v1/me/climbs', { climbs: [a] }, t)).json().saved).toBe(1);
     expect((await post('/v1/me/climbs', { climbs: [sample()] }, t)).json().error).toBe('quota_exceeded');
     expect((await post('/v1/me/climbs', { climbs: [{ ...a, effort: 9 }] }, t)).json().saved).toBe(1);
@@ -214,5 +214,67 @@ describe('climbs sync (#312)', () => {
     const t = await signUp('climber@example.com');
     for (const c of [{ ...sample(), id: 'x' }, { ...sample(), effort: 11 }, { ...sample(), start: 'today' }, { ...sample(), minutes: -5 }])
       expect((await post('/v1/me/climbs', { climbs: [c] }, t)).statusCode).toBe(400);
+  });
+
+  it("lower-cases ids, so the app's upper-case uuidString never makes a twin or misses a delete (#714)", async () => {
+    const t = await signUp('climber@example.com');
+    const a = sample(randomUUID().toUpperCase());
+    await post('/v1/me/climbs', { climbs: [a] }, t);
+    await post('/v1/me/climbs', { climbs: [{ ...a, id: a.id.toLowerCase(), effort: 9 }] }, t);
+    const all = (await get('/v1/me/climbs', t)).json().climbs;
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ id: a.id.toLowerCase(), effort: 9 });
+    expect((await del(`/v1/me/climbs/${a.id}`, t)).statusCode).toBe(204);
+    expect((await get('/v1/me/climbs', t)).json().climbs).toEqual([]);
+  });
+
+  it('pages with limit + nextCursor; without limit every row comes back as before (#712)', async () => {
+    const t = await signUp('climber@example.com');
+    const ids: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      const c = sample();
+      ids.push(c.id);
+      await post('/v1/me/climbs', { climbs: [c] }, t);
+      advance(1000);
+    }
+    const seen: string[] = [];
+    let cursor: string | null = '';
+    for (let page = 0; cursor !== null; page++) {
+      const r: { climbs: { id: string }[]; nextCursor: string | null } = (await get(`/v1/me/climbs?limit=2${cursor ? `&cursor=${cursor}` : ''}`, t)).json();
+      expect(r.climbs.length).toBe(page < 2 ? 2 : 1);
+      seen.push(...r.climbs.map((c: { id: string }) => c.id));
+      cursor = r.nextCursor;
+    }
+    expect(seen).toEqual(ids);
+    const full = await get('/v1/me/climbs', t);
+    expect(full.headers['content-type']).toContain('application/json');
+    expect(full.json().climbs.map((c: { id: string }) => c.id)).toEqual(ids);
+    expect(full.json()).not.toHaveProperty('nextCursor');
+    expect((await get('/v1/me/climbs?limit=0', t)).statusCode).toBe(400);
+    expect((await get('/v1/me/climbs?limit=2&cursor=bad', t)).json().error).toBe('invalid_request');
+  });
+
+  it('refuses uploads past the account byte quota, still allows edits that do not grow it (#712)', async () => {
+    const t = await signUp('climber@example.com');
+    const { id: userId } = db.prepare('SELECT id FROM users WHERE email = ?').get('climber@example.com') as { id: string };
+    const big = 'x'.repeat(1024 * 1024);
+    const fill = db.prepare('INSERT INTO workouts (id, user_id, started_at, data, updated_at) VALUES (?, ?, ?, ?, ?)');
+    for (let i = 0; i < 50; i++) fill.run(randomUUID(), userId, '2026-01-01T00:00:00Z', big, clock.toISOString());
+    const over = await post('/v1/me/climbs', { climbs: [sample()] }, t);
+    expect(over.statusCode).toBe(409);
+    expect(over.json()).toMatchObject({ error: 'quota_exceeded', limit: 50 * 1024 * 1024 });
+    db.prepare('UPDATE workouts SET data = substr(data, 1, 1048000) WHERE rowid = (SELECT MIN(rowid) FROM workouts)').run();
+    const a = sample();
+    expect((await post('/v1/me/climbs', { climbs: [a] }, t)).json().saved).toBe(1);
+    expect((await post('/v1/me/climbs', { climbs: [{ ...a, notes: 'x'.repeat(2000) }] }, t)).json().error).toBe('quota_exceeded');
+    expect((await post('/v1/me/climbs', { climbs: [{ ...a, topGrade: null }] }, t)).json().saved).toBe(1);
+  });
+
+  it('exports climbs in time order whatever the offset of start (#714)', async () => {
+    const t = await signUp('climber@example.com');
+    const late = { ...sample(), start: '2026-10-07T11:00:00Z' };
+    const early = { ...sample(), start: '2026-10-07T12:00:00+02:00' };
+    await post('/v1/me/climbs', { climbs: [late, early] }, t);
+    expect((await get('/v1/me/export', t)).json().climbs.map((c: { id: string }) => c.id)).toEqual([early.id, late.id]);
   });
 });

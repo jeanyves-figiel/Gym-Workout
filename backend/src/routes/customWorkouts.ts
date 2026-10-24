@@ -2,14 +2,14 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { assertClean, hasAcceptedGuidelines, VISIBILITIES } from '../community/moderation.ts';
 import { type DB, tx } from '../db.ts';
-import { baseUpdatedAt, conflictsField, deletedField, reviveUploaded, recordTombstone, sinceQuery, takeConflicts } from './sync.ts';
-import { assertRowQuota } from '../quota.ts';
+import { baseUpdatedAt, conflictsField, reviveUploaded, recordTombstone, sendPull, type SyncTable, syncId, syncIdParams, takeConflicts } from './sync.ts';
+import { assertByteQuota, assertItemSize, assertRowQuota } from '../quota.ts';
 import { ApiError } from '../errors.ts';
 
 /** User-built workouts (opaque app-defined records, like completed workouts). */
 const customWorkout = z
   .object({
-    id: z.uuid(),
+    id: syncId,
     baseUpdatedAt,
     name: z.string().trim().min(1).max(100),
     items: z.array(z.object({ exerciseId: z.string().min(1).max(128) }).catchall(z.unknown())).max(100),
@@ -26,6 +26,9 @@ interface Row {
   saves: number;
 }
 
+/** Shared workouts' saves counted from `library_saves` (#714), so a deleted saver no longer counts. */
+const SAVES = '(SELECT COUNT(*) FROM library_saves s WHERE s.workout_id = custom_workouts.id) AS saves';
+
 /** Stored JSON plus server-owned sharing state (the column is authoritative for visibility). */
 const toWorkout = (r: Row) => ({
   ...(JSON.parse(r.data) as object),
@@ -35,20 +38,17 @@ const toWorkout = (r: Row) => ({
   updatedAt: r.updated_at,
 });
 
-export const listCustomWorkouts = (db: DB, userId: string, since?: string) =>
-  (
-    (since
-      ? db
-          .prepare('SELECT data, updated_at, visibility, hidden_at, saves FROM custom_workouts WHERE user_id = ? AND updated_at >= ? ORDER BY updated_at')
-          .all(userId, since)
-      : db.prepare('SELECT data, updated_at, visibility, hidden_at, saves FROM custom_workouts WHERE user_id = ? ORDER BY updated_at').all(userId)) as unknown as Row[]
-  ).map(toWorkout);
+export const customWorkoutTable: SyncTable<Row> = {
+  table: 'custom_workouts',
+  cols: `data, updated_at, visibility, hidden_at, ${SAVES}`,
+  timeCol: 'updated_at',
+  map: toWorkout,
+};
 
 export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
-  r.get('/me/custom-workouts', async (req) => {
-    const q = sinceQuery.parse(req.query);
-    return { workouts: listCustomWorkouts(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'custom-workouts', q.since, now()), serverTime: now().toISOString() };
-  });
+  r.get('/me/custom-workouts', async (req, reply) =>
+    sendPull(reply, db, customWorkoutTable, { key: 'workouts', kind: 'custom-workouts', userId: req.userId!, query: req.query, now }),
+  );
 
   r.post('/me/custom-workouts', async (req) => {
     const b = z.object({ workouts: z.array(customWorkout).max(100) }).parse(req.body);
@@ -67,23 +67,26 @@ export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date)
        WHERE custom_workouts.user_id = excluded.user_id`,
     );
     const { saved, conflicts } = tx(db, () => {
-      const { fresh, conflicts } = takeConflicts(db, 'custom_workouts', userId, b.workouts, toWorkout);
+      const { fresh, conflicts } = takeConflicts(db, 'custom_workouts', userId, b.workouts, (row: Row & { id: string }) =>
+        toWorkout({ ...row, saves: (db.prepare(`SELECT ${SAVES} FROM custom_workouts WHERE id = ?`).get(row.id) as { saves: number }).saves }),
+      );
       const workouts = reviveUploaded(db, userId, 'custom-workouts', fresh);
+      const jsons = workouts.map((w) => JSON.stringify({ ...w, visibility: w.visibility ?? 'private' }));
+      for (const j of jsons) assertItemSize(j, 64_000, 'Workout');
       assertRowQuota(db, 'custom_workouts', userId, workouts.map((w) => w.id));
+      assertByteQuota(db, 'custom_workouts', userId, workouts.map((w, i) => ({ id: w.id, bytes: Buffer.byteLength(jsons[i]!) })));
       let count = 0;
-      for (const w of workouts) {
+      workouts.forEach((w, i) => {
         const visibility = w.visibility ?? 'private';
-        const json = JSON.stringify({ ...w, visibility });
-        if (json.length > 100_000) throw Object.assign(new Error('Workout too large'), { statusCode: 413 });
-        count += Number(up.run(w.id, userId, json, ts, visibility, visibility === 'private' ? null : ts).changes);
-      }
+        count += Number(up.run(w.id, userId, jsons[i]!, ts, visibility, visibility === 'private' ? null : ts).changes);
+      });
       return { saved: count, conflicts };
     });
     return { saved, serverTime: ts, ...conflictsField(conflicts) };
   });
 
   r.delete('/me/custom-workouts/:id', async (req, reply) => {
-    const { id } = z.object({ id: z.uuid() }).parse(req.params);
+    const { id } = syncIdParams.parse(req.params);
     tx(db, () => {
       db.prepare('DELETE FROM custom_workouts WHERE id = ? AND user_id = ?').run(id, req.userId!);
       recordTombstone(db, req.userId!, 'custom-workouts', id, now().toISOString());

@@ -138,4 +138,19 @@ describe('Gym Map (#406)', () => {
     expect(res.map((r) => r.statusCode).sort()).toEqual([200, 429]);
     expect((db.prepare('SELECT count FROM gym_scan_usage').get() as { count: number }).count).toBe(30);
   });
+
+  it('refuses objectionable zone names (#713) and counts one plan per member and place (#712)', async () => {
+    const a = await signUp('a@example.com');
+    const b = await signUp('b@example.com');
+    const rude = { ...plan('Machines'), zones: plan('Machines').zones.map((z, i) => (i ? z : { ...z, name: 'shit corner' })) };
+    expect((await send('PUT', '/v1/gyms/maps', { gym, layout: rude }, a)).json().error).toBe('objectionable_content');
+    expect((await send('POST', '/v1/gyms/busy', { gym: { id: gym.id }, zone: 'shit corner' }, a)).json().error).toBe('objectionable_content');
+    await send('PUT', '/v1/gyms/maps', { gym, layout: plan('Machines') }, a);
+    // A plan stored before #712 under another id for the same place: only the latest counts.
+    db.prepare("INSERT INTO gym_maps (user_id, gym_id, name, name_key, latitude, longitude, layout, updated_at) SELECT user_id, 'map:47.37801,8.53001', name, name_key, latitude, longitude, layout, '2026-01-01T00:00:00.000Z' FROM gym_maps").run();
+    expect((await get(mapsUrl, b)).json().map).toMatchObject({ members: 1, agreement: null });
+    clock = new Date(clock.getTime() + 1000);
+    await send('PUT', '/v1/gyms/maps', { gym: { ...gym, id: 'map:47.37802,8.53002' }, layout: plan('Free weights') }, a);
+    expect((db.prepare('SELECT gym_id FROM gym_maps').all() as { gym_id: string }[]).map((r) => r.gym_id)).toEqual(['map:47.37802,8.53002']);
+  });
 });

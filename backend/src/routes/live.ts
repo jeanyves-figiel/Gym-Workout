@@ -4,6 +4,7 @@ import { assertClean, isBlockedBetween, memberNotHiddenSql } from '../community/
 import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
 import type { PushService } from '../push/service.ts';
+import { DAY, throttleTake } from '../throttle.ts';
 
 /**
  * Live group sessions (#626, designs B + C): gym buddies see each other's sets live and cheer from the Watch, and
@@ -35,7 +36,26 @@ export const isoWeek = (d: Date) => {
 /** Weeks a score may be sent for: this one, plus the neighbours a member's own time zone can still be in. */
 const openWeeks = (now: Date) => new Set([isoWeek(new Date(now.getTime() - 36 * 3_600_000)), isoWeek(now), isoWeek(new Date(now.getTime() + 14 * 3_600_000))]);
 
-const week = z.string().regex(/^\d{4}-W\d{2}$/);
+/** Weeks in ISO year `y`: 53 when 28 December falls in week 53. */
+export const weeksInYear = (y: number) => (isoWeek(new Date(Date.UTC(y, 11, 28))).endsWith('W53') ? 53 : 52);
+
+/** `YYYY-Www` with a week that exists in that year (#714): W00, W54 or W53 of a 52-week year are refused. */
+const week = z
+  .string()
+  .regex(/^\d{4}-W\d{2}$/)
+  .refine((w) => {
+    const n = Number(w.slice(6));
+    return n >= 1 && n <= weeksInYear(Number(w.slice(0, 4)));
+  }, 'No such ISO week');
+
+/**
+ * SQL predicate (#714): `alias`'s row counts for viewer `?`: their own, or another member's with no block either way
+ * who isn't hidden by reports. Binds the viewer id three times. Ranks, `joined` and `training` use it too, so a
+ * blocked or hidden member doesn't push the viewer down the board.
+ */
+const countsFor = (alias: string) =>
+  `(${alias}.user_id = ? OR (NOT EXISTS (SELECT 1 FROM community_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = ${alias}.user_id)
+     OR (b.blocker_id = ${alias}.user_id AND b.blocked_id = ?)) AND ${memberNotHiddenSql(`${alias}.user_id`)}))`;
 const userIdParam = z.object({ userId: z.string().min(1).max(64) });
 const avatarUrl = (id: string | null) => (id ? `/v1/community/avatars/${id}` : null);
 
@@ -130,8 +150,9 @@ export const liveRoutes = (r: FastifyInstance, db: DB, now: () => Date, push?: P
     if (!exists && count >= MAX_BUDDIES) throw new ApiError(400, 'too_many_buddies', `Up to ${MAX_BUDDIES} gym buddies.`);
     const added = Number(db.prepare('INSERT OR IGNORE INTO community_buddies (user_id, buddy_id, created_at) VALUES (?, ?, ?)').run(me, userId, now().toISOString()).changes) > 0;
     const status = paired(me, userId) ? 'paired' : 'invited';
-    // Push (#626): the invite to them, or "paired" back to who invited. Once per new row; taps open my page.
-    if (added && push) {
+    // Push (#626): the invite to them, or "paired" back to who invited. Once per new row, and once a day per pair (#712):
+    // invite, cancel, invite again doesn't ring their phone each time. Taps open my page.
+    if (added && push && throttleTake(db, `buddy-push:${me}:${userId}`, 1, DAY, now())) {
       const name = member(me)!.nickname;
       push.notifyLater(userId, 'buddy_invite', {
         title: status === 'paired' ? `${name} is your gym buddy 🤝` : 'Gym buddy invite 🤝',
@@ -228,16 +249,16 @@ export const liveRoutes = (r: FastifyInstance, db: DB, now: () => Date, push?: P
     const me = req.userId!;
     requireMember(me);
     const wk = q.week ?? isoWeek(now());
-    const visible = `NOT EXISTS (SELECT 1 FROM community_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = s.user_id) OR (b.blocker_id = s.user_id AND b.blocked_id = ?))
-      AND (s.user_id = ? OR ${memberNotHiddenSql('s.user_id')})`;
     const select = `SELECT s.user_id, s.rounds, s.reps, s.score, cp.nickname, cp.avatar_id, cp.level,
-        (SELECT COUNT(*) FROM community_challenge_scores o WHERE o.week = s.week AND o.score > s.score) + 1 AS rank,
+        (SELECT COUNT(*) FROM community_challenge_scores o WHERE o.week = s.week AND o.score > s.score AND ${countsFor('o')}) + 1 AS rank,
         l.updated_at AS live_at, l.challenge_week
       FROM community_challenge_scores s JOIN community_profiles cp ON cp.user_id = s.user_id
       LEFT JOIN community_live l ON l.user_id = s.user_id`;
     type Row = { user_id: string; rounds: number; reps: number; score: number; nickname: string; avatar_id: string | null; level: number | null; rank: number; live_at: string | null; challenge_week: string | null };
-    const top = db.prepare(`${select} WHERE s.week = ? AND ${visible} ORDER BY s.score DESC, s.updated_at LIMIT ?`).all(wk, me, me, me, BOARD) as Row[];
-    const mine = db.prepare(`${select} WHERE s.week = ? AND s.user_id = ?`).get(wk, me) as Row | undefined;
+    const top = db
+      .prepare(`${select} WHERE s.week = ? AND ${countsFor('s')} ORDER BY s.score DESC, s.updated_at LIMIT ?`)
+      .all(me, me, me, wk, me, me, me, BOARD) as Row[];
+    const mine = db.prepare(`${select} WHERE s.week = ? AND s.user_id = ?`).get(me, me, me, wk, me) as Row | undefined;
     const entry = (x: Row) => ({
       rank: x.rank,
       userId: x.user_id,
@@ -249,9 +270,13 @@ export const liveRoutes = (r: FastifyInstance, db: DB, now: () => Date, push?: P
       live: x.challenge_week === wk && fresh(x.live_at ? { updated_at: x.live_at } : undefined),
       me: x.user_id === me,
     });
-    const joined = (db.prepare('SELECT COUNT(*) AS n FROM community_challenge_scores WHERE week = ?').get(wk) as { n: number }).n;
+    const joined = (db.prepare(`SELECT COUNT(*) AS n FROM community_challenge_scores s WHERE s.week = ? AND ${countsFor('s')}`).get(wk, me, me, me) as { n: number }).n;
     const since = new Date(now().getTime() - LIVE_TTL_MS).toISOString();
-    const training = (db.prepare("SELECT COUNT(*) AS n FROM community_live WHERE challenge_week = ? AND updated_at >= ? AND state != 'done'").get(wk, since) as { n: number }).n;
+    const training = (
+      db
+        .prepare(`SELECT COUNT(*) AS n FROM community_live l WHERE l.challenge_week = ? AND l.updated_at >= ? AND l.state != 'done' AND ${countsFor('l')}`)
+        .get(wk, since, me, me, me) as { n: number }
+    ).n;
     return { week: wk, joined, training, leaderboard: top.map(entry), me: mine ? entry(mine) : null };
   });
 
@@ -269,7 +294,8 @@ export const liveRoutes = (r: FastifyInstance, db: DB, now: () => Date, push?: P
        WHERE excluded.score > community_challenge_scores.score`,
     ).run(b.week, me, b.rounds, b.reps, score, ts);
     const row = db.prepare('SELECT rounds, reps, score FROM community_challenge_scores WHERE week = ? AND user_id = ?').get(b.week, me) as { rounds: number; reps: number; score: number };
-    const rank = (db.prepare('SELECT COUNT(*) AS n FROM community_challenge_scores WHERE week = ? AND score > ?').get(b.week, row.score) as { n: number }).n + 1;
+    const rank =
+      (db.prepare(`SELECT COUNT(*) AS n FROM community_challenge_scores s WHERE s.week = ? AND s.score > ? AND ${countsFor('s')}`).get(b.week, row.score, me, me, me) as { n: number }).n + 1;
     return { week: b.week, rounds: row.rounds, reps: row.reps, rank, best: row.score === score };
   });
 };

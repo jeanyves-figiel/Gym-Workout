@@ -3,26 +3,40 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type AuthService, publicUser } from '../auth.ts';
 import { type DB, tx } from '../db.ts';
-import { baseUpdatedAt, conflictsField, deletedField, opaqueCopy, reviveUploaded, recordTombstone, sinceQuery, takeConflicts } from './sync.ts';
-import { assertRowQuota } from '../quota.ts';
+import {
+  baseUpdatedAt,
+  conflictsField,
+  opaqueCopy,
+  reviveUploaded,
+  recordTombstone,
+  sendPull,
+  type SyncTable,
+  syncId,
+  syncIdParams,
+  takeConflicts,
+  timeOrderedRows,
+} from './sync.ts';
+import { assertByteQuota, assertItemSize, assertRowQuota } from '../quota.ts';
 import { ApiError } from '../errors.ts';
 import { HOUR, throttleTake } from '../throttle.ts';
 import { pushExport } from '../push/schema.ts';
+import { refreshMemberGym } from '../community/schema.ts';
 import { communityExport } from './community.ts';
 import { programExport } from './programs.ts';
 import { liveExport } from './live.ts';
 import { gymExport, gymMapExport } from './gyms.ts';
-import { listCustomExercises } from './customExercises.ts';
-import { listCustomWorkouts } from './customWorkouts.ts';
-import { listBodyMeasurements } from './bodyMeasurements.ts';
-import { listClimbs } from './climbs.ts';
-import { listSports } from './sports.ts';
+import { customExerciseTable } from './customExercises.ts';
+import { customWorkoutTable } from './customWorkouts.ts';
+import { bodyMeasurementTable } from './bodyMeasurements.ts';
+import { climbTable } from './climbs.ts';
+import { sportTable } from './sports.ts';
 import { machineNoteExport } from './machineNotes.ts';
 import { reportExport } from './reports.ts';
-import { listPrAttempts } from './prAttempts.ts';
+import { prAttemptTable } from './prAttempts.ts';
+import { accountExport } from './accountExport.ts';
 
 const logEntry = z.object({
-  id: z.uuid(),
+  id: syncId,
   baseUpdatedAt,
   date: z.iso.datetime({ offset: true }),
   exerciseId: z.string().min(1).max(128),
@@ -60,6 +74,12 @@ const toLog = (r: LogRow) => ({
   updatedAt: r.updated_at,
 });
 
+const logTable: SyncTable<LogRow> = { table: 'workout_logs', cols: '*', timeCol: 'date', map: toLog };
+
+/** Completed workout sessions: opaque app records; one is at most WORKOUT_MAX_BYTES (#712: was 100 KB). */
+const WORKOUT_MAX_BYTES = 64_000;
+const workoutTable: SyncTable<{ data: string; updated_at: string }> = { table: 'workouts', cols: 'data, updated_at', timeCol: 'started_at', map: opaqueCopy };
+
 /** Full data exports per member per hour: each one reads every row the member has. */
 const EXPORTS_PER_HOUR = 3;
 
@@ -77,23 +97,17 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
   r.put('/me/profile', async (req) => {
     const b = z.object({ data: z.record(z.string(), z.unknown()) }).parse(req.body);
     const json = JSON.stringify(b.data);
-    if (json.length > 200_000) throw Object.assign(new Error('Profile too large'), { statusCode: 413 });
+    assertItemSize(json, 200_000, 'Profile');
     const ts = now().toISOString();
     db.prepare(
       'INSERT INTO profiles (user_id, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at',
     ).run(req.userId!, json, ts);
+    // Member search reads the gym from the community profile (#715).
+    refreshMemberGym(db, req.userId!);
     return { updatedAt: ts };
   });
 
-  r.get('/me/logs', async (req) => {
-    const q = sinceQuery.parse(req.query);
-    const rows = (
-      q.since
-        ? db.prepare('SELECT * FROM workout_logs WHERE user_id = ? AND updated_at >= ? ORDER BY updated_at').all(req.userId!, q.since)
-        : db.prepare('SELECT * FROM workout_logs WHERE user_id = ? ORDER BY updated_at').all(req.userId!)
-    ) as unknown as LogRow[];
-    return { logs: rows.map(toLog), ...deletedField(db, req.userId!, 'logs', q.since, now()), serverTime: now().toISOString() };
-  });
+  r.get('/me/logs', async (req, reply) => sendPull(reply, db, logTable, { key: 'logs', kind: 'logs', userId: req.userId!, query: req.query, now }));
 
   r.post('/me/logs', async (req) => {
     const b = z.object({ logs: z.array(logEntry).max(500) }).parse(req.body);
@@ -121,7 +135,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
   });
 
   r.delete('/me/logs/:id', async (req, reply) => {
-    const { id } = z.object({ id: z.uuid() }).parse(req.params);
+    const { id } = syncIdParams.parse(req.params);
     tx(db, () => {
       db.prepare('DELETE FROM workout_logs WHERE id = ? AND user_id = ?').run(id, req.userId!);
       recordTombstone(db, req.userId!, 'logs', id, now().toISOString());
@@ -131,23 +145,12 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
 
   // ───────────── completed workout sessions (opaque app-defined records)
   const workout = z
-    .object({ id: z.uuid(), baseUpdatedAt, startedAt: z.iso.datetime({ offset: true }) })
+    .object({ id: syncId, baseUpdatedAt, startedAt: z.iso.datetime({ offset: true }) })
     .catchall(z.unknown());
 
-  const listWorkouts = (userId: string, since?: string) =>
-    (
-      (since
-        ? db.prepare('SELECT data, updated_at FROM workouts WHERE user_id = ? AND updated_at >= ? ORDER BY started_at').all(userId, since)
-        : db.prepare('SELECT data, updated_at FROM workouts WHERE user_id = ? ORDER BY started_at').all(userId)) as unknown as {
-        data: string;
-        updated_at: string;
-      }[]
-    ).map((r) => ({ ...(JSON.parse(r.data) as object), updatedAt: r.updated_at }));
-
-  r.get('/me/workouts', async (req) => {
-    const q = sinceQuery.parse(req.query);
-    return { workouts: listWorkouts(req.userId!, q.since), ...deletedField(db, req.userId!, 'workouts', q.since, now()), serverTime: now().toISOString() };
-  });
+  r.get('/me/workouts', async (req, reply) =>
+    sendPull(reply, db, workoutTable, { key: 'workouts', kind: 'workouts', userId: req.userId!, query: req.query, now }),
+  );
 
   r.post('/me/workouts', async (req) => {
     const b = z.object({ workouts: z.array(workout).max(100) }).parse(req.body);
@@ -160,20 +163,19 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
     const { saved, conflicts } = tx(db, () => {
       const { fresh, conflicts } = takeConflicts(db, 'workouts', req.userId!, b.workouts, opaqueCopy);
       const workouts = reviveUploaded(db, req.userId!, 'workouts', fresh);
+      const jsons = workouts.map((w) => JSON.stringify(w));
+      for (const j of jsons) assertItemSize(j, WORKOUT_MAX_BYTES, 'Workout');
       assertRowQuota(db, 'workouts', req.userId!, workouts.map((w) => w.id));
+      assertByteQuota(db, 'workouts', req.userId!, workouts.map((w, i) => ({ id: w.id, bytes: Buffer.byteLength(jsons[i]!) })));
       let count = 0;
-      for (const w of workouts) {
-        const json = JSON.stringify(w);
-        if (json.length > 100_000) throw Object.assign(new Error('Workout too large'), { statusCode: 413 });
-        count += Number(up.run(w.id, req.userId!, w.startedAt, json, ts).changes);
-      }
+      workouts.forEach((w, i) => (count += Number(up.run(w.id, req.userId!, w.startedAt, jsons[i]!, ts).changes)));
       return { saved: count, conflicts };
     });
     return { saved, serverTime: ts, ...conflictsField(conflicts) };
   });
 
   r.delete('/me/workouts/:id', async (req, reply) => {
-    const { id } = z.object({ id: z.uuid() }).parse(req.params);
+    const { id } = syncIdParams.parse(req.params);
     tx(db, () => {
       db.prepare('DELETE FROM workouts WHERE id = ? AND user_id = ?').run(id, req.userId!);
       recordTombstone(db, req.userId!, 'workouts', id, now().toISOString());
@@ -182,29 +184,32 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
   });
 
   // Lazily built sections, serialised one at a time: photos in custom exercises and community posts can make
-  // the whole document large, so it never sits in memory as one object plus one string.
-  const exportSections = (userId: string): [string, () => unknown][] => [
+  // the whole document large, so it never sits in memory as one object plus one string. `rows` sections are lists
+  // serialised item by item as they are read (#712).
+  const rows = (gen: () => Iterable<unknown>) => Object.assign(gen, { rows: true as const });
+  const exportSections = (userId: string): [string, (() => unknown) & { rows?: true }][] => [
     ['exportedAt', () => now().toISOString()],
     ['user', () => publicUser(auth.userById(userId)!)],
     ['profile', () => getProfile(userId)],
-    ['logs', () => (db.prepare('SELECT * FROM workout_logs WHERE user_id = ? ORDER BY date').all(userId) as unknown as LogRow[]).map(toLog)],
-    ['workouts', () => listWorkouts(userId)],
-    ['customWorkouts', () => listCustomWorkouts(db, userId)],
+    ['logs', rows(() => timeOrderedRows(db, logTable, userId))],
+    ['workouts', rows(() => timeOrderedRows(db, workoutTable, userId))],
+    ['customWorkouts', rows(() => timeOrderedRows(db, customWorkoutTable, userId))],
     ['community', () => communityExport(db, userId)],
     ['live', () => liveExport(db, userId)],
     ['programs', () => programExport(db, userId)],
-    ['customExercises', () => listCustomExercises(db, userId)],
-    ['prAttempts', () => listPrAttempts(db, userId)],
-    ['climbs', () => listClimbs(db, userId)],
-    ['sports', () => listSports(db, userId)],
-    ['machineNotes', () => machineNoteExport(db, userId)],
+    ['customExercises', rows(() => timeOrderedRows(db, customExerciseTable, userId))],
+    ['prAttempts', rows(() => timeOrderedRows(db, prAttemptTable, userId))],
+    ['climbs', rows(() => timeOrderedRows(db, climbTable, userId))],
+    ['sports', rows(() => timeOrderedRows(db, sportTable, userId))],
+    ['machineNotes', rows(() => machineNoteExport(db, userId))],
     ['problemReports', () => reportExport(db, userId)],
-    ['bodyMeasurements', () => listBodyMeasurements(db, userId)],
+    ['bodyMeasurements', rows(() => timeOrderedRows(db, bodyMeasurementTable, userId))],
     ['gyms', () => gymExport(db, userId)],
     ['gymMap', () => gymMapExport(db, userId)],
     ['notifications', () => pushExport(db, userId)],
     ['subscriptions', () => subscriptions?.(userId)],
     ['sessions', () => auth.sessions(userId)],
+    ...accountExport(db, userId),
   ];
 
   r.get('/me/export', async (req, reply) => {
@@ -215,6 +220,21 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
     async function* body() {
       let first = true;
       for (const [key, build] of sections) {
+        if (build.rows) {
+          yield `${first ? '{' : ','}${JSON.stringify(key)}:[`;
+          first = false;
+          let buf = '';
+          let n = 0;
+          for (const item of build() as Iterable<unknown>) {
+            buf += (n++ ? ',' : '') + JSON.stringify(item);
+            if (buf.length >= 64_000) {
+              yield buf;
+              buf = '';
+            }
+          }
+          yield `${buf}]`;
+          continue;
+        }
         const json = JSON.stringify(build());
         if (json === undefined) continue;
         yield `${first ? '{' : ','}${JSON.stringify(key)}:${json}`;

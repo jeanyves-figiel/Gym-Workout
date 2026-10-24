@@ -1,4 +1,5 @@
 import type { DB } from '../db.ts';
+import { DAY, throttleTake } from '../throttle.ts';
 import type { ApnsEnv, ApnsSender } from './apns.ts';
 import { defaultPrefs, inQuietHours, NotificationPrefs } from './prefs.ts';
 
@@ -7,6 +8,8 @@ export type PushKind = 'follow_achievement' | 'buddy_invite' | 'test';
 
 /** Pushes to followers in flight at once per fan-out, so a member with many followers can't flood APNs or the loop. */
 const FAN_OUT_CONCURRENCY = 5;
+/** Achievements one member may announce to followers per day (#712); more are recorded but not pushed. */
+export const ANNOUNCEMENTS_PER_DAY = 20;
 /** Devices kept per member; registering another drops the least recently registered. */
 export const MAX_DEVICES = 10;
 
@@ -118,7 +121,8 @@ export class PushService {
   }
 
   /**
-   * Announces achievements the device just unlocked (each id once per user) to followers.
+   * Announces achievements the device just unlocked (each id once per user) to followers, at most
+   * ANNOUNCEMENTS_PER_DAY a day per member (#712): new ids past it are recorded, not pushed.
    * Returns the ids that were new at once; the pushes go out in the background (see `idle`).
    */
   announce(actorId: string, actorName: string, list: Achievement[]): string[] {
@@ -130,9 +134,10 @@ export class PushService {
         .run(actorId, a.id, ts);
       if (Number(r.changes) > 0) fresh.push(a);
     }
-    if (fresh.length) {
+    const pushed = fresh.filter(() => throttleTake(this.d.db, `announce:${actorId}`, ANNOUNCEMENTS_PER_DAY, DAY, this.d.now()));
+    if (pushed.length) {
       const job = (async () => {
-        for (const a of fresh) await this.notifyFollowers(actorId, actorName, a);
+        for (const a of pushed) await this.notifyFollowers(actorId, actorName, a);
       })()
         .catch((e: Error) => this.d.log(`push: announce failed: ${e.message}`))
         .finally(() => this.pending.delete(job));

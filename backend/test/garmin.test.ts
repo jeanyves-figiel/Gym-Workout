@@ -83,6 +83,7 @@ describe('Garmin watches (#550)', () => {
     const inbox = (await get('/v1/me/garmin/inbox', t)).json().events as { id: string; type: string; kg?: number }[];
     expect(inbox.map((e) => e.type)).toEqual(['set', 'water']);
     expect(inbox[0]).toMatchObject({ kg: 60 });
+    expect(inbox.map((e) => (e as { eventId?: string }).eventId)).toEqual(inbox.map((e) => e.id.split(':').slice(1).join(':')));
 
     // Another member sees nothing and can't ack.
     const t2 = await signUp('other@example.com');

@@ -90,16 +90,17 @@ export const inFlight = (max: number) => {
 };
 
 /**
- * Rows one member may keep per synced table (#432): far above real use (a set logged every day for decades), low
- * enough that one account can't fill the disk. Keys are table names; the id column is what the upsert conflicts on.
+ * Rows one member may keep per synced table (#432, lowered in #712): far above real use (a set logged every day for
+ * decades, a workout a day for 27 years), low enough that one account can't fill the disk. Keys are table names; the
+ * id column is what the upsert conflicts on. The account's bytes are capped too (`ACCOUNT_BYTES`).
  */
 export const ROW_QUOTAS = {
   workout_logs: { idCol: 'id', max: 100_000 },
-  workouts: { idCol: 'id', max: 20_000 },
-  climbs: { idCol: 'id', max: 20_000 },
-  sports: { idCol: 'id', max: 20_000 },
-  pr_attempts: { idCol: 'id', max: 20_000 },
-  body_measurements: { idCol: 'id', max: 20_000 },
+  workouts: { idCol: 'id', max: 10_000 },
+  climbs: { idCol: 'id', max: 10_000 },
+  sports: { idCol: 'id', max: 10_000 },
+  pr_attempts: { idCol: 'id', max: 10_000 },
+  body_measurements: { idCol: 'id', max: 10_000 },
   custom_workouts: { idCol: 'id', max: 500 },
   machine_notes: { idCol: 'id', max: 1_000 },
   gym_reports: { idCol: 'gym_id', max: 200 },
@@ -108,8 +109,10 @@ export const ROW_QUOTAS = {
 
 export type QuotaTable = keyof typeof ROW_QUOTAS;
 
+const quotaExceeded = (limit: number) => new ApiError(409, 'quota_exceeded', 'Storage limit reached for this kind of data.', { limit });
+
 /**
- * Throws 413 `quota_exceeded` when writing `ids` would leave the member with more than the table's cap. Ids the
+ * Throws 409 `quota_exceeded` when writing `ids` would leave the member with more than the table's cap. Ids the
  * member already has don't count (updates are always allowed). Call inside the upsert's transaction.
  */
 export const assertRowQuota = (db: DB, table: QuotaTable, userId: string, ids: readonly string[]): void => {
@@ -118,5 +121,41 @@ export const assertRowQuota = (db: DB, table: QuotaTable, userId: string, ids: r
   const fresh = new Set(ids.filter((id) => !has.get(userId, id))).size;
   if (!fresh) return;
   const { n } = db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE user_id = ?`).get(userId) as { n: number };
-  if (n + fresh > max) throw new ApiError(413, 'quota_exceeded', 'Storage limit reached for this kind of data.', { limit: max });
+  if (n + fresh > max) throw quotaExceeded(max);
+};
+
+/** Synced data a member may store in all (#712): JSON records, machine-note photos and set logs together. */
+export const ACCOUNT_BYTES = 50 * 1024 * 1024;
+/** Stored size counted per set log (fixed columns, no JSON). */
+const LOG_ROW_BYTES = 120;
+/** Tables of opaque JSON records (`data` column) that count towards `ACCOUNT_BYTES`. */
+const DATA_TABLES = ['profiles', 'workouts', 'custom_workouts', 'custom_exercises', 'pr_attempts', 'body_measurements', 'climbs', 'sports', 'machine_notes'] as const;
+export type DataTable = Exclude<(typeof DATA_TABLES)[number], 'profiles'>;
+
+/** Bytes the member stores now (`octet_length` reads the record header only, not the value). */
+export const accountBytes = (db: DB, userId: string): number => {
+  const parts = [
+    ...DATA_TABLES.map((t) => `(SELECT COALESCE(SUM(octet_length(data)), 0) FROM ${t} WHERE user_id = ?)`),
+    '(SELECT COALESCE(SUM(octet_length(data)), 0) FROM machine_note_photos WHERE user_id = ?)',
+    `(SELECT COUNT(*) * ${LOG_ROW_BYTES} FROM workout_logs WHERE user_id = ?)`,
+  ];
+  return (db.prepare(`SELECT ${parts.join(' + ')} AS n`).get(...parts.map(() => userId)) as { n: number }).n;
+};
+
+/**
+ * Throws 409 `quota_exceeded` when writing `items` (id + the JSON to store) would take the account over
+ * `ACCOUNT_BYTES`. Uploads that don't grow it (edits, smaller copies) always pass. Call inside the upsert's transaction.
+ */
+export const assertByteQuota = (db: DB, table: DataTable | 'machine_note_photos', userId: string, items: readonly { id: string; bytes: number }[]): void => {
+  const idCol = table === 'machine_note_photos' ? 'note_id' : 'id';
+  const old = db.prepare(`SELECT COALESCE(SUM(octet_length(data)), 0) AS n FROM ${table} WHERE user_id = ? AND ${idCol} = ?`);
+  const ids = new Map(items.map((i) => [i.id, i.bytes]));
+  let grow = 0;
+  for (const [id, bytes] of ids) grow += bytes - (old.get(userId, id) as { n: number }).n;
+  if (grow > 0 && accountBytes(db, userId) + grow > ACCOUNT_BYTES) throw quotaExceeded(ACCOUNT_BYTES);
+};
+
+/** 413 `too_large` for one record over its per-item cap (#714: a stable code instead of `bad_request`). */
+export const assertItemSize = (json: string, max: number, what: string): void => {
+  if (json.length > max) throw new ApiError(413, 'too_large', `${what} is too large.`, { limit: max });
 };

@@ -44,7 +44,7 @@ const signUp = async (email: string) => {
 };
 
 
-const sample = (id: string = randomUUID().toUpperCase()) => ({
+const sample = (id: string = randomUUID()) => ({
   id,
   sport: 'snowboard',
   start: '2026-10-07T09:00:00Z',

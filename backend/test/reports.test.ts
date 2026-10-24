@@ -91,6 +91,17 @@ describe('member reports (#467)', () => {
     expect(mailer.outbox.find((m) => m.subject.startsWith('Member report'))!.subject).toContain('#501');
   });
 
+  it('redacts addresses and numbers from the issue body and every fact, not only the title (#713)', async () => {
+    start({ GITHUB_REPORTS_TOKEN: 'ghp_test' });
+    const t = await signUp('rep@example.com');
+    await send(t, { ...sample, text: 'Call me on +41 79 123 45 67 or write to jo.doe@mail.ch', error: 'login failed for jo.doe@mail.ch', screen: 'Inbox +41791234567' });
+    const issue = calls[0]!.body as { title: string; body: string };
+    for (const s of [issue.title, issue.body]) for (const leak of ['jo.doe', '79 123 45 67', '41791234567']) expect(s).not.toContain(leak);
+    expect(issue.body).toContain('[email removed]');
+    expect(issue.body).toContain('Error: login failed for [email removed]');
+    expect(issue.body).toContain('Screen: Inbox [number removed]');
+  });
+
   it('still saves and emails when GitHub fails', async () => {
     start({ GITHUB_REPORTS_TOKEN: 'ghp_test' }, 500);
     const t = await signUp('rep@example.com');

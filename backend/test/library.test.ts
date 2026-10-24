@@ -49,7 +49,7 @@ const member = async (email: string, nickname: string) => {
 };
 
 const workout = (visibility?: string, name = 'Pull strength') => ({
-  id: randomUUID().toUpperCase(),
+  id: randomUUID(),
   name,
   createdAt: '2026-10-10T09:00:00Z',
   items: [{ id: randomUUID(), exerciseId: 'pull-up', sets: 4, reps: 6, restSec: 120 }],

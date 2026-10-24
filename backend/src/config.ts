@@ -72,6 +72,9 @@ export interface Config {
   remote: { dir: string; signingKey?: string };
 }
 
+/** Public host of the production API (`fly.production.toml`). */
+export const PRODUCTION_HOST = 'workout.monkeygrade.cloud';
+
 /** Whole number ≥ 1, else `dflt`: a typo must not turn into NaN days and prune every backup (#432). */
 export const positiveInt = (v: string | undefined, dflt: number): number => {
   const n = Number(v);
@@ -115,6 +118,11 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
   const transport = (env.MAIL_TRANSPORT ?? (sesCreds ? 'ses' : prod ? 'smtp' : 'console')) as Config['mail']['transport'];
   if (transport === 'smtp' && !env.SMTP_URL) throw new Error('MAIL_TRANSPORT=smtp requires SMTP_URL');
   if (transport === 'ses' && !sesCreds) throw new Error('MAIL_TRANSPORT=ses requires SES_ACCESS_KEY_ID and SES_SECRET_ACCESS_KEY');
+  // Fake purchases unlock Pro for anyone (#712): never on the production host, whatever the env file says.
+  if (env.SUBSCRIPTION_TESTS === 'on') {
+    const hosts = [env.WEBAUTHN_RP_ID, ...(env.WEBAUTHN_ORIGINS ?? '').split(',')].map((h) => (h ?? '').trim().replace(/^https?:\/\//, '').replace(/[/:].*$/, '').toLowerCase());
+    if (hosts.includes(PRODUCTION_HOST)) throw new Error(`SUBSCRIPTION_TESTS=on is not allowed on ${PRODUCTION_HOST}`);
+  }
   const jwtSecret = required('JWT_SECRET', env, prod, 'dev-only-jwt-secret-change-me-0123456789');
   if (prod && jwtSecret.length < 32) throw new Error('JWT_SECRET must be ≥ 32 chars');
   return {

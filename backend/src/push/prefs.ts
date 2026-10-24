@@ -22,6 +22,13 @@ export const NotificationPrefs = z.object({
 });
 export type NotificationPrefs = z.infer<typeof NotificationPrefs>;
 
+/** A `PUT` of some preferences (#714): what it leaves out keeps its stored value, so an older app can't reset newer ones. */
+export const NotificationPrefsPatch = z.object(
+  Object.fromEntries(Object.entries(NotificationPrefs.shape).map(([k, s]) => [k, s.unwrap().optional()])) as {
+    [K in keyof typeof NotificationPrefs.shape]: z.ZodOptional<ReturnType<(typeof NotificationPrefs.shape)[K]['unwrap']>>;
+  },
+);
+
 export const defaultPrefs = (): NotificationPrefs => NotificationPrefs.parse({});
 
 /** Local minutes after midnight of `at` in IANA zone `tz` (UTC when unknown/invalid). */

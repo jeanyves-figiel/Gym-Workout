@@ -358,7 +358,13 @@ export class AuthService {
   async deleteAccount(userId: string): Promise<void> {
     const u = this.userById(userId)!;
     const appleToken = u.apple_sub ? this.d.appleTokens?.tokenFor(userId) : undefined;
-    this.d.db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    tx(this.d.db, () => {
+      this.d.db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+      // Abuse counters are keyed by account id or address, not linked rows (#713): they go with the account.
+      const like = (s: string) => `%${s.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+      this.d.db.prepare("DELETE FROM throttle_hits WHERE key LIKE ? ESCAPE '\\'").run(like(userId));
+      if (u.email) this.d.db.prepare("DELETE FROM throttle_hits WHERE key LIKE ? ESCAPE '\\'").run(like(u.email.toLowerCase()));
+    });
     // Best effort: revocation failures are logged by the service and never block deletion.
     if (appleToken) await this.d.appleTokens!.revoke(appleToken);
     if (u.email && u.email_verified_at)
@@ -427,7 +433,8 @@ export class AuthService {
 
   async issueTokens(userId: string, device?: string, familyId: string = randomUUID()): Promise<TokenPair> {
     const now = this.d.now();
-    const accessToken = await new SignJWT({})
+    // `iat` has whole seconds; `iat_ms` lets `tokens_valid_after` tell a token issued just before a revoke from one after.
+    const accessToken = await new SignJWT({ iat_ms: now.getTime() })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject(userId)
       .setIssuer('gym-workout')
@@ -461,6 +468,10 @@ export class AuthService {
         algorithms: ['HS256'],
       });
       if (!payload.sub) throw new Error('no sub');
+      // Password change / reset and "sign out everywhere" (#712): access tokens issued before it stop working at once.
+      const row = this.d.db.prepare('SELECT tokens_valid_after FROM users WHERE id = ?').get(payload.sub) as { tokens_valid_after: string | null } | undefined;
+      const issuedMs = typeof payload.iat_ms === 'number' ? payload.iat_ms : (payload.iat ?? 0) * 1000;
+      if (row?.tokens_valid_after && issuedMs < Date.parse(row.tokens_valid_after)) throw new Error('revoked');
       return payload.sub;
     } catch {
       throw new ApiError(401, 'invalid_token', 'Access token invalid or expired.');
@@ -513,8 +524,15 @@ export class AuthService {
     if (row) this.d.db.prepare('UPDATE refresh_tokens SET revoked_at = COALESCE(revoked_at, ?) WHERE family_id = ?').run(this.iso(), row.family_id);
   }
 
+  /**
+   * Every session ends (#712): refresh tokens revoked, access tokens issued before now refused (`verifyAccess`), and
+   * open re-auth grants dropped.
+   */
   revokeAll(userId: string): void {
-    this.d.db.prepare('UPDATE refresh_tokens SET revoked_at = COALESCE(revoked_at, ?) WHERE user_id = ?').run(this.iso(), userId);
+    const now = this.iso();
+    this.d.db.prepare('UPDATE refresh_tokens SET revoked_at = COALESCE(revoked_at, ?) WHERE user_id = ?').run(now, userId);
+    this.d.db.prepare('UPDATE users SET tokens_valid_after = ? WHERE id = ?').run(now, userId);
+    this.d.db.prepare('DELETE FROM reauth_grants WHERE user_id = ?').run(userId);
   }
 
   sessions(userId: string) {

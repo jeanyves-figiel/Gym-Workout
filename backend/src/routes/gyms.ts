@@ -1,8 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import type { DB } from '../db.ts';
-import { BUSY_KEEP_DAYS } from '../gymSchema.ts';
+import { type DB, tx } from '../db.ts';
+import { BUSY_KEEP_DAYS, nameKey, words } from '../gymSchema.ts';
 import { HOUR, throttleTake } from '../throttle.ts';
+import { assertClean } from '../community/moderation.ts';
 import { sameGym } from './community.ts';
 import { assertRowQuota } from '../quota.ts';
 
@@ -22,17 +23,24 @@ interface ReportRow {
 }
 
 const item = z.string().regex(/^[a-z0-9-]{1,32}$/);
-const gymRef = z.object({
-  id: z.string().trim().min(1).max(80),
-  name: z.string().trim().min(1).max(120),
-  latitude: z.number().min(-90).max(90).nullish(),
-  longitude: z.number().min(-180).max(180).nullish(),
-});
+const lat = z.number().min(-90).max(90).nullish();
+const lon = z.number().min(-180).max(180).nullish();
+/** The gym an answer is about. `lat` / `lon` (as documented) and `latitude` / `longitude` (what the app sends) both work (#714). */
+const gymRef = z
+  .object({ id: z.string().trim().min(1).max(80), name: z.string().trim().min(1).max(120), latitude: lat, longitude: lon, lat, lon })
+  .transform(({ lat: la, lon: lo, ...g }) => ({ ...g, latitude: g.latitude ?? la ?? null, longitude: g.longitude ?? lo ?? null }));
+const gymId = z.string().trim().min(1).max(80);
 
 /** Words that don't make two gyms the same chain on their own. */
 const GENERIC = new Set(['the', 'gym', 'fitness', 'fit', 'sport', 'sports', 'club', 'center', 'centre', 'studio', 'health', 'training', 'crossfit']);
 
-const words = (name: string) => name.toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, ' ').split(/\s+/).filter(Boolean);
+
+/** One vote per member (#712): of several rows a member has for the same place, the latest counts. */
+const latestPerMember = <T extends { user_id: string; updated_at: string }>(rows: T[]): T[] => {
+  const latest = new Map<string, T>();
+  for (const r of rows) if ((latest.get(r.user_id)?.updated_at ?? '') < r.updated_at) latest.set(r.user_id, r);
+  return [...latest.values()];
+};
 
 /**
  * Chain name shared by two gyms at different places: their common leading words ("Holmes Place Europaallee" and
@@ -134,15 +142,31 @@ export const consensus = (rows: { layout: Layout; updatedAt: string }[]) => {
 const LIVE_MIN = 20;
 
 /**
- * Candidate rows for a place (#432): same id, or a name starting with the same first word. SQLite's lower() and LIKE
- * fold ASCII only, so other letters match any one character (`_`); sameGym / chainOf decide in JS. A name without
- * words matches by id only (an empty prefix would read the whole table).
+ * Candidate rows for a place (#432): same id, or a name starting with the same first word, as a range on the indexed
+ * `name_key` (#715: was a LIKE over the whole table); sameGym / chainOf decide in JS. A name without words matches by
+ * id only (an empty prefix would read the whole table).
  */
 const candidates = (db: DB, table: 'gym_maps' | 'gym_reports', userId: string, id: string, name: string): unknown[] => {
-  const first = words(name.normalize('NFC'))[0];
+  const first = nameKey(name).split(' ')[0];
   if (!first) return db.prepare(`SELECT * FROM ${table} WHERE user_id != ? AND gym_id = ?`).all(userId, id);
-  const prefix = `${first.replace(/[^\x00-\x7f]/gu, '_')}%`;
-  return db.prepare(`SELECT * FROM ${table} WHERE user_id != ? AND (gym_id = ? OR lower(name) LIKE ?)`).all(userId, id, prefix);
+  return db
+    .prepare(`SELECT * FROM ${table} WHERE (gym_id = ? OR (name_key >= ? AND name_key < ?)) AND user_id != ?`)
+    .all(id, first, `${first}\u{10ffff}`, userId);
+};
+
+/**
+ * One row per member and place (#712): saving drops the member's rows for the same place under another id (map-search
+ * ids are rounded coordinates, so one gym can have several), so nobody's answer counts twice.
+ */
+const dropOtherRowsAtPlace = (db: DB, table: 'gym_maps' | 'gym_reports', userId: string, gym: { id: string; name: string; latitude: number | null; longitude: number | null }) => {
+  const mine = db.prepare(`SELECT gym_id, name, latitude, longitude FROM ${table} WHERE user_id = ? AND gym_id != ?`).all(userId, gym.id) as {
+    gym_id: string;
+    name: string;
+    latitude: number | null;
+    longitude: number | null;
+  }[];
+  const del = db.prepare(`DELETE FROM ${table} WHERE user_id = ? AND gym_id = ?`);
+  for (const r of mine) if (sameGym({ id: r.gym_id, name: r.name, latitude: r.latitude, longitude: r.longitude }, gym)) del.run(userId, r.gym_id);
 };
 
 const placeQuery = z.object({
@@ -159,13 +183,16 @@ export const gymRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
       .object({ gym: gymRef, equipment: z.array(item).max(80), unsure: z.array(item).max(80).optional() })
       .parse(req.body);
     const ts = now().toISOString();
-    assertRowQuota(db, 'gym_reports', req.userId!, [b.gym.id]);
-    db.prepare(
-      `INSERT INTO gym_reports (user_id, gym_id, name, latitude, longitude, equipment, unsure, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(user_id, gym_id) DO UPDATE SET name = excluded.name, latitude = excluded.latitude, longitude = excluded.longitude,
-         equipment = excluded.equipment, unsure = excluded.unsure, updated_at = excluded.updated_at`,
-    ).run(req.userId!, b.gym.id, b.gym.name, b.gym.latitude ?? null, b.gym.longitude ?? null,
-      JSON.stringify([...new Set(b.equipment)]), JSON.stringify([...new Set(b.unsure ?? [])]), ts);
+    tx(db, () => {
+      dropOtherRowsAtPlace(db, 'gym_reports', req.userId!, b.gym);
+      assertRowQuota(db, 'gym_reports', req.userId!, [b.gym.id]);
+      db.prepare(
+        `INSERT INTO gym_reports (user_id, gym_id, name, name_key, latitude, longitude, equipment, unsure, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(user_id, gym_id) DO UPDATE SET name = excluded.name, name_key = excluded.name_key, latitude = excluded.latitude,
+           longitude = excluded.longitude, equipment = excluded.equipment, unsure = excluded.unsure, updated_at = excluded.updated_at`,
+      ).run(req.userId!, b.gym.id, b.gym.name, nameKey(b.gym.name), b.gym.latitude, b.gym.longitude,
+        JSON.stringify([...new Set(b.equipment)]), JSON.stringify([...new Set(b.unsure ?? [])]), ts);
+    });
     return { saved: true };
   });
 
@@ -178,12 +205,17 @@ export const gymRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   /** Your floor plan for a gym (#406); replaces your earlier one. Only plans with blocks drawn are shared. */
   r.put('/gyms/maps', async (req) => {
     const b = z.object({ gym: gymRef, layout: layoutSchema }).parse(req.body);
-    assertRowQuota(db, 'gym_maps', req.userId!, [b.gym.id]);
-    db.prepare(
-      `INSERT INTO gym_maps (user_id, gym_id, name, latitude, longitude, layout, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(user_id, gym_id) DO UPDATE SET name = excluded.name, latitude = excluded.latitude, longitude = excluded.longitude,
-         layout = excluded.layout, updated_at = excluded.updated_at`,
-    ).run(req.userId!, b.gym.id, b.gym.name, b.gym.latitude ?? null, b.gym.longitude ?? null, JSON.stringify(b.layout), now().toISOString());
+    // Zone names are shown to other members at the gym (#713).
+    assertClean(...b.layout.zones.map((z) => z.name));
+    tx(db, () => {
+      dropOtherRowsAtPlace(db, 'gym_maps', req.userId!, b.gym);
+      assertRowQuota(db, 'gym_maps', req.userId!, [b.gym.id]);
+      db.prepare(
+        `INSERT INTO gym_maps (user_id, gym_id, name, name_key, latitude, longitude, layout, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(user_id, gym_id) DO UPDATE SET name = excluded.name, name_key = excluded.name_key, latitude = excluded.latitude,
+           longitude = excluded.longitude, layout = excluded.layout, updated_at = excluded.updated_at`,
+      ).run(req.userId!, b.gym.id, b.gym.name, nameKey(b.gym.name), b.gym.latitude, b.gym.longitude, JSON.stringify(b.layout), now().toISOString());
+    });
     return { saved: true };
   });
 
@@ -191,16 +223,18 @@ export const gymRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   r.get('/gyms/maps', async (req) => {
     const q = placeQuery.parse(req.query);
     const me = { id: q.id, name: q.name, latitude: q.lat ?? null, longitude: q.lng ?? null };
-    const rows = (candidates(db, 'gym_maps', req.userId!, q.id, q.name) as MapRow[])
-      .filter((r) => sameGym({ id: r.gym_id, name: r.name, latitude: r.latitude, longitude: r.longitude }, me))
-      .map((r) => ({ layout: JSON.parse(r.layout) as Layout, updatedAt: r.updated_at }))
-      .filter((r) => r.layout.zones.some((z) => z.rect));
+    const rows = latestPerMember(
+      (candidates(db, 'gym_maps', req.userId!, q.id, q.name) as MapRow[])
+        .filter((r) => sameGym({ id: r.gym_id, name: r.name, latitude: r.latitude, longitude: r.longitude }, me))
+        .filter((r) => (JSON.parse(r.layout) as Layout).zones.some((z) => z.rect)),
+    ).map((r) => ({ layout: JSON.parse(r.layout) as Layout, updatedAt: r.updated_at }));
     return { map: consensus(rows) };
   });
 
   /** "Taken?" (#406): a zone was busy just now. One tap per member, gym and zone every 5 minutes. */
   r.post('/gyms/busy', async (req) => {
-    const b = z.object({ gym: z.object({ id: gymRef.shape.id }), zone: z.string().trim().min(1).max(40) }).parse(req.body);
+    const b = z.object({ gym: z.object({ id: gymId }), zone: z.string().trim().min(1).max(40) }).parse(req.body);
+    assertClean(b.zone);
     const t = now();
     const zone = zoneKey(b.zone);
     const recent = db
@@ -218,7 +252,7 @@ export const gymRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
    * Counts only, never who.
    */
   r.get('/gyms/crowd', async (req) => {
-    const q = z.object({ id: gymRef.shape.id, tz: z.coerce.number().int().min(-840).max(840).default(0) }).parse(req.query);
+    const q = z.object({ id: gymId, tz: z.coerce.number().int().min(-840).max(840).default(0) }).parse(req.query);
     const t = now();
     const rows = db
       .prepare('SELECT user_id, zone, at FROM gym_busy WHERE gym_id = ? AND at > ?')
@@ -255,12 +289,10 @@ export const gymRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
     const me = { id: q.id, name: q.name, latitude: q.lat ?? null, longitude: q.lng ?? null };
     const rows = candidates(db, 'gym_reports', req.userId!, q.id, q.name) as ReportRow[];
     const at = (r: ReportRow) => ({ id: r.gym_id, name: r.name, latitude: r.latitude, longitude: r.longitude });
-    const place = rows.filter((r) => sameGym(at(r), me));
-    const chainRows = rows.filter((r) => !place.includes(r) && chainOf(r.name, q.name) != null);
+    const atPlace = rows.filter((r) => sameGym(at(r), me));
+    const place = latestPerMember(atPlace);
     // One vote per member: a member with several branches counts with the latest.
-    const latest = new Map<string, ReportRow>();
-    for (const r of chainRows) if ((latest.get(r.user_id)?.updated_at ?? '') < r.updated_at) latest.set(r.user_id, r);
-    const chain = [...latest.values()];
+    const chain = latestPerMember(rows.filter((r) => !atPlace.includes(r) && chainOf(r.name, q.name) != null));
     return {
       place: place.length ? tally(place) : null,
       chain: chain.length ? { ...tally(chain), name: chainOf(chain[0]!.name, q.name), gyms: new Set(chain.map((r) => r.gym_id)).size } : null,

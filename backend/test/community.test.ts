@@ -426,11 +426,11 @@ describe('account profile (#108)', () => {
     expect(p).toMatchObject({ nickname: 'jy_lifts', bio: 'Edited in Community', avatarUrl: avatar, member: true });
     expect((await req('PUT', '/v1/me/public-profile', u.t, { nickname: '' })).statusCode).toBe(400);
 
-    // Leaving keeps it on Account; the photo is still served.
+    // Leaving keeps nickname and about on Account; the photo is removed with the community profile (#713).
     expect((await req('DELETE', '/v1/community/me', u.t)).statusCode).toBe(204);
     p = (await req('GET', '/v1/me/public-profile', u.t)).json().profile;
-    expect(p).toEqual({ nickname: 'jy_lifts', bio: 'Edited in Community', avatarUrl: avatar, member: false });
-    expect((await app.inject({ method: 'GET', url: avatar })).statusCode).toBe(200);
+    expect(p).toEqual({ nickname: 'jy_lifts', bio: 'Edited in Community', avatarUrl: null, member: false });
+    expect((await app.inject({ method: 'GET', url: avatar })).statusCode).toBe(404);
     expect((await req('GET', '/v1/me/export', u.t)).json().community.accountProfile.nickname).toBe('jy_lifts');
 
     // Clearing on Account; join then needs a nickname.

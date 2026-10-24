@@ -36,4 +36,31 @@ describe('hot queries use an index', () => {
     const db = openDb(':memory:');
     expect(plan(db, 'SELECT 1 FROM custom_workouts w WHERE lower(w.id) = lower(?)', 'A')).toMatch(/INDEX custom_workouts_lower_id/);
   });
+
+  it('finds gyms by their name key (#715)', () => {
+    const db = openDb(':memory:');
+    for (const t of ['gym_reports', 'gym_maps'])
+      expect(plan(db, `SELECT * FROM ${t} WHERE (gym_id = ? OR (name_key >= ? AND name_key < ?)) AND user_id != ?`, 'g', 'a', 'b', 'u')).toMatch(
+        new RegExp(`INDEX ${t}_name_key`),
+      );
+  });
+
+  it('finds members at a gym without reading training profiles (#715)', () => {
+    const db = openDb(':memory:');
+    expect(plan(db, 'SELECT 1 FROM community_profiles WHERE gym_id = ?', 'g')).toMatch(/INDEX community_profiles_gym\b/);
+    expect(plan(db, 'SELECT 1 FROM community_profiles WHERE show_gym = 1 AND gym_key = ?', 'k')).toMatch(/INDEX community_profiles_gym_key/);
+  });
+
+  it("looks up one member's cheers, live cheers and challenge scores (#715)", () => {
+    const db = openDb(':memory:');
+    expect(plan(db, 'SELECT 1 FROM community_reactions WHERE user_id = ?', 'u')).toMatch(/INDEX community_reactions_user/);
+    expect(plan(db, 'SELECT 1 FROM community_live_cheers WHERE from_id = ?', 'u')).toMatch(/INDEX community_live_cheers_from/);
+    expect(plan(db, 'SELECT 1 FROM community_challenge_scores WHERE user_id = ?', 'u')).toMatch(/INDEX community_challenge_scores_user/);
+  });
+
+  it('lists the export in time order from an index (#714)', () => {
+    const db = openDb(':memory:');
+    expect(plan(db, 'SELECT id FROM workouts WHERE user_id = ? ORDER BY julianday(started_at), id', 'u')).toMatch(/INDEX workouts_user_time/);
+    expect(plan(db, 'SELECT id FROM climbs WHERE user_id = ? ORDER BY julianday(start), id', 'u')).toMatch(/INDEX climbs_user_time/);
+  });
 });
