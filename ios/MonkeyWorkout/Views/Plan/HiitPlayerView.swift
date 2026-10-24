@@ -16,6 +16,14 @@ struct HiitPlayerView: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
+    /// The workout's steps, built once (#720): the clock redraws ten times a second.
+    private let steps: [HiitWorkout.Step]
+
+    init(session: Session) {
+        self.session = session
+        steps = (session.hiit ?? HiitWorkout(name: session.title, blocks: [])).steps
+    }
 
     /// Seconds run before the current stretch, and when it started (nil while paused).
     @State private var banked: TimeInterval = 0
@@ -51,9 +59,9 @@ struct HiitPlayerView: View {
                 }
                 .transition(.scale.combined(with: .opacity))
             } else {
-                TimelineView(.periodic(from: .now, by: 0.1)) { ctx in
+                // Paused: the clock stands still, nothing to redraw (#720).
+                TimelineView(.animation(minimumInterval: 0.1, paused: !running)) { ctx in
                     let e = elapsed(ctx.date)
-                    let steps = workout.steps
                     let i = steps.firstIndex { Int(e) < $0.end }
                     screen(steps: steps, index: i, elapsed: e)
                         .onChange(of: Int(e * 5)) { _, _ in tick(e, steps: steps, index: i) }
@@ -71,6 +79,10 @@ struct HiitPlayerView: View {
             WatchSync.shared.sendWodRemote(nil)
         }
         .onReceive(NotificationCenter.default.publisher(for: .watchTimerToggle)) { _ in toggle() }
+        // Back from the background (#716): the clock jumps on, the cues it slept through aren't played.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { cuedTo = elapsed(Date()) }
+        }
     }
 
     // MARK: Screen
@@ -262,7 +274,7 @@ struct HiitPlayerView: View {
                 }
             }
             if open, running, format == .forTime {
-                Button { skip(steps: workout.steps, index: workout.steps.firstIndex { $0 == step }, done: true) } label: {
+                Button { skip(steps: steps, index: steps.firstIndex { $0 == step }, done: true) } label: {
                     Text("Done").font(Theme.label(18)).frame(maxWidth: .infinity, minHeight: 58)
                         .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.black.opacity(0.25)))
                 }
@@ -285,7 +297,7 @@ struct HiitPlayerView: View {
         }
         Haptics.start()
         let e = elapsed(Date())
-        remote(workout.step(at: e), index: workout.steps.firstIndex { Int(e) < $0.end })
+        remote(workout.step(at: e), index: steps.firstIndex { Int(e) < $0.end })
     }
 
     /// Moves to the next step. A work step skipped before half-way isn't counted; For time's Done counts it.
@@ -312,7 +324,10 @@ struct HiitPlayerView: View {
         }
         guard running else { return }
         let a = Int(cuedTo), b = Int(e)
-        if b > a {
+        // More than a couple of seconds missed (the app was in the background, #716): no burst of old cues.
+        if b > a + 2 {
+            cuedTo = e
+        } else if b > a {
             for second in (a + 1)...b {
                 for (k, st) in steps.enumerated() {
                     if st.kind == .work && st.start == second { play(.bell) }
@@ -345,7 +360,7 @@ struct HiitPlayerView: View {
         var out: [String: Int] = [:]
         let main = session.blocks.first { $0.kind == .cardio }?.items ?? []
         func uid(block: Int, move: Int) -> String? { main.first { $0.group == HiitWorkout.group(block: block, move: move) }?.uid }
-        for st in workout.steps where Double(st.end) <= e {
+        for st in steps where Double(st.end) <= e {
             switch st.kind {
             case .work:
                 guard let b = st.block, !skipped.contains(st.start) else { continue }
@@ -433,7 +448,6 @@ struct HiitPlayerView: View {
         if let step, started != nil {
             let b = step.block.map { workout.blocks[$0] }
             let t: (UInt32, UInt32) = step.kind == .work ? (b?.format.tint ?? HiitFormat.tabata.tint) : step.kind == .rest ? (0x00C7FF, 0x3D59FF) : (0x3D4BD6, 0x5A2FA0)
-            let steps = workout.steps
             let next = index.flatMap { steps.indices.contains($0 + 1) ? steps[$0 + 1].title : nil }
             let countUp = step.kind == .work && b?.format == .forTime
             live = WHiitLive(
