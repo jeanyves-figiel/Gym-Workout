@@ -213,6 +213,16 @@ final class AppSmokeUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "Settings page")
     }
 
+    /// A chapter tile in the Me sheet opens Settings (#736).
+    func testMeSheetChapterOpensSettings() {
+        launchTabs()
+        app.buttons["me.pill"].firstMatch.tap()
+        let watch = app.buttons["me.chapter.watch"].firstMatch
+        XCTAssertTrue(watch.waitForExistence(timeout: 10), "Watches tile in the Me sheet")
+        watch.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "Settings page")
+    }
+
     // MARK: HIIT
 
     /// Demo screen `explore-hiit`: Explore on HIIT; a format tile opens the builder.

@@ -29,6 +29,18 @@ enum SettingsChapter: String, CaseIterable, Identifiable {
         }
     }
 
+    /// What the chapter holds, for its tile in the Me sheet (#736).
+    var summary: String {
+        switch self {
+        case .you: "Pro, profile, gym, body"
+        case .training: "Method, coach, reminders, Fuel"
+        case .watch: "Watch, Garmin, sensors"
+        case .look: "Style, widgets, apps"
+        case .account: "Sign-in, security, data"
+        case .help: "What's new, support, legal"
+        }
+    }
+
     var gradient: LinearGradient {
         switch self {
         case .you: AccountTint.publicProfile

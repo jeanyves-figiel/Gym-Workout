@@ -110,12 +110,14 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
     public var flow: [Block]
     /// Warm-up / cool-down style or exact moves chosen for this workout (#293); nil = the profile's defaults.
     public var flowTweaks: FlowTweaks?
+    /// Set when it's the member's own daily routine (#732): shown in Explore → Daily → Mine and on Train's Daily row.
+    public var routine: RoutineLook?
     /// Server version this copy was pulled or saved as, sent back as `baseUpdatedAt` so an edit never overwrites a
     /// newer copy from another device. Nil until the server has it.
     public var updatedAt: String?
 
     public init(id: UUID = UUID(), name: String, items: [Item] = [], createdAt: Date = Date(), visibility: WorkoutVisibility = .private,
-                flow: [Block] = [], flowTweaks: FlowTweaks? = nil) {
+                flow: [Block] = [], flowTweaks: FlowTweaks? = nil, routine: RoutineLook? = nil) {
         self.id = id
         self.name = name
         self.items = items
@@ -124,9 +126,10 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         self.hidden = false
         self.flow = flow
         self.flowTweaks = flowTweaks
+        self.routine = routine
     }
 
-    enum CodingKeys: String, CodingKey { case id, name, items, createdAt, visibility, flow, flowTweaks, updatedAt }
+    enum CodingKeys: String, CodingKey { case id, name, items, createdAt, visibility, flow, flowTweaks, routine, updatedAt }
     private enum ServerKeys: String, CodingKey { case hidden }
 
     public init(from decoder: any Decoder) throws {
@@ -138,6 +141,7 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         visibility = (try? c.decodeIfPresent(WorkoutVisibility.self, forKey: .visibility)) ?? .private
         flow = ((try? c.decodeIfPresent([Block].self, forKey: .flow)) ?? nil) ?? []
         flowTweaks = (try? c.decodeIfPresent(FlowTweaks.self, forKey: .flowTweaks)) ?? nil
+        routine = (try? c.decodeIfPresent(RoutineLook.self, forKey: .routine)) ?? nil
         updatedAt = (try? c.decodeIfPresent(String.self, forKey: .updatedAt)) ?? nil
         hidden = (try? decoder.container(keyedBy: ServerKeys.self).decodeIfPresent(Bool.self, forKey: .hidden)) ?? false
     }
@@ -151,6 +155,7 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         try c.encode(visibility, forKey: .visibility)
         if !flow.isEmpty { try c.encode(flow, forKey: .flow) }
         if let flowTweaks, !flowTweaks.isEmpty { try c.encode(flowTweaks, forKey: .flowTweaks) }
+        try c.encodeIfPresent(routine, forKey: .routine)
         try c.encodeIfPresent(updatedAt, forKey: .updatedAt)
     }
 
@@ -183,6 +188,8 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
             b.items = b.items.filter { Exercise.find($0.exerciseId) != nil }
             return b
         }.filter { !$0.items.isEmpty }
+        w.routine = routine?.sanitized
+        if w.routine != nil { w.flow = [] }
         return w
     }
 
@@ -195,6 +202,8 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
     // MARK: Session conversion
 
     static let idPrefix = "custom-"
+    /// Session ids of custom workouts start with it.
+    public static var sessionPrefix: String { idPrefix }
 
     public var sessionId: String { Self.idPrefix + id.uuidString.lowercased() }
 
@@ -259,7 +268,9 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         }
         let exercises = pairs.map { $0.exercise }
         let categories = Set(exercises.map { $0.category })
-        let kind: BlockKind = categories.count == 1 ? Self.blockKind(categories.first!) : .strength
+        // An own routine (#732) of stretches and mobility drills plays as one mobility block (no strength, no finisher).
+        let kind: BlockKind = categories.count == 1 ? Self.blockKind(categories.first!)
+            : routine != nil && categories.isSubset(of: [.mobility, .stretch]) ? .mobility : .strength
         let est = Int((Double(planned.reduce(0) { $0 + $1.estSec }) / 60).rounded())
         let note: String? = labels.isEmpty ? nil
             : "\(Set(groupSize.values).contains { $0 > 2 } ? "Circuits" : "Supersets"): same-letter exercises back to back (A1 → A2), rest after the round."
@@ -341,7 +352,36 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         CustomWorkout(
             name: String("\(name) (copy)".prefix(Self.maxNameLength)),
             items: items.map { Item(exerciseId: $0.exerciseId, sets: $0.sets, reps: $0.reps, restSec: $0.restSec, kcal: $0.kcal, group: $0.group) },
-            createdAt: createdAt, flow: flow, flowTweaks: flowTweaks)
+            createdAt: createdAt, flow: flow, flowTweaks: flowTweaks, routine: routine)
+    }
+}
+
+/// How a member's own daily routine looks (#732): a colour from the routine palette and an icon.
+public struct RoutineLook: Codable, Hashable, Sendable {
+    public var color: Int
+    public var symbol: String
+
+    public init(color: Int = 0, symbol: String = RoutineLook.symbols[0]) {
+        self.color = color
+        self.symbol = symbol
+    }
+
+    /// Colours offered (indexes into the app's routine palette).
+    public static let colors = 0..<6
+    public static let symbols = ["star.fill", "figure.flexibility", "figure.cooldown", "figure.yoga", "sun.max.fill",
+                                 "moon.stars.fill", "hand.raised.fill", "heart.fill", "bolt.fill", "leaf.fill"]
+
+    /// A move added to a routine: one round, no rest, 45 s holds.
+    public static func item(adding e: Exercise) -> CustomWorkout.Item {
+        var it = CustomWorkout.Item(adding: e)
+        it.sets = 1
+        it.restSec = 0
+        if CustomWorkout.Measure(e) == .seconds { it.reps = 45 }
+        return it
+    }
+
+    var sanitized: RoutineLook {
+        RoutineLook(color: Self.colors.contains(color) ? color : 0, symbol: Self.symbols.contains(symbol) ? symbol : Self.symbols[0])
     }
 }
 

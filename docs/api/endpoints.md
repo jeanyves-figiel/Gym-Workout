@@ -99,7 +99,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 
 | Method | Path | Auth | Summary | Errors / limits |
 |---|---|---|---|---|
-| GET | `/v1/me/custom-workouts` | Bearer | → `{workouts, deleted?, serverTime}` member-built workouts (`id`, `name`, `items[].exerciseId`, `visibility`) | |
+| GET | `/v1/me/custom-workouts` | Bearer | → `{workouts, deleted?, serverTime}` member-built workouts (`id`, `name`, `items[].exerciseId`, `visibility`; other app fields kept as sent, e.g. `routine` `{color, symbol}` for own daily routines, #732) | |
 | POST | `/v1/me/custom-workouts` | Bearer | `{workouts[≤100]}` → `{saved, serverTime, conflicts?}`; `visibility` members/public shares it to the library | 403 `community_profile_required` to share; 409 `quota_exceeded`; 413 `too_large` |
 | DELETE | `/v1/me/custom-workouts/:id` | Bearer | → 204 | |
 | GET | `/v1/me/custom-exercises` | Bearer | → `{exercises, deleted: [], serverTime}` (deletion = `archived` flag) | |
