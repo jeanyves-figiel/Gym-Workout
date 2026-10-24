@@ -452,7 +452,7 @@ def sled_pose(stance, swing, hip=(176, 190), t=-28):
 
 SLED = [
     sled_pose(("N", (98, GROUND - 13)), (14, 104, 30)),
-    sled_pose(("N", (138, GROUND - 10)), (64, 146, 60), hip=(180, 186)),
+    sled_pose(("N", (138, GROUND - 10)), (60, 162, 84), hip=(180, 186)),
     sled_pose(("F", (98, GROUND - 13)), (14, 104, 30)),
 ]
 

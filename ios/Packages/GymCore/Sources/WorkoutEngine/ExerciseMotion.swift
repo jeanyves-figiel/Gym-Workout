@@ -12,12 +12,17 @@ public struct ExerciseMotion: Sendable, Equatable {
     /// One point per frame, normalised to the picture (0…1, origin top-left), flattened x, y, x, y…
     /// Empty when nothing travels far enough to draw (holds, stretches).
     public let path: [Double]
+    /// One whole cycle per play (#719): a gait, a carry or a machine that turns, drawn so the last frame is the first
+    /// again. Played forward and wrapped, never backwards; `first` is half a cycle ("STEP"), `second` the whole
+    /// one ("STRIDE"), and there is no working half.
+    public let cyclic: Bool
 
-    public init(_ first: String, _ second: String, effortFirst: Bool, path: [Double]) {
+    public init(_ first: String, _ second: String, effortFirst: Bool, path: [Double], cyclic: Bool = false) {
         self.first = first
         self.second = second
         self.effortFirst = effortFirst
         self.path = path
+        self.cyclic = cyclic
     }
 
     /// The path as points, one per frame.
@@ -49,7 +54,14 @@ public struct ExerciseMotion: Sendable, Equatable {
 
     /// Start → end and end → start for an exercise of `category`. Strength: work 1 s, return 2 s; power: fast
     /// work (0.6 s), 1.4 s return. Other categories move evenly (1.5 s each way) and show no tempo (`showsTempo`).
+    /// A cyclic movement: the two halves of one cycle at an even pace (a stride 0.9 s, a walking step 1.2 s), both
+    /// labelled with the whole cycle.
     public func phases(_ category: Category) -> (Phase, Phase) {
+        if cyclic {
+            let half = (category == .cardio || category == .power ? 0.9 : 1.2) / 2
+            let p = Phase(label: second, seconds: half, effort: true, text: second)
+            return (p, p)
+        }
         let (work, back, fast): (Double, Double, Bool) = switch category {
         case .strength: (1, 2, false)
         case .power: (0.6, 1.4, true)
@@ -83,7 +95,8 @@ extension Exercise {
 /// it on a display-linked timeline (the lower frame opaque, the next one blended over it by the fraction) with
 /// no per-step state changes that could flash. Each rep runs start → end at `out`, holds, end → start at
 /// `back`, holds. A play starting away from frame 0 first glides there (`lead`), and one ending away from
-/// `rest` glides back (`settle`).
+/// `rest` glides back (`settle`). `cyclic` (#719): each rep runs start → end in `out + back` without holds and the
+/// next one starts over at frame 0 (the same picture as the last), so a gait keeps going forward.
 public struct MotionPlayback: Sendable, Equatable {
     public struct State: Sendable, Equatable {
         /// Fractional frame (0 … frames - 1).
@@ -110,11 +123,18 @@ public struct MotionPlayback: Sendable, Equatable {
     public let duration: Double
 
     public init(frames: Int, cycles: Int, out: Double, back: Double, hold: Double, from start: Double = 0,
-                rest: Double = 0, lead: Double = 0.25, settle: Double = 0.3) {
+                rest: Double = 0, lead: Double = 0.25, settle: Double = 0.3, cyclic: Bool = false) {
         let last = Double(max(frames - 1, 0))
         var s: [Segment] = []
-        if start != 0 { s.append(Segment(from: start, to: 0, duration: lead, rep: 1, outbound: true, half: false, held: false)) }
+        // A cycle glides on forward to its end, which is its start.
+        if start != 0 {
+            s.append(Segment(from: start, to: cyclic ? last : 0, duration: lead, rep: 1, outbound: true, half: false, held: false))
+        }
         for r in 1...max(cycles, 1) {
+            if cyclic {
+                s.append(Segment(from: 0, to: last, duration: out + back, rep: r, outbound: true, half: true, held: false))
+                continue
+            }
             s.append(Segment(from: 0, to: last, duration: out, rep: r, outbound: true, half: true, held: false))
             s.append(Segment(from: last, to: last, duration: hold, rep: r, outbound: true, half: false, held: true))
             s.append(Segment(from: last, to: 0, duration: back, rep: r, outbound: false, half: true, held: false))

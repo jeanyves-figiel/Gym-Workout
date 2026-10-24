@@ -220,9 +220,10 @@ MAT = (60, 300)
 def slc_pose(lift, ank_x, foot):
     hip = pt(SLC_SH, -lift, TOR)
     t = 180 - lift
-    g = (SLC_SH[0] + 79, GROUND - 6)
+    # Arms long on the mat (#719): a bent elbow went through it.
+    g = (SLC_SH[0] + 86, GROUND - 6)
     return body(hip, t, h=180, ankN=(ank_x, GROUND - 10), ankF=(ank_x - 3, GROUND - 10), kN=-1, kF=-1, fN=foot,
-                fF=foot, gN=g, gF=(g[0] - 3, g[1]), eN=1, eF=1, hN=0, hF=0)
+                fF=foot, gN=g, gF=(g[0] - 2, g[1]), eN=1, eF=1, hN=0, hF=0)
 
 
 def slc_scene(doc, j, layer):

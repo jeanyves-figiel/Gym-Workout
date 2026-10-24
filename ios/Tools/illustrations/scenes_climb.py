@@ -215,8 +215,8 @@ BOARD_BOX = (HB_WALL - kit.HB_D - 4, HB_TOP - 8, HB_WALL + 16, HB_TOP + kit.HB_H
 
 
 def belt_plate(doc, j, layer):
-    """Max hangs: a plate on a dipping belt."""
-    if layer == "front":
+    """Max hangs: a plate on a dipping belt, hanging between the thighs (#719: behind the legs, not over them)."""
+    if layer == "back":
         belt = U.chest_pt(j["hip"], j["_t"], 0.08, 14)
         c = (j["hip"][0] + 8, j["hip"][1] + 68)
         doc.add(f'<polyline points="{belt[0]:.1f},{belt[1]:.1f} {c[0]:.1f},{c[1] - 12:.1f}" fill="none" '

@@ -169,7 +169,8 @@ struct HiitPlayerView: View {
     @ViewBuilder
     private func figure(_ step: HiitWorkout.Step?) -> some View {
         if let id = step?.exerciseId ?? workout.blocks.first?.moves.first?.exerciseId, let e = Exercise.find(id) {
-            ExerciseMotionView(exercise: e, playTrigger: shownStep, autoPlayCycles: 8)
+            // Keeps moving for the interval, quicker than lifting reps (#719).
+            ExerciseMotionView(exercise: e, playTrigger: shownStep, playFor: step.map { Double($0.seconds) } ?? 30, speed: 1.6)
                 .padding(10)
                 .id(id)
         } else {

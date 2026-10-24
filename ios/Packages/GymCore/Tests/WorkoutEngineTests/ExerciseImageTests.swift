@@ -98,6 +98,23 @@ import Testing
         }
     }
 
+    @Test func cyclicPlaybackWrapsForward() throws {
+        // #719: a gait plays start → end every rep (its end is its start again), never back.
+        let p = MotionPlayback(frames: 9, cycles: 2, out: 0.5, back: 0.5, hold: 0.35, cyclic: true)
+        #expect(p.duration == 2)
+        #expect(p.state(at: 0.5)?.position == 4)
+        #expect((p.state(at: 0.999)?.position ?? 0) > 7.9)
+        #expect(p.state(at: 1)?.position == 0 && p.state(at: 1)?.rep == 2)
+        let walk = ExerciseMotion("STEP", "STRIDE", effortFirst: true, path: [], cyclic: true)
+        let (a, b) = walk.phases(.strength)
+        #expect(a.label == "STRIDE" && a == b && a.seconds * 2 == 1.2)
+        for id in ["treadmill-run", "farmer-carry", "bike"] {
+            let m = try #require(Exercise.get(id).motion)
+            #expect(m.cyclic, "\(id)")
+        }
+        #expect(Exercise.get("back-squat").motion?.cyclic == false)
+    }
+
     @Test func playbackLeadsInAndSettles() {
         let p = MotionPlayback(frames: 9, cycles: 1, out: 1, back: 1, hold: 0, from: 4, rest: 8, lead: 0.25, settle: 0.5)
         #expect(p.state(at: 0)?.position == 4)
