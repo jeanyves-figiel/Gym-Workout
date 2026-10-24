@@ -446,7 +446,7 @@ struct WorkoutPlayerView: View {
                 let setup = model.machineNote(exerciseId: step.exercise.id, gymId: setupGym.id)
                 ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
                                  position: isFree ? "" : "\(index + 1)/\(steps.count)",
-                                 onAttemptPR: step.loggable && model.lifeStage == nil ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
+                                 onAttemptPR: step.loggable && model.lifeStage == nil ? { prFor = step.exercise } : nil,
                                  onChange: canChange(step) ? { changeFor = step.item } : nil,
                                  setup: setup,
                                  onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
@@ -659,7 +659,7 @@ struct WorkoutPlayerView: View {
                     let setup = model.machineNote(exerciseId: step.exercise.id, gymId: setupGym.id)
                     ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
                                      position: isFree ? "" : "\(index + 1)/\(steps.count)",
-                                     onAttemptPR: step.loggable && model.lifeStage == nil ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
+                                     onAttemptPR: step.loggable && model.lifeStage == nil ? { prFor = step.exercise } : nil,
                                      onChange: canChange(step) ? { changeFor = step.item } : nil,
                                      setup: setup,
                                      onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
@@ -741,7 +741,7 @@ struct WorkoutPlayerView: View {
                     topBar(session)
                     ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
                                      position: isFree ? "" : "\(index + 1)/\(steps.count)",
-                                     onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
+                                     onAttemptPR: step.loggable ? { prFor = step.exercise } : nil,
                                      onChange: canChange(step) ? { changeFor = step.item } : nil,
                                      setup: setup,
                                      onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
@@ -1094,7 +1094,7 @@ struct WorkoutPlayerView: View {
         case .previous: handle(.previous)
         case let .ask(q):
             let detail = onCard ? "set \(row + 1) of \(step.sets), \(log.rows[row].kg) kg × \(log.rows[row].reps)" : "set \(done + 1) of \(step.sets)"
-            ProStore.shared.run(.generateWorkout, $gate) {
+            ProStore.shared.run(.askCoach, $gate) {
                 asking = AskCoachRequest(focus: CoachFocus(screen: "player", title: step.exercise.name, detail: "during the workout, " + detail),
                                          question: q, spoken: true)
             }

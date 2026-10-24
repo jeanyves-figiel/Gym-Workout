@@ -407,10 +407,9 @@ struct VariationCount: View {
 struct NewExerciseButton: View {
     var prefill: CustomExercise?
     @State private var building = false
-    @State private var gate: ProGate?
 
     var body: some View {
-        Button { ProStore.shared.run(.customExercise, $gate) { building = true } } label: {
+        Button { building = true } label: {
             HStack(spacing: 16) {
                 Image(systemName: "plus")
                     .font(.system(size: 24, weight: .heavy))
@@ -422,7 +421,6 @@ struct NewExerciseButton: View {
                     Text("Your own machine, photo or pose").font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted)
                 }
                 Spacer(minLength: 0)
-                ProBadge()
             }
             .padding(16)
             .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.card))
@@ -435,6 +433,5 @@ struct NewExerciseButton: View {
         .buttonStyle(.plain)
         .accessibilityLabel("New exercise")
         .sheet(isPresented: $building) { CustomExerciseBuilderView(prefill: prefill) }
-        .proPaywall($gate)
     }
 }

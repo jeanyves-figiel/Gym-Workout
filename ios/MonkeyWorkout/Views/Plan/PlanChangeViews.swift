@@ -180,7 +180,6 @@ struct AddWorkoutSheet: View {
     @State private var built = false
     @State private var browsing = false
     @State private var picked: LibraryEntry?
-    @State private var gate: ProGate?
 
     /// Library workouts shown on the sheet; the rest are one tap away in Browse library (#178).
     static let libraryPreview = 3
@@ -213,7 +212,7 @@ struct AddWorkoutSheet: View {
                         .font(.caption).foregroundStyle(Theme.muted)
 
                     Text("Your own").eyebrow().padding(.top, 8)
-                    Button { ProStore.shared.run(.buildWorkout, $gate) { building = CustomWorkout(name: "") } } label: { customRow }
+                    Button { building = CustomWorkout(name: "") } label: { customRow }
                         .buttonStyle(.plain)
 
                     Text("From your library").eyebrow().padding(.top, 8)
@@ -261,7 +260,6 @@ struct AddWorkoutSheet: View {
                 }
                 .preferredColorScheme(.dark)
             }
-            .proPaywall($gate)
         }
         .presentationDetents([.large])
         .preferredColorScheme(.dark)
@@ -357,7 +355,6 @@ struct AddWorkoutSheet: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text("Custom workout").font(Theme.display(21))
-                    ProBadge()
                 }
                 Text("Pick exercises, or generate from muscles. Saved to your workouts too.").font(.footnote.weight(.semibold)).opacity(0.88)
             }
@@ -425,7 +422,6 @@ struct QuickSessionOptionsView: View {
     @State private var tweaking: FlowTweakTarget?
     @State private var groups: Set<MuscleGroup>
     @State private var nothingFits = false
-    @State private var gate: ProGate?
 
     init(focus: Focus, day: String, onAdd: @escaping (Int, Set<MuscleGroup>, FlowTweaks) -> Bool) {
         self.focus = focus
@@ -509,7 +505,6 @@ struct QuickSessionOptionsView: View {
         .background(Theme.bg.ignoresSafeArea())
         .navigationTitle("Quick session")
         .navigationBarTitleDisplayMode(.inline)
-        .proPaywall($gate)
         .sheet(item: $tweaking) { t in
             FlowTweakSheet(kind: t.kind, tweaks: $tweaks, preview: { flowPreview($0, t.kind) })
         }
@@ -577,11 +572,7 @@ struct QuickSessionOptionsView: View {
     }
 
     private func add() {
-        if preset {
-            nothingFits = !onAdd(minutes, groups, tweaks)
-        } else {
-            ProStore.shared.run(.generateWorkout, $gate) { nothingFits = !onAdd(minutes, groups, tweaks) }
-        }
+        nothingFits = !onAdd(minutes, groups, tweaks)
     }
 }
 

@@ -77,14 +77,12 @@ struct WallSessionPage: View {
     @Environment(AppModel.self) private var model
     @State private var logging: ClimbLog?
     @State private var settings = false
-    @State private var gate: ProGate?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Wall session").font(Theme.display(34))
                 WallSessionCard(today: today, climbedToday: climbedToday,
-                                locked: ProStore.shared.locked, onGate: { gate = .climbing },
                                 onLogClimb: { logging = ClimbLog(start: Date().addingTimeInterval(-90 * 60)) })
                 AroundSportLink(sport: .climbing) { settings = true }
             }
@@ -95,7 +93,6 @@ struct WallSessionPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $logging) { LogClimbView(initial: $0) }
         .sheet(isPresented: $settings) { AroundSportView(initial: .climbing) }
-        .proPaywall($gate)
     }
 }
 
@@ -105,8 +102,6 @@ struct WallSessionCard: View {
     let today: Bool
     /// A climb is already logged or synced today.
     let climbedToday: Bool
-    let locked: Bool
-    let onGate: () -> Void
     let onLogClimb: () -> Void
 
     @AppStorage("wallDay") private var dayRaw = WallDay.bouldering.rawValue
@@ -193,13 +188,9 @@ struct WallSessionCard: View {
         .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(part.gradient))
     }
 
-    /// Opens the part's session, or the Pro gate when locked.
-    @ViewBuilder private func start<L: View>(_ t: WorkoutTemplate, @ViewBuilder label: () -> L) -> some View {
-        if locked {
-            Button(action: onGate, label: label)
-        } else {
-            NavigationLink(value: t.sessionId, label: label)
-        }
+    /// Opens the part's session.
+    private func start<L: View>(_ t: WorkoutTemplate, @ViewBuilder label: () -> L) -> some View {
+        NavigationLink(value: t.sessionId, label: label)
     }
 
     private func openMonkeyGrade() {

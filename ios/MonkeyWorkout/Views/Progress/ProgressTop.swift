@@ -75,9 +75,8 @@ struct ProgressHighlights {
     var thisWeek: Int
     var target: Int
     var lastWorkout: Date?
-    /// Most worked muscle in the last 28 days; nil when nothing logged or the heat map is Pro-locked.
+    /// Most worked muscle in the last 28 days; nil when nothing logged.
     var topMuscle: String?
-    var musclesLocked: Bool
     /// Running programme (#255): name and "Week 3 of 8" / "Paused"; nil when none.
     var programme: (name: String, state: String)?
     var programmesFinished: Int
@@ -140,10 +139,7 @@ struct ProgressSectionTile: View {
             HubValue("\(h.unlocked)/\(h.badgeCount)")
             HubNote(h.nextBadge.map { "Next: \($0.title)" } ?? "All unlocked")
         case .muscles:
-            if h.musclesLocked {
-                HubValue("Pro")
-                HubNote("Muscle heat map")
-            } else if let m = h.topMuscle {
+            if let m = h.topMuscle {
                 HubValue(m)
                 HubNote("most worked · 28 days")
             } else {

@@ -575,14 +575,13 @@ struct PRCard: View {
     let exerciseId: String
     @Environment(AppModel.self) private var model
     @State private var attempting = false
-    @State private var gate: ProGate?
 
     var body: some View {
         let e = Exercise.get(exerciseId)
         if !PRPlanner.kinds(for: e).isEmpty {
             let records = PRPlanner.records(model.prAttempts(exerciseId))
             VStack(alignment: .leading, spacing: 10) {
-                Button { ProStore.shared.run(.prAttempt, $gate) { attempting = true } } label: {
+                Button { attempting = true } label: {
                     HStack(spacing: 14) {
                         Image(systemName: "trophy.fill")
                             .font(.system(size: 24, weight: .bold))
@@ -591,7 +590,6 @@ struct PRCard: View {
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 6) {
                                 Text("Attempt a PR").font(Theme.display(22))
-                                ProBadge()
                             }
                             Text(records.isEmpty ? "Test your 1RM, rep max or max reps" : "Beat your best")
                                 .font(.footnote.weight(.medium)).opacity(0.85)
@@ -620,7 +618,6 @@ struct PRCard: View {
                 PRHistoryList(exerciseId: exerciseId, limit: 5)
             }
             .fullScreenCover(isPresented: $attempting) { PRAttemptView(exerciseId: exerciseId) }
-            .proPaywall($gate)
         }
     }
 }

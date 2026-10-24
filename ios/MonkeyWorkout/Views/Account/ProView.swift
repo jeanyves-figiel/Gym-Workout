@@ -8,29 +8,26 @@ extension AccountTint {
                                     startPoint: .topLeading, endPoint: .bottomTrailing)
 }
 
-/// What Pro adds. Proposal only (#126): nothing is locked until the server mode is `enforced`.
+/// What Pro adds (decided 2026-10-24): Ask Coach, Generate & do today and the two AI scans. Everything else is free.
+/// Proposal only (#126): nothing is locked until the server mode is `enforced`.
 enum ProFeature: CaseIterable {
-    case variation, builder, prAttempts, progress, watch, climbing
+    case askCoach, generateToday, gymScan, foodScan
 
     var symbol: String {
         switch self {
-        case .variation: "shuffle"
-        case .builder: "hammer.fill"
-        case .prAttempts: "trophy.fill"
-        case .progress: "chart.xyaxis.line"
-        case .watch: "applewatch"
-        case .climbing: "figure.climbing"
+        case .askCoach: "bubble.left.and.text.bubble.right.fill"
+        case .generateToday: "wand.and.stars"
+        case .gymScan: "camera.viewfinder"
+        case .foodScan: "refrigerator.fill"
         }
     }
 
     var title: String {
         switch self {
-        case .variation: "New variations and kept swaps"
-        case .builder: "Custom exercises and workouts"
-        case .prAttempts: "PR attempts and share cards"
-        case .progress: "Full progress and muscle heat map"
-        case .watch: "Apple Watch workouts"
-        case .climbing: "Wall session and integration with MonkeyGrade"
+        case .askCoach: "Ask Coach anything, anywhere"
+        case .generateToday: "Generate a workout and do it today"
+        case .gymScan: "Gym scan: equipment sorts itself"
+        case .foodScan: "Fridge and receipt scan for meals"
         }
     }
 }
@@ -71,26 +68,16 @@ struct ProPlan: Identifiable {
     ]
 }
 
-/// A Pro feature someone tapped (#126): heads the paywall sheet ("New variation is Pro").
+/// A Pro feature someone tapped (#126): heads the paywall sheet ("Ask Coach is Pro").
 enum ProGate: String, Identifiable {
-    case variation, keepSwap, workoutStyle, buildWorkout, generateWorkout, shareWorkout, customExercise, prAttempt, progress, watch, climbing, monkeyGrade, gymScan, foodScan
+    case askCoach, generateWorkout, gymScan, foodScan
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .variation: "New variation is Pro"
-        case .keepSwap: "Keeping swaps is Pro"
-        case .workoutStyle: "Workout style is Pro"
-        case .buildWorkout: "Building workouts is Pro"
-        case .generateWorkout: "Generated workouts are Pro"
-        case .shareWorkout: "Sharing workouts is Pro"
-        case .customExercise: "Custom exercises are Pro"
-        case .prAttempt: "Attempt a PR is Pro"
-        case .progress: "Full progress is Pro"
-        case .watch: "Apple Watch is Pro"
-        case .climbing: "Wall session is Pro"
-        case .monkeyGrade: "MonkeyGrade is Pro"
+        case .askCoach: "Ask Coach is Pro"
+        case .generateWorkout: "Generate & do today is Pro"
         case .gymScan: "Gym scan is Pro"
         case .foodScan: "Fridge scan is Pro"
         }
@@ -98,18 +85,8 @@ enum ProGate: String, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .variation: "Reshuffle days and parts, keep what you like."
-        case .keepSwap: "Keep your swaps for this day every week."
-        case .workoutStyle: "Rest and grouping set per workout."
-        case .buildWorkout: "Build your own workouts from any exercise."
-        case .generateWorkout: "Pick muscles, get a workout for today or any day."
-        case .shareWorkout: "Share your workouts with members."
-        case .customExercise: "Add your gym's machines with photo or pose."
-        case .prAttempt: "Warm-up ramp, attempts and a share card."
-        case .progress: "All your history, trends and the muscle heat map."
-        case .watch: "Start and log workouts from your wrist."
-        case .climbing: "Warm-up, hangboard and cool-down for climbing days."
-        case .monkeyGrade: "Import your climbing sessions from MonkeyGrade."
+        case .askCoach: "Your coach answers about any screen, by text or voice."
+        case .generateWorkout: "Pick muscles, get a workout and start it now. Adding it to a day stays free."
         case .gymScan: "Snap each area of your gym, the equipment sorts itself."
         case .foodScan: "Snap your fridge or a receipt, get meals that fit your day."
         }
@@ -117,16 +94,8 @@ enum ProGate: String, Identifiable {
 
     var symbol: String {
         switch self {
-        case .variation: "shuffle"
+        case .askCoach: "bubble.left.and.text.bubble.right.fill"
         case .generateWorkout: "wand.and.stars"
-        case .keepSwap: "arrow.triangle.swap"
-        case .workoutStyle: "timer"
-        case .buildWorkout, .customExercise: "hammer.fill"
-        case .shareWorkout: "square.and.arrow.up.fill"
-        case .prAttempt: "trophy.fill"
-        case .progress: "chart.xyaxis.line"
-        case .watch: "applewatch"
-        case .climbing, .monkeyGrade: "figure.climbing"
         case .gymScan: "camera.viewfinder"
         case .foodScan: "refrigerator.fill"
         }

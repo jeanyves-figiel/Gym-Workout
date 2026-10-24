@@ -189,7 +189,6 @@ extension View {
 struct WatchRootView: View {
     @Environment(WatchStore.self) private var store
     @State private var player: WatchPlayer?
-    @State private var locked = false
     /// Sport tracking (#418) takes the whole screen while it runs, then shows its summary.
     @State private var sports = SportTracker.shared
     @State private var hyrox = HyroxTracker.shared
@@ -221,7 +220,8 @@ struct WatchRootView: View {
         let today = [store.next].compactMap { $0 }.first(where: \.startsToday)
             ?? store.snapshot.sessions.first { !$0.done && $0.startsToday }
         guard player == nil, store.live == nil, let s = today else { return }
-        if store.snapshot.pro == false { locked = true } else { player = WatchPlayer(session: s) }
+        // Starting from the wrist is free (Pro is Ask Coach, Generate & do today and scans).
+        player = WatchPlayer(session: s)
     }
 
     @ViewBuilder private var screens: some View {
@@ -255,10 +255,8 @@ struct WatchRootView: View {
             PlayerView(player: player) { self.player = nil }
         } else {
             NavigationStack {
-                // Pro (#126): starting on the Watch needs Pro; mirroring an iPhone workout stays free.
-                HomeView { s in if store.snapshot.pro == false { locked = true } else { player = WatchPlayer(session: s) } }
+                HomeView { s in player = WatchPlayer(session: s) }
             }
-            .sheet(isPresented: $locked) { ProLockView() }
         }
     }
 }

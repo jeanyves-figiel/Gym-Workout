@@ -146,7 +146,7 @@ struct CoachHeaderTile: View {
     }
 
     private func ask(listen: Bool) {
-        ProStore.shared.run(.generateWorkout, $gate) { CoachAsk.shared.open(tab: model.tab, listen: listen) }
+        ProStore.shared.run(.askCoach, $gate) { CoachAsk.shared.open(tab: model.tab, listen: listen) }
     }
 }
 
@@ -161,7 +161,7 @@ struct CoachSpark: View {
 
     var body: some View {
         Button {
-            ProStore.shared.run(.generateWorkout, $gate) { request = AskCoachRequest(focus: focus, question: question) }
+            ProStore.shared.run(.askCoach, $gate) { request = AskCoachRequest(focus: focus, question: question) }
         } label: {
             Label(question, systemImage: "sparkles")
                 .font(Theme.label(12))

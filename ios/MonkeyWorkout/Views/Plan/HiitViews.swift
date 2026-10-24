@@ -139,6 +139,7 @@ struct HiitBuilderSheet: View {
     @AppStorage(HiitPrefs.savedKey) private var savedRaw = ""
     @State private var spec: HiitSpec
     @State private var playing: HiitSpec?
+    @State private var gate: ProGate?
     @State private var added: String?
 
     init(format: HiitFormat) {
@@ -205,11 +206,12 @@ struct HiitBuilderSheet: View {
         }
         .preferredColorScheme(.dark)
         .fullScreenCover(item: $playing) { WorkoutPlayerView(sessionId: $0.sessionId) }
+        .proPaywall($gate)
     }
 
     private var actions: some View {
         HStack(spacing: 8) {
-            Button { playing = spec } label: {
+            Button { ProStore.shared.run(.generateWorkout, $gate) { playing = spec } } label: {
                 Label("Do today", systemImage: "play.fill").font(Theme.label(15)).foregroundStyle(Theme.ink)
                     .frame(maxWidth: .infinity, minHeight: 52)
                     .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.lime))

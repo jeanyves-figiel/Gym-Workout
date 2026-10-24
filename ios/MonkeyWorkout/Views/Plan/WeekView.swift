@@ -9,7 +9,6 @@ struct WeekView: View {
     @State private var editing = false
     @State private var varying = false
     @State private var playing: Session?
-    @State private var gate: ProGate?
     @State private var moving: Session?
     @State private var adding = false
     @State private var addingDay: Int?
@@ -141,7 +140,6 @@ struct WeekView: View {
             guard playing == nil, let s = model.session(id) else { return }
             start(s)
         }
-        .proPaywall($gate)
         .sheet(item: $moving) { s in MoveSessionSheet(sessionId: s.id) }
         .sheet(isPresented: $adding) { AddWorkoutSheet(weekday: addingDay) }
         .navigationDestination(isPresented: $showingCalendar) { CalendarView() }
@@ -371,7 +369,7 @@ struct WeekView: View {
                 if !model.trainLayout.contains(.actions) {
                     Menu {
                         Button("Calendar", systemImage: "calendar") { showingCalendar = true }
-                        Button("Variation", systemImage: "shuffle") { ProStore.shared.run(.variation, $gate) { varying = true } }
+                        Button("Variation", systemImage: "shuffle") { varying = true }
                         Button("Edit plan", systemImage: "slider.horizontal.3") { editing = true }
                     } label: {
                         HeaderTile(symbol: "ellipsis")
@@ -399,9 +397,9 @@ struct WeekView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Calendar, \(planned) sessions planned in the next 4 weeks")
             Button {
-                ProStore.shared.run(.variation, $gate) { varying = true }
+                varying = true
             } label: {
-                HeaderChip(symbol: "shuffle", title: "Variation", detail: ProStore.shared.badged ? "New · PRO" : "New mix",
+                HeaderChip(symbol: "shuffle", title: "Variation", detail: "New mix",
                            gradient: WorkoutEngine.Category.warmup.gradient)
             }
             .buttonStyle(.plain)

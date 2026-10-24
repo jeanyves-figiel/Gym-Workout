@@ -359,7 +359,7 @@ struct CoachChatView: View {
                     ProStore.shared.run(.generateWorkout, $gate) { playing = save(w) }
                 }
                 cardButton("Add to day", symbol: "calendar.badge.plus") {
-                    ProStore.shared.run(.generateWorkout, $gate) { planning = save(w) }
+                    planning = save(w)
                 }
                 cardButton("Tweak", symbol: "slider.horizontal.3") { tweaking = m }
             }

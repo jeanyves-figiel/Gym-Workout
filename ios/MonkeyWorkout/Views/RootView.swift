@@ -80,7 +80,10 @@ struct MainTabView: View {
         // Ask Coach everywhere (#412 A): the chat opened by the 🐵 header tile (#707), which knows the screen on top.
         // App tour (#664): over everything on the tabs, the bubble for the tab showing.
         .overlay { if model.tourStep != nil { AppTourOverlay() } }
-        .sheet(item: $ask.request) { r in CoachChatView(ask: r).remotePaused(.askCoach) }
+        // Every way in (bubble, sparks, Siri/Shortcuts) lands here, so the Pro gate is checked once (#711).
+        .sheet(item: $ask.request) { r in
+            if ProStore.shared.locked { ProPaywallSheet(gate: .askCoach) } else { CoachChatView(ask: r).remotePaused(.askCoach) }
+        }
         .sheet(item: $exerciseLaunch.item) { i in NavigationStack { ExerciseDetailView(exerciseId: i.id) } }
         // Me sheet (#560): the Me pill at the top right of every tab.
         .sheet(isPresented: Bindable(model).meOpen) {
@@ -331,7 +334,7 @@ private struct DemoScreen: View {
         case "report-sent": NavigationStack { ReportProblemView(draft: ReportDraft(via: .settings, area: "Train"), demoSent: true) }
         case "paywall", "pro": NavigationStack { ProView() }
         case "pro-offer": NavigationStack { ProView(context: .onboarding) {} }
-        case "pro-gate": ProPaywallSheet(gate: .variation)
+        case "pro-gate": ProPaywallSheet(gate: .askCoach)
         case "account-profile": NavigationStack { ProfileView() }
         case "account-password": NavigationStack { ChangePasswordView(hasPassword: true) }
         case "account-email": NavigationStack { ChangeEmailView(currentEmail: Demo.user?.email) }

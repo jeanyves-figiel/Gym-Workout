@@ -14,7 +14,6 @@ struct GenerateWorkoutCard: View {
                     HStack(spacing: 6) {
                         Text(regenerate ? "Generate again" : "Generate from muscles").font(Theme.display(20))
                             .lineLimit(1).minimumScaleFactor(0.75)
-                        ProBadge()
                     }
                     Text("Pick muscles · rest & grouping from your goal")
                         .font(.footnote.weight(.semibold)).opacity(0.88)

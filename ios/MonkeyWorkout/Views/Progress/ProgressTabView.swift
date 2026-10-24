@@ -11,7 +11,6 @@ struct ProgressTabView: View {
     @Environment(HealthManager.self) private var health
     @State private var badge: Badge?
     @State private var lift: String?
-    @State private var gate: ProGate?
     /// Part opened from a board tile (#444); History is its own page (#442).
     @State private var opened: ProgressSection?
     /// Sport widget tapped: History filtered to it.
@@ -36,12 +35,8 @@ struct ProgressTabView: View {
 
     private var target: Int { model.profile?.sessionsPerWeek ?? 3 }
 
-    /// Free shows charts and trends for the last 4 weeks; Pro (#126) all of it. The history list stays complete.
-    private var charted: [WorkoutRecord] {
-        guard ProStore.shared.locked else { return model.state.history }
-        let from = Calendar.current.date(byAdding: .day, value: -28, to: .now) ?? .now
-        return model.state.history.filter { $0.startedAt >= from }
-    }
+    /// Charts and trends use all of it: progress is free (Pro is Ask Coach, Generate & do today and scans).
+    private var charted: [WorkoutRecord] { model.state.history }
 
     private var stats: ProgressStats {
         Progression.stats(records: charted, weights: model.weightEntries, targetPerWeek: target)
@@ -68,7 +63,6 @@ struct ProgressTabView: View {
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
         .statusBarScrim()
-        .proPaywall($gate)
         .sheet(item: $badge) { b in BadgeSheet(badge: b).presentationDetents([.medium]) }
     }
 
@@ -318,7 +312,6 @@ struct ProgressTabView: View {
             target: target,
             lastWorkout: model.history.map(\.startedAt).max(),
             topMuscle: s.muscleBalance.max { $0.value < $1.value }.map { $0.key.name },
-            musclesLocked: ProStore.shared.locked && s.totalWorkouts > 0,
             programme: model.activeProgramme.flatMap { a in
                 a.programme.map { (name: $0.name, state: a.paused ? "Paused" : "Week \(model.programmeWeek ?? 1) of \($0.weeks)") }
             },
@@ -327,14 +320,7 @@ struct ProgressTabView: View {
 
     @ViewBuilder
     private func muscleBalance(_ s: ProgressStats, fresh: Bool) -> some View {
-        if ProStore.shared.locked && !fresh {
-            Button { gate = .progress } label: {
-                AccountCard(symbol: "chart.xyaxis.line", title: "Full progress",
-                            subtitle: "All your history in the charts, trends and the muscle heat map",
-                            gradient: AccountTint.pro, ink: true) { ProBadge() }
-            }
-            .buttonStyle(.plain)
-        } else if !s.muscleBalance.isEmpty {
+        if !s.muscleBalance.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 BodyMapPair(heat: s.muscleBalance).frame(height: 240)
                 HeatLegend()

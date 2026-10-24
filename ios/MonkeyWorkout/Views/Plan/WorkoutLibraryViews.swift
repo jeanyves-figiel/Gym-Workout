@@ -124,7 +124,6 @@ extension AppModel {
 struct WorkoutLibrarySection: View {
     @Environment(AppModel.self) private var model
     @State private var editing: CustomWorkout?
-    @State private var gate: ProGate?
     /// Goal chip (#252); nil = all.
     @State private var goal: WorkoutTemplate.Goal?
     @State private var query = ""
@@ -138,8 +137,7 @@ struct WorkoutLibrarySection: View {
             HStack {
                 Text("Workout library").eyebrow()
                 Spacer()
-                ProBadge()
-                Button { ProStore.shared.run(.buildWorkout, $gate) { editing = CustomWorkout(name: "") } } label: { Label("New", systemImage: "plus") }
+                Button { editing = CustomWorkout(name: "") } label: { Label("New", systemImage: "plus") }
                     .font(Theme.label(13))
                     .foregroundStyle(Theme.lime)
             }
@@ -178,7 +176,6 @@ struct WorkoutLibrarySection: View {
             .buttonStyle(.plain)
         }
         .sheet(item: $editing) { w in CustomWorkoutEditor(initial: w) }
-        .proPaywall($gate)
     }
 
     private var searchField: some View {
@@ -285,7 +282,6 @@ struct WorkoutLibraryView: View {
     @State private var query = ""
     @State private var memberState: AppModel.SharedLibraryLoad?
     @State private var editing: CustomWorkout?
-    @State private var gate: ProGate?
     /// Build as I go (#490): the empty workout open in the player.
     @State private var freestyle: Session?
     /// Pick mode (#178, Add workout → Browse library): tapping a workout hands it over instead of opening it.
@@ -325,13 +321,12 @@ struct WorkoutLibraryView: View {
                 if filter == .all || filter == .mine {
                     section("My workouts", entries(model.myLibrary)) {
                         if onPick == nil {
-                            Button { ProStore.shared.run(.buildWorkout, $gate) { editing = CustomWorkout(name: "") } } label: {
+                            Button { editing = CustomWorkout(name: "") } label: {
                                 HStack {
                                     Label("Build your own workout", systemImage: "square.and.pencil")
                                         .font(Theme.label(15))
                                         .foregroundStyle(Theme.lime)
                                     Spacer()
-                                    ProBadge()
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .card()
@@ -360,14 +355,13 @@ struct WorkoutLibraryView: View {
         .toolbar {
             if onPick == nil {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { ProStore.shared.run(.buildWorkout, $gate) { editing = CustomWorkout(name: "") } } label: { Image(systemName: "plus") }
+                    Button { editing = CustomWorkout(name: "") } label: { Image(systemName: "plus") }
                         .accessibilityLabel("New workout")
                 }
             }
         }
         .sheet(item: $editing) { w in CustomWorkoutEditor(initial: w) }
         .fullScreenCover(item: $freestyle) { s in WorkoutPlayerView(sessionId: s.id) }
-        .proPaywall($gate)
     }
 
     private func entries(_ list: [LibraryEntry]) -> [LibraryEntry] {
@@ -442,7 +436,6 @@ struct LibraryActionsPanel: View {
     @State private var confirmBlock = false
     @State private var confirmRemove = false
     @State private var notice: String?
-    @State private var gate: ProGate?
 
     var body: some View {
         if session.isPlanInsert {
@@ -511,7 +504,7 @@ struct LibraryActionsPanel: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Who can see it").eyebrow()
             GradientSegments(selection: Binding(get: { w.visibility }, set: { v in
-                if v == .private { model.setVisibility(w.id, v) } else { ProStore.shared.run(.shareWorkout, $gate) { model.setVisibility(w.id, v) } }
+                model.setVisibility(w.id, v)
             }), items: WorkoutVisibility.allCases.map { SegmentItem(value: $0, title: $0.label, symbol: $0.symbol) })
             Text(w.hidden
                  ? "Hidden from members after reports, pending review."
@@ -519,7 +512,6 @@ struct LibraryActionsPanel: View {
                 .font(.caption)
                 .foregroundStyle(w.hidden ? .orange : Theme.muted)
         }
-        .proPaywall($gate)
     }
 
     private func authorRow(_ s: SharedWorkout) -> some View {
