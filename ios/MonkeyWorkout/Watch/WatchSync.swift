@@ -476,7 +476,8 @@ final class WatchSync: NSObject {
                        guided: b.kind == .cooldown ? true : nil)
             },
             missed: model.missedToHandle.contains { $0.id == session.id },
-            plannedOn: planned && session.weekday != nil ? WSession.dayKey(model.day(of: session)) : nil)
+            plannedOn: planned && session.weekday != nil ? WSession.dayKey(model.day(of: session)) : nil,
+            skipped: model.skippedIds.contains(session.id) ? true : nil)
     }
 
     private static func item(_ it: PlannedExercise, block: Block, sessionId: String, model: AppModel) -> WItem {

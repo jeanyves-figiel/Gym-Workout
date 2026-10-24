@@ -74,6 +74,8 @@ struct WSession: Codable, Equatable, Identifiable, Hashable {
     var missed: Bool? = nil
     /// Planned date as yyyy-MM-dd; nil = unscheduled (examples, own workouts) or an older phone app.
     var plannedOn: String? = nil
+    /// Skipped this week (#643); nil from older phone apps.
+    var skipped: Bool? = nil
 
     var items: [WItem] { blocks.flatMap(\.items) }
     var isMissed: Bool { missed == true && !done }

@@ -140,9 +140,18 @@ final class WatchStore: NSObject {
     private func markDone(_ f: WFinished) {
         let i = snapshot.sessions.firstIndex { $0.id == f.sessionId }
         if let i { snapshot.sessions[i].done = true }
-        // Next one later this week, never an earlier missed one (#266); the phone's next snapshot settles it.
+        // Next one later this week, never an earlier missed one (#266) nor a skipped one; the phone's next snapshot
+        // settles it.
         if snapshot.nextSessionId == f.sessionId {
-            snapshot.nextSessionId = i.flatMap { i in snapshot.sessions[(i + 1)...].first { !$0.done }?.id }
+            let left = snapshot.sessions.filter { !$0.done && $0.skipped != true }
+            if snapshot.sessions.contains(where: { $0.plannedOn != nil }) {
+                // By planned day from today on (#716): after a move the list's order isn't the days' order.
+                let today = WSession.dayKey(Date())
+                snapshot.nextSessionId = left.filter { $0.missed != true && ($0.plannedOn.map { $0 >= today } ?? true) }
+                    .min { ($0.plannedOn ?? "~") < ($1.plannedOn ?? "~") }?.id
+            } else {
+                snapshot.nextSessionId = i.flatMap { i in snapshot.sessions[(i + 1)...].first { !$0.done && $0.skipped != true }?.id }
+            }
         }
         snapshot.progress.recent.insert(
             WRecent(title: snapshot.session(f.sessionId)?.title ?? "Workout", date: f.start,
