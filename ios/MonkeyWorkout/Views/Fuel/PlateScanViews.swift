@@ -13,6 +13,9 @@ struct PlateScanSheet: View {
     let slot: FuelSlot
     /// Called once logged, so Just ate closes too.
     var logged: () -> Void = {}
+    /// Magic Snap (#733): the photo and Monkey's answer, already read.
+    var preset: PlateScan?
+    var presetImage: UIImage?
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var store = FuelStore.shared
@@ -60,6 +63,10 @@ struct PlateScanSheet: View {
                 }
             }
             .task {
+                if let preset, plate == nil {
+                    plate = preset
+                    image = presetImage
+                }
                 #if DEBUG
                 if model.demo, plate == nil { plate = try? await model.scanPlate(jpeg: Data()) }
                 #endif

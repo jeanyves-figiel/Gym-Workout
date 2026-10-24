@@ -19,6 +19,16 @@ import Testing
         #expect(coffee.caffeineMg(grams: coffee.portion.g) == 80)
     }
 
+    @Test func eatenGramsFollowPortions() {
+        var log = FuelDayLog()
+        #expect(log.eatenGrams(plan).protein == 0 && log.eatenGrams(plan).carbs == 0)
+        log.eaten = plan.portions
+        let full = log.eatenGrams(plan)
+        #expect(full.protein == plan.protein && full.carbs == plan.carbs)
+        log.eaten.palms = plan.portions.palms / 2
+        #expect(log.eatenGrams(plan).protein <= plan.protein / 2 + 1)
+    }
+
     @Test func breakfastFoodsCountAndStack() throws {
         let breakfast = try #require(plan.slots.first { $0.kind == .breakfast })
         var log = FuelDayLog()

@@ -452,6 +452,9 @@ struct LiveScanSheet: View {
 // MARK: - Photo scan (Pro, server)
 
 struct FoodPhotoScanSheet: View {
+    /// Magic Snap (#733): the photo and the foods Monkey saw on it, already read.
+    var preset: [ScanPick] = []
+    var presetImage: UIImage?
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var store = FuelStore.shared
@@ -525,6 +528,13 @@ struct FoodPhotoScanSheet: View {
                 Task {
                     if let data = try? await item.loadTransferable(type: Data.self), let img = UIImage(data: data) { scan(img) }
                     photoItem = nil
+                }
+            }
+            .task {
+                if !preset.isEmpty, picks.isEmpty, image == nil {
+                    var seen: Set<String> = []
+                    picks = preset.filter { seen.insert($0.food.id).inserted }
+                    image = presetImage
                 }
             }
         }

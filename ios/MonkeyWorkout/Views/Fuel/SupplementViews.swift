@@ -43,7 +43,7 @@ struct FuelStackCard: View {
                         .accessibilityLabel("Edit supplements")
                     }
                     if doses.isEmpty {
-                        Text(store.stack.allSatisfy(\.whenPicked) ? "Nothing scheduled: pick yours in Just ate when you have one."
+                        Text(store.stack.allSatisfy(\.whenPicked) ? "Nothing scheduled: pick yours in Log when you have one."
                              : "Nothing today: your stack is for training days.").font(.footnote.weight(.bold)).opacity(0.85)
                     }
                     ForEach(doses) { d in
@@ -169,7 +169,7 @@ struct SupplementsView: View {
                                     .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(.white.opacity(0.2)))
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(s.name).font(Theme.display(16)).lineLimit(1)
-                                    Text(s.whenPicked ? "When you pick it · Just ate, meal plan" : s.schedule.summary(calendar: .current))
+                                    Text(s.whenPicked ? "When you pick it · Log, meal plan" : s.schedule.summary(calendar: .current))
                                         .font(.system(size: 11, weight: .bold, design: .rounded)).opacity(0.85).lineLimit(2)
                                     if !s.whenPicked, let course = s.schedule.courseLine(now: Date(), calendar: .current) {
                                         Text(course).font(Theme.label(10)).opacity(0.9).lineLimit(1).minimumScaleFactor(0.7)
@@ -278,8 +278,8 @@ struct SupplementEditor: View {
                 Toggle(isOn: Binding(get: { d.wrappedValue.whenPicked }, set: { d.wrappedValue.onDemand = $0 ? true : nil })) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Only when I pick it").font(Theme.display(15))
-                        Text(d.wrappedValue.isMeal ? "No schedule: pick it in Just ate or for a meal plan meal."
-                             : "No schedule: tap it in Just ate when you have it.")
+                        Text(d.wrappedValue.isMeal ? "No schedule: pick it in Log or for a meal plan meal."
+                             : "No schedule: tap it in Log when you have it.")
                             .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
                     }
                 }

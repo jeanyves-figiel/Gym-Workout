@@ -6,53 +6,6 @@ import WorkoutEngine
 // Water through the day (#520, designs A + B + C from `nutrition-pointers/water-reminders.png`): the water card in
 // Fuel shows where the pace says you should be; its sheet shows the pace and sets the reminders.
 
-/// The water card on the Day and Portions layouts.
-struct FuelWaterCard: View {
-    let plan: FuelPlan
-    let log: FuelDayLog
-    let day: Date
-    var title = "💧 WATER · TAP A GLASS"
-    @State private var store = FuelStore.shared
-    @State private var showPace = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(title).font(Theme.label(10)).tracking(1.2).opacity(0.85)
-                Spacer()
-                Text("\(log.glasses)/\(plan.glasses)").font(Theme.display(17)).monospacedDigit()
-            }
-            WaterGlasses(filled: log.glasses, target: plan.glasses) { n in store.update(day, plan: plan) { $0.glasses = n } }
-            Button { showPace = true } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "bell.fill").font(.system(size: 11, weight: .bold))
-                    Text(paceLine).font(Theme.label(12))
-                    Spacer(minLength: 4)
-                    Text("Pace").font(Theme.label(11)).opacity(0.85)
-                    Image(systemName: "chevron.right").font(.system(size: 10, weight: .heavy)).opacity(0.85)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(.black.opacity(0.22), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Water pace and reminders")
-        }
-        .foregroundStyle(.white)
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(FuelPalette.water))
-        .sheet(isPresented: $showPace) { WaterSheet(plan: plan, glasses: log.glasses, day: day) }
-    }
-
-    private var paceLine: String {
-        guard Calendar.current.isDateInToday(day) else { return "Water reminders" }
-        if log.glasses >= plan.glasses { return "Target hit 💧" }
-        let aim = WaterPace.expected(by: WaterSheet.minuteNow(), plan: plan, prefs: store.prefs)
-        return log.glasses >= aim ? "On pace: \(aim) by now" : "Behind: aim for \(aim) by now"
-    }
-}
-
 /// Today's pace and the reminder settings (auto saved).
 struct WaterSheet: View {
     let plan: FuelPlan
@@ -77,6 +30,10 @@ struct WaterSheet: View {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 17, weight: .bold)) }
                         .accessibilityLabel("Close")
                 }
+                // Every glass, tap to fill up to it (#733: the home tank adds one at a time).
+                WaterGlasses(filled: store.log(day).glasses, target: plan.glasses) { n in store.update(day, plan: plan) { $0.glasses = n } }
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(FuelPalette.water))
                 pace
                 remind
                 quiet
@@ -106,7 +63,7 @@ struct WaterSheet: View {
             HStack {
                 Text("TODAY'S PACE").font(Theme.label(10)).tracking(1.2).opacity(0.85)
                 Spacer()
-                Text("\(glasses)/\(plan.glasses) · \(store.prefs.litres(plan.waterMl))").font(Theme.label(13)).monospacedDigit()
+                Text("\(store.log(day).glasses)/\(plan.glasses) · \(store.prefs.litres(plan.waterMl))").font(Theme.label(13)).monospacedDigit()
             }
             HStack(alignment: .bottom, spacing: 6) {
                 ForEach(b) { x in

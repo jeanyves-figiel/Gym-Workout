@@ -133,6 +133,14 @@ export interface PlateSeen {
 
 export type PlateScanModel = (jpeg: Buffer, catalog: ScanItem[]) => Promise<PlateSeen>;
 
+/** Magic Snap (#733): one photo, sorted. `meal` = something about to be eaten (logged), `stock` = food kept at home,
+ * shopping or a receipt (added to What I have). */
+export type SnapKind = 'meal' | 'stock';
+export interface SnapSeen extends PlateSeen {
+  kind: SnapKind;
+}
+export type SnapScanModel = (jpeg: Buffer, catalog: ScanItem[]) => Promise<SnapSeen>;
+
 const PLATE_SYSTEM = `You look at a photo of a meal someone is about to eat or a drink they have: a plate, a bowl, a lunch box, a sandwich, a mug.
 - Name the dish in a few plain words (max 40 characters), e.g. "Chicken teriyaki bowl". Use "" when it is not one dish.
 - List each component you can see or that the dish clearly contains (rice, chicken, sauce, oil for frying, cheese on top). Several pieces of the same count once.
@@ -164,6 +172,19 @@ const plateSchema = {
   additionalProperties: false,
 } as const;
 
+const SNAP_SYSTEM = `First decide what the photo shows:
+- "meal": food or a drink someone is about to eat or have now (a served plate, a bowl, a lunch box, a sandwich in hand, a mug, a shake).
+- "stock": food kept or bought (an open fridge, a cupboard, shopping on a table, closed packages, a supermarket receipt).
+Give that as "kind", then answer as below. For "stock", "grams" is the amount you can see (0 when unknown) and "dish" is "".
+
+${PLATE_SYSTEM}`;
+
+const snapSchema = {
+  ...plateSchema,
+  properties: { kind: { type: 'string', enum: ['meal', 'stock'] }, ...plateSchema.properties },
+  required: ['kind', ...plateSchema.required],
+} as const;
+
 /** Same clean-up as the fridge scan, plus grams (1 g–2 kg) and caffeine; the same id twice adds up its grams. */
 export const cleanPlateScan = (raw: { dish?: unknown; items?: Partial<PlateFood>[] }, catalog: ScanItem[]): PlateSeen => {
   const items = raw.items ?? [];
@@ -182,22 +203,47 @@ export const cleanPlateScan = (raw: { dish?: unknown; items?: Partial<PlateFood>
   return { dish: String(raw.dish ?? '').replace(/\s+/g, ' ').trim().slice(0, 40), items: out };
 };
 
+/** Plate clean-up plus the kind; anything but "stock" counts as a meal, and a stock photo has no dish. */
+export const cleanSnapScan = (raw: { kind?: unknown; dish?: unknown; items?: Partial<PlateFood>[] }, catalog: ScanItem[]): SnapSeen => {
+  const kind: SnapKind = raw.kind === 'stock' ? 'stock' : 'meal';
+  const plate = cleanPlateScan(raw, catalog);
+  return { kind, ...plate, dish: kind === 'stock' ? '' : plate.dish };
+};
+
 /** Plate scan (#723): same model and settings as the fridge scan, its own prompt and schema. */
 export const claudePlateScan = (apiKey: string, workspaceId?: string): PlateScanModel => {
+  const ask = visionCall(apiKey, workspaceId, PLATE_SYSTEM, plateSchema);
+  return async (jpeg, catalog) => {
+    const raw = await ask(jpeg, catalog);
+    return raw ? cleanPlateScan(raw as { dish?: unknown; items?: Partial<PlateFood>[] }, catalog) : { dish: '', items: [] };
+  };
+};
+
+/** Magic Snap (#733): plate prompt and schema with the kind first. */
+export const claudeSnapScan = (apiKey: string, workspaceId?: string): SnapScanModel => {
+  const ask = visionCall(apiKey, workspaceId, SNAP_SYSTEM, snapSchema);
+  return async (jpeg, catalog) => {
+    const raw = await ask(jpeg, catalog);
+    return raw ? cleanSnapScan(raw as { kind?: unknown; dish?: unknown; items?: Partial<PlateFood>[] }, catalog) : { kind: 'meal', dish: '', items: [] };
+  };
+};
+
+/** One structured vision call; undefined on a refusal. */
+const visionCall = (apiKey: string, workspaceId: string | undefined, system: string, outSchema: { [key: string]: unknown }) => {
   const client = new Anthropic({
     apiKey,
     timeout: 60_000,
     maxRetries: 1,
     defaultHeaders: workspaceId ? { 'anthropic-workspace-id': workspaceId } : undefined,
   });
-  return async (jpeg, catalog) => {
+  return async (jpeg: Buffer, catalog: ScanItem[]) => {
     const res = await client.beta.messages.create({
       model: COACH_MODEL_ID,
       max_tokens: 6000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      system: PLATE_SYSTEM,
-      output_config: { effort: 'medium', format: { type: 'json_schema', schema: plateSchema } },
+      system,
+      output_config: { effort: 'medium', format: { type: 'json_schema', schema: outSchema } },
       messages: [
         {
           role: 'user',
@@ -208,8 +254,8 @@ export const claudePlateScan = (apiKey: string, workspaceId?: string): PlateScan
         },
       ],
     });
-    if (res.stop_reason === 'refusal') return { dish: '', items: [] };
+    if (res.stop_reason === 'refusal') return undefined;
     const text = res.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
-    return cleanPlateScan(JSON.parse(text) as { dish?: unknown; items?: Partial<PlateFood>[] }, catalog);
+    return JSON.parse(text) as unknown;
   };
 };

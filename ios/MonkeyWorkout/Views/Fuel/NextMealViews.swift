@@ -120,24 +120,6 @@ struct ThenMealCard: View {
     }
 }
 
-/// The lime + on Fuel: opens Just ate. Sits on the side the Ask Coach bubble isn't on.
-struct JustAteButton: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "plus").font(.system(size: 24, weight: .black)).foregroundStyle(Theme.ink)
-                .frame(width: 56, height: 56)
-                .background(RoundedRectangle(cornerRadius: 17, style: .continuous).fill(Theme.lime))
-                .shadow(color: Theme.lime.opacity(0.45), radius: 12)
-                .shadow(color: .black.opacity(0.4), radius: 6, y: 3)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Just ate")
-        .accessibilityHint("Log a meal or snack")
-    }
-}
-
 /// Log what was just eaten: a planned meal, a recent or favourite recipe, a search, or portions by hand.
 struct JustAteSheet: View {
     let plan: FuelPlan
@@ -149,9 +131,6 @@ struct JustAteSheet: View {
     @State private var picked: String?
     /// Plain foods being put together (#710).
     @State private var plate: [FoodServing]
-    /// Snap my plate (#723) for this meal.
-    @State private var snapSlot: FuelSlot?
-    @State private var gate: ProGate?
 
     init(plan: FuelPlan, day: Date, plate: [FoodServing] = []) {
         self.plan = plan
@@ -179,7 +158,8 @@ struct JustAteSheet: View {
                         FoodPlateCard(plate: $plate, slot: target, log: { logPlate(plate, into: target) }, saveUsual: { saveUsual(target) })
                     }
                     if query.trimmingCharacters(in: .whitespaces).isEmpty {
-                        if let target { snapPlate(target) }
+                        // Magic Snap first (#733): plate, fridge, barcode or receipt.
+                        if let target { MagicSnapCard(plan: plan, day: day, slot: target) { dismiss() } }
                         if !store.usuals.isEmpty {
                             UsualStrip(kind: target?.kind) { u in
                                 guard let target else { return }
@@ -234,42 +214,15 @@ struct JustAteSheet: View {
                 .padding(16)
             }
             .glassSheetBackground()
-            .navigationTitle("Just ate")
+            .navigationTitle("Log")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }
-            .sheet(item: $snapSlot) { s in
-                PlateScanSheet(plan: plan, day: day, slot: s) { dismiss() }.remotePaused(.foodScan)
-            }
-            .proPaywall($gate)
         }
         .preferredColorScheme(.dark)
         .presentationDetents([.large])
     }
 
     private var isToday: Bool { Calendar.current.isDateInToday(day) }
-
-    /// #723: photo of the cooked meal → foods, grams, totals → logged on this meal.
-    private func snapPlate(_ s: FuelSlot) -> some View {
-        Button { ProStore.shared.run(.foodScan, $gate) { snapSlot = s } } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "camera.fill").font(.system(size: 17, weight: .black))
-                    .frame(width: 40, height: 40)
-                    .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(.white.opacity(0.22)))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Snap my plate").font(Theme.display(16))
-                    Text(ProStore.shared.locked ? "Photo · PRO" : "Monkey reads the food and counts it")
-                        .font(.system(size: 11, weight: .bold, design: .rounded)).opacity(0.9).lineLimit(1)
-                }
-                Spacer(minLength: 4)
-                Image(systemName: "chevron.right").font(.system(size: 13, weight: .black))
-            }
-            .foregroundStyle(.white)
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(FuelPalette.hot))
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("fuel.justAte.snapPlate")
-    }
 
     private var nowMinute: Int {
         let cal = Calendar.current
