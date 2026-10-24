@@ -21,8 +21,8 @@ struct DerivedCache {
     var setLogs: (key: Int, value: [SetLog])?
     var history: (key: Int, value: [WorkoutRecord])?
     /// Daily routines (#720): done days of each, and the ones done at least once, most recent first.
-    var routineDays: (key: Int, value: [Routine: Set<Date>])?
-    var usedRoutines: (key: Int, value: [Routine])?
+    var routineDays: (key: Int, value: [String: Set<Date>])?
+    var usedRoutines: (key: Int, value: [String])?
     /// Fuel plans per day (`fuelPlan(on:)`), for days whose plan doesn't follow the clock.
     var fuelPlans: [Date: (key: FuelPlanKey, value: FuelPlan)] = [:]
 }
