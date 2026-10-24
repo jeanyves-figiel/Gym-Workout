@@ -22,15 +22,32 @@ final class HiitMirror: NSObject {
     private var session: HKWorkoutSession?
     private var builder: HKLiveWorkoutBuilder?
     private var sentAt = Date.distantPast
+    /// Last step from the iPhone, and the check that ends a workout the iPhone went silent on (#720).
+    private var heardAt = Date()
+    private var watchdog: Task<Void, Never>?
+    /// No step for this long (the iPhone player was closed out of reach, or the app was killed): the workout ends.
+    private static let silentLimit: TimeInterval = 15 * 60
 
     /// Each step from the iPhone: starts the workout on the first running one.
     func update(_ live: WHiitLive, name: String) {
         title = name
         done = live.done
+        heardAt = Date()
         guard !running, live.endsAt != nil || live.startedAt != nil, !live.done else { return }
         guard !WorkoutManager.shared.running, !WodTracker.shared.running, !SportTracker.shared.running, !HyroxTracker.shared.running,
               !SwimTracker.shared.running, HKHealthStore.isHealthDataAvailable() else { return }
         running = true
+        watchdog?.cancel()
+        watchdog = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                guard let self, self.running else { return }
+                if Date().timeIntervalSince(self.heardAt) > HiitMirror.silentLimit {
+                    self.end()
+                    return
+                }
+            }
+        }
         Task { await start() }
     }
 
@@ -60,6 +77,8 @@ final class HiitMirror: NSObject {
     func end() {
         guard running else { return }
         running = false
+        watchdog?.cancel()
+        watchdog = nil
         let keep = done
         let s = session, b = builder
         session = nil
@@ -100,13 +119,15 @@ extension HiitMirror: HKLiveWorkoutBuilderDelegate {
 struct HiitRemoteView: View {
     let live: WHiitLive
     @Environment(WatchStore.self) private var store
+    @Environment(\.isLuminanceReduced) private var dimmed
 
     private var colors: (UInt32, UInt32) {
         (live.tint.first ?? 0x3D4BD6, live.tint.count > 1 ? live.tint[1] : (live.tint.first ?? 0x5A2FA0))
     }
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
+        // Wrist down: once a minute; paused on the iPhone: the clock stands still (#720).
+        TimelineView(.animation(minimumInterval: dimmed ? 60 : 0.5, paused: live.endsAt == nil && live.startedAt == nil)) { ctx in
             VStack(alignment: .leading, spacing: 2) {
                 Eyebrow(text: live.detail, color: .white.opacity(0.9))
                 Text(clock(ctx.date)).font(W.display(40)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)

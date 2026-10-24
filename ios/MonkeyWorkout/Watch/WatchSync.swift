@@ -245,11 +245,15 @@ final class WatchSync: NSObject {
 
     /// Big screen timer (#622 C): shows it on the Watch with a double-tap start; nil closes it.
     func sendWodRemote(_ remote: WWodRemote?) {
-        guard let session, session.activationState == .activated, session.isReachable else { return }
-        if let remote, let data = try? JSONEncoder.watch.encode(remote) {
+        guard let session, session.activationState == .activated else { return }
+        if let remote {
+            guard session.isReachable, let data = try? JSONEncoder.watch.encode(remote) else { return }
             session.sendMessage([WatchKeys.wodRemote: data], replyHandler: nil, errorHandler: nil)
-        } else {
+        } else if session.isReachable {
             session.sendMessage([WatchKeys.wodRemoteEnded: true], replyHandler: nil, errorHandler: nil)
+        } else if session.isPaired, session.isWatchAppInstalled {
+            // Out of reach as the player closes (#720): queued, so the Watch still ends its HIIT workout.
+            session.transferUserInfo([WatchKeys.wodRemoteEnded: true])
         }
     }
 
