@@ -211,6 +211,7 @@ struct HistoryView: View {
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
+        .solidNavBar()
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Sessions, exercises, places")
         .navigationTitle("History")
         .toolbarTitleDisplayMode(.inlineLarge)

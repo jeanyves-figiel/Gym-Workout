@@ -122,6 +122,7 @@ struct EquipmentSheet: View {
             }
             .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
+            .solidNavBar()
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search: rack, swiss ball, rower…")
             .autocorrectionDisabled()
             .navigationTitle("Equipment")

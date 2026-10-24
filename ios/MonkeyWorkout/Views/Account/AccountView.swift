@@ -121,6 +121,7 @@ struct AccountView: View {
         }
         .readableWidth()
         .themedForm()
+        .solidNavBar()
         .navigationTitle("Settings")
         .task { await loadDeviceCount() }
         .proPaywall($gate)
@@ -174,7 +175,7 @@ struct AccountView: View {
                 Color.clear.frame(height: 8)
             }
         }
-        .background(Theme.bg.opacity(0.96))
+        .solidPinnedHeader()
     }
 
     @ViewBuilder
