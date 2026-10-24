@@ -187,6 +187,17 @@ private struct DemoScreen: View {
         case "player", "player-zones": WorkoutPlayerView(sessionId: second)
         case "player-rest": WorkoutPlayerView(sessionId: second, demoRest: true)
         case "player-timed": WorkoutPlayerView(sessionId: second, demoMode: "timed")
+        case "cast-sheet": CastSheet(demoDevices: ["Living Room TV", "Gym TV"])
+        case "tv-player":
+            // The TV layout (#724) at 16:9 on the phone; the hidden player feeds it, as with a real AirPlay screen.
+            ZStack {
+                WorkoutPlayerView(sessionId: second, demoRest: true).opacity(0)
+                Theme.bg.ignoresSafeArea()
+                TVScreen()
+                    .aspectRatio(16 / 9, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(8)
+            }
         case "player-logged": WorkoutPlayerView(sessionId: second, demoMode: "logged")
         case "player-next": WorkoutPlayerView(sessionId: second, demoMode: "next")
         case "player-coach": WorkoutPlayerView(sessionId: second, demoMode: "coach")
