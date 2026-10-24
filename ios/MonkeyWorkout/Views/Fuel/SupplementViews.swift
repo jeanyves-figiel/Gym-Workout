@@ -673,7 +673,7 @@ private struct SupplementRhythmBuilder: View {
             }
             if let m = take.minute {
                 DatePicker("", selection: Binding(get: {
-                    Calendar.current.date(byAdding: .minute, value: m, to: Calendar.current.startOfDay(for: Date())) ?? Date()
+                    Calendar.current.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: Date()) ?? Date()
                 }, set: { d in
                     let c = Calendar.current.dateComponents([.hour, .minute], from: d)
                     rhythm.intakes[i].minute = (c.hour ?? 8) * 60 + (c.minute ?? 0)
