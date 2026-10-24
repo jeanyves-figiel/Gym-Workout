@@ -1,6 +1,31 @@
 {
   "releases": [
     {
+      "id": "2026-10-24.2",
+      "build": 69,
+      "date": "2026-10-24",
+      "items": [
+        {
+          "symbol": "plus.square.on.square",
+          "tint": "mobility",
+          "title": "Daily routines, your way",
+          "body": "Pick the routines you want on Train, or skip them."
+        },
+        {
+          "symbol": "moon.fill",
+          "tint": "stretch",
+          "title": "Skipped = rest day",
+          "body": "Skip a workout and the day turns into a rest day, with Recover and Plan sport. Changed your mind? Unskip is right under the title."
+        },
+        {
+          "symbol": "mappin.and.ellipse",
+          "tint": "cardio",
+          "title": "Training somewhere else today?",
+          "body": "Tap the place chip on the day card. Routines now remember where you do them."
+        }
+      ]
+    },
+    {
       "id": "2026-10-24.1",
       "build": 68,
       "date": "2026-10-24",

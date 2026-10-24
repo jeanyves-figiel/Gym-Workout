@@ -1,23 +1,23 @@
 {
-  "id": "2026-10-24.2",
+  "id": "2026-10-24.3",
   "items": [
     {
-      "symbol": "plus.square.on.square",
-      "tint": "mobility",
-      "title": "Daily routines, your way",
-      "body": "Pick the routines you want on Train, or skip them."
-    },
-    {
-      "symbol": "moon.fill",
-      "tint": "stretch",
-      "title": "Skipped = rest day",
-      "body": "Skip a workout and the day turns into a rest day, with Recover and Plan sport. Changed your mind? Unskip is right under the title."
+      "symbol": "bubble.left.and.text.bubble.right.fill",
+      "tint": "warmup",
+      "title": "Coach moved up, Social is here",
+      "body": "Coach 🐵 now sits at the top right of every tab: tap to ask, hold to talk. Community is now Social."
     },
     {
       "symbol": "mappin.and.ellipse",
       "tint": "cardio",
-      "title": "Training somewhere else today?",
-      "body": "Tap the place chip on the day card. Routines now remember where you do them."
+      "title": "Train anywhere",
+      "body": "Tap 📍 on any workout or long press it to train at home, at your gym or anywhere you saved. Home is always there; trip days show the trip."
+    },
+    {
+      "symbol": "minus.circle.fill",
+      "tint": "mobility",
+      "title": "Take a routine off",
+      "body": "Tap its ✓ in Explore → Routines or long press it on Train to remove it from your Daily row."
     }
   ]
 }
