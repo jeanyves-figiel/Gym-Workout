@@ -1,6 +1,61 @@
 {
   "releases": [
     {
+      "id": "2026-10-24.4",
+      "build": 71,
+      "date": "2026-10-24",
+      "items": [
+        {
+          "symbol": "tv.fill",
+          "tint": "cardio",
+          "title": "Workout on your TV",
+          "body": "Cast button in the player: Chromecast, Google TV or AirPlay show a big timer, your set and what's next."
+        },
+        {
+          "symbol": "camera.fill",
+          "tint": "power",
+          "title": "Snap your plate",
+          "body": "Photo of your meal: Monkey names the dish, guesses grams and logs protein, carbs and caffeine."
+        },
+        {
+          "symbol": "cup.and.saucer.fill",
+          "tint": "warmup",
+          "title": "Coffee and cereals count",
+          "body": "Search foods in Just ate, build a plate and save your usual breakfast. Coffee fills the caffeine meter."
+        },
+        {
+          "symbol": "gift.fill",
+          "tint": "strength",
+          "title": "More free",
+          "body": "Variations, own workouts, PR attempts, full progress and Watch workouts no longer need Pro."
+        },
+        {
+          "symbol": "text.badge.checkmark",
+          "tint": "mobility",
+          "title": "Clearer names, fewer pop-ups",
+          "body": "Your gym sits on the day card, routines are now Daily, Gym buddies and Live are easy to find, and removing something gives you Undo."
+        },
+        {
+          "symbol": "figure.run",
+          "tint": "cardio",
+          "title": "Real-life moves",
+          "body": "Runs, walks, carries and bikes now move forward, not back and forth."
+        },
+        {
+          "symbol": "checkmark.seal.fill",
+          "tint": "strength",
+          "title": "Steadier logging",
+          "body": "Workouts past midnight, Siri set logs and Watch supersets work as expected."
+        },
+        {
+          "symbol": "rectangle.topthird.inset.filled",
+          "tint": "stretch",
+          "title": "Cleaner headers",
+          "body": "Search and chips sit on a solid bar, nothing shows through."
+        }
+      ]
+    },
+    {
       "id": "2026-10-24.3",
       "build": 70,
       "date": "2026-10-24",
