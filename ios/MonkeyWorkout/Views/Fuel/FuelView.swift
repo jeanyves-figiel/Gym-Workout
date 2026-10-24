@@ -684,6 +684,12 @@ struct FuelPortionsView: View {
             }
             Text("Tap a tile for each portion you ate. Hold to take one back.")
                 .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
+            // Foods from Just ate count in grams, so small ones add up to whole portions (#710).
+            let foods = log.foodMacros
+            if foods.kcal >= 1 && !FuelStore.shared.prefs.noNumbers {
+                Text("From foods you logged: \(Int(foods.protein.rounded())) g protein · \(Int(foods.carbs.rounded())) g carbs · \(Int(foods.kcal.rounded())) kcal")
+                    .font(.caption.weight(.bold)).foregroundStyle(.white.opacity(0.85))
+            }
 
             FuelWaterCard(plan: plan, log: log, day: day)
 

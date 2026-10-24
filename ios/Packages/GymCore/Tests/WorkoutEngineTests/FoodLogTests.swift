@@ -58,3 +58,15 @@ import Testing
         #expect(log.foodCaffeineMg == 0 && log.ticks["b"]?.foods == nil)
     }
 }
+
+@Suite struct FoodQuickTests {
+    @Test func quickChipsExist() {
+        for k in MealKind.allCases { for id in FoodBook.quick(for: k) { #expect(FoodBook.food(id) != nil, "\(id)") } }
+    }
+
+    @Test func cerealWantsMilk() {
+        #expect(FoodBook.wantsMilk([FoodServing(foodId: "cornflakes")]))
+        #expect(!FoodBook.wantsMilk([FoodServing(foodId: "cornflakes"), FoodServing(foodId: "milk")]))
+        #expect(!FoodBook.wantsMilk([FoodServing(foodId: "coffee")]))
+    }
+}

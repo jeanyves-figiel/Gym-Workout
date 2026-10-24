@@ -50,6 +50,8 @@ final class FuelStore {
         var supplements: [Supplement]?
         /// Water reminders (#520); nil = defaults (remind when behind, quiet during training).
         var water: WaterPrefs?
+        /// Plates of plain foods saved from Just ate (#710).
+        var usuals: [FoodUsual]?
     }
 
     private(set) var saved = Saved() {
@@ -158,6 +160,46 @@ final class FuelStore {
         s.plan.removeAll { $0.recipeId == Supplements.recipePrefix + id }
         save(s)
         Task { await NotificationManager.shared.scheduleSupplements() }
+    }
+
+    // MARK: Plain foods (#710)
+
+    var usuals: [FoodUsual] { saved.usuals ?? [] }
+
+    func saveUsual(_ u: FoodUsual) {
+        var s = saved
+        var list = s.usuals ?? []
+        if let i = list.firstIndex(where: { $0.id == u.id }) { list[i] = u } else { list.insert(u, at: 0) }
+        s.usuals = list
+        save(s)
+    }
+
+    func deleteUsual(_ id: String) {
+        var s = saved
+        s.usuals?.removeAll { $0.id == id }
+        save(s)
+    }
+
+    /// "☕ Coffee 80": caffeine drinks logged on the day, for the caffeine meter.
+    func caffeineDrinks(_ log: FuelDayLog) -> [String] {
+        var mg: [String: Int] = [:]
+        for t in log.ticks.values {
+            for i in t.foods ?? [] {
+                guard let f = FoodBook.food(i.foodId, own: saved.foods), (f.caffeine ?? 0) > 0 else { continue }
+                mg[f.id, default: 0] += f.caffeineMg(grams: i.grams(f))
+            }
+        }
+        return mg.sorted { $0.key < $1.key }.compactMap { id, v in FoodBook.food(id, own: saved.foods).map { "\($0.emoji) \($0.name) \(v)" } }
+    }
+
+    /// Foods logged in the last 2 weeks, newest day first: chips in Just ate.
+    func recentFoods(before day: Date) -> [String] {
+        var ids: [String] = []
+        for i in 0..<14 {
+            guard let d = cal.date(byAdding: .day, value: -i, to: day) else { continue }
+            for t in log(d).ticks.values { for f in t.foods ?? [] where !ids.contains(f.foodId) { ids.append(f.foodId) } }
+        }
+        return ids
     }
 
     func toggleFavourite(_ id: String) {
@@ -416,6 +458,9 @@ final class FuelStore {
             Supplement(id: "demo-d", name: "Vitamin D", kind: .vitaminD, dose: "1 capsule", restDays: true),
         ]
         s.logs[k]?.ticks["supp-demo-d"] = FuelTick(added: Portions())
+        s.usuals = [FoodUsual(id: "demo-usual", name: "My breakfast",
+                              items: ["coffee", "cornflakes", "milk"].map { FoodServing(foodId: $0) }, kind: .breakfast),
+                    FoodUsual(id: "demo-quick", name: "Quick one", items: ["banana", "coffee"].map { FoodServing(foodId: $0) }, kind: .snack)]
         saved = s
     }
 

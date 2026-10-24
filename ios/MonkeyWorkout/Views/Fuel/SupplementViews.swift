@@ -13,14 +13,18 @@ struct FuelStackCard: View {
 
     var body: some View {
         if store.stack.isEmpty {
-            NavigationLink(value: FuelRoute.supplements) {
-                FuelTile(emoji: "💊", label: "Supplements", title: "Add your supplements",
-                         detail: "Placed around training, caffeine checked against your sleep", gradient: FuelPalette.violet) {
-                    Image(systemName: "plus").font(.system(size: 18, weight: .heavy))
+            VStack(spacing: 10) {
+                NavigationLink(value: FuelRoute.supplements) {
+                    FuelTile(emoji: "💊", label: "Supplements", title: "Add your supplements",
+                             detail: "Placed around training, caffeine checked against your sleep", gradient: FuelPalette.violet) {
+                        Image(systemName: "plus").font(.system(size: 18, weight: .heavy))
+                    }
                 }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("fuel.supplements")
+                // Coffee or tea logged in Just ate counts even with no stack (#710).
+                if log.foodCaffeineMg > 0 { CaffeineMeter(doses: [], log: log, prefs: store.prefs) }
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("fuel.supplements")
         } else {
             let doses = plan.supplements
             let taken = doses.filter { log.ticks[$0.id] != nil }.count
@@ -55,7 +59,7 @@ struct FuelStackCard: View {
                 .padding(14)
                 .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(FuelPalette.violet))
 
-                if store.stack.contains(where: { $0.caffeineMg > 0 }) {
+                if store.stack.contains(where: { $0.caffeineMg > 0 }) || log.foodCaffeineMg > 0 {
                     CaffeineMeter(doses: doses, log: log, prefs: store.prefs)
                 }
             }
@@ -114,6 +118,7 @@ struct CaffeineMeter: View {
         let planned = Supplements.caffeine(doses)
         let guide = Supplements.caffeineGuideMg
         let items = doses.filter { $0.supplement.caffeineMg > 0 }
+        let drinks = FuelStore.shared.caffeineDrinks(log)
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 Text("CAFFEINE TODAY").font(Theme.label(10)).tracking(1.2).opacity(0.85)
@@ -129,7 +134,8 @@ struct CaffeineMeter: View {
                 }
             }
             .frame(height: 8)
-            Text((items.map { "\($0.supplement.emoji) \($0.supplement.name) \($0.supplement.caffeineMg)" } + ["planned \(planned) mg"])
+            Text((items.map { "\($0.supplement.emoji) \($0.supplement.name) \($0.supplement.caffeineMg)" } + drinks
+                  + (planned > 0 ? ["planned \(planned) mg"] : []))
                 .joined(separator: " · "))
                 .font(.system(size: 11, weight: .bold, design: .rounded)).opacity(0.9)
             Text("Last caffeine by \(Supplements.clock(Supplements.caffeineCutoff(prefs))) for \(Supplements.clock(prefs.sleep)) sleep")

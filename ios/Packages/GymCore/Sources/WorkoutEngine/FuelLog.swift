@@ -259,3 +259,44 @@ public enum FuelLearn {
 
     public static let disclaimer = "General guidance for healthy adults, not medical or dietary advice. With a medical condition, an eating disorder, pregnancy or special needs, talk to a doctor or dietitian."
 }
+
+/// A plate the member eats often, saved from Just ate: "My breakfast" = coffee + cornflakes + milk (#710).
+public struct FoodUsual: Codable, Hashable, Sendable, Identifiable {
+    public var id: String
+    public var name: String
+    public var items: [FoodServing]
+    /// Meal it was saved from, so it comes first at that time of day.
+    public var kind: MealKind?
+
+    public init(id: String = UUID().uuidString.lowercased(), name: String, items: [FoodServing], kind: MealKind? = nil) {
+        self.id = id
+        self.name = name
+        self.items = items
+        self.kind = kind
+    }
+
+    public func emoji(own: [Food] = []) -> String {
+        items.prefix(3).compactMap { FoodBook.food($0.foodId, own: own)?.emoji }.joined()
+    }
+}
+
+extension FoodBook {
+    /// Foods offered as one-tap chips in Just ate for a meal, before the member's own recent foods (#710).
+    public static func quick(for kind: MealKind) -> [String] {
+        switch kind {
+        case .breakfast: ["coffee", "cornflakes", "milk", "muesli", "bread-wholegrain", "egg", "banana", "tea", "yogurt",
+                          "butter", "honey", "orange-juice", "croissant"]
+        case .snack, .pre, .bedtime: ["banana", "apple", "yogurt", "mixed-nuts", "protein-bar", "coffee", "tea", "greek-yogurt"]
+        case .recovery: ["milk", "chocolate-milk", "banana", "greek-yogurt", "protein-bar"]
+        case .lunch, .dinner: ["bread-wholegrain", "apple", "yogurt", "coffee", "tea", "sparkling-water"]
+        }
+    }
+
+    /// Cereals on the plate and no milk or yogurt: suggest milk (protein for the bowl).
+    public static func wantsMilk(_ items: [FoodServing]) -> Bool {
+        let ids = Set(items.map(\.foodId))
+        let cereal = ["cornflakes", "muesli", "granola", "oats", "gf-oats"].contains { ids.contains($0) }
+        let wet = ids.contains { $0.contains("milk") || $0.contains("yogurt") || $0.hasSuffix("drink") }
+        return cereal && !wet
+    }
+}
