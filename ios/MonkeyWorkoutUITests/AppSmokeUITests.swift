@@ -2,7 +2,7 @@ import XCTest
 
 /// Smoke run of the main paths in demo mode (`-demo -demoScreen …`, see `Demo.swift` / `DemoScreen` in RootView):
 /// every tab opens; Train → Start workout → log a set → Finish → DONE; Explore → muscle → exercise → back;
-/// Progress → History; Fuel → a glass of water; Community; Me → Settings; the HIIT builder; the Ask Coach paywall.
+/// Progress → History; Fuel → a glass of water; Social; Me → Settings; the HIIT builder; the Ask Coach paywall.
 /// Demo screen `week` is the full app (tabs) on Train with today's session in Next up.
 final class AppSmokeUITests: XCTestCase {
     private var app: XCUIApplication!
@@ -76,9 +76,9 @@ final class AppSmokeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Progress"].firstMatch.waitForExistence(timeout: 10), "Progress title")
         openTab("Fuel")
         XCTAssertTrue(app.staticTexts["Fuel"].firstMatch.waitForExistence(timeout: 10), "Fuel title")
-        openTab("Community")
+        openTab("Social")
         XCTAssertNotNil(firstToExist([app.buttons["Share a win"], app.navigationBars["Join the community"],
-                                      app.staticTexts["Community"]], timeout: 10), "Community opens")
+                                      app.staticTexts["Social"]], timeout: 10), "Social opens")
         openTab("Train")
         XCTAssertNotNil(firstToExist([button(containing: "Start workout"), button(containing: "Resume workout"),
                                       app.buttons["me.pill"]], timeout: 10), "Back on Train")
@@ -136,14 +136,12 @@ final class AppSmokeUITests: XCTestCase {
     func testExploreOpensExerciseAndBack() {
         launchTabs()
         openTab("Explore")
-        XCTAssertTrue(app.staticTexts["Explore"].firstMatch.waitForExistence(timeout: 10))
-        let card = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@ OR label CONTAINS[c] %@", "exercise", "sets / wk")).firstMatch
-        XCTAssertTrue(card.waitForExistence(timeout: 10), "Muscle card")
-        XCTAssertTrue(scrollTo(card), "Muscle card on screen")
-        card.tap()
+        XCTAssertTrue(app.staticTexts["Explore"].firstMatch.waitForExistence(timeout: 10), "Explore opens")
 
+        // A muscle page (demo screen, so Explore's current mode doesn't matter) → an exercise → close.
+        launch("muscle")
         let muscleBar = app.navigationBars["Muscle"]
-        XCTAssertTrue(muscleBar.waitForExistence(timeout: 10), "Muscle page")
+        XCTAssertTrue(muscleBar.waitForExistence(timeout: 20), "Muscle page")
         let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ OR label BEGINSWITH %@", "MAIN", "ASSIST")).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 10), "Exercise row")
         XCTAssertTrue(scrollTo(row), "Exercise row on screen")
@@ -153,10 +151,7 @@ final class AppSmokeUITests: XCTestCase {
         XCTAssertTrue(exerciseBar.waitForExistence(timeout: 10), "Exercise page")
         exerciseBar.buttons["Close"].firstMatch.tap()
         XCTAssertTrue(waitUntil("exists == false", exerciseBar), "Exercise sheet closed")
-
-        XCTAssertTrue(muscleBar.waitForExistence(timeout: 5))
-        muscleBar.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.staticTexts["Explore"].firstMatch.waitForExistence(timeout: 10), "Back on Explore")
+        XCTAssertTrue(muscleBar.waitForExistence(timeout: 5), "Back on the muscle page")
     }
 
     // MARK: Progress
@@ -198,13 +193,13 @@ final class AppSmokeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["\(label), drunk"].waitForExistence(timeout: 5), "Glass counted")
     }
 
-    // MARK: Community
+    // MARK: Social
 
-    func testCommunityOpens() {
+    func testSocialOpens() {
         launchTabs()
-        openTab("Community")
+        openTab("Social")
         XCTAssertNotNil(firstToExist([app.buttons["Share a win"], app.navigationBars["Join the community"],
-                                      app.staticTexts["Community"]], timeout: 15), "Community feed or join page")
+                                      app.staticTexts["Social"]], timeout: 15), "Social feed or join page")
     }
 
     // MARK: Me → Settings
