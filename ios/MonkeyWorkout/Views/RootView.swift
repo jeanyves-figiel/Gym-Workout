@@ -486,6 +486,9 @@ private struct DemoScreen: View {
         case "fuel-week": NavigationStack { FuelWeekView() }
         case "fuel-learn": NavigationStack { FuelLearnView() }
         case "fuel-supplements": NavigationStack { SupplementsView() }
+        case "fuel-plate":
+            JustAteSheet(plan: model.fuelPlan(on: Date()), day: Date(),
+                         plate: [FoodServing(foodId: "coffee"), FoodServing(foodId: "cornflakes", servings: 1.5)])
         case "fuel-water": WaterSheet(plan: model.fuelPlan(on: Date()), glasses: FuelStore.shared.log(Date()).glasses, day: Date())
         case "fuel-setup": NavigationStack { FuelSetupView(sheet: true) }
         case "share-recipe": ShareRecipeSheet(recipe: RecipeBook.catalog[0])
