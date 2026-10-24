@@ -284,7 +284,7 @@ private struct StartButton: View {
     var body: some View {
         if let n = s.next {
             // Only today's session starts (#537): Start opens it straight in the player; a later day's says Open (its page).
-            let today = n.date == nil || n.day == "Today"
+            let today = n.stale != true && (n.date == nil || n.day == "Today")
             Link(destination: today ? HomeWidgetLink.start(n.id) : HomeWidgetLink.session(n.id)) {
                 Label(today ? "Start" : "Open", systemImage: today ? "play.fill" : "arrow.up.right")
                     .font(label(12 * k))

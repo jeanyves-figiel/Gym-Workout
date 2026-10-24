@@ -234,6 +234,9 @@ struct HomeWidgetSnapshot: Codable, Equatable, Sendable {
         var tint: UInt32
         /// The day the session is planned on; nil when it has no weekday ("Extra") or from an older app.
         var date: Date? = nil
+        /// Set by `at(_:)` when the snapshot is from an earlier day (#716): an undated session can't say it's
+        /// today's, so it opens its page instead of starting.
+        var stale: Bool? = nil
 
         private static let names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
@@ -246,9 +249,16 @@ struct HomeWidgetSnapshot: Codable, Equatable, Sendable {
     }
 
     /// The snapshot as a widget entry at `date` shows it: day labels follow the entry's day, not the app's.
+    /// A session planned on a day already over isn't up next any more (#716): hidden until the app writes again.
     func at(_ date: Date, calendar cal: Calendar = .current) -> HomeWidgetSnapshot {
         var s = self
-        if let n = next { s.next?.day = n.dayLabel(at: date, calendar: cal) }
+        guard let n = next else { return s }
+        if let d = n.date, cal.startOfDay(for: d) < cal.startOfDay(for: date) {
+            s.next = nil
+            return s
+        }
+        s.next?.day = n.dayLabel(at: date, calendar: cal)
+        if n.date == nil, !cal.isDate(generatedAt, inSameDayAs: date) { s.next?.stale = true }
         return s
     }
 
