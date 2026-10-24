@@ -81,58 +81,38 @@ struct MePill: View {
     }
 }
 
-/// Me sheet: photo hero with the level bar, then Levels, Your profile and Settings.
+/// Me sheet (#736, design A from `me-sheet/proposals.png`): one hero (photo and name open Your profile, the
+/// level bar opens Levels), then the six Settings chapters as square tiles, each opening Settings at that chapter.
 struct MeSheet: View {
     @Environment(AppModel.self) private var model
     @State private var community = Community.shared
 
+    private let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+
     var body: some View {
-        let g = model.game
-        let me = community.me
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                NavigationLink { ProfileView() } label: {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 14) {
-                            MePhoto(size: 64)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(model.user?.name?.isEmpty == false ? model.user!.name! : "Add your name")
-                                    .font(Theme.display(24)).lineLimit(1).minimumScaleFactor(0.7)
-                                Text(me.nickname.map { "@\($0)" } ?? "@ add a nickname")
-                                    .font(Theme.label(15)).opacity(0.85)
-                            }
-                            Spacer(minLength: 0)
-                        }
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text("Level \(g.level) · \(model.rank.title)").font(Theme.label(12)).tracking(1.2).textCase(.uppercase)
-                                Spacer()
-                                Text("\(g.xpInLevel) / \(GameProgress.perLevel) XP").font(Theme.label(12)).monospacedDigit().opacity(0.85)
-                            }
-                            XPBarView(progress: g.levelProgress, track: .black.opacity(0.25))
-                        }
+                hero
+                HStack {
+                    Text("Settings").font(Theme.label(13)).tracking(1.2).textCase(.uppercase).foregroundStyle(Theme.muted)
+                    Spacer()
+                    NavigationLink { AccountView() } label: {
+                        Text("All ›").font(Theme.label(14)).foregroundStyle(.white)
+                            .padding(.horizontal, 10).padding(.vertical, 5)
+                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.white.opacity(0.12)))
                     }
-                    .foregroundStyle(.white)
-                    .padding(18)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(AccountTint.profile))
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("All settings")
+                    .accessibilityIdentifier("me.settings")
                 }
-                .buttonStyle(.plain)
-                .accessibilityHint("Edit your profile")
-
-                row("Levels", detail: "What each level brings", symbol: "star.fill", gradient: WorkoutEngine.Category.power.gradient)
-                    .opensLevels()
-                // One profile (#578): edit fields and community stats and tools on the same page.
-                NavigationLink { ProfileView() } label: {
-                    row("Your profile", detail: community.profile != nil ? "Name, photo, posts, followers" : "Name, photo, about, pronouns",
-                        symbol: "person.fill", gradient: AccountTint.publicProfile)
+                .padding(.top, 6).padding(.horizontal, 2)
+                LazyVGrid(columns: columns, spacing: 10) {
+                    ForEach(SettingsChapter.allCases) { chapter in
+                        NavigationLink { AccountView(start: chapter) } label: { tile(chapter) }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("me.chapter.\(chapter.rawValue)")
+                    }
                 }
-                .buttonStyle(.plain)
-                NavigationLink { AccountView() } label: {
-                    row("Settings", detail: "Account, plan, devices, notifications", symbol: "gearshape.fill", gradient: WorkoutEngine.Category.strength.gradient)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("me.settings")
             }
             .padding(16)
             .readableWidth()
@@ -141,20 +121,58 @@ struct MeSheet: View {
         .titleInContent("You")
     }
 
-    private func row(_ title: String, detail: String, symbol: String, gradient: LinearGradient) -> some View {
-        HStack(spacing: 14) {
-            IconTile(symbol: symbol, size: 44)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(Theme.display(19))
-                Text(detail).font(.footnote.weight(.semibold)).opacity(0.85).lineLimit(1)
+    private var hero: some View {
+        let g = model.game
+        let me = community.me
+        return VStack(alignment: .leading, spacing: 12) {
+            // One profile (#578): photo and name open Your profile; no second row to the same page.
+            NavigationLink { ProfileView() } label: {
+                HStack(spacing: 14) {
+                    MePhoto(size: 64)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(model.user?.name?.isEmpty == false ? model.user!.name! : "Add your name")
+                            .font(Theme.display(24)).lineLimit(1).minimumScaleFactor(0.7)
+                        Text(me.nickname.map { "@\($0)" } ?? "@ add a nickname")
+                            .font(Theme.label(15)).opacity(0.85)
+                    }
+                    Spacer(minLength: 4)
+                    Text("Edit ›").font(Theme.label(13))
+                        .padding(.horizontal, 9).padding(.vertical, 5)
+                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.white.opacity(0.22)))
+                }
+                .contentShape(Rectangle())
             }
-            Spacer(minLength: 4)
-            Image(systemName: "chevron.right").font(.system(size: 15, weight: .heavy)).opacity(0.8)
+            .buttonStyle(.plain)
+            .accessibilityHint("Your profile: name, photo, posts, followers")
+            .accessibilityIdentifier("me.profile")
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Level \(g.level) · \(model.rank.title) ›").font(Theme.label(12)).tracking(1.2).textCase(.uppercase)
+                    Spacer()
+                    Text("\(g.xpInLevel) / \(GameProgress.perLevel) XP").font(Theme.label(12)).monospacedDigit().opacity(0.85)
+                }
+                XPBarView(progress: g.levelProgress, track: .black.opacity(0.25))
+            }
+            .opensLevels()
+            .accessibilityIdentifier("me.levels")
+        }
+        .foregroundStyle(.white)
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(AccountTint.profile))
+    }
+
+    private func tile(_ chapter: SettingsChapter) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            IconTile(symbol: chapter.symbol, size: 40)
+            Spacer(minLength: 8)
+            Text(chapter.title).font(Theme.display(19)).lineLimit(1).minimumScaleFactor(0.8)
+            Text(chapter.summary).font(.footnote.weight(.semibold)).opacity(0.85).lineLimit(2)
         }
         .foregroundStyle(.white)
         .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(gradient))
+        .frame(maxWidth: .infinity, minHeight: 132, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(chapter.gradient))
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }

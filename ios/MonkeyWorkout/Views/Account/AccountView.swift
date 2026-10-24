@@ -6,6 +6,8 @@ struct AccountView: View {
     @Environment(AppModel.self) private var model
     @Environment(AppLock.self) private var lock
     @Environment(HealthManager.self) private var health
+    /// Chapter to open on, from a Me sheet tile (#736); nil opens at the top.
+    var start: SettingsChapter? = nil
     @State private var exportURL: URL?
     @State private var exportTask = FormTask()
     @State private var confirmSignOutAll = false
@@ -111,6 +113,13 @@ struct AccountView: View {
                 }
             }
             .coordinateSpace(name: "settings")
+            .task {
+                guard let start, start != .you else { return }
+                // Let the chapter cards lay out before jumping.
+                try? await Task.sleep(for: .milliseconds(150))
+                chapter = start
+                proxy.scrollTo(start, anchor: .top)
+            }
             .onPreferenceChange(ChapterTopKey.self) { tops in
                 // The chapter whose card reaches under the sticky bar is the current one.
                 guard !search.active else { return }
