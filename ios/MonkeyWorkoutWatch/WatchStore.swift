@@ -189,10 +189,13 @@ final class WatchStore: NSObject {
         }
         if let data = message[WatchKeys.wodRemote] as? Data, let r = try? JSONDecoder.watch.decode(WWodRemote.self, from: data) {
             remoteTimer = r
+            // HIIT player on the iPhone (#693): heart rate measured here.
+            if let h = r.hiit { HiitMirror.shared.update(h, name: r.timer.name) }
             return
         }
         if message[WatchKeys.wodRemoteEnded] != nil {
             remoteTimer = nil
+            HiitMirror.shared.end()
             return
         }
         if let data = message[WatchKeys.practice] as? Data, let c = try? JSONDecoder.watch.decode(WLiftPracticeCommand.self, from: data) {

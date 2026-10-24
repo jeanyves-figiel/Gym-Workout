@@ -176,6 +176,7 @@ final class AppModel {
             Demo.missed(self)
             Demo.sportTrips(self)
             Demo.runs(self)
+            Demo.hiit(self)
             Demo.onboarding(self)
             if Demo.screen == "workout-style", let id = state.plan?.sessions.dropFirst().first?.id {
                 setSessionStyle(id, SessionStyle(rest: .short, grouping: .supersets))
@@ -507,7 +508,9 @@ final class AppModel {
     /// An example, own or shared library workout opened on its own (not part of this week's plan), unedited.
     /// One without a cool-down gets the 5′ finisher (#619 C).
     func standaloneSession(_ id: String) -> Session? {
-        freestyleSession(id) ?? (WorkoutTemplate.find(sessionId: id)?.session ?? customWorkout(sessionId: id)?.session
+        // HIIT built in Explore (#693): the id is the spec; "My gym" uses the plan's equipment.
+        if let s = Hiit.session(sessionId: id, gym: profile?.equipment ?? []) { return s }
+        return freestyleSession(id) ?? (WorkoutTemplate.find(sessionId: id)?.session ?? customWorkout(sessionId: id)?.session
             ?? sharedWorkout(sessionId: id)?.workout.session).map(Recovery.withFinisher)
     }
 

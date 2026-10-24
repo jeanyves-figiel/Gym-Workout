@@ -128,6 +128,7 @@ public struct PlanInsert: Codable, Hashable, Sendable, Identifiable {
             s.focus = g.focus
             s.estMin = g.estMin
             s.targetMin = g.targetMin
+            s.hiit = g.hiit
             for b in s.blocks.indices {
                 for i in s.blocks[b].items.indices { s.blocks[b].items[i].uid = s.id + "-" + s.blocks[b].items[i].uid }
             }

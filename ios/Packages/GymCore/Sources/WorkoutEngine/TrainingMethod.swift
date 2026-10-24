@@ -206,6 +206,8 @@ extension Session {
     /// Low-readiness version of this session (#156, RIR-autoregulated plans): 1 RPE lower on strength work,
     /// one set less on accessories and explosive work. The main lift keeps its sets; uids are unchanged.
     public func easedForReadiness() -> Session {
+        // HIIT (#693): fewer intervals, a little more rest.
+        if let h = hiit { return withHiit(h.eased()) }
         var s = self
         for b in s.blocks.indices where s.blocks[b].kind == .strength || s.blocks[b].kind == .power {
             let kind = s.blocks[b].kind

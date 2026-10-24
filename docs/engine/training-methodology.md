@@ -33,6 +33,10 @@ Code root: `ios/Packages/GymCore/Sources/WorkoutEngine/`. All generation runs on
 
 **Gaps:** no explicit weekly sets per muscle; readiness does not adjust sessions; no ease-in after time away (away weeks re-plan days only, `PlanCalendar.swift:99-106`); logged RIR only used for the +2 increment.
 
+### HIIT (#693, `Hiit.swift`)
+
+HIIT sessions are timed blocks of library moves: **Tabata** 8 × 20″/10″ (two moves in turn), **EMOM** (reps on the minute, moves alternate), **AMRAP** (capped, rounds counted), **For time** (rounds of the moves, capped), **Pyramid** 20-40-60-40-20″ with 15″ rests, **30/30**. Each has a 3′ warm-up and a 2′ cool-down (30″ moves). Moves come from a HIIT pool tagged by area (full, legs, upper, core), jumps and default reps, filtered by the kit; picks rotate areas and prefer kit moves, never repeating a move within a workout while others remain. Planned HIIT days are half the plan's session length (15–30′, ×0.75 in the deload), placed on free days away from leg days, sport days and each other; formats rotate weekly and the deload week is easy 20″/40″ intervals. Low readiness: a quarter fewer intervals, +5″ rest, shorter caps. HIIT counts as conditioning (MET 9) and logs one set per interval.
+
 ## 2. Proposed switchable methodologies (Account → Training profile → "Method")
 
 One setting, orthogonal to Goal. Goal keeps choosing *what* (mix, rep zones); Method chooses *how it progresses*. Default = current behaviour, no plan change for existing members.

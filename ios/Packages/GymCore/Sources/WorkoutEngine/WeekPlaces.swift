@@ -67,6 +67,7 @@ extension Generator {
             guard let t = weeks[key]?.sessions.first(where: { $0.id == s.id && $0.focus == s.focus }) else { continue }
             plan.sessions[i].blocks = t.blocks
             plan.sessions[i].estMin = t.estMin
+            plan.sessions[i].hiit = t.hiit
             plan.sessions[i].place = kit?.name
             plan.sessions[i].synergy = nil
         }

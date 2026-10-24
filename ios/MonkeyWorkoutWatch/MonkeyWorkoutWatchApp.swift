@@ -245,6 +245,8 @@ struct WatchRootView: View {
             PhoneStartView()
         } else if let live = store.live, player == nil {
             MirrorView(live: live)
+        } else if let remote = store.remoteTimer, let hiit = remote.hiit, player == nil {
+            HiitRemoteView(live: hiit)
         } else if let remote = store.remoteTimer, player == nil {
             TimerRemoteView(remote: remote)
         } else if let level = store.practice, player == nil {

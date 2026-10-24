@@ -727,6 +727,29 @@ struct WSwim: Codable, Equatable {
 struct WWodRemote: Codable, Equatable {
     var timer: WodTimer
     var running: Bool
+    /// HIIT interval player (#693): the step on the iPhone; nil = a plain timer.
+    var hiit: WHiitLive? = nil
+}
+
+/// The iPhone HIIT player's step (#693 C), mirrored on the Watch: phase colour, clock, move, round.
+struct WHiitLive: Codable, Equatable {
+    /// "ready", "prep", "warmup", "work", "rest", "cooldown".
+    var phase: String
+    /// Move (work, warm-up, cool-down), next move (rest), or the workout's name before the start.
+    var title: String
+    /// "TABATA · ROUND 5 / 8 · WORK".
+    var detail: String
+    var next: String?
+    /// Countdown end while running; nil while paused (then `remaining`).
+    var endsAt: Date?
+    /// For time counts up from here while running.
+    var startedAt: Date?
+    var remaining: Int
+    var countUp: Bool
+    /// Gradient start and end colours.
+    var tint: [UInt32]
+    /// Finished and logged: the Watch saves its heart-rate workout.
+    var done: Bool
 }
 
 /// Open water swim started or ended on the Watch (#615 B): the iPhone schedules or cancels the buddy alert.
