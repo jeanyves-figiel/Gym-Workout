@@ -164,4 +164,24 @@ import Testing
         let names = Exercise.search().map(\.name)
         #expect(names == names.sorted { $0.localizedStandardCompare($1) == .orderedAscending })
     }
+
+    /// Own daily routines (#732): the look round-trips, is sanitized, and the routine plays as one mobility block.
+    @Test func ownRoutine() throws {
+        let w = CustomWorkout(name: "Morning", items: [
+            RoutineLook.item(adding: Exercise.get("wrist-car")),
+            RoutineLook.item(adding: Exercise.get("pigeon")),
+        ], routine: RoutineLook(color: 2, symbol: "sun.max.fill"))
+        #expect(w.items[1].sets == 1 && w.items[1].reps == 45 && w.items[1].restSec == 0)
+        let back = try JSONDecoder().decode(CustomWorkout.self, from: JSONEncoder().encode(w))
+        #expect(back == w && back.routine?.color == 2)
+        #expect(w.duplicated().routine == w.routine)
+        var odd = w
+        odd.routine = RoutineLook(color: 99, symbol: "not-a-symbol")
+        #expect(odd.sanitized.routine == RoutineLook())
+        let s = w.session
+        #expect(s.blocks.count == 1 && s.blocks[0].kind == .mobility)
+        #expect(Recovery.withFinisher(s) == s)
+        // A plain workout without the look is unchanged.
+        #expect(sample.routine == nil)
+    }
 }

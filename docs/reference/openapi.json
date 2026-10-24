@@ -1333,7 +1333,7 @@
         "tags": [
           "Sync: member content"
         ],
-        "summary": "→ {workouts, deleted?, serverTime} member-built workouts (id, name, items[].exerciseId, visibility)",
+        "summary": "→ {workouts, deleted?, serverTime} member-built workouts (id, name, items[].exerciseId, visibility; other app fields kept as sent, e.g. routine {color, symbol} for own daily routines, #732)",
         "security": [
           {
             "bearer": []

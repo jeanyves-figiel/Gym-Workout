@@ -21,7 +21,10 @@ private struct StandaloneWorkoutActions: ViewModifier {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { actions }
             }
-            .sheet(item: $editing) { w in CustomWorkoutEditor(initial: w) }
+            .sheet(item: $editing) { w in
+                // Own daily routines (#732) keep their own editor.
+                if w.routine != nil { MyRoutineEditor(initial: w) } else { CustomWorkoutEditor(initial: w) }
+            }
     }
 
     /// Deleted at once (#539); Undo saves it back. Past sessions stay in history either way.
@@ -371,7 +374,7 @@ extension View {
 }
 
 /// Exercise in the builder: category gradient card, icon tile, name, prescription.
-private struct CustomItemRow: View {
+struct CustomItemRow: View {
     let item: CustomWorkout.Item
     /// Superset / circuit label ("A1"), when grouped.
     var group: String?
@@ -418,7 +421,7 @@ private struct CustomItemRow: View {
 }
 
 /// Per-exercise settings: sets, reps (or seconds / minutes), rest and optional calories.
-private struct CustomItemForm: View {
+struct CustomItemForm: View {
     @Binding var item: CustomWorkout.Item
     @State private var info = false
 
