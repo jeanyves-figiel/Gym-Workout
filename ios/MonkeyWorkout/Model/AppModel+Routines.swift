@@ -5,17 +5,30 @@ import WorkoutEngine
 /// Tile picks and lengths are this device's (`RoutinePrefs`); done days come from history.
 extension AppModel {
     /// Days (start of day) with a finished `routine`, any length.
-    func routineDays(_ routine: Routine) -> Set<Date> {
+    func routineDays(_ routine: Routine) -> Set<Date> { allRoutineDays[routine] ?? [] }
+
+    /// Done days of every routine from one pass over history, kept until the state changes (#720: read per tile).
+    private var allRoutineDays: [Routine: Set<Date>] {
+        let version = observedStateVersion
+        if let c = derived.routineDays, c.key == version { return c.value }
         let cal = planCalendar
-        return Set(state.history.filter { Routine.of(sessionId: $0.sessionId) == routine }.map { cal.startOfDay(for: $0.startedAt) })
+        var out: [Routine: Set<Date>] = [:]
+        for h in state.history {
+            if let r = Routine.of(sessionId: h.sessionId) { out[r, default: []].insert(cal.startOfDay(for: h.startedAt)) }
+        }
+        derived.routineDays = (version, out)
+        return out
     }
 
     /// Routines the member has finished at least once, most recent first (#696: they keep their Daily row).
     var usedRoutines: [Routine] {
+        let version = observedStateVersion
+        if let c = derived.usedRoutines, c.key == version { return c.value }
         var seen: [Routine] = []
-        for h in state.history.sorted(by: { $0.startedAt > $1.startedAt }) {
+        for h in history {
             if let r = Routine.of(sessionId: h.sessionId), !seen.contains(r) { seen.append(r) }
         }
+        derived.usedRoutines = (version, seen)
         return seen
     }
 

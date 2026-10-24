@@ -1245,6 +1245,26 @@ private struct PastDayCard: View {
     /// A missed session, or a copy of one logged as an extra workout on this day.
     @State private var loggingWorkout: Session?
     @State private var loggingHealth: GymEntry?
+    @State private var itemsMemo = ItemsMemo()
+
+    /// This day's history items, kept until the day, the state, Health or MonkeyGrade change (#720: the whole
+    /// history was merged and filtered on every render). A cache, never drawn from.
+    private final class ItemsMemo {
+        var key: [Int] = []
+        var items: [HistoryItem] = []
+    }
+
+    private var dayItems: [HistoryItem] {
+        _ = health.snapshot
+        let climbs = MonkeyGradeLink.shared.climbs(for: model.user?.id).count
+        let key = [Int(date.timeIntervalSinceReferenceDate), model.observedStateVersion, health.snapshotVersion, climbs]
+        if itemsMemo.key == key { return itemsMemo.items }
+        let cal = model.planCalendar
+        let out = model.historyItems(health: health).filter { cal.isDate($0.start, inSameDayAs: date) }.sorted { $0.start < $1.start }
+        itemsMemo.key = key
+        itemsMemo.items = out
+        return out
+    }
 
     /// 1 = Monday … 7 = Sunday.
     private var weekday: Int { ((day - 1) % 7 + 7) % 7 + 1 }
@@ -1260,8 +1280,7 @@ private struct PastDayCard: View {
     }
 
     var body: some View {
-        let cal = model.planCalendar
-        let items = model.historyItems(health: health).filter { cal.isDate($0.start, inSameDayAs: date) }.sorted { $0.start < $1.start }
+        let items = dayItems
         VStack(alignment: .leading, spacing: 12) {
             WeekDayStrip(selected: day, onPick: onPick)
             HStack(alignment: .center, spacing: 10) {
