@@ -147,6 +147,9 @@ struct DailyRoutinesRow: View {
                 }
             }
             Button("Choose routines…", systemImage: "square.grid.2x2") { picking = true }
+            Button("Remove from Daily", systemImage: "minus.circle") {
+                tilesRaw = RoutinePrefs.removing(tilesRaw, r, used: model.usedRoutines)
+            }
             Button("Hide daily row", systemImage: "eye.slash") { tilesRaw = "off" }
         }
     }
@@ -393,8 +396,10 @@ struct RoutineLibrarySection: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Where: \(place.label)")
+                // Toggles (#703): tap again takes it off Train's Daily row.
                 Button {
-                    tilesRaw = RoutinePrefs.pinning(tilesRaw, r, used: model.usedRoutines)
+                    tilesRaw = onTrain ? RoutinePrefs.removing(tilesRaw, r, used: model.usedRoutines)
+                                       : RoutinePrefs.pinning(tilesRaw, r, used: model.usedRoutines)
                 } label: {
                     Image(systemName: onTrain ? "checkmark" : "pin.fill")
                         .font(.system(size: 13, weight: .bold))
@@ -403,8 +408,8 @@ struct RoutineLibrarySection: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .disabled(onTrain)
-                .accessibilityLabel(onTrain ? "On Train" : "Show on Train")
+                .accessibilityLabel(onTrain ? "Remove from Train" : "Show on Train")
+                .accessibilityAddTraits(onTrain ? .isSelected : [])
             }
             if r == .hangs {
                 Text(Routine.hangIntensity).font(Theme.label(11)).opacity(0.9).fixedSize(horizontal: false, vertical: true)
