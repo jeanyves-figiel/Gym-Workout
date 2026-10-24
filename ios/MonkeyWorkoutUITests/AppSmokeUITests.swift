@@ -108,12 +108,14 @@ final class AppSmokeUITests: XCTestCase {
         let label = setDone.label
         setDone.tap()
 
-        // Logged: the rest card, the next set's button, or NEXT / FINISH after a single-set item.
+        // Logged: the rest card (SKIP REST / CONTINUE in the controls, +15 s, the "Rest" timer), the next set's button,
+        // or NEXT / FINISH after a single-set item.
         let after = firstToExist([
-            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Rest")).firstMatch,
+            app.buttons["SKIP REST"], app.buttons["CONTINUE"], app.buttons["Add 15 seconds of rest"],
+            app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH[c] %@", "Rest")).firstMatch,
             app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ AND label != %@", "SET ", label)).firstMatch,
-            app.buttons["NEXT"], app.buttons["FINISH"],
-        ], timeout: 5)
+            app.buttons["NEXT"], app.buttons["FINISH"], app.buttons["FINISH WORKOUT"],
+        ], timeout: 10)
         XCTAssertNotNil(after, "Set logged")
 
         // Finish from the workout map (#538).
