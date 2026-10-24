@@ -329,7 +329,10 @@ final class AppModel {
         WodStore.shared.signOut()
         SwimStore.shared.signOut()
         FuelStore.shared.signOut()
+        WaterQueue.wipe()
         NotificationManager.shared.resetPrefs()
+        // Saved HIITs (#716) are the member's too.
+        UserDefaults.standard.removeObject(forKey: HiitPrefs.savedKey)
         // The MonkeyGrade sign-in and the Watch upload key live in this device's Keychain, not in state.json.
         MonkeyGradeLink.shared.disconnect()
         clearWatchUploadKey()

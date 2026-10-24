@@ -22,10 +22,20 @@ enum WaterQueue {
         all.filter { cal.isDate(Date(timeIntervalSince1970: $0), inSameDayAs: day) }.count
     }
 
+    /// Hands the waiting glasses to the app. Only the taps read leave the queue (#716): one tapped on the widget
+    /// meanwhile waits for the next take.
     static func take() -> [Date] {
-        let dates = all.map { Date(timeIntervalSince1970: $0) }
+        let read = all
+        guard !read.isEmpty else { return [] }
+        var left = all
+        for t in read { if let i = left.firstIndex(of: t) { left.remove(at: i) } }
+        if left.isEmpty { defaults?.removeObject(forKey: key) } else { defaults?.set(left, forKey: key) }
+        return read.map { Date(timeIntervalSince1970: $0) }
+    }
+
+    /// Sign-out (#716): glasses tapped for the account signed out aren't counted for the next one.
+    static func wipe() {
         defaults?.removeObject(forKey: key)
-        return dates
     }
 }
 
