@@ -33,7 +33,7 @@ flowchart TD
     Community
   end
   Tabs --> Lock["Face ID lock screen when enabled"]
-  Tabs --> Me["Me pill (every tab, top right) → Me sheet → Profile · Levels · Settings"]
+  Tabs --> Me["Me pill (every tab, top right) → Me sheet → Profile · Levels · Settings chapters"]
 ```
 
 The app turns signed-in from the Keychain token before any network call, so every tab renders from the local cache on the first frame. Every tab header is a `TabHeader` with tab actions as 44 pt square tiles and the **Me pill** (level + photo) at the right.
@@ -103,7 +103,7 @@ Top (#666, `CommunityHub`): **gym today** card (`GymPulseCard`: trained today, l
 
 ## Me sheet and Settings (`Views/Account`)
 
-Me sheet: photo, name, @nickname, level bar → **Your profile**, Levels, Settings. Settings (`AccountView`) has a chapter bar and search:
+Me sheet (#736): hero with photo, name, @nickname and **Edit ›** → **Your profile**; its level bar → Levels; then six square Settings chapter tiles (`SettingsChapter.summary`) opening `AccountView(start:)` at that chapter, and **All ›** for Settings at the top. Settings (`AccountView`) has a chapter bar and search:
 
 | Chapter | Contents |
 |---|---|
