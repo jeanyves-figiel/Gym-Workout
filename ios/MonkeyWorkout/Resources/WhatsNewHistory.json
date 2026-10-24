@@ -1,6 +1,31 @@
 {
   "releases": [
     {
+      "id": "2026-10-24.3",
+      "build": 70,
+      "date": "2026-10-24",
+      "items": [
+        {
+          "symbol": "bubble.left.and.text.bubble.right.fill",
+          "tint": "warmup",
+          "title": "Coach moved up, Social is here",
+          "body": "Coach 🐵 now sits at the top right of every tab: tap to ask, hold to talk. Community is now Social."
+        },
+        {
+          "symbol": "mappin.and.ellipse",
+          "tint": "cardio",
+          "title": "Train anywhere",
+          "body": "Tap 📍 on any workout or long press it to train at home, at your gym or anywhere you saved. Home is always there; trip days show the trip."
+        },
+        {
+          "symbol": "minus.circle.fill",
+          "tint": "mobility",
+          "title": "Take a routine off",
+          "body": "Tap its ✓ in Explore → Routines or long press it on Train to remove it from your Daily row."
+        }
+      ]
+    },
+    {
       "id": "2026-10-24.2",
       "build": 69,
       "date": "2026-10-24",
