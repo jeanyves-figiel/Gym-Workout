@@ -2,13 +2,15 @@ import APIClient
 import SwiftUI
 import WorkoutEngine
 
-/// "Social" tab (#61, was Community until #707): your gym today, members' wins, plans, fuel and tips (#666), and your own posts.
+/// "Social" tab (#61, was Community until #707; simpler in #738): stories on top, then one feed of members' wins, plans, meals and tips.
 struct CommunityView: View {
     @Environment(AppModel.self) private var model
     @State private var scope: CommunityFeedScope = .members
-    @State private var tab: CommunityTab = Self.initialTab
     @State private var sheet: CommunitySheet?
     @State private var composing = false
+    @State private var hub = Self.initialHub
+    /// What the share sheet picked, opened once it has closed.
+    @State private var picked: CommunitySheet?
     private var community: Community { .shared }
 
     var body: some View {
@@ -36,78 +38,56 @@ struct CommunityView: View {
         // Member feed draws its own header (#151): system toolbar items stretched into a capsule over the title.
         .toolbar(community.profile == nil ? .automatic : .hidden, for: .navigationBar)
         .sheet(isPresented: $composing) { ShareWinView() }
+        .sheet(isPresented: $hub, onDismiss: openPicked) { ShareHubSheet { picked = $0 } }
         .sheet(item: $sheet) { s in
             switch s {
+            case .win: ShareWinView()
             case .plan: SharePlanSheet()
             case .meal: ShareMealSheet()
             case .tip: PostTipSheet()
-            case .fuelTip: PostTipSheet(topic: .fuel)
             }
         }
         .navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) }
     }
 
-    private static let feedScopes: [(CommunityFeedScope, String)] = [(.members, "Members"), (.following, "Following")]
-
-    /// Demo screenshots open on a tab: community-plans, community-fuel, community-mine.
-    private static var initialTab: CommunityTab {
+    /// Demo screenshot community-post opens the share sheet.
+    private static var initialHub: Bool {
         #if DEBUG
-        switch Demo.screen {
-        case "community-plans": return .plans
-        case "community-fuel": return .fuel
-        case "community-mine": return .mine
-        default: return .feed
-        }
+        Demo.screen == "community-post"
         #else
-        return .feed
+        false
         #endif
     }
 
-    /// Title, Share a win and the Me pill (#560): your community profile is in the Me sheet.
+    private func openPicked() {
+        guard let p = picked else { return }
+        picked = nil
+        if p == .win { composing = true } else { sheet = p }
+    }
+
+    /// Title, Coach, + (one share sheet: win, plan, meal, tip) and the Me pill (#560, your posts are in Your profile).
     private var header: some View {
         HStack(spacing: 12) {
             Text("Social").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
             Spacer(minLength: 4)
             CoachHeaderTile()
-            Button { composing = true } label: { HeaderTile(symbol: "plus", lime: true) }
+            Button { hub = true } label: { HeaderTile(symbol: "plus", lime: true) }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Share a win")
+                .accessibilityLabel("Share")
             MePill()
         }
         .padding(.top, 4)
     }
 
+    /// Stories, For you / Following / People, then one mixed feed (#738).
     private var feed: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 header
-                GymPulseCard(posts: community.posts(.members))
-                CommunityTiles()
-                QuickShareRow { sheet = $0 }
-                GradientSegments(selection: $tab, items: [
-                    SegmentItem(value: .feed, title: "Feed", symbol: "person.3.fill"),
-                    SegmentItem(value: .plans, title: "Plans", symbol: "calendar"),
-                    SegmentItem(value: .fuel, title: "Fuel", symbol: "fork.knife"),
-                    SegmentItem(value: .mine, title: "Mine", symbol: "person.fill"),
-                ])
-                .padding(.top, 4)
+                SocialStoriesRow(posts: community.posts(.members))
+                SocialChips(scope: $scope)
                 ErrorText(message: community.error)
-                switch tab {
-                case .feed:
-                    FilterChips(selection: $scope, items: Self.feedScopes)
-                    TrainedTodayRow(posts: community.posts(.members))
-                    posts(scope)
-                case .plans:
-                    PlansSection { sheet = .plan }
-                case .fuel:
-                    FuelSection { sheet = $0 }
-                case .mine:
-                    ForEach(SharedPlans.shared.mine) { p in
-                        NavigationLink { SharedPlanView(plan: p) } label: { SharedPlanCard(plan: p) }
-                            .buttonStyle(.plain)
-                    }
-                    posts(.mine)
-                }
+                posts(scope)
             }
             .padding(16)
         }
@@ -126,9 +106,17 @@ struct CommunityView: View {
     @ViewBuilder private func posts(_ scope: CommunityFeedScope) -> some View {
         let posts = community.posts(scope)
         if posts.isEmpty && !community.loading {
-            EmptyFeedCard(scope: scope) { composing = true }
+            EmptyFeedCard(scope: scope) { hub = true }
         }
-        ForEach(posts) { PostCard(post: $0) }
+        let items = scope == .members ? CommunityFeedScope.mixed(posts, plans: SharedPlans.shared.plans) : posts.map { SocialItem.post($0) }
+        ForEach(items) { item in
+            switch item {
+            case .post(let p): PostCard(post: p)
+            case .plan(let p):
+                NavigationLink { SharedPlanView(plan: p) } label: { SharedPlanCard(plan: p) }
+                    .buttonStyle(.plain)
+            }
+        }
         if community.hasMore(scope) {
             ProgressView().padding().task { await community.loadMore(scope, api: model.api) }
         }
@@ -144,7 +132,7 @@ private struct EmptyFeedCard: View {
             Image(systemName: symbol).font(.system(size: 30, weight: .bold))
             Text(title).font(Theme.display(24))
             Text(message).font(.subheadline.weight(.medium)).opacity(0.9)
-            Button("SHARE A WIN", action: share).buttonStyle(LimeButtonStyle()).padding(.top, 4)
+            Button("SHARE", action: share).buttonStyle(LimeButtonStyle()).padding(.top, 4)
         }
         .foregroundStyle(.white)
         .padding(18)
@@ -220,7 +208,11 @@ struct PostCard: View {
             if post.hidden {
                 Label("Hidden from members while reports are reviewed", systemImage: "eye.slash.fill").font(.caption.bold())
             }
-            ReactionBar(post: post)
+            HStack(spacing: 6) {
+                ReactionBar(post: post)
+                Spacer(minLength: 4)
+                PostAction(post: post)
+            }
             ErrorText(message: error)
         }
         .foregroundStyle(post.ink)
@@ -247,7 +239,6 @@ struct PostCard: View {
                 HStack(spacing: 8) {
                     AvatarView(url: model.api.resolve(post.author.avatarUrl), nickname: post.author.nickname, size: 28)
                     Text(post.author.nickname).font(Theme.label(13)).lineLimit(1).layoutPriority(1)
-                    RankTitleChip(level: post.author.level, compact: true)
                     PronounsChip(pronouns: post.author.pronouns)
                 }
             }
@@ -308,40 +299,53 @@ struct PostCard: View {
     }
 }
 
-/// Like + encouragement cheers: bold square tiles, an emoji burst when you cheer (#566). Own posts show counts only.
+/// Cheers, compact (#738): one 💪 tile with the total, long press for all six (with their counts); the emoji burst
+/// stays (#566). Own posts show the total only.
 struct ReactionBar: View {
     let post: CommunityPost
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var burst: CommunityReaction?
 
+    private var total: Int { CommunityReaction.allCases.reduce(0) { $0 + post.count($1) } }
+    /// Your cheer when you gave one, else 💪.
+    private var main: CommunityReaction { CommunityReaction.allCases.first { post.reacted($0) } ?? .strong }
+
     var body: some View {
-        HStack(spacing: 5) {
+        let on = post.reacted(main)
+        Menu {
             ForEach(CommunityReaction.allCases) { r in
-                let on = post.reacted(r)
-                Button {
-                    if !on, !reduceMotion { burst = r }
-                    Task { await Community.shared.toggle(r, on: post, api: model.api) }
-                } label: {
-                    HStack(spacing: 3) {
-                        Text(r.emoji).font(.system(size: 15))
-                        if post.count(r) > 0 { Text("\(post.count(r))").monospacedDigit().lineLimit(1) }
-                    }
-                    .font(Theme.label(12))
-                    .foregroundStyle(on ? Theme.ink : .white)
-                    .frame(maxWidth: .infinity, minHeight: 34)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? Theme.lime : .black.opacity(0.22)))
-                    .overlay(alignment: .top) {
-                        if burst == r { BurstView(emoji: r.emoji) { burst = nil } }
-                    }
+                Button { toggle(r) } label: {
+                    Text("\(r.emoji) \(r.title)\(post.count(r) > 0 ? " · \(post.count(r))" : "")\(post.reacted(r) ? " ✓" : "")")
                 }
-                .buttonStyle(.plain)
-                .disabled(post.mine)
-                .accessibilityLabel("\(r.title), \(post.count(r))")
-                .accessibilityAddTraits(on ? .isSelected : [])
             }
+        } label: {
+            HStack(spacing: 4) {
+                Text(main.emoji).font(.system(size: 15))
+                if total > 0 { Text("\(total)").monospacedDigit().lineLimit(1) }
+            }
+            .font(Theme.label(12))
+            .foregroundStyle(on ? Theme.ink : .white)
+            .padding(.horizontal, 12).frame(minHeight: 34)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? Theme.lime : .black.opacity(0.22)))
+            .overlay(alignment: .top) {
+                if let b = burst { BurstView(emoji: b.emoji) { burst = nil } }
+            }
+        } primaryAction: {
+            toggle(main)
         }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .disabled(post.mine)
+        .accessibilityLabel("Cheers, \(total)")
+        .accessibilityHint(post.mine ? "" : "Tap to cheer, hold for more")
+        .accessibilityAddTraits(on ? .isSelected : [])
         .sensoryFeedback(.impact(weight: .light), trigger: post.myReactions)
+    }
+
+    private func toggle(_ r: CommunityReaction) {
+        if !post.reacted(r), !reduceMotion { burst = r }
+        Task { await Community.shared.toggle(r, on: post, api: model.api) }
     }
 }
 

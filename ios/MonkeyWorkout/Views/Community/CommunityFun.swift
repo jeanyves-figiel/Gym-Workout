@@ -147,41 +147,8 @@ struct CoachQuipRow: View {
     }
 }
 
-/// Members who shared a workout today: square tiles in their workout colour, tap opens the member.
-struct TrainedTodayRow: View {
-    let posts: [CommunityPost]
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        let today = Self.today(posts)
-        if !today.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("TRAINED TODAY").font(Theme.label(11)).tracking(1.5).foregroundStyle(Theme.muted)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(today) { p in
-                            NavigationLink(value: p.author) { tile(p) }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("\(p.author.nickname) trained today: \(p.payload.title)")
-                        }
-                    }
-                }
-                .scrollClipDisabled()
-            }
-        }
-    }
-
-    private func tile(_ p: CommunityPost) -> some View {
-        VStack(spacing: 4) {
-            Text(p.emoji).font(.system(size: 26))
-            Text(p.mine ? "You" : p.author.nickname).font(Theme.label(11)).lineLimit(1).minimumScaleFactor(0.7)
-        }
-        .foregroundStyle(p.ink)
-        .padding(6)
-        .frame(width: 68, height: 72)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(p.gradient))
-    }
-
+/// Members who shared a workout today: the story row on Social (#738).
+enum TrainedToday {
     /// Newest post of each member made today (workouts, sports and climbs), newest first.
     static func today(_ posts: [CommunityPost], now: Date = Date(), calendar: Calendar = .current) -> [CommunityPost] {
         var seen = Set<String>()
