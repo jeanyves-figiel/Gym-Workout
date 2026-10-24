@@ -27,6 +27,8 @@ public struct FoodScanResult: Codable, Sendable {
     public var found: [FoodSeen]?
     /// Plate scan (#723): the dish, "" when the plate is separate foods.
     public var dish: String?
+    /// Magic Snap (#733, `mode: auto`): "meal" (logged) or "stock" (What I have).
+    public var kind: String?
     public var remainingToday: Int
 }
 
@@ -34,8 +36,13 @@ extension APIClient {
     /// Fuel (#496): foods seen on one JPEG photo of a fridge, cupboard, shopping or receipt; with `plate` (#723) a cooked
     /// meal, answered with the dish and grams per food. Same errors as `gymScan`.
     public func foodScan(jpeg: Data, catalog: [GymScanItem], plate: Bool = false) async throws -> FoodScanResult {
+        try await foodScan(jpeg: jpeg, catalog: catalog, mode: plate ? "plate" : "fridge")
+    }
+
+    /// `mode` "fridge", "plate" or "auto" (#733, Magic Snap: Monkey says which, in `kind`, and answers like a plate).
+    public func foodScan(jpeg: Data, catalog: [GymScanItem], mode: String) async throws -> FoodScanResult {
         struct Body: Encodable { var photo: String; var catalog: [GymScanItem]; var mode: String }
-        let body = Body(photo: jpeg.base64EncodedString(), catalog: catalog, mode: plate ? "plate" : "fridge")
+        let body = Body(photo: jpeg.base64EncodedString(), catalog: catalog, mode: mode)
         return try await scanRequest("/v1/me/food-scan", body, as: FoodScanResult.self)
     }
 }

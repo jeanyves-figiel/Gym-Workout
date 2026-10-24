@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import type { FoodScanModel, FoodSeen, PlateScanModel, PlateSeen } from '../coach/foodScan.ts';
+import type { FoodScanModel, FoodSeen, PlateScanModel, PlateSeen, SnapKind, SnapScanModel } from '../coach/foodScan.ts';
 import type { DB } from '../db.ts';
 import { ApiError } from '../errors.ts';
 import { inFlight, refundAiCall, reserveAiCall, trustedAccount } from '../quota.ts';
@@ -15,13 +15,15 @@ const body = z.object({
     .min(1)
     .max(400),
   /** "plate" (#723): a cooked meal, answered with the dish and grams per food. */
-  mode: z.enum(['fridge', 'plate']).default('fridge'),
+  /** "auto" (#733, Magic Snap): Monkey decides; answered like "plate" plus `kind` meal | stock. */
+  mode: z.enum(['fridge', 'plate', 'auto']).default('fridge'),
 });
 
 /**
  * Food scan (#496): POST /v1/me/food-scan with one photo (fridge, cupboard, shopping, receipt); answers the food ids
  * seen on it (`items`, older apps) and every food or drink seen, known or not, with sure/unsure (`found`, #573). With `mode: "plate"`
- * (#723) the photo is a meal: `dish` plus each food with its grams and caffeine. Pro once subscriptions are enforced; one
+ * (#723) the photo is a meal: `dish` plus each food with its grams and caffeine. With `mode: "auto"` (#733) the model
+ * first says whether it is a meal or food at home (`kind`) and answers like a plate. Pro once subscriptions are enforced; one
  * daily cap per member (both modes) bounds the spend.
  */
 export const foodScanRoutes = (
@@ -33,12 +35,13 @@ export const foodScanRoutes = (
   hasAccess: (userId: string) => boolean,
   globalLimit: number,
   plate?: PlateScanModel,
+  snap?: SnapScanModel,
 ) => {
   const busy = inFlight(2);
 
   r.post('/me/food-scan', { bodyLimit: 2_200_000 }, async (req) => {
     const b = body.parse(req.body);
-    const model = b.mode === 'plate' ? plate : scan;
+    const model = b.mode === 'plate' ? plate : b.mode === 'auto' ? snap : scan;
     if (!model) throw new ApiError(503, 'scan_unavailable', 'Food scan is not available right now.');
     if (!hasAccess(req.userId!)) throw new ApiError(402, 'pro_required', 'Food scan is part of MonkeyWorkout Pro.');
     if (!trustedAccount(db, req.userId!, now()))
@@ -49,6 +52,7 @@ export const foodScanRoutes = (
     if (!busy.enter(req.userId!)) throw new ApiError(429, 'busy', 'Still reading your last photo.');
     let found: FoodSeen[];
     let dish: string | undefined;
+    let kind: SnapKind | undefined;
     let count: number | undefined;
     try {
       const slot = reserveAiCall(db, 'food_scan_usage', req.userId!, day, dailyLimit, globalLimit);
@@ -56,7 +60,12 @@ export const foodScanRoutes = (
       if (slot === 'all') throw new ApiError(429, 'daily_limit', 'Scanning is very busy today. Try again tomorrow!');
       count = slot;
       try {
-        if (b.mode === 'plate') {
+        if (b.mode === 'auto') {
+          const seen = await snap!(jpeg, b.catalog);
+          found = seen.items;
+          dish = seen.dish;
+          kind = seen.kind;
+        } else if (b.mode === 'plate') {
           const seen: PlateSeen = await plate!(jpeg, b.catalog);
           found = seen.items;
           dish = seen.dish;
@@ -72,6 +81,6 @@ export const foodScanRoutes = (
       busy.leave(req.userId!);
     }
     const ids = new Set(found.flatMap((f) => (f.id ? [f.id] : [])));
-    return { ...(dish !== undefined ? { dish } : {}), items: b.catalog.map((c) => c.id).filter((id) => ids.has(id)), found, remainingToday: Math.max(0, dailyLimit - count) };
+    return { ...(kind ? { kind } : {}), ...(dish !== undefined ? { dish } : {}), items: b.catalog.map((c) => c.id).filter((id) => ids.has(id)), found, remainingToday: Math.max(0, dailyLimit - count) };
   });
 };

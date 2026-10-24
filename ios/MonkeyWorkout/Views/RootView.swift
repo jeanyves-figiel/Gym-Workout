@@ -486,7 +486,9 @@ private struct DemoScreen: View {
         case "own-gym": OwnGymSheet(name: "Kraftwerk Garage Gym") { _ in }
         case "move": MoveSessionSheet(sessionId: second)
         // Fuel (#496).
-        case "fuel", "fuel-timeline", "fuel-portions", "fuel-setup-card": NavigationStack { FuelView() }
+        case "fuel", "fuel-setup-card": NavigationStack { FuelView() }
+        // Fuel home redesign (#733): the Log sheet with Magic Snap on top, and the Magic Snap camera.
+        case "fuel-log": JustAteSheet(plan: model.fuelPlan(on: Date()), day: Date())
         case "fuel-recipes": NavigationStack { RecipeBrowserView().navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }.fuelDestinations() }
         case "recipe": NavigationStack { RecipeDetailView(recipe: RecipeBook.catalog[0]) }
         case "cook-mode": CookModeView(recipe: RecipeBook.catalog[0], servings: RecipeBook.catalog[0].servings)
@@ -506,6 +508,10 @@ private struct DemoScreen: View {
         case "fuel-snap-plate":
             if let slot = model.fuelPlan(on: Date()).slots.first(where: { $0.kind == .lunch }) ?? model.fuelPlan(on: Date()).slots.first {
                 PlateScanSheet(plan: model.fuelPlan(on: Date()), day: Date(), slot: slot)
+            }
+        case "fuel-snap":
+            if let slot = model.fuelPlan(on: Date()).slots.first(where: { $0.kind == .lunch }) ?? model.fuelPlan(on: Date()).slots.first {
+                MagicSnapSheet(plan: model.fuelPlan(on: Date()), day: Date(), slot: slot)
             }
         case "fuel-water": WaterSheet(plan: model.fuelPlan(on: Date()), glasses: FuelStore.shared.log(Date()).glasses, day: Date())
         case "fuel-setup": NavigationStack { FuelSetupView(sheet: true) }
