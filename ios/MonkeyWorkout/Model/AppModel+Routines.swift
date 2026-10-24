@@ -10,6 +10,15 @@ extension AppModel {
         return Set(state.history.filter { Routine.of(sessionId: $0.sessionId) == routine }.map { cal.startOfDay(for: $0.startedAt) })
     }
 
+    /// Routines the member has finished at least once, most recent first (#696: they keep their Daily row).
+    var usedRoutines: [Routine] {
+        var seen: [Routine] = []
+        for h in state.history.sorted(by: { $0.startedAt > $1.startedAt }) {
+            if let r = Routine.of(sessionId: h.sessionId), !seen.contains(r) { seen.append(r) }
+        }
+        return seen
+    }
+
     func routineDoneToday(_ routine: Routine, now: Date = Date()) -> Bool {
         routineDays(routine).contains(planCalendar.startOfDay(for: now))
     }
@@ -26,8 +35,10 @@ extension AppModel {
 
 /// Stored strings behind `@AppStorage` (views re-render when they change).
 enum RoutinePrefs {
-    /// Comma-separated routines on Train; empty = defaults for the member, "off" = row hidden.
+    /// Comma-separated routines on Train; empty = not picked yet (routines already done, else none), "off" = row hidden.
     static let tilesKey = "dailyRoutines"
+    /// "dismissed" once the member closes the Add a daily routine suggestion.
+    static let suggestionKey = "dailyRoutineSuggestion"
     /// "stretch:10,hangs:15".
     static let lengthsKey = "dailyRoutineLengths"
     /// Where each routine happens (#700, design C): "hangs:home,stretch:gym"; missing = the routine's default.
@@ -47,10 +58,21 @@ enum RoutinePrefs {
         return parts.joined(separator: ",")
     }
 
-    static func tiles(_ raw: String, climber: Bool) -> [Routine] {
+    /// Daily is the member's choice (#696): nothing until picked, except routines they already did.
+    static func tiles(_ raw: String, used: [Routine] = []) -> [Routine] {
         if raw == "off" { return [] }
         let picked = raw.split(separator: ",").compactMap { Routine(rawValue: String($0)) }
-        return picked.isEmpty ? Routine.dailyDefaults(climber: climber) : Array(picked.prefix(2))
+        return Array((picked.isEmpty ? used : picked).prefix(2))
+    }
+
+    /// Show the Add a daily routine suggestion: nothing on Train and not dismissed or hidden.
+    static func suggests(_ raw: String, dismissed: String, used: [Routine] = []) -> Bool {
+        raw != "off" && dismissed != "dismissed" && tiles(raw, used: used).isEmpty
+    }
+
+    /// Exactly `routines` on Train (up to two); none = row hidden.
+    static func choosing(_ routines: [Routine]) -> String {
+        routines.isEmpty ? "off" : routines.prefix(2).map(\.rawValue).joined(separator: ",")
     }
 
     static func length(_ raw: String, _ r: Routine) -> Int {
@@ -68,8 +90,8 @@ enum RoutinePrefs {
     }
 
     /// Puts `r` on Train in place of `replacing` (or first, pushing the second off).
-    static func pinning(_ raw: String, _ r: Routine, replacing: Routine? = nil, climber: Bool) -> String {
-        var t = tiles(raw, climber: climber)
+    static func pinning(_ raw: String, _ r: Routine, replacing: Routine? = nil, used: [Routine] = []) -> String {
+        var t = tiles(raw == "off" ? "" : raw, used: used)
         if t.contains(r) { return t.map(\.rawValue).joined(separator: ",") }
         if let replacing, let i = t.firstIndex(of: replacing) { t[i] = r } else { t.insert(r, at: 0) }
         return t.prefix(2).map(\.rawValue).joined(separator: ",")
