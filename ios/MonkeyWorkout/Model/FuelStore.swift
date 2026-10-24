@@ -190,6 +190,15 @@ final class FuelStore {
         save(s)
     }
 
+    /// Keeps foods a plate scan found that are not on the list (#723), so their logged amounts still add up.
+    func keep(_ foods: [Food]) {
+        let new = foods.filter { f in FoodBook.food(f.id) == nil && !saved.foods.contains { $0.id == f.id } }
+        guard !new.isEmpty else { return }
+        var s = saved
+        s.foods += new
+        save(s)
+    }
+
     func deleteUsual(_ id: String) {
         var s = saved
         s.usuals?.removeAll { $0.id == id }

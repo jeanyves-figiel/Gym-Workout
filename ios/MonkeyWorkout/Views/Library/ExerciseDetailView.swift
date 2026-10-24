@@ -60,6 +60,7 @@ struct ExerciseDetailView: View {
         }
         .readableWidth()
         .background(Theme.bg.ignoresSafeArea())
+        .solidNavBar()
         .coachFocus(coachFocus)
         .navigationTitle("Exercise")
         .navigationBarTitleDisplayMode(.inline)

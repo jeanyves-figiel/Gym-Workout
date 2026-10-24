@@ -63,8 +63,7 @@ struct ExerciseJumpBar: View {
                 withAnimation(.snappy) { proxy.scrollTo("chip-\(p.rawValue)", anchor: .center) }
             }
         }
-        .background(Theme.bg.opacity(0.94))
-        .overlay(alignment: .bottom) { Rectangle().fill(Theme.stroke).frame(height: 1) }
+        .solidPinnedHeader()
     }
 
     private func chip(_ p: ExercisePart, on: Bool) -> some View {

@@ -572,4 +572,15 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         MainActor.assumeIsolated { OrientationLock.mask }
     }
+
+    /// AirPlay / HDMI screen: its own workout layout instead of the mirrored phone (#724). Everything else keeps
+    /// SwiftUI's own scene.
+    func application(_ application: UIApplication, configurationForConnecting connectingSceneSession: UISceneSession,
+                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        let config = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
+        if connectingSceneSession.role == .windowExternalDisplayNonInteractive {
+            config.delegateClass = TVSceneDelegate.self
+        }
+        return config
+    }
 }

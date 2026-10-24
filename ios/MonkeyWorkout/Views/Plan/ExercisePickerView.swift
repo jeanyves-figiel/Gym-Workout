@@ -133,6 +133,7 @@ struct ExercisePickerView: View {
             .animation(.snappy, value: selected.isEmpty)
             .sensoryFeedback(.selection, trigger: selected)
             .background(Theme.bg.ignoresSafeArea())
+            .solidNavBar()
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Name, muscle or equipment")
             // Title in the content (#539), not under the toolbar's glass buttons.
             .titleInContent("Add exercises")

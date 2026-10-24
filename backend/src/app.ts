@@ -19,7 +19,7 @@ import { communityPublicRoutes, communityRoutes } from './routes/community.ts';
 import { liveRoutes } from './routes/live.ts';
 import { type CoachModel, claudeCoach } from './coach/chat.ts';
 import { coachChatRoutes } from './routes/coachChat.ts';
-import { type FoodScanModel, claudeFoodScan } from './coach/foodScan.ts';
+import { type FoodScanModel, type PlateScanModel, claudeFoodScan, claudePlateScan } from './coach/foodScan.ts';
 import { type GymScanModel, claudeGymScan } from './coach/gymScan.ts';
 import { foodScanRoutes } from './routes/foodScan.ts';
 import { gymScanRoutes } from './routes/gymScan.ts';
@@ -78,6 +78,7 @@ export interface AppDeps {
   gymScan?: GymScanModel;
   /** Food scan photo model (#496); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
   foodScan?: FoodScanModel;
+  plateScan?: PlateScanModel;
   /** Studio coach voices (#395); defaults to Polly when credentials are configured. Injectable for tests. */
   synth?: Synthesize;
   /** Sees every route as it is registered (`src/docsReference.ts`, #586). */
@@ -320,7 +321,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       const gymScan = deps.gymScan ?? (deps.config.coachChat.apiKey ? claudeGymScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
       gymScanRoutes(r, deps.db, now, gymScan, 30, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
       const foodScan = deps.foodScan ?? (deps.config.coachChat.apiKey ? claudeFoodScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
-      foodScanRoutes(r, deps.db, now, foodScan, 20, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
+      const plateScan = deps.plateScan ?? (deps.config.coachChat.apiKey ? claudePlateScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
+      foodScanRoutes(r, deps.db, now, foodScan, 20, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit, plateScan);
       const voices = deps.config.coachVoices;
       forgetVoices = coachVoiceRoutes(r, deps.synth ?? (voices.polly ? pollySynthesizer(voices.polly, outbound, now) : undefined), voices.cacheDir, {
         warm: deps.config.env === 'production',

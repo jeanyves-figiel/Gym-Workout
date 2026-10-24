@@ -348,6 +348,7 @@ struct WorkoutLibraryView: View {
         .background(Theme.bg.ignoresSafeArea())
         // Title in the content (#539), not under the toolbar's glass buttons.
         .titleInContent("Workout library")
+        .solidNavBar()
         .searchable(text: $query, prompt: "Name, muscle or goal")
         .onSubmit(of: .search) { Task { memberState = await model.loadSharedLibrary(query: query) } }
         .task { memberState = await model.loadSharedLibrary() }

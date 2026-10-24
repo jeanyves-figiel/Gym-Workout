@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
-import { cleanFoodScan } from '../src/coach/foodScan.ts';
+import { cleanFoodScan, cleanPlateScan } from '../src/coach/foodScan.ts';
 import { loadConfig } from '../src/config.ts';
 import { type DB, openDb } from '../src/db.ts';
 import { ConsoleMailer } from '../src/mailer.ts';
@@ -33,6 +33,20 @@ beforeEach(() => {
         ],
         catalog,
       ),
+    plateScan: async (_jpeg, catalog) =>
+      cleanPlateScan(
+        {
+          dish: '  Chicken  rice bowl ',
+          items: [
+            { id: 'chicken-breast', name: 'Chicken', group: 'protein', sure: true, grams: 140, caffeine: 0, per100: { protein: 31, carbs: 0, fat: 3.6, kcal: 165 } },
+            { id: 'chicken-breast', name: 'Chicken', group: 'protein', sure: true, grams: 20, caffeine: 0 },
+            { id: 'rice', name: 'Rice, cooked', group: 'grain', sure: true, grams: 180, caffeine: 0, per100: { protein: 2.7, carbs: 28, fat: 0.3, kcal: 130 } },
+            { id: '', name: 'Teriyaki sauce', group: 'sauce', sure: false, grams: 9000, caffeine: 0, per100: { protein: 1, carbs: 40, fat: 0, kcal: 170 } },
+            { id: '', name: 'Coffee', group: 'drink', sure: true, grams: 200, caffeine: 40, per100: { protein: 0.1, carbs: 0, fat: 0, kcal: 1 } },
+          ],
+        },
+        catalog,
+      ),
   });
 });
 afterEach(() => app.close());
@@ -49,6 +63,7 @@ const catalog = [
   { id: 'rice', label: 'Rice (dry)' },
   { id: 'egg', label: 'Eggs' },
   { id: 'milk', label: 'Milk' },
+  { id: 'chicken-breast', label: 'Chicken breast' },
 ];
 const scan = (token: string, photo = jpeg) =>
   app.inject({ method: 'POST', url: '/v1/me/food-scan', payload: { photo, catalog }, headers: { authorization: `Bearer ${token}` } });
@@ -102,6 +117,29 @@ describe('Food scan (#496)', () => {
       { name: 'Appenzeller Bier', group: 'drink', sure: true, alcohol: true, per100: { protein: 0.5, carbs: 3.4, fat: 0, kcal: 42 } },
       { id: 'rice', name: 'Rice (dry)', group: 'grain', sure: false, alcohol: false, per100: { protein: 7, carbs: 78, fat: 1, kcal: 350 } },
     ]);
+  });
+
+  it('reads a cooked plate: dish, grams per food, caffeine, same daily count (#723)', async () => {
+    const a = await signUp('a@example.com');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/me/food-scan',
+      payload: { photo: jpeg, catalog, mode: 'plate' },
+      headers: { authorization: `Bearer ${a}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.dish).toBe('Chicken rice bowl');
+    expect(body.items).toEqual(['rice', 'chicken-breast']);
+    expect(body.remainingToday).toBe(19);
+    expect(body.found.map((f: { name: string; grams: number; caffeine: number }) => [f.name, f.grams, f.caffeine])).toEqual([
+      ['Chicken breast', 160, 0],
+      ['Rice (dry)', 180, 0],
+      ['Teriyaki sauce', 2000, 0],
+      ['Coffee', 200, 40],
+    ]);
+    expect((await scan(a)).json()).not.toHaveProperty('dish');
+    expect((db.prepare('SELECT count FROM food_scan_usage').get() as { count: number }).count).toBe(2);
   });
 
   it('needs a signed-in member', async () => {
