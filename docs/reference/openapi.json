@@ -416,7 +416,7 @@
         "tags": [
           "Auth"
         ],
-        "summary": "{refreshToken} → new {tokens} (single-use rotation)",
+        "summary": "{refreshToken} → a new token pair {accessToken, refreshToken, ...} (not wrapped in tokens; single-use rotation)",
         "description": "Errors / limits: 401 invalid_refresh_token; 60/min",
         "security": [],
         "responses": {
@@ -481,7 +481,7 @@
         "tags": [
           "Auth"
         ],
-        "summary": "{email, code, newPassword} → 204; signs out every device",
+        "summary": "{email, code, newPassword} → 204; signs out every device (access tokens too)",
         "description": "Errors / limits: 400 invalid_code, weak_password, breached_password; auth rate limit",
         "security": [],
         "responses": {
@@ -549,7 +549,7 @@
         "tags": [
           "Account"
         ],
-        "summary": "{confirm: \"DELETE\", password?} → 204. Permanent: cascades every row, revokes Sign in with Apple",
+        "summary": "{confirm: \"DELETE\", password?} → 204. Permanent: cascades every row, rate-limit records and call-name recordings, revokes Sign in with Apple; spends the grant",
         "description": "Errors / limits: 403 reauth_required",
         "security": [
           {
@@ -576,7 +576,7 @@
         "tags": [
           "Account"
         ],
-        "summary": "{currentPassword?, newPassword} → {tokens}; other devices signed out, email notice",
+        "summary": "{currentPassword?, newPassword} → {tokens}; every other session and access token ended, email notice; spends the grant",
         "description": "Errors / limits: 403 reauth_required; 400 weak_password, breached_password",
         "security": [
           {
@@ -603,7 +603,7 @@
         "tags": [
           "Account"
         ],
-        "summary": "{newEmail, password?} → 202; code sent to the new address. Enumeration-safe",
+        "summary": "{newEmail, password?} → 202; code sent to the new address. Enumeration-safe; spends the grant",
         "description": "Errors / limits: 400 same_email; auth rate limit",
         "security": [
           {
@@ -656,7 +656,7 @@
         "tags": [
           "Account"
         ],
-        "summary": "→ {sessions} signed-in devices (name, created, last used)",
+        "summary": "→ {sessions: [{device, createdAt, expiresAt}]} signed-in devices, newest first",
         "security": [
           {
             "bearer": []
@@ -681,7 +681,7 @@
         "tags": [
           "Account"
         ],
-        "summary": "→ 204, revokes every refresh token",
+        "summary": "→ 204, revokes every refresh token, access token and open re-auth grant",
         "security": [
           {
             "bearer": []
@@ -706,7 +706,7 @@
         "tags": [
           "Account"
         ],
-        "summary": "Full JSON export of the member's data (nFADP / GDPR), incl. machine-note photos",
+        "summary": "Full JSON export of the member's data (nFADP / GDPR), streamed: synced records in time order, machine-note photos, community profile (level, pronouns, photo), reports filed, library saves, plan copies, Garmin watches and inbox, passkeys (id, name, dates), 2-step on/off, watch key set or not",
         "description": "Errors / limits: 429 rate_limited (3 per hour)",
         "security": [
           {
@@ -1140,6 +1140,7 @@
           "Sync: profile, logs, workouts"
         ],
         "summary": "{data} → {updatedAt} (last write wins)",
+        "description": "Errors / limits: 413 too_large (200 KB)",
         "security": [
           {
             "bearer": []
@@ -1188,7 +1189,7 @@
           "Sync: profile, logs, workouts"
         ],
         "summary": "{logs[≤500]} → {saved, serverTime, conflicts?}",
-        "description": "Errors / limits: 413 quota_exceeded",
+        "description": "Errors / limits: 409 quota_exceeded",
         "security": [
           {
             "bearer": []
@@ -1272,7 +1273,7 @@
           "Sync: profile, logs, workouts"
         ],
         "summary": "{workouts[≤100]} → {saved, serverTime, conflicts?}",
-        "description": "Errors / limits: 413 quota_exceeded",
+        "description": "Errors / limits: 409 quota_exceeded; 413 too_large",
         "security": [
           {
             "bearer": []
@@ -1356,7 +1357,7 @@
           "Sync: member content"
         ],
         "summary": "{workouts[≤100]} → {saved, serverTime, conflicts?}; visibility members/public shares it to the library",
-        "description": "Errors / limits: 403 community_profile_required to share; 413 quota_exceeded",
+        "description": "Errors / limits: 403 community_profile_required to share; 409 quota_exceeded; 413 too_large",
         "security": [
           {
             "bearer": []
@@ -1439,8 +1440,8 @@
         "tags": [
           "Sync: member content"
         ],
-        "summary": "{exercises[≤20]} (photo base64 inside) → {saved, serverTime, conflicts?}",
-        "description": "Errors / limits: per-member cap",
+        "summary": "{exercises[≤20]} (photo base64 JPEG inside, metadata stripped) → {saved, serverTime, conflicts?}",
+        "description": "Errors / limits: 400 invalid_image; 409 quota_exceeded; 413 too_large",
         "security": [
           {
             "bearer": []
@@ -1465,7 +1466,7 @@
         "tags": [
           "Sync: member content"
         ],
-        "summary": "→ {attempts, deleted?, serverTime} (exerciseId, date, kind 1RM|repMax|maxReps, kg, reps, success)",
+        "summary": "→ {attempts, deleted?, serverTime} (exerciseId, date, kind oneRepMax|repMax|maxReps, kg, reps, success)",
         "security": [
           {
             "bearer": []
@@ -1489,7 +1490,7 @@
           "Sync: member content"
         ],
         "summary": "{attempts[≤200]} → {saved, serverTime, conflicts?}",
-        "description": "Errors / limits: 413 quota_exceeded",
+        "description": "Errors / limits: 409 quota_exceeded; 413 too_large",
         "security": [
           {
             "bearer": []
@@ -1573,7 +1574,7 @@
           "Sync: member content"
         ],
         "summary": "{measurements[≤200]} → {saved, serverTime, conflicts?}",
-        "description": "Errors / limits: 413 quota_exceeded",
+        "description": "Errors / limits: 409 quota_exceeded; 413 too_large",
         "security": [
           {
             "bearer": []
@@ -1657,7 +1658,7 @@
           "Sync: member content"
         ],
         "summary": "{climbs[≤200]} → {saved, serverTime, conflicts?}",
-        "description": "Errors / limits: 413 quota_exceeded",
+        "description": "Errors / limits: 409 quota_exceeded; 413 too_large",
         "security": [
           {
             "bearer": []
@@ -1741,7 +1742,7 @@
           "Sync: member content"
         ],
         "summary": "{sports[≤200]} → {saved, serverTime, conflicts?}",
-        "description": "Errors / limits: 413 quota_exceeded",
+        "description": "Errors / limits: 409 quota_exceeded; 413 too_large",
         "security": [
           {
             "bearer": []
@@ -1876,7 +1877,7 @@
           "Sync: member content"
         ],
         "summary": "{notes[≤200]} → {saved, serverTime, conflicts?}",
-        "description": "Errors / limits: 413 quota_exceeded",
+        "description": "Errors / limits: 409 quota_exceeded; 413 too_large",
         "security": [
           {
             "bearer": []
@@ -1937,7 +1938,7 @@
           "Sync: member content"
         ],
         "summary": "Raw image/jpeg body, EXIF stripped → {photoId, updatedAt}",
-        "description": "Errors / limits: 404 not_found (sync the note first); 415 unsupported_media_type; 400 invalid_image",
+        "description": "Errors / limits: 404 not_found (sync the note first); 415 unsupported_media_type; 400 invalid_image; 409 quota_exceeded",
         "parameters": [
           {
             "name": "id",
@@ -2126,7 +2127,7 @@
         "tags": [
           "Push and notifications"
         ],
-        "summary": "{prefs} → {prefs}",
+        "summary": "{prefs} (any subset; what it leaves out keeps its saved value) → {prefs}",
         "security": [
           {
             "bearer": []
@@ -2151,7 +2152,7 @@
         "tags": [
           "Push and notifications"
         ],
-        "summary": "{achievements[≤30]: {id, type, text}} → {announced}; each new id pushed once to followers",
+        "summary": "{achievements[≤30]: {id, type, text}} → {announced}; each new id pushed once to followers, at most 20 a day per member",
         "description": "Errors / limits: 30/min",
         "security": [
           {
@@ -2348,7 +2349,7 @@
         "tags": [
           "Community"
         ],
-        "summary": "Leave: profile, photo, posts, cheers removed → 204",
+        "summary": "Leave: profile, photo, posts, cheers and the reports you filed removed → 204",
         "security": [
           {
             "bearer": []
@@ -2374,7 +2375,7 @@
           "Community"
         ],
         "summary": "{level 1–999} → {level}",
-        "description": "Errors / limits: 403 community_profile_required",
+        "description": "Errors / limits: 404 not_member",
         "security": [
           {
             "bearer": []
@@ -2400,7 +2401,7 @@
           "Community"
         ],
         "summary": "{pronouns: string | null} (≤ 24 chars) → {pronouns}",
-        "description": "Errors / limits: 403 community_profile_required",
+        "description": "Errors / limits: 404 not_member",
         "security": [
           {
             "bearer": []
@@ -2532,7 +2533,7 @@
         "tags": [
           "Community"
         ],
-        "summary": "Share a win: {kind workout|badge|record|climb|note, refId?, payload, caption?, visibility?} (refId dedupes) → post",
+        "summary": "Share a win: {id (client UUID), kind workout|badge|record|climb|note, refId?, payload, caption?, visibility?} (refId dedupes; an update keeps the caption and visibility it leaves out) → post",
         "description": "Errors / limits: 400 objectionable_content; 429 daily_limit",
         "security": [
           {
@@ -2592,8 +2593,8 @@
         "tags": [
           "Community"
         ],
-        "summary": "Own post → 204",
-        "description": "Errors / limits: 404 not_found",
+        "summary": "Own post → 204 (also when already gone)",
+        "description": "Errors / limits: 404 not_found (someone else's post)",
         "parameters": [
           {
             "name": "id",
@@ -2671,6 +2672,7 @@
           "Community"
         ],
         "summary": "Remove a cheer → {post}",
+        "description": "Errors / limits: 404 not_found (post you can't see)",
         "parameters": [
           {
             "name": "id",
@@ -2739,7 +2741,7 @@
           "Community"
         ],
         "summary": "→ {member, posts, blockedByMe, followedByMe}",
-        "description": "Errors / limits: 404 not_member",
+        "description": "Errors / limits: 404 not_found (not a member, blocked, or hidden by reports)",
         "parameters": [
           {
             "name": "userId",
@@ -2774,7 +2776,7 @@
         "tags": [
           "Community"
         ],
-        "summary": "→ members you follow",
+        "summary": "Members you follow, by nickname: ?limit=1–500 (default 500)&after=nickname → {following, nextAfter}",
         "security": [
           {
             "bearer": []
@@ -2800,7 +2802,7 @@
           "Community"
         ],
         "summary": "Follow → 204",
-        "description": "Errors / limits: 400 own_content; 404 not_member",
+        "description": "Errors / limits: 400 own_content; 404 not_found",
         "parameters": [
           {
             "name": "userId",
@@ -3216,8 +3218,8 @@
         "tags": [
           "Community"
         ],
-        "summary": "Weekly challenge room: ?week=YYYY-Www (default this ISO week) → {week, joined, training, leaderboard[≤20]: {rank, userId, nickname, avatarUrl, level, rounds, reps, live, me}, me}; blocks and hidden members left out",
-        "description": "Errors / limits: 403 community_profile_required",
+        "summary": "Weekly challenge room: ?week=YYYY-Www (default this ISO week) → {week, joined, training, leaderboard[≤20]: {rank, userId, nickname, avatarUrl, level, rounds, reps, live, me}, me}; blocks and hidden members left out of ranks and counts",
+        "description": "Errors / limits: 400 invalid_request (week that doesn't exist); 403 community_profile_required",
         "security": [
           {
             "bearer": []
@@ -3268,7 +3270,7 @@
         "tags": [
           "Community"
         ],
-        "summary": "Shared plans (#666), newest first: ?q= name, ?level=beginner|intermediate|advanced, ?mine=1 your own (private too), ?before=&beforeId=, ?limit= → {programs: [{id, name, about, level, goal, weeks, sessionsPerWeek, programme, author, mine, visibility, copies, copiedByMe, hidden}], nextBefore, nextBeforeId}; blocked and auto-hidden left out",
+        "summary": "Shared plans (#666), newest first: ?q= name, ?level=beginner|intermediate|advanced, ?mine=1 your own (private too), ?before=&beforeId= (creation time), ?limit= → {programs: [{id, name, about, level, goal, weeks, sessionsPerWeek, programme, author, mine, visibility, copies, copiedByMe, hidden}], nextBefore, nextBeforeId}; blocked and auto-hidden left out",
         "description": "Errors / limits: 403 community_profile_required",
         "security": [
           {
@@ -3362,7 +3364,8 @@
         "tags": [
           "Community"
         ],
-        "summary": "Remove your plan → 204",
+        "summary": "Remove your plan → 204 (also when already gone)",
+        "description": "Errors / limits: 404 not_found (someone else's plan)",
         "parameters": [
           {
             "name": "id",
@@ -3635,8 +3638,8 @@
         "tags": [
           "Gyms"
         ],
-        "summary": "Your equipment list for a gym {gym{id, name, lat?, lon?}, equipment[], unsure[]} → {saved} (replaces yours)",
-        "description": "Errors / limits: 413 quota_exceeded",
+        "summary": "Your equipment list for a gym {gym{id, name, lat?, lon?}, equipment[], unsure[]} (latitude/longitude also accepted) → {saved} (replaces yours, also at the same place under another id)",
+        "description": "Errors / limits: 409 quota_exceeded",
         "security": [
           {
             "bearer": []
@@ -3684,7 +3687,7 @@
         "tags": [
           "Gyms"
         ],
-        "summary": "?id=&name= → what members report for this place (and its chain): {members, votes, equipment}",
+        "summary": "?id=&name=&lat=&lng= → what members report, one vote per member: {place: {members, votes, equipment} | null, chain: {members, votes, equipment, name, gyms} | null}",
         "security": [
           {
             "bearer": []
@@ -3709,8 +3712,8 @@
         "tags": [
           "Gyms"
         ],
-        "summary": "Your floor plan {gym, layout{zones[], door?, sizeM?}} → {saved}",
-        "description": "Errors / limits: 413 quota_exceeded",
+        "summary": "Your floor plan {gym, layout{zones[], door?, sizeM?}} → {saved} (one per place)",
+        "description": "Errors / limits: 400 objectionable_content (zone name); 409 quota_exceeded",
         "security": [
           {
             "bearer": []
@@ -3857,7 +3860,7 @@
         "tags": [
           "Coach (AI and voices)"
         ],
-        "summary": "{photo (base64 JPEG ≤ 1.5 MB), catalog[≤400]{id, label}} → {items, remainingToday} equipment seen",
+        "summary": "{photo (base64 JPEG ≤ 1.5 MB), catalog[≤150]{id, label}} → {items, remainingToday} equipment seen",
         "description": "Errors / limits: 402; 403 verification_required; 429; 502 scan_failed; 503 scan_unavailable",
         "security": [
           {
@@ -3909,8 +3912,7 @@
         "tags": [
           "Coach (AI and voices)"
         ],
-        "summary": "→ voices and every line {id, text, hash}",
-        "description": "Errors / limits: 503 voices_unavailable",
+        "summary": "→ {available, voices, lines[{id, text, hash}]}; available: false (200) when voices aren't configured",
         "security": [
           {
             "bearer": []
@@ -3979,8 +3981,8 @@
         "tags": [
           "Coach (AI and voices)"
         ],
-        "summary": "MP3 of the short call with the member's name (X-Call-Name header)",
-        "description": "Errors / limits: 400 bad_name; 429 daily_limit; 30/min",
+        "summary": "MP3 of the short call with the member's name (X-Call-Name header); kept in memory for an hour, never on disk; a new name counts against AI_DAILY_LIMIT",
+        "description": "Errors / limits: 400 bad_name; 429 daily_limit, busy; 30/min",
         "parameters": [
           {
             "name": "voice",
@@ -4223,7 +4225,7 @@
           "Garmin watches"
         ],
         "summary": "{events[≤50]} sets, finished workouts, water → {saved, serverTime}",
-        "description": "Errors / limits: 403 not_paired; 429 inbox_full; 30/min",
+        "description": "Errors / limits: 403 not_paired; 413 too_large; 429 inbox_full; 30/min",
         "security": [
           {
             "garminToken": []
@@ -4335,6 +4337,7 @@
           "Garmin watches"
         ],
         "summary": "{snapshot} what the watch shows (next session, water) → {updatedAt}",
+        "description": "Errors / limits: 413 too_large",
         "security": [
           {
             "bearer": []
@@ -4359,7 +4362,7 @@
         "tags": [
           "Garmin watches"
         ],
-        "summary": "→ {events} from the watch, oldest first",
+        "summary": "→ {events} from the watch, oldest first; id is the inbox id to ack, eventId the watch's own id",
         "security": [
           {
             "bearer": []
