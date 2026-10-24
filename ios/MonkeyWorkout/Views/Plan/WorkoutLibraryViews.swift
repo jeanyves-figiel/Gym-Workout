@@ -104,7 +104,7 @@ extension Session {
 }
 
 extension AppModel {
-    var myLibrary: [LibraryEntry] { customWorkouts.map { LibraryEntry(source: .mine($0)) } }
+    var myLibrary: [LibraryEntry] { customWorkouts.filter { $0.routine == nil }.map { LibraryEntry(source: .mine($0)) } }
     var builtInLibrary: [LibraryEntry] { WorkoutTemplate.all.map { LibraryEntry(source: .builtIn($0)) } }
     var memberLibrary: [LibraryEntry] { sharedLibrary.map { LibraryEntry(source: .member($0)) } }
 

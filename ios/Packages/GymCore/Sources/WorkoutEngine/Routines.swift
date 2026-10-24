@@ -5,6 +5,8 @@ import Foundation
 /// The routine scales to the length picked: more moves, then longer holds or a second round.
 public enum Routine: String, CaseIterable, Codable, Sendable, Identifiable {
     case stretch, hangs, morning, desk, bedtime
+    /// More built-ins (#732), all from existing stretch and mobility moves.
+    case hips, shoulders, rollout, legs, wrists, splits
 
     public var id: String { rawValue }
 
@@ -15,6 +17,12 @@ public enum Routine: String, CaseIterable, Codable, Sendable, Identifiable {
         case .morning: "Morning mobility"
         case .desk: "Desk reset"
         case .bedtime: "Before bed"
+        case .hips: "Hip opener"
+        case .shoulders: "Shoulder care"
+        case .rollout: "Roll out"
+        case .legs: "Runner's legs"
+        case .wrists: "Wrists & fingers"
+        case .splits: "Splits & straddle"
         }
     }
 
@@ -26,6 +34,12 @@ public enum Routine: String, CaseIterable, Codable, Sendable, Identifiable {
         case .morning: "Mobility"
         case .desk: "Desk reset"
         case .bedtime: "Before bed"
+        case .hips: "Hips"
+        case .shoulders: "Shoulders"
+        case .rollout: "Roll out"
+        case .legs: "Legs"
+        case .wrists: "Wrists"
+        case .splits: "Splits"
         }
     }
 
@@ -36,6 +50,12 @@ public enum Routine: String, CaseIterable, Codable, Sendable, Identifiable {
         case .morning: "Wake up"
         case .desk: "Neck · hips"
         case .bedtime: "Slow · breathe"
+        case .hips: "Pigeon · frog · lizard"
+        case .shoulders: "CARs · sleeper · slides"
+        case .rollout: "Foam roller · ball"
+        case .legs: "Calves · quads · ankles"
+        case .wrists: "Climb · desk · calm"
+        case .splits: "Deep · flexibility"
         }
     }
 
@@ -46,6 +66,12 @@ public enum Routine: String, CaseIterable, Codable, Sendable, Identifiable {
         case .morning: "sun.max.fill"
         case .desk: "laptopcomputer"
         case .bedtime: "moon.stars.fill"
+        case .hips: "figure.cooldown"
+        case .shoulders: "figure.arms.open"
+        case .rollout: "cylinder.fill"
+        case .legs: "figure.run"
+        case .wrists: "hand.raised.fingers.spread.fill"
+        case .splits: "figure.gymnastics"
         }
     }
 
@@ -54,26 +80,51 @@ public enum Routine: String, CaseIterable, Codable, Sendable, Identifiable {
         switch self {
         case .stretch: [5, 10, 15, 20, 30]
         case .hangs: [5, 10, 15, 20]
-        case .morning, .bedtime: [5, 10, 15]
-        case .desk: [5, 10]
+        case .morning, .bedtime, .shoulders, .rollout, .legs: [5, 10, 15]
+        case .hips: [5, 10, 15, 20]
+        case .splits: [10, 15, 20, 30]
+        case .desk, .wrists: [5, 10]
         }
     }
 
-    public var defaultLength: Int { self == .desk ? 5 : 10 }
+    public var defaultLength: Int {
+        switch self {
+        case .desk, .wrists: 5
+        case .splits: 15
+        default: 10
+        }
+    }
 
     /// Explore → Routines filter.
-    public enum Kind: String, CaseIterable, Sendable { case stretch, hang, mobility }
+    public enum Kind: String, CaseIterable, Sendable { case stretch, hang, mobility, recovery }
 
     public var kind: Kind {
         switch self {
-        case .stretch, .bedtime: .stretch
+        case .stretch, .bedtime, .hips, .legs, .splits: .stretch
         case .hangs: .hang
-        case .morning, .desk: .mobility
+        case .morning, .desk, .shoulders, .wrists: .mobility
+        case .rollout: .recovery
         }
     }
 
     /// Daily tiles on Train before the member picks: hangboard for climbers, else morning mobility.
     public static func dailyDefaults(climber: Bool) -> [Routine] { climber ? [.stretch, .hangs] : [.stretch, .morning] }
+
+    /// Starter pack on Train (#732 A): three routines to add in one tap.
+    public static func starters(climber: Bool) -> [Routine] { climber ? [.stretch, .hangs, .hips] : [.stretch, .morning, .hips] }
+
+    /// Coach pick of the day (#732 C): one routine matched to today. `focus` nil = rest day.
+    public static func coachPick(focus: Focus?, climbing: Bool) -> (routine: Routine, why: String) {
+        if climbing { return (.wrists, "Climb day · fingers and wrists") }
+        guard let focus else { return (.rollout, "Rest day · roll it out") }
+        switch focus {
+        case .pull, .backBi, .chestBack: return (.shoulders, "Pull day · opens up after pulling")
+        case .push, .chestTri, .shouldersArms: return (.shoulders, "Push day · shoulders and chest")
+        case .upper, .fullUpper: return (.shoulders, "Upper day · shoulders")
+        case .lower, .legs, .fullLower, .posterior, .fullPower: return (.hips, "Leg day · open the hips")
+        case .conditioning: return (.legs, "Cardio day · calves and quads")
+        }
+    }
 
     /// Session ids are `example-routine-<routine>-<minutes>`; every length of a routine shares the prefix.
     public var sessionPrefix: String { WorkoutTemplate.idPrefix + "routine-\(rawValue)-" }
@@ -91,6 +142,11 @@ public enum Routine: String, CaseIterable, Codable, Sendable, Identifiable {
 
     /// Days in a row, up to today, with this routine done (today not done yet keeps yesterday's streak).
     public func streak(_ days: Set<Date>, today: Date, calendar: Calendar) -> Int {
+        Self.streak(days, today: today, calendar: calendar)
+    }
+
+    /// Same count for any routine's done days, own ones too (#732).
+    public static func streak(_ days: Set<Date>, today: Date, calendar: Calendar) -> Int {
         var d = calendar.startOfDay(for: today)
         if !days.contains(d) { d = calendar.date(byAdding: .day, value: -1, to: d)! }
         var n = 0
@@ -112,8 +168,17 @@ public enum Routine: String, CaseIterable, Codable, Sendable, Identifiable {
     private func wrap(_ minutes: Int, _ items: [Item]) -> WorkoutTemplate {
         WorkoutTemplate(id: "routine-\(rawValue)-\(minutes)", name: "\(label) · \(minutes)′",
                         focus: self == .hangs ? .pull : .fullLower, goal: .mobility,
-                        kit: self == .hangs ? "Hangboard" : self == .desk ? "No kit" : "Mat",
+                        kit: kit,
                         level: 1, main: self == .hangs ? .strength : .mobility, items: items)
+    }
+
+    private var kit: String {
+        switch self {
+        case .hangs: "Hangboard"
+        case .rollout: "Foam roller"
+        case .desk, .wrists: "No kit"
+        default: "Mat"
+        }
     }
 
     private func est(_ items: [Item]) -> Int { wrap(0, items).session.estMin }
@@ -141,6 +206,28 @@ public enum Routine: String, CaseIterable, Codable, Sendable, Identifiable {
         case .bedtime:
             [.hold("childs-pose-reach"), .hold("supine-twist"), .hold("figure-4"), .hold("butterfly"), .hold("hamstring-stretch"),
              .hold("sphinx"), .hold("seated-forward-fold"), .hold("breathing")]
+        case .hips:
+            [.drill("hip-car", 5), .hold("pigeon"), .hold("lizard-stretch"), .hold("frog-stretch"), .drill("windshield-wipers", 8),
+             .hold("butterfly"), .hold("half-kneeling-hf"), .hold("figure-4"), .drill("frog-rockback", 8), .hold("deep-squat-pry"),
+             .hold("warrior-2"), .hold("brettzel")]
+        case .shoulders:
+            [.drill("shoulder-car", 5), .drill("wall-slide", 10), .hold("sleeper-stretch"), .hold("cross-body"), .drill("thread-needle", 6),
+             .hold("pec-stretch"), .drill("open-book", 6), .hold("behind-back-clasp"), .hold("side-delt-stretch"), .hold("triceps-stretch"),
+             .hold("upper-trap")]
+        case .rollout:
+            [.hold("foam-roll-upper-back"), .hold("foam-roll-lats"), .hold("foam-roll-glutes"), .hold("foam-roll-hamstrings"),
+             .hold("foam-roll-quads"), .hold("foam-roll-calves"), .hold("foam-roll-adductors"), .hold("massage-ball-foot"),
+             .hold("massage-ball-glute"), .hold("massage-ball-chest")]
+        case .legs:
+            [.drill("knee-to-wall", 10), .hold("calf-wall"), .hold("standing-quad-stretch"), .hold("half-kneeling-hf"), .hold("hamstring-stretch"),
+             .hold("pigeon"), .drill("hip-car", 5), .hold("figure-4"), .hold("massage-ball-foot"), .hold("butterfly"), .hold("supine-twist")]
+        case .wrists:
+            [.drill("wrist-car", 6), .hold("forearm-flexor"), .hold("forearm-extensor"), .hold("wrist-flexor-floor"),
+             .drill("shoulder-car", 5), .hold("upper-trap"), .hold("cross-body")]
+        case .splits:
+            [.hold("butterfly"), .hold("straddle-stretch"), .drill("pancake-gm", 8), .hold("frog-stretch"), .hold("lizard-stretch"),
+             .drill("bw-cossack", 6), .hold("half-kneeling-hf"), .hold("seated-forward-fold"), .hold("pigeon"), .hold("hamstring-stretch"),
+             .hold("brettzel"), .hold("warrior-2")]
         case .hangs:
             []
         }
@@ -149,8 +236,8 @@ public enum Routine: String, CaseIterable, Codable, Sendable, Identifiable {
     private func item(_ m: Move, hold: Int, sets: Int = 1) -> Item {
         switch m {
         case .drill(let id, let reps): Item(id, sets: sets, reps: reps, rest: 0, block: .mobility)
-        case .hold(let id): Item(id, sets: sets, reps: hold, rest: 0, block: self == .stretch || self == .bedtime ? .cooldown : .mobility,
-                                 intensity: "Relaxed · long exhales")
+        case .hold(let id): Item(id, sets: sets, reps: hold, rest: 0, block: kind == .stretch ? .cooldown : .mobility,
+                                 intensity: self == .rollout ? "Slow · pause on tight spots" : "Relaxed · long exhales")
         }
     }
 

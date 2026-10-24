@@ -255,7 +255,20 @@ private struct DemoScreen: View {
         case "explore-programmes": NavigationStack { LibraryView(mode: .programmes) }
         case "explore-routines": NavigationStack { LibraryView(mode: .routines) }
         // Daily routines opt-in (#696 B): the picker behind Train's Add a daily routine prompt.
-        case "daily-pick": DailyRoutinePicker(initial: [.stretch, .hangs])
+        case "daily-pick": DailyRoutinePicker(initial: [Routine.stretch.rawValue, Routine.hangs.rawValue])
+        // More daily routines (#732): Train's add cards (A starter pack, C coach pick) and the own-routine editor.
+        case "daily-offer":
+            NavigationStack {
+                ScrollView {
+                    VStack(spacing: 18) {
+                        DailyStarterCard(starters: Routine.starters(climber: true), count: Routine.allCases.count, add: { _ in }, open: { _ in }, close: {})
+                        CoachRoutineCard(open: { _ in }, close: {})
+                    }
+                    .padding(16)
+                }
+                .background(Theme.bg.ignoresSafeArea())
+            }
+        case "routine-builder": MyRoutineEditor(initial: Demo.myRoutine)
         // HIIT (#693): Explore → HIIT, the builder, the interval player.
         case "explore-hiit": NavigationStack { LibraryView(mode: .hiit) }
         case "hiit-builder": HiitBuilderSheet(format: .tabata)

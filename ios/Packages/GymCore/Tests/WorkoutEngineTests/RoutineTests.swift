@@ -48,4 +48,19 @@ import Testing
         #expect(Routine.stretch.streak([day(1), day(2)], today: today, calendar: cal) == 2)
         #expect(Routine.stretch.streak([day(2)], today: today, calendar: cal) == 0)
     }
+
+    /// More built-ins and Train's add cards (#732).
+    @Test func moreRoutinesAndCoachPick() {
+        #expect(Routine.allCases.count == 11)
+        #expect(Set(Routine.allCases.map(\.short)).count == Routine.allCases.count)
+        #expect(Routine.rollout.kind == .recovery)
+        #expect(Routine.rollout.template(minutes: 10).kit == "Foam roller")
+        #expect(Routine.starters(climber: true).contains(.hangs))
+        #expect(!Routine.starters(climber: false).contains(.hangs))
+        #expect(Routine.coachPick(focus: .pull, climbing: false).routine == .shoulders)
+        #expect(Routine.coachPick(focus: .legs, climbing: false).routine == .hips)
+        #expect(Routine.coachPick(focus: .conditioning, climbing: false).routine == .legs)
+        #expect(Routine.coachPick(focus: nil, climbing: false).routine == .rollout)
+        #expect(Routine.coachPick(focus: .push, climbing: true).routine == .wrists)
+    }
 }
