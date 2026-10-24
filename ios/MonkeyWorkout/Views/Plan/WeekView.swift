@@ -366,6 +366,7 @@ struct WeekView: View {
                 }
                 .buttonStyle(.plain)
             } else {
+                CoachHeaderTile()
                 // Calendar, Variation and Edit plan stay reachable when Quick actions is removed.
                 if !model.trainLayout.contains(.actions) {
                     Menu {

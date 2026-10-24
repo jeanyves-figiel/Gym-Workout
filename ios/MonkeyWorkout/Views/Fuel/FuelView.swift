@@ -75,7 +75,6 @@ struct FuelView: View {
     @State private var justAte = false
     /// Undo bar after Later / ✕ on the Set up Fuel card (#686).
     @State private var setupLater = false
-    @AppStorage(AskCoachPref.bubbleRightKey) private var coachRight = true
 
     private func dropStaleDay() {
         let today = Calendar.current.startOfDay(for: Date())
@@ -130,8 +129,8 @@ struct FuelView: View {
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $setup) { NavigationStack { FuelSetupView(sheet: true) } }
         .sheet(item: $slot) { s in FuelSlotSheet(slot: s, plan: plan, day: day) }
-        // Just ate (#578, design B): on the side the Ask Coach bubble isn't on.
-        .overlay(alignment: coachRight ? .bottomLeading : .bottomTrailing) {
+        // Just ate (#578, design B).
+        .overlay(alignment: .bottomTrailing) {
             if Calendar.current.startOfDay(for: day) <= Calendar.current.startOfDay(for: Date()) {
                 JustAteButton { justAte = true }.padding(.horizontal, 16).padding(.bottom, 12)
             }
@@ -202,6 +201,7 @@ struct FuelView: View {
         HStack(spacing: 10) {
             Text("Fuel").font(Theme.display(34)).lineLimit(1)
             Spacer()
+            CoachHeaderTile()
             Button { setup = true } label: { HeaderTile(symbol: "slider.horizontal.3") }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Your fuel settings")

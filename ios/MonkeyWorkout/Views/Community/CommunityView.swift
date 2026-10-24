@@ -68,6 +68,7 @@ struct CommunityView: View {
         HStack(spacing: 12) {
             Text("Community").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
             Spacer(minLength: 4)
+            CoachHeaderTile()
             Button { composing = true } label: { HeaderTile(symbol: "plus", lime: true) }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Share a win")

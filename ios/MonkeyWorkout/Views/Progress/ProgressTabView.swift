@@ -151,6 +151,7 @@ struct ProgressTabView: View {
                 }
                 .buttonStyle(.plain)
             } else {
+                CoachHeaderTile()
                 Button { withAnimation(.snappy) { arranging = true } } label: { HeaderTile(symbol: "square.grid.2x2.fill") }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Edit Progress")

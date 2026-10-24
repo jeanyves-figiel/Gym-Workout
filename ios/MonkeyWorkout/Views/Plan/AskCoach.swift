@@ -4,16 +4,14 @@ import SwiftUI
 import TipKit
 import WorkoutEngine
 
-/// Ask Coach everywhere (#412, design A + C from `ask-coach-everywhere/proposals.png`). A: the lime 🐵 bubble floats on
-/// every tab (drag it to either edge); tap = the chat as a sheet that knows the screen, hold = talk. C: "✨ question"
+/// Ask Coach everywhere (#412, design A + C from `ask-coach-everywhere/proposals.png`). A: the lime 🐵 tile at the top right of
+/// every tab (#707, was a floating bubble); tap = the chat as a sheet that knows the screen, hold = talk. C: "✨ question"
 /// sparks on key cards, and the hands-free mic in the player. Questions go by voice too: on-device speech-to-text in,
 /// the coach voice out.
 enum AskCoachPref {
     static let bubbleKey = "askCoach.bubble"
     static let playerMicKey = "askCoach.playerMic"
     static let speakKey = "askCoach.speak"
-    static let bubbleRightKey = "askCoach.bubble.right"
-    static let bubbleYKey = "askCoach.bubble.y"
     /// Short questions answered by the on-device model when the iPhone has one (#608).
     static let onDeviceKey = "askCoach.onDevice"
 
@@ -111,75 +109,40 @@ extension View {
     func coachFocus(_ focus: CoachFocus) -> some View { modifier(CoachFocusModifier(focus: focus)) }
 }
 
-// MARK: - Bubble (A)
+// MARK: - Header tile (A)
 
-/// The floating 🐵: drag to the left or right edge (kept), tap to ask, hold to talk.
-struct AskCoachBubble: View {
+/// The 🐵 Coach tile at the top right of every tab (#707, design A from `coach-talk-header/proposals.png`): a lime
+/// 44 pt square next to the other header tiles. It replaced the floating bubble, which covered cards. Tap to ask,
+/// hold to talk. Settings → Ask Coach can hide it.
+struct CoachHeaderTile: View {
     @Environment(AppModel.self) private var model
-    @AppStorage(AskCoachPref.bubbleRightKey) private var right = true
-    @AppStorage(AskCoachPref.bubbleYKey) private var y = 0.78
-    @State private var drag: CGSize = .zero
+    @AppStorage(AskCoachPref.bubbleKey) private var shown = true
     @State private var gate: ProGate?
-    private let size: CGFloat = 56
 
     var body: some View {
-        GeometryReader { g in
-            if g.safeAreaInsets.trailing >= size, g.size.width < g.size.height {
-                // iPhone Duo outer screen (#594 design A): iOS keeps a column on the right for the status bar and the
-                // tab rail, and the cards fill the rest. The 🐵 docks in that column, on top of the tab rail, so it
-                // never covers a card.
-                face
-                    .position(x: g.size.width + g.safeAreaInsets.trailing / 2,
-                              y: max(size, g.size.height + g.safeAreaInsets.bottom - Self.railHeight - size / 2 - 12))
-            } else {
-                floating(g)
-            }
+        if shown {
+            MonkeyFace(mood: .fired, scale: 0.5, gear: model.rank.gear)
+                .frame(width: 34, height: 30)
+                .frame(width: 44, height: 44)
+                .background(RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .fill(RadialGradient(colors: [Color(hex: 0xEDFF7A), Theme.lime], center: .init(x: 0.3, y: 0.3), startRadius: 2, endRadius: 36)))
+                .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(Theme.lime.opacity(0.35), lineWidth: 2))
+                .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                .onTapGesture { ask(listen: false) }
+                .onLongPressGesture(minimumDuration: 0.4) {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    ask(listen: true)
+                }
+                .accessibilityElement()
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel("Ask Coach")
+                .accessibilityHint("Hold to talk")
+                .accessibilityAction { ask(listen: false) }
+                .accessibilityAction(named: "Talk to Coach") { ask(listen: true) }
+                .accessibilityIdentifier("askCoach.tile")
+                .popoverTip(HoldToTalkTip())
+                .proPaywall($gate)
         }
-        .proPaywall($gate)
-    }
-
-    /// The system tab rail on the Duo outer screen: five tab icons plus its margin above the bottom edge.
-    private static let railHeight: CGFloat = 286
-
-    private func floating(_ g: GeometryProxy) -> some View {
-        let minY = size / 2 + 60
-        // Above the tab bar.
-        let maxY = max(minY + 1, g.size.height - size / 2 - 64)
-        let cy = minY + (maxY - minY) * y
-        let cx = right ? g.size.width - size / 2 - 12 : size / 2 + 12
-        return face
-            .position(x: cx + drag.width, y: cy + drag.height)
-            .gesture(
-                DragGesture(minimumDistance: 12)
-                    .onChanged { drag = $0.translation }
-                    .onEnded { v in
-                        right = cx + v.translation.width > g.size.width / 2
-                        y = min(1, max(0, (cy + v.translation.height - minY) / (maxY - minY)))
-                        withAnimation(.spring(duration: 0.3)) { drag = .zero }
-                    })
-    }
-
-    private var face: some View {
-        MonkeyFace(mood: .fired, scale: 0.6, gear: model.rank.gear)
-            .frame(width: 40, height: 36)
-            .frame(width: size, height: size)
-            .background(Circle().fill(RadialGradient(colors: [Color(hex: 0xEDFF7A), Theme.lime], center: .init(x: 0.3, y: 0.3), startRadius: 2, endRadius: 40)))
-            .overlay(Circle().stroke(Theme.lime.opacity(0.35), lineWidth: 5).padding(-4))
-            .shadow(color: .black.opacity(0.5), radius: 8, y: 4)
-            .contentShape(Circle())
-            .onTapGesture { ask(listen: false) }
-            .onLongPressGesture(minimumDuration: 0.4) {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                ask(listen: true)
-            }
-            .accessibilityElement()
-            .accessibilityAddTraits(.isButton)
-            .accessibilityLabel("Ask Coach")
-            .accessibilityHint("Hold to talk")
-            .accessibilityAction { ask(listen: false) }
-            .accessibilityAction(named: "Talk to Coach") { ask(listen: true) }
-            .accessibilityIdentifier("askCoach.bubble")
-            .popoverTip(HoldToTalkTip())
     }
 
     private func ask(listen: Bool) {
@@ -477,7 +440,7 @@ struct AskCoachSettingsCard: View {
                     Text("Ask from any screen, by text or voice").font(.caption).opacity(0.9)
                 }
             }
-            Toggle("🐵 bubble on every screen", isOn: $bubble).tint(Theme.lime).font(Theme.label(14))
+            Toggle("🐵 Coach tile at the top of every tab", isOn: $bubble).tint(Theme.lime).font(Theme.label(14))
                 .accessibilityIdentifier("askCoach.bubbleToggle")
             Toggle("Hey Coach mic in the player", isOn: $playerMic).tint(Theme.lime).font(Theme.label(14))
             // On-device Coach (#608): quick questions and the finish recap on Apple Intelligence iPhones.
