@@ -89,11 +89,13 @@ extension AppModel {
         var snapshot = workout.sanitized
         snapshot.visibility = .private
         snapshot.hidden = false
-        let insert = PlanInsert(week: base.week, replacing: replacing, weekday: replacing == nil ? weekday : nil, workout: snapshot)
+        let replacingId = replacing.flatMap { base.sessions.indices.contains($0) ? base.sessions[$0].id : nil }
+        let insert = PlanInsert(week: base.week, replacing: replacing, replacingId: replacingId,
+                                weekday: replacing == nil ? weekday : nil, workout: snapshot)
         var list = sp.planInserts ?? []
         if let r = replacing {
-            for old in list where old.week == base.week && old.replacing == r { forgetProgress(old.sessionId) }
-            list.removeAll { $0.week == base.week && $0.replacing == r }
+            for old in list where old.week == base.week && base.replacedIndex(of: old) == r { forgetProgress(old.sessionId) }
+            list.removeAll { $0.week == base.week && base.replacedIndex(of: $0) == r }
             if base.sessions.indices.contains(r) { forgetProgress(base.sessions[r].id) }
         }
         list.append(insert)

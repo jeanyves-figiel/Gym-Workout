@@ -107,7 +107,9 @@ extension AppModel {
         let sigs = prog.signatureInserts(week: week, plan: base, profile: sp.planProfile)
         let ours = Set(prog.signatures.map { Programme.insertId(programme: prog.id, signature: $0.id, week: week) })
         var list = (sp.planInserts ?? []).filter { !ours.contains($0.id) }
-        list.removeAll { ins in ins.replacing != nil && sigs.contains { $0.replacing == ins.replacing } }
+        list.removeAll { ins in
+            base.replacedIndex(of: ins).map { r in sigs.contains { base.replacedIndex(of: $0) == r } } ?? false
+        }
         list += sigs
         sp.planInserts = list.isEmpty ? nil : list
         state.synced = sp

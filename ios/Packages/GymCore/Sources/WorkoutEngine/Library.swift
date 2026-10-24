@@ -100,16 +100,21 @@ public struct PlanInsert: Codable, Hashable, Sendable, Identifiable {
     public var week: Int
     /// Index of the generated session it replaces; nil = extra session.
     public var replacing: Int?
+    /// Id of the session it replaces (#716): the index alone points at another session once the plan's sessions
+    /// shift (an away day, a kept session). Nil for inserts saved before, which go by `replacing`.
+    public var replacingId: String?
     /// 1 = Monday … 7 = Sunday for an extra session; a replacement keeps the replaced day's weekday.
     public var weekday: Int?
     public var workout: CustomWorkout
     /// A generated session added as a quick extra (#113); `workout` then only carries its name.
     public var generated: Session?
 
-    public init(id: UUID = UUID(), week: Int, replacing: Int? = nil, weekday: Int? = nil, workout: CustomWorkout, generated: Session? = nil) {
+    public init(id: UUID = UUID(), week: Int, replacing: Int? = nil, replacingId: String? = nil, weekday: Int? = nil,
+                workout: CustomWorkout, generated: Session? = nil) {
         self.id = id
         self.week = week
         self.replacing = replacing
+        self.replacingId = replacingId
         self.weekday = weekday
         self.workout = workout
         self.generated = generated
@@ -153,15 +158,22 @@ extension WeekPlan {
         let mine = inserts.filter { $0.week == week }
         guard !mine.isEmpty else { return self }
         var p = self
-        let generated = sessions.count
         for ins in mine {
-            guard let r = ins.replacing, r >= 0, r < generated else { continue }
+            guard let r = replacedIndex(of: ins) else { continue }
             p.sessions[r] = ins.session(index: r, weekday: sessions[r].weekday)
         }
         for ins in mine where ins.replacing == nil {
             p.sessions.append(ins.session(index: p.sessions.count, weekday: ins.weekday))
         }
         return p
+    }
+
+    /// Where a replacement goes in this plan: the replaced session by id, else (older inserts) by index; nil for an
+    /// extra session or one whose session isn't in the plan.
+    public func replacedIndex(of ins: PlanInsert) -> Int? {
+        guard let r = ins.replacing else { return nil }
+        if let id = ins.replacingId { return sessions.firstIndex { $0.id == id } }
+        return sessions.indices.contains(r) ? r : nil
     }
 }
 
