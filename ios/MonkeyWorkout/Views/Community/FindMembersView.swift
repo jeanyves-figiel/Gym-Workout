@@ -76,6 +76,7 @@ struct FindMembersView: View {
         .navigationTitle("Find members")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
+        .solidNavBar()
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Nickname or gym")
         .autocorrectionDisabled()
         .textInputAutocapitalization(.never)
