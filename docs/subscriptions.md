@@ -33,7 +33,7 @@ Other territories get Apple's equalized price. The free week is one per Apple ID
 |---|---|
 | `off` | Nothing shown, nothing locked (today). |
 | `preview` | Account → MonkeyWorkout Pro and the paywall visible; nothing locked. For testing purchases in TestFlight. |
-| `enforced` | Pro features need `pro` (gates still to be wired once the free/Pro split is decided). |
+| `enforced` | Pro features need `pro`: Ask Coach, Generate & do today, gym and food scan (see Free vs Pro). |
 
 Set it in `backend/fly.staging.toml` / `fly.production.toml` `[env]`, merge, deploy.
 
@@ -59,31 +59,22 @@ Needs the owner first (App Store Connect, can't be done by API):
 Optional later: an In-App Purchase key (App Store Server API) for transaction history lookups and refund requests.
 Not needed for the current flow.
 
-## Free vs Pro (approved 2026-10-11)
+## Free vs Pro (decided 2026-10-24, replaces the 2026-10-11 split)
 
-Proposal doc: https://claude.ai/code/artifact/b7e5fd97-3b10-4a70-a91c-4a6fc5201054
-
-Always free: account, generated weekly plan, cycle, readiness, calendar, move/away, workout player and logging,
-one-off swap, starting loads, Live Activity, history list, Explore library and technique, saving members' workouts,
-personal records shown, log climbs, Apple Health, reminders, Community, export and delete.
+Pro is only the AI and "do it now" features. Everything else is free: variations, kept swaps, workout style, building,
+duplicating and sharing workouts, custom exercises, PR attempts, full progress and heat map, starting on Apple Watch,
+Wall session, MonkeyGrade, adding a generated workout to a day, HIIT/quick sessions added to a day.
 
 Pro (PRO badge; tap opens the paywall sheet when `enforced`):
 
-| Entry point | Gate |
-|---|---|
-| Train → Plan → New variation | `.variation` |
-| Swap → Keep for <day> in future weeks | `.keepSwap` |
-| Workout style card (rest + grouping) | `.workoutStyle` |
-| New / Build your own / Duplicate workout | `.buildWorkout` (editing existing ones stays free) |
-| Share a workout (visibility ≠ private) | `.shareWorkout` |
-| New exercise (picker) | `.customExercise` (editing existing ones stays free) |
-| Attempt a PR (exercise page, player) | `.prAttempt` |
-| Progress charts, trends, heat map beyond 28 days | `.progress` (history list stays complete) |
-| Start a workout on Apple Watch | `WatchSnapshot.pro` (mirroring an iPhone workout stays free) |
-| Wall session (climbing add-on); Around sport days is free for every sport (#658) | `.climbing` |
-| Connect MonkeyGrade | `.monkeyGrade` (an existing connection keeps working) |
+| Entry point | Client gate | Server |
+|---|---|---|
+| Ask Coach: 🐵 bubble, Ask sparks, Ask bar, player voice ask, Siri/Shortcuts "Ask Coach" | `.askCoach` (Siri lands on RootView's chat sheet, gated there) | `POST /v1/me/coach-chat` 402 |
+| Generate & do today: builder **Start now**, Coach chat **Start now**, HIIT **Do today** | `.generateWorkout` (Add to a day stays free) | on device |
+| Gym scan | `.gymScan` | `POST /v1/me/gym-scan` 402 |
+| Fridge / receipt scan | `.foodScan` | `POST /v1/me/food-scan` 402 |
 
-Generate a workout by muscle (#119, today or a chosen day): `ProStore.shared.run(.generateWorkout, $gate)` + `.proPaywall($gate)` + `ProBadge()`, wired in that PR.
+`ProStore.shared.run(gate, $gate) { … }` + `.proPaywall($gate)` + `ProBadge()`.
 
 Enrollment: after the first plan is generated, one full-screen offer ("Your week is ready", plans, Start free week,
 "Not now, train on Free"), only when Pro is switched on. A local reminder fires 2 days before a free week ends.

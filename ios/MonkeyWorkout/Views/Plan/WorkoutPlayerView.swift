@@ -128,12 +128,8 @@ struct WorkoutPlayerView: View {
         let block: Block
         var exercise: Exercise { Exercise.get(item.exerciseId) }
         var sets: Int { max(1, item.prescription.sets) }
-        /// Per-set kg × reps logging applies: loaded strength work counted in reps. Timed work and cardio machines
-        /// (e.g. a cross-trainer inside a custom workout's strength block) only run the timer.
-        var loggable: Bool {
-            block.kind == .strength && !exercise.equipment.isEmpty && exercise.unit != .sec && timedSpec == nil
-                && category == .strength
-        }
+        /// Per-set kg × reps logging applies (the same rule as on the Watch).
+        var loggable: Bool { item.isLoggable(in: block) }
         var category: WorkoutEngine.Category { ExerciseHeroCard.category(exercise, in: block) }
         /// Work time when the prescription is timed ("4 min", "30 s", intervals).
         var timedSpec: TimedSpec? { TimedSpec(item.prescription, unit: exercise.unit) }
@@ -322,7 +318,10 @@ struct WorkoutPlayerView: View {
                 coachFinalSetIfDue()
             }
         }
-        .onChange(of: index) { coachHalfwayIfDue() }
+        .onChange(of: index) {
+            coachHalfwayIfDue()
+            prepareNextMove()
+        }
         .onChange(of: coach.watchLine) { updateLive() }
         .onChange(of: index) { setStart = Date() }
         .onChange(of: log.rows) { updateLive() }
@@ -354,7 +353,7 @@ struct WorkoutPlayerView: View {
     private func watchFeeds(_ content: some View) -> some View {
         content
         .onReceive(NotificationCenter.default.publisher(for: .workoutVoiceLog)) { n in
-            siriLog(reps: n.userInfo?["reps"] as? Int, kg: n.userInfo?["kg"] as? Double)
+            siriLog(reps: n.userInfo?["reps"] as? Int, kg: n.userInfo?["kg"] as? Double, reply: n.userInfo?["reply"] as? VoiceLogReply)
         }
         .onReceive(NotificationCenter.default.publisher(for: .watchHeartRate)) { _ in updateLive() }
         .onChange(of: timed) { updateLive() }
@@ -447,7 +446,7 @@ struct WorkoutPlayerView: View {
                 let setup = model.machineNote(exerciseId: step.exercise.id, gymId: setupGym.id)
                 ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
                                  position: isFree ? "" : "\(index + 1)/\(steps.count)",
-                                 onAttemptPR: step.loggable && model.lifeStage == nil ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
+                                 onAttemptPR: step.loggable && model.lifeStage == nil ? { prFor = step.exercise } : nil,
                                  onChange: canChange(step) ? { changeFor = step.item } : nil,
                                  setup: setup,
                                  onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
@@ -660,7 +659,7 @@ struct WorkoutPlayerView: View {
                     let setup = model.machineNote(exerciseId: step.exercise.id, gymId: setupGym.id)
                     ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
                                      position: isFree ? "" : "\(index + 1)/\(steps.count)",
-                                     onAttemptPR: step.loggable && model.lifeStage == nil ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
+                                     onAttemptPR: step.loggable && model.lifeStage == nil ? { prFor = step.exercise } : nil,
                                      onChange: canChange(step) ? { changeFor = step.item } : nil,
                                      setup: setup,
                                      onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
@@ -742,7 +741,7 @@ struct WorkoutPlayerView: View {
                     topBar(session)
                     ExerciseHeroCard(exercise: step.exercise, block: step.block, item: step.item,
                                      position: isFree ? "" : "\(index + 1)/\(steps.count)",
-                                     onAttemptPR: step.loggable ? { ProStore.shared.run(.prAttempt, $gate) { prFor = step.exercise } } : nil,
+                                     onAttemptPR: step.loggable ? { prFor = step.exercise } : nil,
                                      onChange: canChange(step) ? { changeFor = step.item } : nil,
                                      setup: setup,
                                      onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
@@ -1042,17 +1041,27 @@ struct WorkoutPlayerView: View {
         listener.start { said in runVoice(said) }
     }
 
-    /// Siri "log 8 at 80" (#605): the coming set's reps and kg, then logged as the lime button does.
-    private func siriLog(reps: Int?, kg: Double?) {
+    /// Siri "log 8 at 80" (#605): the coming set's reps and kg, then logged as the lime button does. During the rest
+    /// or the "Next in" countdown (#716) it corrects the set just done instead of moving on.
+    private func siriLog(reps: Int?, kg: Double?, reply: VoiceLogReply?) {
         guard ready, !finished, steps.indices.contains(index) else { return }
         let step = steps[index]
         let done = setsDone[step.item.uid] ?? 0
-        if step.loggable, log.item?.uid == step.item.uid, !log.rows.isEmpty {
+        let onCard = step.loggable && log.item?.uid == step.item.uid && !log.rows.isEmpty
+        if pause != nil || autoNext != nil {
+            guard onCard, done > 0, log.rows.indices.contains(done - 1) else { return }
+            if let kg { log.setKg(done - 1, kg) }
+            if let reps { log.setReps(done - 1, reps) }
+            reply?.logged = log.log(done - 1, model: model)
+            return
+        }
+        if onCard {
             let row = min(done, log.rows.count - 1)
             if let kg { log.setKg(row, kg) }
             if let reps { log.setReps(row, reps) }
         }
         handle(.main)
+        reply?.logged = (setsDone[step.item.uid] ?? 0) > done
     }
 
     /// Runs what the member said: set done (with effort), weight, reps, rest, next / previous; anything else is a question.
@@ -1097,7 +1106,7 @@ struct WorkoutPlayerView: View {
         case .previous: handle(.previous)
         case let .ask(q):
             let detail = onCard ? "set \(row + 1) of \(step.sets), \(log.rows[row].kg) kg × \(log.rows[row].reps)" : "set \(done + 1) of \(step.sets)"
-            ProStore.shared.run(.generateWorkout, $gate) {
+            ProStore.shared.run(.askCoach, $gate) {
                 asking = AskCoachRequest(focus: CoachFocus(screen: "player", title: step.exercise.name, detail: "during the workout, " + detail),
                                          question: q, spoken: true)
             }
@@ -1735,6 +1744,12 @@ struct WorkoutPlayerView: View {
         let done = steps.filter { (setsDone[$0.item.uid] ?? 0) >= $0.sets }.count
         guard done * 2 >= steps.count, done < steps.count else { return }
         coach.say(.halfway(left: steps.count - done), once: "half")
+    }
+
+    /// The next exercise's illustration frames decoded ahead (#720), so its movement plays smoothly on arrival.
+    private func prepareNextMove() {
+        guard let next = nextStep else { return }
+        IllustrationImages.prepare(steps[next].item.exerciseId)
     }
 
     private func reloadLog() {

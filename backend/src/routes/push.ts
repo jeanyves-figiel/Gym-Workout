@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { assertClean } from '../community/moderation.ts';
 import { ApiError } from '../errors.ts';
-import { NotificationPrefs } from '../push/prefs.ts';
+import { NotificationPrefs, NotificationPrefsPatch } from '../push/prefs.ts';
 import type { PushService } from '../push/service.ts';
 
 const token = z.string().regex(/^[0-9a-fA-F]{32,200}$/, 'Invalid device token').transform((s) => s.toLowerCase());
@@ -43,8 +43,9 @@ export const pushRoutes = (r: FastifyInstance, push: PushService, topics: string
   r.get('/me/notification-prefs', async (req) => ({ prefs: push.prefs(req.userId!), pushConfigured: push.configured }));
 
   r.put('/me/notification-prefs', async (req) => {
-    const b = z.object({ prefs: NotificationPrefs }).parse(req.body);
-    return { prefs: push.savePrefs(req.userId!, b.prefs) };
+    const b = z.object({ prefs: NotificationPrefsPatch }).parse(req.body);
+    const sent = Object.fromEntries(Object.entries(b.prefs).filter(([, v]) => v !== undefined));
+    return { prefs: push.savePrefs(req.userId!, NotificationPrefs.parse({ ...push.prefs(req.userId!), ...sent })) };
   });
 
   /** Sends a test push to the caller's devices (Settings → Send test). */

@@ -67,16 +67,8 @@ private struct PlaceChip: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            Label(title, systemImage: symbol)
-                .font(.system(size: 12, weight: .heavy, design: .rounded))
-                .lineLimit(1)
-                .foregroundStyle(.white.opacity(on ? 1 : 0.6))
-                .padding(.horizontal, 10).padding(.vertical, 7)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? AnyShapeStyle(fill) : AnyShapeStyle(Theme.cardStrong)))
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(on ? .isSelected : [])
+        SelectChip(title: title, symbol: symbol, on: on, onFill: AnyShapeStyle(fill), offFill: AnyShapeStyle(Theme.cardStrong),
+                   onInk: .white, offInk: .white.opacity(0.6), size: 12, height: 30, fills: false, action: action)
     }
 }
 
@@ -90,6 +82,8 @@ struct DayComboRow: View {
     /// The current week: its runs apply.
     let thisWeek: Bool
     var showNote = true
+    /// False when the card's eyebrow already names the place (#717, design 1A): the lift part reads "Lift".
+    var showPlace = true
     @Environment(AppModel.self) private var model
 
     private var run: RunWorkout? { thisWeek ? model.runWeek.first { $0.weekday == day }?.workout : nil }
@@ -100,7 +94,7 @@ struct DayComboRow: View {
             VStack(alignment: .leading, spacing: 6) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        part(1, session.place.map { "Lift · \($0)" } ?? "Lift", "dumbbell.fill", WorkoutEngine.Category.strength.colors)
+                        part(1, session.place.flatMap { showPlace ? "Lift · \($0)" : nil } ?? "Lift", "dumbbell.fill", WorkoutEngine.Category.strength.colors)
                         if let run { part(2, "\(run.title) \(run.minutes)′", run.symbol, WorkoutEngine.Category.cardio.colors) }
                         if climbs { part(run == nil ? 2 : 3, "Climb", "figure.climbing", WorkoutEngine.Category.power.colors) }
                     }
@@ -137,6 +131,7 @@ struct DayComboRow: View {
 /// On a workout day card: where the day happens ("📍 Puls 5 ▾"). The menu moves just this day, or this weekday
 /// every week, to another place; the workout is rebuilt for that place's kit, same session type. Home is always a
 /// choice. On a travel day the trip sets the place (changed in Calendar).
+/// Sits in the card's eyebrow line (#717, design 1A): "Next up · Today · 📍 Puls 5 ▾".
 struct PlaceMenuChip: View {
     let weekday: Int
     @Environment(AppModel.self) private var model
@@ -147,14 +142,16 @@ struct PlaceMenuChip: View {
         Menu {
             PlaceMenuItems(weekday: weekday)
         } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
+                Text("·").opacity(0.8)
                 Image(systemName: trip == nil ? "mappin.and.ellipse" : "airplane").font(.system(size: 11, weight: .bold))
-                Text(name).font(Theme.label(12)).lineLimit(1)
+                Text(name).lineLimit(1)
                 Image(systemName: "chevron.down").font(.system(size: 9, weight: .heavy))
             }
+            .font(Theme.label(12)).tracking(1.4)
             .foregroundStyle(.white)
-            .padding(.horizontal, 9).padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.black.opacity(0.28)))
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
         .accessibilityLabel("Where on \(WeekSchedule.name(weekday)): \(name)")
         .accessibilityIdentifier("train.placeChip")

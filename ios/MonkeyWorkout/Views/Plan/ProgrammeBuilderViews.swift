@@ -68,7 +68,6 @@ struct ProgrammeWorkoutPicker: View {
     @State private var building: CustomWorkout?
     @State private var built = false
     @State private var noMain = false
-    @State private var gate: ProGate?
 
     var body: some View {
         NavigationStack {
@@ -115,12 +114,11 @@ struct ProgrammeWorkoutPicker: View {
             } message: {
                 Text("A programme workout needs at least one strength or power exercise, so it was not added.")
             }
-            .proPaywall($gate)
         }
     }
 
     private var newCard: some View {
-        Button { ProStore.shared.run(.buildWorkout, $gate) { building = CustomWorkout(name: "") } } label: {
+        Button { building = CustomWorkout(name: "") } label: {
             HStack(spacing: 12) {
                 Image(systemName: "plus").font(.system(size: 20, weight: .black))
                 VStack(alignment: .leading, spacing: 2) {

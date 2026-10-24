@@ -14,7 +14,6 @@ struct ExercisePickerView: View {
     @State private var muscle: Muscle?
     @State private var selected: [String]
     @State private var builder: BuilderSheet?
-    @State private var gate: ProGate?
     /// Bases whose variations are shown (#174).
     @State private var expanded: Set<String> = []
     @State private var closeGuard = CloseGuard()
@@ -90,8 +89,8 @@ struct ExercisePickerView: View {
                     muscleChips
                     Text("\(results.count) exercises").eyebrow().padding(.horizontal, 16).padding(.top, 4)
                     LazyVGrid(columns: Self.columns, spacing: 12) {
-                        Button { ProStore.shared.run(.customExercise, $gate) { builder = .new } } label: {
-                            NewExerciseCard().overlay(alignment: .topTrailing) { ProBadge().padding(8) }
+                        Button { builder = .new } label: {
+                            NewExerciseCard()
                         }
                         .buttonStyle(.plain)
                         ForEach(entries(results), id: \.exercise.id) { entry in
@@ -128,7 +127,6 @@ struct ExercisePickerView: View {
                     CustomExerciseBuilderView(existing: e)
                 }
             }
-            .proPaywall($gate)
             .safeAreaInset(edge: .bottom) {
                 if !selected.isEmpty { addBar }
             }

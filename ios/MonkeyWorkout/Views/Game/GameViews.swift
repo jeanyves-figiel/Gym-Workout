@@ -60,22 +60,6 @@ extension MonkeyFace.Mood {
 
 // MARK: - Shared pieces
 
-/// "LV 7" lime capsule next to the Train title (all looks).
-struct LevelChip: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        let g = model.game
-        Text("LV \(g.level)")
-            .font(Theme.label(14)).tracking(1)
-            .foregroundStyle(Theme.ink)
-            .padding(.horizontal, 11).padding(.vertical, 6)
-            .background(Capsule().fill(GameTint.xp))
-            .accessibilityLabel("Level \(g.level), \(g.xpToNext) XP to the next level")
-            .opensLevels()
-    }
-}
-
 /// Every level display opens the ladder (#242): LV chip, level bar, banners, finish card.
 private struct OpensLevels: ViewModifier {
     @State private var open = false
@@ -245,7 +229,7 @@ struct MonkeyCoachCard: View {
             if let weekFooter { weekFooter }
             // Workout chat (#381, design A): short phones skip the bar so Start workout stays on screen (#337).
             if !compact {
-                AskCoachBar { ProStore.shared.run(.generateWorkout, $gate) { chatting = true } }
+                AskCoachBar { ProStore.shared.run(.askCoach, $gate) { chatting = true } }
             }
         }
         .foregroundStyle(.white)
@@ -269,7 +253,7 @@ struct MonkeyCoachCard: View {
             HStack(spacing: 8) {
                 // Short phones (#337): the workout chat (#381) opens from a corner button instead of the bar.
                 if compact {
-                    Button { ProStore.shared.run(.generateWorkout, $gate) { chatting = true } } label: {
+                    Button { ProStore.shared.run(.askCoach, $gate) { chatting = true } } label: {
                         Image(systemName: "bubble.left.and.text.bubble.right.fill").font(.system(size: 14, weight: .heavy))
                             .foregroundStyle(Theme.ink)
                             .frame(width: 36, height: 36)

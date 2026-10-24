@@ -226,6 +226,8 @@ struct ActiveWorkout: Codable, Equatable {
     var interrupted: Bool? = nil
     var restEnd: Date? = nil
     var restTotal: Int? = nil
+    /// When the workout began (#716): its sets stay its own past midnight. Nil for runs saved before.
+    var startedAt: Date? = nil
 }
 
 /// JSON file in Application Support, encrypted at rest by iOS data protection.

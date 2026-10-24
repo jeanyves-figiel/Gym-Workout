@@ -22,7 +22,6 @@ struct AccountView: View {
     @State private var deviceCount: Int?
     /// The device count didn't load (#539): an error card with Retry instead of an empty value.
     @State private var deviceCountError: String?
-    @State private var gate: ProGate?
     @State private var climbSettings = false
     @State private var webPage: WebPage?
 
@@ -35,7 +34,7 @@ struct AccountView: View {
     // Row search texts: title first, then the words a member might type.
     private enum Find {
         static let pro = "MonkeyWorkout Pro membership subscription trial lifetime"
-        static let profile = "Your profile name nickname photo about avatar community gender pronouns coach calls you how we talk to you"
+        static let profile = "Your profile name nickname photo about avatar community social gym buddies live sharing blocked gender pronouns coach calls you how we talk to you"
         static let gym = "Your gym equipment trip travel"
         static let body = "Body & Health height weight sex figure apple health"
         static let onboarding = "Onboarding set up setup guide tour show me round gym machines map first plan programme start again"
@@ -124,7 +123,6 @@ struct AccountView: View {
         .solidNavBar()
         .navigationTitle("Settings")
         .task { await loadDeviceCount() }
-        .proPaywall($gate)
         .sheet(isPresented: $climbSettings) { AroundSportView() }
         .sheet(item: $webPage) { SafariView(url: $0.url).ignoresSafeArea() }
         .confirmationDialog("Sign out everywhere?", isPresented: $confirmSignOutAll, titleVisibility: .visible) {
@@ -451,18 +449,11 @@ struct AccountView: View {
     private func monkeyGradeRow(_ user: User) -> some View {
         let link = MonkeyGradeLink.shared
         let connected = link.isConnected(for: user.id)
-        if ProStore.shared.locked && !connected {
-            Button { gate = .monkeyGrade } label: {
-                SettingsRow(symbol: "figure.climbing", title: "MonkeyGrade") { ProBadge() }
-            }
-            .buttonStyle(.plain)
-        } else {
-            NavigationLink { MonkeyGradeView() } label: {
-                SettingsRow(symbol: "figure.climbing", title: "MonkeyGrade",
-                            value: connected ? (link.sessions.isEmpty ? "On" : "\(link.sessions.count) sessions") : "Connect")
-            }
-            .buttonStyle(.plain)
+        NavigationLink { MonkeyGradeView() } label: {
+            SettingsRow(symbol: "figure.climbing", title: "MonkeyGrade",
+                        value: connected ? (link.sessions.isEmpty ? "On" : "\(link.sessions.count) sessions") : "Connect")
         }
+        .buttonStyle(.plain)
     }
 
     private func legalRow(symbol: String, title: String, url: URL) -> some View {

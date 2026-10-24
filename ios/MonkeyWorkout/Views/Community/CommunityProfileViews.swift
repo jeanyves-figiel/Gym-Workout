@@ -21,7 +21,7 @@ private struct JoinHero: View {
                 .frame(width: 56, height: 56)
                 .background(RoundedRectangle(cornerRadius: 17, style: .continuous).fill(.white.opacity(0.22)))
             VStack(alignment: .leading, spacing: 4) {
-                Text("Train together").font(Theme.display(26))
+                Text("Join Social").font(Theme.display(26))
                 Text("Share your wins and cheer others on.")
                     .font(.subheadline.weight(.medium)).opacity(0.9)
             }

@@ -8,6 +8,12 @@ import type { DB } from './db.ts';
 /** "Taken?" taps are kept this long (rush hours over 8 weeks); purge.ts deletes older ones. */
 export const BUSY_KEEP_DAYS = 56;
 
+/** Lower-cased words of a gym name, in any script. */
+export const words = (name: string) => name.toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, ' ').split(/\s+/).filter(Boolean);
+
+/** Indexed search key of a gym name (#715): its words, lower-cased in any script (SQLite's lower() folds ASCII only). */
+export const nameKey = (name: string) => words(name.normalize('NFC')).join(' ');
+
 export const ensureGymSchema = (db: DB): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS gym_reports (
@@ -58,4 +64,13 @@ export const ensureGymSchema = (db: DB): void => {
       PRIMARY KEY (user_id, day)
     );
   `);
+  // Gym look-up by name (#715): `name_key` replaces a LIKE over every row; filled in JS for rows saved before it.
+  for (const t of ['gym_reports', 'gym_maps']) {
+    const cols = db.prepare(`PRAGMA table_info(${t})`).all() as { name: string }[];
+    if (!cols.some((c) => c.name === 'name_key')) db.exec(`ALTER TABLE ${t} ADD COLUMN name_key TEXT`);
+    db.exec(`CREATE INDEX IF NOT EXISTS ${t}_name_key ON ${t}(name_key)`);
+    const fill = db.prepare(`UPDATE ${t} SET name_key = ? WHERE user_id = ? AND gym_id = ?`);
+    for (const r of db.prepare(`SELECT user_id, gym_id, name FROM ${t} WHERE name_key IS NULL`).all() as { user_id: string; gym_id: string; name: string }[])
+      fill.run(nameKey(r.name), r.user_id, r.gym_id);
+  }
 };

@@ -3,13 +3,13 @@ import { z } from 'zod';
 import { randomToken, sha256 } from '../crypto.ts';
 import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
-import { baseUpdatedAt, conflictsField, deletedField, opaqueCopy, reviveUploaded, recordTombstone, sinceQuery, takeConflicts } from './sync.ts';
-import { assertRowQuota } from '../quota.ts';
+import { baseUpdatedAt, conflictsField, opaqueCopy, reviveUploaded, recordTombstone, sendPull, type SyncTable, syncId, syncIdParams, takeConflicts } from './sync.ts';
+import { assertByteQuota, assertItemSize, assertRowQuota } from '../quota.ts';
 
 /** Other sport sessions (#416): snowboard, MTB, Hyrox… Synced like climbs (upsert by client id). */
 const sport = z
   .object({
-    id: z.uuid(),
+    id: syncId,
     baseUpdatedAt,
     start: z.iso.datetime({ offset: true }),
     minutes: z.number().int().min(0).max(24 * 60),
@@ -29,32 +29,20 @@ const upsert = (db: DB, userId: string, upload: z.infer<typeof sport>[], ts: str
   return tx(db, () => {
     const { fresh, conflicts } = takeConflicts(db, 'sports', userId, upload, opaqueCopy);
     const sports = reviveUploaded(db, userId, 'sports', fresh);
+    const jsons = sports.map((c) => JSON.stringify(c));
+    for (const j of jsons) assertItemSize(j, 10_000, 'Sport session');
     assertRowQuota(db, 'sports', userId, sports.map((c) => c.id));
+    assertByteQuota(db, 'sports', userId, sports.map((c, i) => ({ id: c.id, bytes: Buffer.byteLength(jsons[i]!) })));
     let count = 0;
-    for (const c of sports) {
-      const json = JSON.stringify(c);
-      if (json.length > 10_000) throw Object.assign(new Error('Sport session too large'), { statusCode: 413 });
-      count += Number(up.run(c.id, userId, c.start, json, ts).changes);
-    }
+    sports.forEach((c, i) => (count += Number(up.run(c.id, userId, c.start, jsons[i]!, ts).changes)));
     return { saved: count, conflicts };
   });
 };
 
-export const listSports = (db: DB, userId: string, since?: string) =>
-  (
-    (since
-      ? db.prepare('SELECT data, updated_at FROM sports WHERE user_id = ? AND updated_at >= ? ORDER BY start').all(userId, since)
-      : db.prepare('SELECT data, updated_at FROM sports WHERE user_id = ? ORDER BY start').all(userId)) as unknown as {
-      data: string;
-      updated_at: string;
-    }[]
-  ).map((r) => ({ ...(JSON.parse(r.data) as object), updatedAt: r.updated_at }));
+export const sportTable: SyncTable<{ data: string; updated_at: string }> = { table: 'sports', cols: 'data, updated_at', timeCol: 'start', map: opaqueCopy };
 
 export const sportRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
-  r.get('/me/sports', async (req) => {
-    const q = sinceQuery.parse(req.query);
-    return { sports: listSports(db, req.userId!, q.since), ...deletedField(db, req.userId!, 'sports', q.since, now()), serverTime: now().toISOString() };
-  });
+  r.get('/me/sports', async (req, reply) => sendPull(reply, db, sportTable, { key: 'sports', kind: 'sports', userId: req.userId!, query: req.query, now }));
 
   r.post('/me/sports', async (req) => {
     const b = z.object({ sports: z.array(sport).max(200) }).parse(req.body);
@@ -75,7 +63,7 @@ export const sportRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
   });
 
   r.delete('/me/sports/:id', async (req, reply) => {
-    const { id } = z.object({ id: z.uuid() }).parse(req.params);
+    const { id } = syncIdParams.parse(req.params);
     tx(db, () => {
       db.prepare('DELETE FROM sports WHERE id = ? AND user_id = ?').run(id, req.userId!);
       recordTombstone(db, req.userId!, 'sports', id, now().toISOString());

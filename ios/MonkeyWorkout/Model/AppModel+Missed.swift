@@ -120,10 +120,12 @@ extension AppModel {
         state.synced?.sessionFoci = nil
         state.done = [:]
         state.ticked = [:]
-        // Sessions skipped ahead for the new week (#671) are its skips now.
         let ahead = state.skippedAhead?[key] ?? []
-        state.skipped = ahead.isEmpty ? nil : Dictionary(ahead.map { ($0, true) }, uniquingKeysWith: { a, _ in a })
         state.skippedAhead = state.skippedAhead?.filter { $0.key > key }
         applyProfile(sp.profile, seed: sp.seed, week: PlanCalendar.cycleWeek(current: sp.week, offset: weeks), rolled: true)
+        // Sessions skipped ahead for the new week (#671) are its skips now: after the roll, which clears skips.
+        guard !ahead.isEmpty else { return }
+        state.skipped = Dictionary(ahead.map { ($0, true) }, uniquingKeysWith: { a, _ in a })
+        persist()
     }
 }

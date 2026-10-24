@@ -61,6 +61,8 @@ CREATE TABLE body_measurements (
      updated_at TEXT NOT NULL
    );
 
+CREATE INDEX body_measurements_user_time ON body_measurements(user_id, julianday(date));
+
 CREATE INDEX body_measurements_user_updated ON body_measurements(user_id, updated_at);
 
 CREATE TABLE climbs (
@@ -70,6 +72,8 @@ CREATE TABLE climbs (
       data TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+CREATE INDEX climbs_user_time ON climbs(user_id, julianday(start));
 
 CREATE INDEX climbs_user_updated ON climbs(user_id, updated_at);
 
@@ -132,6 +136,8 @@ CREATE TABLE community_challenge_scores (
 
 CREATE INDEX community_challenge_board ON community_challenge_scores(week, score DESC);
 
+CREATE INDEX community_challenge_scores_user ON community_challenge_scores(user_id);
+
 CREATE TABLE community_follows (
       follower_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       followed_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -158,6 +164,8 @@ CREATE TABLE community_live_cheers (
       kind TEXT NOT NULL CHECK (kind IN ('fire', 'banana', 'beast')),
       created_at TEXT NOT NULL
     );
+
+CREATE INDEX community_live_cheers_from ON community_live_cheers(from_id);
 
 CREATE INDEX community_live_cheers_to ON community_live_cheers(to_id, id);
 
@@ -190,7 +198,11 @@ CREATE TABLE community_profiles (
       guidelines_accepted_at TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
-    , show_gym INTEGER NOT NULL DEFAULT 0, level INTEGER, pronouns TEXT);
+    , show_gym INTEGER NOT NULL DEFAULT 0, level INTEGER, pronouns TEXT, gym_id TEXT, gym_name TEXT, gym_key TEXT, gym_lat REAL, gym_lon REAL);
+
+CREATE INDEX community_profiles_gym ON community_profiles(gym_id);
+
+CREATE INDEX community_profiles_gym_key ON community_profiles(show_gym, gym_key);
 
 CREATE TABLE community_program_copies (
       program_id TEXT NOT NULL REFERENCES community_programs(id) ON DELETE CASCADE,
@@ -222,6 +234,8 @@ CREATE TABLE community_reactions (
       PRIMARY KEY (post_id, user_id, kind)
     );
 
+CREATE INDEX community_reactions_user ON community_reactions(user_id);
+
 CREATE TABLE community_reports (
       id TEXT PRIMARY KEY,
       reporter_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -233,6 +247,8 @@ CREATE TABLE community_reports (
       created_at TEXT NOT NULL,
       resolved_at TEXT
     );
+
+CREATE INDEX community_reports_reporter ON community_reports(reporter_id);
 
 CREATE INDEX community_reports_target ON community_reports(target_type, target_id);
 
@@ -329,11 +345,13 @@ CREATE TABLE gym_maps (
       latitude REAL,
       longitude REAL,
       layout TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL, name_key TEXT,
       PRIMARY KEY (user_id, gym_id)
     );
 
 CREATE INDEX gym_maps_gym ON gym_maps(gym_id);
+
+CREATE INDEX gym_maps_name_key ON gym_maps(name_key);
 
 CREATE TABLE gym_reports (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -343,11 +361,13 @@ CREATE TABLE gym_reports (
       longitude REAL,
       equipment TEXT NOT NULL,
       unsure TEXT NOT NULL DEFAULT '[]',
-      updated_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL, name_key TEXT,
       PRIMARY KEY (user_id, gym_id)
     );
 
 CREATE INDEX gym_reports_gym ON gym_reports(gym_id);
+
+CREATE INDEX gym_reports_name_key ON gym_reports(name_key);
 
 CREATE TABLE gym_scan_usage (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -442,6 +462,8 @@ CREATE TABLE pr_attempts (
      updated_at TEXT NOT NULL
    );
 
+CREATE INDEX pr_attempts_user_time ON pr_attempts(user_id, julianday(date));
+
 CREATE INDEX pr_attempts_user_updated ON pr_attempts(user_id, updated_at);
 
 CREATE TABLE profiles (
@@ -507,6 +529,8 @@ CREATE INDEX refresh_family ON refresh_tokens(family_id);
 
 CREATE INDEX refresh_user ON refresh_tokens(user_id);
 
+CREATE TABLE schema_fixes (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL);
+
 CREATE TABLE schema_version (version INTEGER NOT NULL);
 
 CREATE TABLE sports (
@@ -516,6 +540,8 @@ CREATE TABLE sports (
       data TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+CREATE INDEX sports_user_time ON sports(user_id, julianday(start));
 
 CREATE INDEX sports_user_updated ON sports(user_id, updated_at);
 
@@ -573,7 +599,7 @@ CREATE TABLE users (
      locked_until TEXT,
      created_at TEXT NOT NULL,
      updated_at TEXT NOT NULL
-   );
+   , tokens_valid_after TEXT);
 
 CREATE TABLE watch_keys (
       user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -600,6 +626,8 @@ CREATE TABLE workout_logs (
      updated_at TEXT NOT NULL
    , set_index INTEGER, rir INTEGER);
 
+CREATE INDEX logs_user_time ON workout_logs(user_id, julianday(date));
+
 CREATE INDEX logs_user_updated ON workout_logs(user_id, updated_at);
 
 CREATE TABLE workouts (
@@ -609,5 +637,7 @@ CREATE TABLE workouts (
      data TEXT NOT NULL,
      updated_at TEXT NOT NULL
    );
+
+CREATE INDEX workouts_user_time ON workouts(user_id, julianday(started_at));
 
 CREATE INDEX workouts_user_updated ON workouts(user_id, updated_at);

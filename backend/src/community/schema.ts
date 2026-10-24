@@ -1,4 +1,40 @@
 import type { DB } from '../db.ts';
+import { nameKey } from '../gymSchema.ts';
+
+export interface Gym {
+  id: string;
+  name: string;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+/** The app's default gym when a training profile has none (`Gym.puls5` in WorkoutEngine). */
+export const DEFAULT_GYM: Gym = { id: 'fitnesspark-puls5', name: 'Fitnesspark Puls 5', latitude: null, longitude: null };
+
+/**
+ * Gym from a training profile (`profile.gym`, app-owned JSON). No gym saved = the app's default scoped gym.
+ * Null without a training profile, or when it can't be read.
+ */
+export const gymFromProfile = (data: string | undefined): Gym | null => {
+  if (data === undefined) return null;
+  try {
+    const g = (JSON.parse(data) as { profile?: { gym?: Partial<Gym> | null } }).profile?.gym;
+    return g?.id && g.name ? { id: g.id, name: g.name, latitude: g.latitude ?? null, longitude: g.longitude ?? null } : DEFAULT_GYM;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Copies the member's training-profile gym onto their community profile (#715), so member search and "at your gym"
+ * read indexed columns instead of every member's profile JSON. Called when either profile is saved.
+ */
+export const refreshMemberGym = (db: DB, userId: string): void => {
+  const g = gymFromProfile((db.prepare('SELECT data FROM profiles WHERE user_id = ?').get(userId) as { data: string } | undefined)?.data);
+  db.prepare('UPDATE community_profiles SET gym_id = ?, gym_name = ?, gym_key = ?, gym_lat = ?, gym_lon = ? WHERE user_id = ?').run(
+    g?.id ?? null, g?.name ?? null, g ? nameKey(g.name) : null, g?.latitude ?? null, g?.longitude ?? null, userId,
+  );
+};
 
 /** Community tables (#61). Idempotent like schemaExtras; every row cascades with its user. */
 export const ensureCommunitySchema = (db: DB): void => {
@@ -106,6 +142,17 @@ export const ensureCommunitySchema = (db: DB): void => {
   if (!cols.some((c) => c.name === 'level')) db.exec('ALTER TABLE community_profiles ADD COLUMN level INTEGER');
   // Pronouns (#415): shown next to the nickname only when the member turns it on in the app.
   if (!cols.some((c) => c.name === 'pronouns')) db.exec('ALTER TABLE community_profiles ADD COLUMN pronouns TEXT');
+  // Gym columns (#715): the training-profile gym, kept in step by refreshMemberGym; filled once for existing members.
+  if (!cols.some((c) => c.name === 'gym_id')) {
+    db.exec(`
+      ALTER TABLE community_profiles ADD COLUMN gym_id TEXT;
+      ALTER TABLE community_profiles ADD COLUMN gym_name TEXT;
+      ALTER TABLE community_profiles ADD COLUMN gym_key TEXT;
+      ALTER TABLE community_profiles ADD COLUMN gym_lat REAL;
+      ALTER TABLE community_profiles ADD COLUMN gym_lon REAL;
+    `);
+    for (const { user_id } of db.prepare('SELECT user_id FROM community_profiles').all() as { user_id: string }[]) refreshMemberGym(db, user_id);
+  }
   // Beast and Banana cheers (#566): the kind CHECK is rebuilt once on databases made before them.
   const reactions = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'community_reactions'").get() as { sql: string } | undefined;
   if (reactions && !reactions.sql.includes("'banana'")) {
@@ -124,6 +171,13 @@ export const ensureCommunitySchema = (db: DB): void => {
       COMMIT;
     `);
   }
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS community_profiles_gym ON community_profiles(gym_id);
+    CREATE INDEX IF NOT EXISTS community_profiles_gym_key ON community_profiles(show_gym, gym_key);
+    -- Per-member look-ups (#715): leaving the community, the export, and report clean-up (after the rebuild above, which drops indexes).
+    CREATE INDEX IF NOT EXISTS community_reactions_user ON community_reactions(user_id);
+    CREATE INDEX IF NOT EXISTS community_reports_reporter ON community_reports(reporter_id);
+  `);
 };
 
 /** Live group sessions (#626): gym buddies, live sets, cheers and the weekly challenge room. */
@@ -163,6 +217,10 @@ export const ensureLiveSchema = (db: DB): void => {
       PRIMARY KEY (week, user_id)
     );
     CREATE INDEX IF NOT EXISTS community_challenge_board ON community_challenge_scores(week, score DESC);
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS community_live_cheers_from ON community_live_cheers(from_id);
+    CREATE INDEX IF NOT EXISTS community_challenge_scores_user ON community_challenge_scores(user_id);
   `);
   // #675: a member can keep their live set from one buddy (their row toward that buddy).
   const cols = db.prepare('PRAGMA table_info(community_buddies)').all() as { name: string }[];

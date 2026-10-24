@@ -188,9 +188,9 @@ extension AppModel {
         for (id, wd) in changes {
             if let insId = week.plan.sessions.first(where: { $0.id == id })?.planInsertId,
                let i = sp.planInserts?.firstIndex(where: { $0.id == insId }) {
-                if let r = sp.planInserts?[i].replacing {
+                if let ins = sp.planInserts?[i], ins.replacing != nil {
                     // A library workout in place of a planned day moves with that day's slot.
-                    guard let base = state.plan, base.sessions.indices.contains(r) else { continue }
+                    guard let base = state.plan, let r = base.replacedIndex(of: ins) else { continue }
                     moves.removeAll { $0.weekOf == monday && $0.sessionId == base.sessions[r].id }
                     moves.append(SessionMove(weekOf: monday, sessionId: base.sessions[r].id, weekday: wd))
                 } else {

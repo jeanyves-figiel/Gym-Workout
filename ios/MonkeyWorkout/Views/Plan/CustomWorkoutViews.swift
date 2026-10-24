@@ -15,7 +15,6 @@ private struct StandaloneWorkoutActions: ViewModifier {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var editing: CustomWorkout?
-    @State private var gate: ProGate?
 
     func body(content: Content) -> some View {
         content
@@ -23,7 +22,6 @@ private struct StandaloneWorkoutActions: ViewModifier {
                 ToolbarItem(placement: .topBarTrailing) { actions }
             }
             .sheet(item: $editing) { w in CustomWorkoutEditor(initial: w) }
-            .proPaywall($gate)
     }
 
     /// Deleted at once (#539); Undo saves it back. Past sessions stay in history either way.
@@ -40,14 +38,14 @@ private struct StandaloneWorkoutActions: ViewModifier {
         if let w = model.customWorkout(sessionId: session.id) {
             Menu {
                 Button("Edit", systemImage: "pencil") { editing = w }
-                Button("Duplicate", systemImage: "plus.square.on.square") { ProStore.shared.run(.buildWorkout, $gate) { editing = w.duplicated() } }
+                Button("Duplicate", systemImage: "plus.square.on.square") { editing = w.duplicated() }
                 Button("Delete", systemImage: "trash", role: .destructive) { delete(w) }
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
             .accessibilityLabel("Workout actions")
         } else if let t = WorkoutTemplate.find(sessionId: session.id) {
-            Button { ProStore.shared.run(.buildWorkout, $gate) { editing = CustomWorkout(duplicating: t) } } label: {
+            Button { editing = CustomWorkout(duplicating: t) } label: {
                 Label("Duplicate & edit", systemImage: "plus.square.on.square")
             }
         }
@@ -151,7 +149,7 @@ struct CustomWorkoutEditor: View {
 
                 if model.profile != nil {
                     GenerateWorkoutCard(regenerate: !draft.items.isEmpty) {
-                        ProStore.shared.run(.generateWorkout, $gate) { generating = true }
+                        generating = true
                     }
                         .cardRow()
                 }
@@ -204,11 +202,11 @@ struct CustomWorkoutEditor: View {
 
                 if generated != nil && canSave && onSave == nil {
                     HStack(spacing: 10) {
-                        QuickActionCard(title: "Start now", symbol: "play.fill", gradient: WorkoutEngine.Category.strength.gradient) {
+                        QuickActionCard(title: "Start now", symbol: "play.fill", gradient: WorkoutEngine.Category.strength.gradient, pro: true) {
                             ProStore.shared.run(.generateWorkout, $gate) { saveThen { playing = true } }
                         }
                         QuickActionCard(title: "Add to a day", symbol: "calendar.badge.plus", gradient: WorkoutEngine.Category.mobility.gradient) {
-                            ProStore.shared.run(.generateWorkout, $gate) { saveThen { planning = true } }
+                            saveThen { planning = true }
                         }
                     }
                     .cardRow()
@@ -343,6 +341,7 @@ private struct QuickActionCard: View {
     let title: String
     let symbol: String
     let gradient: LinearGradient
+    var pro = false
     let action: () -> Void
 
     var body: some View {
@@ -351,7 +350,7 @@ private struct QuickActionCard: View {
                 HStack(alignment: .top) {
                     IconTile(symbol: symbol, size: 40)
                     Spacer(minLength: 4)
-                    ProBadge()
+                    if pro { ProBadge() }
                 }
                 Text(title).font(Theme.display(18)).lineLimit(1).minimumScaleFactor(0.7)
             }

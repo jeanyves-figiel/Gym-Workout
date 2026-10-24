@@ -374,6 +374,8 @@ struct AvatarView: View {
     let nickname: String
     var size: CGFloat = 32
     var ring: Color = .white
+    @Environment(\.displayScale) private var scale
+    @State private var image: UIImage?
 
     var body: some View {
         ZStack {
@@ -381,14 +383,21 @@ struct AvatarView: View {
             Text(String(nickname.prefix(1)).uppercased())
                 .font(.system(size: size * 0.45, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
-            if let url {
-                AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+            if let image {
+                Image(uiImage: image).resizable().scaledToFill()
             }
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
         .overlay(Circle().strokeBorder(ring, lineWidth: max(1.5, size / 28)))
         .accessibilityHidden(true)
+        // Decoded at the circle's size (#720), not the upload's.
+        .task(id: url) {
+            guard let url else { return image = nil }
+            let pixels = Int((size * scale).rounded(.up))
+            image = AvatarImages.cached(url, pixels: pixels)
+            if image == nil { image = await AvatarImages.load(url, pixels: pixels) }
+        }
     }
 }
 

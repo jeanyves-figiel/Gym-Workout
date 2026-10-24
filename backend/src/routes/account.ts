@@ -13,8 +13,7 @@ export const accountRoutes = (r: FastifyInstance, emailChange: EmailChangeServic
 
   r.post('/me/email', limit, async (req, reply) => {
     const b = z.object({ newEmail: email, password: z.string().min(1).max(256).optional() }).parse(req.body);
-    await security.requireReauth(req.userId!, reauthToken(req), b.password);
-    await emailChange.request(req.userId!, b.newEmail);
+    await security.withReauth(req.userId!, reauthToken(req), b.password, () => emailChange.request(req.userId!, b.newEmail));
     return reply.status(202).send({ status: 'verification_required', message: 'Check the new address for a 6-digit code.' });
   });
 

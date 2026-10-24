@@ -245,11 +245,15 @@ final class WatchSync: NSObject {
 
     /// Big screen timer (#622 C): shows it on the Watch with a double-tap start; nil closes it.
     func sendWodRemote(_ remote: WWodRemote?) {
-        guard let session, session.activationState == .activated, session.isReachable else { return }
-        if let remote, let data = try? JSONEncoder.watch.encode(remote) {
+        guard let session, session.activationState == .activated else { return }
+        if let remote {
+            guard session.isReachable, let data = try? JSONEncoder.watch.encode(remote) else { return }
             session.sendMessage([WatchKeys.wodRemote: data], replyHandler: nil, errorHandler: nil)
-        } else {
+        } else if session.isReachable {
             session.sendMessage([WatchKeys.wodRemoteEnded: true], replyHandler: nil, errorHandler: nil)
+        } else if session.isPaired, session.isWatchAppInstalled {
+            // Out of reach as the player closes (#720): queued, so the Watch still ends its HIIT workout.
+            session.transferUserInfo([WatchKeys.wodRemoteEnded: true])
         }
     }
 
@@ -476,12 +480,13 @@ final class WatchSync: NSObject {
                        guided: b.kind == .cooldown ? true : nil)
             },
             missed: model.missedToHandle.contains { $0.id == session.id },
-            plannedOn: planned && session.weekday != nil ? WSession.dayKey(model.day(of: session)) : nil)
+            plannedOn: planned && session.weekday != nil ? WSession.dayKey(model.day(of: session)) : nil,
+            skipped: model.skippedIds.contains(session.id) ? true : nil)
     }
 
     private static func item(_ it: PlannedExercise, block: Block, sessionId: String, model: AppModel) -> WItem {
         let e = Exercise.get(it.exerciseId)
-        let loggable = block.kind == .strength && !e.equipment.isEmpty && e.unit != .sec
+        let loggable = it.isLoggable(in: block)
         let timed = TimedSpec(it.prescription, unit: e.unit)
         let suggestion = loggable ? model.loadSuggestion(for: it, sessionId: sessionId) : nil
         let kg = suggestion?.kg ?? (loggable ? model.lastWeight(it.exerciseId) : nil)
@@ -491,7 +496,9 @@ final class WatchSync: NSObject {
             loggable: loggable, timedSec: timed?.workSec, easySec: timed?.easySec,
             kg: kg, targetReps: suggestion?.reps ?? it.prescription.repRange?.low,
             kgStep: LoadAdvisor.steps(for: e, kg: kg ?? 20).granularity,
-            pairedName: it.pairedWith.flatMap(Exercise.find)?.name)
+            pairedName: it.pairedWith.flatMap(Exercise.find)?.name,
+            // Superset members as the iPhone groups them (Block.groupMembers); one in another's rest isn't one.
+            group: it.supersetWith == nil ? it.group?.first.map { String($0) } : nil)
     }
 }
 

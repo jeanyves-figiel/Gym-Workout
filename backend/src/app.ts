@@ -159,6 +159,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       return reply.status(400).send({ error: 'invalid_request', message: err.issues[0]?.message ?? 'Invalid request', issues: err.issues });
     const e = err as { statusCode?: number; code?: string; message: string };
     if (e.statusCode === 429) return reply.status(429).send({ error: 'rate_limited', message: 'Too many requests. Slow down.' });
+    // Body over the route's limit (#714): the same stable code as a record over its size cap.
+    if (e.statusCode === 413) return reply.status(413).send({ error: 'too_large', message: 'That is too large to send.' });
     if (e.statusCode && e.statusCode < 500) return reply.status(e.statusCode).send({ error: 'bad_request', message: e.message });
     req.log.error(err);
     return reply.status(500).send({ error: 'internal', message: 'Something went wrong.' });
@@ -185,6 +187,9 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   securityPublicRoutes(app, security, deps.config.authRateLimitPerMin);
   watchSportRoutes(app, deps.db, deps.now ?? (() => new Date()));
   garminWatchRoutes(app, deps.db, deps.now ?? (() => new Date()));
+
+  /** Drops a deleted member's name calls from the voice cache (#712); set once the voice routes are registered. */
+  let forgetVoices: (userId: string) => void = () => {};
 
   const authenticate = async (req: FastifyRequest) => {
     const h = req.headers.authorization;
@@ -275,8 +280,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       // Re-auth (#257): grant header, or the current password from older app builds.
       r.post('/me/password', async (req) => {
         const b = z.object({ currentPassword: password.optional(), newPassword: password }).parse(req.body);
-        await security.requireReauth(req.userId!, reauthToken(req), b.currentPassword);
-        return { tokens: await auth.changePassword(req.userId!, b.newPassword, device(req)) };
+        return { tokens: await security.withReauth(req.userId!, reauthToken(req), b.currentPassword, () => auth.changePassword(req.userId!, b.newPassword, device(req))) };
       });
 
       r.get('/me/sessions', async (req) => ({ sessions: auth.sessions(req.userId!) }));
@@ -288,8 +292,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
 
       r.delete('/me', async (req, reply) => {
         const b = z.object({ password: password.optional(), confirm: z.literal('DELETE') }).parse(req.body ?? {});
-        await security.requireReauth(req.userId!, reauthToken(req), b.password);
-        await auth.deleteAccount(req.userId!);
+        await security.withReauth(req.userId!, reauthToken(req), b.password, () => auth.deleteAccount(req.userId!));
+        forgetVoices(req.userId!);
         return reply.status(204).send();
       });
 
@@ -320,11 +324,12 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       const plateScan = deps.plateScan ?? (deps.config.coachChat.apiKey ? claudePlateScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
       foodScanRoutes(r, deps.db, now, foodScan, 20, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit, plateScan);
       const voices = deps.config.coachVoices;
-      coachVoiceRoutes(r, deps.synth ?? (voices.polly ? pollySynthesizer(voices.polly, outbound, now) : undefined), voices.cacheDir, {
+      forgetVoices = coachVoiceRoutes(r, deps.synth ?? (voices.polly ? pollySynthesizer(voices.polly, outbound, now) : undefined), voices.cacheDir, {
         warm: deps.config.env === 'production',
         db: deps.db,
         now,
-      });
+        aiDailyLimit: deps.config.aiDailyLimit,
+      }).forget;
     },
     { prefix: '/v1' },
   );

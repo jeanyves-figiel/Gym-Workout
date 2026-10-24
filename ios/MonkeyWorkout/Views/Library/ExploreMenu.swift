@@ -97,7 +97,7 @@ extension LibraryView.Mode {
         case .categories: "By type"
         case .workouts: "Workouts"
         case .hiit: "HIIT"
-        case .routines: "Routines"
+        case .routines: "Daily"
         case .programmes: "Plans"
         }
     }

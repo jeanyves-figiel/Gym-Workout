@@ -22,7 +22,9 @@ interface SharedRow {
   avatar_id: string | null;
 }
 
-const SELECT_SHARED = `SELECT w.id, w.user_id, w.data, w.visibility, w.shared_at, w.saves, cp.nickname, cp.avatar_id
+/** `saves` is counted from `library_saves` (#714), so a saver who deletes their account no longer counts. */
+const SELECT_SHARED = `SELECT w.id, w.user_id, w.data, w.visibility, w.shared_at,
+    (SELECT COUNT(*) FROM library_saves s WHERE s.workout_id = w.id) AS saves, cp.nickname, cp.avatar_id
   FROM custom_workouts w LEFT JOIN community_profiles cp ON cp.user_id = w.user_id`;
 // Authors who left the community (no profile) are not listed (#432).
 const VISIBLE = `cp.user_id IS NOT NULL AND ${visibleToOthersSql('w.user_id', 'w.visibility', 'w.hidden_at')}`;
@@ -90,14 +92,8 @@ export const libraryRoutes = (r: FastifyInstance, db: DB, now: () => Date, maile
     const { id } = z.object({ id: z.uuid() }).parse(req.params);
     requireProfile(req.userId!);
     const row = visibleWorkout(id, req.userId!);
-    const first = tx(db, () => {
-      const fresh = Number(
-        db.prepare('INSERT OR IGNORE INTO library_saves (user_id, workout_id, created_at) VALUES (?, ?, ?)').run(req.userId!, row.id, now().toISOString()).changes,
-      );
-      if (fresh) db.prepare('UPDATE custom_workouts SET saves = saves + 1 WHERE id = ?').run(row.id);
-      return fresh > 0;
-    });
-    return { workout: toShared({ ...row, saves: row.saves + (first ? 1 : 0) }) };
+    db.prepare('INSERT OR IGNORE INTO library_saves (user_id, workout_id, created_at) VALUES (?, ?, ?)').run(req.userId!, row.id, now().toISOString());
+    return { workout: toShared(visibleWorkout(row.id, req.userId!)) };
   });
 
   r.post('/library/shared/:id/report', { config: { rateLimit: { max: 20, timeWindow: '1 hour' } } }, async (req, reply) => {

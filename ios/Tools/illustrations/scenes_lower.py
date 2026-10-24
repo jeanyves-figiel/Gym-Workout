@@ -1111,9 +1111,10 @@ def trx_pose(t, ank_x):
     td, n = tframe(t)
     hip = pt(TRX_S, t, -TOR)
     ank = (ank_x, TRX_A[1] + math.sqrt(TRX_R ** 2 - (ank_x - TRX_A[0]) ** 2))
-    g = (TRX_S[0] + 78, GROUND - 6)
+    # Arms long on the mat (#719): a bent elbow went through it.
+    g = (TRX_S[0] + 86, GROUND - 6)
     return body(hip, t, h=182, ankN=ank, ankF=art.add(ank, (-2, -2)), kN=-1, kF=-1, fN=-96, fF=-98,
-                gN=g, gF=(g[0] - 4, g[1]), eN=1, eF=1, hN=0, hF=0)
+                gN=g, gF=(g[0] - 2, g[1]), eN=1, eF=1, hN=0, hF=0)
 
 
 # ==== frontal-plane: Cossack squat, hip adduction / abduction =======================================

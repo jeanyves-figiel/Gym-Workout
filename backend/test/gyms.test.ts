@@ -98,4 +98,26 @@ describe('Gym memory (#162)', () => {
     expect((await put('/v1/gyms/reports', { gym: holmes, equipment: ['DROP TABLE'] }, a)).statusCode).toBe(400);
     expect((await app.inject({ method: 'GET', url: '/v1/gyms/known?id=x&name=y' })).statusCode).toBe(401);
   });
+
+  it('one vote per member and place: a second id for the same place replaces the first (#712)', async () => {
+    const a = await signUp('a@example.com');
+    const b = await signUp('b@example.com');
+    await put('/v1/gyms/reports', { gym: holmes, equipment: ['barbell'] }, a);
+    clock = new Date(clock.getTime() + 1000);
+    await put('/v1/gyms/reports', { gym: { ...holmes, id: 'map:47.37801,8.53001' }, equipment: ['rower'] }, a);
+    // Rows stored before #712 (one member, two ids at one place) count once, with the latest.
+    db.prepare("INSERT INTO gym_reports (user_id, gym_id, name, name_key, latitude, longitude, equipment, unsure, updated_at) SELECT user_id, 'map:47.37802,8.53002', name, name_key, latitude, longitude, '[\"cable\"]', '[]', '2026-01-01T00:00:00.000Z' FROM gym_reports").run();
+    expect((db.prepare('SELECT COUNT(*) AS n FROM gym_reports').get() as { n: number }).n).toBe(2);
+    expect((await known(b, holmes)).json().place).toEqual({ members: 1, votes: { rower: 1 }, equipment: ['rower'] });
+  });
+
+  it('takes the documented gym{lat, lon} as well as latitude/longitude and stores them (#714)', async () => {
+    const a = await signUp('a@example.com');
+    const b = await signUp('b@example.com');
+    const { latitude: lat, longitude: lon, ...rest } = holmes;
+    expect((await put('/v1/gyms/reports', { gym: { ...rest, lat, lon }, equipment: ['barbell'] }, a)).json()).toEqual({ saved: true });
+    expect(db.prepare('SELECT latitude, longitude, name_key FROM gym_reports').get()).toEqual({ latitude: lat, longitude: lon, name_key: 'holmes place europaallee' });
+    // Same name nearby under another id: found because the place has coordinates.
+    expect((await known(b, { ...holmes, id: 'map:47.37810,8.53010' })).json().place).toMatchObject({ members: 1 });
+  });
 });

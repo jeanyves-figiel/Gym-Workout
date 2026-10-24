@@ -6,11 +6,14 @@ import WorkoutEngine
 /// macros per serving as stats. Sharing again updates the same post.
 struct ShareRecipeSheet: View {
     let recipe: Recipe
+    /// Caption brought back by Undo (#717).
+    var restoring: String?
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var caption = ""
     @State private var visibility: CommunityVisibility = Community.shared.profile?.defaultVisibility ?? .onlyMe
     @State private var task = FormTask()
+    @State private var closeGuard = CloseGuard()
 
     static func card(_ r: Recipe) -> CommunityCard {
         CommunityCard(title: "\(r.emoji) \(r.name)", subtitle: ["Recipe", "\(r.minutes) min", r.cuisine].filter { !$0.isEmpty }.joined(separator: " · "),
@@ -38,7 +41,7 @@ struct ShareRecipeSheet: View {
                     .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(card.gradient))
 
                     if Community.shared.profile == nil {
-                        Text("Join Community first (Community tab) to share recipes with other members.")
+                        Text("Join Social first (Social tab) to share recipes with other members.")
                             .font(.subheadline.weight(.medium)).foregroundStyle(Theme.muted).card()
                     } else {
                         Text("Say something").eyebrow()
@@ -64,13 +67,28 @@ struct ShareRecipeSheet: View {
             .toolbar { CloseToolbarItem { dismiss() } }
         }
         .preferredColorScheme(.dark)
+        .undoableClose(closeGuard, offer: undoOffer)
+        .onAppear { if let restoring, caption.isEmpty { caption = restoring } }
+    }
+
+    /// Undo bar when a caption was typed (#717).
+    private var undoOffer: UndoOffer? {
+        let typed = caption.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.isEmpty else { return nil }
+        let kept = caption
+        let recipe = self.recipe
+        return UndoOffer(title: "Share closed", detail: undoDetail(recipe.name, "“\(typed)”"), symbol: "fork.knife") {
+            AnyView(ShareRecipeSheet(recipe: recipe, restoring: kept))
+        }
     }
 
     private func share(_ card: CommunityCard) {
         let text = caption.trimmingCharacters(in: .whitespacesAndNewlines)
+        let closing = closeGuard
         task.run {
             #if DEBUG
             if model.demo {
+                closing.done()
                 dismiss()
                 return
             }
@@ -78,6 +96,7 @@ struct ShareRecipeSheet: View {
             let post = try await model.api.sharePost(kind: "note", refId: String("recipe-\(recipe.id)".prefix(64)), visibility: visibility,
                                                      caption: text.isEmpty ? nil : text, card: card)
             Community.shared.insert(post)
+            closing.done()
             dismiss()
         }
     }

@@ -241,7 +241,7 @@ public struct Programme: Codable, Identifiable, Hashable, Sendable {
             let base = plan.sessions[index]
             guard let session = Self.signatureSession(sig, phase: kind, on: base, profile: profile) else { continue }
             let insertId = Self.insertId(programme: id, signature: sig.id, week: week)
-            out.append(PlanInsert(id: insertId, week: plan.week, replacing: index,
+            out.append(PlanInsert(id: insertId, week: plan.week, replacing: index, replacingId: base.id,
                                   workout: CustomWorkout(id: insertId, name: sig.name, createdAt: Date(timeIntervalSince1970: 0)),
                                   generated: session))
         }

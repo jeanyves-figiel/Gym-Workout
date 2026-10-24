@@ -66,10 +66,11 @@ struct ExerciseImage: View {
 /// Illustration frames decoded ahead of playback: the movement swaps frames many times a second, so the frames of the
 /// exercise on show are decoded once in the background instead of on the main thread as they first draw.
 enum IllustrationImages {
-    /// About one exercise's frames (720 × 540 each); the system also empties it under memory pressure.
+    /// About the frames of the exercise on show and the next one (#720: the player decodes the next move ahead);
+    /// the system also empties it under memory pressure.
     private static let cache: NSCache<NSString, UIImage> = {
         let c = NSCache<NSString, UIImage>()
-        c.totalCostLimit = 80 * 1024 * 1024
+        c.totalCostLimit = 150 * 1024 * 1024
         return c
     }()
 
@@ -111,6 +112,11 @@ struct ExerciseMotionView: View {
     /// Start → end → start cycles played on its own each time a new exercise shows, then it rests on
     /// `restingFrame` (never an endless loop). 0 = only on tap. Reduce Motion turns auto-play off.
     var autoPlayCycles = Self.autoPlayCycles
+    /// HIIT (#719): plays for about this many seconds (the interval) instead of `autoPlayCycles` reps, and each
+    /// new `playTrigger` does too.
+    var playFor: Double? = nil
+    /// Tempo multiplier: HIIT moves are quicker than lifting reps (no tempo chip then).
+    var speed = 1.0
 
     /// Default number of automatic cycles in the player and on the exercise page.
     static let autoPlayCycles = 3
@@ -161,7 +167,11 @@ struct ExerciseMotionView: View {
             try? await Task.sleep(for: .seconds(playback.duration))
             if !Task.isCancelled { self.playback = nil }
         }
-        .onChange(of: playTrigger) { _, _ in start(Self.tapCycles) }
+        // The player moving on replays it, but never with Reduce Motion (#719): only a tap plays then.
+        .onChange(of: playTrigger) { _, _ in
+            guard !reduceMotion else { return }
+            start(playFor != nil ? autoPlayCycles : Self.tapCycles)
+        }
         // Picking a frame on the exercise page stops a running play and shows that frame.
         .onChange(of: restingFrame) { _, _ in
             playback = nil
@@ -213,9 +223,10 @@ struct ExerciseMotionView: View {
         }
     }
 
-    /// "UP 1s" chip in the half's colour, a bar filling over the half, and the rep ("2/3").
+    /// "UP 1s" chip in the half's colour, a bar filling over the half, and the rep ("2/3"). A gait or a machine
+    /// that turns (#719) shows its cycle ("STRIDE") in white, no tempo, as does a faster play (HIIT).
     private func tempoChip(_ phase: ExerciseMotion.Phase, state: MotionPlayback.State, cycles: Int) -> some View {
-        let tempo = ExerciseMotion.showsTempo(exercise.category)
+        let tempo = ExerciseMotion.showsTempo(exercise.category) && motion?.cyclic != true && speed == 1
         let color = !tempo ? Color.white : (phase.effort ? Self.effortColor : Self.returnColor)
         return HStack(spacing: 8) {
             Text(tempo ? phase.text : phase.label)
@@ -264,9 +275,12 @@ struct ExerciseMotionView: View {
         let now = Date()
         // A restart mid-play glides from where the picture is now.
         let from = playback?.state(at: now.timeIntervalSince(started))?.position ?? Double(restingFrame)
-        let (out, back) = halfSeconds
-        playback = MotionPlayback(frames: frames, cycles: n, out: out, back: back, hold: Self.hold,
-                                  from: from, rest: Double(restingFrame))
+        let cyclic = motion?.cyclic == true
+        let out = halfSeconds.0 / speed, back = halfSeconds.1 / speed, hold = Self.hold / speed
+        // HIIT: as many reps as fit the interval.
+        let cycles = playFor.map { max(1, Int($0 / max(0.1, out + back + (cyclic ? 0 : 2 * hold)))) } ?? n
+        playback = MotionPlayback(frames: frames, cycles: cycles, out: out, back: back, hold: hold,
+                                  from: from, rest: Double(restingFrame), cyclic: cyclic)
         started = now
         run += 1
     }

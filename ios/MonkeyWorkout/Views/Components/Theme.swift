@@ -67,6 +67,19 @@ extension WorkoutEngine.Category {
     }
 }
 
+/// Feature gradients used on several screens (#718): one token each instead of hard-coded copies.
+extension LinearGradient {
+    static let hiit = LinearGradient(colors: Theme.hiitColors, startPoint: .topLeading, endPoint: .bottomTrailing)
+    static let buddies = LinearGradient(colors: Theme.buddiesColors, startPoint: .topLeading, endPoint: .bottomTrailing)
+}
+
+extension Theme {
+    /// HIIT: pink to orange.
+    static let hiitColors = [hex(0xFF3D8B), hex(0xFF7A3C)]
+    /// Gym buddies and Live: green to blue.
+    static let buddiesColors = [hex(0x00B86B), hex(0x1E9BFF)]
+}
+
 extension BlockKind {
     var gradient: LinearGradient { category.gradient }
     var symbol: String { category.symbol }
@@ -266,20 +279,6 @@ struct BlockStripe: View {
             }
         }
         .frame(height: height)
-    }
-}
-
-struct StatTile: View {
-    let value: String
-    let label: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value).font(Theme.display(26)).monospacedDigit()
-            Text(label).eyebrow()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card(padding: 14)
     }
 }
 

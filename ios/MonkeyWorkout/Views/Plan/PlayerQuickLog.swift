@@ -401,51 +401,6 @@ struct PlainSetCard: View {
     }
 }
 
-/// What comes after the current set: the next set of this exercise or the next exercise, on its category gradient.
-struct UpNextCard: View {
-    let title: String
-    let eyebrow: String
-    let detail: String
-    let exercise: Exercise?
-    let colors: [Color]
-    var symbol: String = "arrow.right"
-    /// One-line version pinned in the player (#206): smaller picture, detail beside the title.
-    var compact = false
-
-    var body: some View {
-        let size: CGFloat = compact ? 34 : 48
-        HStack(spacing: compact ? 10 : 12) {
-            // The exercise's own art (#170) reads at 48 pt; without media, the category icon tile as on Explore.
-            if let exercise, ExerciseImage.hasMedia(exercise) {
-                ExerciseThumbnail(exercise: exercise, size: size)
-            } else {
-                Image(systemName: exercise?.category.symbol ?? symbol)
-                    .font(.system(size: compact ? 15 : 20, weight: .heavy))
-                    .frame(width: size, height: size)
-                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.2)))
-            }
-            VStack(alignment: .leading, spacing: compact ? 0 : 2) {
-                Text(eyebrow).font(Theme.label(10)).tracking(1.2).textCase(.uppercase).opacity(0.85).lineLimit(1)
-                if compact {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(title).font(Theme.display(15)).lineLimit(1).minimumScaleFactor(0.7)
-                        if !detail.isEmpty { Text(detail).font(Theme.label(11)).opacity(0.9).lineLimit(1).layoutPriority(-1) }
-                    }
-                } else {
-                    Text(title).font(Theme.display(18)).lineLimit(1).minimumScaleFactor(0.7)
-                    if !detail.isEmpty { Text(detail).font(Theme.label(12)).opacity(0.9).lineLimit(1) }
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .foregroundStyle(.white)
-        .padding(compact ? 8 : 12)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
-        .accessibilityElement(children: .combine)
-    }
-}
-
 private func rgb(_ v: UInt32) -> Color {
     Color(red: Double((v >> 16) & 0xFF) / 255, green: Double((v >> 8) & 0xFF) / 255, blue: Double(v & 0xFF) / 255)
 }

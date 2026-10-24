@@ -255,7 +255,8 @@ final class NotificationManager: NSObject {
                                       now: minute, quiet: { [prefs] in prefs.isQuiet($0) }, calendar: cal)
         let day = cal.startOfDay(for: now)
         for n in nudges {
-            guard let at = cal.date(byAdding: .minute, value: n.minute, to: day), at > now else { continue }
+            // Clock time, not minutes after midnight: a DST day keeps 8:00 at 8:00 (#716).
+            guard let at = cal.date(bySettingHour: n.minute / 60, minute: n.minute % 60, second: 0, of: day), at > now else { continue }
             await postWater(id: "water|\(store.key(now))|\(n.minute)", title: n.title, body: n.body,
                             trigger: UNCalendarNotificationTrigger(dateMatching: cal.dateComponents([.year, .month, .day, .hour, .minute], from: at), repeats: false))
         }
@@ -279,7 +280,7 @@ final class NotificationManager: NSObject {
             for dose in planFor(day).supplements where log.ticks[dose.id] == nil && !prefs.isQuiet(dose.minute) {
                 guard store.stack.first(where: { Supplements.tickId($0) == dose.id || dose.id.hasPrefix(Supplements.tickId($0) + "-") })?
                         .rhythm?.remind == true,
-                      let at = cal.date(byAdding: .minute, value: dose.minute, to: day), at > now else { continue }
+                      let at = cal.date(bySettingHour: dose.minute / 60, minute: dose.minute % 60, second: 0, of: day), at > now else { continue }
                 let content = UNMutableNotificationContent()
                 content.title = "\(dose.supplement.emoji) \(dose.supplement.name)"
                 content.body = [dose.reason, dose.supplement.dose].filter { !$0.isEmpty }.joined(separator: " · ")

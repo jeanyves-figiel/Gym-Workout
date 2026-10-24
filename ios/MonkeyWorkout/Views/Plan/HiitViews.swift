@@ -139,7 +139,10 @@ struct HiitBuilderSheet: View {
     @AppStorage(HiitPrefs.savedKey) private var savedRaw = ""
     @State private var spec: HiitSpec
     @State private var playing: HiitSpec?
+    @State private var gate: ProGate?
     @State private var added: String?
+    /// Add to day failed (no plan synced yet, #717).
+    @State private var addError: String?
 
     init(format: HiitFormat) {
         _spec = State(initialValue: HiitSpec(format: format, minutes: 20, kit: .gym))
@@ -195,6 +198,7 @@ struct HiitBuilderSheet: View {
                     if let added {
                         Label(added, systemImage: "checkmark.circle.fill").font(Theme.label(14)).foregroundStyle(Theme.lime)
                     }
+                    ErrorText(message: addError)
                 }
                 .padding(16)
             }
@@ -205,11 +209,12 @@ struct HiitBuilderSheet: View {
         }
         .preferredColorScheme(.dark)
         .fullScreenCover(item: $playing) { WorkoutPlayerView(sessionId: $0.sessionId) }
+        .proPaywall($gate)
     }
 
     private var actions: some View {
         HStack(spacing: 8) {
-            Button { playing = spec } label: {
+            Button { ProStore.shared.run(.generateWorkout, $gate) { playing = spec } } label: {
                 Label("Do today", systemImage: "play.fill").font(Theme.label(15)).foregroundStyle(Theme.ink)
                     .frame(maxWidth: .infinity, minHeight: 52)
                     .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.lime))
@@ -217,7 +222,7 @@ struct HiitBuilderSheet: View {
             .accessibilityIdentifier("hiit.doToday")
             Menu {
                 ForEach(model.todayWeekday...7, id: \.self) { wd in
-                    Button(wd == model.todayWeekday ? "Today" : Self.dayName(wd)) { add(wd) }
+                    Button(wd == model.todayWeekday ? "Today" : WeekSchedule.name(wd)) { add(wd) }
                 }
             } label: {
                 Text("Add to day").font(Theme.label(15)).frame(maxWidth: .infinity, minHeight: 52)
@@ -240,32 +245,24 @@ struct HiitBuilderSheet: View {
         .background(Theme.bg.ignoresSafeArea())
     }
 
-    static func dayName(_ weekday: Int) -> String {
-        let names = Calendar.current.weekdaySymbols
-        return names[weekday % 7]
-    }
-
     private func add(_ weekday: Int) {
         let s = workout.session(id: spec.sessionId)
-        guard model.addExtra(CustomWorkout(name: s.title), generated: s, weekday: weekday) != nil else { return }
+        let day = weekday == model.todayWeekday ? "today" : WeekSchedule.name(weekday)
+        guard model.addExtra(CustomWorkout(name: s.title), generated: s, weekday: weekday) != nil else {
+            added = nil
+            addError = "Couldn't add it to \(day). Try again once your week has synced."
+            Haptics.destructive()
+            return
+        }
         Haptics.success()
-        added = "Added to \(weekday == model.todayWeekday ? "today" : Self.dayName(weekday))"
+        addError = nil
+        added = "Added to \(day)"
     }
 
     private func chips<T: Equatable>(_ options: [(String, T)], selected: T, pick: @escaping (T) -> Void) -> some View {
         HStack(spacing: 6) {
             ForEach(Array(options.enumerated()), id: \.offset) { _, o in
-                let on = o.1 == selected
-                Button {
-                    withAnimation(.snappy(duration: 0.2)) { pick(o.1) }
-                } label: {
-                    Text(o.0).font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.7)
-                        .foregroundStyle(on ? Theme.ink : .white.opacity(0.85))
-                        .frame(maxWidth: .infinity, minHeight: 40)
-                        .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(on ? Color.white : Theme.card))
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(on ? .isSelected : [])
+                SelectChip(title: o.0, on: o.1 == selected) { withAnimation(.snappy(duration: 0.2)) { pick(o.1) } }
             }
         }
     }
@@ -323,21 +320,12 @@ struct HiitPlanEditor: View {
                 .font(.footnote).foregroundStyle(Theme.muted)
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(
-            LinearGradient(colors: [Color(hex: 0xFF3D8B).opacity(0.45), Color(hex: 0xFF7A3C).opacity(0.25)],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(LinearGradient.hiit).opacity(0.35))
         .disabled(model.profile == nil)
     }
 
     private func chip(_ label: String, on: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(label).font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.7)
-                .foregroundStyle(on ? Theme.ink : .white)
-                .frame(maxWidth: .infinity, minHeight: 40)
-                .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(on ? Color.white : Color.black.opacity(0.25)))
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(on ? .isSelected : [])
+        SelectChip(title: label, on: on, offFill: AnyShapeStyle(.black.opacity(0.25)), offInk: .white, action: action)
     }
 }
 
@@ -361,7 +349,7 @@ struct HiitProfileCard: View {
             let days = h?.days ?? 0
             ExpertStatCard(symbol: "bolt.heart.fill", title: "HIIT", detail: Self.detail(h),
                            value: days > 0 ? "\(days)×" : "", unit: days > 0 ? "a week" : "",
-                           colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF7A3C)])
+                           colors: Theme.hiitColors)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("profile.hiit")

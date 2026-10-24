@@ -9,6 +9,7 @@ when start → end is the working (concentric) half, which the app plays at 1 s,
 import math
 
 import art
+import cycles
 
 # Points that can carry the movement, in order of preference when they travel about as far.
 CANDIDATES = ("handN", "handF", "toeN", "toeF", "hip", "shoulder", "kneeN", "head")
@@ -74,4 +75,8 @@ def analyse(ex_id, joints, view, front):
             effort_first = not towards_body  # presses, pushes, throws
     if first in ("PUSH", "PULL", "IN", "OUT") and any(k in ex_id for k in JUMPS):
         first, second, effort_first = "JUMP", "RESET", True  # forward / sideways jumps
+    if ex_id in cycles.CYCLIC:
+        # One whole stride or turn per play, no working half (#719).
+        first, second = cycles.CYCLIC[ex_id]
+        return dict(track=key, path=path, first=first, second=second, effort_first=True, cyclic=True)
     return dict(track=key, path=path, first=first, second=second, effort_first=effort_first)

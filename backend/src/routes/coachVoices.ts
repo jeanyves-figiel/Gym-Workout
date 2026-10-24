@@ -1,16 +1,22 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import type { Synthesize } from '../coach/polly.ts';
 import { CALL_NAME, type CoachStyle, STUDIO_VOICES, STYLES, type VoiceLine, callLine, ssml, voiceLines } from '../coach/voiceLines.ts';
 import type { DB } from '../db.ts';
 import { ApiError } from '../errors.ts';
-import { DAY, throttleCount, throttleHit, throttleTake } from '../throttle.ts';
+import { reserveGlobal } from '../quota.ts';
+import { DAY, throttleCount, throttleHit } from '../throttle.ts';
 
 /** Different call names a member may have recorded per day (#432): each new name is a paid Polly run. */
 const CALL_NAMES_PER_DAY = 20;
 /** Recordings kept in memory when there is no cache dir. */
 const MEMORY_MAX = 200;
+/**
+ * Calls with a member's name (#712) are never written to the volume: kept in memory this long, and dropped when the
+ * member deletes their account (`forget`).
+ */
+const CALL_TTL_MS = 3_600_000;
 
 /**
  * Studio coach voices (#395). GET /v1/me/coach-voices lists the voices and every line (id, text, hash);
@@ -23,9 +29,12 @@ export const coachVoiceRoutes = (
   r: FastifyInstance,
   synth: Synthesize | undefined,
   cacheDir: string | undefined,
-  opts: { warm?: boolean; retryMs?: number; db?: DB; now?: () => Date } = {},
-) => {
+  opts: { warm?: boolean; retryMs?: number; db?: DB; now?: () => Date; aiDailyLimit?: number } = {},
+): { forget: (userId: string) => void } => {
   const lines = voiceLines();
+  const clock = opts.now ?? (() => new Date());
+  /** Name calls: recording, when made, and the members who asked for it. */
+  const calls = new Map<string, { mp3: Buffer; at: number; users: Set<string> }>();
   const byId = new Map(lines.map((l) => [l.id, l]));
   const voices = new Set(STUDIO_VOICES.map((v) => v.id));
   const inFlight = new Map<string, Promise<Buffer>>();
@@ -87,6 +96,40 @@ export const coachVoiceRoutes = (
     return p;
   };
 
+  /** A call with the member's name: from memory while fresh, else recorded again; never on the volume. */
+  const recordCall = async (voice: string, line: VoiceLine, userId: string): Promise<Buffer> => {
+    const key = `${voice}/${line.hash}`;
+    const t = clock().getTime();
+    for (const [k, c] of calls) if (t - c.at > CALL_TTL_MS) calls.delete(k);
+    const hit = calls.get(key);
+    if (hit) {
+      hit.users.add(userId);
+      return hit.mp3;
+    }
+    let p = inFlight.get(key);
+    if (!p) {
+      p = polly(ssml(line), voice).finally(() => inFlight.delete(key));
+      inFlight.set(key, p);
+    }
+    const mp3 = await p;
+    const entry = calls.get(key) ?? { mp3, at: t, users: new Set<string>() };
+    entry.users.add(userId);
+    calls.set(key, entry);
+    if (calls.size > MEMORY_MAX) calls.delete(calls.keys().next().value!);
+    return mp3;
+  };
+
+  // Name calls recorded before #712 were cached on the volume next to the lines (`call-<hash>.mp3`): removed.
+  if (cacheDir) {
+    const timer = setTimeout(async () => {
+      for (const v of STUDIO_VOICES) {
+        const files = await readdir(join(cacheDir, v.id)).catch(() => [] as string[]);
+        for (const f of files) if (f.startsWith('call-')) await rm(join(cacheDir, v.id, f), { force: true }).catch(() => undefined);
+      }
+    }, 1_000);
+    timer.unref();
+  }
+
   // Production: record every voice ahead in the background, so a member's download is files from the volume.
   if (opts.warm && synth && cacheDir) {
     const timer = setTimeout(async () => {
@@ -133,20 +176,30 @@ export const coachVoiceRoutes = (
     if (!synth) throw new ApiError(503, 'voices_unavailable', 'Studio voices are not available right now.');
     if (opts.db) {
       const db = opts.db;
-      const at = opts.now?.() ?? new Date();
+      const at = clock();
       const nameKey = `voicecall:${req.userId!}:${name.toLowerCase()}`;
       if (throttleCount(db, nameKey, DAY, at) === 0) {
-        if (!throttleTake(db, `voicecall:${req.userId!}`, CALL_NAMES_PER_DAY, DAY, at))
+        if (throttleCount(db, `voicecall:${req.userId!}`, DAY, at) >= CALL_NAMES_PER_DAY)
           throw new ApiError(429, 'daily_limit', 'That is a lot of names today. Try again tomorrow!');
+        // A new name is a paid Polly run: it counts against the global daily budget of paid calls (#712).
+        if (opts.aiDailyLimit !== undefined && !reserveGlobal(db, at.toISOString().slice(0, 10), opts.aiDailyLimit))
+          throw new ApiError(429, 'daily_limit', 'The coach is very busy today. Try again tomorrow!');
+        throttleHit(db, `voicecall:${req.userId!}`, DAY, at);
         throttleHit(db, nameKey, DAY, at);
       }
     }
     try {
-      const mp3 = await record(voice, callLine(name, s));
+      const mp3 = await recordCall(voice, callLine(name, s), req.userId!);
       return reply.header('content-type', 'audio/mpeg').header('cache-control', 'private, max-age=31536000, immutable').send(mp3);
     } catch (e) {
       req.log.error({ err: e, voice }, 'coach call failed');
       throw new ApiError(502, 'voice_failed', 'Could not record this line right now.');
     }
   });
+
+  return {
+    forget: (userId) => {
+      for (const [k, c] of calls) if (c.users.delete(userId) && c.users.size === 0) calls.delete(k);
+    },
+  };
 };

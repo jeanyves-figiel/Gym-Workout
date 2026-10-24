@@ -15,7 +15,7 @@ let app: FastifyInstance;
 let mailer: ConsoleMailer;
 let calls: { ssml: string; voice: string }[];
 
-const start = (opts: { synth?: Synthesize | null; dir?: string } = {}) => {
+const start = (opts: { synth?: Synthesize | null; dir?: string; env?: Record<string, string> } = {}) => {
   mailer = new ConsoleMailer(() => {});
   calls = [];
   const synth: Synthesize = async (ssml, voice) => {
@@ -23,7 +23,7 @@ const start = (opts: { synth?: Synthesize | null; dir?: string } = {}) => {
     return Buffer.from(`mp3:${voice}`);
   };
   app = buildApp({
-    config: loadConfig({ NODE_ENV: 'test', AUTH_RATE_LIMIT_PER_MIN: '1000', ...(opts.dir ? { COACH_VOICE_DIR: opts.dir } : {}) }),
+    config: loadConfig({ NODE_ENV: 'test', AUTH_RATE_LIMIT_PER_MIN: '1000', ...(opts.dir ? { COACH_VOICE_DIR: opts.dir } : {}), ...opts.env }),
     db: openDb(':memory:'),
     mailer,
     apple: async () => {
@@ -159,6 +159,23 @@ describe('coach calls the member by name (#415)', () => {
     expect((await get(t, '/v1/me/coach-voices/Nobody/call/hype.mp3?name=Alex')).statusCode).toBe(404);
     expect((await get(t, '/v1/me/coach-voices/Joanna/call/loud.mp3?name=Alex')).statusCode).toBe(404);
     expect(calls).toHaveLength(0);
+  });
+
+  it('never writes a name call to the volume, and counts new names against the global AI budget (#712)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'voices-'));
+    start({ dir, env: { AI_DAILY_LIMIT: '2' } });
+    const t = await signUp('g@example.com');
+    expect((await get(t, '/v1/me/coach-voices/Joanna/call/hype.mp3?name=Queen')).statusCode).toBe(200);
+    expect((await get(t, '/v1/me/coach-voices/Joanna/chill-start-0.mp3')).statusCode).toBe(200);
+    expect(readdirSync(join(dir, 'Joanna')).filter((f) => f.startsWith('call-'))).toEqual([]);
+    expect(readdirSync(join(dir, 'Joanna'))).toHaveLength(1);
+    // Cached in memory: same name again is neither recorded nor counted.
+    expect((await get(t, '/v1/me/coach-voices/Joanna/call/hype.mp3?name=Queen')).statusCode).toBe(200);
+    expect(calls).toHaveLength(2);
+    expect((await get(t, '/v1/me/coach-voices/Joanna/call/hype.mp3?name=Kim')).statusCode).toBe(200);
+    const over = await get(t, '/v1/me/coach-voices/Joanna/call/hype.mp3?name=Lou');
+    expect(over.statusCode).toBe(429);
+    expect(over.json().error).toBe('daily_limit');
   });
 
   it('records up to 20 different names per member per day (#432)', async () => {

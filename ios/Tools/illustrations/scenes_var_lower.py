@@ -427,7 +427,8 @@ def skater_scene(doc, j, layer):
 
 SKS = [skater_pose((214, 152), -90, (100, 166, 104), (22, 80)),
        skater_pose((196, 182), -62, (110, 172, 112), (74, 30), h=-70),
-       skater_pose((178, 210), -40, (117, 174, 118), (82, 8), h=-50)]
+       # Back toe flat behind on the floor at the bottom (#719: it went through it).
+       skater_pose((178, 210), -40, (117, 174, 178), (82, 8), h=-50)]
 
 
 SCENES.update({
@@ -898,9 +899,10 @@ def ball_curl_pose(t, cx, a, foot):
     c = (cx, GROUND - BALL_R)
     ang = math.radians(a)
     ank = (c[0] + math.cos(ang) * (BALL_R + 5), c[1] + math.sin(ang) * (BALL_R + 5))
-    g = (BH_S[0] + 76, GROUND - 6)
+    # Arms long on the mat (#719): a bent elbow went through it.
+    g = (BH_S[0] + 86, GROUND - 6)
     return body(hip, t, h=182, ankN=ank, ankF=art.add(ank, (-2, -1)), kN=-1, kF=-1, fN=foot, fF=foot - 2,
-                gN=g, gF=(g[0] - 4, g[1]), eN=1, eF=1, hN=0, hF=0)
+                gN=g, gF=(g[0] - 2, g[1]), eN=1, eF=1, hN=0, hF=0)
 
 
 BHC = [ball_curl_pose(161, BH_CX0, -100, -78), ball_curl_pose(149, 270, -118, -68), ball_curl_pose(138, 252, -136, -58)]

@@ -63,7 +63,7 @@ Illustrations: 435 · Total: 435
 | `toes-to-bar` | Strict toes-to-bar | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `cable-crunch` | Kneeling cable crunch | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `hollow-hold` | Hollow body hold | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `farmer-carry` | Farmer carry | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `farmer-carry` | Farmer carry | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `suitcase-carry` | Suitcase carry | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `overhead-carry` | Overhead kettlebell carry | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `db-curl` | Dumbbell curl | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
@@ -106,7 +106,7 @@ Illustrations: 435 · Total: 435
 | `ski-erg` | SkiErg | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `air-bike` | Air bike | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `bike` | Bike | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `treadmill-run` | Treadmill run | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `treadmill-run` | Treadmill run | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `incline-walk` | Incline treadmill walk | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `stair-climber` | Stair climber | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `elliptical` | Cross-trainer | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
@@ -337,9 +337,9 @@ Illustrations: 435 · Total: 435
 | `stir-the-pot` | Stir the pot | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `db-side-bend` | Dumbbell side bend | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `turkish-get-up` | Turkish get-up | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `trap-bar-carry` | Trap bar carry | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `front-rack-carry` | Kettlebell front-rack carry | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `sled-drag` | Backward sled drag | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `trap-bar-carry` | Trap bar carry | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `front-rack-carry` | Kettlebell front-rack carry | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `sled-drag` | Backward sled drag | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `power-clean` | Power clean | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `push-press` | Push press | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `db-snatch` | Dumbbell snatch | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |

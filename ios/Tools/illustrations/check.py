@@ -4,9 +4,10 @@
     python3 ios/Tools/illustrations/check.py [ids…]
 
 Renders each exercise's frames (SVG only, no PNG) and flags: a joint jumping between two frames, a body part
-stretching or shrinking, the figure leaving the picture or sinking into the floor, an angle that turns the
-long way round (> 180° between key poses), and the motion data (tracked point, phase labels). Exit 1 on any
-flag that is not listed in ALLOWED with a reason.
+stretching or shrinking, the figure leaving the picture or sinking into the floor (deeper than its key poses, or
+below the floor surface at all, #719), a knee or elbow bending the wrong way in a side view (#719), an angle that
+turns the long way round (> 180° between key poses), and the motion data (tracked point, phase labels). Exit 1 on
+any flag that is not listed in ALLOWED (or, for the floor and bend scans, BELOW_FLOOR / BENDS) with a reason.
 """
 import math
 import sys
@@ -57,6 +58,70 @@ ALLOWED = {
     "windshield-wipers": VIEWED,
     "worlds-greatest": VIEWED,
 }
+
+
+# #719 scans, reviewed 2026-10-24: these exercises have no floor under the flagged joint (hanging, or the joint is
+# a hand on a bar or bench edge drawn over the floor line), or the bend is the movement itself.
+NO_FLOOR = "hangs or rests above the floor: the floor line is behind, not under, the joint"
+TOE_TIP = "front view: a foreshortened toe tip a few px over the floor line"
+BELOW_FLOOR = {k: NO_FLOOR for k in (
+    "finger-extensions", "tuck-front-lever", "scap-pull-up", "band-assisted-pull-up", "chin-up", "neutral-grip-pull-up",
+    "pull-up", "weighted-pull-up", "muscle-up", "weighted-muscle-up", "db-snatch", "wall-push-up", "decline-push-up",
+    "knee-push-up", "one-arm-push-up", "plyo-push-up", "shoulder-tap-push-up", "spiderman-push-up", "bird-dog",
+    "ffe-split-squat", "b-stance-rdl", "archer-pull-up", "one-arm-pull-up", "iron-cross", "band-iron-cross", "db-fly")}
+BELOW_FLOOR.update({k: TOE_TIP for k in ("block-lift", "cable-woodchop", "side-bend")})
+BENT = "the bend is the movement or the hold (levers, curls, a hand behind the head, a racked bar)"
+BENDS = {k: BENT for k in (
+    "front-lever", "tuck-front-lever", "tuck-back-lever", "spiderman-push-up", "kipping-hspu", "leg-curl",
+    "single-leg-curl", "man-maker", "barbell-thruster", "shoulder-tap-push-up", "russian-twist", "front-squat",
+    "back-squat", "face-pull", "reverse-hyper", "bosu-squat", "pec-stretch", "hamstring-stretch", "brettzel",
+    "jump-rope", "seated-forward-fold", "sandbag-shouldering", "massage-ball-chest", "glute-bridge")}
+FLOOR_SLACK = 3  # px: a heel or knee resting on the floor line
+BODY = ("ankle", "toe", "knee", "hip", "hand", "head", "wrist", "elbow")
+
+
+def _bend(u, v):
+    """Signed angle (degrees) from segment u to segment v."""
+    return math.degrees(math.atan2(u[0] * v[1] - u[1] * v[0], u[0] * v[0] + u[1] * v[1]))
+
+
+def bends(fr):
+    """Side view: a straightish knee bending the same way as the foot points (backwards), or a straightish elbow
+    bending like that knee would (#719). The worst of each as (joint, degrees, frame)."""
+    def seg(j, a, b):
+        return (j[b][0] - j[a][0], j[b][1] - j[a][1])
+
+    def longest(rows, a, b):
+        return max(math.dist(fr[i][a], fr[i][b]) for i in rows)
+    out = []
+    for s in "NF":
+        legs = [i for i, j in enumerate(fr) if all(k in j for k in ("hip", "knee" + s, "ankle" + s, "toe" + s))]
+        if not legs:
+            continue
+        arms = [i for i in legs if all(k in fr[i] for k in ("shoulder", "elbow" + s, "wrist" + s))]
+        thigh, shin = longest(legs, "hip", "knee" + s), longest(legs, "knee" + s, "ankle" + s)
+        upper = longest(arms, "shoulder", "elbow" + s) if arms else 0
+        fore = longest(arms, "elbow" + s, "wrist" + s) if arms else 0
+        knee = elbow = (0, None)
+        for i in legs:
+            j = fr[i]
+            kb = _bend(seg(j, "hip", "knee" + s), seg(j, "knee" + s, "ankle" + s))
+            fb = _bend(seg(j, "knee" + s, "ankle" + s), seg(j, "ankle" + s, "toe" + s))
+            if abs(fb) <= 30:
+                continue
+            straight = math.dist(j["hip"], j["knee" + s]) > 0.85 * thigh and math.dist(j["knee" + s], j["ankle" + s]) > 0.85 * shin
+            if straight and abs(kb) > 12 and (kb > 0) == (fb > 0) and abs(kb) > knee[0]:
+                knee = (abs(kb), i)
+            if i in arms and math.dist(j["shoulder"], j["elbow" + s]) > 0.9 * upper \
+                    and math.dist(j["elbow" + s], j["wrist" + s]) > 0.9 * fore:
+                eb = _bend(seg(j, "shoulder", "elbow" + s), seg(j, "elbow" + s, "wrist" + s))
+                if abs(eb) > 15 and (eb > 0) == (fb < 0) and abs(eb) > elbow[0]:
+                    elbow = (abs(eb), i)
+        if knee[1] is not None:
+            out.append(("knee" + s, knee[0], knee[1]))
+        if elbow[1] is not None:
+            out.append(("elbow" + s, elbow[0], elbow[1]))
+    return out
 
 
 def angle_wraps(poses):
@@ -121,6 +186,14 @@ def check(ex_id, cat, scenes):
             flags.append(f"{out[0]} leaves the picture in frame {i}")
         if low(j) > max(key_low, art.GROUND) + 6:
             flags.append(f"sinks {low(j) - max(key_low, art.GROUND):.0f}px into the floor in frame {i}")
+    # Below the floor surface at all (#719), key poses included, where the floor is in the picture.
+    deepest = max(((j[k][1], i, k) for i, j in enumerate(fr) for k in names if k.startswith(BODY)
+                   and x0 <= j[k][0] <= x0 + w and j[k][1] <= y0 + h), default=None)
+    if deepest and art.GROUND < y0 + h and deepest[0] > art.GROUND + FLOOR_SLACK and ex_id not in BELOW_FLOOR:
+        flags.append(f"{deepest[2]} {deepest[0] - art.GROUND:.0f}px below the floor in frame {deepest[1]}")
+    if "hipN" not in fr[0] and ex_id not in BENDS:
+        for joint, deg, i in bends(fr):
+            flags.append(f"{joint} bends the wrong way ({deg:.0f}°) in frame {i}")
     entry = scenes[ex_id]
     if not callable(entry):
         flags += angle_wraps(entry[1])

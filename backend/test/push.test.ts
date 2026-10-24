@@ -86,6 +86,9 @@ describe('push devices and prefs', () => {
     expect(saved.prefs.extra).toBeUndefined();
     expect((await put('/v1/me/notification-prefs', { prefs: { quietStart: 2000 } }, u.token)).statusCode).toBe(400);
     expect((await get('/v1/me/notification-prefs', u.token)).json().prefs.followAchievements).toBe(false);
+    // A partial PUT changes only what it sends (#714).
+    const merged = (await put('/v1/me/notification-prefs', { prefs: { quietStart: 1380 } }, u.token)).json().prefs;
+    expect(merged).toMatchObject({ quietStart: 1380, followAchievements: false, quietEnd: 420 });
   });
 
   it('notifies followers, honours the toggle, quiet hours and drops dead tokens', async () => {
@@ -149,6 +152,23 @@ describe('push devices and prefs', () => {
     const refused = await app.inject({ method: 'POST', url: '/v1/me/achievements', payload: rude, headers: auth(actor.token) });
     expect(refused.json().error).toBe('objectionable_content');
     expect(sent).toHaveLength(1);
+  });
+
+  it('pushes at most 20 announcements a day per member; the rest are recorded only (#712)', async () => {
+    const actor = await signUp('many@example.com');
+    const fan = await signUp('fan3@example.com');
+    app.push.setFollowersProvider((id) => (id === actor.id ? [fan.id] : []));
+    await put('/v1/me/push-device', device(TOKEN_A), fan.token);
+    const batch = (from: number) => ({ achievements: Array.from({ length: 15 }, (_, i) => ({ id: `a${from + i}`, type: 'badge', text: `Badge ${from + i}` })) });
+    const first = await app.inject({ method: 'POST', url: '/v1/me/achievements', payload: batch(0), headers: auth(actor.token) });
+    const second = await app.inject({ method: 'POST', url: '/v1/me/achievements', payload: batch(15), headers: auth(actor.token) });
+    expect([...first.json().announced, ...second.json().announced]).toHaveLength(30);
+    await app.push.idle();
+    expect(sent).toHaveLength(20);
+    db.prepare("UPDATE throttle_hits SET at = '2026-01-01T00:00:00.000Z' WHERE key LIKE 'announce:%'").run(); // a day later
+    await app.inject({ method: 'POST', url: '/v1/me/achievements', payload: batch(30), headers: auth(actor.token) });
+    await app.push.idle();
+    expect(sent).toHaveLength(35);
   });
 
   it('answers before the follower fan-out, which runs 5 at a time and survives failures', async () => {

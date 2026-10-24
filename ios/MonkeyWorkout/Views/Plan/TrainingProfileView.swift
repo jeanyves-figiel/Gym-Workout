@@ -188,15 +188,3 @@ struct ProfileSectionCard: View {
         }
     }
 }
-
-/// Community → Your gym: same editor as Training profile → Your gym.
-struct CommunityGymCard: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        if let p = model.profile {
-            NavigationLink { ProfileSectionView(section: .gym) } label: { ProfileSectionCard(section: .gym, profile: p) }
-                .buttonStyle(.plain)
-        }
-    }
-}

@@ -285,6 +285,33 @@ export class SecurityService {
         | undefined;
       if (row?.user_id === userId) return;
     }
+    await this.legacyReauth(userId, legacyPassword);
+  }
+
+  /**
+   * `requireReauth` for one-shot changes (password, email, delete; #712): the grant is spent, so a leaked grant can't
+   * be replayed for another of them. Taken before `fn` runs (parallel requests can't share it) and given back when
+   * `fn` fails, so a rejected new password can be retried without confirming again.
+   */
+  async withReauth<T>(userId: string, token: string | undefined, legacyPassword: string | undefined, fn: () => Promise<T>): Promise<T> {
+    const row = token
+      ? (this.d.db
+          .prepare('DELETE FROM reauth_grants WHERE token_hash = ? AND user_id = ? AND expires_at > ? RETURNING *')
+          .get(sha256(token), userId, this.iso()) as { token_hash: string; user_id: string; method: string; expires_at: string; created_at: string } | undefined)
+      : undefined;
+    if (!row) await this.legacyReauth(userId, legacyPassword);
+    try {
+      return await fn();
+    } catch (e) {
+      if (row && this.user(userId))
+        this.d.db
+          .prepare('INSERT OR IGNORE INTO reauth_grants (token_hash, user_id, method, expires_at, created_at) VALUES (?, ?, ?, ?, ?)')
+          .run(row.token_hash, row.user_id, row.method, row.expires_at, row.created_at);
+      throw e;
+    }
+  }
+
+  private async legacyReauth(userId: string, legacyPassword: string | undefined): Promise<void> {
     const u = this.user(userId)!;
     if (legacyPassword !== undefined && u.password_hash) {
       if (await this.passwordMatches(u, legacyPassword)) return;

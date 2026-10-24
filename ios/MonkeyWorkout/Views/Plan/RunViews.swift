@@ -388,6 +388,8 @@ struct RunGoalEditor: View {
     @State private var date = Calendar.current.date(byAdding: .weekOfYear, value: 10, to: Date()) ?? Date()
     @State private var targetMinutes = 58
     @State private var loaded = false
+    /// Removed: nothing left to auto save.
+    @State private var removed = false
 
     var body: some View {
         NavigationStack {
@@ -440,18 +442,17 @@ struct RunGoalEditor: View {
                          ? "Runs slot around your lifting: long run on Saturday, never the day after legs. Base, build, peak, then a light race week."
                          : "Two Zone 2 sessions (bike, row or run) and one interval day, added around your lifting.")
                         .font(Theme.label(12)).opacity(0.8)
-                    Button { save() } label: {
-                        Text("Save").font(Theme.label(16)).foregroundStyle(Theme.ink)
-                            .frame(maxWidth: .infinity, minHeight: 54)
-                            .background(Theme.lime, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("run.save")
-                    if initial != nil {
-                        Button(role: .destructive) {
-                            model.saveRunGoal(nil)
-                            dismiss()
-                        } label: {
+                    // A new plan is saved with Save; an existing one saves itself (#717, #437).
+                    if initial == nil {
+                        Button { save() } label: {
+                            Text("Save").font(Theme.label(16)).foregroundStyle(Theme.ink)
+                                .frame(maxWidth: .infinity, minHeight: 54)
+                                .background(Theme.lime, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("run.save")
+                    } else {
+                        Button(role: .destructive) { remove() } label: {
                             Text("Remove run plan").font(Theme.label(14)).frame(maxWidth: .infinity, minHeight: 44)
                         }
                     }
@@ -462,6 +463,8 @@ struct RunGoalEditor: View {
             .background(Theme.bg.ignoresSafeArea())
             .toolbar { CloseToolbarItem { dismiss() } }
             .onAppear(perform: load)
+            .autoSave(initial != nil && loaded && !removed ? built : nil, title: "Run plan", symbol: "figure.run",
+                      save: { [model] g in model.saveRunGoal(g) })
         }
         .preferredColorScheme(.dark)
     }
@@ -493,7 +496,8 @@ struct RunGoalEditor: View {
         targetMinutes = initial.target / 60
     }
 
-    private func save() {
+    /// The goal as on screen.
+    private var built: RunGoal {
         var g = goal
         if g.mode == .race {
             g.raceDate = RunPlanner.dayKey(date, model.planCalendar)
@@ -501,8 +505,21 @@ struct RunGoalEditor: View {
         } else {
             g.raceDate = nil
         }
-        model.saveRunGoal(g)
+        return g
+    }
+
+    private func save() {
+        model.saveRunGoal(built)
         dismiss()
+    }
+
+    /// Ends the run plan at once (#717); the Undo bar brings it back.
+    private func remove() {
+        guard let previous = model.runGoal else { return dismiss() }
+        removed = true
+        model.saveRunGoal(nil)
+        dismiss()
+        UndoCloseCenter.shared.deleted("Run plan removed", symbol: "figure.run") { [model] in model.saveRunGoal(previous) }
     }
 }
 
