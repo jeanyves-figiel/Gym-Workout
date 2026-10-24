@@ -307,6 +307,7 @@ struct WorkoutPlayerView: View {
             OrientationLock.allowLandscape(false)
             saveProgress()
             live.end()
+            TVCast.shared.live = nil
             coach.stop()
             listener.cancel()
             if !finished, !discarded { WatchSync.shared.endLive(.paused, sessionId: sessionId) }
@@ -1835,6 +1836,25 @@ struct WorkoutPlayerView: View {
         return state
     }
 
+    /// What the TV shows (#724): the same set as the lock screen, kg and reps apart for the tiles.
+    private func tvLive(_ step: Step, session: Session, state: WorkoutActivityAttributes.ContentState) -> TVLive {
+        let done = setsDone[step.item.uid] ?? 0
+        let current = min(done, step.sets - 1)
+        let values = step.loggable && log.item?.uid == step.item.uid ? log.values(current) : nil
+        let total = steps.reduce(0) { $0 + $1.sets }
+        let logged = steps.reduce(0) { $0 + min(setsDone[$1.item.uid] ?? 0, $1.sets) }
+        let category = step.category
+        let label = category == step.block.kind.category && !step.block.title.isEmpty ? step.block.title
+            : category == .warmup ? "Warm-up" : category.rawValue.capitalized
+        return TVLive(
+            title: session.displayTitle, startedAt: started, exercise: step.exercise, category: category, label: label,
+            set: current + 1, sets: step.sets, kg: values?.kg,
+            reps: values.map { String($0.reps) } ?? step.item.prescription.reps,
+            restEnd: state.restEnd, workEnd: state.workEnd, next: state.next,
+            position: index + 1, count: steps.count,
+            progress: total > 0 ? Double(logged) / Double(total) : 0, heartRate: state.heartRate)
+    }
+
     /// Lock-screen card once the workout is saved (#371).
     private func finishedState() -> WorkoutActivityAttributes.ContentState {
         var state = liveState()
@@ -1860,12 +1880,14 @@ struct WorkoutPlayerView: View {
     private func updateLive() {
         guard ready, !finished, !discarded else {
             LiveRoom.shared.player(nil, api: model.api)
+            TVCast.shared.live = nil
             return WatchSync.shared.sendLive(nil)
         }
         let state = liveState()
         live.update(state)
         guard steps.indices.contains(index), let session else { return }
         let step = steps[index]
+        TVCast.shared.live = tvLive(step, session: session, state: state)
         LiveRoom.shared.player(LiveSet(title: session.displayTitle, exercise: state.exercise,
                                        detail: String([state.setLabel, state.detail].filter { !$0.isEmpty }.joined(separator: " · ").prefix(40)),
                                        state: pause != nil ? .rest : .set), api: model.api)

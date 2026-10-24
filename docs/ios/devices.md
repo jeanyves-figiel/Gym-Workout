@@ -71,6 +71,14 @@ Started by the player: Lock Screen and Dynamic Island show the exercise, set ("S
 
 On the Apple Watch Smart Stack (`supplementalActivityFamilies([.small])`, `SmallCard`): the set with **Log ✓** (`MainActionIntent`), the rest ring (tap skips) while resting, the summary once done.
 
+## TV: AirPlay and HDMI (`Views/Plan/TVPlayer.swift`, #724)
+
+- `AppDelegate.application(_:configurationForConnecting:options:)` gives the `.windowExternalDisplayNonInteractive` role `TVSceneDelegate`; every other scene stays SwiftUI's.
+- An external screen (Screen Mirroring to an Apple TV or AirPlay TV, or an HDMI adapter) gets its own 16:9 layout instead of the mirrored phone. The phone stays the remote.
+- `WorkoutPlayerView.updateLive()` publishes `TVLive` to `TVCast.shared.live` (nil when the player closes). `TVScreen` shows `TVPlayerView` (design mix B + A: full-screen movement, rest/work timer, SET · KG · REPS tiles, heart rate, time, %, one Up next bar) or `TVIdleView`.
+- Sizes scale from the screen height (`u = height / 100`). Demo screen `tv-player` draws the layout at 16:9 on the phone.
+- Chromecast / Google TV: planned (#724 PR 2), needs a Google Cast receiver app ID.
+
 ## Garmin
 
 Connect IQ app for Forerunner 255/265/955/965, fēnix 7, epix 2, Venu 3, vívoactive 5 (`garmin/`, CI `garmin.yml`).
