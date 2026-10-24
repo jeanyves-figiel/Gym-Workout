@@ -32,6 +32,8 @@ final class WatchPlayer {
     var endedAt: Date?
     /// Wrist Coach advice applied for this exercise + set (#608 C), so it doesn't ask again.
     var coachApplied: String?
+    /// Superset member to go to once the rest after the round ends (#716).
+    var pendingJump: Int?
 
     init(session: WSession) {
         self.session = session
@@ -54,6 +56,11 @@ final class WatchPlayer {
 
     var upNext: String {
         guard let step else { return "Finish" }
+        // Resting after a superset round: the member it goes back to.
+        if case .rest = phase, let j = pendingJump, steps.indices.contains(j) {
+            let s = steps[j]
+            return "\(s.name) · set \((setsDone[s.uid] ?? 0) + 1) of \(s.sets)"
+        }
         // Resting between sets: the coming set; otherwise the next exercise.
         if case .rest = phase, done < step.sets { return "\(step.name) · set \(done + 1) of \(step.sets)" }
         return nextStep.map { "\($0.name) · \($0.sets > 1 ? "\($0.sets)×" : "")\($0.reps)" } ?? "Finish"
@@ -93,8 +100,18 @@ final class WatchPlayer {
         timedEnd = nil
         timedRemaining = nil
         if i + 1 >= step.sets { events.append(.itemDone(uid: step.uid)) }
-        let rest = i + 1 < step.sets ? (step.easySec ?? step.restSec) : 0
         WKInterfaceDevice.current().play(.success)
+        // Superset / circuit (#716), as on the iPhone: on to the next member without rest, rest after the round.
+        if let jump = groupNext(after: step), let target = steps.firstIndex(where: { $0.uid == jump.uid }) {
+            guard jump.restSec > 0 else {
+                if target != index { move(to: target) }
+                return events
+            }
+            pendingJump = target == index ? nil : target
+            phase = .rest(end: Date().addingTimeInterval(TimeInterval(jump.restSec)), total: jump.restSec, effortSet: effortSet)
+            return events
+        }
+        let rest = i + 1 < step.sets ? (step.easySec ?? step.restSec) : 0
         if rest > 0 || effortSet != nil {
             phase = .rest(end: rest > 0 ? Date().addingTimeInterval(TimeInterval(rest)) : nil, total: rest, effortSet: effortSet)
         } else if i + 1 >= step.sets {
@@ -119,8 +136,44 @@ final class WatchPlayer {
     @discardableResult
     func skipRest() -> [WatchEvent] {
         phase = .work
+        if let j = pendingJump {
+            move(to: j)
+            return []
+        }
         if let step, done >= step.sets { return advance() }
         return []
+    }
+
+    // MARK: Supersets (#716)
+
+    /// Members of the superset `it` belongs to, in order within its block; just the item when it isn't grouped.
+    private func groupMembers(of it: WItem) -> [WItem] {
+        guard let g = it.group, let b = session.blocks.first(where: { $0.items.contains { $0.uid == it.uid } }) else { return [it] }
+        return b.items.filter { $0.group == g }
+    }
+
+    /// Where to go after a set of a grouped `it`, as Block.next(after:setsDone:) on the iPhone: the next member still
+    /// owing a set this round (no rest), else the first member with sets left (after the rest). nil when `it` isn't
+    /// grouped or the whole group is done.
+    private func groupNext(after it: WItem) -> (uid: String, restSec: Int)? {
+        let members = groupMembers(of: it)
+        guard members.count > 1, let i = members.firstIndex(where: { $0.uid == it.uid }) else { return nil }
+        let left: (WItem) -> Bool = { (self.setsDone[$0.uid] ?? 0) < $0.sets }
+        let round = setsDone[it.uid] ?? 0
+        if let n = members[(i + 1)...].first(where: { left($0) && (self.setsDone[$0.uid] ?? 0) < round }) {
+            return (n.uid, 0)
+        }
+        guard let first = members.first(where: left) else { return nil }
+        return (first.uid, it.restSec)
+    }
+
+    private func move(to target: Int) {
+        pendingJump = nil
+        index = target
+        phase = .work
+        timedEnd = nil
+        timedRemaining = nil
+        autoStartGuided()
     }
 
     func addRest() {
@@ -214,21 +267,24 @@ final class WatchPlayer {
     func advance() -> [WatchEvent] {
         var events: [WatchEvent] = []
         if let step, done >= step.sets { events.append(.itemDone(uid: step.uid)) }
+        pendingJump = nil
         timedEnd = nil
         timedRemaining = nil
-        if index >= steps.count - 1 {
-            phase = .finished
-            endedAt = Date()
-        } else {
-            index += 1
+        // A superset member finished earlier in the round is passed over (#716).
+        if let next = steps.indices.first(where: { $0 > index && (setsDone[steps[$0].uid] ?? 0) < steps[$0].sets }) {
+            index = next
             phase = .work
             autoStartGuided()
+        } else {
+            phase = .finished
+            endedAt = Date()
         }
         return events
     }
 
     func back() {
         guard index > 0 else { return }
+        pendingJump = nil
         index -= 1
         phase = .work
         timedEnd = nil

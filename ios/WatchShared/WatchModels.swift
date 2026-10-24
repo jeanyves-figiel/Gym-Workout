@@ -117,6 +117,9 @@ struct WItem: Codable, Equatable, Hashable, Identifiable {
     var kgStep: Double
     /// Mobility drill done during rest.
     var pairedName: String?
+    /// Superset / circuit letter (#716): members of a block with the same letter alternate, rest after the round.
+    /// nil from older phone apps and for straight sets.
+    var group: String? = nil
 
     var id: String { uid }
 }

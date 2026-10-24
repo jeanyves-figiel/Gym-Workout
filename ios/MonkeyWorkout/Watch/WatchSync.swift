@@ -491,7 +491,9 @@ final class WatchSync: NSObject {
             loggable: loggable, timedSec: timed?.workSec, easySec: timed?.easySec,
             kg: kg, targetReps: suggestion?.reps ?? it.prescription.repRange?.low,
             kgStep: LoadAdvisor.steps(for: e, kg: kg ?? 20).granularity,
-            pairedName: it.pairedWith.flatMap(Exercise.find)?.name)
+            pairedName: it.pairedWith.flatMap(Exercise.find)?.name,
+            // Superset members as the iPhone groups them (Block.groupMembers); one in another's rest isn't one.
+            group: it.supersetWith == nil ? it.group?.first.map { String($0) } : nil)
     }
 }
 
