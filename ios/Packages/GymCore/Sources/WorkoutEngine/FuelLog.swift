@@ -4,10 +4,45 @@ import Foundation
 public struct FuelTick: Codable, Hashable, Sendable {
     public var recipeId: String?
     public var added: Portions
+    /// Plain foods logged on this meal (#710): coffee, cereals, milk…
+    public var foods: [FoodServing]?
+    /// What those foods add up to, and their caffeine.
+    public var macros: Macros?
+    public var caffeineMg: Int?
 
-    public init(recipeId: String? = nil, added: Portions) {
+    public init(recipeId: String? = nil, added: Portions, foods: [FoodServing]? = nil, macros: Macros? = nil, caffeineMg: Int? = nil) {
         self.recipeId = recipeId
         self.added = added
+        self.foods = foods
+        self.macros = macros
+        self.caffeineMg = caffeineMg
+    }
+}
+
+/// A plain food on a meal: "1 mug of coffee", "½ bowl of cornflakes" (#710).
+public struct FoodServing: Codable, Hashable, Sendable, Identifiable {
+    public var foodId: String
+    /// In the food's own portion ("1 mug", "1 bowl"); ½ steps.
+    public var servings: Double
+    public var id: String { foodId }
+
+    public init(foodId: String, servings: Double = 1) {
+        self.foodId = foodId
+        self.servings = max(0.5, servings)
+    }
+
+    public func grams(_ food: Food) -> Double { food.portion.g * servings }
+
+    /// Totals for a plate of foods (unknown ids skipped).
+    public static func totals(_ items: [FoodServing], own: [Food] = []) -> (macros: Macros, caffeineMg: Int, veg: Int) {
+        var m = Macros(kcal: 0), caf = 0, veg = 0.0
+        for i in items {
+            guard let f = FoodBook.food(i.foodId, own: own) else { continue }
+            m = m + f.macros(grams: i.grams(f))
+            caf += f.caffeineMg(grams: i.grams(f))
+            if f.group == .veg || f.group == .fruit { veg += i.servings }
+        }
+        return (m, caf, Int(veg.rounded()))
     }
 }
 
@@ -25,6 +60,51 @@ public struct FuelDayLog: Codable, Hashable, Sendable {
     }
 
     public var isEmpty: Bool { glasses == 0 && eaten.total == 0 && ticks.isEmpty }
+
+    /// Grams from plain foods logged today, so small items add up to whole portions: a coffee and a bowl of
+    /// cereal (2 g protein) count once the day's food protein reaches half a palm (#710).
+    public var foodMacros: Macros {
+        ticks.values.compactMap(\.macros).reduce(Macros(kcal: 0), +)
+    }
+
+    /// Caffeine from logged drinks (coffee, tea, cola…), mg.
+    public var foodCaffeineMg: Int { ticks.values.reduce(0) { $0 + ($1.caffeineMg ?? 0) } }
+
+    /// Plain foods eaten at a meal. They join foods already logged there (a plain-food meal stacks; a recipe meal keeps
+    /// its recipe and gets a food tick next to it). Portions come from the day's food grams so small items add up.
+    public mutating func log(_ items: [FoodServing], at slot: FuelSlot, own: [Food] = []) {
+        guard !items.isEmpty else { return }
+        let key = ticks[slot.id].map { $0.foods != nil ? slot.id : Self.foodKey(slot.id) } ?? slot.id
+        var merged = ticks[key]?.foods ?? []
+        for i in items {
+            if let n = merged.firstIndex(where: { $0.foodId == i.foodId }) { merged[n].servings += i.servings } else { merged.append(i) }
+        }
+        setFoods(merged, key: key, own: own)
+    }
+
+    /// Replaces the foods on a food tick (amount changed, one removed); empty unticks it.
+    public mutating func setFoods(_ items: [FoodServing], key: String, own: [Food] = []) {
+        untick(key)
+        guard !items.isEmpty else { return }
+        let before = foodMacros
+        let t = FoodServing.totals(items, own: own)
+        let after = before + t.macros
+        func portions(_ m: Macros) -> Portions { Portions.from(protein: m.protein, carbs: m.carbs, fat: m.fat * 0.6, veg: 0) }
+        let a = portions(after), b = portions(before)
+        var add = Portions(fists: t.veg)
+        for k in [Portions.Kind.palms, .cups, .thumbs] { add[k] = max(0, a[k] - b[k]) }
+        ticks[key] = FuelTick(added: add, foods: items, macros: t.macros, caffeineMg: t.caffeineMg)
+        for k in Portions.Kind.allCases { eaten[k] += add[k] }
+    }
+
+    /// Tick key for foods logged on a meal that already has a recipe ticked.
+    public static func foodKey(_ slotId: String) -> String { "food-\(slotId)" }
+
+    /// Foods logged on a meal (on the meal itself or next to its recipe).
+    public func foods(at slotId: String) -> (key: String, items: [FoodServing])? {
+        for key in [slotId, Self.foodKey(slotId)] { if let f = ticks[key]?.foods { return (key, f) } }
+        return nil
+    }
 
     public mutating func tick(_ slot: FuelSlot, recipe: Recipe? = nil, servings: Int = 1) {
         untick(slot.id)

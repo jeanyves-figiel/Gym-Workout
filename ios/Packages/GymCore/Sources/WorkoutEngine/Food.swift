@@ -103,6 +103,11 @@ public struct Food: Codable, Hashable, Sendable, Identifiable {
     public var price: Double?
     /// Usual pack size in g (ml), so the grocery list buys whole packs and the planner can use them up.
     public var pack: Double?
+    /// Caffeine, mg per 100 g (ml): coffee, tea, cola, energy drinks (#710), so a logged mug joins the caffeine meter.
+    public var caffeine: Double?
+
+    /// Caffeine in this many grams, mg.
+    public func caffeineMg(grams: Double) -> Int { Int(((caffeine ?? 0) * grams / 100).rounded()) }
 
     /// Goes off within a week once bought or opened: what "less waste" plans around.
     public var perishable: Bool { ["fruit-veg", "meat-fish", "dairy-eggs", "bakery"].contains(aisle ?? "pantry") }
@@ -273,12 +278,19 @@ public enum FoodBook {
         return out
     }
 
+    /// Plurals match the singular ("cereals" finds cornflakes, "eggs" finds egg) (#710).
     public static func search(_ query: String, own: [Food] = []) -> [Food] {
-        let q = fold(query).split(separator: " ")
+        let q = fold(query).split(separator: " ").map(String.init)
         guard !q.isEmpty else { return [] }
+        func stems(_ w: String) -> [String] {
+            var out = [w]
+            if w.count > 3, w.hasSuffix("es") { out.append(String(w.dropLast(2))) }
+            if w.count > 3, w.hasSuffix("s") { out.append(String(w.dropLast())) }
+            return out
+        }
         return (own + catalog).filter { f in
             let hay = fold(([f.name] + f.aliases).joined(separator: " "))
-            return q.allSatisfy { hay.contains($0) }
+            return q.allSatisfy { stems($0).contains { hay.contains($0) } }
         }
     }
 }
