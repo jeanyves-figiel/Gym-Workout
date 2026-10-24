@@ -26,7 +26,8 @@ final class HiitMirror: NSObject {
     private var heardAt = Date()
     private var watchdog: Task<Void, Never>?
     /// No step for this long (the iPhone player was closed out of reach, or the app was killed): the workout ends.
-    private static let silentLimit: TimeInterval = 15 * 60
+    /// Longer than any sensible pause, so a paused HIIT isn't dropped.
+    private static let silentLimit: TimeInterval = 60 * 60
 
     /// Each step from the iPhone: starts the workout on the first running one.
     func update(_ live: WHiitLive, name: String) {
