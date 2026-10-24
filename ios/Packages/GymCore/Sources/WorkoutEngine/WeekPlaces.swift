@@ -69,7 +69,8 @@ extension Generator {
     /// gym's equipment, so the session type and day stay. Sessions already at the right gym, `skip` ids and library
     /// workouts are kept. Without per-day kits the plan is returned unchanged.
     public static func fitPlaces(_ plan: WeekPlan, _ profile: Profile, skip: Set<String> = [], split: [Focus]? = nil) -> WeekPlan {
-        guard let kits = profile.dayKits, !kits.isEmpty else { return plan }
+        // No kits and nothing placed elsewhere: as before. A session still at another gym goes back (#700).
+        guard profile.dayKits?.isEmpty == false || plan.sessions.contains(where: { $0.place != nil }) else { return plan }
         var plan = plan
         var weeks: [String: WeekPlan] = [:]
         for i in plan.sessions.indices {

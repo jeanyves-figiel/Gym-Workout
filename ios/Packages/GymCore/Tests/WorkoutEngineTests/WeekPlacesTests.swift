@@ -55,6 +55,16 @@ import Testing
         #expect(plan.sessions.first { $0.weekday == 1 }?.place == nil)
     }
 
+    @Test func sessionGoesBackToThePlansGymWhenItsDayIsMovedBack() {
+        var p = profile()
+        p.dayKits = ["1": home]
+        let away = Generator.generateWeek(p, week: 1, seed: 3)
+        let back = Generator.fitPlaces(away, profile())
+        let base = Generator.generateWeek(profile(), week: 1, seed: 3)
+        #expect(back.sessions.allSatisfy { $0.place == nil })
+        #expect(back.sessions.map(\.blocks) == base.sessions.map(\.blocks))
+    }
+
     @Test func settingAPlaceMakesItAGymDay() {
         var p = profile()
         p.setPlace("custom:home", onWeekday: 2)
