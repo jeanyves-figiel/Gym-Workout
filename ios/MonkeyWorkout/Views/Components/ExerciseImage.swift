@@ -66,10 +66,11 @@ struct ExerciseImage: View {
 /// Illustration frames decoded ahead of playback: the movement swaps frames many times a second, so the frames of the
 /// exercise on show are decoded once in the background instead of on the main thread as they first draw.
 enum IllustrationImages {
-    /// About one exercise's frames (720 × 540 each); the system also empties it under memory pressure.
+    /// About the frames of the exercise on show and the next one (#720: the player decodes the next move ahead);
+    /// the system also empties it under memory pressure.
     private static let cache: NSCache<NSString, UIImage> = {
         let c = NSCache<NSString, UIImage>()
-        c.totalCostLimit = 80 * 1024 * 1024
+        c.totalCostLimit = 150 * 1024 * 1024
         return c
     }()
 

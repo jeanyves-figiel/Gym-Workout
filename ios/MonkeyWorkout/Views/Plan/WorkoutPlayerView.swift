@@ -317,7 +317,10 @@ struct WorkoutPlayerView: View {
                 coachFinalSetIfDue()
             }
         }
-        .onChange(of: index) { coachHalfwayIfDue() }
+        .onChange(of: index) {
+            coachHalfwayIfDue()
+            prepareNextMove()
+        }
         .onChange(of: coach.watchLine) { updateLive() }
         .onChange(of: index) { setStart = Date() }
         .onChange(of: log.rows) { updateLive() }
@@ -1738,6 +1741,12 @@ struct WorkoutPlayerView: View {
         let done = steps.filter { (setsDone[$0.item.uid] ?? 0) >= $0.sets }.count
         guard done * 2 >= steps.count, done < steps.count else { return }
         coach.say(.halfway(left: steps.count - done), once: "half")
+    }
+
+    /// The next exercise's illustration frames decoded ahead (#720), so its movement plays smoothly on arrival.
+    private func prepareNextMove() {
+        guard let next = nextStep else { return }
+        IllustrationImages.prepare(steps[next].item.exerciseId)
     }
 
     private func reloadLog() {

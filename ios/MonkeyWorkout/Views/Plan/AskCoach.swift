@@ -405,8 +405,11 @@ struct CoachSpark: View {
 
 /// Listening state: pulsing bars and the words so far.
 struct ListeningBars: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
-        TimelineView(.animation(minimumInterval: 0.12)) { ctx in
+        // Reduce Motion (#720): still bars, no redraw.
+        TimelineView(.animation(minimumInterval: 0.12, paused: reduceMotion)) { ctx in
             let t = ctx.date.timeIntervalSinceReferenceDate
             HStack(spacing: 3) {
                 ForEach(0..<5, id: \.self) { i in

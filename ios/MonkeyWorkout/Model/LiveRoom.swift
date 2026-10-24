@@ -180,7 +180,9 @@ final class LiveRoom {
         poll = Task { [weak self] in
             if let api = self?.api { await self?.load(api: api) }
             while !Task.isCancelled {
-                await self?.tick()
+                // Gone with the room (#720): no loop polling for a nil self.
+                guard let self else { return }
+                await self.tick()
                 try? await Task.sleep(for: .seconds(15))
             }
         }
