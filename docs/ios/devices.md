@@ -77,7 +77,12 @@ On the Apple Watch Smart Stack (`supplementalActivityFamilies([.small])`, `Small
 - An external screen (Screen Mirroring to an Apple TV or AirPlay TV, or an HDMI adapter) gets its own 16:9 layout instead of the mirrored phone. The phone stays the remote.
 - `WorkoutPlayerView.updateLive()` publishes `TVLive` to `TVCast.shared.live` (nil when the player closes). `TVScreen` shows `TVPlayerView` (design mix B + A: full-screen movement, rest/work timer, SET · KG · REPS tiles, heart rate, time, %, one Up next bar) or `TVIdleView`.
 - Sizes scale from the screen height (`u = height / 100`). Demo screen `tv-player` draws the layout at 16:9 on the phone.
-- Chromecast / Google TV: planned (#724 PR 2), needs a Google Cast receiver app ID.
+- Cast button (`CastButton`, `CastSheet`): Chromecast / Google TV and AirPlay get a live video of the same layout.
+  - `TVStreamer` hosts `TVScreen` in a 1280×720 window behind the app, draws it 12 times a second (`drawHierarchy`) into an `AVAssetWriter` (`.mpeg4AppleHLS`, 1 s segments, key frame every second).
+  - `TVStreamServer`: `NWListener` HTTP on a free port, `live.m3u8` (6 newest segments), `init.mp4`, `seg<n>.m4s`, CORS open; URL uses the Wi-Fi (`en0`) IPv4 address.
+  - `CastSession`: Bonjour `_googlecast._tcp` (`CastDevices`), TLS 8009, Cast v2 `CastMessage` protobuf by hand, launches Google's Default Media Receiver `CC1AD845`, `LOAD` live HLS once 3 segments exist. No Google SDK, no receiver page.
+  - `AirPlayStream`: `AVPlayer` on the stream + `AVRoutePickerView`; ends when the TV lets go.
+  - Stream needs the app in the foreground; 2-5 s behind the phone. Screen Mirroring (scene above) has no delay.
 
 ## Garmin
 

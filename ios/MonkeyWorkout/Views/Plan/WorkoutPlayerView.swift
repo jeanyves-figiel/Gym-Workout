@@ -969,6 +969,8 @@ struct WorkoutPlayerView: View {
             if LiveRoom.shared.canShare { LiveShareTile() }
             // Hands-free (#412 C): say a command, or ask Coach about this exercise.
             if AskCoachPref.playerMic { micButton }
+            // Cast to a TV (#724): Chromecast or AirPlay.
+            CastButton()
             // Tap the clock to finish early (#300); after a fit it counts down to the time to be done by.
             Button { finishingEarly = true } label: {
                 TimelineView(.periodic(from: started, by: 1)) { ctx in

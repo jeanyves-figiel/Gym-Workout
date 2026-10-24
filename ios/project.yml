@@ -101,6 +101,9 @@ targets:
         # Ring through Silent (#613): rest and interval timers as AlarmKit alarms, off until the member allows it.
         NSAlarmKitUsageDescription: Rest and interval timers ring like an alarm, even on Silent or with Focus on.
         MWAppGroup: $(APP_GROUP)
+        # Cast to TV (#724): finds Chromecasts on the Wi-Fi and serves the workout video to the TV.
+        NSLocalNetworkUsageDescription: Finds Chromecasts and TVs on your Wi-Fi and sends them your workout.
+        NSBonjourServices: [_googlecast._tcp]
         # Home Screen widget taps (#297): monkeyworkout://session/<id>, monkeyworkout://progress, …
         CFBundleURLTypes:
           - CFBundleURLName: $(APP_BUNDLE_ID)

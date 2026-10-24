@@ -187,6 +187,7 @@ private struct DemoScreen: View {
         case "player", "player-zones": WorkoutPlayerView(sessionId: second)
         case "player-rest": WorkoutPlayerView(sessionId: second, demoRest: true)
         case "player-timed": WorkoutPlayerView(sessionId: second, demoMode: "timed")
+        case "cast-sheet": CastSheet(demoDevices: ["Living Room TV", "Gym TV"])
         case "tv-player":
             // The TV layout (#724) at 16:9 on the phone; the hidden player feeds it, as with a real AirPlay screen.
             ZStack {
