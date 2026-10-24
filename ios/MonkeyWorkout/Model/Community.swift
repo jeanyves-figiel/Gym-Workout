@@ -311,7 +311,7 @@ final class Community {
         let tom = CommunityAuthor(userId: "u-tom", nickname: "tom_runs", level: 12)
         let posts = [
             CommunityPost(
-                id: "p0", author: bea, mine: false, kind: "record", visibility: .members,
+                id: "p0", author: bea, mine: false, kind: "record", refId: "bench-press:2026-10-24", visibility: .members,
                 payload: CommunityCard(title: "Bench Press best", subtitle: "New personal best", metric: .init(value: "100", unit: "kg"), style: "moment:pr"),
                 createdAt: now.addingTimeInterval(-1 * 3600), reactions: ["like": 9, "strong": 6, "fire": 3, "beast": 4], myReactions: ["fire"]),
             CommunityPost(

@@ -3,14 +3,11 @@ import LiftSensor
 import SwiftUI
 import WorkoutEngine
 
-// Community tab redesign (#666, designs C + B from `community-redesign/proposals.png`): your gym today on top, small
-// tiles, quick shares, then Feed · Plans · Fuel · Mine.
+// Social hub pieces (#666, simpler in #738): buddies, member plans, shared meals and tips.
 
-enum CommunityTab: Hashable { case feed, plans, fuel, mine }
-
-/// What the quick share buttons open.
+/// What the Share sheet opens.
 enum CommunitySheet: String, Identifiable {
-    case plan, meal, tip, fuelTip
+    case win, plan, meal, tip
     var id: String { rawValue }
 }
 
@@ -32,180 +29,6 @@ extension CommunityPost {
         return TipTopic(rawValue: String(s.dropFirst(4)))
     }
     var isRecipe: Bool { kind == "note" && refId?.hasPrefix("recipe-") == true }
-    /// Community → Fuel: shared recipes and fuel tips.
-    var isFuel: Bool { isRecipe || tipTopic == .fuel }
-}
-
-// MARK: - C: your gym today
-
-/// Hero: who trained at your gym today, who's live, the week challenge with a bar for the week and the top 3.
-struct GymPulseCard: View {
-    let posts: [CommunityPost]
-    @Environment(AppModel.self) private var model
-    private var live: LiveRoom { .shared }
-
-    private static let gradient = LinearGradient(colors: [Color(hex: 0x3B6CFF), Color(hex: 0x9B3CFF)], startPoint: .topLeading, endPoint: .bottomTrailing)
-
-    var body: some View {
-        let trained = TrainedTodayRow.today(posts).count
-        let liveNow = live.paired.filter { $0.live != nil }.count + (live.room?.training ?? 0)
-        NavigationLink { ChallengeRoomView() } label: {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .top, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(gymName) · today").font(Theme.label(10)).tracking(1.2).textCase(.uppercase).opacity(0.85).lineLimit(1)
-                        Text("\(trained) trained · \(liveNow) live now").font(Theme.display(22)).lineLimit(1).minimumScaleFactor(0.7)
-                    }
-                    Spacer(minLength: 4)
-                    Image(systemName: "building.2.fill").font(.system(size: 24, weight: .bold)).opacity(0.9)
-                }
-                challenge
-                podium
-            }
-            .foregroundStyle(.white)
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Self.gradient))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(gymName) today: \(trained) trained, \(liveNow) live. Week challenge \(live.wod.name).")
-    }
-
-    private var gymName: String { model.profile?.gym?.name ?? Gym.puls5.name }
-
-    private var challenge: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 4) {
-                Text("🔥 \(live.wod.name) · AMRAP \(WeeklyChallenge.minutes)′ · \(live.room?.joined ?? 0) joined")
-                    .lineLimit(1).minimumScaleFactor(0.8)
-                Spacer(minLength: 4)
-                Text(Self.left()).opacity(0.85)
-            }
-            .font(Theme.label(11))
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .fill(.white.opacity(0.25))
-                .frame(height: 6)
-                .overlay(alignment: .leading) {
-                    GeometryReader { g in
-                        RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Theme.lime).frame(width: g.size.width * Self.weekDone())
-                    }
-                }
-        }
-    }
-
-    @ViewBuilder private var podium: some View {
-        let top = Array((live.room?.leaderboard ?? []).prefix(3))
-        if top.isEmpty {
-            Text("Nobody on the board yet: tap to take first place.").font(.caption.weight(.semibold)).opacity(0.9)
-        } else {
-            // Silver, gold, bronze: the winner stands in the middle, tallest.
-            let order = top.count == 3 ? [1, 0, 2] : Array(top.indices)
-            HStack(alignment: .bottom, spacing: 6) {
-                ForEach(order, id: \.self) { i in
-                    let e = top[i]
-                    VStack(spacing: 1) {
-                        Text(["🥇", "🥈", "🥉"][min(i, 2)]).font(Theme.label(14))
-                        Text(e.me ? "You" : e.nickname).font(Theme.label(11)).lineLimit(1).minimumScaleFactor(0.7)
-                        Text(ChallengeRoomView.score(e)).font(Theme.label(10)).opacity(0.85)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: [58, 48, 42][min(i, 2)])
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(i == 0 ? Theme.lime.opacity(0.45) : .white.opacity(0.2)))
-                }
-            }
-        }
-    }
-
-    private static var isoWeek: DateInterval? { Calendar(identifier: .iso8601).dateInterval(of: .weekOfYear, for: .now) }
-
-    static func weekDone(now: Date = .now) -> Double {
-        guard let w = isoWeek, w.duration > 0 else { return 0 }
-        return min(1, max(0, now.timeIntervalSince(w.start) / w.duration))
-    }
-
-    static func left(now: Date = .now) -> String {
-        guard let w = isoWeek else { return "" }
-        let days = Calendar(identifier: .iso8601).dateComponents([.day], from: now, to: w.end).day ?? 0
-        return days <= 0 ? "last day" : "\(days + (days < 6 ? 1 : 0)) days left"
-    }
-}
-
-/// Three small tiles instead of three full-width cards: gym, members, buddies.
-struct CommunityTiles: View {
-    @Environment(AppModel.self) private var model
-    private var community: Community { .shared }
-    private var live: LiveRoom { .shared }
-
-    var body: some View {
-        let liveCount = live.paired.filter { $0.live != nil }.count
-        HStack(spacing: 8) {
-            NavigationLink { ProfileSectionView(section: .gym) } label: {
-                tile("building.2.fill", "\(model.profile?.equipment.count ?? 0)", "Gym items", WorkoutEngine.Category.strength.gradient)
-            }
-            .accessibilityLabel("Your gym, \(model.profile?.equipment.count ?? 0) items")
-            NavigationLink { FindMembersView() } label: {
-                tile("magnifyingglass", "\(community.profile?.following ?? 0)", "Find members · following", WorkoutEngine.Category.cardio.gradient)
-            }
-            .accessibilityLabel("Find members. Following \(community.profile?.following ?? 0).")
-            NavigationLink { BuddiesScreen() } label: {
-                tile("figure.2", live.invites.isEmpty ? "\(liveCount)" : "\(live.invites.count)", live.invites.isEmpty ? "Gym buddies · live" : "Invites",
-                     LinearGradient.buddies,
-                     badge: !live.invites.isEmpty)
-            }
-            .accessibilityLabel(live.invites.isEmpty ? "Gym buddies, \(liveCount) live" : "Gym buddies, \(live.invites.count) invites")
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func tile(_ symbol: String, _ value: String, _ label: String, _ gradient: LinearGradient, badge: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Image(systemName: symbol).font(.system(size: 15, weight: .bold))
-                    .frame(width: 32, height: 32)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.22)))
-                Spacer(minLength: 0)
-                if badge { RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Theme.lime).frame(width: 10, height: 10) }
-            }
-            Spacer(minLength: 6)
-            Text(value).font(Theme.display(24)).monospacedDigit().lineLimit(1)
-            Text(label).font(Theme.label(9)).tracking(1).textCase(.uppercase).opacity(0.88).lineLimit(1).minimumScaleFactor(0.7)
-        }
-        .foregroundStyle(.white)
-        .padding(10)
-        .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(gradient))
-        .contentShape(Rectangle())
-    }
-}
-
-/// Share plan · Share meal · Post a tip.
-struct QuickShareRow: View {
-    let open: (CommunitySheet) -> Void
-
-    var body: some View {
-        HStack(spacing: 8) {
-            button(.plan, "Share plan", "calendar", [Color(hex: 0xFF3CAC), Color(hex: 0x784BA0)])
-            button(.meal, "Share meal", "fork.knife", TipTopic.fuel.colors)
-            button(.tip, "Post a tip", "lightbulb.fill", TipTopic.train.colors)
-        }
-    }
-
-    private func button(_ s: CommunitySheet, _ title: String, _ symbol: String, _ colors: [Color]) -> some View {
-        Button { open(s) } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                Image(systemName: symbol).font(.system(size: 16, weight: .bold))
-                Text(title).font(Theme.display(14)).lineLimit(1).minimumScaleFactor(0.7)
-            }
-            .foregroundStyle(.white)
-            .padding(10)
-            .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
 }
 
 /// Gym buddies on their own page, opened from the Buddies tile.
@@ -273,42 +96,6 @@ struct FilterChips<Value: Hashable>: View {
             }
         }
         .scrollClipDisabled()
-    }
-}
-
-// MARK: - B: Plans
-
-/// Community → Plans: members' programmes by level, and the invite to share yours.
-struct PlansSection: View {
-    let share: () -> Void
-    @Environment(AppModel.self) private var model
-    @State private var level: SharedPlanLevel?
-    private var store: SharedPlans { .shared }
-    private var levels: [(SharedPlanLevel?, String)] {
-        [(nil, "All levels")] + SharedPlanLevel.allCases.map { (Optional($0), $0.title) }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            FilterChips(selection: $level, items: levels)
-            ErrorText(message: store.error)
-            if store.plans.isEmpty && store.loaded && !store.loading {
-                Text(level.map { "No \($0.title.lowercased()) plans yet." } ?? "No member plans yet. Be the first to share yours.")
-                    .font(.subheadline.weight(.medium)).foregroundStyle(Theme.muted)
-                    .padding(.vertical, 6)
-            } else if !store.loaded {
-                ProgressView().frame(maxWidth: .infinity).padding()
-            }
-            ForEach(store.plans) { p in
-                NavigationLink { SharedPlanView(plan: p) } label: { SharedPlanCard(plan: p) }
-                    .buttonStyle(.plain)
-            }
-            ShareInviteCard(title: "Share your programme",
-                            message: "Your own programme, weeks and signature workouts. Members copy it and the app builds it for their gym.",
-                            action: "SHARE MY PLAN", tap: share)
-        }
-        .task { if !store.loaded { await store.load(api: model.api) } }
-        .onChange(of: level) { _, l in Task { await store.load(api: model.api, level: l) } }
     }
 }
 
@@ -656,26 +443,6 @@ struct SharePlanSheet: View {
 }
 
 // MARK: - Fuel and tips
-
-/// Community → Fuel: members' recipes and fuel tips, with invites to share yours.
-struct FuelSection: View {
-    let open: (CommunitySheet) -> Void
-    private var community: Community { .shared }
-
-    var body: some View {
-        let posts = community.posts(.members).filter(\.isFuel)
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                ShareInviteCard(title: "A meal", message: "Recipe with its macros.", action: "SHARE") { open(.meal) }
-                ShareInviteCard(title: "A tip", message: "Swap, prep, timing.", action: "POST") { open(.fuelTip) }
-            }
-            if posts.isEmpty {
-                Text("No recipes or fuel tips from members yet.").font(.subheadline.weight(.medium)).foregroundStyle(Theme.muted).padding(.vertical, 6)
-            }
-            ForEach(posts) { PostCard(post: $0) }
-        }
-    }
-}
 
 /// Share meal: pick one of your recipes or favourites (or a popular one), then the usual Share recipe sheet.
 struct ShareMealSheet: View {
