@@ -481,7 +481,7 @@ final class WatchSync: NSObject {
 
     private static func item(_ it: PlannedExercise, block: Block, sessionId: String, model: AppModel) -> WItem {
         let e = Exercise.get(it.exerciseId)
-        let loggable = block.kind == .strength && !e.equipment.isEmpty && e.unit != .sec
+        let loggable = it.isLoggable(in: block)
         let timed = TimedSpec(it.prescription, unit: e.unit)
         let suggestion = loggable ? model.loadSuggestion(for: it, sessionId: sessionId) : nil
         let kg = suggestion?.kg ?? (loggable ? model.lastWeight(it.exerciseId) : nil)

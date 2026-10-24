@@ -128,12 +128,8 @@ struct WorkoutPlayerView: View {
         let block: Block
         var exercise: Exercise { Exercise.get(item.exerciseId) }
         var sets: Int { max(1, item.prescription.sets) }
-        /// Per-set kg × reps logging applies: loaded strength work counted in reps. Timed work and cardio machines
-        /// (e.g. a cross-trainer inside a custom workout's strength block) only run the timer.
-        var loggable: Bool {
-            block.kind == .strength && !exercise.equipment.isEmpty && exercise.unit != .sec && timedSpec == nil
-                && category == .strength
-        }
+        /// Per-set kg × reps logging applies (the same rule as on the Watch).
+        var loggable: Bool { item.isLoggable(in: block) }
         var category: WorkoutEngine.Category { ExerciseHeroCard.category(exercise, in: block) }
         /// Work time when the prescription is timed ("4 min", "30 s", intervals).
         var timedSpec: TimedSpec? { TimedSpec(item.prescription, unit: exercise.unit) }

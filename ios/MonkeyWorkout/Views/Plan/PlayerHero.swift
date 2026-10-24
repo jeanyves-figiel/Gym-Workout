@@ -23,6 +23,17 @@ struct TimedSpec: Equatable {
     }
 }
 
+extension PlannedExercise {
+    /// Per-set kg × reps logging applies: loaded strength work counted in reps. Timed work and cardio machines
+    /// (e.g. a cross-trainer inside a custom workout's strength block) only run the timer. One rule for the
+    /// iPhone player and the Watch (#716).
+    func isLoggable(in block: Block) -> Bool {
+        let e = Exercise.get(exerciseId)
+        return block.kind == .strength && !e.equipment.isEmpty && e.unit != .sec
+            && TimedSpec(prescription, unit: e.unit) == nil && ExerciseHeroCard.category(e, in: block) == .strength
+    }
+}
+
 /// Countdown of a timed set; `end` nil while paused or not started.
 struct TimedRun: Equatable {
     var uid: String
