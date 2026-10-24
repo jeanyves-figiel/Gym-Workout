@@ -1,11 +1,23 @@
 {
-  "id": "2026-10-24.1",
+  "id": "2026-10-24.2",
   "items": [
     {
-      "symbol": "timer",
-      "tint": "power",
-      "title": "HIIT sessions",
-      "body": "Tabata, EMOM, AMRAP and more. Add HIIT days to your week, build one in Explore → HIIT, and play it with the interval timer on iPhone and Watch."
+      "symbol": "plus.square.on.square",
+      "tint": "mobility",
+      "title": "Daily routines, your way",
+      "body": "Pick the routines you want on Train, or skip them."
+    },
+    {
+      "symbol": "moon.fill",
+      "tint": "stretch",
+      "title": "Skipped = rest day",
+      "body": "Skip a workout and the day turns into a rest day, with Recover and Plan sport. Changed your mind? Unskip is right under the title."
+    },
+    {
+      "symbol": "mappin.and.ellipse",
+      "tint": "cardio",
+      "title": "Training somewhere else today?",
+      "body": "Tap the place chip on the day card. Routines now remember where you do them."
     }
   ]
 }

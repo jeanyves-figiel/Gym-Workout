@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "id": "2026-10-24.1",
+      "build": 68,
+      "date": "2026-10-24",
+      "items": [
+        {
+          "symbol": "timer",
+          "tint": "power",
+          "title": "HIIT sessions",
+          "body": "Tabata, EMOM, AMRAP and more. Add HIIT days to your week, build one in Explore → HIIT, and play it with the interval timer on iPhone and Watch."
+        }
+      ]
+    },
+    {
       "id": "2026-10-23.2",
       "build": 67,
       "date": "2026-10-23",
