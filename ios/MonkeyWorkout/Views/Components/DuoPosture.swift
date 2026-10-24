@@ -75,10 +75,13 @@ private struct HingeView: UIViewRepresentable {
 @Observable
 private final class StillDetector {
     private(set) var isStill = false
-    @ObservationIgnored private let motion = CMMotionManager()
+    /// Made on the first start (#720): `@State` builds a detector on every view init, most never start.
+    @ObservationIgnored private var motion: CMMotionManager?
     @ObservationIgnored private var quietSince: Date?
 
     func start(_ changed: @escaping (Bool) -> Void) {
+        let motion = self.motion ?? CMMotionManager()
+        self.motion = motion
         guard motion.isDeviceMotionAvailable, !motion.isDeviceMotionActive else { return }
         motion.deviceMotionUpdateInterval = 0.2
         motion.startDeviceMotionUpdates(to: .main) { [weak self] data, _ in
@@ -95,7 +98,7 @@ private final class StillDetector {
     }
 
     func stop() {
-        motion.stopDeviceMotionUpdates()
+        motion?.stopDeviceMotionUpdates()
         quietSince = nil
         isStill = false
     }
