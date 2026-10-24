@@ -1,23 +1,53 @@
 {
-  "id": "2026-10-24.3",
+  "id": "2026-10-24.4",
   "items": [
     {
-      "symbol": "bubble.left.and.text.bubble.right.fill",
-      "tint": "warmup",
-      "title": "Coach moved up, Social is here",
-      "body": "Coach 🐵 now sits at the top right of every tab: tap to ask, hold to talk. Community is now Social."
-    },
-    {
-      "symbol": "mappin.and.ellipse",
+      "symbol": "tv.fill",
       "tint": "cardio",
-      "title": "Train anywhere",
-      "body": "Tap 📍 on any workout or long press it to train at home, at your gym or anywhere you saved. Home is always there; trip days show the trip."
+      "title": "Workout on your TV",
+      "body": "Cast button in the player: Chromecast, Google TV or AirPlay show a big timer, your set and what's next."
     },
     {
-      "symbol": "minus.circle.fill",
+      "symbol": "camera.fill",
+      "tint": "power",
+      "title": "Snap your plate",
+      "body": "Photo of your meal: Monkey names the dish, guesses grams and logs protein, carbs and caffeine."
+    },
+    {
+      "symbol": "cup.and.saucer.fill",
+      "tint": "warmup",
+      "title": "Coffee and cereals count",
+      "body": "Search foods in Just ate, build a plate and save your usual breakfast. Coffee fills the caffeine meter."
+    },
+    {
+      "symbol": "gift.fill",
+      "tint": "strength",
+      "title": "More free",
+      "body": "Variations, own workouts, PR attempts, full progress and Watch workouts no longer need Pro."
+    },
+    {
+      "symbol": "text.badge.checkmark",
       "tint": "mobility",
-      "title": "Take a routine off",
-      "body": "Tap its ✓ in Explore → Routines or long press it on Train to remove it from your Daily row."
+      "title": "Clearer names, fewer pop-ups",
+      "body": "Your gym sits on the day card, routines are now Daily, Gym buddies and Live are easy to find, and removing something gives you Undo."
+    },
+    {
+      "symbol": "figure.run",
+      "tint": "cardio",
+      "title": "Real-life moves",
+      "body": "Runs, walks, carries and bikes now move forward, not back and forth."
+    },
+    {
+      "symbol": "checkmark.seal.fill",
+      "tint": "strength",
+      "title": "Steadier logging",
+      "body": "Workouts past midnight, Siri set logs and Watch supersets work as expected."
+    },
+    {
+      "symbol": "rectangle.topthird.inset.filled",
+      "tint": "stretch",
+      "title": "Cleaner headers",
+      "body": "Search and chips sit on a solid bar, nothing shows through."
     }
   ]
 }
