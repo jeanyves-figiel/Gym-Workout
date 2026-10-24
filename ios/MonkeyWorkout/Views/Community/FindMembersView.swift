@@ -2,40 +2,6 @@ import APIClient
 import SwiftUI
 import WorkoutEngine
 
-/// Feed entry to Find members (#152): who you follow, at a glance.
-struct FindMembersCard: View {
-    private var community: Community { .shared }
-
-    var body: some View {
-        NavigationLink { FindMembersView() } label: {
-            HStack(spacing: 14) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 24, weight: .bold))
-                    .frame(width: 56, height: 56)
-                    .background(RoundedRectangle(cornerRadius: 17, style: .continuous).fill(.white.opacity(0.22)))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Find members").font(Theme.display(21)).lineLimit(1).minimumScaleFactor(0.75)
-                    Text("Search nicknames or gyms, see who trains at yours").font(.footnote.weight(.semibold)).opacity(0.88).lineLimit(2)
-                }
-                .layoutPriority(1)
-                Spacer(minLength: 4)
-                VStack(alignment: .trailing, spacing: 0) {
-                    Text("\(community.profile?.following ?? 0)").font(Theme.display(26)).monospacedDigit()
-                    Text("FOLLOWING").font(Theme.label(9)).tracking(1.2).opacity(0.8)
-                }
-                .fixedSize()
-                Image(systemName: "chevron.right").font(.footnote.bold()).opacity(0.7)
-            }
-            .foregroundStyle(.white)
-            .padding(18)
-            .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(WorkoutEngine.Category.cardio.gradient))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Find members. Following \(community.profile?.following ?? 0).")
-    }
-}
-
 /// Search members by nickname or gym (#152). Empty search: members at your gym, who you follow, then suggestions.
 /// The server leaves out you, anyone blocked either way and members hidden by reports. Gyms show only when the member opts in.
 struct FindMembersView: View {

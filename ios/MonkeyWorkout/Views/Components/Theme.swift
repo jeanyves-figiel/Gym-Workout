@@ -269,20 +269,6 @@ struct BlockStripe: View {
     }
 }
 
-struct StatTile: View {
-    let value: String
-    let label: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value).font(Theme.display(26)).monospacedDigit()
-            Text(label).eyebrow()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card(padding: 14)
-    }
-}
-
 /// White ~20 % rounded tile holding an icon, left of Explore-style gradient cards. `ink`: dark tile for light
 /// gradients (#540).
 struct IconTile: View {

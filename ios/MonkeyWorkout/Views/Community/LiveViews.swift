@@ -223,35 +223,6 @@ struct LiveSharingView: View {
 
 private let challengeGradient = LinearGradient(colors: [Color(hex: 0xFF7A00), Color(hex: 0xFF3D8B)], startPoint: .topLeading, endPoint: .bottomTrailing)
 
-struct ChallengeRoomCard: View {
-    private var live: LiveRoom { .shared }
-
-    var body: some View {
-        NavigationLink { ChallengeRoomView() } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Week challenge").font(Theme.label(12)).tracking(1.2).textCase(.uppercase).opacity(0.85)
-                HStack(alignment: .firstTextBaseline) {
-                    Text(live.wod.name).font(Theme.display(26)).lineLimit(1).minimumScaleFactor(0.7)
-                    Spacer(minLength: 4)
-                    Image(systemName: "chevron.right").font(.footnote.bold()).opacity(0.7)
-                }
-                Text("AMRAP \(WeeklyChallenge.minutes)′ · \(live.room?.joined ?? 0) joined" + ((live.room?.training ?? 0) > 0 ? " · \(live.room!.training) live" : ""))
-                    .font(Theme.label(13)).opacity(0.92)
-                if let board = live.room?.leaderboard, !board.isEmpty {
-                    Text(board.prefix(3).map { "\($0.rank). \($0.me ? "You" : $0.nickname) \(ChallengeRoomView.score($0))" }.joined(separator: " · "))
-                        .font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
-                }
-            }
-            .foregroundStyle(.white)
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(challengeGradient))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 /// Same WOD all week: start it on the big screen, enter rounds + reps, see the leaderboard (live when others train).
 struct ChallengeRoomView: View {
     @Environment(AppModel.self) private var model

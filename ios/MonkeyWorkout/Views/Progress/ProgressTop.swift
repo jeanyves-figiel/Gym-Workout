@@ -161,28 +161,6 @@ struct ProgressSectionTile: View {
     }
 }
 
-/// Bold header opening each section: colour icon tile + title.
-struct ProgressSectionHeader: View {
-    let section: ProgressSection
-    var trailing: String?
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: section.symbol)
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(section.ink)
-                .frame(width: 34, height: 34)
-                .background(RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(LinearGradient(colors: section.colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
-            Text(section.title).font(Theme.display(24))
-            Spacer(minLength: 0)
-            if let trailing { Text(trailing).font(Theme.label(12)).foregroundStyle(Theme.muted) }
-        }
-        .padding(.top, 10)
-        .accessibilityAddTraits(.isHeader)
-    }
-}
-
 /// Slim lime streak row (was the big hero): streak, best, this week vs goal.
 struct StreakRow: View {
     let current: Int

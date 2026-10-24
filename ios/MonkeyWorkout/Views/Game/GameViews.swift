@@ -60,22 +60,6 @@ extension MonkeyFace.Mood {
 
 // MARK: - Shared pieces
 
-/// "LV 7" lime capsule next to the Train title (all looks).
-struct LevelChip: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        let g = model.game
-        Text("LV \(g.level)")
-            .font(Theme.label(14)).tracking(1)
-            .foregroundStyle(Theme.ink)
-            .padding(.horizontal, 11).padding(.vertical, 6)
-            .background(Capsule().fill(GameTint.xp))
-            .accessibilityLabel("Level \(g.level), \(g.xpToNext) XP to the next level")
-            .opensLevels()
-    }
-}
-
 /// Every level display opens the ladder (#242): LV chip, level bar, banners, finish card.
 private struct OpensLevels: ViewModifier {
     @State private var open = false
