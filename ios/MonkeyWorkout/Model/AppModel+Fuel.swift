@@ -203,6 +203,28 @@ extension AppModel {
         return PlateScan(dish: result.dish ?? "", items: items)
     }
 
+    /// Magic Snap (#733): one photo, sorted by Monkey into a meal to log or food to keep in What I have.
+    func snapFood(jpeg: Data) async throws -> FuelSnap {
+        #if DEBUG
+        if demo { return .meal(Self.demoPlate) }
+        #endif
+        let own = FuelStore.shared.saved.foods
+        let catalog = (FoodBook.catalog + own).prefix(400).map { GymScanItem(id: $0.id, label: String($0.name.prefix(60))) }
+        let result = try await api.foodScan(jpeg: jpeg, catalog: catalog, mode: "auto")
+        let seen = result.found ?? []
+        if result.kind == "stock" {
+            return .stock(seen.compactMap { s -> (food: Food, sure: Bool)? in
+                if let id = s.id { return FoodBook.food(id, own: own).map { (food: $0, sure: s.sure) } }
+                return (food: Self.food(s), sure: s.sure)
+            })
+        }
+        let items = seen.map { s -> PlateScan.Item in
+            let food = s.id.flatMap { FoodBook.food($0, own: own) } ?? Self.food(s)
+            return PlateScan.Item(food: food, grams: s.grams ?? food.portion.g, sure: s.sure)
+        }
+        return .meal(PlateScan(dish: result.dish ?? "", items: items))
+    }
+
     #if DEBUG
     static var demoPlate: PlateScan {
         let rice = Food(id: "scan-rice-cooked", name: "Rice, cooked", emoji: "🍚", group: .grain,

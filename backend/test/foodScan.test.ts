@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
-import { cleanFoodScan, cleanPlateScan } from '../src/coach/foodScan.ts';
+import { cleanFoodScan, cleanPlateScan, cleanSnapScan } from '../src/coach/foodScan.ts';
 import { loadConfig } from '../src/config.ts';
 import { type DB, openDb } from '../src/db.ts';
 import { ConsoleMailer } from '../src/mailer.ts';
@@ -45,6 +45,14 @@ beforeEach(() => {
             { id: '', name: 'Coffee', group: 'drink', sure: true, grams: 200, caffeine: 40, per100: { protein: 0.1, carbs: 0, fat: 0, kcal: 1 } },
           ],
         },
+        catalog,
+      ),
+    snapScan: async (jpegIn, catalog) =>
+      cleanSnapScan(
+        // A tiny marker in the photo picks the answer: a stock photo here, else a meal.
+        jpegIn.includes(Buffer.from('fridge'))
+          ? { kind: 'stock', dish: 'Fridge', items: [{ id: 'egg', name: 'Eggs', group: 'protein', sure: true, grams: 0, caffeine: 0 }] }
+          : { kind: 'whatever', dish: 'Coffee', items: [{ id: '', name: 'Coffee', group: 'drink', sure: true, grams: 250, caffeine: 40 }] },
         catalog,
       ),
   });
@@ -140,6 +148,23 @@ describe('Food scan (#496)', () => {
     ]);
     expect((await scan(a)).json()).not.toHaveProperty('dish');
     expect((db.prepare('SELECT count FROM food_scan_usage').get() as { count: number }).count).toBe(2);
+  });
+
+  it('Magic Snap sorts the photo: meal or stock, same daily count (#733)', async () => {
+    const a = await signUp('a@example.com');
+    const post = (photo: string) =>
+      app.inject({ method: 'POST', url: '/v1/me/food-scan', payload: { photo, catalog, mode: 'auto' }, headers: { authorization: `Bearer ${a}` } });
+    const meal = (await post(jpeg)).json();
+    expect(meal.kind).toBe('meal');
+    expect(meal.dish).toBe('Coffee');
+    expect(meal.found[0]).toMatchObject({ name: 'Coffee', grams: 250, caffeine: 40 });
+    const fridge = Buffer.concat([Buffer.from(jpeg, 'base64'), Buffer.from('fridge')]).toString('base64');
+    const stock = (await post(fridge)).json();
+    expect(stock.kind).toBe('stock');
+    expect(stock.dish).toBe('');
+    expect(stock.items).toEqual(['egg']);
+    expect(stock.remainingToday).toBe(18);
+    expect((await scan(a)).json()).not.toHaveProperty('kind');
   });
 
   it('needs a signed-in member', async () => {
