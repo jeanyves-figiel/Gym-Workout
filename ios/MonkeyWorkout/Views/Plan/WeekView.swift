@@ -971,8 +971,8 @@ private struct NextUpCard: View {
                 .contextMenu { cardMenu }
                 .accessibilityHint("Opens the session overview")
             }
-            // Where today happens (#700, design A): just this day or every week, with more than one gym saved.
-            if later == nil, !done, !past, !model.otherGyms.isEmpty, let d = day {
+            // Where today happens (#700, design A): just this day or every week; Home always a choice (#703).
+            if later == nil, !done, !past, let d = day {
                 HStack { PlaceMenuChip(weekday: d); Spacer(minLength: 0) }
             }
             actions
@@ -998,6 +998,12 @@ private struct NextUpCard: View {
     @ViewBuilder private var cardMenu: some View {
         if !done && !past {
             Button("Move to…", systemImage: "arrow.left.arrow.right") { moving = true }
+            // Where (#703): the day card chip's choices, also on long press.
+            if later == nil, let d = day {
+                Menu("Where · \(model.tripThisWeek(d)?.title ?? model.placeName(onWeekday: d))", systemImage: "mappin.and.ellipse") {
+                    PlaceMenuItems(weekday: d)
+                }
+            }
             Button("Plan a sport", systemImage: "figure.snowboarding") { planningSport = true }
             if canToggleSkip {
                 Button(skippedHere ? "Unskip" : skipTitle, systemImage: skippedHere ? "arrow.uturn.backward" : "nosign",

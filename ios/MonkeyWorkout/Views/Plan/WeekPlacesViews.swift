@@ -132,18 +132,50 @@ struct DayComboRow: View {
     }
 }
 
-// MARK: - Today's place (#700, design A)
+// MARK: - Today's place (#700, design A; #703: always there, Home built in, trips)
 
 /// On a workout day card: where the day happens ("📍 Puls 5 ▾"). The menu moves just this day, or this weekday
-/// every week, to another saved gym; the workout is rebuilt for that gym's kit, same session type.
+/// every week, to another place; the workout is rebuilt for that place's kit, same session type. Home is always a
+/// choice. On a travel day the trip sets the place (changed in Calendar).
 struct PlaceMenuChip: View {
     let weekday: Int
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        let current = model.placeId(onWeekday: weekday)
-        let day = WeekSchedule.name(weekday)
+        let trip = model.tripThisWeek(weekday)
+        let name = trip?.title ?? model.placeName(onWeekday: weekday)
         Menu {
+            PlaceMenuItems(weekday: weekday)
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: trip == nil ? "mappin.and.ellipse" : "airplane").font(.system(size: 11, weight: .bold))
+                Text(name).font(Theme.label(12)).lineLimit(1)
+                Image(systemName: "chevron.down").font(.system(size: 9, weight: .heavy))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 9).padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.black.opacity(0.28)))
+        }
+        .accessibilityLabel("Where on \(WeekSchedule.name(weekday)): \(name)")
+        .accessibilityIdentifier("train.placeChip")
+    }
+}
+
+/// The place choices for `weekday`: just this day or every week. Also in the day card's long-press menu.
+struct PlaceMenuItems: View {
+    let weekday: Int
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let day = WeekSchedule.name(weekday)
+        if let trip = model.tripThisWeek(weekday) {
+            // Travel (#68): the trip's kit plans this day; dates and kit are edited in Calendar.
+            Section("Trip · \(trip.title)") {
+                Text("This day is planned for the trip. Change it in Calendar.")
+            }
+        } else {
+            let current = model.placeId(onWeekday: weekday)
+            let weekly = model.profile?.place(onWeekday: weekday) ?? model.homeGym.id
             Section("Just this \(day)") {
                 ForEach(model.placeChoices) { g in
                     Button { model.setPlaceToday(g.id, onWeekday: weekday) } label: { choice(g, on: g.id == current) }
@@ -151,26 +183,14 @@ struct PlaceMenuChip: View {
             }
             Section("Every \(day)") {
                 ForEach(model.placeChoices) { g in
-                    Button { model.setPlaceEveryWeek(g.id, onWeekday: weekday) } label: {
-                        choice(g, on: g.id == (model.profile?.place(onWeekday: weekday) ?? model.homeGym.id))
-                    }
+                    Button { model.setPlaceEveryWeek(g.id, onWeekday: weekday) } label: { choice(g, on: g.id == weekly) }
                 }
             }
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "mappin.and.ellipse").font(.system(size: 11, weight: .bold))
-                Text(model.placeName(onWeekday: weekday)).font(Theme.label(12)).lineLimit(1)
-                Image(systemName: "chevron.down").font(.system(size: 9, weight: .heavy))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 9).padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.black.opacity(0.28)))
         }
-        .accessibilityLabel("Where on \(day): \(model.placeName(onWeekday: weekday))")
-        .accessibilityIdentifier("train.placeChip")
     }
 
     private func choice(_ g: SavedGym, on: Bool) -> some View {
-        Label(g.ref.name, systemImage: on ? "checkmark" : g.kind?.symbol ?? (g.isPlace ? "dumbbell.fill" : "house.fill"))
+        Label(g.id == SavedGym.builtInHome.id ? "Home · bodyweight" : g.ref.name,
+              systemImage: on ? "checkmark" : g.kind?.symbol ?? (g.isPlace ? "dumbbell.fill" : "house.fill"))
     }
 }
