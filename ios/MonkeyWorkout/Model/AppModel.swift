@@ -691,10 +691,12 @@ final class AppModel {
         state.logs.compactMap { l in l.weightKg.map { WeightEntry(exerciseId: l.exerciseId, date: l.date, kg: $0, reps: l.reps) } }
     }
 
-    /// Weights logged for each exercise during one session.
-    func sessionWeights(_ sessionId: String) -> [String: Double] {
+    /// Heaviest weight logged for each exercise during one run of a session (#716: not every run ever).
+    func sessionWeights(_ sessionId: String, from: Date = .distantPast, to: Date = .distantFuture) -> [String: Double] {
         var out: [String: Double] = [:]
-        for l in state.logs where l.sessionId == sessionId { if let kg = l.weightKg { out[l.exerciseId] = kg } }
+        for l in state.logs where l.sessionId == sessionId && l.date >= from && l.date <= to {
+            if let kg = l.weightKg { out[l.exerciseId] = max(out[l.exerciseId] ?? 0, kg) }
+        }
         return out
     }
 
@@ -703,7 +705,8 @@ final class AppModel {
     func recordWorkout(session: Session, setsDone: [String: Int], startedAt: Date, endedAt: Date, bodyMassKg: Double?) -> WorkoutRecord {
         let r = WorkoutRecord.build(
             session: session, week: plan?.week ?? 1, deload: plan?.deload ?? false,
-            setsDone: setsDone, weights: sessionWeights(session.id),
+            setsDone: setsDone,
+            weights: sessionWeights(session.id, from: min(startedAt, workoutWindowStart(session.id, now: endedAt)), to: endedAt),
             startedAt: startedAt, endedAt: endedAt, bodyMassKg: bodyMassKg)
         state.history.append(r)
         state.pendingHistoryIds.insert(r.id)
@@ -829,10 +832,12 @@ final class AppModel {
         Task { await sync() }
     }
 
-    /// Per-set log (kg × reps, optional RIR). Re-logging the same set of the same session today updates it in place.
+    /// Per-set log (kg × reps, optional RIR). Re-logging the same set of the same workout (today, or since a
+    /// workout running past midnight began) updates it in place.
     func logSet(exerciseId: String, sessionId: String, setIndex: Int, kg: Double, reps: Int, rir: Int?) {
+        let from = workoutWindowStart(sessionId)
         if let i = state.logs.firstIndex(where: {
-            $0.exerciseId == exerciseId && $0.sessionId == sessionId && $0.setIndex == setIndex && Calendar.current.isDateInToday($0.date)
+            $0.exerciseId == exerciseId && $0.sessionId == sessionId && $0.setIndex == setIndex && $0.date >= from
         }) {
             state.logs[i].weightKg = kg
             state.logs[i].reps = reps

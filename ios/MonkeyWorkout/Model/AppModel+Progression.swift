@@ -30,12 +30,13 @@ extension AppModel {
         return nil
     }
 
-    /// Suggested load for a planned exercise. Today's sets of the same session are ignored so the
-    /// suggestion stays stable while the workout is being logged.
+    /// Suggested load for a planned exercise. This workout's sets (today's, or since it began past midnight)
+    /// are ignored so the suggestion stays stable while the workout is being logged.
     func loadSuggestion(for item: PlannedExercise, sessionId: String) -> LoadSuggestion? {
+        let from = workoutWindowStart(sessionId)
         // PR attempts (single heavy sets) say nothing about the working-set rep range.
         let history = exerciseSessions(item.exerciseId).filter {
-            !($0.sessionId == sessionId && Calendar.current.isDateInToday($0.date)) && !PRPlanner.isPRSession($0.sessionId)
+            !($0.sessionId == sessionId && $0.date >= from) && !PRPlanner.isPRSession($0.sessionId)
         }
         let inPlan = plan?.sessions.contains { $0.id == sessionId } ?? false
         let exercise = Exercise.get(item.exerciseId)
@@ -76,10 +77,11 @@ extension AppModel {
             thighCm: recent.last { $0.girth(.thigh) != nil }?.girth(.thigh))
     }
 
-    /// Sets already logged today for this exercise in this session, by set index.
+    /// Sets already logged in this workout (today, or since it began past midnight) for this exercise, by set index.
     func todaysSets(exerciseId: String, sessionId: String) -> [Int: LogEntry] {
+        let from = workoutWindowStart(sessionId)
         var out: [Int: LogEntry] = [:]
-        for l in state.logs where l.exerciseId == exerciseId && l.sessionId == sessionId && Calendar.current.isDateInToday(l.date) {
+        for l in state.logs where l.exerciseId == exerciseId && l.sessionId == sessionId && l.date >= from {
             if let i = l.setIndex { out[i] = l }
         }
         return out
