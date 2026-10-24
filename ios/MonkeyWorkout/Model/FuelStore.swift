@@ -72,7 +72,7 @@ final class FuelStore {
             // or deleted.
             if s.book == nil {
                 s.book = Self.legacyBook(s, today: PlanCalendar.key(Date(), Progression.calendar()), cal: Progression.calendar())
-                Self.write(s)
+                Self.write(s, to: Self.url)
             }
             saved = s
         }
@@ -440,19 +440,32 @@ final class FuelStore {
 
     func signOut() {
         save(Saved())
-        try? FileManager.default.removeItem(at: Self.url)
+        let url = Self.url
+        // After the coalesced write, so it doesn't bring the file back.
+        Task { @MainActor in Self.queue.async { try? FileManager.default.removeItem(at: url) } }
     }
+
+    /// Writes run in order on one queue, off the main thread (#720).
+    nonisolated private static let queue = DispatchQueue(label: "FuelStore.io", qos: .utility)
+    @ObservationIgnored private var writeQueued = false
 
     private func save(_ s: Saved) {
         saved = s
         // Today's water and meals on the Watch and the Home Screen widgets (coalesced: a burst of taps sends once).
         WatchSync.shared.schedulePush()
-        Self.write(s)
+        // The file too (#720): one encode and write for a burst of taps, written as of the last one.
+        guard !writeQueued else { return }
+        writeQueued = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.writeQueued = false
+            let s = self.saved, url = Self.url
+            Self.queue.async { Self.write(s, to: url) }
+        }
     }
 
-    private static func write(_ s: Saved) {
+    nonisolated private static func write(_ s: Saved, to url: URL) {
         guard let data = try? JSONEncoder().encode(s) else { return }
-        let url = Self.url
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
