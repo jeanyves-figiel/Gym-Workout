@@ -94,6 +94,7 @@ struct MonkeyWorkoutApp: App {
                     case .inactive:
                         // App switcher snapshot: hide content when the lock is on.
                         lock.didResignActive()
+                        model.flushPersist()
                     case .active:
                         lock.didBecomeActive()
                         // A new programme week (#255), or a new calendar week for the plan (#266).
@@ -108,10 +109,13 @@ struct MonkeyWorkoutApp: App {
                             await health.refresh()
                             WatchSync.shared.push()
                         }
-                    case .inactive:
-                        model.flushPersist()
                     default: break
                     }
+                }
+                // Midnight with the app open (#716): Monday rolls the week as coming back to the app does.
+                .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in
+                    model.syncProgramme()
+                    model.rollWeekIfNeeded()
                 }
         }
     }
