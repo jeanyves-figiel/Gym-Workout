@@ -521,9 +521,9 @@ public enum Supplements {
     /// Caffeine planned for the day, mg.
     public static func caffeine(_ doses: [SupplementDose]) -> Int { doses.reduce(0) { $0 + $1.supplement.caffeineMg } }
 
-    /// Caffeine already ticked, mg.
+    /// Caffeine already ticked, mg: supplements plus logged drinks like coffee (#710).
     public static func caffeineTaken(_ doses: [SupplementDose], log: FuelDayLog) -> Int {
-        doses.filter { log.ticks[$0.id] != nil }.reduce(0) { $0 + $1.supplement.caffeineMg }
+        doses.filter { log.ticks[$0.id] != nil }.reduce(0) { $0 + $1.supplement.caffeineMg } + log.foodCaffeineMg
     }
 
     /// Protein from ticked supplements, g.
