@@ -54,10 +54,30 @@ struct DailyRoutinesRow: View {
     @Environment(AppModel.self) private var model
     @AppStorage(RoutinePrefs.tilesKey) private var tilesRaw = ""
     @AppStorage(RoutinePrefs.lengthsKey) private var lengthsRaw = ""
+    @AppStorage(RoutinePrefs.suggestionKey) private var suggestion = ""
+    @State private var picking = false
 
     var body: some View {
-        let tiles = RoutinePrefs.tiles(tilesRaw, climber: model.isClimber)
-        if !tiles.isEmpty {
+        let used = model.usedRoutines
+        let tiles = RoutinePrefs.tiles(tilesRaw, used: used)
+        Group {
+            if !tiles.isEmpty {
+                row(tiles)
+            } else if RoutinePrefs.suggests(tilesRaw, dismissed: suggestion, used: used) {
+                // Daily is the member's choice (#696 B): a slim prompt until they pick or close it.
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Daily").eyebrow()
+                    DailyRoutineSuggestion(add: { picking = true }, close: { withAnimation(.snappy) { suggestion = "dismissed" } })
+                }
+            }
+        }
+        .sheet(isPresented: $picking) {
+            DailyRoutinePicker(initial: tiles.isEmpty ? Routine.dailyDefaults(climber: model.isClimber) : tiles)
+        }
+    }
+
+    private func row(_ tiles: [Routine]) -> some View {
+        Group {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Daily").eyebrow()
                 HStack(alignment: .top, spacing: 12) {
@@ -113,10 +133,11 @@ struct DailyRoutinesRow: View {
             Menu("Swap for…", systemImage: "arrow.left.arrow.right") {
                 ForEach(others) { o in
                     Button(o.label, systemImage: o.symbol) {
-                        tilesRaw = RoutinePrefs.pinning(tilesRaw, o, replacing: r, climber: model.isClimber)
+                        tilesRaw = RoutinePrefs.pinning(tilesRaw, o, replacing: r, used: model.usedRoutines)
                     }
                 }
             }
+            Button("Choose routines…", systemImage: "square.grid.2x2") { picking = true }
             Button("Hide daily row", systemImage: "eye.slash") { tilesRaw = "off" }
         }
     }
@@ -125,6 +146,144 @@ struct DailyRoutinesRow: View {
         if done { return "Done today · again?" }
         if r == .hangs && model.climbingToday { return "Climb day · keep it easy" }
         return r.tag
+    }
+}
+
+/// One-line gradient prompt (#696 B): + opens the picker, X hides it (Explore → Routines still pins one).
+struct DailyRoutineSuggestion: View {
+    let add: () -> Void
+    let close: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: add) {
+                HStack(spacing: 12) {
+                    Image(systemName: Routine.stretch.symbol)
+                        .font(.system(size: 19, weight: .bold))
+                        .frame(width: 44, height: 44)
+                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.22)))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Add a daily routine").font(Theme.display(18)).lineLimit(1).minimumScaleFactor(0.7)
+                        Text("Stretch, hangs, before bed…").font(Theme.label(11)).opacity(0.9).lineLimit(1)
+                    }
+                    Spacer(minLength: 4)
+                    Image(systemName: "plus")
+                        .font(.system(size: 17, weight: .heavy))
+                        .foregroundStyle(Color(red: 0.76, green: 0.2, blue: 0.54))
+                        .frame(width: 36, height: 36)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Add a daily routine")
+            .accessibilityIdentifier("daily.suggest")
+        }
+        .foregroundStyle(.white)
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Routine.stretch.gradient))
+        .overlay(alignment: .topTrailing) {
+            Button(action: close) {
+                Image(systemName: "xmark").font(.system(size: 11, weight: .heavy))
+                    .frame(width: 26, height: 26)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.cardStrong))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white)
+            .offset(x: 6, y: -8)
+            .accessibilityLabel("Not now")
+            .accessibilityIdentifier("daily.suggest.close")
+        }
+    }
+}
+
+/// Pick up to two routines for Train's Daily row (#696 B), each with its length.
+struct DailyRoutinePicker: View {
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage(RoutinePrefs.tilesKey) private var tilesRaw = ""
+    @AppStorage(RoutinePrefs.lengthsKey) private var lengthsRaw = ""
+    @State private var picked: [Routine]
+
+    init(initial: [Routine]) { _picked = State(initialValue: Array(initial.prefix(2))) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Daily").eyebrow()
+                    Text("Daily routines").font(Theme.display(22))
+                }
+                Spacer(minLength: 0)
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark").font(.system(size: 14, weight: .heavy))
+                        .frame(width: 34, height: 34)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.cardStrong))
+                }
+                .accessibilityLabel("Close")
+            }
+            Text("Pick up to two. They sit on Train every day.")
+                .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+                ForEach(Routine.allCases) { tile($0) }
+            }
+            if !picked.isEmpty {
+                ForEach(picked) { r in
+                    HStack(spacing: 8) {
+                        Text(r.short).font(Theme.label(13)).lineLimit(1)
+                        Spacer(minLength: 4)
+                        RoutineLengthChips(routine: r, selected: RoutinePrefs.length(lengthsRaw, r), lengths: r.tileLengths(RoutinePrefs.length(lengthsRaw, r))) {
+                            lengthsRaw = RoutinePrefs.setting(lengthsRaw, r, to: $0)
+                        }
+                    }
+                }
+            }
+            Button {
+                tilesRaw = RoutinePrefs.choosing(picked)
+                dismiss()
+            } label: {
+                Text(picked.isEmpty ? "No daily routine" : "Add \(picked.count == 1 ? picked[0].short : "2") to Train")
+                    .font(Theme.label(16)).foregroundStyle(Theme.ink)
+                    .frame(maxWidth: .infinity).frame(height: 50)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.lime))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("daily.pick.save")
+        }
+        .padding(20)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.hidden)
+    }
+
+    private func tile(_ r: Routine) -> some View {
+        let on = picked.contains(r)
+        return Button {
+            withAnimation(.snappy(duration: 0.2)) {
+                if let i = picked.firstIndex(of: r) { picked.remove(at: i) }
+                else { if picked.count == 2 { picked.removeFirst() }; picked.append(r) }
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                Image(systemName: r.symbol).font(.system(size: 18, weight: .bold))
+                Spacer(minLength: 0)
+                Text(r.short).font(Theme.label(12)).lineLimit(2).minimumScaleFactor(0.75)
+            }
+            .foregroundStyle(.white)
+            .padding(9)
+            .frame(maxWidth: .infinity, minHeight: 86, alignment: .topLeading)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(r.gradient).opacity(on ? 1 : 0.45))
+            .overlay(alignment: .topTrailing) {
+                if on {
+                    Image(systemName: "checkmark").font(.system(size: 10, weight: .heavy)).foregroundStyle(Theme.ink)
+                        .frame(width: 18, height: 18)
+                        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(.white))
+                        .padding(6)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(r.label)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
 
@@ -147,7 +306,7 @@ struct RoutineLibrarySection: View {
     @State private var filter: Routine.Kind?
 
     var body: some View {
-        let onTrain = RoutinePrefs.tiles(tilesRaw, climber: model.isClimber)
+        let onTrain = RoutinePrefs.tiles(tilesRaw, used: model.usedRoutines)
         VStack(alignment: .leading, spacing: 12) {
             Text("Short routines for any day. Pick a length; the routine fits it.")
                 .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
@@ -204,7 +363,7 @@ struct RoutineLibrarySection: View {
                 RoutineLengthChips(routine: r, selected: minutes) { lengthsRaw = RoutinePrefs.setting(lengthsRaw, r, to: $0) }
                 Spacer(minLength: 0)
                 Button {
-                    tilesRaw = RoutinePrefs.pinning(tilesRaw == "off" ? "" : tilesRaw, r, climber: model.isClimber)
+                    tilesRaw = RoutinePrefs.pinning(tilesRaw, r, used: model.usedRoutines)
                 } label: {
                     Image(systemName: onTrain ? "checkmark" : "pin.fill")
                         .font(.system(size: 13, weight: .bold))
