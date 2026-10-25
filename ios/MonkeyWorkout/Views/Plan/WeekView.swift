@@ -115,7 +115,7 @@ struct WeekView: View {
         .sheet(isPresented: $editing) {
             NavigationStack {
                 TrainingProfileView()
-                    .navigationTitle("Training profile")
+                    .navigationTitle(TrainingProfileView.title)
                     .toolbar { CloseToolbarItem { editing = false } }
             }
         }
