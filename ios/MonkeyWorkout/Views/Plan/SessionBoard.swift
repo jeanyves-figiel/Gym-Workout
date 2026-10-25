@@ -443,6 +443,7 @@ struct SessionMusclesSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    ContentTitle(title: "Muscles worked", subtitle: session.displayTitle)
                     HStack(spacing: 6) {
                         ForEach(SessionMapStyle.allCases) { s in
                             Button { withAnimation(.snappy) { style = s } } label: {
@@ -496,8 +497,6 @@ struct SessionMusclesSheet: View {
             }
             .background(Theme.bg.ignoresSafeArea())
             .titleInContent("Muscles worked")
-            .navigationTitle(session.displayTitle)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar { CloseToolbarItem { dismiss() } }
             .navigationDestination(item: $open) { MuscleDetailView(muscle: $0) }
         }
