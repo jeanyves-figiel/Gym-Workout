@@ -165,6 +165,24 @@ describe('community feed', () => {
     expect((await share(u.t, { id: mine.id })).statusCode).toBe(200);
   });
 
+  it('keeps the exercises of a shared workout so members can copy it (#779)', async () => {
+    const a = await join('ex@example.com', 'lifter', { defaultVisibility: 'members' });
+    const b = await join('ex2@example.com', 'watcher');
+    const exercises = [
+      { id: 'back-squat', name: 'Back squat', sets: 3, reps: 5, kg: 100 },
+      { id: 'plank', name: 'Plank', sets: 2, reps: 45, kg: null },
+    ];
+    const r = await share(a.t, { payload: { title: 'Legs', stats: [{ label: 'sets', value: '5' }], exercises } });
+    expect(r.statusCode).toBe(200);
+    const feed = (await req('GET', '/v1/community/feed', b.t)).json().posts;
+    expect(feed[0].payload.exercises).toEqual(exercises);
+    expect((await share(a.t, { payload: { title: 'Legs', exercises: [{ id: 'x', name: 'shit lift', sets: 1 }] } })).json().error).toBe(
+      'objectionable_content',
+    );
+    const many = Array.from({ length: 41 }, (_, i) => ({ id: `e${i}`, name: 'Curl', sets: 1 }));
+    expect((await share(a.t, { payload: { title: 'Arms', exercises: many } })).statusCode).toBe(400);
+  });
+
   it('honours visibility, cheers, blocks and deletion', async () => {
     const a = await join('a@example.com', 'bea', { defaultVisibility: 'members' });
     const b = await join('b@example.com', 'monkey_jy', { defaultVisibility: 'private' });
