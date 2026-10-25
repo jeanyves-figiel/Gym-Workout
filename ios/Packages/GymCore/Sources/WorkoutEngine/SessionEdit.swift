@@ -9,12 +9,17 @@ public struct SessionEdit: Codable, Hashable, Sendable {
     /// `Session.editBase` of the session the edit was made on: a re-planned session drops the edit.
     public var base: [String]
     public var blocks: [Block]
+    /// Monday ("yyyy-MM-dd") of a coming week the edit was made ahead for (#758); nil = this week or a library
+    /// workout. Kept through the week change into that week, and applied even when that week's plan came out
+    /// different from the one previewed: the member chose these exercises.
+    public var ahead: String?
 
-    public init(sessionId: String, week: Int?, base: [String], blocks: [Block]) {
+    public init(sessionId: String, week: Int?, base: [String], blocks: [Block], ahead: String? = nil) {
         self.sessionId = sessionId
         self.week = week
         self.base = base
         self.blocks = blocks
+        self.ahead = ahead
     }
 }
 
@@ -22,9 +27,9 @@ extension Session {
     /// What an edit was made on: every item's uid and exercise, in order.
     public var editBase: [String] { blocks.flatMap(\.items).map { "\($0.uid)=\($0.exerciseId)" } }
 
-    /// The session with the member's edit, when it was made on this exact session; otherwise unchanged.
+    /// The session with the member's edit, when it was made on this exact session (or ahead, #758); otherwise unchanged.
     public func applying(_ edit: SessionEdit?) -> Session {
-        guard let edit, edit.sessionId == id, edit.base == editBase else { return self }
+        guard let edit, edit.sessionId == id, edit.base == editBase || edit.ahead != nil else { return self }
         var s = self
         let before = blocks.reduce(0) { $0 + $1.items.reduce(0) { $0 + $1.estSec } }
         let after = edit.blocks.reduce(0) { $0 + $1.items.reduce(0) { $0 + $1.estSec } }

@@ -157,4 +157,18 @@ import Testing
         let back = try JSONDecoder().decode(SessionEdit.self, from: JSONEncoder().encode(edit))
         #expect(back == edit)
     }
+
+    // #758: an edit made ahead for a coming week survives that week being planned differently.
+    @Test func aheadEditAppliesWithoutTheBase() throws {
+        let s = plan.sessions[0]
+        let blocks = Array(s.blocks.prefix(1))
+        let ahead = SessionEdit(sessionId: s.id, week: nil, base: ["other"], blocks: blocks, ahead: "2026-10-26")
+        #expect(s.applying(ahead).blocks == blocks)
+        let plain = SessionEdit(sessionId: s.id, week: 1, base: ["other"], blocks: blocks)
+        #expect(s.applying(plain) == s)
+        let back = try JSONDecoder().decode(SessionEdit.self, from: JSONEncoder().encode(ahead))
+        #expect(back.ahead == "2026-10-26")
+        let old = try JSONDecoder().decode(SessionEdit.self, from: Data(#"{"sessionId":"w1s1","base":[],"blocks":[]}"#.utf8))
+        #expect(old.ahead == nil && old.week == nil)
+    }
 }

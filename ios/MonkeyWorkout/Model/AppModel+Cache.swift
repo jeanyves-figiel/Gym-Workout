@@ -16,6 +16,8 @@ struct DerivedCache {
     var plan: (key: DerivedKey, value: WeekPlan?)?
     /// Calendar weeks per `count`, for the day of the `now` they were made for.
     var weeks: [Int: (key: DerivedKey, day: Date, value: [PlanCalendar.Week])] = [:]
+    /// Coming weeks as planned, before edits made ahead (#758), for the day of the `now` they were made for.
+    var aheadWeeks: (key: DerivedKey, day: Date, value: [PlanCalendar.Week])?
     var game: (key: Int, moveXP: Int, value: GameProgress)?
     var badges: (key: Int, value: [Badge])?
     var setLogs: (key: Int, value: [SetLog])?
