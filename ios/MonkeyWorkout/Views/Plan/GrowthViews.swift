@@ -207,7 +207,7 @@ struct BlockReviewSheet: View {
                             Toggle("Focus", isOn: $focus).labelsHidden().tint(Theme.lime)
                         }
                     }
-                    Text("You can change any of this later in Training profile.")
+                    Text("You can change any of this later in My plan.")
                         .font(.footnote.weight(.medium)).foregroundStyle(Theme.muted)
                 }
                 .padding(16)

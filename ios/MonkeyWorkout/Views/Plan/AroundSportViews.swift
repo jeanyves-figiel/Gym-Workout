@@ -129,7 +129,7 @@ struct AroundSportView: View {
                     }
                     Text("Your sports").eyebrow().padding(.top, 8)
                     if sports.isEmpty {
-                        Text("Add a sport in Train → Edit plan or on a Calendar day; tap it here to plan it differently.")
+                        Text("Add a sport in Train → My plan or on a Calendar day; tap it here to plan it differently.")
                             .font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted)
                     }
                     ForEach(sports) { s in
