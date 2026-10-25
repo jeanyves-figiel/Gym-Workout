@@ -3,7 +3,8 @@ import WorkoutEngine
 
 // Workout page top (#766, design A by default, C to customise, from `session-wow/proposals.png` and
 // `proposals-c.png`): a Poster hero in the focus colour with the figure and ranked muscle bars, or a Bento board
-// (map tile + stat squares). Tap the map → `SessionMusclesSheet`; long press or the grid button → `SessionCustomiseSheet`.
+// (map tile + stat squares). Tap the map → `SessionMusclesSheet`; long press → arrange on the page (rows wiggle, drag to
+// move, − to hide); the grid button → `SessionCustomiseSheet`.
 // Choices are per device (`@AppStorage`).
 
 /// Poster hero or Bento board.
@@ -72,6 +73,15 @@ enum SessionTheme: String, CaseIterable, Identifiable {
     func gradient(_ focus: Focus) -> LinearGradient {
         LinearGradient(colors: colors(focus), startPoint: .topLeading, endPoint: .bottomTrailing)
     }
+}
+
+/// Exercises as the classic cards or as gradient tiles (C1).
+enum SessionExerciseLook: String, CaseIterable, Identifiable {
+    case list, tiles
+    var id: String { rawValue }
+    var title: String { self == .list ? "Cards" : "Tiles" }
+    var symbol: String { self == .list ? "list.bullet.rectangle.fill" : "square.grid.3x2.fill" }
+    static let storageKey = "sessionExercises"
 }
 
 /// Rows under the hero / board, in the member's order; missing = hidden.
@@ -153,8 +163,13 @@ struct SessionBoard: View {
     @AppStorage(SessionTheme.storageKey) private var theme = SessionTheme.focus
     @AppStorage(SessionRow.storageKey) private var rowsRaw = SessionRow.defaults
     @Environment(\.bodyFigure) private var figure
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Long press: rows wiggle, drag one onto another to move it, − hides it (C3).
+    @State private var arranging = false
+    @State private var wiggle = false
 
     private var empty: Bool { session.blocks.allSatisfy { $0.items.isEmpty } }
+    private var rows: [SessionRow] { SessionRow.parse(rowsRaw) }
 
     /// Demo screen `session-bento` shows the board without changing the saved look.
     private var shownLook: SessionLook {
@@ -166,14 +181,92 @@ struct SessionBoard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            switch shownLook {
-            case .poster: poster
-            case .bento: bento
+            if arranging { arrangeBar }
+            Group {
+                switch shownLook {
+                case .poster: poster
+                case .bento: bento
+                }
             }
-            ForEach(SessionRow.parse(rowsRaw)) { row in
+            .rotationEffect(.degrees(arranging && !reduceMotion ? (wiggle ? 0.4 : -0.4) : 0))
+            ForEach(rows) { row in
                 rowView(row)
+                    .modifier(ArrangeTile(id: row.rawValue, title: row.title, on: arranging && (row != .stats || shownLook == .poster),
+                                          wiggle: wiggle && !reduceMotion, onHide: { hide(row) }) { dropped in move(dropped, to: row) })
             }
         }
+        .animation(arranging ? .easeInOut(duration: 0.14).repeatForever(autoreverses: true) : .default, value: wiggle)
+        .sensoryFeedback(.impact, trigger: arranging)
+    }
+
+    private func startArranging() {
+        withAnimation(.snappy) { arranging = true }
+        wiggle = true
+    }
+
+    private func hide(_ row: SessionRow) {
+        withAnimation(.snappy) { rowsRaw = SessionRow.join(rows.filter { $0 != row }) }
+    }
+
+    private func move(_ raw: String, to target: SessionRow) {
+        guard let dragged = SessionRow(rawValue: raw), dragged != target,
+              let from = rows.firstIndex(of: dragged), let to = rows.firstIndex(of: target) else { return }
+        // Dropped on a later row it lands after it, on an earlier one before it.
+        var r = rows
+        r.remove(at: from)
+        r.insert(dragged, at: to)
+        withAnimation(.snappy) { rowsRaw = SessionRow.join(r) }
+    }
+
+    /// Arrange mode bar: look, hidden rows to add back, all options, Done.
+    private var arrangeBar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                ForEach(SessionLook.allCases) { l in
+                    Button { withAnimation(.snappy) { look = l } } label: {
+                        Label(l.title, systemImage: l.symbol).font(Theme.label(13))
+                            .padding(.horizontal, 10).padding(.vertical, 7)
+                            .foregroundStyle(look == l ? Theme.ink : .white)
+                            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(look == l ? Color.white : Theme.card))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(look == l ? .isSelected : [])
+                }
+                Spacer(minLength: 4)
+                Button(action: onCustomise) {
+                    Image(systemName: "slider.horizontal.3").font(.system(size: 14, weight: .heavy))
+                        .frame(width: 34, height: 34)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.card))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
+                .accessibilityLabel("All page options")
+                Button("Done") { withAnimation(.snappy) { arranging = false }; wiggle = false }
+                    .font(Theme.label(14)).foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(Capsule().fill(Theme.lime))
+                    .buttonStyle(.plain)
+            }
+            let hidden = SessionRow.allCases.filter { !rows.contains($0) }
+            if !hidden.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(hidden) { r in
+                            Button { withAnimation(.snappy) { rowsRaw = SessionRow.join(rows + [r]) } } label: {
+                                Label(r.title, systemImage: "plus").font(Theme.label(12))
+                                    .padding(.horizontal, 10).padding(.vertical, 6)
+                                    .background(Capsule().fill(.white.opacity(0.12)))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.white)
+                            .accessibilityLabel("Show \(r.title)")
+                        }
+                    }
+                }
+            }
+            Text("Drag a tile onto another to move it · − hides it").font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
+        }
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     @ViewBuilder
@@ -246,7 +339,7 @@ struct SessionBoard: View {
         .foregroundStyle(.white)
         .frame(height: mapSize.height)
         .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-        .simultaneousGesture(LongPressGesture(minimumDuration: 0.5).onEnded { _ in onCustomise() })
+        .simultaneousGesture(LongPressGesture(minimumDuration: 0.5).onEnded { _ in startArranging() })
     }
 
     @ViewBuilder
@@ -305,7 +398,7 @@ struct SessionBoard: View {
                 .frame(width: 104)
             }
             .frame(height: mapSize.height)
-            .simultaneousGesture(LongPressGesture(minimumDuration: 0.5).onEnded { _ in onCustomise() })
+            .simultaneousGesture(LongPressGesture(minimumDuration: 0.5).onEnded { _ in startArranging() })
         }
     }
 
@@ -371,6 +464,50 @@ struct SessionBoard: View {
     }
 }
 
+/// A row in arrange mode: wiggles, drags onto another row to move, − hides it; its own taps are off meanwhile.
+private struct ArrangeTile: ViewModifier {
+    let id: String
+    let title: String
+    let on: Bool
+    let wiggle: Bool
+    let onHide: () -> Void
+    let onDrop: (String) -> Void
+
+    func body(content: Content) -> some View {
+        if on {
+            content
+                .overlay {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(.white.opacity(0.7), style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
+                        .background(Color.white.opacity(0.001))
+                        .draggable(id) {
+                            Text(title).font(Theme.label(14)).padding(10)
+                                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.lime)).foregroundStyle(Theme.ink)
+                        }
+                }
+                .overlay(alignment: .topLeading) {
+                    Button(action: onHide) {
+                        Image(systemName: "minus").font(.system(size: 12, weight: .black)).foregroundStyle(.white)
+                            .frame(width: 24, height: 24)
+                            .background(Circle().fill(Color(hex: 0xFF3D5D)))
+                    }
+                    .buttonStyle(.plain)
+                    .offset(x: -8, y: -8)
+                    .accessibilityLabel("Hide \(title)")
+                }
+                .dropDestination(for: String.self) { items, _ in
+                    guard let first = items.first else { return false }
+                    onDrop(first)
+                    return true
+                }
+                .rotationEffect(.degrees(wiggle ? -0.6 : 0.6))
+                .accessibilityAction(named: "Hide", onHide)
+        } else {
+            content
+        }
+    }
+}
+
 /// Small stat square for the board.
 struct MiniStat: View {
     let value: String
@@ -428,6 +565,7 @@ struct MuscleHeatBars: View {
 /// Map tile opened (C2): 2D / 3D / heat bars, the picked muscle's sets, sets per muscle tiles → muscle page.
 struct SessionMusclesSheet: View {
     let session: Session
+    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @AppStorage(SessionMapStyle.storageKey) private var savedStyle = SessionMapStyle.pair
     @AppStorage(SessionTheme.storageKey) private var theme = SessionTheme.focus
@@ -440,6 +578,9 @@ struct SessionMusclesSheet: View {
         let sets = session.setsPerMuscle()
         let setsBy = Dictionary(uniqueKeysWithValues: sets.map { ($0.muscle, $0.sets) })
         let shown = style ?? savedStyle
+        // Last workout of the same focus before today: what it did per muscle against this plan.
+        let last = model.history.first { $0.focus == session.focus && !Calendar.current.isDateInToday($0.startedAt) && $0.totalSets > 0 }
+        let lastSets = last?.setsPerMuscle
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -475,12 +616,16 @@ struct SessionMusclesSheet: View {
                     }
                     .frame(height: 400)
                     if shown != .bars { HeatLegend() }
+                    if let last, let lastSets { lastCard(last, lastSets: lastSets, sets: sets) }
                     Text("Sets per muscle").eyebrow()
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
                         ForEach(sets) { row in
                             Button { open = row.muscle } label: {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("\(row.sets)").font(Theme.display(28)).monospacedDigit()
+                                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                        Text("\(row.sets)").font(Theme.display(28)).monospacedDigit()
+                                        if let lastSets { Text(Self.delta(row.sets - (lastSets[row.muscle] ?? 0))).font(Theme.label(11)).opacity(0.85) }
+                                    }
                                     Text(row.muscle.name).font(Theme.label(10)).tracking(0.8).textCase(.uppercase).lineLimit(1).minimumScaleFactor(0.6)
                                 }
                                 .foregroundStyle((heat[row.muscle] ?? 0) > 0.55 ? .white : Theme.ink)
@@ -500,6 +645,27 @@ struct SessionMusclesSheet: View {
             .toolbar { CloseToolbarItem { dismiss() } }
             .navigationDestination(item: $open) { MuscleDetailView(muscle: $0) }
         }
+    }
+
+    static func delta(_ d: Int) -> String { d > 0 ? "+\(d)" : d < 0 ? "−\(-d)" : "=" }
+
+    private func lastCard(_ last: WorkoutRecord, lastSets: [Muscle: Int], sets: [MuscleSets]) -> some View {
+        let line = sets.prefix(4).map { "\($0.muscle.name) \(Self.delta($0.sets - (lastSets[$0.muscle] ?? 0)))" }.joined(separator: " · ")
+        return HStack(spacing: 12) {
+            Image(systemName: "chart.bar.xaxis").font(.system(size: 18, weight: .bold))
+                .frame(width: 40, height: 40)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.2)))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("vs last \(last.title) · \(last.startedAt.formatted(.dateTime.day().month(.abbreviated)))")
+                    .font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.7)
+                Text(line).font(.footnote.weight(.semibold)).opacity(0.9).lineLimit(2)
+            }
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(.white)
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(WorkoutEngine.Category.cardio.gradient))
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
@@ -527,6 +693,7 @@ struct SessionCustomiseSheet: View {
     @AppStorage(SessionMapSize.storageKey) private var mapSize = SessionMapSize.m
     @AppStorage(SessionTheme.storageKey) private var theme = SessionTheme.focus
     @AppStorage(SessionRow.storageKey) private var rowsRaw = SessionRow.defaults
+    @AppStorage(SessionExerciseLook.storageKey) private var exerciseLook = SessionExerciseLook.list
     var focus: Focus = .pull
 
     private var rows: [SessionRow] { SessionRow.parse(rowsRaw) }
@@ -546,6 +713,10 @@ struct SessionCustomiseSheet: View {
                 }
                 Section("Map size") {
                     tiles(SessionMapSize.allCases, selected: mapSize, title: \.title, symbol: \.symbolName) { mapSize = $0 }
+                        .darkCardRow()
+                }
+                Section("Exercises") {
+                    tiles(SessionExerciseLook.allCases, selected: exerciseLook, title: \.title, symbol: \.symbol) { exerciseLook = $0 }
                         .darkCardRow()
                 }
                 Section("Colours") {
@@ -584,7 +755,7 @@ struct SessionCustomiseSheet: View {
                 Section {
                     Button("Reset to default") {
                         withAnimation {
-                            look = .poster; mapStyle = .pair; mapSize = .m; theme = .focus; rowsRaw = SessionRow.defaults
+                            look = .poster; mapStyle = .pair; mapSize = .m; theme = .focus; rowsRaw = SessionRow.defaults; exerciseLook = .list
                         }
                     }
                     .font(Theme.label(15))

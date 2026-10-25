@@ -327,6 +327,7 @@ private struct BlockSection: View {
     var onRemove: ((PlannedExercise) -> Void)? = nil
     let onOpen: (PlannedExercise) -> Void
     let onSwap: (PlannedExercise) -> Void
+    @AppStorage(SessionExerciseLook.storageKey) private var look = SessionExerciseLook.list
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -336,11 +337,74 @@ private struct BlockSection: View {
                 Text("\(block.targetMin) min").font(Theme.label(13)).foregroundStyle(Theme.muted)
             }
             if let note = block.note { Text(note).font(.footnote).foregroundStyle(Theme.muted) }
-            ForEach(Array(block.items.enumerated()), id: \.element.id) { i, item in
-                ExerciseCard(item: item, block: block, sessionId: sessionId, number: firstNumber + i, sessionDone: sessionDone,
-                             onOpen: { onOpen(item) }, onSwap: canSwap(item) ? { onSwap(item) } : nil,
-                             onRemove: onRemove.map { r in { r(item) } })
+            if look == .tiles {
+                // Gradient tiles (#766 C1): big moves two across, warm-up / mobility / cool-down three across.
+                let main = [BlockKind.power, .strength].contains(block.kind)
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: main ? 2 : 3), spacing: 8) {
+                    ForEach(Array(block.items.enumerated()), id: \.element.id) { i, item in
+                        ExerciseTile(item: item, block: block, number: firstNumber + i, sessionDone: sessionDone, wide: main,
+                                     onOpen: { onOpen(item) }, onSwap: canSwap(item) ? { onSwap(item) } : nil,
+                                     onRemove: onRemove.map { r in { r(item) } })
+                    }
+                }
+            } else {
+                ForEach(Array(block.items.enumerated()), id: \.element.id) { i, item in
+                    ExerciseCard(item: item, block: block, sessionId: sessionId, number: firstNumber + i, sessionDone: sessionDone,
+                                 onOpen: { onOpen(item) }, onSwap: canSwap(item) ? { onSwap(item) } : nil,
+                                 onRemove: onRemove.map { r in { r(item) } })
+                }
             }
+        }
+    }
+}
+
+/// One planned exercise as a gradient tile (#766 C1): tap opens it, long press swaps or removes it.
+private struct ExerciseTile: View {
+    let item: PlannedExercise
+    let block: Block
+    var number = 1
+    var sessionDone = false
+    var wide = false
+    let onOpen: () -> Void
+    var onSwap: (() -> Void)? = nil
+    var onRemove: (() -> Void)? = nil
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let exercise = Exercise.get(item.exerciseId)
+        let ticked = model.state.ticked[item.uid] ?? false
+        let cat = block.kind.category
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .top) {
+                    ExerciseThumbnail(exercise: exercise, size: wide ? 40 : 30)
+                    Spacer(minLength: 2)
+                    if ticked {
+                        Image(systemName: "checkmark").font(.system(size: 12, weight: .black))
+                    } else if wide {
+                        Text(Format.prescription(item.prescription)).font(Theme.display(15)).lineLimit(1).minimumScaleFactor(0.6)
+                    } else {
+                        Text("\(number)").font(Theme.label(11)).opacity(0.8)
+                    }
+                }
+                Spacer(minLength: 0)
+                Text(exercise.name).font(Theme.label(wide ? 14 : 12)).lineLimit(2).minimumScaleFactor(0.8)
+                    .multilineTextAlignment(.leading).strikethrough(ticked)
+                Text(wide ? exercise.primary.prefix(2).map(\.name).joined(separator: " · ") : Format.prescription(item.prescription))
+                    .font(.caption2.weight(.bold)).textCase(wide ? .uppercase : nil).opacity(0.85).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(cat.ink)
+            .frame(maxWidth: .infinity, minHeight: wide ? 116 : 100, alignment: .topLeading)
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(cat.gradient))
+            .opacity(sessionDone && !ticked ? 0.5 : 1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(number). \(exercise.name), \(Format.prescription(item.prescription))\(ticked ? ", done" : "")")
+        .contextMenu {
+            Button(action: onOpen) { Label("Exercise details", systemImage: "info.circle") }
+            if let onSwap { Button(action: onSwap) { Label("Swap exercise", systemImage: "arrow.triangle.2.circlepath") } }
+            if let onRemove { Button(role: .destructive, action: onRemove) { Label("Remove from workout", systemImage: "trash") } }
         }
     }
 }
