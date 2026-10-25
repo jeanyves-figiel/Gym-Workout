@@ -1091,7 +1091,7 @@ private struct NextUpCard: View {
 
     /// Plan sport + Log sport + Track live in one tile (#773, design A).
     private var sportTile: some View {
-        SportTile(trip: dayKey.flatMap { model.profile?.sportTrip(on: $0) }, today: isToday,
+        DaySportTile(trip: dayKey.flatMap { model.profile?.sportTrip(on: $0) }, today: isToday,
                   onLog: { logging = SportLog(start: Date().addingTimeInterval(-120 * 60)) },
                   onTrack: { trackingSport = SportLog(start: Date()) },
                   onPlan: { planningSport = true }, onEdit: { editingTrip = $0 })
@@ -1656,7 +1656,7 @@ private extension View {
 
 /// Sport (#773, design A from `freestyle-sport-buttons/proposals.png`): Plan sport, Log sport and Track live in one
 /// tile. Today it asks: Already done, Track live (paired Watch) or Plan; a coming day plans; a trip on it edits it.
-private struct SportTile: View {
+private struct DaySportTile: View {
     let trip: SportTrip?
     let today: Bool
     let onLog: () -> Void
@@ -1851,7 +1851,7 @@ private struct RestDayCard: View {
                                       fill: AnyShapeStyle(DayActionTile.restFill), action: askRestDay)
                     } else {
                         // Sport (#474, #773 design A): plan it on this day; today also already done or Track live.
-                        SportTile(trip: nil, today: isToday,
+                        DaySportTile(trip: nil, today: isToday,
                                   onLog: { loggingSport = SportLog(start: climbStart()) },
                                   onTrack: { trackingSport = SportLog(start: Date()) },
                                   onPlan: { planningSport = true }, onEdit: { editingTrip = $0 })
