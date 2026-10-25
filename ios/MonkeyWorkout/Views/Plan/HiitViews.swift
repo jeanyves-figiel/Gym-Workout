@@ -309,14 +309,42 @@ struct HiitPlanEditor: View {
             Text("HIIT days a week").font(Theme.label(13)).opacity(0.9)
             HStack(spacing: 6) {
                 ForEach(0...3, id: \.self) { n in
-                    chip("\(n)", on: h.days == n) { var x = h; x.days = n; model.saveHiitPlan(x) }
+                    chip("\(n)", on: h.days == n) { var x = h; x.setDays(n); model.saveHiitPlan(x) }
                 }
+            }
+            if h.days > 0 {
+                // Which days, format and length (#757, design B).
+                Text("Which days").font(Theme.label(13)).opacity(0.9)
+                FlowLayout(spacing: 6) {
+                    hug("Coach picks", symbol: "sparkles", on: h.weekdays.isEmpty) { var x = h; x.weekdays = []; model.saveHiitPlan(x) }
+                    ForEach(1...7, id: \.self) { wd in
+                        hug(WeekSchedule.shortName(wd), on: h.weekdays.contains(wd)) { var x = h; x.toggle(wd); model.saveHiitPlan(x) }
+                            .accessibilityIdentifier("hiit.day.\(wd)")
+                    }
+                }
+                Text("Format").font(Theme.label(13)).opacity(0.9)
+                FlowLayout(spacing: 6) {
+                    hug("Coach mix", symbol: "shuffle", on: h.format == nil) { var x = h; x.format = nil; model.saveHiitPlan(x) }
+                    ForEach(HiitFormat.allCases) { f in
+                        hug(f.label, on: h.format == f) { var x = h; x.format = f; model.saveHiitPlan(x) }
+                    }
+                }
+                Text("Length").font(Theme.label(13)).opacity(0.9)
+                HStack(spacing: 6) {
+                    chip("Auto", on: h.minutes == nil) { var x = h; x.minutes = nil; model.saveHiitPlan(x) }
+                    ForEach(HiitSpec.lengths, id: \.self) { m in
+                        chip("\(m)′", on: h.minutes == m) { var x = h; x.minutes = m; model.saveHiitPlan(x) }
+                    }
+                }
+                HiitPlannedList()
             }
             HStack(spacing: 6) {
                 chip("Finisher on lifting days", on: h.finisher) { var x = h; x.finisher.toggle(); model.saveHiitPlan(x) }
                 chip("Low impact", on: h.lowImpact) { var x = h; x.lowImpact.toggle(); model.saveHiitPlan(x) }
             }
-            Text("Coach puts HIIT on free days away from leg days, changes the formats every week and keeps the deload week easy.")
+            Text(h.weekdays.isEmpty
+                 ? "Coach puts HIIT on free days away from leg days, changes the formats every week and keeps the deload week easy."
+                 : "Your days stay HIIT days; a lifting day stays the lift's. The deload week stays easy.")
                 .font(.footnote).foregroundStyle(Theme.muted)
         }
         .padding(12)
@@ -326,6 +354,134 @@ struct HiitPlanEditor: View {
 
     private func chip(_ label: String, on: Bool, action: @escaping () -> Void) -> some View {
         SelectChip(title: label, on: on, offFill: AnyShapeStyle(.black.opacity(0.25)), offInk: .white, action: action)
+    }
+
+    private func hug(_ label: String, symbol: String? = nil, on: Bool, action: @escaping () -> Void) -> some View {
+        SelectChip(title: label, symbol: symbol, on: on, offFill: AnyShapeStyle(.black.opacity(0.25)), offInk: .white, fills: false, action: action)
+    }
+}
+
+/// This week's and next week's HIIT days (#757, design B): day, name, blocks, minutes.
+struct HiitPlannedList: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let weeks = model.calendarWeeks(count: 2)
+        ForEach(Array(weeks.enumerated()), id: \.offset) { i, w in
+            let list = w.plan.sessions.filter { $0.hiit != nil }
+            if !list.isEmpty {
+                Text(i == 0 ? "This week" : "Next week").font(Theme.label(13)).opacity(0.9)
+                ForEach(list, id: \.id) { s in row(s, week: w, current: i == 0) }
+            }
+        }
+    }
+
+    private func row(_ s: Session, week w: PlanCalendar.Week, current: Bool) -> some View {
+        let date = s.weekday.flatMap { w.date($0, model.planCalendar) }
+        let day = date?.formatted(.dateTime.weekday(.abbreviated).day()) ?? "Any day"
+        let parts = s.hiit.map { DayComboRow.hiitParts($0).map(\.title).joined(separator: " · ") } ?? ""
+        let face = HStack(spacing: 10) {
+            Image(systemName: "bolt.heart.fill").font(.system(size: 15, weight: .bold))
+                .frame(width: 34, height: 34)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.22)))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(day) · \(s.displayTitle)").font(Theme.label(14)).lineLimit(1).minimumScaleFactor(0.8)
+                Text(parts).font(Theme.label(10)).opacity(0.9).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            Spacer(minLength: 4)
+            Text("\(s.estMin)′").font(Theme.display(20))
+        }
+        .foregroundStyle(.white)
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(LinearGradient.hiit))
+        .contentShape(Rectangle())
+        // This week's opens its overview (blocks, moves, Start); a later one is a preview.
+        return Group {
+            if current {
+                NavigationLink(value: s.id) { face }.buttonStyle(.plain)
+            } else {
+                face
+            }
+        }
+        .accessibilityIdentifier("hiit.planned.\(s.weekday ?? 0)")
+    }
+}
+
+/// "HIIT" badge on a HIIT day card's eyebrow (#757, design A2).
+struct HiitBadge: View {
+    var body: some View {
+        Text("HIIT").font(Theme.label(10)).tracking(1)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6).padding(.vertical, 3)
+            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(LinearGradient.hiit))
+            .accessibilityLabel("HIIT day")
+    }
+}
+
+/// The day card's Format menu on a HIIT day (#757, design A2): Coach's pick or a format, a length, all settings.
+/// Only this week's days change here; a later week's day opens HIIT settings.
+struct HiitDayMenuItems: View {
+    let session: Session
+    let thisWeek: Bool
+    let onSettings: () -> Void
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        if thisWeek {
+            let picked = model.hiitDaySpec(session)
+            let minutes = picked?.minutes ?? HiitSpec(format: .tabata, minutes: session.estMin).minutes
+            Section("Just this day") {
+                Button { model.setHiitDay(nil, for: session) } label: {
+                    Label(planName, systemImage: picked == nil ? "checkmark" : "shuffle")
+                }
+                ForEach(HiitFormat.allCases) { f in
+                    Button { model.setHiitDay(spec(f, minutes), for: session) } label: {
+                        Label("\(f.label) · \(f.tag)", systemImage: picked?.format == f ? "checkmark" : f.symbol)
+                    }
+                }
+                if let picked {
+                    Menu("Length · \(picked.minutes)′", systemImage: "clock") {
+                        ForEach(HiitSpec.lengths, id: \.self) { m in
+                            Button { model.setHiitDay(spec(picked.format, m), for: session) } label: {
+                                Label("\(m)′", systemImage: picked.minutes == m ? "checkmark" : "clock")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Button("HIIT settings…", systemImage: "gearshape", action: onSettings)
+    }
+
+    /// The plan's own HIIT: Coach mix, or the format set in HIIT settings.
+    private var planName: String {
+        model.hiitPlan?.format.map { "Plan · \($0.label)" } ?? "Coach mix"
+    }
+
+    private func spec(_ f: HiitFormat, _ minutes: Int) -> HiitSpec {
+        HiitSpec(format: f, minutes: minutes, kit: .gym, lowImpact: model.hiitPlan?.lowImpact ?? false)
+    }
+}
+
+/// HIIT settings sheet (#757): Training profile → HIIT and the day card's Format menu.
+struct HiitSettingsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("HIIT").font(Theme.display(30))
+                    HiitPlanEditor()
+                }
+                .padding(16)
+            }
+            .background(Theme.bg.ignoresSafeArea())
+            .toolbar { CloseToolbarItem { dismiss() } }
+            .navigationDestination(for: String.self) { SessionView(sessionId: $0) }
+        }
+        .preferredColorScheme(.dark)
+        .presentationDetents([.medium, .large])
     }
 }
 
@@ -337,7 +493,10 @@ struct HiitProfileCard: View {
     static func detail(_ h: HiitPlan?) -> String {
         guard let h else { return "Tabata, EMOM, AMRAP days in your week" }
         var parts: [String] = []
-        if h.days > 0 { parts.append("Coach plans the days") }
+        if h.days > 0 {
+            parts.append(h.weekdays.isEmpty ? "Coach plans the days" : h.weekdays.sorted().map(WeekSchedule.shortName).joined(separator: ", "))
+            if let f = h.format { parts.append(f.label) }
+        }
         if h.finisher { parts.append("Tabata finisher") }
         if h.lowImpact { parts.append("Low impact") }
         return parts.isEmpty ? "Tabata, EMOM, AMRAP days in your week" : parts.joined(separator: " · ")
@@ -353,20 +512,6 @@ struct HiitProfileCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("profile.hiit")
-        .sheet(isPresented: $editing) {
-            NavigationStack {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text("HIIT").font(Theme.display(30))
-                        HiitPlanEditor()
-                    }
-                    .padding(16)
-                }
-                .background(Theme.bg.ignoresSafeArea())
-                .toolbar { CloseToolbarItem { editing = false } }
-            }
-            .preferredColorScheme(.dark)
-            .presentationDetents([.medium, .large])
-        }
+        .sheet(isPresented: $editing) { HiitSettingsSheet() }
     }
 }

@@ -89,14 +89,25 @@ struct DayComboRow: View {
     private var run: RunWorkout? { thisWeek ? model.runWeek.first { $0.weekday == day }?.workout : nil }
     private var climbs: Bool { model.profile?.climbingDays.contains(day) ?? false }
 
+    /// A session without lifting (#757) is named by its type, not "Lift".
+    private var lifts: Bool { session.blocks.contains { $0.kind == .strength } }
+
     var body: some View {
-        if session.place != nil || run != nil || climbs {
+        if session.hiit != nil || session.place != nil || run != nil || climbs {
             VStack(alignment: .leading, spacing: 6) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        part(1, session.place.flatMap { showPlace ? "Lift · \($0)" : nil } ?? "Lift", "dumbbell.fill", WorkoutEngine.Category.strength.colors)
-                        if let run { part(2, "\(run.title) \(run.minutes)′", run.symbol, WorkoutEngine.Category.cardio.colors) }
-                        if climbs { part(run == nil ? 2 : 3, "Climb", "figure.climbing", WorkoutEngine.Category.power.colors) }
+                        if let hiit = session.hiit {
+                            // A HIIT day (#757, design A2): its blocks, not "Lift".
+                            ForEach(Array(Self.hiitParts(hiit).enumerated()), id: \.offset) { _, p in block(p.title, p.format.symbol) }
+                        } else {
+                            let name = lifts ? "Lift" : session.focus.dayLabel
+                            part(1, session.place.flatMap { showPlace ? "\(name) · \($0)" : nil } ?? name, lifts ? "dumbbell.fill" : session.focus.symbol,
+                                 (lifts ? WorkoutEngine.Category.strength : .cardio).colors)
+                        }
+                        let first = session.hiit == nil ? 1 : 0
+                        if let run { part(first + 1, "\(run.title) \(run.minutes)′", run.symbol, WorkoutEngine.Category.cardio.colors) }
+                        if climbs { part(first + (run == nil ? 1 : 2), "Climb", "figure.climbing", WorkoutEngine.Category.power.colors) }
                     }
                 }
                 if showNote, let note = session.synergy {
@@ -110,6 +121,29 @@ struct DayComboRow: View {
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("train.dayCombo")
         }
+    }
+
+    /// HIIT blocks in order, repeats of the same format and length merged: "Pyramid 4′ ×2", "EMOM 17′".
+    static func hiitParts(_ w: HiitWorkout) -> [(format: HiitFormat, title: String)] {
+        var out: [(format: HiitFormat, seconds: Int, count: Int)] = []
+        for b in w.blocks {
+            if let last = out.last, last.format == b.format, last.seconds == b.seconds {
+                out[out.count - 1].count += 1
+            } else {
+                out.append((b.format, b.seconds, 1))
+            }
+        }
+        return out.map { p in (p.format, "\(p.format.label) \(Hiit.short(max(60, p.seconds / 60 * 60)))" + (p.count > 1 ? " ×\(p.count)" : "")) }
+    }
+
+    private func block(_ title: String, _ symbol: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol).font(.system(size: 11, weight: .bold))
+            Text(title).font(Theme.label(11)).lineLimit(1)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 7).padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.black.opacity(0.28)))
     }
 
     private func part(_ n: Int, _ title: String, _ symbol: String, _ colors: [Color]) -> some View {

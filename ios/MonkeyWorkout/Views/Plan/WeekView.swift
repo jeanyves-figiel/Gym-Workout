@@ -912,6 +912,8 @@ private struct NextUpCard: View {
     /// Plan sport on a later day with a workout (#481); or the dated sport day / trip on it.
     @State private var planningSport = false
     @State private var editingTrip: SportTrip?
+    /// HIIT settings (#757) from the Format tile.
+    @State private var hiitSettings = false
     /// A later day picked in the strip (#343): nothing can be started or logged in advance.
     private var ahead: Bool { later != nil || (picked.map { $0 > model.todayWeekday } ?? false) }
     /// Today's card: the only one with Build as I go, Log sport and Track live.
@@ -989,6 +991,7 @@ private struct NextUpCard: View {
         .sheet(isPresented: $moving) { MoveSessionSheet(sessionId: session.id, later: later?.week) }
         .sheet(isPresented: $planningSport) { PlanSportSheet(day: dayKey ?? PlanCalendar.key(Date(), model.planCalendar), sport: model.profile?.otherSports.first?.sport) }
         .sheet(item: $editingTrip) { PlanSportSheet(day: $0.start, editing: $0) }
+        .sheet(isPresented: $hiitSettings) { HiitSettingsSheet() }
     }
 
     /// Long press (#643, #671): the same moves as the card's tiles, this week or a later one.
@@ -1026,7 +1029,17 @@ private struct NextUpCard: View {
         HStack(spacing: 8) {
             DayActionTile(title: "Move", detail: "another day", symbol: "arrow.left.arrow.right",
                           fill: AnyShapeStyle(Color.white.opacity(0.15))) { moving = true }
-            if let trip = dayKey.flatMap({ model.profile?.sportTrip(on: $0) }) {
+            if session.hiit != nil {
+                // A HIIT day (#757, design A2): the middle tile picks its format and length.
+                Menu {
+                    HiitDayMenuItems(session: session, thisWeek: later == nil) { hiitSettings = true }
+                } label: {
+                    DayActionTileLabel(title: "Format", detail: model.hiitDaySpec(session).map { "\($0.format.label) \($0.minutes)′" } ?? "Coach mix",
+                                       symbol: "slider.horizontal.3", fill: AnyShapeStyle(LinearGradient.hiit))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("train.hiitFormat")
+            } else if let trip = dayKey.flatMap({ model.profile?.sportTrip(on: $0) }) {
                 DayActionTile(title: trip.title, detail: "edit", symbol: trip.sport.symbol,
                               fill: AnyShapeStyle(trip.sport.gradient)) { editingTrip = trip }
             } else {
@@ -1102,8 +1115,12 @@ private struct NextUpCard: View {
     }
 
     private var eyebrowText: some View {
-        Text(eyebrow).font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
-            .lineLimit(1).minimumScaleFactor(0.8)
+        HStack(spacing: 6) {
+            // A HIIT day says so (#757, design A2).
+            if session.hiit != nil { HiitBadge() }
+            Text(eyebrow).font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
+                .lineLimit(1).minimumScaleFactor(0.8)
+        }
     }
 
     private var eyebrow: String {
