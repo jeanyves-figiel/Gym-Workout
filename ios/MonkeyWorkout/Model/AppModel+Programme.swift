@@ -40,7 +40,13 @@ extension AppModel {
     func saveProgramme(_ programme: Programme) {
         guard programme.mine else { return }
         var list = myProgrammes
-        if let i = list.firstIndex(where: { $0.id == programme.id }) { list[i] = programme } else { list.append(programme) }
+        if let i = list.firstIndex(where: { $0.id == programme.id }) {
+            list[i] = programme
+        } else {
+            list.append(programme)
+            // Share prompt (#777): a programme the member just made.
+            ShareMoments.shared.offer(ShareMoment(id: "programme-\(programme.id)", title: "New programme: \(programme.name)", poster: .programme(programme)))
+        }
         state.synced?.customProgrammes = list
         if activeProgramme?.programmeId == programme.id {
             state.synced?.programme?.custom = programme

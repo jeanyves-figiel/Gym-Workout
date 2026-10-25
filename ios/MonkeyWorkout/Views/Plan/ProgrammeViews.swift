@@ -313,6 +313,11 @@ struct ProgrammeDetailView: View {
         .sheet(item: $picked) { ProgrammeSessionSheet(programme: programme, picked: $0) }
         .sheet(item: $editing) { prog in ProgrammeEditorView(programme: prog, isNew: !model.myProgrammes.contains { $0.id == prog.id }) }
         .toolbar {
+            // Story sheet (#777): the programme as a story.
+            ToolbarItem(placement: .topBarTrailing) {
+                StoryShareButton(poster: .programme(programme)) { Image(systemName: "square.and.arrow.up") }
+                    .accessibilityLabel("Share as a story")
+            }
             if base.mine {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Edit") { editing = latest }

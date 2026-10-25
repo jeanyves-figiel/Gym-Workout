@@ -842,6 +842,7 @@ struct BadgeSheet: View {
                 Label("Unlocked \(d.formatted(date: .abbreviated, time: .omitted))", systemImage: "checkmark.seal.fill")
                     .font(Theme.label(14))
                     .foregroundStyle(Theme.lime)
+                StoryShareButton(poster: .badge(badge), title: "Share this badge").padding(.horizontal, 24)
             } else {
                 Text("\(Format.count(badge.current)) / \(Format.count(badge.target))").font(Theme.display(22)).foregroundStyle(Theme.lime)
             }

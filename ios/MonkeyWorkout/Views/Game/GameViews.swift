@@ -1033,8 +1033,8 @@ struct LevelLadderSheet: View {
             }
             XPBarView(progress: g.levelProgress, track: .black.opacity(0.25))
             Text("\(g.xpToNext) XP to level \(g.level + 1)").font(.footnote.weight(.semibold)).opacity(0.9)
-            ShareLink(item: LevelShareCard.image(level: g.level, xp: g.xp),
-                      preview: SharePreview("Level \(g.level) · \(rank.title)", image: LevelShareCard.image(level: g.level, xp: g.xp))) {
+            // Story sheet (#777): three looks, own photo, then Instagram, TikTok…
+            StoryShareButton(poster: .level(g.level, xp: g.xp)) {
                 Label("Share my level", systemImage: "square.and.arrow.up").font(Theme.label(14))
                     .frame(maxWidth: .infinity).padding(.vertical, 10)
                     .background(Capsule().fill(.black.opacity(0.3)))
