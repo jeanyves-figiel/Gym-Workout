@@ -3,7 +3,7 @@ import { jwtVerify, SignJWT } from 'jose';
 import { appleNonceOk, type AppleVerifier } from './apple.ts';
 import type { AppleTokenService } from './appleTokens.ts';
 import type { Config } from './config.ts';
-import { burnPasswordCheck, hashPassword, hmac, randomToken, safeEqualHex, sha256, sixDigitCode, verifyPassword } from './crypto.ts';
+import { burnPasswordCheck, hashPassword, hmac, needsRehash, randomToken, safeEqualHex, sha256, sixDigitCode, verifyPassword } from './crypto.ts';
 import { type DB, tx } from './db.ts';
 import { ApiError } from './errors.ts';
 import { CODES_PER_HOUR, DAY, GUESSES_PER_DAY, HOUR, MAILS_PER_HOUR, throttleClear, throttleCount, throttleHit, throttleTake } from './throttle.ts';
@@ -242,6 +242,9 @@ export class AuthService {
       throw new ApiError(401, 'invalid_credentials', 'Email or password is incorrect.');
     }
     throttleClear(this.d.db, ipKey);
+    if (needsRehash(u.password_hash)) {
+      this.d.db.prepare('UPDATE users SET password_hash = ? WHERE id = ? AND password_hash = ?').run(await hashPassword(password), u.id, u.password_hash);
+    }
     if (!u.email_verified_at) {
       await this.sendCode(u.id, u.email!, 'verify_email', false);
       throw new ApiError(403, 'email_not_verified', 'Verify your email first. We sent you a new code.');

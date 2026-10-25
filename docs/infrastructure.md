@@ -13,7 +13,7 @@ Nothing runs on a laptop: hosting is Fly.io, setup and operations are GitHub Act
 | Used by | TestFlight builds, App Store sandbox notifications | App Store builds |
 | Pro test mode | `SUBSCRIPTION_TESTS=on` | off |
 
-Each: region `fra`, one `shared-cpu-1x` machine (256 MB), 1 GB volume at `/data` (SQLite, backups, voice cache), `/healthz` check every 30 s, machines stop when idle and start on request. Image: `ghcr.io/jeanyves-figiel/gym-workout-api:sha-<sha>` (Node 22, runs as `node`; the entrypoint only fixes `/data` ownership as root).
+Each: region `fra`, one `shared-cpu-1x` machine (256 MB), 1 GB volume at `/data` (SQLite, backups, voice cache), `/healthz` check every 30 s, machines stop when idle and start on request. Image: `ghcr.io/jeanyves-figiel/gym-workout-api:sha-<sha>` (Node 24, runs as `node`; the entrypoint only fixes `/data` ownership as root).
 
 ```mermaid
 flowchart LR

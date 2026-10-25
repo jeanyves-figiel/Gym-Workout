@@ -6,7 +6,7 @@ strength + definition, climber mobility, cardio, explosiveness, and cool-downs d
 | Part | Path | Stack |
 |---|---|---|
 | iOS app | `ios/` | SwiftUI, iOS 18+, on-device workout engine |
-| API | `backend/` | Node 22 (TS type-stripping), Fastify, SQLite, JWT — accounts + sync |
+| API | `backend/` | Node 24 (TS type-stripping), Fastify, SQLite, JWT — accounts + sync |
 | Watch, widgets, Garmin | `ios/MonkeyWorkoutWatch`, `ios/MonkeyWorkoutWidgets`, `garmin/` | watchOS, WidgetKit, Connect IQ |
 
 **Documentation:** [`docs/`](docs/README.md) — architecture, every screen, every API route, data model, security, infrastructure, CI/CD.
