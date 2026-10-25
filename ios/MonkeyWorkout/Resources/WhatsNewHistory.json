@@ -1,6 +1,25 @@
 {
   "releases": [
     {
+      "id": "2026-10-25.2",
+      "build": 74,
+      "date": "2026-10-25",
+      "items": [
+        {
+          "symbol": "figure.strengthtraining.traditional",
+          "tint": "strength",
+          "title": "Workout page, all new",
+          "body": "A bold poster of today's workout with the muscles it hits. Tap the figure for Muscles worked and how it compares with your last same workout."
+        },
+        {
+          "symbol": "square.grid.2x2.fill",
+          "tint": "power",
+          "title": "Make it yours",
+          "body": "Long press to arrange the workout page: Poster or Bento board, colours, map size, tiles and exercise cards or tiles."
+        }
+      ]
+    },
+    {
       "id": "2026-10-25.1",
       "build": 73,
       "date": "2026-10-25",
