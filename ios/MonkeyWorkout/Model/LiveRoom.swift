@@ -4,7 +4,7 @@ import LiftSensor
 import UIKit
 
 /// Live group sessions (#626, designs B + C). Gym buddies: while you train, your set goes to paired buddies, theirs
-/// and their cheers come to you (and to your Watch). Challenge room: the week's AMRAP with a live leaderboard.
+/// and their cheers come to you (and to your Watch). Challenge room: the week's WOD (#748: from the server) with a live leaderboard.
 /// Only sent while a paired buddy exists or the challenge runs, and as the member chose (#675: Always / Ask / Never,
 /// LIVE ⇄ PRIVATE per workout); polled, so it works without SharePlay or FaceTime.
 /// Live sharing default (#675 B): Always starts each workout live, Ask starts it private (one tap in the player
@@ -44,9 +44,21 @@ final class LiveRoom {
     var invites: [GymBuddy] { buddies.filter { $0.status == .invitesYou } }
     func status(_ userId: String) -> GymBuddy.Status? { buddies.first { $0.userId == userId }?.status }
 
-    /// This week's key and WOD (the member's time zone).
+    /// This week's key and WOD (the member's time zone). #748: the server deals it (deck card or member week); the app's
+    /// own 8 AMRAPs only before the room loaded or from an older server.
     var week: String { WeeklyChallenge.key(for: .now) }
-    var wod: WodTimer { WeeklyChallenge.wod(for: week) }
+    var challenge: ChallengeWod {
+        if let w = room?.wod, room?.week == week { return w }
+        let t = WeeklyChallenge.wod(for: week)
+        return ChallengeWod(name: t.name, format: .amrap, minutes: WeeklyChallenge.minutes, moves: t.moves)
+    }
+    var wod: WodTimer {
+        let c = challenge
+        return WeeklyChallenge.timer(week: week, name: c.name, format: c.format.rawValue, minutes: c.minutes, moves: c.moves)
+    }
+    /// Your suggestions (#748) and the move list they use.
+    private(set) var suggestions: [ChallengeSuggestion] = []
+    private(set) var moves: [String] = []
 
     private var api: APIClient?
     private var sent: LiveSet?
@@ -69,6 +81,14 @@ final class LiveRoom {
     private var notMember: Bool { Community.shared.loaded && Community.shared.profile == nil }
 
     func load(api: APIClient) async {
+        #if DEBUG
+        if Demo.enabled {
+            room = Demo.challengeRoom(week: week)
+            suggestions = Demo.challengeSuggestions
+            moves = Demo.challengeMoves
+            return
+        }
+        #endif
         guard !notMember else { return }
         self.api = api
         do {
@@ -130,7 +150,7 @@ final class LiveRoom {
         self.api = api
         challengeWeek = week
         if let week {
-            player(LiveSet(title: "Week challenge", exercise: WeeklyChallenge.wod(for: week).name, detail: "AMRAP \(WeeklyChallenge.minutes)′", state: .set), api: api)
+            player(LiveSet(title: "Week challenge", exercise: challenge.name, detail: challenge.headline, state: .set), api: api)
         } else {
             end()
         }
@@ -222,14 +242,63 @@ final class LiveRoom {
 
     // MARK: C: challenge room
 
-    func sendScore(rounds: Int, reps: Int, api: APIClient) async -> ChallengeScoreResult? {
+    func sendScore(rounds: Int, reps: Int, seconds: Int? = nil, tier: ChallengeTier, api: APIClient) async -> ChallengeScoreResult? {
         do {
-            let r = try await api.sendChallengeScore(week: week, rounds: rounds, reps: reps)
+            let r = try await api.sendChallengeScore(week: week, rounds: rounds, reps: reps, seconds: seconds, tier: tier)
             room = try? await api.challengeRoom(week: week)
             return r
         } catch {
             self.error = error.localizedDescription
             return nil
         }
+    }
+
+    // MARK: Member weeks (#748)
+
+    func loadSuggestions(api: APIClient) async {
+        #if DEBUG
+        if Demo.enabled { return }
+        #endif
+        guard let r = try? await api.challengeSuggestions() else { return }
+        (suggestions, moves) = r
+    }
+
+    /// Sent for review; true when it went through.
+    func suggest(name: String, format: ChallengeFormat, minutes: Int, moves: [String], api: APIClient) async -> Bool {
+        do {
+            let s = try await api.suggestChallenge(name: name, format: format, minutes: minutes, moves: moves)
+            suggestions.insert(s, at: 0)
+            error = nil
+            return true
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+    }
+
+    func withdraw(_ id: String, api: APIClient) async {
+        do {
+            try await api.withdrawChallengeSuggestion(id)
+            suggestions.removeAll { $0.id == id }
+        } catch { self.error = error.localizedDescription }
+    }
+
+    /// One vote for the next member week; shown at once, then the counts from the server.
+    func vote(_ id: String, api: APIClient) async {
+        guard var v = room?.vote, let i = v.finalists.firstIndex(where: { $0.id == id }), !v.finalists[i].mine else { return }
+        for j in v.finalists.indices where v.finalists[j].mine {
+            v.finalists[j].mine = false
+            v.finalists[j].votes -= 1
+        }
+        v.finalists[i].mine = true
+        v.finalists[i].votes += 1
+        room?.vote = v
+        #if DEBUG
+        if Demo.enabled { return }
+        #endif
+        do {
+            try await api.voteChallenge(id)
+            room = try? await api.challengeRoom(week: week)
+        } catch { self.error = error.localizedDescription }
     }
 }

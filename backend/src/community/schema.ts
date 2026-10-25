@@ -225,4 +225,39 @@ export const ensureLiveSchema = (db: DB): void => {
   // #675: a member can keep their live set from one buddy (their row toward that buddy).
   const cols = db.prepare('PRAGMA table_info(community_buddies)').all() as { name: string }[];
   if (!cols.some((c) => c.name === 'share_live')) db.exec('ALTER TABLE community_buddies ADD COLUMN share_live INTEGER NOT NULL DEFAULT 1');
+  // #748: week challenge deck + member weeks. Scores keep their tier and, For time, the finish time.
+  const scoreCols = db.prepare('PRAGMA table_info(community_challenge_scores)').all() as { name: string }[];
+  if (!scoreCols.some((c) => c.name === 'tier')) db.exec("ALTER TABLE community_challenge_scores ADD COLUMN tier TEXT NOT NULL DEFAULT 'rx'");
+  if (!scoreCols.some((c) => c.name === 'seconds')) db.exec('ALTER TABLE community_challenge_scores ADD COLUMN seconds INTEGER');
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS community_challenge_suggestions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      format TEXT NOT NULL CHECK (format IN ('amrap', 'emom', 'fortime', 'tabata')),
+      minutes INTEGER NOT NULL,
+      moves TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+      week TEXT,
+      created_at TEXT NOT NULL,
+      reviewed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS community_challenge_suggestions_user ON community_challenge_suggestions(user_id);
+    CREATE INDEX IF NOT EXISTS community_challenge_suggestions_status ON community_challenge_suggestions(status, week);
+    CREATE TABLE IF NOT EXISTS community_challenge_votes (
+      week TEXT NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      suggestion_id TEXT NOT NULL REFERENCES community_challenge_suggestions(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (week, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS community_challenge_votes_user ON community_challenge_votes(user_id);
+    CREATE INDEX IF NOT EXISTS community_challenge_votes_suggestion ON community_challenge_votes(suggestion_id);
+    CREATE TABLE IF NOT EXISTS community_challenge_weeks (
+      week TEXT PRIMARY KEY,
+      suggestion_id TEXT REFERENCES community_challenge_suggestions(id) ON DELETE SET NULL,
+      wod TEXT,
+      picked_at TEXT NOT NULL
+    );
+  `);
 };
