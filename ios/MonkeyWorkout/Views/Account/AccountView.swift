@@ -31,6 +31,8 @@ struct AccountView: View {
     @State private var query = ""
     @State private var chapter: SettingsChapter? = .you
     @FocusState private var searchFocused: Bool
+    /// Measured height of the pinned search + chapter bar (#743).
+    @State private var headerHeight: CGFloat = 110
     private var search: SettingsSearch { SettingsSearch(query: query) }
 
     // Row search texts: title first, then the words a member might type.
@@ -109,8 +111,10 @@ struct AccountView: View {
                             searchFocused = false
                             withAnimation { proxy.scrollTo(c, anchor: .top) }
                         }
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { if $0 > 60 { headerHeight = $0 } }
                     }
                 }
+                .environment(\.settingsJumpInset, headerHeight)
             }
             .coordinateSpace(name: "settings")
             .task {
