@@ -4,7 +4,7 @@ import WorkoutEngine
 // Workout page top (#766, design A by default, C to customise, from `session-wow/proposals.png` and
 // `proposals-c.png`): a Poster hero in the focus colour with the figure and ranked muscle bars, or a Bento board
 // (map tile + stat squares). Tap the map → `SessionMusclesSheet`; long press → arrange on the page (rows wiggle, drag to
-// move, − to hide); the grid button → `SessionCustomiseSheet`.
+// move, − to hide); the grid button in the top bar → `SessionCustomiseSheet`.
 // Choices are per device (`@AppStorage`).
 
 /// Poster hero or Bento board.
@@ -318,14 +318,10 @@ struct SessionBoard: View {
                 .accessibilityAddTraits(.isButton)
             }
             VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top) {
-                    Text(session.displayTitle.uppercased())
-                        .font(Theme.display(52)).lineLimit(2).minimumScaleFactor(0.5)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .shadow(color: .black.opacity(0.2), radius: 6, y: 2)
-                    Spacer(minLength: 0)
-                    customiseButton
-                }
+                Text(session.displayTitle.uppercased())
+                    .font(Theme.display(52)).lineLimit(2).minimumScaleFactor(0.5)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .shadow(color: .black.opacity(0.2), radius: 6, y: 2)
                 if !readOnly { WorkoutFocusChips(session: session) }
                 Spacer(minLength: 8)
                 if !top.isEmpty {
@@ -359,11 +355,7 @@ struct SessionBoard: View {
     private var bento: some View {
         let heat = session.muscleHeat
         return VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center) {
-                Text(session.displayTitle).font(Theme.display(38)).lineLimit(1).minimumScaleFactor(0.6)
-                Spacer(minLength: 4)
-                customiseButton
-            }
+            Text(session.displayTitle).font(Theme.display(38)).lineLimit(1).minimumScaleFactor(0.6)
             if !readOnly { WorkoutFocusChips(session: session) }
             HStack(spacing: 10) {
                 Button(action: onMap) {
@@ -412,18 +404,6 @@ struct SessionBoard: View {
     }
 
     // MARK: Parts
-
-    private var customiseButton: some View {
-        Button(action: onCustomise) {
-            Image(systemName: "square.grid.2x2.fill")
-                .font(.system(size: 15, weight: .heavy))
-                .frame(width: 36, height: 36)
-                .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(.white.opacity(shownLook == .poster ? 0.22 : 0.1)))
-                .foregroundStyle(.white)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Customise workout page")
-    }
 
     /// Until the workout starts the exercise count opens the editor (#295).
     @ViewBuilder

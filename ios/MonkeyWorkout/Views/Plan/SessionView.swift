@@ -74,6 +74,13 @@ struct SessionView: View {
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) { bottomBar(session) }
             .standaloneWorkoutActions(session)
+            // Customise sits in the top bar (#771), not on the hero.
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { customising = true } label: { Image(systemName: "square.grid.2x2.fill") }
+                        .accessibilityLabel("Customise workout page")
+                }
+            }
             .task { if model.profile?.gymLayout != nil { await model.refreshGymCrowd() } }
             .fullScreenCover(isPresented: $playing) { WorkoutPlayerView(sessionId: session.id) }
             .sheet(isPresented: $loggingMissed) { MissedLogSheet(session: session) }
