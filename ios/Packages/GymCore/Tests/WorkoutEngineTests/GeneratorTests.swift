@@ -204,6 +204,25 @@ private func withSessions(_ p: Profile, _ n: Int) -> Profile {
         #expect(!s.topMuscles().isEmpty)
         #expect(!s.muscles(in: .strength).isEmpty)
     }
+
+    @Test func setsPerMuscleCountsPrimarySets() {
+        let s = Generator.generateWeek(Profile(), seed: 1).sessions[0]
+        let sets = s.setsPerMuscle()
+        #expect(!sets.isEmpty)
+        #expect(sets.allSatisfy { $0.sets > 0 })
+        #expect(zip(sets, sets.dropFirst()).allSatisfy { $0.sets >= $1.sets })
+        let total = s.blocks.flatMap(\.items).reduce(0) { $0 + $1.prescription.sets * Exercise.get($1.exerciseId).primary.count }
+        #expect(sets.reduce(0) { $0 + $1.sets } == total)
+    }
+
+    @Test func recordSetsPerMuscleMatchesPlanWhenAllDone() {
+        let s = Generator.generateWeek(Profile(), seed: 1).sessions[0]
+        let done = Dictionary(uniqueKeysWithValues: s.blocks.flatMap(\.items).map { ($0.uid, $0.prescription.sets) })
+        let r = WorkoutRecord.build(session: s, week: 1, deload: false, setsDone: done, weights: [:],
+                                    startedAt: Date(), endedAt: Date().addingTimeInterval(3600), bodyMassKg: nil)
+        let planned = Dictionary(uniqueKeysWithValues: s.setsPerMuscle().map { ($0.muscle, $0.sets) })
+        #expect(r.setsPerMuscle == planned)
+    }
 }
 
 @Suite struct TechniqueTests {

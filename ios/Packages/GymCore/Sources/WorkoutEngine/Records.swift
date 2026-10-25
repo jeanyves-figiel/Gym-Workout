@@ -49,6 +49,13 @@ public struct WorkoutRecord: Codable, Hashable, Sendable, Identifiable {
     public var endedAt: Date { startedAt.addingTimeInterval(TimeInterval(durationSec)) }
     public var categories: Set<Category> { Set(exercises.filter { $0.setsDone > 0 }.map(\.category)) }
 
+    /// Sets done per primary muscle (#766), to compare with a planned session's `setsPerMuscle()`.
+    public var setsPerMuscle: [Muscle: Int] {
+        var n: [Muscle: Int] = [:]
+        for e in exercises where e.setsDone > 0 { for m in Exercise.get(e.exerciseId).primary { n[m, default: 0] += e.setsDone } }
+        return n
+    }
+
     public var muscleHeat: [Muscle: Double] {
         var out: [Muscle: Double] = [:]
         for (k, v) in muscleLoad { if let m = Muscle(rawValue: k) { out[m] = v } }

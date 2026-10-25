@@ -173,7 +173,9 @@ private struct DemoScreen: View {
     var body: some View {
         let second = model.plan?.sessions.dropFirst().first?.id ?? ""
         switch Demo.screen {
-        case "session", "session-zones": NavigationStack { SessionView(sessionId: second) }
+        case "session", "session-zones", "session-bento": NavigationStack { SessionView(sessionId: second) }
+        case "session-muscles": if let s = model.session(second) { SessionMusclesSheet(session: s) }
+        case "session-customise": SessionCustomiseSheet(focus: model.session(second)?.focus ?? .pull)
         case "edit-exercises":
             if let s = model.uneditedSession(second) { EditExercisesSheet(sessionId: second, base: s, blocks: Demo.editedBlocks(s)) }
         case "session-edited":
