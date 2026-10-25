@@ -204,6 +204,16 @@ private func withSessions(_ p: Profile, _ n: Int) -> Profile {
         #expect(!s.topMuscles().isEmpty)
         #expect(!s.muscles(in: .strength).isEmpty)
     }
+
+    @Test func setsPerMuscleCountsPrimarySets() {
+        let s = Generator.generateWeek(Profile(), seed: 1).sessions[0]
+        let sets = s.setsPerMuscle()
+        #expect(!sets.isEmpty)
+        #expect(sets.allSatisfy { $0.sets > 0 })
+        #expect(zip(sets, sets.dropFirst()).allSatisfy { $0.sets >= $1.sets })
+        let total = s.blocks.flatMap(\.items).reduce(0) { $0 + $1.prescription.sets * Exercise.get($1.exerciseId).primary.count }
+        #expect(sets.reduce(0) { $0 + $1.sets } == total)
+    }
 }
 
 @Suite struct TechniqueTests {

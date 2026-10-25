@@ -23,6 +23,9 @@ struct SessionView: View {
     @State private var mapOpen = false
     /// A missed day's session logged after the fact (#537).
     @State private var loggingMissed = false
+    /// Muscle map opened from the hero / board (#766) and the page's customise sheet.
+    @State private var musclesOpen = false
+    @State private var customising = false
 
     private var session: Session? { preview != nil ? model.aheadEdited(sessionId) ?? preview : model.session(sessionId) }
     private var readOnly: Bool { preview != nil }
@@ -74,6 +77,8 @@ struct SessionView: View {
             .task { if model.profile?.gymLayout != nil { await model.refreshGymCrowd() } }
             .fullScreenCover(isPresented: $playing) { WorkoutPlayerView(sessionId: session.id) }
             .sheet(isPresented: $loggingMissed) { MissedLogSheet(session: session) }
+            .sheet(isPresented: $musclesOpen) { SessionMusclesSheet(session: session).presentationDetents([.large]) }
+            .sheet(isPresented: $customising) { SessionCustomiseSheet(focus: session.focus) }
             .sheet(item: $detail) { ref in
                 NavigationStack { ExerciseDetailView(exerciseId: ref.exerciseId, plannedUid: ref.uid) }
                     .presentationDetents([.large])
@@ -119,7 +124,8 @@ struct SessionView: View {
         } else if model.startableToday(s) {
             bar {
                 Button { Haptics.start(); playing = true } label: {
-                    Label(model.activeWorkout(s.id) == nil ? "Start workout" : "Resume workout", systemImage: "play.fill")
+                    // What finishing it earns rides on the button (#766).
+                    Label(model.activeWorkout(s.id) == nil ? "Start workout · +\(model.xp(for: s)) XP" : "Resume workout", systemImage: "play.fill")
                         .lineLimit(1).minimumScaleFactor(0.9)
                 }
                 .buttonStyle(LimeButtonStyle())
@@ -162,24 +168,6 @@ struct SessionView: View {
         UndoCloseCenter.shared.show(UndoOffer(
             title: "\(name) removed", detail: s.title, symbol: "trash", reopen: { AnyView(EmptyView()) },
             revert: { [model] in model.restoreSessionEdit(id, to: before) }))
-    }
-
-    /// Exercise count tile; until the workout starts it opens the exercise editor (#295).
-    @ViewBuilder
-    private func exercisesStat(_ s: Session) -> some View {
-        let stat = GradientStat(symbol: "figure.strengthtraining.traditional", value: "\(s.blocks.reduce(0) { $0 + $1.items.count })", label: "Exercises",
-                                gradient: WorkoutEngine.Category.mobility.gradient)
-        if model.canEditExercises(s) {
-            Button { editingExercises = true } label: {
-                stat.overlay(alignment: .topTrailing) {
-                    Image(systemName: "pencil").font(.system(size: 13, weight: .heavy)).foregroundStyle(.white).padding(12)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("Edit exercises")
-        } else {
-            stat
-        }
     }
 
     /// Exercises title with Edit (#295); an edited workout says so and can go back to the plan.
@@ -226,20 +214,20 @@ struct SessionView: View {
         return nil
     }
 
+    /// Poster hero or Bento board (#766) with the member's rows; day line and library context above it.
     @ViewBuilder
     private func header(_ s: Session) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             if let day = s.weekday {
                 SessionDayLine(weekday: day, climbing: model.profile?.climbingDays ?? [])
             }
-            VStack(alignment: .leading, spacing: 6) {
-                if s.weekday == nil, let context = model.libraryTitle(s) { Text(context).eyebrow() }
-                Text(s.displayTitle).font(Theme.display(38)).fixedSize(horizontal: false, vertical: true)
-                // Change the workout's focus or swap days (#342); not on a later week's preview (#758).
-                if !readOnly { WorkoutFocusChips(session: s) }
-            }
-            // What finishing it earns, in the member's game look (#227).
-            if !s.blocks.allSatisfy({ $0.items.isEmpty }) { SessionGameBanner(session: s) }
+            if s.weekday == nil, let context = model.libraryTitle(s) { Text(context).eyebrow() }
+            SessionBoard(session: s, readOnly: readOnly, onMuscle: { muscle = $0 }, onMap: { musclesOpen = true },
+                         onEditExercises: model.canEditExercises(s) ? { editingExercises = true } : nil,
+                         onExercise: { item in
+                             detail = ExerciseRef(exerciseId: item.exerciseId, uid: s.isStandalone || readOnly ? nil : item.uid)
+                         },
+                         onCustomise: { customising = true })
             if !readOnly { LibraryActionsPanel(session: s) }
             if let t = WorkoutTemplate.find(sessionId: s.id) {
                 Text(([t.goal.label, t.kit, t.levelLabel] + [t.kcal.map { "\($0) kcal" }, t.activityPoints.map { "\($0) activity points" }].compactMap { $0 })
@@ -248,26 +236,6 @@ struct SessionView: View {
             } else if let kcal = model.customWorkout(sessionId: s.id)?.kcal {
                 Text("\(kcal) kcal").font(Theme.label(14)).foregroundStyle(Theme.lime)
             }
-            HStack(spacing: 10) {
-                GradientStat(symbol: "stopwatch.fill", value: "\(s.estMin)′", label: "Duration",
-                             gradient: WorkoutEngine.Category.cardio.gradient)
-                exercisesStat(s)
-                GradientStat(symbol: "square.stack.3d.up.fill", value: "\(s.blocks.filter { [BlockKind.power, .strength].contains($0.kind) }.flatMap(\.items).reduce(0) { $0 + $1.prescription.sets })", label: "Work sets",
-                             gradient: WorkoutEngine.Category.strength.gradient)
-            }
-            if !readOnly { WorkoutStyleCard(session: s) }
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Muscles worked · tap to explore").eyebrow()
-                BodyMapPair(heat: s.muscleHeat) { muscle = $0 }
-                    .frame(height: 300)
-                HeatLegend()
-                FlowLayout(spacing: 6) {
-                    ForEach(s.topMuscles(6)) { m in
-                        Button { muscle = m } label: { MuscleChip(muscle: m) }
-                    }
-                }
-            }
-            .card()
         }
     }
 

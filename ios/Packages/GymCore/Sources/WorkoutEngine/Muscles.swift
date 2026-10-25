@@ -174,6 +174,14 @@ extension Exercise {
     }
 }
 
+/// Sets one muscle gets in a session (#766).
+public struct MuscleSets: Hashable, Sendable, Identifiable {
+    public let muscle: Muscle
+    public let sets: Int
+    public var id: Muscle { muscle }
+    public init(muscle: Muscle, sets: Int) { self.muscle = muscle; self.sets = sets }
+}
+
 extension Session {
     /// Normalised load 0…1 per muscle for heat maps.
     public var muscleHeat: [Muscle: Double] {
@@ -185,6 +193,15 @@ extension Session {
     /// Most-loaded muscles, descending.
     public func topMuscles(_ n: Int = 4) -> [Muscle] {
         muscleHeat.sorted { $0.value > $1.value || ($0.value == $1.value && $0.key.rawValue < $1.key.rawValue) }.prefix(n).map(\.key)
+    }
+
+    /// Sets per muscle (#766): every set of an exercise counts for each of its primary muscles; most sets first.
+    public func setsPerMuscle() -> [MuscleSets] {
+        var n: [Muscle: Int] = [:]
+        for b in blocks { for it in b.items { for m in Exercise.get(it.exerciseId).primary { n[m, default: 0] += it.prescription.sets } } }
+        return n.filter { $0.value > 0 }
+            .sorted { $0.value > $1.value || ($0.value == $1.value && $0.key.rawValue < $1.key.rawValue) }
+            .map { MuscleSets(muscle: $0.key, sets: $0.value) }
     }
 
     /// Muscles touched by each block category (for the "what does each part do" overview).
