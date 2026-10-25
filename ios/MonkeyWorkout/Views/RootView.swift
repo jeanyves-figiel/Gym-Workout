@@ -379,6 +379,8 @@ private struct DemoScreen: View {
         case "account-passkeys": NavigationStack { PasskeysView(passkeys: Demo.security.passkeys) }
         case "community", "community-join", "community-post", "community-story": NavigationStack { CommunityView() }
         case "challenge", "challenge-suggest": NavigationStack { ChallengeRoomView() }
+        case "how-it-works": NavigationStack { HowItWorksView() }
+        case "how-it-works-fuel": NavigationStack { HowItWorksTopicView(topic: HowItWorks.topic("fuel")!) }
         case "community-plan":
             NavigationStack { SharedPlanView(plan: SharedPlans.shared.plans[0]).navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) } }
         case "community-share-plan": SharePlanSheet()

@@ -113,6 +113,9 @@ struct MeSheet: View {
                             .accessibilityIdentifier("me.chapter.\(chapter.rawValue)")
                     }
                 }
+                NavigationLink { HowItWorksView() } label: { howItWorksTile }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("me.howItWorks")
             }
             .padding(16)
             .readableWidth()
@@ -160,6 +163,25 @@ struct MeSheet: View {
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(AccountTint.profile))
+    }
+
+    /// How it works (#769): full width under the chapters, where every number comes from.
+    private var howItWorksTile: some View {
+        HStack(spacing: 14) {
+            IconTile(symbol: "function", size: 40, ink: true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("How it works").font(Theme.display(19))
+                Text("Methods and calculations behind your numbers").font(.footnote.weight(.semibold)).opacity(0.85).lineLimit(2)
+            }
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.right").font(.subheadline.weight(.bold))
+        }
+        .foregroundStyle(Theme.ink)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .fill(LinearGradient(colors: [Theme.lime, Color(hex: 0x2DD4BF)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private func tile(_ chapter: SettingsChapter) -> some View {

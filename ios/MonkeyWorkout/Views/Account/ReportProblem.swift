@@ -42,7 +42,9 @@ struct ReportDraft: Identifiable {
     var error: String?
     var shots: [UIImage] = []
 
-    static let areas = ["Train", "Workout player", "Explore", "Progress", "History", "Fuel", "Social", "Apple Watch", "Sync & account", "Settings", "Other"]
+    static let areas = ["Train", "Workout player", "Explore", "Progress", "History", "Fuel", "Social", "Apple Watch", "Sync & account", "Settings", howItWorks, "Other"]
+    /// Area of a Feels off? report from How it works (#769).
+    static let howItWorks = "How it works"
 
     static func areaName(for tab: MainTab) -> String {
         switch tab {
