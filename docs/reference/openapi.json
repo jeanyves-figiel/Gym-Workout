@@ -2585,7 +2585,7 @@
         "tags": [
           "Community"
         ],
-        "summary": "Share a win: {id (client UUID), kind workout|badge|record|climb|note, refId?, payload, caption?, visibility?} (refId dedupes; an update keeps the caption and visibility it leaves out) → post",
+        "summary": "Share a win: {id (client UUID), kind workout|badge|record|climb|note, refId?, payload, caption?, visibility?} (refId dedupes; an update keeps the caption and visibility it leaves out) → post. payload: {title, subtitle?, metric?, style?, stats?, exercises?}; a workout sends up to 40 exercises {id, name, sets, reps?, kg?} so members can open and copy it (#779)",
         "description": "Errors / limits: 400 objectionable_content; 429 daily_limit",
         "security": [
           {

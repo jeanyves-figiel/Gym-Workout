@@ -319,7 +319,12 @@ final class Community {
             CommunityPost(
                 id: "p1", author: bea, mine: false, kind: "workout", visibility: .members, caption: "New bench best, 100 kg!",
                 payload: CommunityCard(title: "Chest Push Focus", subtitle: "Today", metric: .init(value: "6.4", unit: "t lifted"), style: "strength",
-                                       stats: [.init(label: "min", value: "52"), .init(label: "sets", value: "18")]),
+                                       stats: [.init(label: "min", value: "52"), .init(label: "sets", value: "18")],
+                                       exercises: [.init(id: "bench-press", name: "Bench Press", sets: 5, reps: 5, kg: 100),
+                                                   .init(id: "incline-db-press", name: "Incline Dumbbell Press", sets: 4, reps: 10, kg: 30),
+                                                   .init(id: "cable-fly", name: "Cable Fly", sets: 3, reps: 12, kg: 15),
+                                                   .init(id: "dips", name: "Dips", sets: 3, reps: 10),
+                                                   .init(id: "triceps-pushdown", name: "Triceps Pushdown", sets: 3, reps: 12, kg: 25)]),
                 createdAt: now.addingTimeInterval(-2 * 3600), reactions: ["like": 12, "strong": 5, "fire": 3, "banana": 2], myReactions: ["like"]),
             CommunityPost(
                 id: "p2", author: me, mine: true, kind: "badge", visibility: .members,
@@ -388,8 +393,14 @@ struct WinCard: Identifiable {
         let sets = Dictionary(grouping: r.exercises, by: \.category).mapValues { $0.reduce(0) { $0 + $1.setsDone } }
         let top = sets.max { $0.value < $1.value }?.key ?? .strength
         let subtitle = r.startedAt.formatted(.dateTime.weekday(.wide).day().month())
+        // The exercises themselves (#779): members can open the post and copy the workout. Server caps at 40.
+        let exercises = r.exercises.filter { $0.setsDone > 0 }.prefix(40).map { e in
+            CommunityCard.Exercise(id: e.exerciseId, name: String(Exercise.get(e.exerciseId).name.prefix(60)), sets: min(e.setsDone, 50),
+                                   reps: e.reps.map { min(max($0, 0), 1000) }, kg: e.weightKg.flatMap { $0 > 0 ? min($0, 1000) : nil })
+        }
         return WinCard(kind: "workout", refId: r.id.uuidString.lowercased(),
-                       card: CommunityCard(title: r.title, subtitle: subtitle, metric: metric, style: top.rawValue, stats: stats),
+                       card: CommunityCard(title: r.title, subtitle: subtitle, metric: metric, style: top.rawValue, stats: stats,
+                                           exercises: exercises.isEmpty ? nil : Array(exercises)),
                        symbol: top.symbol, date: r.startedAt)
     }
 

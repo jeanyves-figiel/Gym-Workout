@@ -1,17 +1,41 @@
 {
-  "id": "2026-10-25.2",
+  "id": "2026-10-25.3",
   "items": [
+    {
+      "symbol": "bubble.left.and.text.bubble.right.fill",
+      "tint": "power",
+      "title": "One Coach button",
+      "body": "Tap the talking monkey at the top to ask Coach, hold to talk."
+    },
+    {
+      "symbol": "rectangle.stack.fill",
+      "tint": "cardio",
+      "title": "Social posts open up",
+      "body": "Tap a Social post to see the full workout, then make it yours: today, any day this week or My workouts."
+    },
+    {
+      "symbol": "camera.fill",
+      "tint": "warmup",
+      "title": "Share your wins as stories",
+      "body": "PRs, levels, badges, programmes and meals become stories in 3 looks, with your photo. Don't want prompts? Your profile → Share prompts."
+    },
     {
       "symbol": "figure.strengthtraining.traditional",
       "tint": "strength",
-      "title": "Workout page, all new",
-      "body": "A bold poster of today's workout with the muscles it hits. Tap the figure for Muscles worked and how it compares with your last same workout."
+      "title": "Clearer Train buttons",
+      "body": "Custom gym session shows your gym, and one Sport button logs, tracks live or plans."
+    },
+    {
+      "symbol": "function",
+      "tint": "mobility",
+      "title": "How it works",
+      "body": "Where every number comes from: XP, plan, loads, readiness, zones, Fuel. Your own numbers, the rule and sources. Something off? Tell us from the page."
     },
     {
       "symbol": "square.grid.2x2.fill",
-      "tint": "power",
-      "title": "Make it yours",
-      "body": "Long press to arrange the workout page: Poster or Bento board, colours, map size, tiles and exercise cards or tiles."
+      "tint": "stretch",
+      "title": "Customise from the top",
+      "body": "The workout page's customise button now sits in the top bar."
     }
   ]
 }

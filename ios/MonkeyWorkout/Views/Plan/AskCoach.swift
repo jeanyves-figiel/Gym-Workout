@@ -111,22 +111,28 @@ extension View {
 
 // MARK: - Header tile (A)
 
-/// The 🐵 Coach tile at the top right of every tab (#707, design A from `coach-talk-header/proposals.png`): a lime
-/// 44 pt square next to the other header tiles. It replaced the floating bubble, which covered cards. Tap to ask,
+/// The 🐵 Coach tile at the top right of every tab (#707), the only way into Coach on Train (#775). Design B
+/// "Talking monkey" from `coach-one-button/proposals.png`: lime 44 pt square with a bigger monkey, a soft lime glow
+/// and a pink "•••" speech bubble on its corner that wiggles once a day, so it reads as "talk to me". Tap to ask,
 /// hold to talk. Settings → Ask Coach can hide it.
 struct CoachHeaderTile: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(AskCoachPref.bubbleKey) private var shown = true
+    @AppStorage("askCoach.wiggleDay") private var wiggleDay = ""
     @State private var gate: ProGate?
+    @State private var wiggle = false
 
     var body: some View {
         if shown {
-            MonkeyFace(mood: .fired, scale: 0.5, gear: model.rank.gear)
-                .frame(width: 34, height: 30)
+            MonkeyFace(mood: .fired, scale: 0.6, gear: model.rank.gear)
+                .frame(width: 40, height: 36)
                 .frame(width: 44, height: 44)
                 .background(RoundedRectangle(cornerRadius: 13, style: .continuous)
                     .fill(RadialGradient(colors: [Color(hex: 0xEDFF7A), Theme.lime], center: .init(x: 0.3, y: 0.3), startRadius: 2, endRadius: 36)))
-                .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(Theme.lime.opacity(0.35), lineWidth: 2))
+                .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(Theme.lime.opacity(0.35), lineWidth: 3))
+                .shadow(color: Theme.lime.opacity(0.55), radius: 9)
+                .overlay(alignment: .topTrailing) { bubble }
                 .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                 .onTapGesture { ask(listen: false) }
                 .onLongPressGesture(minimumDuration: 0.4) {
@@ -142,6 +148,33 @@ struct CoachHeaderTile: View {
                 .accessibilityIdentifier("askCoach.tile")
                 .popoverTip(HoldToTalkTip())
                 .proPaywall($gate)
+                .task { await wiggleOncePerDay() }
+        }
+    }
+
+    /// Pink speech bubble: "the monkey is talking".
+    private var bubble: some View {
+        Text("•••").font(.system(size: 10, weight: .black)).tracking(1).foregroundStyle(.white)
+            .padding(.horizontal, 5).padding(.vertical, 2)
+            .background(UnevenRoundedRectangle(topLeadingRadius: 9, bottomLeadingRadius: 3, bottomTrailingRadius: 9,
+                                               topTrailingRadius: 9, style: .continuous).fill(Color(hex: 0xFF3D8B)))
+            .overlay(UnevenRoundedRectangle(topLeadingRadius: 9, bottomLeadingRadius: 3, bottomTrailingRadius: 9,
+                                            topTrailingRadius: 9, style: .continuous).stroke(Theme.bg, lineWidth: 2))
+            .rotationEffect(.degrees(wiggle ? 12 : 0), anchor: .bottomLeading)
+            .offset(x: 10, y: -8)
+            .accessibilityHidden(true)
+    }
+
+    private func wiggleOncePerDay() async {
+        let today = Date().formatted(.iso8601.year().month().day())
+        guard !reduceMotion, wiggleDay != today else { return }
+        wiggleDay = today
+        try? await Task.sleep(for: .seconds(0.8))
+        for _ in 0..<3 {
+            withAnimation(.easeInOut(duration: 0.12)) { wiggle = true }
+            try? await Task.sleep(for: .seconds(0.12))
+            withAnimation(.easeInOut(duration: 0.12)) { wiggle = false }
+            try? await Task.sleep(for: .seconds(0.12))
         }
     }
 

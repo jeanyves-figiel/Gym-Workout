@@ -151,6 +151,7 @@ struct RecipeDetailView: View {
     @State private var choosingMeal = false
     @State private var eaten = false
     @State private var posting = false
+    @State private var story = false
 
     init(recipe: Recipe, eat: (slot: FuelSlot, plan: FuelPlan, day: Date)? = nil) {
         self.recipe = recipe
@@ -254,12 +255,14 @@ struct RecipeDetailView: View {
                     .accessibilityLabel(fav ? "Remove from favourites" : "Add to favourites")
                 Menu {
                     Button("Share to Community", systemImage: "person.3.fill") { posting = true }
+                    Button("Share as a story", systemImage: "camera.fill") { story = true }
                     ShareLink("Send the recipe", item: shareText)
                 } label: { Image(systemName: "square.and.arrow.up") }
                     .accessibilityLabel("Share")
             }
         }
         .sheet(isPresented: $posting) { ShareRecipeSheet(recipe: recipe) }
+        .sheet(isPresented: $story) { StorySheet(poster: .recipe(recipe)) }
         .fullScreenCover(isPresented: $cooking) { CookModeView(recipe: recipe, servings: servings) }
         .sheet(isPresented: $editing) { NavigationStack { RecipeEditorView(recipe: recipe) } }
         .confirmationDialog("Which meal?", isPresented: $choosingMeal, titleVisibility: .visible) {

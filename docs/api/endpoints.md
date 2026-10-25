@@ -155,7 +155,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | DELETE | `/v1/community/me/avatar` | Bearer | Removes the photo | |
 | GET | `/v1/community/avatars/:id` | – | Avatar JPEG; unguessable id, immutable cache | 404 |
 | GET | `/v1/community/feed` | Bearer | `?scope=members\|following\|mine&before=ISO&beforeId=&limit=` → `{posts, nextBefore, nextBeforeId}`; blocks applied both ways | 403 `community_profile_required` |
-| POST | `/v1/community/posts` | Bearer | Share a win: `{id (client UUID), kind workout\|badge\|record\|climb\|note, refId?, payload, caption?, visibility?}` (`refId` dedupes; an update keeps the caption and visibility it leaves out) → post | 400 `objectionable_content`; 429 `daily_limit` |
+| POST | `/v1/community/posts` | Bearer | Share a win: `{id (client UUID), kind workout\|badge\|record\|climb\|note, refId?, payload, caption?, visibility?}` (`refId` dedupes; an update keeps the caption and visibility it leaves out) → post. `payload`: `{title, subtitle?, metric?, style?, stats?, exercises?}`; a workout sends up to 40 `exercises` `{id, name, sets, reps?, kg?}` so members can open and copy it (#779) | 400 `objectionable_content`; 429 `daily_limit` |
 | PATCH | `/v1/community/posts/:id` | Bearer | Own post: `{visibility?, caption?}` → post | 404 `not_found` |
 | DELETE | `/v1/community/posts/:id` | Bearer | Own post → 204 (also when already gone) | 404 `not_found` (someone else's post) |
 | PUT | `/v1/community/posts/:id/reactions/:kind` | Bearer | Cheer (`like`, `strong`, `fire`, `clap`, `beast`, `banana`), not on own posts → `{post}` | 400 `own_post`; 404 |

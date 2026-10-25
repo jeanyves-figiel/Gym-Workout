@@ -165,10 +165,11 @@ private struct EmptyFeedCard: View {
     }
 }
 
-/// One shared win: gradient card, big number, stats, caption and cheers.
+/// One shared win: gradient card, big number, stats, caption and cheers. Tapping it opens the post (#779).
 struct PostCard: View {
     let post: CommunityPost
     @Environment(AppModel.self) private var model
+    @State private var opened = false
     @State private var reporting = false
     @State private var confirmBlock = false
     @State private var confirmDelete = false
@@ -220,6 +221,16 @@ struct PostCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(post.gradient))
         .opacity(post.hidden ? 0.6 : 1)
+        // The whole card opens the post (#779); its avatar, cheers, action and menu keep their own taps.
+        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .onTapGesture { opened = true }
+        .accessibilityAction(named: "Open post") { opened = true }
+        .sheet(isPresented: $opened) { PostDetailView(post: post) }
+        .task {
+            #if DEBUG
+            if Demo.screen == "community-post-detail", post.id == "p1" { opened = true }
+            #endif
+        }
         .sheet(isPresented: $reporting) {
             ReportSheet(postId: post.id, userId: post.author.userId, nickname: post.author.nickname)
         }
