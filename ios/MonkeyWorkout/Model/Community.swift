@@ -304,6 +304,8 @@ final class Community {
             userId: "demo", nickname: "monkey_jy", bio: "Climber who lifts. Chasing a strict one-arm hang.", avatarUrl: nil,
             defaultVisibility: .members, autoShare: false, showGym: true, gym: "Fitnesspark Puls 5", sharedPosts: 34, cheersReceived: 96, followers: 12, following: 8,
             level: 9)
+        profile?.socials = SocialHandles(instagram: "monkey_jy", strava: "monkeyjy")
+        profile?.socialsVisibility = .following
         let now = Date()
         let bea = CommunityAuthor(userId: "u-bea", nickname: "bench_bea", level: 42)
         let me = CommunityAuthor(userId: "demo", nickname: "monkey_jy", level: 9)

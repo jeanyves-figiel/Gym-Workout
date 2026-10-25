@@ -614,6 +614,19 @@ struct ChestReveal: View {
         [("✨", -110, -70), ("🎉", 112, -60), ("⭐", -130, 30), ("🍌", 126, 40), ("🎊", 0, -120), ("💰", -60, 100), ("✨", 70, 104)]
 
     var body: some View {
+        // Story poster (#745) under the tap-to-close celebration, so it stays its own button.
+        celebration
+            .overlay(alignment: .bottom) {
+                if open {
+                    StoryShareButton(poster: .chest(sessions: sessions), title: "Share my week")
+                        .padding(.horizontal, 32).padding(.bottom, 24)
+                        .readableColumn()
+                        .transition(.opacity)
+                }
+            }
+    }
+
+    private var celebration: some View {
         ZStack {
             Color.black.opacity(0.9).ignoresSafeArea()
             VStack(spacing: 14) {
@@ -1103,8 +1116,8 @@ private struct AccentPicker: View {
     }
 }
 
-/// Iron, Titan and Legend perk: switch the home screen icon.
-private struct AppIconPicker: View {
+/// Iron, Titan and Legend perk: switch the home screen icon. Also unlocked early by invites (#745).
+struct AppIconPicker: View {
     let rank: GameRank
     @State private var current: String?
 

@@ -2126,6 +2126,9 @@ struct SummaryView: View {
                     if let kcal { GradientStat(symbol: "flame.fill", value: "\(Int(kcal))", label: "kcal", gradient: WorkoutEngine.Category.warmup.gradient, ink: WorkoutEngine.Category.warmup.ink) }
                     GradientStat(symbol: "figure.strengthtraining.traditional", value: "\(session.blocks.reduce(0) { $0 + $1.items.count })", label: "Moves", gradient: WorkoutEngine.Category.mobility.gradient)
                 }
+                // Story poster (#745): 9:16 image for Instagram Stories and friends, with your invite code.
+                StoryShareButton(poster: .workout(title: session.title, minutes: max(1, Int(elapsed / 60)), sets: setsDone,
+                                                  moves: session.blocks.reduce(0) { $0 + $1.items.count }))
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Muscles hit").eyebrow()
                     BodyMapPair(heat: session.muscleHeat).frame(height: 260)

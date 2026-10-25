@@ -149,6 +149,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | DELETE | `/v1/community/me` | Bearer | Leave: profile, photo, posts, cheers and the reports you filed removed → 204 | |
 | PUT | `/v1/community/me/level` | Bearer | `{level 1–999}` → `{level}` | 404 `not_member` |
 | PUT | `/v1/community/me/pronouns` | Bearer | `{pronouns: string \| null}` (≤ 24 chars) → `{pronouns}` | 404 `not_member` |
+| PUT | `/v1/community/me/socials` | Bearer | Socials (#745): `{socials: {instagram?, tiktok?, strava?, youtube?}, visibility? everyone\|following\|nobody}`; handles without `@`, empty removes → `{socials, visibility}`. Members see them on `GET /v1/community/members/:userId` per visibility (default following) | 400 invalid handle; 404 `not_member` |
 | PUT | `/v1/community/me/avatar` | Bearer | Same as public-profile avatar (older apps) | as above |
 | DELETE | `/v1/community/me/avatar` | Bearer | Removes the photo | |
 | GET | `/v1/community/avatars/:id` | – | Avatar JPEG; unguessable id, immutable cache | 404 |
@@ -184,6 +185,14 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | POST | `/v1/community/programs/:id/copy` | Bearer | Counts a copy into My programmes (once per member; the app saves the copy) → `{program}` | 404 |
 | POST | `/v1/community/programs/:id/report` | Bearer | `{reason, details?}` → 202 `{status: received, hidden}`; auto-hidden after 3 distinct reporters | 20/hour |
 | GET | `/share/:id` | – | Public web card of a `public` post (HTML, Open Graph) | 404 |
+| GET | `/i/:code` | – | Invite page (#745): inviter's nickname, code, link to get the app (`INVITE_APP_URL`) | 404 |
+
+## Invite a friend (#745)
+
+| Method | Path | Auth | Summary | Errors / limits |
+|---|---|---|---|---|
+| GET | `/v1/referrals/me` | Bearer | → `{code, path, joined, subscribed, invitedBy: {nickname, at} \| null, canRedeem}`; `subscribed` = invitees with a paid (non-trial, not revoked) App Store subscription | |
+| POST | `/v1/referrals/redeem` | Bearer | `{code}` (case-insensitive), accounts ≤ 14 days old, once → same as GET | 404 `invalid_code`; 400 `own_code`, `account_too_old`, `referral_cycle`; 409 `already_redeemed`; 10/hour |
 
 ## Workout library
 
