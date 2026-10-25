@@ -39,4 +39,4 @@ Default setup runs on push to `main`, on PRs to `main` and weekly. The Swift job
 |---|---|---|---|
 | 2026-10-25 | First CodeQL scan, `main` dc1eae64 | `js/insufficient-password-hash` (high) `hibp.ts`: SHA-1 for the Have I Been Pwned range API, not storage | False positive: dismiss (#762) |
 | 2026-10-25 | same | `js/incomplete-sanitization` ×2 (high) `community.ts` nickname LIKE escape | Not reachable (input already `[a-z0-9_.]`), hardened: escapes `\ % _` (#762) |
-| 2026-10-25 | same | python 0, actions 0; swift pending | |
+| 2026-10-25 | same | python 0, actions 0. Swift: 15 min on `macos-latest`, autobuild extracted 143 of 550 Swift files (partial coverage); alert count only in the Security tab | Owner reads Swift alerts in the Security tab |
