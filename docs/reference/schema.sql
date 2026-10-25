@@ -130,13 +130,49 @@ CREATE TABLE community_challenge_scores (
       rounds INTEGER NOT NULL,
       reps INTEGER NOT NULL,
       score INTEGER NOT NULL,
-      updated_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL, tier TEXT NOT NULL DEFAULT 'rx', seconds INTEGER,
       PRIMARY KEY (week, user_id)
     );
 
 CREATE INDEX community_challenge_board ON community_challenge_scores(week, score DESC);
 
 CREATE INDEX community_challenge_scores_user ON community_challenge_scores(user_id);
+
+CREATE TABLE community_challenge_suggestions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      format TEXT NOT NULL CHECK (format IN ('amrap', 'emom', 'fortime', 'tabata')),
+      minutes INTEGER NOT NULL,
+      moves TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+      week TEXT,
+      created_at TEXT NOT NULL,
+      reviewed_at TEXT
+    );
+
+CREATE INDEX community_challenge_suggestions_status ON community_challenge_suggestions(status, week);
+
+CREATE INDEX community_challenge_suggestions_user ON community_challenge_suggestions(user_id);
+
+CREATE TABLE community_challenge_votes (
+      week TEXT NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      suggestion_id TEXT NOT NULL REFERENCES community_challenge_suggestions(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (week, user_id)
+    );
+
+CREATE INDEX community_challenge_votes_suggestion ON community_challenge_votes(suggestion_id);
+
+CREATE INDEX community_challenge_votes_user ON community_challenge_votes(user_id);
+
+CREATE TABLE community_challenge_weeks (
+      week TEXT PRIMARY KEY,
+      suggestion_id TEXT REFERENCES community_challenge_suggestions(id) ON DELETE SET NULL,
+      wod TEXT,
+      picked_at TEXT NOT NULL
+    );
 
 CREATE TABLE community_follows (
       follower_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -1,7 +1,8 @@
 import Foundation
 
-/// Weekly challenge room (#626 C): one AMRAP 12′ for everyone all week, kit-free so it works anywhere. The week key
-/// is the ISO 8601 week ("2026-W43"), the same string the server ranks scores by.
+/// Weekly challenge room (#626 C): one WOD for everyone all week, kit-free so it works anywhere. The week key is the
+/// ISO 8601 week ("2026-W43"), the same string the server ranks scores by. Since #748 the server deals the WOD (a
+/// 60-card deck and member weeks); the 8 AMRAPs below are the offline fallback.
 public enum WeeklyChallenge {
     /// Time cap of every challenge.
     public static let minutes = 12
@@ -32,6 +33,17 @@ public enum WeeklyChallenge {
         let n = (Int(parts.first ?? "") ?? 0) * 53 + (Int(parts.last ?? "") ?? 0)
         let w = wods[((n % wods.count) + wods.count) % wods.count]
         return WodTimer(id: "challenge-\(key)", name: w.name, kind: .amrap, work: minutes * 60, moves: w.moves)
+    }
+
+    /// The server's WOD as a timer (#748); `format` amrap | emom | fortime | tabata.
+    public static func timer(week: String, name: String, format: String, minutes: Int, moves: [String]) -> WodTimer {
+        let id = "challenge-\(week)"
+        switch format {
+        case "emom": return WodTimer(id: id, name: name, kind: .emom, work: 60, rounds: minutes, moves: moves)
+        case "fortime": return WodTimer(id: id, name: name, kind: .forTime, work: minutes * 60, moves: moves)
+        case "tabata": return WodTimer(id: id, name: name, kind: .tabata, work: 20, rest: 10, rounds: 8 * max(1, moves.count), moves: moves)
+        default: return WodTimer(id: id, name: name, kind: .amrap, work: minutes * 60, moves: moves)
+        }
     }
 
     /// Server score order: rounds first, then extra reps.

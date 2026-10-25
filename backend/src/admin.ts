@@ -5,8 +5,12 @@
  *   node src/admin.ts revoke <email>
  *   node src/admin.ts grant-all --until YYYY-MM-DD [--before YYYY-MM-DD]   free access for every existing account (early testers)
  *   node src/admin.ts list
+ *   node src/admin.ts challenges                      week challenge suggestions waiting for review (#748)
+ *   node src/admin.ts challenge-approve <id>          into the member-week vote
+ *   node src/admin.ts challenge-reject <id>
  */
 import { parseArgs } from 'node:util';
+import { pendingSuggestions, reviewSuggestion } from './community/challenges.ts';
 import { loadConfig } from './config.ts';
 import { openDb } from './db.ts';
 import { maskEmail } from './emailChange.ts';
@@ -63,7 +67,18 @@ switch (cmd) {
     // Masked: the workflow log is public (#432).
     console.table(subs.grants().map((g) => ({ ...g, email: g.email ? maskEmail(g.email) : null })));
     break;
+  case 'challenges':
+    // Nicknames only, no emails: the workflow log is public (#432).
+    console.table(pendingSuggestions(db).map((p) => ({ id: p.id, name: p.name, format: p.format, minutes: p.minutes, moves: (JSON.parse(p.moves) as string[]).join(' · '), by: p.nickname })));
+    break;
+  case 'challenge-approve':
+  case 'challenge-reject': {
+    if (!email) fail('Suggestion id required');
+    const status = cmd === 'challenge-approve' ? 'approved' : 'rejected';
+    console.log(reviewSuggestion(db, email!.trim(), status, new Date()) ? `Suggestion ${email} ${status}.` : `No pending suggestion ${email}.`);
+    break;
+  }
   default:
-    fail('Usage: node src/admin.ts grant <email> [--until YYYY-MM-DD] [--note text] | grant-all --until YYYY-MM-DD [--before YYYY-MM-DD] | revoke <email> | list');
+    fail('Usage: node src/admin.ts grant <email> [--until YYYY-MM-DD] [--note text] | grant-all --until YYYY-MM-DD [--before YYYY-MM-DD] | revoke <email> | list | challenges | challenge-approve <id> | challenge-reject <id>');
 }
 db.close();

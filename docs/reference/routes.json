@@ -129,6 +129,22 @@
   },
   {
     "method": "GET",
+    "path": "/v1/community/challenge/suggestions"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/community/challenge/suggestions"
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/community/challenge/suggestions/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/community/challenge/vote"
+  },
+  {
+    "method": "GET",
     "path": "/v1/community/feed"
   },
   {
