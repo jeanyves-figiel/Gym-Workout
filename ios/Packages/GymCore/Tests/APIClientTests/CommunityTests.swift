@@ -47,6 +47,16 @@ private let postJSON = #"""
         _ = try await api.react("p1", .strong, on: true)
     }
 
+    /// Workout posts carry their exercises (#779); older posts without them still decode.
+    @Test func cardExercisesRoundTripAndAreOptional() throws {
+        let card = CommunityCard(title: "Legs", exercises: [.init(id: "back-squat", name: "Back squat", sets: 3, reps: 5, kg: 100),
+                                                            .init(id: "plank", name: "Plank", sets: 2, reps: 45)])
+        let back = try JSONDecoder().decode(CommunityCard.self, from: JSONEncoder().encode(card))
+        #expect(back == card)
+        let old = try JSONDecoder().decode(CommunityCard.self, from: Data(#"{"title":"Upper body","stats":[{"label":"min","value":"52"}]}"#.utf8))
+        #expect(old.exercises == nil)
+    }
+
     @Test func searchesMembersAndListsFollowing() async throws {
         let row = #"{"userId":"u2","nickname":"bench_bea","bio":null,"avatarUrl":null,"gym":null,"sharedPosts":3,"followers":5,"followedByMe":true}"#
         StubProtocol.register("members.test") { req, _ in

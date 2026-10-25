@@ -123,6 +123,19 @@ const payload = z.object({
   /** Category/goal key for the card gradient (app-defined). */
   style: text(24).nullish(),
   stats: z.array(z.object({ label: text(20).min(1), value: text(20).min(1) })).max(4).nullish(),
+  /** Exercises of a shared workout (#779), so members can open the post and copy it: catalog id, name, sets done, reps and kg. */
+  exercises: z
+    .array(
+      z.object({
+        id: text(64).min(1),
+        name: text(60).min(1),
+        sets: z.number().int().min(0).max(50),
+        reps: z.number().min(0).max(1000).nullish(),
+        kg: z.number().min(0).max(1000).nullish(),
+      }),
+    )
+    .max(40)
+    .nullish(),
 });
 
 export const communityExport = (db: DB, userId: string) => ({
@@ -538,7 +551,14 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       })
       .parse(req.body);
     const prof = requireProfile(req.userId!);
-    checkClean(b.caption, b.payload.title, b.payload.subtitle, b.payload.metric?.unit, ...(b.payload.stats ?? []).flatMap((s) => [s.label, s.value]));
+    checkClean(
+      b.caption,
+      b.payload.title,
+      b.payload.subtitle,
+      b.payload.metric?.unit,
+      ...(b.payload.stats ?? []).flatMap((s) => [s.label, s.value]),
+      ...(b.payload.exercises ?? []).map((e) => e.name),
+    );
     const id = b.id.toLowerCase();
     const owner = db.prepare('SELECT user_id FROM community_posts WHERE id = ?').get(id) as { user_id: string } | undefined;
     if (owner && owner.user_id !== req.userId) throw new ApiError(409, 'conflict', 'Post id already used.');

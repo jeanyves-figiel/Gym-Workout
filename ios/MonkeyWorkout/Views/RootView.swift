@@ -379,7 +379,7 @@ private struct DemoScreen: View {
         }
         case "account-recovery": NavigationStack { RecoveryCodesView(codes: Demo.recoveryCodes) }
         case "account-passkeys": NavigationStack { PasskeysView(passkeys: Demo.security.passkeys) }
-        case "community", "community-join", "community-post", "community-story": NavigationStack { CommunityView() }
+        case "community", "community-join", "community-post", "community-story", "community-post-detail": NavigationStack { CommunityView() }
         case "challenge", "challenge-suggest": NavigationStack { ChallengeRoomView() }
         case "how-it-works": NavigationStack { HowItWorksView() }
         case "how-it-works-fuel": NavigationStack { HowItWorksTopicView(topic: HowItWorks.topic("fuel")!) }

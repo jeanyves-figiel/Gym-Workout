@@ -158,19 +158,39 @@ public struct CommunityCard: Codable, Sendable, Equatable {
         }
     }
 
+    /// One exercise of a shared workout (#779): catalog id, name, sets done, reps (or seconds) and kg per set.
+    public struct Exercise: Codable, Sendable, Equatable, Hashable {
+        public var id: String
+        public var name: String
+        public var sets: Int
+        public var reps: Double?
+        public var kg: Double?
+        public init(id: String, name: String, sets: Int, reps: Double? = nil, kg: Double? = nil) {
+            self.id = id
+            self.name = name
+            self.sets = sets
+            self.reps = reps
+            self.kg = kg
+        }
+    }
+
     public var title: String
     public var subtitle: String?
     public var metric: Metric?
     /// Gradient key (training category raw value).
     public var style: String?
     public var stats: [Stat]?
+    /// What a shared workout was made of (#779), so members can open the post and copy it. Nil on older posts.
+    public var exercises: [Exercise]?
 
-    public init(title: String, subtitle: String? = nil, metric: Metric? = nil, style: String? = nil, stats: [Stat]? = nil) {
+    public init(title: String, subtitle: String? = nil, metric: Metric? = nil, style: String? = nil, stats: [Stat]? = nil,
+                exercises: [Exercise]? = nil) {
         self.title = title
         self.subtitle = subtitle
         self.metric = metric
         self.style = style
         self.stats = stats
+        self.exercises = exercises
     }
 }
 
