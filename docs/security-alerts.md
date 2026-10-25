@@ -42,3 +42,4 @@ Default setup runs on push to `main`, on PRs to `main` and weekly. The Swift job
 | 2026-10-25 | same | `js/incomplete-sanitization` ×2 (high) `community.ts` nickname LIKE escape | Not reachable (input already `[a-z0-9_.]`), hardened: escapes `\ % _` (#762) |
 | 2026-10-25 | same | python 0, actions 0. Swift: 15 min on `macos-latest`, autobuild extracted 143 of 550 Swift files (partial coverage); alert count only in the Security tab | Owner reads Swift alerts in the Security tab |
 | 2026-10-25 | `npm audit` (Dependabot alerts just enabled) | `fast-uri` (moderate, scheme injection), `ip-address` (moderate, ReDoS), both transitive | Fixed by `npm audit fix` lockfile bump (#762) |
+| 2026-10-25 | Swift CodeQL (owner screenshot) | `swift/cleartext-transmission` (high) `APIClient.swift:594`: APNs token in the sign-out URL path (`/v1/me/push-device/<token>`), so in request logs | Fixed: token in the body, old path redacted in logs (#762) |

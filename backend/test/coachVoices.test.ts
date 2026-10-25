@@ -147,6 +147,7 @@ describe('coach calls the member by name (#415)', () => {
     expect(calls[0]!.ssml).toContain('Zoë!');
     expect((await call('%E0%A4%A')).statusCode).toBe(400);
     expect(logUrl('/v1/me/coach-voices/Joanna/call/hype.mp3?name=Zo%C3%AB&x=1')).toBe('/v1/me/coach-voices/Joanna/call/hype.mp3?name=[redacted]&x=1');
+    expect(logUrl('/v1/me/push-device/ABCDEF0123')).toBe('/v1/me/push-device/[redacted]');
     expect(logUrl('/v1/me/logs?since=2026-10-01T00:00:00Z')).toBe('/v1/me/logs?since=2026-10-01T00:00:00Z');
   });
 

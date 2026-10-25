@@ -34,6 +34,14 @@ export const pushRoutes = (r: FastifyInstance, push: PushService, topics: string
     return { ok: true, pushConfigured: push.configured };
   });
 
+  // Token in the body so it never lands in URLs or request logs (#762).
+  r.delete('/me/push-device', async (req, reply) => {
+    const { token: t } = z.object({ token }).parse(req.body);
+    push.unregisterDevice(req.userId!, t);
+    return reply.status(204).send();
+  });
+
+  // Apps before #762 send the token in the path (redacted by `logUrl`).
   r.delete('/me/push-device/:token', async (req, reply) => {
     const { token: t } = z.object({ token }).parse(req.params);
     push.unregisterDevice(req.userId!, t);

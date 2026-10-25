@@ -39,7 +39,7 @@ Design and controls. The repository is public: no secret values, keys, bucket na
 - Text members share with others (nicknames, captions, gym map zone names) goes through the word filter. Custom exercise photos are re-checked as JPEG and stripped like every other upload.
 - Images: JPEG only, size and dimension checks, APPn/comment segments (EXIF, GPS, XMP) stripped before storage.
 - HTML pages (legal, share card) escape every interpolated value.
-- Request logs never include bodies or tokens; the member's call name is redacted from URLs; emails are masked in ops logs. Problem reports filed as GitHub issues redact emails, tokens and other secrets in the title, text and every attached fact.
+- Request logs never include bodies or tokens; the member's call name and push tokens are redacted from URLs (push tokens travel in bodies); emails are masked in ops logs. Problem reports filed as GitHub issues redact emails, tokens and other secrets in the title, text and every attached fact.
 - The member's call name is never written to disk: its recording is kept in memory for an hour and dropped when the account is deleted.
 - Staging-only subscription test routes (`SUBSCRIPTION_TESTS=on`) refuse to start when the server's passkey host is the production host.
 

@@ -64,6 +64,10 @@ describe('push devices and prefs', () => {
     const r = (await post('/v1/me/push-test', u.token)).json();
     expect(r).toMatchObject({ devices: 1, sent: 1 });
     expect(sent[0]).toMatchObject({ token: TOKEN_A, env: 'production', topic: 'Com.app.MonkeyWorkout' });
+    expect((await app.inject({ method: 'DELETE', url: '/v1/me/push-device', payload: { token: TOKEN_A }, headers: auth(u.token) })).statusCode).toBe(204);
+    expect((await post('/v1/me/push-test', u.token)).json()).toMatchObject({ devices: 0, sent: 0 });
+    // Apps before #762 still unregister through the path.
+    await put('/v1/me/push-device', device(TOKEN_A), u.token);
     expect((await app.inject({ method: 'DELETE', url: `/v1/me/push-device/${TOKEN_A}`, headers: auth(u.token) })).statusCode).toBe(204);
     expect((await post('/v1/me/push-test', u.token)).json()).toMatchObject({ devices: 0, sent: 0 });
   });
