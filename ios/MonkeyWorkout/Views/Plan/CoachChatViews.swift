@@ -96,31 +96,7 @@ extension AppModel {
     }
 }
 
-/// "Ask Coach" bar inside the Coach card on Train: opens the chat.
-struct AskCoachBar: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: "bubble.left.and.text.bubble.right.fill").font(.system(size: 13, weight: .bold))
-                Text("Ask Coach for today's workout…").font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.8)
-                Spacer(minLength: 4)
-                Image(systemName: "arrow.up").font(.system(size: 12, weight: .black))
-                    .foregroundStyle(Theme.ink)
-                    .frame(width: 24, height: 24)
-                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Theme.lime))
-            }
-            .foregroundStyle(.white)
-            .padding(.leading, 12).padding(.trailing, 5).padding(.vertical, 5)
-            .background(Capsule().fill(.black.opacity(0.28)))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Ask Coach for today's workout")
-    }
-}
-
-/// The chat: full screen from Train, a sheet from the 🐵 bubble and sparks (#412) that knows the screen.
+/// The chat: a sheet from the 🐵 header tile and sparks (#412) that knows the screen.
 struct CoachChatView: View {
     /// Asked from a screen (#412): its focus, a question to send, or listen at once.
     var ask: AskCoachRequest?

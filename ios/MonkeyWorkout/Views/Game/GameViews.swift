@@ -152,8 +152,6 @@ struct MonkeyCoachCard: View {
     @State private var catchUpAll = false
     @State private var levels = false
     /// Workout chat (#381).
-    @State private var chatting = false
-    @State private var gate: ProGate?
     /// Spotted in Health (#416): a sport session to rate, with a swap for today when it clashes.
     @State private var sportSession: SportEntry?
     /// Snow ready season nudge (#428 C): the programme page as a sheet; opening it marks this season as seen.
@@ -198,7 +196,7 @@ struct MonkeyCoachCard: View {
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.trailing, compact ? 72 : 28)
+            .padding(.trailing, compact ? 44 : 28)
             .contentShape(Rectangle())
             .onTapGesture { poke(by: 1, count: all.count) }
             .accessibilityElement(children: .combine)
@@ -227,10 +225,6 @@ struct MonkeyCoachCard: View {
             }
             .buttonStyle(.plain)
             if let weekFooter { weekFooter }
-            // Workout chat (#381, design A): short phones skip the bar so Start workout stays on screen (#337).
-            if !compact {
-                AskCoachBar { ProStore.shared.run(.askCoach, $gate) { chatting = true } }
-            }
         }
         .foregroundStyle(.white)
         .padding(14)
@@ -250,27 +244,14 @@ struct MonkeyCoachCard: View {
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous)
             .fill(LinearGradient(colors: [Color(hex: current.tint.0), Color(hex: current.tint.1)], startPoint: .topLeading, endPoint: .bottomTrailing)))
         .overlay(alignment: .topTrailing) {
-            HStack(spacing: 8) {
-                // Short phones (#337): the workout chat (#381) opens from a corner button instead of the bar.
-                if compact {
-                    Button { ProStore.shared.run(.askCoach, $gate) { chatting = true } } label: {
-                        Image(systemName: "bubble.left.and.text.bubble.right.fill").font(.system(size: 14, weight: .heavy))
-                            .foregroundStyle(Theme.ink)
-                            .frame(width: 36, height: 36)
-                            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Ask Coach for today's workout")
-                }
-                // Next tip (#303): round corner button instead of a chip that pushed the row past the card.
-                Button { poke(by: 1, count: all.count) } label: {
-                    Image(systemName: "arrow.clockwise").font(.system(size: 15, weight: .heavy)).foregroundStyle(.white)
-                        .frame(width: 36, height: 36)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.28)))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Next tip")
+            // Next tip (#303) is the card's only corner button: Coach chat opens from the 🐵 header tile (#775).
+            Button { poke(by: 1, count: all.count) } label: {
+                Image(systemName: "arrow.clockwise").font(.system(size: 15, weight: .heavy)).foregroundStyle(.white)
+                    .frame(width: 36, height: 36)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.28)))
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Next tip")
             .padding(12)
         }
         .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
@@ -285,8 +266,6 @@ struct MonkeyCoachCard: View {
         .sheet(isPresented: $levels) { LevelLadderSheet() }
         .sheet(item: $sportSession) { SportSessionSheet(entry: $0) }
         .sheet(item: $snowProgramme) { ProgrammeSheet(id: $0.id) }
-        .fullScreenCover(isPresented: $chatting) { CoachChatView().remotePaused(.askCoach) }
-        .proPaywall($gate)
         .onAppear {
             guard !reduceMotion else { return }
             poke(by: 0, count: 0)
