@@ -418,6 +418,8 @@ final class AppModel {
     func applyProfile(_ profile: Profile, seed: UInt32? = nil, week: Int = 1, rolled: Bool = false) {
         let s = seed ?? UInt32.random(in: 0...UInt32.max)
         let newWeek = rolled || state.synced?.week != week || state.synced?.seed != s
+        // Edits made ahead (#758) for this calendar week or a later one outlive the week change.
+        let thisMonday = PlanCalendar.key(Progression.weekStart(Date(), planCalendar), planCalendar)
         let changed = newWeek || state.synced?.profile != profile
         // Plan inserts belong to one week: kept for a new variation or profile edit, dropped on a week change.
         // A variation's swaps only fit the exact plan they were made for.
@@ -436,7 +438,7 @@ final class AppModel {
                                liftFocus: state.synced?.liftFocus, setStyles: state.synced?.setStyles,
                                weekOf: state.synced?.weekOf,
                                // Exercise edits (#295): library workouts keep theirs; this week's plan days only within the week.
-                               sessionEdits: state.synced?.sessionEdits.map { list in list.filter { $0.week == nil || !newWeek } }.flatMap { $0.isEmpty ? nil : $0 },
+                               sessionEdits: state.synced?.sessionEdits.map { list in list.filter { $0.week == nil && $0.ahead == nil || !newWeek || ($0.ahead ?? "") >= thisMonday } }.flatMap { $0.isEmpty ? nil : $0 },
                                // Learned tastes (#299) shape the plan from the next new week on.
                                taste: state.synced?.taste,
                                weekTaste: newWeek ? freshWeekTaste : state.synced?.weekTaste,

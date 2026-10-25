@@ -55,6 +55,36 @@ extension AppModel {
     }
 
     private func makeCalendarWeeks(count: Int, now: Date) -> [PlanCalendar.Week] {
+        // Coming weeks with the edits made ahead for them (#758).
+        let edits = (state.synced?.sessionEdits ?? []).filter { $0.ahead != nil }
+        return uneditedCalendarWeeks(count: count, now: now).map { w in
+            var w = w
+            let mine = edits.filter { $0.ahead == w.days.first }
+            if !mine.isEmpty { w.plan = w.plan.applying(edits: mine) }
+            return w
+        }
+    }
+
+    /// Coming weeks as planned, without edits made ahead (#758): what such an edit starts from.
+    func aheadWeeks(now: Date = Date()) -> [PlanCalendar.Week] {
+        let key = derivedKey
+        let day = Calendar.current.startOfDay(for: now)
+        if let c = derived.aheadWeeks, c.key == key, c.day == day { return c.value }
+        let weeks = Array(uneditedCalendarWeeks(count: 3, now: now).dropFirst())
+        derived.aheadWeeks = (key, day, weeks)
+        return weeks
+    }
+
+    /// A coming week's workout as planned (#758) and the Monday of its week; nil for this week's or any other id.
+    func aheadSession(_ id: String) -> (session: Session, monday: String)? {
+        guard plan?.sessions.contains(where: { $0.id == id }) != true else { return nil }
+        for w in aheadWeeks() {
+            if let s = w.plan.sessions.first(where: { $0.id == id }), let monday = w.days.first { return (s, monday) }
+        }
+        return nil
+    }
+
+    private func uneditedCalendarWeeks(count: Int, now: Date) -> [PlanCalendar.Week] {
         guard let sp = state.synced else { return [] }
         // Library extras and one-off moves (#113) show on their day this week.
         return PlanCalendar.weeks(sp.placedProfile, seed: sp.seed, currentWeek: sp.week, current: plan, done: doneIds,

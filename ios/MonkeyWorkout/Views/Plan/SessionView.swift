@@ -5,7 +5,8 @@ import WorkoutEngine
 /// Session overview: muscle heat map, what each part of the session targets, and every exercise with its muscles.
 struct SessionView: View {
     let sessionId: String
-    /// A later week's workout (#758): shown as planned, nothing to edit, start or log.
+    /// A later week's workout (#758): its exercises can be edited, swapped or removed ahead; nothing to start,
+    /// log or re-plan (flow, type, style) before its week.
     var preview: Session? = nil
     @Environment(AppModel.self) private var model
     @State private var playing = false
@@ -23,7 +24,7 @@ struct SessionView: View {
     /// A missed day's session logged after the fact (#537).
     @State private var loggingMissed = false
 
-    private var session: Session? { preview ?? model.session(sessionId) }
+    private var session: Session? { preview != nil ? model.aheadEdited(sessionId) ?? preview : model.session(sessionId) }
     private var readOnly: Bool { preview != nil }
 
     var body: some View {
@@ -49,8 +50,8 @@ struct SessionView: View {
                         BlockSection(block: block, sessionId: session.id,
                                      firstNumber: session.blocks.prefix(i).reduce(0) { $0 + $1.items.count } + 1,
                                      sessionDone: model.state.done[session.id] ?? false,
-                                     canSwap: { !readOnly && (model.swapsThroughPlan(session, uid: $0.uid) || model.canEditExercises(session)) },
-                                     onRemove: !readOnly && canRemove(session) ? { remove($0, from: session) } : nil) { item in
+                                     canSwap: { model.swapsThroughPlan(session, uid: $0.uid) || model.canEditExercises(session) },
+                                     onRemove: canRemove(session) ? { remove($0, from: session) } : nil) { item in
                             // Example and custom workouts are fixed lists: no planned item behind them.
                             detail = ExerciseRef(exerciseId: item.exerciseId, uid: session.isStandalone || readOnly ? nil : item.uid)
                         } onSwap: { item in
@@ -168,7 +169,7 @@ struct SessionView: View {
     private func exercisesStat(_ s: Session) -> some View {
         let stat = GradientStat(symbol: "figure.strengthtraining.traditional", value: "\(s.blocks.reduce(0) { $0 + $1.items.count })", label: "Exercises",
                                 gradient: WorkoutEngine.Category.mobility.gradient)
-        if !readOnly && model.canEditExercises(s) {
+        if model.canEditExercises(s) {
             Button { editingExercises = true } label: {
                 stat.overlay(alignment: .topTrailing) {
                     Image(systemName: "pencil").font(.system(size: 13, weight: .heavy)).foregroundStyle(.white).padding(12)
@@ -184,8 +185,8 @@ struct SessionView: View {
     /// Exercises title with Edit (#295); an edited workout says so and can go back to the plan.
     @ViewBuilder
     private func exercisesHeader(_ s: Session) -> some View {
-        let editable = !readOnly && model.canEditExercises(s)
-        let edited = !readOnly && model.isEdited(s.id)
+        let editable = model.canEditExercises(s)
+        let edited = model.isEdited(s.id)
         if editable || edited {
             HStack(spacing: 8) {
                 Text("Exercises").eyebrow()
