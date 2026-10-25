@@ -5,6 +5,8 @@ import WorkoutEngine
 /// Session overview: muscle heat map, what each part of the session targets, and every exercise with its muscles.
 struct SessionView: View {
     let sessionId: String
+    /// A later week's workout (#758): shown as planned, nothing to edit, start or log.
+    var preview: Session? = nil
     @Environment(AppModel.self) private var model
     @State private var playing = false
     @State private var detail: ExerciseRef?
@@ -21,16 +23,17 @@ struct SessionView: View {
     /// A missed day's session logged after the fact (#537).
     @State private var loggingMissed = false
 
-    private var session: Session? { model.session(sessionId) }
+    private var session: Session? { preview ?? model.session(sessionId) }
+    private var readOnly: Bool { preview != nil }
 
     var body: some View {
         if let session {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     header(session)
-                    FlowOverview(session: session, onEdit: flowEdit(session))
+                    FlowOverview(session: session, onEdit: readOnly ? nil : flowEdit(session))
                     // Pool + gym (#624 C): the swim block of this gym day, or "Add a swim" for members with a swim plan.
-                    if !session.isStandalone { SwimBlockCard(session: session) }
+                    if !session.isStandalone && !readOnly { SwimBlockCard(session: session) }
                     // Gym Map (#406): the walk this session takes through the member's gym.
                     if let layout = model.profile?.gymLayout, let route = model.gymRoute(session) {
                         GymRouteCard(layout: layout, route: route, busyFirst: model.zoneBusy(route.stops[0].zone),
@@ -46,16 +49,16 @@ struct SessionView: View {
                         BlockSection(block: block, sessionId: session.id,
                                      firstNumber: session.blocks.prefix(i).reduce(0) { $0 + $1.items.count } + 1,
                                      sessionDone: model.state.done[session.id] ?? false,
-                                     canSwap: { model.swapsThroughPlan(session, uid: $0.uid) || model.canEditExercises(session) },
-                                     onRemove: canRemove(session) ? { remove($0, from: session) } : nil) { item in
+                                     canSwap: { !readOnly && (model.swapsThroughPlan(session, uid: $0.uid) || model.canEditExercises(session)) },
+                                     onRemove: !readOnly && canRemove(session) ? { remove($0, from: session) } : nil) { item in
                             // Example and custom workouts are fixed lists: no planned item behind them.
-                            detail = ExerciseRef(exerciseId: item.exerciseId, uid: session.isStandalone ? nil : item.uid)
+                            detail = ExerciseRef(exerciseId: item.exerciseId, uid: session.isStandalone || readOnly ? nil : item.uid)
                         } onSwap: { item in
                             let ref = ExerciseRef(exerciseId: item.exerciseId, uid: item.uid)
                             if model.swapsThroughPlan(session, uid: item.uid) { swapping = ref } else { pickingSwap = ref }
                         }
                     }
-                    finishButton(session)
+                    if !readOnly { finishButton(session) }
                 }
                 .padding(16)
                 .padding(.bottom, 24)
@@ -109,7 +112,10 @@ struct SessionView: View {
     /// planned, a done day has no button.
     @ViewBuilder
     private func bottomBar(_ s: Session) -> some View {
-        if model.startableToday(s) {
+        if readOnly {
+            // A later week (#758): when it's planned, nothing to start yet.
+            if let wd = s.weekday { bar { PlannedDayBadge(weekday: wd) } }
+        } else if model.startableToday(s) {
             bar {
                 Button { Haptics.start(); playing = true } label: {
                     Label(model.activeWorkout(s.id) == nil ? "Start workout" : "Resume workout", systemImage: "play.fill")
@@ -162,7 +168,7 @@ struct SessionView: View {
     private func exercisesStat(_ s: Session) -> some View {
         let stat = GradientStat(symbol: "figure.strengthtraining.traditional", value: "\(s.blocks.reduce(0) { $0 + $1.items.count })", label: "Exercises",
                                 gradient: WorkoutEngine.Category.mobility.gradient)
-        if model.canEditExercises(s) {
+        if !readOnly && model.canEditExercises(s) {
             Button { editingExercises = true } label: {
                 stat.overlay(alignment: .topTrailing) {
                     Image(systemName: "pencil").font(.system(size: 13, weight: .heavy)).foregroundStyle(.white).padding(12)
@@ -178,8 +184,8 @@ struct SessionView: View {
     /// Exercises title with Edit (#295); an edited workout says so and can go back to the plan.
     @ViewBuilder
     private func exercisesHeader(_ s: Session) -> some View {
-        let editable = model.canEditExercises(s)
-        let edited = model.isEdited(s.id)
+        let editable = !readOnly && model.canEditExercises(s)
+        let edited = !readOnly && model.isEdited(s.id)
         if editable || edited {
             HStack(spacing: 8) {
                 Text("Exercises").eyebrow()
@@ -228,12 +234,12 @@ struct SessionView: View {
             VStack(alignment: .leading, spacing: 6) {
                 if s.weekday == nil, let context = model.libraryTitle(s) { Text(context).eyebrow() }
                 Text(s.displayTitle).font(Theme.display(38)).fixedSize(horizontal: false, vertical: true)
-                // Change the workout's focus or swap days (#342).
-                WorkoutFocusChips(session: s)
+                // Change the workout's focus or swap days (#342); not on a later week's preview (#758).
+                if !readOnly { WorkoutFocusChips(session: s) }
             }
             // What finishing it earns, in the member's game look (#227).
             if !s.blocks.allSatisfy({ $0.items.isEmpty }) { SessionGameBanner(session: s) }
-            LibraryActionsPanel(session: s)
+            if !readOnly { LibraryActionsPanel(session: s) }
             if let t = WorkoutTemplate.find(sessionId: s.id) {
                 Text(([t.goal.label, t.kit, t.levelLabel] + [t.kcal.map { "\($0) kcal" }, t.activityPoints.map { "\($0) activity points" }].compactMap { $0 })
                     .joined(separator: " · "))
@@ -248,7 +254,7 @@ struct SessionView: View {
                 GradientStat(symbol: "square.stack.3d.up.fill", value: "\(s.blocks.filter { [BlockKind.power, .strength].contains($0.kind) }.flatMap(\.items).reduce(0) { $0 + $1.prescription.sets })", label: "Work sets",
                              gradient: WorkoutEngine.Category.strength.gradient)
             }
-            WorkoutStyleCard(session: s)
+            if !readOnly { WorkoutStyleCard(session: s) }
             VStack(alignment: .leading, spacing: 12) {
                 Text("Muscles worked · tap to explore").eyebrow()
                 BodyMapPair(heat: s.muscleHeat) { muscle = $0 }

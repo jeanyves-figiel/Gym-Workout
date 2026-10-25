@@ -75,7 +75,8 @@ private struct PlaceChip: View {
 // MARK: - The day's combo (#685, design A + B's Coach note)
 
 /// On a workout day card: the day's parts in the order to do them (lift at its gym, then the planned run, then
-/// climbing) and what the planner changed so they fit together.
+/// climbing) and what the planner changed so they fit together. The day line (#758, design A): every workout of the
+/// day (tap one to show it in the card), any sport and the daily routines (tap to open).
 struct DayComboRow: View {
     let session: Session
     let day: Int
@@ -84,30 +85,66 @@ struct DayComboRow: View {
     var showNote = true
     /// False when the card's eyebrow already names the place (#717, design 1A): the lift part reads "Lift".
     var showPlace = true
+    /// Every workout of the day in order, the shown one included (#758); empty = just `session`.
+    var daySessions: [Session] = []
+    /// Shows another workout of the day in the card (#758).
+    var onSelect: ((Session) -> Void)? = nil
+    /// Day key ("2026-10-26") for a dated sport day or trip (#758); nil = the weekly sport days only.
+    var dayKey: String? = nil
+    /// Daily routines as parts too (#758): coming days, not today (Train's Daily row has them).
+    var routines = false
     @Environment(AppModel.self) private var model
+    @AppStorage(RoutinePrefs.tilesKey) private var tilesRaw = ""
+    @AppStorage(RoutinePrefs.lengthsKey) private var lengthsRaw = ""
 
     private var run: RunWorkout? { thisWeek ? model.runWeek.first { $0.weekday == day }?.workout : nil }
-    private var climbs: Bool { model.profile?.climbingDays.contains(day) ?? false }
-
-    /// A session without lifting (#757) is named by its type, not "Lift".
-    private var lifts: Bool { session.blocks.contains { $0.kind == .strength } }
+    /// The day's sport (#758): a dated sport day or trip, else the weekly climbing or sport day.
+    private var sport: Sport? {
+        let date = dayKey.flatMap { PlanCalendar.date($0, model.planCalendar) } ?? Date()
+        return model.profile?.sport(onWeekday: day, key: dayKey, date: date)
+    }
+    private var sessions: [Session] { daySessions.isEmpty ? [session] : daySessions }
 
     var body: some View {
-        if session.hiit != nil || session.place != nil || run != nil || climbs {
+        let sessions = self.sessions
+        let sport = self.sport
+        let tiles = routines ? model.dailyTiles(tilesRaw) : []
+        // A lone HIIT day shows its blocks (#757); otherwise each workout is one part.
+        let hiitBlocks = sessions.count == 1 ? session.hiit : nil
+        if sessions.count > 1 || session.hiit != nil || session.place != nil || run != nil || sport != nil || !tiles.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        if let hiit = session.hiit {
+                        if let hiit = hiitBlocks {
                             // A HIIT day (#757, design A2): its blocks, not "Lift".
                             ForEach(Array(Self.hiitParts(hiit).enumerated()), id: \.offset) { _, p in block(p.title, p.format.symbol) }
                         } else {
-                            let name = lifts ? "Lift" : session.focus.dayLabel
-                            part(1, session.place.flatMap { showPlace ? "\(name) · \($0)" : nil } ?? name, lifts ? "dumbbell.fill" : session.focus.symbol,
-                                 (lifts ? WorkoutEngine.Category.strength : .cardio).colors)
+                            ForEach(Array(sessions.enumerated()), id: \.element.id) { i, s in
+                                let face = workoutPart(i + 1, s, many: sessions.count > 1)
+                                    .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                        .strokeBorder(.white, lineWidth: sessions.count > 1 && s.id == session.id ? 2 : 0))
+                                if sessions.count > 1, let onSelect {
+                                    Button { withAnimation(.snappy) { onSelect(s) } } label: { face }
+                                        .buttonStyle(.plain)
+                                        .accessibilityHint("Shows it in the card")
+                                } else {
+                                    face
+                                }
+                            }
                         }
-                        let first = session.hiit == nil ? 1 : 0
-                        if let run { part(first + 1, "\(run.title) \(run.minutes)′", run.symbol, WorkoutEngine.Category.cardio.colors) }
-                        if climbs { part(first + (run == nil ? 1 : 2), "Climb", "figure.climbing", WorkoutEngine.Category.power.colors) }
+                        let n = hiitBlocks == nil ? sessions.count : 0
+                        if let run { part(n + 1, "\(run.title) \(run.minutes)′", run.symbol, WorkoutEngine.Category.cardio.colors) }
+                        if let sport {
+                            part(n + (run == nil ? 1 : 2), sport == .climbing ? "Climb" : sport.label, sport == .climbing ? "figure.climbing" : sport.symbol,
+                                 sport == .climbing ? WorkoutEngine.Category.power.colors : sport.colors)
+                        }
+                        ForEach(tiles) { r in
+                            let minutes = RoutinePrefs.length(lengthsRaw, r)
+                            NavigationLink(value: r.sessionId(minutes: minutes)) {
+                                part(nil, "\(r.short) \(minutes)′", r.symbol, WorkoutEngine.Category.mobility.colors)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
                 if showNote, let note = session.synergy {
@@ -118,7 +155,7 @@ struct DayComboRow: View {
                         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Theme.lime.opacity(0.15)))
                 }
             }
-            .accessibilityElement(children: .combine)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("train.dayCombo")
         }
     }
@@ -146,10 +183,22 @@ struct DayComboRow: View {
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.black.opacity(0.28)))
     }
 
-    private func part(_ n: Int, _ title: String, _ symbol: String, _ colors: [Color]) -> some View {
+    /// A workout of the day: alone it reads "Lift" (or its type, #757) with the place; one of several (#758) shows
+    /// its own name.
+    private func workoutPart(_ n: Int, _ s: Session, many: Bool) -> some View {
+        let lifts = s.blocks.contains { $0.kind == .strength }
+        let symbol = s.hiit != nil ? "bolt.heart.fill" : lifts ? "dumbbell.fill" : s.focus.symbol
+        let colors = s.hiit != nil ? Theme.hiitColors : (lifts ? WorkoutEngine.Category.strength : .cardio).colors
+        let name = many ? (s.hiit.map { "HIIT · \($0.minutes)′" } ?? s.displayTitle) : lifts ? "Lift" : s.focus.dayLabel
+        return part(n, s.place.flatMap { showPlace && !many ? "\(name) · \($0)" : nil } ?? name, symbol, colors)
+    }
+
+    private func part(_ n: Int?, _ title: String, _ symbol: String, _ colors: [Color]) -> some View {
         HStack(spacing: 5) {
-            Text("\(n)").font(Theme.label(11)).frame(width: 18, height: 18)
-                .background(RoundedRectangle(cornerRadius: 5).fill(.black.opacity(0.25)))
+            if let n {
+                Text("\(n)").font(Theme.label(11)).frame(width: 18, height: 18)
+                    .background(RoundedRectangle(cornerRadius: 5).fill(.black.opacity(0.25)))
+            }
             Image(systemName: symbol).font(.system(size: 11, weight: .bold))
             Text(title).font(Theme.label(11)).lineLimit(1)
         }
