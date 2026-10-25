@@ -104,63 +104,6 @@ extension AppModel {
     }
 }
 
-/// Under Start workout on Train (#462, design C from `other-sports/row-proposals.png`): one pill split in two, Log sport
-/// (a past session) and Track live (on the Watch). Without a paired Watch that has MonkeyWorkout, only Log sport.
-/// Build as I go (#490): `onFree` adds a first part that opens an empty workout in the player.
-struct SportSplitPill: View {
-    var onFree: (() -> Void)? = nil
-    var freeResumes = false
-    let onLog: () -> Void
-    let onTrack: () -> Void
-    @State private var link = WatchLink.shared
-
-    var body: some View {
-        // Equal tiles with gaps (#529): each part has its own rounded shape.
-        HStack(spacing: 8) {
-            if let onFree {
-                half(freeResumes ? "Resume" : "Freestyle", detail: freeResumes ? "resume" : "add as you train",
-                     symbol: "plus.square.on.square", ink: .white, action: onFree)
-                    .background(LinearGradient.freestyle, in: tile)
-                    .accessibilityHint("Start an empty workout and add exercises as you train")
-                    .accessibilityIdentifier("train.freestyle")
-            }
-            half("Log sport", detail: "past session", symbol: "plus.circle.fill", ink: .white, action: onLog)
-                .background(LinearGradient(colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)], startPoint: .leading, endPoint: .trailing), in: tile)
-                .accessibilityHint("Log a sport session you already did: snowboard, bike, Hyrox…")
-            if link.ready {
-                half("Track live", detail: "on your Watch", symbol: "applewatch.radiowaves.left.and.right", ink: Theme.ink, action: onTrack)
-                    .background(Theme.lime, in: tile)
-                    .accessibilityHint("Start a sport on your Apple Watch now")
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: link.ready)
-    }
-
-    private var tile: RoundedRectangle { RoundedRectangle(cornerRadius: 18, style: .continuous) }
-
-    private func half(_ title: String, detail: String, symbol: String, ink: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            // Short tiles, icon beside the title (#752, design C): the day card fits above the tab bar. The detail
-            // line went to VoiceOver. Content sits in an overlay so label lengths never change a tile's size.
-            Color.clear
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .overlay {
-                    HStack(spacing: 5) {
-                        Image(systemName: symbol).font(.system(size: 13, weight: .bold))
-                        Text(title).font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.6)
-                    }
-                    .foregroundStyle(ink)
-                    .padding(.horizontal, 6)
-                }
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityValue(detail)
-    }
-}
-
 // MARK: - Log sport (design A; sheet layout B + card C, #435)
 
 /// Sheet: what did you do (bold sport grid), when, how long, how hard. Climbing opens the climb log.
