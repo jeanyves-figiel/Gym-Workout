@@ -518,6 +518,10 @@ private struct DemoScreen: View {
         case "fuel-week": NavigationStack { FuelWeekView() }
         case "fuel-learn": NavigationStack { FuelLearnView() }
         case "fuel-supplements": NavigationStack { SupplementsView() }
+        // My stack sheet with the add tile and quick squares (#742).
+        case "fuel-stack":
+            FuelStackSheet(plan: model.fuelPlan(on: Date()), day: Date())
+                .onAppear { if FuelStore.shared.stack.isEmpty { FuelStore.shared.saveSupplement(SupplementKind.creatine.preset) } }
         case "fuel-plate":
             JustAteSheet(plan: model.fuelPlan(on: Date()), day: Date(),
                          plate: [FoodServing(foodId: "coffee"), FoodServing(foodId: "cornflakes", servings: 1.5)])
