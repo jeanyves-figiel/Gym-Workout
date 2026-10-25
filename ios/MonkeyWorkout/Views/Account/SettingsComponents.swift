@@ -72,6 +72,7 @@ struct SettingsSearch {
 struct SettingsGroup<Content: View>: View {
     let chapter: SettingsChapter
     @ViewBuilder var content: () -> Content
+    @Environment(\.settingsJumpInset) private var jumpInset
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -83,14 +84,19 @@ struct SettingsGroup<Content: View>: View {
                 .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(chapter.gradient))
         }
         .padding(.top, 10)
-        // Jump target sits above the card so the chapter title clears the sticky search + chapter bar.
+        // Jump target sits one measured header height above the chapter so its title clears the sticky search + chapter bar (#743).
         .background(alignment: .top) {
-            Color.clear.frame(height: 1).alignmentGuide(.top) { $0[.top] + 110 }.id(chapter)
+            Color.clear.frame(height: 1).alignmentGuide(.top) { $0[.top] + jumpInset }.id(chapter)
         }
         .background(GeometryReader { g in
             Color.clear.preference(key: ChapterTopKey.self, value: [chapter: g.frame(in: .named("settings")).minY])
         })
     }
+}
+
+extension EnvironmentValues {
+    /// Height of the pinned Settings search + chapter bar; chapter jumps land just below it.
+    @Entry var settingsJumpInset: CGFloat = 110
 }
 
 /// A row inside a SettingsGroup: icon tile, title, plain current value right, chevron.
@@ -148,14 +154,15 @@ struct SettingsChapterBar: View {
                                 .background(Capsule().fill(current == c ? AnyShapeStyle(Theme.lime) : AnyShapeStyle(.white.opacity(0.14))))
                         }
                         .buttonStyle(.plain)
-                        .id(c)
+                        // Own id space: a bare chapter id clashed with the chapter's jump target, so taps scrolled to the wrong spot (#743).
+                        .id("chip-\(c.rawValue)")
                         .accessibilityAddTraits(current == c ? .isSelected : [])
                     }
                 }
                 .padding(.horizontal, 16)
             }
             .onChange(of: current) { _, c in
-                if let c { withAnimation { proxy.scrollTo(c, anchor: .center) } }
+                if let c { withAnimation { proxy.scrollTo("chip-\(c.rawValue)", anchor: .center) } }
             }
         }
         .padding(.vertical, 8)
