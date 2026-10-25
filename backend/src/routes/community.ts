@@ -640,6 +640,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
 
     const q = p.q.toLowerCase();
     const nick = q.replace(/[^a-z0-9_.]/g, '');
+    const likeNick = nick.replace(/[\\%_]/g, (c) => `\\${c}`);
     if (q) {
       // Nickname contains (prefix first, then shortest), then members who show a gym whose name contains the text.
       const byNick = nick
@@ -648,7 +649,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
               `SELECT cp.* ${base} AND cp.nickname LIKE ? ESCAPE '\\'
                ORDER BY (cp.nickname LIKE ? ESCAPE '\\') DESC, length(cp.nickname), cp.nickname LIMIT ?`,
             )
-            .all(viewer, viewer, viewer, `%${nick.replace(/_/g, '\\_')}%`, `${nick.replace(/_/g, '\\_')}%`, p.limit)
+            .all(viewer, viewer, viewer, `%${likeNick}%`, `${likeNick}%`, p.limit)
         : [];
       const seen = new Set((byNick as unknown as ProfileRow[]).map((r) => r.user_id));
       const gymText = nameKey(q);

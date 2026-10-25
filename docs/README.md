@@ -13,6 +13,7 @@ MonkeyWorkout is an iPhone + Apple Watch gym app (SwiftUI) with a Node API. The 
 | API endpoint reference (all routes) | [api/endpoints.md](api/endpoints.md) · [OpenAPI](reference/openapi.json) |
 | Server data model (SQLite) | [data-model.md](data-model.md) · [schema.sql](reference/schema.sql) |
 | Security, data protection, threat model | [security.md](security.md) |
+| Security alerts (CodeQL, secret scanning, Dependabot): capture and triage | [security-alerts.md](security-alerts.md) |
 | Hosting and third-party services | [infrastructure.md](infrastructure.md) |
 | CI/CD, release flow, TestFlight, What's new | [ci-cd.md](ci-cd.md) |
 | Subscriptions (MonkeyWorkout Pro) | [subscriptions.md](subscriptions.md) |

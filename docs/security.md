@@ -1,6 +1,6 @@
 # Security and data protection
 
-Design and controls. The repository is public: no secret values, keys, bucket names or member data belong here or anywhere in the repo. Report a vulnerability privately to the contact on [`/support`](https://workout.monkeygrade.cloud/support), not in a public issue.
+Design and controls. The repository is public: no secret values, keys, bucket names or member data belong here or anywhere in the repo. Report a vulnerability privately to the contact on [`/support`](https://workout.monkeygrade.cloud/support), not in a public issue. Code scanning and secret scanning alerts: [security-alerts.md](security-alerts.md).
 
 ## Authentication
 
