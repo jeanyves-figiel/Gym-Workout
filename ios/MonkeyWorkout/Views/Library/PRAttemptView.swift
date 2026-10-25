@@ -431,6 +431,11 @@ struct PRAttemptView: View {
                 Label(r.isRecord ? "Share my PR" : "Share", systemImage: "square.and.arrow.up")
             }
             .buttonStyle(LimeButtonStyle())
+            // Story poster (#745): 9:16 for Instagram Stories.
+            StoryShareButton(poster: .record(exercise: e.name, value: r.kind == .maxReps ? "\(r.reps)" : LoadAdvisor.formatKg(r.kg),
+                                             unit: r.kind == .maxReps ? "reps" : "kg",
+                                             line: [r.kind == .maxReps ? "@ \(LoadAdvisor.formatKg(r.kg)) kg" : "\(r.label) · × \(r.reps)", improvement(r)]
+                                                 .compactMap { $0 }.joined(separator: " · "), isRecord: r.isRecord))
         } else {
             ShareLink(item: text) { Label("Share", systemImage: "square.and.arrow.up") }
                 .buttonStyle(LimeButtonStyle())

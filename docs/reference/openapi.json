@@ -51,6 +51,9 @@
       "name": "Community"
     },
     {
+      "name": "Invite a friend (#745)"
+    },
+    {
       "name": "Workout library"
     },
     {
@@ -2421,6 +2424,32 @@
         }
       }
     },
+    "/v1/community/me/socials": {
+      "put": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "Socials (#745): {socials: {instagram?, tiktok?, strava?, youtube?}, visibility? everyone|following|nobody}; handles without @, empty removes → {socials, visibility}. Members see them on GET /v1/community/members/:userId per visibility (default following)",
+        "description": "Errors / limits: 400 invalid handle; 404 not_member",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/community/me/avatar": {
       "put": {
         "tags": [
@@ -3485,6 +3514,89 @@
           }
         ],
         "security": [],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/i/{code}": {
+      "get": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "Invite page (#745): inviter's nickname, code, link to get the app (INVITE_APP_URL)",
+        "description": "Errors / limits: 404",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/referrals/me": {
+      "get": {
+        "tags": [
+          "Invite a friend (#745)"
+        ],
+        "summary": "→ {code, path, joined, subscribed, invitedBy: {nickname, at} | null, canRedeem}; subscribed = invitees with a paid (non-trial, not revoked) App Store subscription",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/referrals/redeem": {
+      "post": {
+        "tags": [
+          "Invite a friend (#745)"
+        ],
+        "summary": "{code} (case-insensitive), accounts ≤ 14 days old, once → same as GET",
+        "description": "Errors / limits: 404 invalid_code; 400 own_code, account_too_old, referral_cycle; 409 already_redeemed; 10/hour",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "responses": {
           "default": {
             "description": "See summary. Errors: `{error, message}`",

@@ -30,6 +30,26 @@ const POSTS_PER_DAY = 50;
 export const REACTIONS = ['like', 'strong', 'fire', 'clap', 'beast', 'banana'] as const;
 const POST_KINDS = ['workout', 'badge', 'record', 'climb', 'note'] as const;
 
+/** Social handles on the member profile (#745), stored without "@"; the app builds the links. */
+export const SOCIALS_VISIBILITIES = ['everyone', 'following', 'nobody'] as const;
+type SocialsVisibility = (typeof SOCIALS_VISIBILITIES)[number];
+const handle = (re: RegExp) =>
+  z.string().trim().transform((v) => v.replace(/^@/, '')).pipe(z.union([z.literal(''), z.string().regex(re)])).nullish();
+const socialsBody = z.object({
+  instagram: handle(/^[A-Za-z0-9._]{1,30}$/),
+  tiktok: handle(/^[A-Za-z0-9._]{1,24}$/),
+  strava: handle(/^[A-Za-z0-9_-]{1,40}$/),
+  youtube: handle(/^[A-Za-z0-9._-]{1,30}$/),
+});
+type Socials = z.infer<typeof socialsBody>;
+const parseSocials = (raw: string | null): Socials => {
+  try {
+    return raw ? (JSON.parse(raw) as Socials) : {};
+  } catch {
+    return {};
+  }
+};
+
 interface ProfileRow {
   user_id: string;
   nickname: string;
@@ -44,6 +64,8 @@ interface ProfileRow {
   gym_name: string | null;
   gym_lat: number | null;
   gym_lon: number | null;
+  socials: string | null;
+  socials_visibility: SocialsVisibility;
   guidelines_accepted_at: string;
   created_at: string;
 }
@@ -211,17 +233,29 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     level: p.level ?? null,
     pronouns: p.pronouns ?? null,
     gym: gymOf(p)?.name ?? null,
+    socials: parseSocials(p.socials),
+    socialsVisibility: p.socials_visibility,
     guidelinesAcceptedAt: p.guidelines_accepted_at,
     ...stats(p.user_id),
   });
 
-  const memberProfile = (p: ProfileRow) => ({
+  /** Socials the viewer may see: own, everyone, or followers of the member. */
+  const visibleSocials = (p: ProfileRow, viewer: string): Socials | null => {
+    const show =
+      p.user_id === viewer ||
+      p.socials_visibility === 'everyone' ||
+      (p.socials_visibility === 'following' && !!db.prepare('SELECT 1 FROM community_follows WHERE follower_id = ? AND followed_id = ?').get(viewer, p.user_id));
+    return show ? parseSocials(p.socials) : null;
+  };
+
+  const memberProfile = (p: ProfileRow, viewer: string) => ({
     userId: p.user_id,
     nickname: p.nickname,
     bio: p.bio,
     avatarUrl: avatarUrl(p.avatar_id),
     level: p.level ?? null,
     pronouns: p.pronouns ?? null,
+    socials: visibleSocials(p, viewer),
     gym: sharedGym(p)?.name ?? null,
     createdAt: p.created_at,
     ...stats(p.user_id),
@@ -429,6 +463,21 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     if (pronouns) checkClean(pronouns, null);
     db.prepare('UPDATE community_profiles SET pronouns = ? WHERE user_id = ?').run(pronouns, req.userId!);
     return { pronouns };
+  });
+
+  /** Social handles (#745): null or empty removes one; `visibility` everyone | following | nobody. */
+  r.put('/community/me/socials', async (req) => {
+    const b = z.object({ socials: socialsBody, visibility: z.enum(SOCIALS_VISIBILITIES).optional() }).parse(req.body);
+    const p = profileRow(req.userId!);
+    if (!p) throw new ApiError(404, 'not_member', 'Join the community first.');
+    const socials = Object.fromEntries(Object.entries(b.socials).filter(([, v]) => v)) as Socials;
+    db.prepare('UPDATE community_profiles SET socials = ?, socials_visibility = ?, updated_at = ? WHERE user_id = ?').run(
+      Object.keys(socials).length ? JSON.stringify(socials) : null,
+      b.visibility ?? p.socials_visibility,
+      now().toISOString(),
+      req.userId!,
+    );
+    return { socials, visibility: b.visibility ?? p.socials_visibility };
   });
 
   r.put('/community/me/avatar', async (req) => {
@@ -640,7 +689,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     ) as unknown as PostRow[];
     const blocked = !!db.prepare('SELECT 1 FROM community_blocks WHERE blocker_id = ? AND blocked_id = ?').get(viewer, userId);
     const following = !!db.prepare('SELECT 1 FROM community_follows WHERE follower_id = ? AND followed_id = ?').get(viewer, userId);
-    return { member: memberProfile(p), posts: toPosts(rows, viewer), blockedByMe: blocked, followedByMe: following };
+    return { member: memberProfile(p, viewer), posts: toPosts(rows, viewer), blockedByMe: blocked, followedByMe: following };
   });
 
   // ───────────── follows

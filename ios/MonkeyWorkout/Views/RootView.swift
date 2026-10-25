@@ -101,6 +101,8 @@ struct MainTabView: View {
         .task(id: model.user?.id) {
             await Community.shared.load(api: model.api, userId: model.user?.id)
             await autoShare()
+            // Invite counts (#745): their XP joins the level.
+            if !model.demo { await ReferralStore.shared.load(api: model.api, userId: model.user?.id) }
         }
         // Auto-share catch-up (#479): a workout finished on the Watch while the app was closed, a failed post or
         // a sport the Watch tracked (it reaches the iPhone through Health) is posted when the app opens.
@@ -380,6 +382,7 @@ private struct DemoScreen: View {
         case "community-tip": PostTipSheet()
         case "community-share": ShareWinView()
         case "community-profile": NavigationStack { ProfileView() }
+        case "social-invite": NavigationStack { InviteView() }
         case "community-members":
             NavigationStack { FindMembersView().navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) } }
         case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", Demo.customExercise.exerciseId]) { _ in }

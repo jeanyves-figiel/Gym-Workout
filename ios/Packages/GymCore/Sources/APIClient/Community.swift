@@ -41,6 +41,9 @@ public struct CommunityProfile: Codable, Sendable, Equatable {
     public var level: Int?
     /// Pronouns shown next to the nickname (#415), only when the member turned it on.
     public var pronouns: String?
+    /// Social handles (#745) and who sees them; nil from older servers.
+    public var socials: SocialHandles?
+    public var socialsVisibility: SocialsVisibility?
 
     public init(
         userId: String, nickname: String, bio: String? = nil, avatarUrl: String? = nil, defaultVisibility: CommunityVisibility = .onlyMe,
@@ -97,6 +100,8 @@ public struct CommunityMember: Codable, Sendable, Equatable {
     public var level: Int?
     /// Pronouns shown next to the nickname (#415), only when the member turned it on.
     public var pronouns: String?
+    /// Social handles (#745); nil when hidden from you.
+    public var socials: SocialHandles?
 
     public init(
         userId: String, nickname: String, bio: String?, avatarUrl: String?, sharedPosts: Int, cheersReceived: Int, followers: Int = 0, following: Int = 0,

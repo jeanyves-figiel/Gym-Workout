@@ -450,6 +450,8 @@ struct MemberView: View {
                             nickname: page?.member.nickname ?? author.nickname, bio: page?.member.bio)
                 RankTitleChip(level: page?.member.level ?? author.level).frame(maxWidth: .infinity)
                 if let pr = page?.member.pronouns ?? author.pronouns { PronounsChip(pronouns: pr).frame(maxWidth: .infinity) }
+                // Socials (#745, S2): square tiles, shown as the member chose (everyone, followers, nobody).
+                if let s = page?.member.socials, !s.isEmpty { SocialTiles(socials: s) }
                 if let m = page?.member {
                     if let gym = m.gym {
                         Label(gym, systemImage: "building.2.fill").font(Theme.label(13)).foregroundStyle(Theme.lime).frame(maxWidth: .infinity)

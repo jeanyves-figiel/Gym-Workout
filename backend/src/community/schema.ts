@@ -153,6 +153,10 @@ export const ensureCommunitySchema = (db: DB): void => {
     `);
     for (const { user_id } of db.prepare('SELECT user_id FROM community_profiles').all() as { user_id: string }[]) refreshMemberGym(db, user_id);
   }
+  // Socials (#745): handles as JSON {instagram, tiktok, strava, youtube}, shown to everyone, followers or nobody.
+  if (!cols.some((c) => c.name === 'socials')) db.exec('ALTER TABLE community_profiles ADD COLUMN socials TEXT');
+  if (!cols.some((c) => c.name === 'socials_visibility'))
+    db.exec("ALTER TABLE community_profiles ADD COLUMN socials_visibility TEXT NOT NULL DEFAULT 'following' CHECK (socials_visibility IN ('everyone', 'following', 'nobody'))");
   // Beast and Banana cheers (#566): the kind CHECK is rebuilt once on databases made before them.
   const reactions = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'community_reactions'").get() as { sql: string } | undefined;
   if (reactions && !reactions.sql.includes("'banana'")) {
