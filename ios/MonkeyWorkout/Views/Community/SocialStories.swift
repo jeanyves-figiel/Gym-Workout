@@ -5,7 +5,7 @@ import WorkoutEngine
 // Social, simpler (#738, design B from `social-simplify/b.png`): a square story row on top (live buddies, the week
 // challenge, members who trained today), then one mixed feed. Replaces the gym card, stat tiles, share row and tabs.
 
-/// Square story tiles: Live / Invites, the week challenge, each member who trained today, Invite when nobody did.
+/// Square story tiles: Live / Invites, the week challenge, each member who trained today, then Invite (#745).
 struct SocialStoriesRow: View {
     let posts: [CommunityPost]
     @State private var story: StoryStart?
@@ -31,10 +31,9 @@ struct SocialStoriesRow: View {
                     Button { story = StoryStart(id: p.id) } label: { tile(p.emoji, p.mine ? "You" : p.author.nickname, p.gradient, ring: Theme.lime) }
                         .accessibilityLabel("\(p.mine ? "You" : p.author.nickname) trained today: \(p.payload.title)")
                 }
-                if today.isEmpty {
-                    NavigationLink { BuddiesScreen() } label: { tile("➕", "Invite", WorkoutEngine.Category.strength.gradient, ring: Theme.cardStrong) }
-                        .accessibilityLabel("Invite a gym buddy")
-                }
+                // Own page since #745 (it opened Gym buddies): code, rewards, then buddies.
+                NavigationLink { InviteView() } label: { tile("🎁", "Invite", WorkoutEngine.Category.strength.gradient, ring: Theme.lime) }
+                    .accessibilityLabel("Invite a friend")
             }
             .buttonStyle(.plain)
         }

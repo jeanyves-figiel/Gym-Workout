@@ -234,7 +234,7 @@ CREATE TABLE community_profiles (
       guidelines_accepted_at TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
-    , show_gym INTEGER NOT NULL DEFAULT 0, level INTEGER, pronouns TEXT, gym_id TEXT, gym_name TEXT, gym_key TEXT, gym_lat REAL, gym_lon REAL);
+    , show_gym INTEGER NOT NULL DEFAULT 0, level INTEGER, pronouns TEXT, gym_id TEXT, gym_name TEXT, gym_key TEXT, gym_lat REAL, gym_lon REAL, socials TEXT, socials_visibility TEXT NOT NULL DEFAULT 'following' CHECK (socials_visibility IN ('everyone', 'following', 'nobody')));
 
 CREATE INDEX community_profiles_gym ON community_profiles(gym_id);
 
@@ -546,6 +546,20 @@ CREATE TABLE recovery_codes (
     );
 
 CREATE INDEX recovery_codes_user ON recovery_codes(user_id);
+
+CREATE TABLE referral_codes (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      code TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL
+    );
+
+CREATE TABLE referrals (
+      invitee_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      referrer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL
+    );
+
+CREATE INDEX referrals_referrer ON referrals(referrer_id);
 
 CREATE TABLE refresh_tokens (
      id TEXT PRIMARY KEY,

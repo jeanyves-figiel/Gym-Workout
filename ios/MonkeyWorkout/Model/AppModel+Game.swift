@@ -5,10 +5,10 @@ import WorkoutEngine
 extension AppModel {
     var gameTarget: Int { profile?.sessionsPerWeek ?? 3 }
 
-    /// Walking and stairs (Daily Move, #454) add their XP on top of the workouts.
+    /// Walking and stairs (Daily Move, #454) add their XP on top of the workouts; so do invites (#745).
     var game: GameProgress {
         let version = observedStateVersion
-        let moveXP = MoveStore.shared.xp + FuelStore.shared.xp
+        let moveXP = MoveStore.shared.xp + FuelStore.shared.xp + ReferralStore.shared.xp
         if let c = derived.game, c.key == version, c.moveXP == moveXP { return c.value }
         let g = GameProgress.evaluate(records: state.history, targetPerWeek: gameTarget, moveXP: moveXP)
         derived.game = (version, moveXP, g)

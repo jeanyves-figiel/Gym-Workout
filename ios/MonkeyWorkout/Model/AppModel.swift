@@ -135,6 +135,7 @@ final class AppModel {
             if Demo.screen == "explore-volume" { state.synced?.profile.method = .volume }
             Community.shared.loadDemo(joined: Demo.screen != "community-join")
             SharedPlans.shared.loadDemo()
+            if Demo.screen == "social-invite" { ReferralStore.shared.loadDemo() }
             if ["paywall", "pro", "pro-offer", "pro-gate"].contains(Demo.screen) { ProStore.shared.loadDemo(pro: Demo.screen == "pro") }
             state.customExerciseList = [Demo.customExercise]
             state.synced?.away = Demo.away()
@@ -326,6 +327,7 @@ final class AppModel {
         // Personal copies outside state.json: cached Health readings, the data export, HTTP responses.
         HealthManager.clearCache()
         MoveStore.shared.signOut()
+        ReferralStore.shared.signOut()
         WodStore.shared.signOut()
         SwimStore.shared.signOut()
         FuelStore.shared.signOut()

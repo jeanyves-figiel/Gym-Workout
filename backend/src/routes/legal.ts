@@ -96,7 +96,11 @@ const privacy = (l: Legal) => `
 <ul>
 <li>Nickname, profile photo, short bio, your pronouns if you choose to show them, the wins you choose to share with captions, cheers, follows, blocks and reports.</li>
 <li>Each post is visible to Only me, Members or Public (a public web link). You choose per post and can change or delete it at any time.</li>
-<li>Photos are re-rendered on your device and stripped of location and other metadata on the server.</li>
+<li>Photos are re-rendered on your device and stripped of location and other metadata on the server.</li><li>Social handles you add (Instagram, TikTok, Strava, YouTube), shown to everyone, members who follow you, or nobody, as you choose.</li>
+</ul>
+<h3>Invites</h3>
+<ul>
+<li>Your invite code, who invited you (if you entered a code) and how many friends joined or subscribed with yours. Friends' names are not shown to you; the invite page shows your nickname with your code.</li>
 </ul>
 <p>Why: to run the community features you opt into, and to moderate content (reports are reviewed by the operator).</p>
 

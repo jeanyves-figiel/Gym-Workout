@@ -24,6 +24,8 @@ struct ProfileView: View {
         var showPronouns: Bool
         var visibility: CommunityVisibility?
         var autoShare: Bool?
+        var socials: SocialHandles?
+        var socialsVisibility: SocialsVisibility?
     }
 
     @State private var name = ""
@@ -37,6 +39,8 @@ struct ProfileView: View {
     @State private var showPronouns = false
     @State private var visibility: CommunityVisibility = .members
     @State private var autoShare = false
+    @State private var socials = SocialHandles()
+    @State private var socialsVisibility: SocialsVisibility = .following
     @State private var photoItem: PhotosPickerItem?
     /// Photo upload / removal, saved at once (not part of Undo).
     @State private var task = FormTask()
@@ -102,6 +106,10 @@ struct ProfileView: View {
                     .card(padding: 14)
                     ShowGymCard()
                     AccountNote(text: "Default visibility of your posts, auto-share and your gym.")
+                    // Socials (#745, S2): shown as square tiles on your member page.
+                    section("Your socials")
+                    SocialsEditor(socials: $socials, visibility: $socialsVisibility)
+                    AccountNote(text: "Instagram, TikTok, Strava and YouTube on your member page, for everyone, members who follow you, or nobody.")
                     Group {
                         NavigationLink { LiveSharingView() } label: {
                             AccountCard(symbol: "dot.radiowaves.left.and.right", title: "Live",
@@ -217,7 +225,8 @@ struct ProfileView: View {
                  nickname: nicknameProblem == nil ? nickname : (community.me.nickname ?? ""),
                  bio: bio.trimmingCharacters(in: .whitespacesAndNewlines), gender: gender, genderText: genderText, pronouns: pronouns,
                  pronounsCustom: pronounsCustom, coachCall: coachCall, showPronouns: showPronouns,
-                 visibility: member ? visibility : nil, autoShare: member ? autoShare : nil)
+                 visibility: member ? visibility : nil, autoShare: member ? autoShare : nil,
+                 socials: member ? socials : nil, socialsVisibility: member ? socialsVisibility : nil)
     }
 
     private func load() {
@@ -234,6 +243,8 @@ struct ProfileView: View {
         showPronouns = b.showPronouns ?? false
         visibility = community.profile?.defaultVisibility ?? .members
         autoShare = community.profile?.autoShare ?? false
+        socials = community.profile?.socials ?? SocialHandles()
+        socialsVisibility = community.profile?.socialsVisibility ?? .following
         loaded = true
     }
 
@@ -262,6 +273,13 @@ struct ProfileView: View {
             community.setProfile(saved)
         } else if community.profile == nil, (me.nickname ?? "") != s.nickname || (me.bio ?? "") != s.bio {
             community.setPublic(try await api.savePublicProfile(nickname: s.nickname, bio: s.bio))
+        }
+        if var p = community.profile, let socials = s.socials, let v = s.socialsVisibility,
+           (p.socials ?? SocialHandles()) != socials || (p.socialsVisibility ?? .following) != v {
+            try await api.setSocials(socials, visibility: v)
+            p.socials = socials
+            p.socialsVisibility = v
+            community.setProfile(p)
         }
     }
 

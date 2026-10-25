@@ -9,6 +9,10 @@
   },
   {
     "method": "GET",
+    "path": "/i/:code"
+  },
+  {
+    "method": "GET",
     "path": "/privacy"
   },
   {
@@ -194,6 +198,10 @@
   {
     "method": "PUT",
     "path": "/v1/community/me/pronouns"
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/community/me/socials"
   },
   {
     "method": "GET",
@@ -642,6 +650,14 @@
   {
     "method": "GET",
     "path": "/v1/packs/:name/:sha"
+  },
+  {
+    "method": "GET",
+    "path": "/v1/referrals/me"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/referrals/redeem"
   },
   {
     "method": "POST",

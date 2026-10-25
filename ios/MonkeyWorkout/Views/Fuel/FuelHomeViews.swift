@@ -264,7 +264,7 @@ struct FuelKitchen: View {
     }
 }
 
-/// My stack and the caffeine meter in a sheet, from the Kitchen square or the caffeine square.
+/// My stack and the caffeine meter in a sheet, from the Kitchen square or the caffeine square; add tile and quick squares under it (#742).
 struct FuelStackSheet: View {
     let plan: FuelPlan
     let day: Date
@@ -274,7 +274,12 @@ struct FuelStackSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                FuelStackCard(plan: plan, log: store.log(day), day: day).padding(16)
+                VStack(spacing: 10) {
+                    FuelStackCard(plan: plan, log: store.log(day), day: day)
+                    // The empty card is itself the add tile.
+                    if !store.stack.isEmpty { SupplementAddPanel() }
+                }
+                .padding(16)
             }
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("My stack")
