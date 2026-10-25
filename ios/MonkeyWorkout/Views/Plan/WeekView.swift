@@ -1053,13 +1053,17 @@ private struct NextUpCard: View {
                 VStack(alignment: .leading, spacing: 6) {
                     if !showsJump && placeDay == nil { eyebrowText }
                     // Long titles wrap instead of shrinking or cutting off (#538).
-                    Text(session.displayTitle).font(Theme.display(compact ? 26 : 30)).foregroundStyle(.white)
-                        .lineLimit(3).minimumScaleFactor(0.9).fixedSize(horizontal: false, vertical: true)
-                    HStack(spacing: 10) {
-                        Label("\(session.estMin) min", systemImage: "clock.fill").font(Theme.label(14)).foregroundStyle(.white.opacity(0.9))
+                    // Minutes and XP on the title's line (#752, design C).
+                    HStack(alignment: .center, spacing: 8) {
+                        Text(session.displayTitle).font(Theme.display(compact ? 26 : 30)).foregroundStyle(.white)
+                            .lineLimit(3).minimumScaleFactor(0.9).fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 4)
+                        Label("\(session.estMin) min", systemImage: "clock.fill").font(Theme.label(13)).foregroundStyle(.white.opacity(0.9))
+                            .lineLimit(1).fixedSize()
                         // XP it earns (#227).
-                        Text("+\(model.xp(for: session)) XP").font(Theme.label(13)).foregroundStyle(Theme.lime)
-                            .padding(.horizontal, 9).padding(.vertical, 4)
+                        Text("+\(model.xp(for: session)) XP").font(Theme.label(12)).foregroundStyle(Theme.lime)
+                            .lineLimit(1).fixedSize()
+                            .padding(.horizontal, 8).padding(.vertical, 4)
                             .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.ink.opacity(0.85)))
                     }
                     if !compact {
@@ -1555,25 +1559,24 @@ private struct DayActionTileLabel: View {
     var ink: Color = .white
 
     var body: some View {
-        // Content in an overlay so label lengths never change a tile's size (#529).
+        // Content in an overlay so label lengths never change a tile's size (#529). Short, title only (#752, design C):
+        // the day card fits above the tab bar; the detail is read by VoiceOver.
         Color.clear
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
+            .frame(height: 44)
             .overlay(alignment: .leading) {
-                HStack(spacing: 8) {
-                    Image(systemName: symbol).font(.system(size: 15, weight: .heavy))
-                        .frame(width: 32, height: 32)
-                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.black.opacity(0.18)))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(title).font(Theme.label(15)).lineLimit(1).minimumScaleFactor(0.6)
-                        Text(detail).font(Theme.label(10)).opacity(0.8).lineLimit(1).minimumScaleFactor(0.7)
-                    }
+                HStack(spacing: 7) {
+                    Image(systemName: symbol).font(.system(size: 13, weight: .heavy))
+                        .frame(width: 26, height: 26)
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.black.opacity(0.18)))
+                    Text(title).font(Theme.label(14)).lineLimit(1).minimumScaleFactor(0.6)
                 }
                 .foregroundStyle(ink)
                 .padding(.horizontal, 10)
             }
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(fill))
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .accessibilityValue(detail)
     }
 }
 
@@ -1711,7 +1714,7 @@ private struct RestDayCard: View {
                                    onTrack: { trackingSport = SportLog(start: Date()) })
                 } else {
                     // Sport actions live in the hero (#658): Freestyle stays for today's gym.
-                    DayActionTile(title: "Freestyle", detail: model.freestyleInProgress != nil ? "resume" : "add as you train",
+                    DayActionTile(title: model.freestyleInProgress != nil ? "Resume" : "Freestyle", detail: model.freestyleInProgress != nil ? "resume" : "add as you train",
                                   symbol: "plus.square.on.square", fill: AnyShapeStyle(LinearGradient.freestyle)) {
                         Haptics.start()
                         freestyle = model.freestyleInProgress ?? model.startFreestyle()

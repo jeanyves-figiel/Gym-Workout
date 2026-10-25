@@ -118,7 +118,7 @@ struct SportSplitPill: View {
         // Equal tiles with gaps (#529): each part has its own rounded shape.
         HStack(spacing: 8) {
             if let onFree {
-                half("Freestyle", detail: freeResumes ? "resume" : "add as you train",
+                half(freeResumes ? "Resume" : "Freestyle", detail: freeResumes ? "resume" : "add as you train",
                      symbol: "plus.square.on.square", ink: .white, action: onFree)
                     .background(LinearGradient.freestyle, in: tile)
                     .accessibilityHint("Start an empty workout and add exercises as you train")
@@ -141,16 +141,15 @@ struct SportSplitPill: View {
 
     private func half(_ title: String, detail: String, symbol: String, ink: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            // Icon over the title so three parts fit the card at any width (#526: the inline labels overflowed).
-            // Content sits in an overlay so the label lengths never change a tile's size: all tiles same width and height.
+            // Short tiles, icon beside the title (#752, design C): the day card fits above the tab bar. The detail
+            // line went to VoiceOver. Content sits in an overlay so label lengths never change a tile's size.
             Color.clear
                 .frame(maxWidth: .infinity)
-                .frame(height: 60)
+                .frame(height: 44)
                 .overlay {
-                    VStack(spacing: 1) {
-                        Image(systemName: symbol).font(.system(size: 14, weight: .bold))
+                    HStack(spacing: 5) {
+                        Image(systemName: symbol).font(.system(size: 13, weight: .bold))
                         Text(title).font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.6)
-                        Text(detail).font(Theme.label(9)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.7)
                     }
                     .foregroundStyle(ink)
                     .padding(.horizontal, 6)
@@ -158,6 +157,7 @@ struct SportSplitPill: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityValue(detail)
     }
 }
 
