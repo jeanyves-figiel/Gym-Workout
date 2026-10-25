@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, scryptSync } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
@@ -148,5 +148,21 @@ describe('stored sync ids are lower-cased once (#714)', () => {
       { id: up.toLowerCase(), data: '{"v":"up"}' },
     ]);
     expect(db.prepare('SELECT workout_id FROM library_saves').all()).toEqual([{ workout_id: w.toLowerCase() }]);
+  });
+});
+
+describe('password hashes upgrade at sign-in (#762)', () => {
+  it('replaces a scrypt hash with Argon2id after a correct password, keeps it on a wrong one', async () => {
+    await signUp();
+    const salt = Buffer.alloc(16, 3);
+    const key = scryptSync(PW, salt, 64, { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+    const old = `scrypt$32768$8$1$${salt.toString('base64')}$${key.toString('base64')}`;
+    db.prepare('UPDATE users SET password_hash = ? WHERE email = ?').run(old, 'lifter@example.com');
+    const hash = () => (db.prepare('SELECT password_hash FROM users WHERE email = ?').get('lifter@example.com') as { password_hash: string }).password_hash;
+    expect((await req('POST', '/v1/auth/login', undefined, { email: 'lifter@example.com', password: 'wrong-password-123' })).statusCode).toBe(401);
+    expect(hash()).toBe(old);
+    expect((await req('POST', '/v1/auth/login', undefined, { email: 'lifter@example.com', password: PW })).statusCode).toBe(200);
+    expect(hash()).toMatch(/^\$argon2id\$v=19\$m=32768,t=3,p=1\$/);
+    expect((await req('POST', '/v1/auth/login', undefined, { email: 'lifter@example.com', password: PW })).statusCode).toBe(200);
   });
 });

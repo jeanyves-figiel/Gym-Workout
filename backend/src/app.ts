@@ -102,8 +102,9 @@ export const clientIp = (req: FastifyRequest): string =>
 
 const device = (req: FastifyRequest) => (req.headers['x-device-name'] as string | undefined) ?? req.headers['user-agent'];
 
-/** Request URL for the logs: the member's call name (`?name=`, coach voices) never lands in them. */
-export const logUrl = (url: string): string => url.replace(/([?&]name=)[^&#]*/g, '$1[redacted]');
+/** Request URL for the logs: the member's call name (`?name=`, coach voices) and push tokens never land in them. */
+export const logUrl = (url: string): string =>
+  url.replace(/([?&]name=)[^&#]*/g, '$1[redacted]').replace(/(\/push-device\/)[^/?#]+/g, '$1[redacted]');
 
 export const buildApp = (deps: AppDeps): FastifyInstance => {
   const app = Fastify({

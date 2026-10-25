@@ -1,12 +1,12 @@
 # Security and data protection
 
-Design and controls. The repository is public: no secret values, keys, bucket names or member data belong here or anywhere in the repo. Report a vulnerability privately to the contact on [`/support`](https://workout.monkeygrade.cloud/support), not in a public issue.
+Design and controls. The repository is public: no secret values, keys, bucket names or member data belong here or anywhere in the repo. Report a vulnerability privately to the contact on [`/support`](https://workout.monkeygrade.cloud/support), not in a public issue. Code scanning and secret scanning alerts: [security-alerts.md](security-alerts.md).
 
 ## Authentication
 
 | Method | How it works |
 |---|---|
-| Email + password | Password ≥ 10 chars, common and email-derived passwords rejected, checked against Have I Been Pwned (k-anonymity range API: only 5 hex chars of the SHA-1 leave the server, padded, 2 s timeout, fails open). Hashed with scrypt (N=2¹⁵, r=8, p=1, random salt), at most a few hashes at once. Unknown accounts hash a dummy to keep timing equal. Email verified by a 6-digit code before first sign-in. |
+| Email + password | Password ≥ 10 chars, common and email-derived passwords rejected, checked against Have I Been Pwned (k-anonymity range API: only 5 hex chars of the SHA-1 leave the server, padded, 2 s timeout, fails open). Hashed with Argon2id (32 MiB, 3 passes, 1 lane, 16-byte random salt; PHC string), at most 2 hashes at once. Older scrypt hashes still verify and are replaced with Argon2id at the next successful sign-in. SHA-1 is used only for the HIBP lookup key, never stored. Unknown accounts hash a dummy to keep timing equal. Email verified by a 6-digit code before first sign-in. |
 | Sign in with Apple | Identity token verified against Apple's JWKS (issuer, bundle-id audience, expiry). The raw `nonce` must match the token's SHA-256 `nonce` claim and is accepted once (replay). The authorization code is exchanged for an Apple refresh token (stored AES-256-GCM encrypted) so account deletion can revoke it at Apple. A verified Apple email links to an existing account. |
 | Passkeys | WebAuthn via SimpleWebAuthn; relying party per environment (`WEBAUTHN_RP_ID`), associated domains served from `/.well-known/apple-app-site-association`. Up to 20 per account; challenges single use, 5 min. |
 | 2-step (optional) | TOTP (RFC 6238) with 10 single-use recovery codes. Password sign-in then answers 403 `mfa_required` with a short-lived `mfaToken`. Apple and passkey sign-ins skip it unless `APPLE_TWO_STEP=on` (Apple). |
@@ -39,7 +39,7 @@ Design and controls. The repository is public: no secret values, keys, bucket na
 - Text members share with others (nicknames, captions, gym map zone names) goes through the word filter. Custom exercise photos are re-checked as JPEG and stripped like every other upload.
 - Images: JPEG only, size and dimension checks, APPn/comment segments (EXIF, GPS, XMP) stripped before storage.
 - HTML pages (legal, share card) escape every interpolated value.
-- Request logs never include bodies or tokens; the member's call name is redacted from URLs; emails are masked in ops logs. Problem reports filed as GitHub issues redact emails, tokens and other secrets in the title, text and every attached fact.
+- Request logs never include bodies or tokens; the member's call name and push tokens are redacted from URLs (push tokens travel in bodies); emails are masked in ops logs. Problem reports filed as GitHub issues redact emails, tokens and other secrets in the title, text and every attached fact.
 - The member's call name is never written to disk: its recording is kept in memory for an hour and dropped when the account is deleted.
 - Staging-only subscription test routes (`SUBSCRIPTION_TESTS=on`) refuse to start when the server's passkey host is the production host.
 
@@ -48,7 +48,7 @@ Design and controls. The repository is public: no secret values, keys, bucket na
 | Where | Control |
 |---|---|
 | In transit | HTTPS only (`force_https`), TLS at Fly's edge. iOS ATS without exceptions except local networking for DEV. No certificate pinning (deliberate: rotation risk). |
-| Server at rest | Fly volume encrypted. Secrets inside the DB: password hashes (scrypt), codes and tokens hashed (HMAC/SHA-256), TOTP secrets and Apple refresh tokens AES-256-GCM (key derived from `CODE_PEPPER`). Training data is plain inside the encrypted volume (needed for Community and levels). |
+| Server at rest | Fly volume encrypted. Secrets inside the DB: password hashes (Argon2id; scrypt until the member's next sign-in), codes and tokens hashed (HMAC/SHA-256), TOTP secrets and Apple refresh tokens AES-256-GCM (key derived from `CODE_PEPPER`). Training data is plain inside the encrypted volume (needed for Community and levels). |
 | Backups off-site | Gzipped and encrypted on the server (AES-256-GCM, key derived from `BACKUP_KEY` via scrypt) before upload: the storage provider only holds ciphertext. |
 | iPhone / Watch | Files written with Data Protection `completeUntilFirstUserAuthentication` (readable by widgets and the Watch after first unlock); export file `complete`. API client keeps no HTTP cache; server sends `Cache-Control: no-store`. |
 
@@ -88,7 +88,7 @@ Rules: each cloud credential has least privilege (the SES IAM user may send mail
 
 | Asset | Threat | Mitigations |
 |---|---|---|
-| Accounts | Credential stuffing, brute force | HIBP check, scrypt, per-IP rate limit, per-IP and daily lockout, optional 2-step, passkeys |
+| Accounts | Credential stuffing, brute force | HIBP check, Argon2id, per-IP rate limit, per-IP and daily lockout, optional 2-step, passkeys |
 | Accounts | Account enumeration | Uniform answers on register / reset / email change; dummy hash timing |
 | Sessions | Stolen refresh token | Rotation with family revocation on replay, device list, sign out everywhere, Keychain this-device-only |
 | Sessions | Stolen access token | 15 min life, ended at once by a password change or sign out everywhere, HTTPS only, no HTTP caching |

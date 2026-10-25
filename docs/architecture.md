@@ -24,7 +24,7 @@ flowchart LR
   end
   Garmin["Garmin watch<br/>Connect IQ app"]
   subgraph Fly["Fly.io (fra)"]
-    API["API<br/>Node 22 · Fastify"]
+    API["API<br/>Node 24 · Fastify"]
     DB[("SQLite on volume /data")]
     Voices[("Voice cache /data")]
     API --> DB
@@ -54,7 +54,7 @@ flowchart LR
 | Watch app | `ios/MonkeyWorkoutWatch`, `ios/WatchShared` | SwiftUI, HealthKit workout sessions, Core Motion |
 | Watch complications | `ios/MonkeyWorkoutWatchComplications` | WidgetKit on watchOS |
 | Garmin app | `garmin/` | Monkey C (Connect IQ) |
-| API | `backend/src` | Node 22 (TS type stripping), Fastify 5, `node:sqlite`, zod, jose, SimpleWebAuthn |
+| API | `backend/src` | Node 24 (TS type stripping), Fastify 5, `node:sqlite`, zod, jose, SimpleWebAuthn |
 
 ## Design principles
 

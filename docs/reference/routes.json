@@ -572,6 +572,10 @@
     "path": "/v1/me/public-profile/avatar"
   },
   {
+    "method": "DELETE",
+    "path": "/v1/me/push-device"
+  },
+  {
     "method": "PUT",
     "path": "/v1/me/push-device"
   },

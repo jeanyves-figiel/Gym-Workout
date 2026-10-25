@@ -130,7 +130,8 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | Method | Path | Auth | Summary | Errors / limits |
 |---|---|---|---|---|
 | PUT | `/v1/me/push-device` | Bearer | `{token (hex), env sandbox\|production, topic (bundle id), tz?}` → `{ok, pushConfigured}`; a token moves to the last account registering it | 400 `invalid_topic` |
-| DELETE | `/v1/me/push-device/:token` | Bearer | → 204 (sign-out) | |
+| DELETE | `/v1/me/push-device` | Bearer | `{token}` → 204 (sign-out); token in the body so it stays out of URLs and logs | |
+| DELETE | `/v1/me/push-device/:token` | Bearer | → 204; apps before #762 (path redacted in logs) | |
 | GET | `/v1/me/notification-prefs` | Bearer | → `{prefs, pushConfigured}`: toggles, reminder / check-in times, quiet hours (minutes after midnight) | |
 | PUT | `/v1/me/notification-prefs` | Bearer | `{prefs}` (any subset; what it leaves out keeps its saved value) → `{prefs}` | |
 | POST | `/v1/me/achievements` | Bearer | `{achievements[≤30]: {id, type, text}}` → `{announced}`; each new id pushed once to followers, at most 20 a day per member | 30/min |
