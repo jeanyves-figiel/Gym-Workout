@@ -505,7 +505,6 @@ struct SportStrip: View {
             ForEach(shown) { s in
                 SportTile(sport: s, selected: selected == s) { pick(s) }
                     .frame(width: 74)
-                    .opacity(selected == s ? 1 : 0.55)
                     .id(s)
             }
             Button(action: all) {

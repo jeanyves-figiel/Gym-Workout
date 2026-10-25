@@ -107,21 +107,23 @@ struct Card: ViewModifier {
     }
 }
 
-/// Selectable gradient card (#88). Picked: full gradient + ring. Unpicked: only the fill is dimmed and
-/// desaturated (thin outline instead of a ring); the white text on top stays full opacity so it still reads.
+/// Selectable gradient card (#88). Picked: full gradient + ring. Unpicked: same full gradient with a thin outline, like
+/// the full sport list (#471); dimmed fills turned muddy on the dark background (#755). `dim` keeps the old dimmed,
+/// desaturated fill for "already added" states (widget boards).
 struct SelectableGradient: ViewModifier {
     let fill: AnyShapeStyle
     let selected: Bool
     var cornerRadius: CGFloat = 24
     var ring: Color = .white
+    var dim = false
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         return content
             .background {
                 shape.fill(fill)
-                    .saturation(selected ? 1 : 0.6)
-                    .opacity(selected ? 1 : 0.42)
+                    .saturation(selected || !dim ? 1 : 0.6)
+                    .opacity(selected || !dim ? 1 : 0.42)
             }
             .overlay(shape.strokeBorder(selected ? ring : Color.white.opacity(0.22), lineWidth: selected ? 3 : 1))
             .animation(.spring(duration: 0.25), value: selected)
@@ -131,8 +133,9 @@ struct SelectableGradient: ViewModifier {
 extension View {
     func card(padding: CGFloat = 16) -> some View { modifier(Card(padding: padding)) }
 
-    func selectableGradient<S: ShapeStyle>(_ fill: S, selected: Bool, cornerRadius: CGFloat = 24, ring: Color = .white) -> some View {
-        modifier(SelectableGradient(fill: AnyShapeStyle(fill), selected: selected, cornerRadius: cornerRadius, ring: ring))
+    func selectableGradient<S: ShapeStyle>(_ fill: S, selected: Bool, cornerRadius: CGFloat = 24, ring: Color = .white,
+                                           dim: Bool = false) -> some View {
+        modifier(SelectableGradient(fill: AnyShapeStyle(fill), selected: selected, cornerRadius: cornerRadius, ring: ring, dim: dim))
     }
 
     /// Explore-style card: vivid gradient fill, white type (dark `ink` on light gradients, #540).
