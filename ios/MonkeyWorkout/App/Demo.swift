@@ -3,7 +3,7 @@ import APIClient
 import Foundation
 import WorkoutEngine
 
-/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|tv-player|cast-sheet|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|account-security|account-reauth|account-2step|account-recovery|account-passkeys|signin-2step|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|own-gym|variety|variation|welcome|signin|signup|verify|community|community-join|community-post|community-story|community-plan|community-share-plan|community-tip|community-share|community-profile|profile|profile-gym|profile-gym-add|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|equipment-zones|equipment-by-zone|floor-plan|session-zones|swap-zones|player-zones|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|whats-new-history|watch-lift|lift-practice|watch-home|game-{week|session|done|progress}-{coach|deck|rings}|game-quest-deck|game-ladder|game-levelup|game-levelup-legend|game-level-row|explore-programmes|explore-routines|daily-pick|daily-offer|routine-builder|explore-hiit|hiit-builder|hiit-player|train-hiit|programme|programme-running|train-programme|programme-test|progress-programmes|profile-programme|calendar-programme|programme-finished|programme-length|programme-grid|programme-grid-running|programme-mine|programme-builder|programme-builder-week|snow-ready|hyrox-ready|train-missed|missed-catchup|missed-log|calendar-missed|train-day-picked|train-rest-day|train-past-day|train-skipped|undo-bar|edit-exercises|session-edited|flow-warmup|flow-cooldown|quick-flow|taste|train-taste|coach-chat|coach-chat-empty|position|position-mistake|position-press|your-week-sports|add-sport|plan-sport|calendar-trip|day-trip|fresh-start|train-smart|block-tweak|auto-tune|growth-path|coach-memory|lift-lab|lift-focus|lift-focus-setup|set-style|train-comeback|train-run|train-hybrid|run-session|run-start|run-goal|zone-week|onboarding-gym|onboarding-machines|onboarding-map|onboarding-plan|onboarding-tour|app-tour|train-setup|onboarding-hub|fuel-setup-card|fuel-plate|fuel-snap-plate|fuel-log|fuel-snap]`
+/// DEBUG-only: `-demo [-demoScreen week|pr|pr-attempt|pr-result|onboarding|onboarding-climbing|session|player|player-rest|tv-player|cast-sheet|explore|muscle|exercise|technique|progress|progress-empty|history|body|account|account-password|account-email|account-security|account-reauth|account-2step|account-recovery|account-passkeys|signin-2step|readiness|cycle|picker|library|library-plan|builder|calendar|day|move|add-workout|add-workout-quick|away|gyms|own-gym|variety|variation|welcome|signin|signup|verify|community|community-join|community-post|community-story|community-plan|community-share-plan|community-tip|community-share|challenge|challenge-suggest|community-profile|profile|profile-gym|profile-gym-add|profile-goal|profile-goal-focus|day-focus|profile-method|profile-flow|flow-session|flow-builder|flow-picks|paywall|pro|pro-offer|pro-gate|equipment|equipment-zones|equipment-by-zone|floor-plan|session-zones|swap-zones|player-zones|gym-setup|gym-swipe|gym-result|not-here|measurements|measurement-log|measurement-detail|measurement-howto|measurement-guide|whats-new|whats-new-history|watch-lift|lift-practice|watch-home|game-{week|session|done|progress}-{coach|deck|rings}|game-quest-deck|game-ladder|game-levelup|game-levelup-legend|game-level-row|explore-programmes|explore-routines|daily-pick|daily-offer|routine-builder|explore-hiit|hiit-builder|hiit-player|train-hiit|programme|programme-running|train-programme|programme-test|progress-programmes|profile-programme|calendar-programme|programme-finished|programme-length|programme-grid|programme-grid-running|programme-mine|programme-builder|programme-builder-week|snow-ready|hyrox-ready|train-missed|missed-catchup|missed-log|calendar-missed|train-day-picked|train-rest-day|train-past-day|train-skipped|undo-bar|edit-exercises|session-edited|flow-warmup|flow-cooldown|quick-flow|taste|train-taste|coach-chat|coach-chat-empty|position|position-mistake|position-press|your-week-sports|add-sport|plan-sport|calendar-trip|day-trip|fresh-start|train-smart|block-tweak|auto-tune|growth-path|coach-memory|lift-lab|lift-focus|lift-focus-setup|set-style|train-comeback|train-run|train-hybrid|run-session|run-start|run-goal|zone-week|onboarding-gym|onboarding-machines|onboarding-map|onboarding-plan|onboarding-tour|app-tour|train-setup|onboarding-hub|fuel-setup-card|fuel-plate|fuel-snap-plate|fuel-log|fuel-snap]`
 /// launches with sample data and no network — used by CI screenshots and previews.
 enum Demo {
     /// Studio coach voices (#395) for the `coach-settings` screen.
@@ -444,5 +444,36 @@ extension Demo {
         }
         return blocks
     }
+}
+
+/// Week challenge screens (#748): a Tabata deck card, a busy board, the member-week vote and your suggestions.
+extension Demo {
+    static func challengeRoom(week: String) -> ChallengeRoom {
+        ChallengeRoom(
+            week: week,
+            wod: ChallengeWod(name: "Tabata Tree", format: .tabata, minutes: 12, moves: ["jump squats", "push-ups", "hollow rocks"],
+                              memberWeek: false, card: 17, deckSize: 60),
+            next: nil,
+            history: [ChallengePast(week: "2026-W42", name: "Big Ape", rank: 4), ChallengePast(week: "2026-W41", name: "Treetop", rank: 9),
+                      ChallengePast(week: "2026-W40", name: "Vine Swing", rank: nil), ChallengePast(week: "2026-W39", name: "Jungle Gym", rank: 2)],
+            vote: ChallengeVote(week: "2026-W44", endsAt: Date().addingTimeInterval(2 * 86_400), finalists: [
+                ChallengeFinalist(id: "s1", name: "Lemur Leap", format: .amrap, minutes: 12, moves: ["10 burpees", "15 air squats"],
+                                  by: ChallengeAuthor(userId: "u2", nickname: "marco"), votes: 62, mine: true),
+                ChallengeFinalist(id: "s2", name: "Gorilla Grind", format: .emom, minutes: 14, moves: ["8 burpees", "16 lateral lunges"],
+                                  by: ChallengeAuthor(userId: "u3", nickname: "lea"), votes: 28, mine: false),
+                ChallengeFinalist(id: "s3", name: "Ape Ladder", format: .fortime, minutes: 15, moves: ["50 air squats", "30 push-ups"],
+                                  by: ChallengeAuthor(userId: "u4", nickname: "sam"), votes: 10, mine: false),
+            ]),
+            joined: 41, training: 3,
+            leaderboard: [
+                ChallengeEntry(rank: 1, userId: "u9", nickname: "leo", rounds: 0, reps: 236, tier: .beast, live: true),
+                ChallengeEntry(rank: 2, userId: "u8", nickname: "nina", rounds: 0, reps: 214, tier: .rx),
+                ChallengeEntry(rank: 3, userId: "me", nickname: "you", rounds: 0, reps: 198, tier: .rx, me: true),
+                ChallengeEntry(rank: 4, userId: "u7", nickname: "tom", rounds: 0, reps: 150, tier: .easy),
+            ])
+    }
+
+    static let challengeSuggestions: [ChallengeSuggestion] = []
+    static let challengeMoves = ["air squats", "burpees", "jump squats", "lunges", "mountain climbers", "push-ups", "sit-ups", "v-ups"]
 }
 #endif

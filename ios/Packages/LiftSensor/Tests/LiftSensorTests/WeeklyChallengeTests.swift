@@ -21,4 +21,13 @@ import Testing
         #expect(a.name != WeeklyChallenge.wod(for: "2026-W44").name)
         #expect(WeeklyChallenge.score(rounds: 8, reps: 12) > WeeklyChallenge.score(rounds: 7, reps: 999))
     }
+
+    @Test func serverWodsBecomeTimers() {
+        let tabata = WeeklyChallenge.timer(week: "2026-W43", name: "Tabata Tree", format: "tabata", minutes: 12, moves: ["jump squats", "push-ups", "hollow rocks"])
+        #expect(tabata.kind == .tabata && tabata.rounds == 24 && tabata.work == 20 && tabata.rest == 10)
+        let emom = WeeklyChallenge.timer(week: "2026-W43", name: "Minute Monkey", format: "emom", minutes: 12, moves: ["12 air squats"])
+        #expect(emom.kind == .emom && emom.rounds == 12 && emom.work == 60)
+        #expect(WeeklyChallenge.timer(week: "2026-W43", name: "x", format: "fortime", minutes: 15, moves: []).work == 15 * 60)
+        #expect(WeeklyChallenge.timer(week: "2026-W43", name: "x", format: "amrap", minutes: 12, moves: []).id == "challenge-2026-W43")
+    }
 }

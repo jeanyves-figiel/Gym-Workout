@@ -3283,7 +3283,7 @@
         "tags": [
           "Community"
         ],
-        "summary": "Weekly challenge room: ?week=YYYY-Www (default this ISO week) → {week, joined, training, leaderboard[≤20]: {rank, userId, nickname, avatarUrl, level, rounds, reps, live, me}, me}; blocks and hidden members left out of ranks and counts",
+        "summary": "Weekly challenge room: ?week=YYYY-Www (default this ISO week) → {week, wod: {name, format amrap|emom|fortime|tabata, minutes, moves, by, memberWeek, card, deckSize}, next: {week, memberWeek, format, minutes, moveCount}, history[4]: {week, name, rank}, vote: {week, endsAt, finalists[≤3]: {id, name, format, minutes, moves, by, votes, mine}}, joined, training, leaderboard[≤20]: {rank, userId, nickname, avatarUrl, level, rounds, reps, seconds, tier, live, me}, me}. #748: the WOD comes from a 60-card deck shuffled per year (no repeat in a year); the last ISO week of each month runs the voted member suggestion (picked when the week starts, deck if none); blocks and hidden members left out of ranks and counts",
         "description": "Errors / limits: 400 invalid_request (week that doesn't exist); 403 community_profile_required",
         "security": [
           {
@@ -3309,8 +3309,120 @@
         "tags": [
           "Community"
         ],
-        "summary": "{week, rounds 0–200, reps 0–999} → {week, rounds, reps, rank, best}; the best score stays",
-        "description": "Errors / limits: 400 week_closed",
+        "summary": "{week, rounds? 0–200, reps? 0–999, seconds? (For time, finished under the cap), tier? easy|rx|beast (default rx)} → {week, rounds, reps, seconds, tier, rank, best}; AMRAP/EMOM rank rounds + reps, Tabata reps, For time finishers by time above unfinished by reps; tier ranks first; the best score stays",
+        "description": "Errors / limits: 400 week_closed, over_cap, invalid_request (empty score)",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/community/challenge/suggestions": {
+      "get": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "Your challenge suggestions (#748) → {suggestions: [{id, name, format, minutes, moves, status pending|approved|rejected, week, createdAt}], moves}; moves = the kit-free move list suggestions use",
+        "description": "Errors / limits: 403 community_profile_required",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "{name 2–32, format, minutes, moves[2–5]} → 201 {suggestion} pending owner review; Coach check: moves from the list, reps 1–50 (EMOM 30, For time 100; Tabata names only, 4′ per move), minutes per format (AMRAP 5–20, EMOM 6–20, For time 5–25)",
+        "description": "Errors / limits: 400 challenge_unsafe, objectionable_content; 409 too_many_pending (3)",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/community/challenge/suggestions/{id}": {
+      "delete": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "Withdraw your suggestion that hasn't run → 204",
+        "description": "Errors / limits: 404 not_found",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/community/challenge/vote": {
+      "put": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "{suggestionId} one of the finalists → {week, suggestionId}; one vote per member for the next member week, changeable until it starts",
+        "description": "Errors / limits: 400 not_finalist",
         "security": [
           {
             "bearer": []

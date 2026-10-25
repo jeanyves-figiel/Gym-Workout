@@ -5,6 +5,7 @@ import type { ApnsMessage } from '../src/push/apns.ts';
 import { loadConfig } from '../src/config.ts';
 import { type DB, openDb } from '../src/db.ts';
 import { ConsoleMailer } from '../src/mailer.ts';
+import { CHALLENGE_DECK, deckOrder, deckWod, isMemberWeek, thursdayOf } from '../src/community/challenges.ts';
 import { isoWeek } from '../src/routes/live.ts';
 
 /** Live group sessions (#626): gym buddies, live sets, cheers, weekly challenge room. */
@@ -159,8 +160,21 @@ describe('gym buddies', () => {
   });
 });
 
+/** Moves the clock to the Thursday of the first 2026 week whose deck card has `format` (not a member week). */
+const weekWith = (format: string) => {
+  for (let n = 1; n <= 52; n++) {
+    const w = `2026-W${String(n).padStart(2, '0')}`;
+    if (deckWod(w).wod.format === format && !isMemberWeek(w, isoWeek)) {
+      clock = new Date(thursdayOf(w).getTime() + 10 * 3_600_000);
+      return w;
+    }
+  }
+  throw new Error(format);
+};
+
 describe('weekly challenge room', () => {
   it('keeps the best score, ranks, and shows who trains now', async () => {
+    weekWith('amrap');
     const ana = await join('ana@example.com', 'ana');
     const tom = await join('tom@example.com', 'tom');
     const mia = await join('mia@example.com', 'mia');
@@ -188,3 +202,100 @@ describe('weekly challenge room', () => {
     expect((await req('PUT', '/v1/community/challenge/score', ana.t, { week: 'soon', rounds: 5, reps: 0 })).statusCode).toBe(400);
   });
 });
+
+describe('week challenge deck + member weeks (#748)', () => {
+  it('deals 60 WODs, none twice in a year, in 4 formats', () => {
+    expect(CHALLENGE_DECK.length).toBeGreaterThanOrEqual(53);
+    expect(new Set(CHALLENGE_DECK.map((w) => w.name)).size).toBe(CHALLENGE_DECK.length);
+    expect(new Set(CHALLENGE_DECK.map((w) => w.format))).toEqual(new Set(['amrap', 'emom', 'fortime', 'tabata']));
+    const names = Array.from({ length: 53 }, (_, i) => deckWod(`2026-W${String(i + 1).padStart(2, '0')}`).wod.name);
+    expect(new Set(names).size).toBe(53);
+    // Another year, another order.
+    expect(deckOrder(2027)).not.toEqual(deckOrder(2026));
+  });
+
+  it('member weeks are the last ISO week of each month', () => {
+    expect(isMemberWeek('2026-W43', isoWeek)).toBe(false);
+    expect(isMemberWeek('2026-W44', isoWeek)).toBe(true);
+    expect(Array.from({ length: 53 }, (_, i) => `2026-W${String(i + 1).padStart(2, '0')}`).filter((w) => isMemberWeek(w, isoWeek))).toHaveLength(12);
+  });
+
+  it('room shows the WOD, the teaser, history and the vote', async () => {
+    const w = weekWith('emom');
+    const ana = await join('ana@example.com', 'ana');
+    const room = (await req('GET', '/v1/community/challenge', ana.t)).json();
+    expect(room.wod).toMatchObject({ format: 'emom', memberWeek: false, by: null, deckSize: CHALLENGE_DECK.length });
+    expect(room.wod.card).toBeGreaterThan(0);
+    expect(room.next.week > w).toBe(true);
+    expect(room.history).toHaveLength(4);
+    expect(room.vote).toMatchObject({ finalists: [] });
+    expect(isMemberWeek(room.vote.week, isoWeek)).toBe(true);
+  });
+
+  it('scores For time by time under the cap, above unfinished, tier first', async () => {
+    const w = weekWith('fortime');
+    const cap = deckWod(w).wod.minutes * 60;
+    const ana = await join('ana@example.com', 'ana');
+    const tom = await join('tom@example.com', 'tom');
+    const mia = await join('mia@example.com', 'mia');
+    expect((await req('PUT', '/v1/community/challenge/score', ana.t, { week: w, seconds: cap + 1 })).json()).toMatchObject({ error: 'over_cap' });
+    await req('PUT', '/v1/community/challenge/score', ana.t, { week: w, seconds: cap - 60 });
+    await req('PUT', '/v1/community/challenge/score', tom.t, { week: w, reps: 150 });
+    await req('PUT', '/v1/community/challenge/score', mia.t, { week: w, seconds: cap - 30, tier: 'beast' });
+    const board = (await req('GET', '/v1/community/challenge', ana.t)).json().leaderboard;
+    expect(board.map((e: { nickname: string }) => e.nickname)).toEqual(['mia', 'ana', 'tom']);
+    expect(board[0]).toMatchObject({ tier: 'beast', seconds: cap - 30 });
+  });
+
+  it('suggest → Coach check → approve → vote → the winner runs the member week', async () => {
+    clock = new Date('2026-10-25T09:55:00Z'); // W43, Sunday; W44 is the member week.
+    const ana = await join('ana@example.com', 'ana');
+    const tom = await join('tom@example.com', 'tom');
+    const bad = await req('POST', '/v1/community/challenge/suggestions', ana.t, { name: 'Nope', format: 'amrap', minutes: 12, moves: ['10 deadlifts', '10 burpees'] });
+    expect(bad.json()).toMatchObject({ error: 'challenge_unsafe' });
+    const tooMany = await req('POST', '/v1/community/challenge/suggestions', ana.t, { name: 'Nope', format: 'amrap', minutes: 12, moves: ['80 burpees', '10 sit-ups'] });
+    expect(tooMany.json()).toMatchObject({ error: 'challenge_unsafe' });
+    const a = await req('POST', '/v1/community/challenge/suggestions', ana.t, { name: 'Lemur Leap', format: 'amrap', minutes: 12, moves: ['10 Burpees', '15 air squats'] });
+    expect(a.statusCode).toBe(201);
+    expect(a.json().suggestion).toMatchObject({ status: 'pending', moves: ['10 burpees', '15 air squats'] });
+    const b = (await req('POST', '/v1/community/challenge/suggestions', tom.t, { name: 'Tabata Ape', format: 'tabata', minutes: 4, moves: ['jump squats', 'push-ups'] })).json().suggestion;
+    expect(b.minutes).toBe(8);
+    const mine = (await req('GET', '/v1/community/challenge/suggestions', ana.t)).json();
+    expect(mine.suggestions).toHaveLength(1);
+    expect(mine.moves).toContain('burpees');
+
+    // Pending ones aren't in the vote.
+    expect((await req('PUT', '/v1/community/challenge/vote', ana.t, { suggestionId: b.id })).statusCode).toBe(400);
+    const { reviewSuggestion } = await import('../src/community/challenges.ts');
+    expect(reviewSuggestion(db, a.json().suggestion.id, 'approved', clock)).toBe(true);
+    expect(reviewSuggestion(db, b.id, 'approved', new Date(clock.getTime() + 1000))).toBe(true);
+    expect((await req('PUT', '/v1/community/challenge/vote', ana.t, { suggestionId: b.id })).json()).toMatchObject({ week: '2026-W44' });
+    await req('PUT', '/v1/community/challenge/vote', tom.t, { suggestionId: b.id });
+    const room = (await req('GET', '/v1/community/challenge', ana.t)).json();
+    expect(room.vote.finalists.map((f: { name: string; votes: number }) => [f.name, f.votes])).toEqual([['Lemur Leap', 0], ['Tabata Ape', 2]]);
+    expect(room.vote.finalists[1].mine).toBe(true);
+    expect(room.next).toMatchObject({ week: '2026-W44', memberWeek: true });
+
+    expect(room.vote.endsAt).toBe('2026-10-25T10:00:00.000Z');
+
+    // Member week starts (UTC+14 first): Tabata Ape runs, by tom, and leaves the vote.
+    clock = new Date('2026-10-25T10:05:00Z');
+    const w44 = (await req('GET', '/v1/community/challenge?week=2026-W44', ana.t)).json();
+    expect(w44.wod).toMatchObject({ name: 'Tabata Ape', format: 'tabata', memberWeek: true, by: { nickname: 'tom' } });
+    expect(w44.vote.finalists.map((f: { name: string }) => f.name)).toEqual(['Lemur Leap']);
+    expect(w44.vote.week).toBe('2026-W48');
+    // Tabata scores reps.
+    expect((await req('PUT', '/v1/community/challenge/score', ana.t, { week: '2026-W44', reps: 210 })).json()).toMatchObject({ rank: 1, reps: 210 });
+    // A WOD that ran can't be withdrawn; a waiting one can.
+    expect((await req('DELETE', `/v1/community/challenge/suggestions/${b.id}`, tom.t)).statusCode).toBe(404);
+    expect((await req('DELETE', `/v1/community/challenge/suggestions/${a.json().suggestion.id}`, ana.t)).statusCode).toBe(204);
+  });
+
+  it('caps pending suggestions', async () => {
+    const ana = await join('ana@example.com', 'ana');
+    const body = { name: 'Again', format: 'emom', minutes: 10, moves: ['10 burpees', '10 sit-ups'] };
+    for (let i = 0; i < 3; i++) expect((await req('POST', '/v1/community/challenge/suggestions', ana.t, body)).statusCode).toBe(201);
+    expect((await req('POST', '/v1/community/challenge/suggestions', ana.t, body)).statusCode).toBe(409);
+  });
+});
+
