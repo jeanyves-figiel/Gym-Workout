@@ -157,7 +157,7 @@ struct PlanSportSheet: View {
 
     private var footnote: String {
         switch mode {
-        case .weekly: "Added to your usual days in Train → Edit plan → Your week. Gym days around it spare \(sport.loadLabel)."
+        case .weekly: "Added to your usual days in Train → My plan → Your week. Gym days around it spare \(sport.loadLabel)."
         default: "No gym on \(mode == .trip ? "those days" : "that day"): sessions move to free days, and the days around it spare \(sport.loadLabel)."
         }
     }

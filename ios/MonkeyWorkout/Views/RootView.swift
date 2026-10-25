@@ -284,7 +284,7 @@ private struct DemoScreen: View {
         case "snow-ready": NavigationStack { ProgrammeDetailView(programme: Programme.snowReady(.snowboard)) }
         case "hyrox-ready": NavigationStack { ProgrammeDetailView(programme: Programme.find(Programme.hyroxId)!) }
         case "progress-programmes": NavigationStack { ProgressTabView(demoSection: .programmes) }
-        case "profile-programme": NavigationStack { TrainingProfileView().navigationTitle("Training profile") }
+        case "profile-programme": NavigationStack { TrainingProfileView().navigationTitle(TrainingProfileView.title) }
         case "calendar-programme": NavigationStack { CalendarView() }
         // Missed sessions (#266); train-missed is the Train tab.
         case "calendar-missed": NavigationStack { CalendarView() }
@@ -414,7 +414,7 @@ private struct DemoScreen: View {
                 ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
                     .navigationTitle("Your training")
             }
-        case "profile": NavigationStack { TrainingProfileView().navigationTitle("Training profile") }
+        case "profile": NavigationStack { TrainingProfileView().navigationTitle(TrainingProfileView.title) }
         case "fresh-start": FreshStartSheet()
         case "lift-lab": NavigationStack { LiftLabView(exerciseId: "bench-press") }
         case "lift-focus": NavigationStack { LiftFocusView() }

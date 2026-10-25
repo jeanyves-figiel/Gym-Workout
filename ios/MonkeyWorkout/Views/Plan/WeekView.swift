@@ -7,7 +7,6 @@ struct WeekView: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @State private var editing = false
-    @State private var varying = false
     @State private var playing: Session?
     @State private var moving: Session?
     @State private var adding = false
@@ -119,9 +118,6 @@ struct WeekView: View {
                     .navigationTitle("Training profile")
                     .toolbar { CloseToolbarItem { editing = false } }
             }
-        }
-        .sheet(isPresented: $varying) {
-            VariationSheet(days: Set(model.variableSessions.map(\.id)), keep: model.keptSwapUids)
         }
         .fullScreenCover(item: $playing) { s in WorkoutPlayerView(sessionId: s.id) }
         .fullScreenCover(isPresented: $chestReveal) {
@@ -380,12 +376,11 @@ struct WeekView: View {
                 .buttonStyle(.plain)
             } else {
                 CoachHeaderTile()
-                // Calendar, Variation and Edit plan stay reachable when Quick actions is removed.
+                // Calendar and My plan stay reachable when Quick actions is removed.
                 if !model.trainLayout.contains(.actions) {
                     Menu {
                         Button("Calendar", systemImage: "calendar") { showingCalendar = true }
-                        Button("Variation", systemImage: "shuffle") { varying = true }
-                        Button("Edit plan", systemImage: "slider.horizontal.3") { editing = true }
+                        Button("My plan", systemImage: "slider.horizontal.3") { editing = true }
                     } label: {
                         HeaderTile(symbol: "ellipsis")
                     }
@@ -401,7 +396,7 @@ struct WeekView: View {
         .padding(.top, 4)
     }
 
-    /// Calendar, Variation and Edit plan as Explore-style gradient buttons in one row (#147): the Quick actions widget.
+    /// Calendar and My plan as Explore-style gradient buttons in one row (#147); Variation moved into My plan → Mix it up (#760).
     private var actionChips: some View {
         let planned = plannedCount
         return HStack(spacing: 8) {
@@ -411,21 +406,19 @@ struct WeekView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Calendar, \(planned) sessions planned in the next 4 weeks")
-            Button {
-                varying = true
-            } label: {
-                HeaderChip(symbol: "shuffle", title: "Variation", detail: "New mix",
-                           gradient: WorkoutEngine.Category.warmup.gradient)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("New variation of this week's plan")
             Button { editing = true } label: {
-                HeaderChip(symbol: "slider.horizontal.3", title: "Edit plan", detail: "Days · goals",
+                HeaderChip(symbol: "slider.horizontal.3", title: "My plan", detail: planDetail,
                            gradient: WorkoutEngine.Category.power.gradient)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Edit current plan: training profile")
+            .accessibilityLabel("My plan: \(planDetail), days, goal and mix it up")
         }
+    }
+
+    /// "2× · Build & define" under My plan.
+    private var planDetail: String {
+        guard let p = model.profile else { return "Days · goal" }
+        return "\(p.sessionsPerWeek)× · \(p.goal.config.label)"
     }
 
     /// Coach and week cards both wide (#564, design D1): the week shows as tiles inside the Coach card. Apart while editing.
@@ -502,7 +495,7 @@ struct WeekView: View {
                 Button { editing = true } label: {
                     WidgetTile(kind: .climbing, title: "Climbing") {
                         Text("Add climbing days").font(Theme.display(20))
-                        Text("Pick climbing days in Edit plan and Train plans around them.")
+                        Text("Pick climbing days in My plan and Train plans around them.")
                             .font(.caption.weight(.semibold)).opacity(0.9)
                     }
                 }
