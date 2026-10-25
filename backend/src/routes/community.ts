@@ -20,6 +20,7 @@ import { ApiError } from '../errors.ts';
 import type { Mailer } from '../mailer.ts';
 import { DAY, throttleTake } from '../throttle.ts';
 import { leaveLive, unpair } from './live.ts';
+import { followReferralPair, referralOwner } from './referrals.ts';
 import { beforeSql, pageCursor } from './sync.ts';
 
 /** New community posts per member per day (updates of an existing post don't count). */
@@ -415,6 +416,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).run(req.userId!, nick, about, account?.avatar_id ?? null, b.defaultVisibility ?? 'members', Number(b.autoShare ?? false), Number(b.showGym ?? false), ts, ts, ts);
         refreshMemberGym(db, req.userId!);
+        followReferralPair(db, req.userId!, now());
       });
     }
     return { profile: ownProfile(profileRow(req.userId!)!) };
@@ -672,6 +674,25 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
         )
         .all(viewer, viewer, viewer, viewer, p.limit),
     );
+  });
+
+  /**
+   * Add a friend by their invite code (#747). 404 not_joined when the code is real but its owner hasn't joined Social,
+   * so the app can say why instead of "not found". Same exclusions as search.
+   */
+  r.get('/community/members/by-code/:code', { config: { rateLimit: { max: 30, timeWindow: '1 hour' } } }, async (req) => {
+    const { code } = z.object({ code: z.string().trim().regex(/^[A-Za-z0-9]{4,12}$/) }).parse(req.params);
+    const viewer = req.userId!;
+    requireProfile(viewer);
+    const owner = referralOwner(db, code);
+    if (!owner) throw new ApiError(404, 'invalid_code', 'No member with that code.');
+    if (owner === viewer) throw new ApiError(400, 'own_code', "That's your own code.");
+    const row = db
+      .prepare(`SELECT cp.* FROM community_profiles cp WHERE cp.user_id = ? AND ${memberNotHiddenSql('cp.user_id')}`)
+      .get(owner) as ProfileRow | undefined;
+    if (!row) throw new ApiError(404, 'not_joined', "Your friend hasn't joined Social yet. Ask them to open Social and tap Join.");
+    if (blockedBetween(viewer, owner)) throw new ApiError(404, 'invalid_code', 'No member with that code.');
+    return { member: memberSummaries([row], viewer)[0] };
   });
 
   r.get('/community/members/:userId', async (req) => {

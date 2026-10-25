@@ -2764,6 +2764,42 @@
         }
       }
     },
+    "/v1/community/members/by-code/{code}": {
+      "get": {
+        "tags": [
+          "Community"
+        ],
+        "summary": "Add a friend by invite code (#747), case-insensitive, any account age → {member}",
+        "description": "Errors / limits: 400 own_code; 404 invalid_code, not_joined (code real, owner not in Social); 403 community_profile_required",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/community/members/{userId}": {
       "get": {
         "tags": [
@@ -3590,7 +3626,7 @@
         "tags": [
           "Invite a friend (#745)"
         ],
-        "summary": "{code} (case-insensitive), accounts ≤ 14 days old, once → same as GET",
+        "summary": "{code} (case-insensitive), accounts ≤ 14 days old, once → same as GET. Inviter and invitee follow each other once both are in Social (#747; also on join)",
         "description": "Errors / limits: 404 invalid_code; 400 own_code, account_too_old, referral_cycle; 409 already_redeemed; 10/hour",
         "security": [
           {

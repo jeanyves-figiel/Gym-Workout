@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { DB } from '../db.ts';
 import { ApiError } from '../errors.ts';
+import { isBlockedBetween } from '../community/moderation.ts';
 
 /**
  * Invite a friend (#745): every account has a short code; a new account enters a friend's code once. The app shows a
@@ -46,6 +47,28 @@ export const referralCode = (db: DB, userId: string, now: Date): string => {
     if (r.changes) return code;
     const again = db.prepare('SELECT code FROM referral_codes WHERE user_id = ?').get(userId) as { code: string } | undefined;
     if (again) return again.code;
+  }
+};
+
+/** The member a friend code belongs to (#747); any account age, unlike redeem. */
+export const referralOwner = (db: DB, code: string): string | null =>
+  (db.prepare('SELECT user_id FROM referral_codes WHERE code = ?').get(code.trim().toUpperCase()) as { user_id: string } | undefined)?.user_id ?? null;
+
+/**
+ * Invite = friends (#747): once both sides of a referral are in Social, they follow each other. Runs after redeem and
+ * after joining Social, so the order doesn't matter. Skipped when either blocked the other.
+ */
+export const followReferralPair = (db: DB, userId: string, now: Date): void => {
+  const isMember = (id: string) => !!db.prepare('SELECT 1 FROM community_profiles WHERE user_id = ?').get(id);
+  if (!isMember(userId)) return;
+  const pairs = db
+    .prepare('SELECT referrer_id AS other FROM referrals WHERE invitee_id = ? UNION SELECT invitee_id FROM referrals WHERE referrer_id = ?')
+    .all(userId, userId) as { other: string }[];
+  const follow = db.prepare('INSERT OR IGNORE INTO community_follows (follower_id, followed_id, created_at) VALUES (?, ?, ?)');
+  for (const { other } of pairs) {
+    if (!isMember(other) || isBlockedBetween(db, userId, other)) continue;
+    follow.run(userId, other, now.toISOString());
+    follow.run(other, userId, now.toISOString());
   }
 };
 
@@ -94,6 +117,7 @@ export const referralRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
     if (db.prepare('SELECT 1 FROM referrals WHERE invitee_id = ? AND referrer_id = ?').get(owner.user_id, me))
       throw new ApiError(400, 'referral_cycle', 'You invited this member.');
     db.prepare('INSERT INTO referrals (invitee_id, referrer_id, created_at) VALUES (?, ?, ?)').run(me, owner.user_id, now().toISOString());
+    followReferralPair(db, me, now());
     return summary(me);
   });
 };

@@ -196,6 +196,10 @@
     "path": "/v1/community/members/:userId"
   },
   {
+    "method": "GET",
+    "path": "/v1/community/members/by-code/:code"
+  },
+  {
     "method": "POST",
     "path": "/v1/community/posts"
   },

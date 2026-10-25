@@ -122,3 +122,39 @@ describe('socials on the profile', () => {
     expect((await req('GET', `/v1/community/members/${a.id}`, a.t)).json().member.socials.instagram).toBe('djy.lifts');
   });
 });
+
+describe('find a friend (#747)', () => {
+  const codeOf = async (t: string) => ((await req('GET', '/v1/referrals/me', t)).json() as { code: string }).code;
+  const follows = (a: string, b: string) => !!db.prepare('SELECT 1 FROM community_follows WHERE follower_id = ? AND followed_id = ?').get(a, b);
+
+  it('finds a member by code and says when they have not joined Social', async () => {
+    const a = await join('a@example.com', 'Djy');
+    const b = await signUp('b@example.com');
+    const code = await codeOf(b.t);
+    const before = await req('GET', `/v1/community/members/by-code/${code.toLowerCase()}`, a.t);
+    expect(before.statusCode).toBe(404);
+    expect(before.json().error).toBe('not_joined');
+    await req('PUT', '/v1/community/me', b.t, { nickname: 'Marco', acceptGuidelines: true });
+    const after = await req('GET', `/v1/community/members/by-code/${code}`, a.t);
+    expect(after.statusCode).toBe(200);
+    expect(after.json().member).toMatchObject({ userId: b.id, nickname: 'Marco', followedByMe: false });
+    expect((await req('GET', `/v1/community/members/by-code/${await codeOf(a.t)}`, a.t)).json().error).toBe('own_code');
+    expect((await req('GET', '/v1/community/members/by-code/ZZZZZZZ', a.t)).json().error).toBe('invalid_code');
+  });
+
+  it('makes inviter and invitee follow each other once both are in Social', async () => {
+    const a = await join('a@example.com', 'Djy');
+    const b = await signUp('b@example.com');
+    expect((await req('POST', '/v1/referrals/redeem', b.t, { code: await codeOf(a.t) })).statusCode).toBe(200);
+    expect(follows(a.id, b.id)).toBe(false);
+    await req('PUT', '/v1/community/me', b.t, { nickname: 'Marco', acceptGuidelines: true });
+    expect(follows(a.id, b.id) && follows(b.id, a.id)).toBe(true);
+  });
+
+  it('follows right away when both already joined', async () => {
+    const a = await join('a@example.com', 'Djy');
+    const b = await join('b@example.com', 'Marco');
+    await req('POST', '/v1/referrals/redeem', b.t, { code: await codeOf(a.t) });
+    expect(follows(a.id, b.id) && follows(b.id, a.id)).toBe(true);
+  });
+});

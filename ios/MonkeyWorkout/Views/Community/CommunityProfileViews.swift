@@ -22,7 +22,8 @@ private struct JoinHero: View {
                 .background(RoundedRectangle(cornerRadius: 17, style: .continuous).fill(.white.opacity(0.22)))
             VStack(alignment: .leading, spacing: 4) {
                 Text("Join Social").font(Theme.display(26))
-                Text("Share your wins and cheer others on.")
+                // Only members show up in People (#747), so say what joining does for finding friends.
+                Text("Let friends find you, share wins and cheer others on.")
                     .font(.subheadline.weight(.medium)).opacity(0.9)
             }
         }

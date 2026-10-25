@@ -403,6 +403,13 @@ extension APIClient {
         return try await authorized("GET", "/v1/community/members?q=\(q)&limit=\(limit)", Empty?.none, as: MembersResponse.self).members
     }
 
+    /// A friend by their invite code (#747); fails with "hasn't joined Social yet" when they're not a member.
+    public func memberByCode(_ code: String) async throws -> CommunityMemberSummary {
+        struct Response: Decodable { var member: CommunityMemberSummary }
+        let c = code.trimmingCharacters(in: .whitespacesAndNewlines).filter { $0.isLetter || $0.isNumber }
+        return try await authorized("GET", "/v1/community/members/by-code/\(c)", Empty?.none, as: Response.self).member
+    }
+
     /// Members who show the same gym as you; empty unless you show yours (#152).
     public func gymMembers() async throws -> [CommunityMemberSummary] {
         try await authorized("GET", "/v1/community/members?gym=mine", Empty?.none, as: MembersResponse.self).members
