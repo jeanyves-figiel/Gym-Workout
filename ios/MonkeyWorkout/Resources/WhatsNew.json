@@ -1,29 +1,41 @@
 {
-  "id": "2026-10-24.5",
+  "id": "2026-10-25.1",
   "items": [
     {
-      "symbol": "sparkles",
-      "tint": "warmup",
-      "title": "Fuel, clearer",
-      "body": "One tank for today, one Log button, and Magic Snap: photo your plate or your fridge, Monkey sorts it."
+      "symbol": "gift.fill",
+      "tint": "power",
+      "title": "Invite a friend",
+      "body": "Share your code, unlock XP and app icons, and post story posters of your workouts. Add your Instagram, TikTok, Strava or YouTube to your profile."
     },
     {
-      "symbol": "figure.cooldown",
-      "tint": "mobility",
-      "title": "More daily routines",
-      "body": "6 new ones (hips, shoulders, roll out, legs, wrists, splits), build your own, and Coach picks one for your day on Train."
-    },
-    {
-      "symbol": "person.3.fill",
+      "symbol": "person.badge.plus",
       "tint": "cardio",
-      "title": "Social, simpler",
-      "body": "Stories of who trained today, one feed, one Share button."
+      "title": "Find your friends",
+      "body": "Add a friend by code in People, and friends you invite follow you automatically."
     },
     {
-      "symbol": "person.crop.square",
+      "symbol": "flag.checkered",
       "tint": "strength",
-      "title": "Me, simpler",
-      "body": "One card for you and your level, Settings one tap away."
+      "title": "Week challenge, never the same",
+      "body": "60 workouts, Easy, Rx or Beast levels, and member weeks you vote for."
+    },
+    {
+      "symbol": "plus.circle.fill",
+      "tint": "warmup",
+      "title": "Add supplements in one tap",
+      "body": "My stack has an Add tile plus quick squares: from a brand, scan a label, creatine or your own."
+    },
+    {
+      "symbol": "rectangle.compress.vertical",
+      "tint": "mobility",
+      "title": "Train day fits one screen",
+      "body": "Slimmer lines and tiles, so Freestyle, Log sport and Track live sit above the tab bar."
+    },
+    {
+      "symbol": "list.bullet.indent",
+      "tint": "stretch",
+      "title": "Settings jump right",
+      "body": "Chapters now land on their title, no longer hidden under the bar."
     }
   ]
 }
