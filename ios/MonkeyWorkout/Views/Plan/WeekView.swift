@@ -783,12 +783,12 @@ private struct WeekTiles: View {
         let assessed = Readiness.assess(health.snapshot)
         HStack(spacing: 6) {
             NavigationLink { CalendarView() } label: {
-                tile("This week", "\(done)/\(plan.sessions.count)", detail: "done ›",
-                     colors: [Color(hex: 0x3D5AFF), Color(hex: 0x8A4FFF)])
+                tile("This week", "\(done)/\(plan.sessions.count)", detail: nil,
+                     colors: [Color(hex: 0x3D5AFF), Color(hex: 0x8A4FFF)], width: 76)
             }
             .accessibilityLabel("\(done) of \(plan.sessions.count) sessions done this week").accessibilityHint("Opens the calendar")
             Button { explainingPhase = true } label: {
-                tile("\(p.title) ⓘ", "W\(plan.week)/\(Generator.mesocycleWeeks)", detail: nil, colors: p.palette.colors, bars: true)
+                tile("\(p.title) ⓘ", "W\(plan.week)/\(Generator.mesocycleWeeks)", detail: nil, colors: p.palette.colors, bars: true, width: 76)
             }
             .accessibilityHint("Explains this week's training phase")
             readinessTile(assessed)
@@ -803,8 +803,8 @@ private struct WeekTiles: View {
         if let assessed {
             let r = assessed.0
             Button { if model.tuneOn { tuning = true } else { explainingReadiness = true } } label: {
-                tile(tuned > 0 ? "Tuned · \(tuned)" : "Ready", r.title,
-                     detail: model.readinessEased ? "eased: −1 RPE" : r.markers(health.snapshot), colors: r.colors)
+                lineTile(tuned > 0 ? "Tuned · \(tuned)" : "Ready", r.title,
+                         detail: model.readinessEased ? "eased: −1 RPE" : r.markers(health.snapshot), colors: r.colors)
             }
             .accessibilityLabel("Readiness: \(r.title)")
             .accessibilityHint(model.tuneOn ? "Shows today's ready score and what Monkey tuned" : "Explains readiness and each marker")
@@ -813,32 +813,36 @@ private struct WeekTiles: View {
             }
         } else if health.available, health.settled, !health.connected {
             Button { Task { await health.connect() } } label: {
-                tile("Ready", "Health", detail: "connect ›", colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)])
+                lineTile("Ready", "Health", detail: "connect ›", colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)])
             }
             .accessibilityHint("Asks Apple Health for heart rate variability, resting heart rate and sleep")
         } else if model.tuneOn {
             Button { tuning = true } label: {
-                tile("Today", tuned > 0 ? "Tuned · \(tuned)" : "Tune", detail: "light · push ›", colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E9BFF)])
+                lineTile("Today", tuned > 0 ? "Tuned · \(tuned)" : "Tune", detail: "light · push ›", colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E9BFF)])
             }
             .accessibilityHint("Tap sore muscles or pick light, medium or push for today's workout")
         } else {
             Button { explainingPhase = true } label: {
-                tile("Plan", "\(plan.sessions.count) sessions", detail: "\(plan.sessionMinutes) min", colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E9BFF)])
+                lineTile("Plan", "\(plan.sessions.count) sessions", detail: "\(plan.sessionMinutes) min", colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E9BFF)])
             }
             .accessibilityHint("Explains this week's training phase")
         }
     }
 
+    /// Tiles 48 pt tall (#752): the Coach card is shorter, This week and the phase are compact squares.
+    private static let height: CGFloat = 48
+
     /// Same size whatever the text (#529): content in an overlay on a fixed frame.
-    /// `bars`: the cycle's weeks under the value, this one brightest.
-    private func tile(_ key: String, _ value: String, detail: String?, colors: [Color], bars: Bool = false) -> some View {
+    /// `bars`: the cycle's weeks under the value, this one brightest. `width`: a compact tile (#752).
+    private func tile(_ key: String, _ value: String, detail: String?, colors: [Color], bars: Bool = false, width: CGFloat? = nil) -> some View {
         Color.clear
-            .frame(maxWidth: .infinity)
-            .frame(height: 66)
+            .frame(width: width)
+            .frame(maxWidth: width ?? .infinity)
+            .frame(height: Self.height)
             .overlay(alignment: .topLeading) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(key).font(Theme.label(9)).tracking(0.8).textCase(.uppercase).opacity(0.9).lineLimit(1).minimumScaleFactor(0.7)
-                    Text(value).font(Theme.display(value.count > 6 ? 14 : 20)).lineLimit(1).minimumScaleFactor(0.6)
+                    Text(value).font(Theme.display(value.count > 6 ? 14 : 18)).lineLimit(1).minimumScaleFactor(0.6)
                     if let detail {
                         Text(detail).font(Theme.label(9)).monospacedDigit().opacity(0.9).lineLimit(1).minimumScaleFactor(0.6)
                     }
@@ -848,16 +852,37 @@ private struct WeekTiles: View {
                                 Capsule().fill(.white.opacity(w == plan.week ? 1 : w < plan.week ? 0.6 : 0.3)).frame(height: 3)
                             }
                         }
-                        .padding(.top, 3)
+                        .padding(.top, 1)
                     }
                 }
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
-                .padding(8)
+                .padding(.horizontal, 8).padding(.vertical, 6)
             }
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
             .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    /// Readiness on one line (#752): key and verdict side by side; the detail (markers) is read by VoiceOver and
+    /// shown in the sheet.
+    private func lineTile(_ key: String, _ value: String, detail: String?, colors: [Color]) -> some View {
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .frame(height: Self.height)
+            .overlay(alignment: .leading) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(key).font(Theme.label(9)).tracking(0.8).textCase(.uppercase).opacity(0.9).fixedSize()
+                    Text(value).font(Theme.display(16)).lineLimit(1).minimumScaleFactor(0.6)
+                }
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                .padding(.horizontal, 10)
+            }
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .accessibilityValue(detail ?? "")
     }
 }
 
