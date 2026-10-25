@@ -150,8 +150,10 @@ struct PlaceMenuChip: View {
             }
             .font(Theme.label(12)).tracking(1.4)
             .foregroundStyle(.white)
-            .frame(minHeight: 44)
+            // 44 pt to tap, no taller line (#752): the hit area reaches past the row, the layout doesn't.
+            .padding(.vertical, 14)
             .contentShape(Rectangle())
+            .padding(.vertical, -14)
         }
         .accessibilityLabel("Where on \(WeekSchedule.name(weekday)): \(name)")
         .accessibilityIdentifier("train.placeChip")

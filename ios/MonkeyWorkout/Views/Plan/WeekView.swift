@@ -783,12 +783,12 @@ private struct WeekTiles: View {
         let assessed = Readiness.assess(health.snapshot)
         HStack(spacing: 6) {
             NavigationLink { CalendarView() } label: {
-                tile("This week", "\(done)/\(plan.sessions.count)", detail: "done ›",
-                     colors: [Color(hex: 0x3D5AFF), Color(hex: 0x8A4FFF)])
+                tile("This week", "\(done)/\(plan.sessions.count)", detail: nil,
+                     colors: [Color(hex: 0x3D5AFF), Color(hex: 0x8A4FFF)], width: 76)
             }
             .accessibilityLabel("\(done) of \(plan.sessions.count) sessions done this week").accessibilityHint("Opens the calendar")
             Button { explainingPhase = true } label: {
-                tile("\(p.title) ⓘ", "W\(plan.week)/\(Generator.mesocycleWeeks)", detail: nil, colors: p.palette.colors, bars: true)
+                tile("\(p.title) ⓘ", "W\(plan.week)/\(Generator.mesocycleWeeks)", detail: nil, colors: p.palette.colors, bars: true, width: 76)
             }
             .accessibilityHint("Explains this week's training phase")
             readinessTile(assessed)
@@ -803,8 +803,8 @@ private struct WeekTiles: View {
         if let assessed {
             let r = assessed.0
             Button { if model.tuneOn { tuning = true } else { explainingReadiness = true } } label: {
-                tile(tuned > 0 ? "Tuned · \(tuned)" : "Ready", r.title,
-                     detail: model.readinessEased ? "eased: −1 RPE" : r.markers(health.snapshot), colors: r.colors)
+                lineTile(tuned > 0 ? "Tuned · \(tuned)" : "Ready", r.title,
+                         detail: model.readinessEased ? "eased: −1 RPE" : r.markers(health.snapshot), colors: r.colors)
             }
             .accessibilityLabel("Readiness: \(r.title)")
             .accessibilityHint(model.tuneOn ? "Shows today's ready score and what Monkey tuned" : "Explains readiness and each marker")
@@ -813,32 +813,36 @@ private struct WeekTiles: View {
             }
         } else if health.available, health.settled, !health.connected {
             Button { Task { await health.connect() } } label: {
-                tile("Ready", "Health", detail: "connect ›", colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)])
+                lineTile("Ready", "Health", detail: "connect ›", colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)])
             }
             .accessibilityHint("Asks Apple Health for heart rate variability, resting heart rate and sleep")
         } else if model.tuneOn {
             Button { tuning = true } label: {
-                tile("Today", tuned > 0 ? "Tuned · \(tuned)" : "Tune", detail: "light · push ›", colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E9BFF)])
+                lineTile("Today", tuned > 0 ? "Tuned · \(tuned)" : "Tune", detail: "light · push ›", colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E9BFF)])
             }
             .accessibilityHint("Tap sore muscles or pick light, medium or push for today's workout")
         } else {
             Button { explainingPhase = true } label: {
-                tile("Plan", "\(plan.sessions.count) sessions", detail: "\(plan.sessionMinutes) min", colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E9BFF)])
+                lineTile("Plan", "\(plan.sessions.count) sessions", detail: "\(plan.sessionMinutes) min", colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E9BFF)])
             }
             .accessibilityHint("Explains this week's training phase")
         }
     }
 
+    /// Tiles 48 pt tall (#752): the Coach card is shorter, This week and the phase are compact squares.
+    private static let height: CGFloat = 48
+
     /// Same size whatever the text (#529): content in an overlay on a fixed frame.
-    /// `bars`: the cycle's weeks under the value, this one brightest.
-    private func tile(_ key: String, _ value: String, detail: String?, colors: [Color], bars: Bool = false) -> some View {
+    /// `bars`: the cycle's weeks under the value, this one brightest. `width`: a compact tile (#752).
+    private func tile(_ key: String, _ value: String, detail: String?, colors: [Color], bars: Bool = false, width: CGFloat? = nil) -> some View {
         Color.clear
-            .frame(maxWidth: .infinity)
-            .frame(height: 66)
+            .frame(width: width)
+            .frame(maxWidth: width ?? .infinity)
+            .frame(height: Self.height)
             .overlay(alignment: .topLeading) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(key).font(Theme.label(9)).tracking(0.8).textCase(.uppercase).opacity(0.9).lineLimit(1).minimumScaleFactor(0.7)
-                    Text(value).font(Theme.display(value.count > 6 ? 14 : 20)).lineLimit(1).minimumScaleFactor(0.6)
+                    Text(value).font(Theme.display(value.count > 6 ? 14 : 18)).lineLimit(1).minimumScaleFactor(0.6)
                     if let detail {
                         Text(detail).font(Theme.label(9)).monospacedDigit().opacity(0.9).lineLimit(1).minimumScaleFactor(0.6)
                     }
@@ -848,16 +852,37 @@ private struct WeekTiles: View {
                                 Capsule().fill(.white.opacity(w == plan.week ? 1 : w < plan.week ? 0.6 : 0.3)).frame(height: 3)
                             }
                         }
-                        .padding(.top, 3)
+                        .padding(.top, 1)
                     }
                 }
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
-                .padding(8)
+                .padding(.horizontal, 8).padding(.vertical, 6)
             }
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
             .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    /// Readiness on one line (#752): key and verdict side by side; the detail (markers) is read by VoiceOver and
+    /// shown in the sheet.
+    private func lineTile(_ key: String, _ value: String, detail: String?, colors: [Color]) -> some View {
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .frame(height: Self.height)
+            .overlay(alignment: .leading) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(key).font(Theme.label(9)).tracking(0.8).textCase(.uppercase).opacity(0.9).fixedSize()
+                    Text(value).font(Theme.display(16)).lineLimit(1).minimumScaleFactor(0.6)
+                }
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                .padding(.horizontal, 10)
+            }
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .accessibilityValue(detail ?? "")
     }
 }
 
@@ -1053,13 +1078,17 @@ private struct NextUpCard: View {
                 VStack(alignment: .leading, spacing: 6) {
                     if !showsJump && placeDay == nil { eyebrowText }
                     // Long titles wrap instead of shrinking or cutting off (#538).
-                    Text(session.displayTitle).font(Theme.display(compact ? 26 : 30)).foregroundStyle(.white)
-                        .lineLimit(3).minimumScaleFactor(0.9).fixedSize(horizontal: false, vertical: true)
-                    HStack(spacing: 10) {
-                        Label("\(session.estMin) min", systemImage: "clock.fill").font(Theme.label(14)).foregroundStyle(.white.opacity(0.9))
+                    // Minutes and XP on the title's line (#752, design C).
+                    HStack(alignment: .center, spacing: 8) {
+                        Text(session.displayTitle).font(Theme.display(compact ? 26 : 30)).foregroundStyle(.white)
+                            .lineLimit(3).minimumScaleFactor(0.9).fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 4)
+                        Label("\(session.estMin) min", systemImage: "clock.fill").font(Theme.label(13)).foregroundStyle(.white.opacity(0.9))
+                            .lineLimit(1).fixedSize()
                         // XP it earns (#227).
-                        Text("+\(model.xp(for: session)) XP").font(Theme.label(13)).foregroundStyle(Theme.lime)
-                            .padding(.horizontal, 9).padding(.vertical, 4)
+                        Text("+\(model.xp(for: session)) XP").font(Theme.label(12)).foregroundStyle(Theme.lime)
+                            .lineLimit(1).fixedSize()
+                            .padding(.horizontal, 8).padding(.vertical, 4)
                             .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.ink.opacity(0.85)))
                     }
                     if !compact {
@@ -1555,25 +1584,24 @@ private struct DayActionTileLabel: View {
     var ink: Color = .white
 
     var body: some View {
-        // Content in an overlay so label lengths never change a tile's size (#529).
+        // Content in an overlay so label lengths never change a tile's size (#529). Short, title only (#752, design C):
+        // the day card fits above the tab bar; the detail is read by VoiceOver.
         Color.clear
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
+            .frame(height: 44)
             .overlay(alignment: .leading) {
-                HStack(spacing: 8) {
-                    Image(systemName: symbol).font(.system(size: 15, weight: .heavy))
-                        .frame(width: 32, height: 32)
-                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.black.opacity(0.18)))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(title).font(Theme.label(15)).lineLimit(1).minimumScaleFactor(0.6)
-                        Text(detail).font(Theme.label(10)).opacity(0.8).lineLimit(1).minimumScaleFactor(0.7)
-                    }
+                HStack(spacing: 7) {
+                    Image(systemName: symbol).font(.system(size: 13, weight: .heavy))
+                        .frame(width: 26, height: 26)
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.black.opacity(0.18)))
+                    Text(title).font(Theme.label(14)).lineLimit(1).minimumScaleFactor(0.6)
                 }
                 .foregroundStyle(ink)
                 .padding(.horizontal, 10)
             }
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(fill))
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .accessibilityValue(detail)
     }
 }
 
@@ -1711,7 +1739,7 @@ private struct RestDayCard: View {
                                    onTrack: { trackingSport = SportLog(start: Date()) })
                 } else {
                     // Sport actions live in the hero (#658): Freestyle stays for today's gym.
-                    DayActionTile(title: "Freestyle", detail: model.freestyleInProgress != nil ? "resume" : "add as you train",
+                    DayActionTile(title: model.freestyleInProgress != nil ? "Resume" : "Freestyle", detail: model.freestyleInProgress != nil ? "resume" : "add as you train",
                                   symbol: "plus.square.on.square", fill: AnyShapeStyle(LinearGradient.freestyle)) {
                         Haptics.start()
                         freestyle = model.freestyleInProgress ?? model.startFreestyle()

@@ -474,7 +474,8 @@ struct WeekDayStrip: View {
         }
         .foregroundStyle(isToday && state == .planned && !picked ? Theme.lime : ink)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 6)
+        // Slimmer cells (#752, design C).
+        .padding(.vertical, 4)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(fill).opacity(state == .missed(skipped: true) ? 0.5 : 1))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.lime, lineWidth: isToday ? 2 : 0))
     }
