@@ -4,7 +4,7 @@ import Foundation
 /// lands in one block, in the order added; the Coach offers the next picks.
 public enum Freestyle {
     public static let idPrefix = "free-"
-    public static let title = "Freestyle"
+    public static let title = "Custom gym session"
     /// Picks the Coach offers after each exercise.
     public static let pickCount = 3
 
