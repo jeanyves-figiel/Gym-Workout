@@ -374,7 +374,7 @@ struct WeekDayStrip: View {
             let sport = climb ? nil : daySport
             let skipped = session.map { model.isSkipped($0.id, in: w) } ?? false
             // A skipped day with nothing else on it is a rest day (#698): moon, or its sport.
-            let state: DayState = session != nil && !skipped ? .planned : climb ? .climb : sport.map { DayState.sport($0) } ?? .rest
+            let state: DayState = session != nil && !skipped ? (session?.hiit != nil ? .hiit : .planned) : climb ? .climb : sport.map { DayState.sport($0) } ?? .rest
             Button { onPick(fromMonday + 1) } label: { cell(wd, day: n, isToday: false, state: state, picked: selected == fromMonday + 1) }
                 .buttonStyle(.plain)
                 // Later weeks get the same moves as this week's days (#671).
@@ -417,7 +417,8 @@ struct WeekDayStrip: View {
             let daySport = model.profile?.sport(onWeekday: wd, key: PlanCalendar.key(date, model.planCalendar), date: date)
             let restState: DayState = daySport == .climbing ? .climb : daySport.map { DayState.sport($0) } ?? .rest
             Button { onPick(wd) } label: {
-                cell(wd, day: n, isToday: isToday, state: allDone || skipped && anyDone ? .done : skipped ? restState : .planned, picked: selected == wd)
+                cell(wd, day: n, isToday: isToday, state: allDone || skipped && anyDone ? .done : skipped ? restState : day.contains { $0.hiit != nil } ? .hiit : .planned,
+                     picked: selected == wd)
             }
                 .buttonStyle(.plain)
                 .contextMenu { workoutMenu(s, wd: wd, date: date) } preview: { workoutPreview(s, date: date) }
@@ -446,13 +447,16 @@ struct WeekDayStrip: View {
         }
     }
 
-    private enum DayState: Equatable { case missed(skipped: Bool), done, planned, rest, climb, sport(Sport) }
+    private enum DayState: Equatable { case missed(skipped: Bool), done, planned, rest, climb, sport(Sport)
+        /// A planned HIIT day (#757): ⚡ instead of the dot.
+        case hiit
+    }
 
     private func cell(_ wd: Int, day: Int, isToday: Bool, state: DayState, picked: Bool = false) -> some View {
         let base: AnyShapeStyle = switch state {
         case .missed: AnyShapeStyle(MissedStyle.gradient)
         case .done: AnyShapeStyle(Theme.lime)
-        case .planned: AnyShapeStyle(Color.white.opacity(0.2))
+        case .planned, .hiit: AnyShapeStyle(Color.white.opacity(0.2))
         case .rest: AnyShapeStyle(Color.black.opacity(0.25))
         case .climb: AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xFF7A3C), Color(hex: 0xFFB347)], startPoint: .topLeading, endPoint: .bottomTrailing))
         case .sport(let sp): AnyShapeStyle(sp.gradient)
@@ -463,6 +467,7 @@ struct WeekDayStrip: View {
         case .missed(let skipped): skipped ? "minus" : "exclamationmark"
         case .done: "checkmark"
         case .planned: "circle.fill"
+        case .hiit: "bolt.heart.fill"
         case .rest: "moon.fill"
         case .climb: "figure.climbing"
         case .sport(let sp): sp.symbol
@@ -472,7 +477,7 @@ struct WeekDayStrip: View {
             Text("\(day)").font(Theme.display(15)).monospacedDigit()
             Image(systemName: symbol).font(.system(size: state == .planned ? 7 : 11, weight: .black)).frame(height: 12)
         }
-        .foregroundStyle(isToday && state == .planned && !picked ? Theme.lime : ink)
+        .foregroundStyle(isToday && (state == .planned || state == .hiit) && !picked ? Theme.lime : ink)
         .frame(maxWidth: .infinity)
         // Slimmer cells (#752, design C).
         .padding(.vertical, 4)

@@ -527,7 +527,15 @@ public enum Hiit {
     ]
 
     /// Planned HIIT workout `n` (0-based) of plan week `week`, `minutes` long.
-    public static func planned(week: Int, n: Int, minutes: Int, equipment: [Equipment], lowImpact: Bool, seed: UInt32) -> HiitWorkout {
+    /// `format` (#757): that format every HIIT day, built like Explore's (eased in the deload week); nil = rotation.
+    public static func planned(week: Int, n: Int, minutes: Int, equipment: [Equipment], lowImpact: Bool, seed: UInt32,
+                               format: HiitFormat? = nil) -> HiitWorkout {
+        if let format {
+            let spec = HiitSpec(format: format, minutes: minutes, kit: .gym, lowImpact: lowImpact,
+                                shuffle: Int(seed % 997) &+ week &* 7 &+ n)
+            let w = build(spec, gym: equipment)
+            return Generator.phaseIndex(week) == Generator.mesocycleWeeks - 1 ? w.eased() : w
+        }
         let list = moves(Set(equipment).union([.mat]), lowImpact: lowImpact)
         var rng = Rng(seed: seed &+ UInt32(truncatingIfNeeded: week &* 101 &+ n &* 13 &+ 5))
         var used: Set<String> = []
@@ -558,6 +566,8 @@ public enum Hiit {
 
     /// Length of a planned HIIT day: half the plan's session, 15–30′ (shorter in a deload).
     static func plannedMinutes(_ p: Profile, deload: Bool) -> Int {
+        // A length picked in HIIT settings (#757) wins; the deload week stays a quarter shorter.
+        if let set = p.hiit?.minutes { return deload ? max(10, Generator.round5(Double(set) * 0.75)) : set }
         let m = Generator.clamp(Generator.round5(Double(Generator.sessionMinutes(p)) * 0.5), 15, 30)
         return deload ? max(15, Generator.round5(Double(m) * 0.75)) : m
     }
@@ -578,8 +588,9 @@ public enum Hiit {
             let sport = Set(profile.climbingDays).union(profile.sportDays().map(\.weekday))
             let taken = Set(lifting).union(sport)
             let legs = Set(plan.sessions.filter { RunPlanner.legHeavy($0.focus) }.compactMap(\.weekday))
-            var picked: [Int] = []
-            for _ in 0..<h.days {
+            // Days the member picked (#757) stay theirs, even a sport day; a lifting day stays the lift's.
+            var picked: [Int] = h.weekdays.filter { !lifting.contains($0) }.prefix(h.days).map { $0 }
+            for _ in picked.count..<max(picked.count, h.days) {
                 let free = WeekSchedule.weekdays.filter { !taken.contains($0) && !picked.contains($0) }
                 func score(_ d: Int) -> Int {
                     let near = [WeekSchedule.previous(d), WeekSchedule.next(d)]
@@ -596,7 +607,8 @@ public enum Hiit {
         let minutes = plannedMinutes(profile, deload: plan.deload)
         for (n, wd) in days.enumerated() {
             let i = plan.sessions.count
-            let w = planned(week: plan.week, n: n, minutes: minutes, equipment: profile.equipment, lowImpact: h.lowImpact, seed: plan.seed)
+            let w = planned(week: plan.week, n: n, minutes: minutes, equipment: profile.equipment, lowImpact: h.lowImpact, seed: plan.seed,
+                            format: h.format)
             var s = w.session(id: "w\(plan.week)s\(i + 1)", index: i)
             s.weekday = wd
             plan.sessions.append(s)
@@ -631,7 +643,8 @@ public enum Hiit {
     }
 }
 
-/// HIIT in the plan (A), Training profile → HIIT: days a week, finisher, impact. nil = off (plans as before).
+/// HIIT in the plan (A), Training profile → HIIT: days a week, which days, format, length, finisher, impact.
+/// nil = off (plans as before).
 public struct HiitPlan: Codable, Hashable, Sendable {
     /// HIIT days a week, 0–3.
     public var days: Int
@@ -639,14 +652,51 @@ public struct HiitPlan: Codable, Hashable, Sendable {
     public var finisher: Bool
     /// No jumps.
     public var lowImpact: Bool
+    /// Weekdays picked for HIIT (#757, 1 = Monday); empty = Coach picks. Days short of `days` are Coach picks.
+    public var weekdays: [Int]
+    /// One format every HIIT day (#757); nil = Coach mix (weekly rotation).
+    public var format: HiitFormat?
+    /// Length in minutes (#757); nil = auto (half the plan's session, 15–30′).
+    public var minutes: Int?
 
-    public init(days: Int = 1, finisher: Bool = false, lowImpact: Bool = false) {
+    public init(days: Int = 1, finisher: Bool = false, lowImpact: Bool = false, weekdays: [Int] = [], format: HiitFormat? = nil,
+                minutes: Int? = nil) {
         self.days = min(3, max(0, days))
         self.finisher = finisher
         self.lowImpact = lowImpact
+        self.weekdays = Array(weekdays.filter { (1...7).contains($0) }.prefix(3))
+        self.format = format
+        self.minutes = minutes.map { min(30, max(10, $0)) }
+    }
+
+    // Plans saved before #757 have no weekdays, format or length.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(days: try c.decode(Int.self, forKey: .days), finisher: try c.decode(Bool.self, forKey: .finisher),
+                  lowImpact: try c.decode(Bool.self, forKey: .lowImpact),
+                  weekdays: try c.decodeIfPresent([Int].self, forKey: .weekdays) ?? [],
+                  format: try c.decodeIfPresent(HiitFormat.self, forKey: .format),
+                  minutes: try c.decodeIfPresent(Int.self, forKey: .minutes))
     }
 
     public var on: Bool { days > 0 || finisher }
+
+    /// Picks `weekday` (#757): toggles it; a pick past `days` drops the oldest one.
+    public mutating func toggle(_ weekday: Int) {
+        if let i = weekdays.firstIndex(of: weekday) {
+            weekdays.remove(at: i)
+        } else {
+            weekdays.append(weekday)
+            if weekdays.count > max(1, days) { weekdays.removeFirst(weekdays.count - max(1, days)) }
+            days = max(days, weekdays.count)
+        }
+    }
+
+    /// Sets `days` (#757): picked weekdays past it are dropped, newest kept.
+    public mutating func setDays(_ n: Int) {
+        days = min(3, max(0, n))
+        if weekdays.count > days { weekdays = Array(weekdays.suffix(days)) }
+    }
 }
 
 /// A built HIIT from Explore (B). The id is the spec, so it opens, plans and logs like any library workout.

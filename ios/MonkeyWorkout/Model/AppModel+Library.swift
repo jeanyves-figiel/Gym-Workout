@@ -124,6 +124,32 @@ extension AppModel {
         Task { await sync() }
     }
 
+    /// The format picked for just this HIIT day (#757); nil = the plan's own (Coach mix or HIIT settings).
+    func hiitDaySpec(_ session: Session) -> HiitSpec? {
+        planInsert(for: session).flatMap { $0.generated }.flatMap { HiitSpec(sessionId: $0.id) }
+    }
+
+    /// Day card Format tile (#757, design A2): this week's HIIT day rebuilt as `spec` (format, length), or back to
+    /// the plan's own HIIT with nil. Kept as a plan insert replacing the generated session, like a library workout.
+    func setHiitDay(_ spec: HiitSpec?, for session: Session) {
+        guard var sp = state.synced, let base = state.plan else { return }
+        let originalId = planInsert(for: session)?.replacingId ?? session.id
+        guard let r = base.sessions.firstIndex(where: { $0.id == originalId }), base.sessions[r].hiit != nil else { return }
+        var list = sp.planInserts ?? []
+        for old in list where old.week == base.week && base.replacedIndex(of: old) == r { forgetProgress(old.sessionId) }
+        list.removeAll { $0.week == base.week && base.replacedIndex(of: $0) == r }
+        if let spec {
+            forgetProgress(base.sessions[r].id)
+            let g = Hiit.build(spec, gym: profile?.equipment ?? []).session(id: spec.sessionId)
+            list.append(PlanInsert(week: base.week, replacing: r, replacingId: originalId, workout: CustomWorkout(name: g.title), generated: g))
+        }
+        sp.planInserts = list.isEmpty ? nil : list
+        state.synced = sp
+        state.profileDirty = true
+        persist()
+        Task { await sync() }
+    }
+
     private func forgetProgress(_ sessionId: String) {
         guard state.done[sessionId] != true, let s = plan?.sessions.first(where: { $0.id == sessionId }) else { return }
         state.done[sessionId] = nil
