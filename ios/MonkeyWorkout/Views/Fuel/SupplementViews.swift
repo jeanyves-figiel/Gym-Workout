@@ -36,7 +36,7 @@ struct FuelStackCard: View {
                         Spacer()
                         if !doses.isEmpty { Text("\(taken)/\(doses.count)").font(Theme.display(17)).monospacedDigit() }
                         NavigationLink(value: FuelRoute.supplements) {
-                            Image(systemName: "slider.horizontal.3").font(.system(size: 14, weight: .heavy))
+                            Image(systemName: "pencil").font(.system(size: 14, weight: .heavy))
                                 .frame(width: 30, height: 30).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.2)))
                         }
                         .buttonStyle(.plain)
@@ -63,6 +63,75 @@ struct FuelStackCard: View {
                     CaffeineMeter(doses: doses, log: log, prefs: store.prefs)
                 }
             }
+        }
+    }
+}
+
+/// Adding another supplement from the My stack sheet (#742, designs A + C from `add-supplement/proposals.png`):
+/// a big add tile to the full list, then quick squares that open the editor in one tap.
+struct SupplementAddPanel: View {
+    private enum Quick: String, CaseIterable, Identifiable {
+        case brand, scan, creatine, own
+        var id: String { rawValue }
+        var emoji: String { switch self { case .brand: "🥤"; case .scan: "📷"; case .creatine: "💪"; case .own: "✏️" } }
+        var title: String { switch self { case .brand: "From a brand"; case .scan: "Scan label"; case .creatine: "Creatine"; case .own: "My own" } }
+        var fill: LinearGradient {
+            switch self { case .brand: FuelPalette.hot; case .scan: FuelPalette.mint; case .creatine: FuelPalette.violet; case .own: FuelPalette.lime }
+        }
+    }
+
+    @State private var adding: Supplement?
+    @State private var scanFirst = false
+    @State private var browsing = false
+    @State private var picked: Supplement?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            NavigationLink(value: FuelRoute.supplements) {
+                FuelTile(emoji: "💊", label: "Add another", title: "Add a supplement",
+                         detail: "Brand · scan label · my own", gradient: FuelPalette.lime, ink: Theme.ink) {
+                    Image(systemName: "plus").font(.system(size: 22, weight: .heavy))
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("fuel.stack.add")
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                ForEach(Quick.allCases) { q in
+                    Button { tap(q) } label: {
+                        VStack(alignment: .leading) {
+                            Text(q.emoji).font(.system(size: 22))
+                            Spacer(minLength: 8)
+                            Text(q.title).font(Theme.display(15)).lineLimit(1).minimumScaleFactor(0.8)
+                        }
+                        .foregroundStyle(q == .own ? Theme.ink : .white)
+                        .padding(12)
+                        .frame(maxWidth: .infinity, minHeight: 84, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(q.fill))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("fuel.stack.quick.\(q.rawValue)")
+                }
+            }
+        }
+        .sheet(item: $adding) { s in NavigationStack { SupplementEditor(supplement: s, isNew: true, scanFirst: scanFirst) } }
+        // The editor opens once the brand sheet is gone.
+        .sheet(isPresented: $browsing, onDismiss: {
+            scanFirst = false
+            adding = picked
+            picked = nil
+        }) {
+            ProductCatalogSheet(action: "Next", picked: { v, n in
+                picked = ProductCatalog.mine(v, servings: n, onDemand: v.isMeal)
+            }, own: { picked = SupplementKind.other.preset })
+        }
+    }
+
+    private func tap(_ q: Quick) {
+        switch q {
+        case .brand: browsing = true
+        case .scan: scanFirst = true; adding = SupplementKind.other.preset
+        case .creatine: scanFirst = false; adding = SupplementKind.creatine.preset
+        case .own: scanFirst = false; adding = SupplementKind.other.preset
         }
     }
 }
@@ -256,6 +325,8 @@ struct SupplementsView: View {
 struct SupplementEditor: View {
     let supplement: Supplement
     let isNew: Bool
+    /// Opens the label scan first (Scan label square, #742).
+    var scanFirst = false
     @Environment(\.dismiss) private var dismiss
     @State private var store = FuelStore.shared
     @State private var draft: Supplement?
@@ -327,7 +398,12 @@ struct SupplementEditor: View {
             }
         }
         .modifier(EditorAutoSave(enabled: !isNew, draft: draft))
-        .onAppear { if draft == nil { draft = supplement } }
+        .onAppear {
+            if draft == nil {
+                draft = supplement
+                if scanFirst { scanning = true }
+            }
+        }
         .sheet(isPresented: $scanning) {
             SupplementLabelScan { found in
                 var s = d.wrappedValue
