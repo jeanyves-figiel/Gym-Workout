@@ -1,12 +1,12 @@
 import APIClient
-import CoreImage.CIFilterBuiltins
 import SwiftUI
 import UIKit
 import WorkoutEngine
 
 // Invite a friend (#745, design A + C from `referral-invites/proposals.png`): the Social Invite tile opens its own
-// page. A: code, share buttons, invite stats and Gym buddies on one page. C: the reward ladder. Story posters
-// (B) are the "Insta story" button here and the story share on the workout summary, PR result and week chest.
+// page. A: code, share buttons, invite stats and Gym buddies on one page. C: the reward ladder. Text only since #777
+// (`referral-invites/v2/proposals.png` A): "What you send" shows the message; story posters live on the content
+// itself (`StorySharing.swift`).
 
 struct InviteView: View {
     @Environment(AppModel.self) private var model
@@ -23,6 +23,7 @@ struct InviteView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 hero
+                whatYouSend
                 shareButtons
                 stats
                 if store.summary?.canRedeem == true { redeemCard }
@@ -95,13 +96,21 @@ struct InviteView: View {
         return LazyVGrid(columns: cols, spacing: 8) {
             Button { openShare("sms:&body=") } label: { shareTile("message.fill", "Messages", lime: true) }
             Button { openShare("https://wa.me/?text=") } label: { shareTile("phone.bubble.fill", "WhatsApp", lime: true) }
-            StoryShareButton(poster: .invite(level: model.game.level, workouts: model.game.workouts, code: store.code, link: link)) {
-                shareTile("camera.fill", "Insta story", lime: false)
-            }
+            Button { copy() } label: { shareTile(copied ? "checkmark" : "link", copied ? "Copied" : "Copy link", lime: false) }
             ShareLink(item: message) { shareTile("square.and.arrow.up", "More…", lime: false) }
         }
         .buttonStyle(.plain)
         .disabled(store.code == nil)
+    }
+
+    /// Exactly what every button sends (#777).
+    private var whatYouSend: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("What you send").eyebrow().padding(.leading, 4)
+            Text(message).font(.subheadline.weight(.semibold)).textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .card(padding: 14)
+        }
     }
 
     private func shareTile(_ symbol: String, _ title: String, lime: Bool) -> some View {
@@ -217,130 +226,6 @@ struct InviteView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .gradientCard(LinearGradient(colors: [Color(hex: 0x00B86B), Color(hex: 0x1E9BFF)], startPoint: .topLeading, endPoint: .bottomTrailing))
-    }
-}
-
-// MARK: - Story posters (9:16)
-
-/// 1080 × 1920 story image for Instagram, TikTok, WhatsApp status… Fixed type sizes (no Dynamic Type): it's a picture.
-struct StoryPoster: View {
-    var eyebrow: String
-    var title: String
-    var big: String
-    var unit: String
-    var line: String
-    var colors: [Color]
-    /// Invite code under the logo, so every shared story can bring a friend in.
-    var code: String?
-    var qr: URL?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(eyebrow.uppercased()).font(.system(size: 15, weight: .heavy, design: .rounded)).tracking(3).opacity(0.85)
-            Text(title).font(.system(size: 44, weight: .black, design: .rounded)).lineLimit(3).minimumScaleFactor(0.5).padding(.top, 6)
-            Spacer()
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(big).font(.system(size: 132, weight: .black, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.4)
-                Text(unit.uppercased()).font(.system(size: 24, weight: .black, design: .rounded)).lineLimit(1).minimumScaleFactor(0.6)
-            }
-            Text(line).font(.system(size: 19, weight: .bold, design: .rounded)).opacity(0.92).lineLimit(2)
-            Spacer()
-            HStack(alignment: .bottom, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("🐵 MonkeyWorkout").font(.system(size: 24, weight: .black, design: .rounded))
-                    if let code {
-                        Text("Train with me · code \(code)").font(.system(size: 16, weight: .heavy, design: .rounded)).opacity(0.9)
-                    }
-                }
-                Spacer(minLength: 0)
-                if let qr, let image = QRCode.image(qr.absoluteString) {
-                    Image(uiImage: image).interpolation(.none).resizable()
-                        .frame(width: 92, height: 92)
-                        .padding(6)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(.white))
-                }
-            }
-        }
-        .foregroundStyle(.white)
-        .padding(34)
-        .frame(width: 360, height: 640, alignment: .leading)
-        .background(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-    }
-
-    @MainActor func render() -> UIImage? {
-        let r = ImageRenderer(content: self)
-        r.scale = 3
-        return r.uiImage
-    }
-}
-
-extension StoryPoster {
-    private static var shareCode: String? { ReferralStore.shared.code }
-
-    @MainActor static func invite(level: Int, workouts: Int, code: String?, link: URL?) -> StoryPoster {
-        StoryPoster(eyebrow: "Train with me", title: "Level \(level) · \(GameRank.of(level: level).title)", big: "\(workouts)",
-                    unit: "workouts", line: code.map { "1 month Pro free for us both with code \($0)" } ?? "Join me on MonkeyWorkout",
-                    colors: [Color(hex: 0x151530), Color(hex: 0x7B2CFF), Color(hex: 0xFF2D87)], code: nil, qr: link)
-    }
-
-    @MainActor static func workout(title: String, minutes: Int, sets: Int, moves: Int) -> StoryPoster {
-        StoryPoster(eyebrow: "Workout done", title: title, big: "\(minutes)", unit: "min", line: "\(sets) sets · \(moves) exercises",
-                    colors: WorkoutEngine.Category.power.colors + [Color(hex: 0xFF9A3C)], code: shareCode)
-    }
-
-    @MainActor static func record(exercise: String, value: String, unit: String, line: String, isRecord: Bool) -> StoryPoster {
-        StoryPoster(eyebrow: isRecord ? "New personal record" : "Lifted", title: exercise, big: value, unit: unit, line: line,
-                    colors: [Color(hex: 0xFFB800), Color(hex: 0xFF5C3C), Color(hex: 0xFF2D87)], code: shareCode)
-    }
-
-    @MainActor static func chest(sessions: Int) -> StoryPoster {
-        StoryPoster(eyebrow: "Week goal met", title: "Chest opened 🎁", big: "\(sessions)", unit: "sessions",
-                    line: "+\(GameProgress.weekBonus) XP this week", colors: [Color(hex: 0x7B5CFF), Color(hex: 0x3C8DFF), Color(hex: 0x00C9A7)], code: shareCode)
-    }
-}
-
-/// Renders the poster once, then shares it as an image (the share sheet offers Instagram Stories, WhatsApp…).
-struct StoryShareButton<Label: View>: View {
-    let poster: StoryPoster
-    @ViewBuilder var label: () -> Label
-    @State private var image: Image?
-
-    var body: some View {
-        Group {
-            if let image {
-                ShareLink(item: image, preview: SharePreview(poster.title, image: image)) { label() }
-            } else {
-                label().opacity(0.5)
-            }
-        }
-        .task(id: poster.title + poster.big + (poster.code ?? "")) {
-            image = poster.render().map { Image(uiImage: $0) }
-        }
-    }
-}
-
-extension StoryShareButton where Label == AnyView {
-    /// Instagram-gradient "Share to story" pill.
-    init(poster: StoryPoster, title: String = "Share to story") {
-        self.init(poster: poster) {
-            AnyView(SwiftUI.Label(title, systemImage: "camera.fill")
-                .font(Theme.label(15))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity, minHeight: 50)
-                .background(Capsule().fill(LinearGradient(colors: [Color(hex: 0xFEDA75), Color(hex: 0xFA7E1E), Color(hex: 0xD62976), Color(hex: 0x962FBF)],
-                                                          startPoint: .bottomLeading, endPoint: .topTrailing))))
-        }
-    }
-}
-
-enum QRCode {
-    static func image(_ text: String) -> UIImage? {
-        let f = CIFilter.qrCodeGenerator()
-        f.message = Data(text.utf8)
-        f.correctionLevel = "M"
-        guard let out = f.outputImage?.transformed(by: CGAffineTransform(scaleX: 8, y: 8)),
-              let cg = CIContext().createCGImage(out, from: out.extent) else { return nil }
-        return UIImage(cgImage: cg)
     }
 }
 

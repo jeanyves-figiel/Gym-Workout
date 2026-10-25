@@ -234,6 +234,10 @@ final class FuelStore {
     }
 
     func saveRecipe(_ r: Recipe) {
+        // Share prompt (#777): a recipe the member just made.
+        if r.isOwn, !saved.recipes.contains(where: { $0.id == r.id }) {
+            ShareMoments.shared.offer(ShareMoment(id: "recipe-\(r.id)", title: "New meal: \(r.name)", poster: .recipe(r)))
+        }
         var s = saved
         s.recipes.removeAll { $0.id == r.id }
         s.recipes.insert(r, at: 0)

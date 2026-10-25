@@ -80,6 +80,8 @@ struct MainTabView: View {
         // Ask Coach everywhere (#412 A): the chat opened by the 🐵 header tile (#707), which knows the screen on top.
         // App tour (#664): over everything on the tabs, the bubble for the tab showing.
         .overlay { if model.tourStep != nil { AppTourOverlay() } }
+        // Share prompts (#777 C): "Your story is ready" after a PR, level, badge, week goal, new plan or meal.
+        .modifier(ShareMomentsHost())
         // Every way in (bubble, sparks, Siri/Shortcuts) lands here, so the Pro gate is checked once (#711).
         .sheet(item: $ask.request) { r in
             if ProStore.shared.locked { ProPaywallSheet(gate: .askCoach) } else { CoachChatView(ask: r).remotePaused(.askCoach) }
@@ -388,6 +390,7 @@ private struct DemoScreen: View {
         case "community-share": ShareWinView()
         case "community-profile": NavigationStack { ProfileView() }
         case "social-invite": NavigationStack { InviteView() }
+        case "story-sheet": StorySheet(poster: .workout(title: "Legs", minutes: 55, sets: 27, moves: 12, details: ["Back squat 5 × 5 · 100 kg", "Romanian deadlift 3 × 8", "Leg press 3 × 12", "Walking lunge 3 × 10"]))
         case "community-members":
             NavigationStack { FindMembersView().navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) } }
         case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", Demo.customExercise.exerciseId]) { _ in }

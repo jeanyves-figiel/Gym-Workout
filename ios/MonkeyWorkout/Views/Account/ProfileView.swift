@@ -94,6 +94,15 @@ struct ProfileView: View {
                 AccountNote(text: "Gender stays on your device and account, never in calculations. Pronouns are used by the coach and Ask Coach, and shown in Community only if you turn it on.")
 
                 section("Social")
+                // Share prompts (#777): off = no "Your story is ready" toasts; Share buttons stay.
+                Toggle(isOn: Bindable(ShareMoments.shared).enabled) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Share prompts").font(.system(.body, design: .rounded).weight(.heavy))
+                        Text("Offer a story after a PR, level up, badge, week goal, new plan or meal.").font(.footnote).foregroundStyle(Theme.muted)
+                    }
+                }
+                .tint(Theme.lime)
+                .card(padding: 14)
                 if member {
                     VisibilityPicker(selection: $visibility)
                     Toggle(isOn: $autoShare) {
