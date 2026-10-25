@@ -410,8 +410,6 @@ private struct GoalCard: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 26, style: .continuous)
                     .strokeBorder(.white, lineWidth: selected ? 3 : 0))
-            .opacity(selected ? 1 : 0.55)
-            .saturation(selected ? 1 : 0.7)
             .shadow(color: .black.opacity(selected ? 0.35 : 0), radius: 14, y: 8)
         }
         .buttonStyle(.plain)
@@ -547,8 +545,6 @@ private struct VarietyCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(variety.gradient))
             .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(.white, lineWidth: selected ? 3 : 0))
-            .opacity(selected ? 1 : 0.55)
-            .saturation(selected ? 1 : 0.7)
             .shadow(color: .black.opacity(selected ? 0.35 : 0), radius: 14, y: 8)
         }
         .buttonStyle(.plain)

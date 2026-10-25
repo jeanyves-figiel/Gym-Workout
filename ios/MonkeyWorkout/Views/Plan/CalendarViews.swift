@@ -804,7 +804,6 @@ struct AwayEditorView: View {
             .padding(14)
             .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(setup.category.gradient))
             .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Theme.lime, lineWidth: on ? 3 : 0))
-            .opacity(on ? 1 : 0.7)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(on ? .isSelected : [])

@@ -223,7 +223,7 @@ struct TrainWidgetGallery: View {
         .foregroundStyle(.white)
         .padding(12)
         .frame(maxWidth: .infinity, minHeight: 170, alignment: .topLeading)
-        .selectableGradient(kind.palette.gradient, selected: !on, cornerRadius: 20)
+        .selectableGradient(kind.palette.gradient, selected: !on, cornerRadius: 20, dim: true)
     }
 }
 

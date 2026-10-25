@@ -95,8 +95,6 @@ private struct JoinVisibilityCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(gradient))
             .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(.white, lineWidth: selected ? 3 : 0))
-            .opacity(selected ? 1 : 0.55)
-            .saturation(selected ? 1 : 0.7)
             .shadow(color: .black.opacity(selected ? 0.3 : 0), radius: 12, y: 6)
         }
         .buttonStyle(.plain)
