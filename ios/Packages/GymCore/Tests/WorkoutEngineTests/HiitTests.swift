@@ -157,4 +157,43 @@ import Testing
         let decoded = try? JSONDecoder().decode(Session.self, from: JSONEncoder().encode(placed))
         #expect(decoded?.hiit == s.hiit)
     }
+
+    // #757: picked days, a fixed format and a length.
+    @Test func pickedDaysFormatAndLength() throws {
+        var p = Profile(goal: .balanced, sessionsPerWeek: 3, experience: .intermediate, climbingDaysPerWeek: 0)
+        p.gymWeekdays = [1, 3, 5]
+        p.hiit = HiitPlan(days: 1, weekdays: [6], format: .tabata, minutes: 20)
+        let plan = Generator.generateWeek(p, week: 1, seed: 42)
+        let hiit = plan.sessions.filter { $0.hiit != nil }
+        #expect(hiit.count == 1)
+        #expect(hiit.first?.weekday == 6)
+        #expect(hiit.first?.hiit?.blocks.allSatisfy { $0.format == .tabata } == true)
+        #expect(abs((hiit.first?.estMin ?? 0) - 20) <= 2)
+        // A picked lifting day stays the lift's: Coach picks a free day instead.
+        p.hiit = HiitPlan(days: 1, weekdays: [3])
+        let moved = Generator.generateWeek(p, week: 1, seed: 42).sessions.filter { $0.hiit != nil }
+        #expect(moved.count == 1)
+        #expect(moved.first?.weekday != 3)
+        // Two days, one picked: the other is a Coach pick.
+        p.hiit = HiitPlan(days: 2, weekdays: [7])
+        let two = Generator.generateWeek(p, week: 1, seed: 42).sessions.compactMap { $0.hiit != nil ? $0.weekday : nil }
+        #expect(two.count == 2 && two.contains(7))
+    }
+
+    @Test func planDecodesWithoutNewFieldsAndTogglesDays() throws {
+        let old = try JSONDecoder().decode(HiitPlan.self, from: Data(#"{"days":2,"finisher":true,"lowImpact":false}"#.utf8))
+        #expect(old == HiitPlan(days: 2, finisher: true))
+        var h = HiitPlan(days: 1)
+        h.toggle(2)
+        #expect(h.weekdays == [2])
+        h.toggle(4)
+        #expect(h.weekdays == [4] && h.days == 1)
+        h.setDays(2)
+        h.toggle(6)
+        #expect(h.weekdays == [4, 6])
+        h.setDays(1)
+        #expect(h.weekdays == [6])
+        let round = try JSONDecoder().decode(HiitPlan.self, from: JSONEncoder().encode(HiitPlan(days: 1, weekdays: [3], format: .emom, minutes: 15)))
+        #expect(round.format == .emom && round.minutes == 15 && round.weekdays == [3])
+    }
 }

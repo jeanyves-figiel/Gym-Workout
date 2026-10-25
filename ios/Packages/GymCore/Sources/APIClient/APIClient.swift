@@ -408,8 +408,10 @@ public actor APIClient {
         _ = try await authorizedRaw("PUT", "/v1/me/push-device", Body(token: token, env: env, topic: topic, tz: timeZone))
     }
 
+    /// Token in the body, never in the URL (#762).
     public func unregisterPushDevice(token: String) async throws {
-        _ = try await authorizedRaw("DELETE", "/v1/me/push-device/\(token)", Empty?.none)
+        struct Body: Encodable { var token: String }
+        _ = try await authorizedRaw("DELETE", "/v1/me/push-device", Body(token: token))
     }
 
     /// Notification preferences (app-defined; server validates the known keys).

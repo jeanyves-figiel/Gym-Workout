@@ -1,6 +1,37 @@
 {
   "releases": [
     {
+      "id": "2026-10-24.5",
+      "build": 72,
+      "date": "2026-10-24",
+      "items": [
+        {
+          "symbol": "sparkles",
+          "tint": "warmup",
+          "title": "Fuel, clearer",
+          "body": "One tank for today, one Log button, and Magic Snap: photo your plate or your fridge, Monkey sorts it."
+        },
+        {
+          "symbol": "figure.cooldown",
+          "tint": "mobility",
+          "title": "More daily routines",
+          "body": "6 new ones (hips, shoulders, roll out, legs, wrists, splits), build your own, and Coach picks one for your day on Train."
+        },
+        {
+          "symbol": "person.3.fill",
+          "tint": "cardio",
+          "title": "Social, simpler",
+          "body": "Stories of who trained today, one feed, one Share button."
+        },
+        {
+          "symbol": "person.crop.square",
+          "tint": "strength",
+          "title": "Me, simpler",
+          "body": "One card for you and your level, Settings one tap away."
+        }
+      ]
+    },
+    {
       "id": "2026-10-24.4",
       "build": 71,
       "date": "2026-10-24",

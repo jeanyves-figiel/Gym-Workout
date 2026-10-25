@@ -4,6 +4,7 @@ import WorkoutEngine
 
 /// Search members by nickname or gym (#152). Empty search: members at your gym, who you follow, then suggestions.
 /// The server leaves out you, anyone blocked either way and members hidden by reports. Gyms show only when the member opts in.
+/// Friends (#747): add by invite code at the top; "Friend not here?" explains that only Social members show up.
 struct FindMembersView: View {
     @Environment(AppModel.self) private var model
     @State private var query = ""
@@ -12,6 +13,10 @@ struct FindMembersView: View {
     @State private var atGym: [CommunityMemberSummary] = []
     @State private var savingGym = false
     @State private var error: String?
+    @State private var friendCode = ""
+    @State private var codeMatch: CommunityMemberSummary?
+    @State private var codeError: String?
+    @State private var findingCode = false
 
     private var community: Community { .shared }
     private var showsGym: Bool { community.profile?.showGym == true }
@@ -26,10 +31,13 @@ struct FindMembersView: View {
                 if let results {
                     if searching {
                         section("Results", results, empty: "No member or gym matching “\(query.trimmingCharacters(in: .whitespaces))”.")
+                        if results.isEmpty { friendNotHere }
                     } else {
+                        codeCard
                         gymSection
                         if !following.isEmpty { section("Following", following, empty: nil) }
                         section("Suggested", results, empty: following.isEmpty ? "No other members yet." : nil)
+                        friendNotHere
                     }
                 } else if error == nil {
                     ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
@@ -47,6 +55,77 @@ struct FindMembersView: View {
         .autocorrectionDisabled()
         .textInputAutocapitalization(.never)
         .task(id: query) { await load() }
+    }
+
+    /// Add by code (#747, design C): a friend's invite code finds them at any account age; your own code to share.
+    private var codeCard: some View {
+        GradientSection(symbol: "person.text.rectangle.fill", title: "Add a friend by code", gradient: WorkoutEngine.Category.mobility.gradient) {
+            HStack(spacing: 8) {
+                TextField("", text: $friendCode, prompt: Text("FRIEND'S CODE").foregroundStyle(.white.opacity(0.6)))
+                    .font(.system(size: 18, weight: .black, design: .monospaced))
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .submitLabel(.search)
+                    .onSubmit { findByCode() }
+                    .padding(.horizontal, 12).frame(minHeight: 48)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.22)))
+                Button("FIND") { findByCode() }
+                    .font(Theme.label(14)).foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 16).frame(minHeight: 48)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.lime))
+                    .buttonStyle(.plain)
+                    .disabled(friendCode.trimmingCharacters(in: .whitespaces).count < 4 || findingCode)
+            }
+            if let codeError {
+                Text(codeError).font(.footnote.weight(.semibold))
+            }
+            if let codeMatch {
+                MemberRow(member: codeMatch) { toggleFollow(codeMatch) }
+            }
+            if let mine = ReferralStore.shared.code {
+                Text("Your code: \(mine)").font(.caption.weight(.bold)).opacity(0.9)
+            }
+        }
+    }
+
+    /// Friend not here (#747, design A): only Social members are listed, so point at the invite.
+    private var friendNotHere: some View {
+        NavigationLink { InviteView() } label: {
+            HStack(spacing: 12) {
+                IconTile(symbol: "person.fill.questionmark", size: 44)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Friend not here?").font(Theme.display(20))
+                    Text("Only people who joined Social show up. Send your invite: when they join, you follow each other.")
+                        .font(.footnote.weight(.semibold)).opacity(0.9).multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.headline.weight(.heavy))
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .gradientCard(WorkoutEngine.Category.power.gradient, ink: .white)
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 4)
+    }
+
+    private func findByCode() {
+        let code = friendCode.trimmingCharacters(in: .whitespaces)
+        guard code.count >= 4 else { return }
+        findingCode = true
+        Task {
+            defer { findingCode = false }
+            #if DEBUG
+            if model.demo { codeMatch = FindMembersView.demoMembers[1]; codeError = nil; return }
+            #endif
+            do {
+                codeMatch = try await model.api.memberByCode(code)
+                codeError = nil
+            } catch {
+                codeMatch = nil
+                codeError = error.localizedDescription
+            }
+        }
     }
 
     /// Members at your gym, or the opt-in card while you don't show yours.
@@ -187,6 +266,10 @@ struct FindMembersView: View {
         if results != nil { update(&results!) }
         update(&following)
         update(&atGym)
+        if codeMatch?.userId == userId, codeMatch?.followedByMe != followed {
+            codeMatch?.followedByMe = followed
+            codeMatch?.followers += followed ? 1 : -1
+        }
     }
 
     #if DEBUG

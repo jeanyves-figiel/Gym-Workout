@@ -46,7 +46,7 @@ public enum TrainWidgetKind: String, Codable, CaseIterable, Sendable, Identifiab
 
     public var detail: String {
         switch self {
-        case .actions: "Calendar, Variation and Edit plan buttons"
+        case .actions: "Calendar and My plan buttons"
         case .coach: "Your monkey's mood and a tip, tap for the next"
         case .week: "Sessions done, cycle week and today's readiness"
         case .level: "Level, rank and XP to the next level"

@@ -4,7 +4,7 @@ Develop on DEV first, then ship through staging ([ci-cd.md](ci-cd.md)).
 
 ## API
 
-Node ≥ 22.18 (TypeScript runs through Node's type stripping; no build step).
+Node ≥ 24.7 (TypeScript runs through Node's type stripping; no build step).
 
 ```bash
 cd backend

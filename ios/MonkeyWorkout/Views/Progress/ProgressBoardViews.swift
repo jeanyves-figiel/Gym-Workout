@@ -268,7 +268,7 @@ struct ProgressWidgetGallery: View {
         .foregroundStyle(.white)
         .padding(12)
         .frame(maxWidth: .infinity, minHeight: w.kind == .sport ? 120 : 160, alignment: .topLeading)
-        .selectableGradient(w.gradient, selected: !on, cornerRadius: 20)
+        .selectableGradient(w.gradient, selected: !on, cornerRadius: 20, dim: true)
     }
 }
 

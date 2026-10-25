@@ -25,8 +25,36 @@ struct ExpertStatCard: View {
     let value: String
     var unit: String = ""
     let colors: [Color]
+    /// My plan add-on grid (#760): square tile, icon and value on top, title and detail below.
+    @Environment(\.statCardTile) private var tile
 
     var body: some View {
+        if tile { tileBody } else { rowBody }
+    }
+
+    private var tileBody: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top) {
+                Image(systemName: symbol)
+                    .font(.system(size: 16, weight: .bold))
+                    .frame(width: 36, height: 36)
+                    .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(.black.opacity(0.22)))
+                Spacer(minLength: 2)
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text(value).font(Theme.display(20)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
+                    if !unit.isEmpty { Text(unit).font(Theme.label(9)).opacity(0.85).lineLimit(1) }
+                }
+            }
+            Spacer(minLength: 0)
+            Text(title).font(Theme.display(16)).lineLimit(1).minimumScaleFactor(0.6)
+            Text(detail).font(.caption2.weight(.semibold)).opacity(0.88).lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, minHeight: 118, alignment: .topLeading)
+        .gradientCard(gradient(colors), padding: 12)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var rowBody: some View {
         HStack(spacing: 12) {
             Image(systemName: symbol)
                 .font(.system(size: 18, weight: .bold))
@@ -45,6 +73,11 @@ struct ExpertStatCard: View {
         .gradientCard(gradient(colors), padding: 14)
         .accessibilityElement(children: .combine)
     }
+}
+
+extension EnvironmentValues {
+    /// `ExpertStatCard` as a square tile (#760).
+    @Entry var statCardTile = false
 }
 
 // MARK: - B · Pro Sets in the player

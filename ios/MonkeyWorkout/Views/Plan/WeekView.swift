@@ -7,13 +7,14 @@ struct WeekView: View {
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @State private var editing = false
-    @State private var varying = false
     @State private var playing: Session?
     @State private var moving: Session?
     @State private var adding = false
     @State private var addingDay: Int?
     /// Day picked in the Next up strip (#277); nil = the next session.
     @State private var pickedDay: Int?
+    /// One of several workouts on the picked day, shown in the card (#758); nil = the first not skipped.
+    @State private var pickedSession: String?
     /// Date the pick was made on: a pick from an earlier day is dropped, so the strip reopens on today.
     @State private var pickedOn: String?
     @Environment(\.scenePhase) private var scenePhase
@@ -114,12 +115,9 @@ struct WeekView: View {
         .sheet(isPresented: $editing) {
             NavigationStack {
                 TrainingProfileView()
-                    .navigationTitle("Training profile")
+                    .navigationTitle(TrainingProfileView.title)
                     .toolbar { CloseToolbarItem { editing = false } }
             }
-        }
-        .sheet(isPresented: $varying) {
-            VariationSheet(days: Set(model.variableSessions.map(\.id)), keep: model.keptSwapUids)
         }
         .fullScreenCover(item: $playing) { s in WorkoutPlayerView(sessionId: s.id) }
         .fullScreenCover(isPresented: $chestReveal) {
@@ -231,9 +229,8 @@ struct WeekView: View {
                 RestDayCard(weekday: today, onPick: pick, onBack: back, onAdd: { addingDay = today; adding = true },
                             backTitle: nextTitle ?? "This week", skipped: skipped)
             } else if pickedDay == nil, opensToday {
-                if let s = plan.sessions.first(where: { $0.weekday == today && !model.skippedIds.contains($0.id) })
-                    ?? plan.sessions.first(where: { $0.weekday == today }) {
-                    NextUpCard(session: s, picked: today, onPick: pick, onBack: back) { start(s) }
+                if let s = daySession(plan, today) {
+                    NextUpCard(session: s, picked: today, onPick: pick, onBack: back, onSelect: select(today)) { start(s) }
                 } else {
                     RestDayCard(weekday: today, onPick: pick, onBack: back,
                                 onAdd: { addingDay = today; adding = true }, backTitle: nextTitle)
@@ -248,22 +245,36 @@ struct WeekView: View {
                             session: plan.sessions.first { $0.weekday == d }, onPick: pick, onBack: back)
             } else if let d = pickedDay, let skipped = skippedOnly(plan, d) {
                 RestDayCard(weekday: d, onPick: pick, onBack: back, onAdd: { addingDay = d; adding = true }, skipped: skipped)
-            } else if let d = pickedDay, let s = plan.sessions.first(where: { $0.weekday == d && !model.skippedIds.contains($0.id) })
-                        ?? plan.sessions.first(where: { $0.weekday == d }) {
-                NextUpCard(session: s, picked: d, onPick: pick, onBack: back) { start(s) }
+            } else if let d = pickedDay, let s = daySession(plan, d) {
+                NextUpCard(session: s, picked: d, onPick: pick, onBack: back, onSelect: select(d)) { start(s) }
             } else if let d = pickedDay {
                 RestDayCard(weekday: d, onPick: pick, onBack: back) { addingDay = d; adding = true }
             } else if let next {
-                NextUpCard(session: next, picked: nil, onPick: pick, onBack: back) { start(next) }
+                NextUpCard(session: next, picked: nil, onPick: pick, onBack: back, onSelect: select(next.weekday)) { start(next) }
             } else if let later = model.nextWeekSession() {
                 // This week has nothing left (#473): Next up is next week's first session, shown, not startable.
-                NextUpCard(session: later.session, later: later.day, onPick: pick, onBack: back)
+                NextUpCard(session: later.session, later: later.day, onPick: pick, onBack: back, onSelect: select(laterDay))
             } else {
                 WeekCompleteCard(missed: model.missedToHandle.count, onPick: pick)
             }
         }
         // Back goes to today then, so the button says so (not "Back to next up (Thu)").
         .environment(\.trainBackToToday, opensToday && pickedDay != nil)
+    }
+
+    /// The workout a day's card shows (#758): the one picked in the day line, else the first not skipped.
+    private func daySession(_ plan: WeekPlan, _ wd: Int, skipped: (Session) -> Bool = { _ in false }) -> Session? {
+        let day = plan.sessions.filter { $0.weekday == wd }
+        return day.first { $0.id == pickedSession }
+            ?? day.first { !model.skippedIds.contains($0.id) && !skipped($0) } ?? day.first
+    }
+
+    /// Day line pick (#758): that workout in the card, on strip day `day` (nil = its own weekday this week).
+    private func select(_ day: Int?) -> (Session) -> Void {
+        { s in
+            pickedSession = s.id
+            pickedDay = day ?? s.weekday
+        }
     }
 
     /// This week's day `wd` from today on whose workouts were all skipped (#698): those workouts, the day shows as a rest day.
@@ -285,9 +296,9 @@ struct WeekView: View {
             if week < weeks.count, let s = weeks[week].plan.sessions.first(where: { $0.weekday == wd }), model.isSkipped(s.id, in: weeks[week]) {
                 // Skipped that week (#698): a rest day with Unskip.
                 RestDayCard(weekday: wd, day: d, date: date, onPick: pick, onBack: back, skipped: [s], skippedWeek: weeks[week])
-            } else if week < weeks.count, let s = weeks[week].plan.sessions.first(where: { $0.weekday == wd }) {
+            } else if week < weeks.count, let s = daySession(weeks[week].plan, wd, skipped: { model.isSkipped($0.id, in: weeks[week]) }) {
                 NextUpCard(session: s, picked: d, later: DaySelection(week: weeks[week], weekday: wd, current: false),
-                           onPick: pick, onBack: back)
+                           onPick: pick, onBack: back, onSelect: select(d))
             } else {
                 RestDayCard(weekday: wd, day: d, date: date, onPick: pick, onBack: back)
             }
@@ -365,12 +376,11 @@ struct WeekView: View {
                 .buttonStyle(.plain)
             } else {
                 CoachHeaderTile()
-                // Calendar, Variation and Edit plan stay reachable when Quick actions is removed.
+                // Calendar and My plan stay reachable when Quick actions is removed.
                 if !model.trainLayout.contains(.actions) {
                     Menu {
                         Button("Calendar", systemImage: "calendar") { showingCalendar = true }
-                        Button("Variation", systemImage: "shuffle") { varying = true }
-                        Button("Edit plan", systemImage: "slider.horizontal.3") { editing = true }
+                        Button("My plan", systemImage: "slider.horizontal.3") { editing = true }
                     } label: {
                         HeaderTile(symbol: "ellipsis")
                     }
@@ -386,7 +396,7 @@ struct WeekView: View {
         .padding(.top, 4)
     }
 
-    /// Calendar, Variation and Edit plan as Explore-style gradient buttons in one row (#147): the Quick actions widget.
+    /// Calendar and My plan as Explore-style gradient buttons in one row (#147); Variation moved into My plan → Mix it up (#760).
     private var actionChips: some View {
         let planned = plannedCount
         return HStack(spacing: 8) {
@@ -396,21 +406,19 @@ struct WeekView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Calendar, \(planned) sessions planned in the next 4 weeks")
-            Button {
-                varying = true
-            } label: {
-                HeaderChip(symbol: "shuffle", title: "Variation", detail: "New mix",
-                           gradient: WorkoutEngine.Category.warmup.gradient)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("New variation of this week's plan")
             Button { editing = true } label: {
-                HeaderChip(symbol: "slider.horizontal.3", title: "Edit plan", detail: "Days · goals",
+                HeaderChip(symbol: "slider.horizontal.3", title: "My plan", detail: planDetail,
                            gradient: WorkoutEngine.Category.power.gradient)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Edit current plan: training profile")
+            .accessibilityLabel("My plan: \(planDetail), days, goal and mix it up")
         }
+    }
+
+    /// "2× · Build & define" under My plan.
+    private var planDetail: String {
+        guard let p = model.profile else { return "Days · goal" }
+        return "\(p.sessionsPerWeek)× · \(p.goal.config.label)"
     }
 
     /// Coach and week cards both wide (#564, design D1): the week shows as tiles inside the Coach card. Apart while editing.
@@ -487,7 +495,7 @@ struct WeekView: View {
                 Button { editing = true } label: {
                     WidgetTile(kind: .climbing, title: "Climbing") {
                         Text("Add climbing days").font(Theme.display(20))
-                        Text("Pick climbing days in Edit plan and Train plans around them.")
+                        Text("Pick climbing days in My plan and Train plans around them.")
                             .font(.caption.weight(.semibold)).opacity(0.9)
                     }
                 }
@@ -783,12 +791,12 @@ private struct WeekTiles: View {
         let assessed = Readiness.assess(health.snapshot)
         HStack(spacing: 6) {
             NavigationLink { CalendarView() } label: {
-                tile("This week", "\(done)/\(plan.sessions.count)", detail: "done ›",
-                     colors: [Color(hex: 0x3D5AFF), Color(hex: 0x8A4FFF)])
+                tile("This week", "\(done)/\(plan.sessions.count)", detail: nil,
+                     colors: [Color(hex: 0x3D5AFF), Color(hex: 0x8A4FFF)], width: 76)
             }
             .accessibilityLabel("\(done) of \(plan.sessions.count) sessions done this week").accessibilityHint("Opens the calendar")
             Button { explainingPhase = true } label: {
-                tile("\(p.title) ⓘ", "W\(plan.week)/\(Generator.mesocycleWeeks)", detail: nil, colors: p.palette.colors, bars: true)
+                tile("\(p.title) ⓘ", "W\(plan.week)/\(Generator.mesocycleWeeks)", detail: nil, colors: p.palette.colors, bars: true, width: 76)
             }
             .accessibilityHint("Explains this week's training phase")
             readinessTile(assessed)
@@ -803,8 +811,8 @@ private struct WeekTiles: View {
         if let assessed {
             let r = assessed.0
             Button { if model.tuneOn { tuning = true } else { explainingReadiness = true } } label: {
-                tile(tuned > 0 ? "Tuned · \(tuned)" : "Ready", r.title,
-                     detail: model.readinessEased ? "eased: −1 RPE" : r.markers(health.snapshot), colors: r.colors)
+                lineTile(tuned > 0 ? "Tuned · \(tuned)" : "Ready", r.title,
+                         detail: model.readinessEased ? "eased: −1 RPE" : r.markers(health.snapshot), colors: r.colors)
             }
             .accessibilityLabel("Readiness: \(r.title)")
             .accessibilityHint(model.tuneOn ? "Shows today's ready score and what Monkey tuned" : "Explains readiness and each marker")
@@ -813,32 +821,36 @@ private struct WeekTiles: View {
             }
         } else if health.available, health.settled, !health.connected {
             Button { Task { await health.connect() } } label: {
-                tile("Ready", "Health", detail: "connect ›", colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)])
+                lineTile("Ready", "Health", detail: "connect ›", colors: [Color(hex: 0xFF3D8B), Color(hex: 0xFF9A5E)])
             }
             .accessibilityHint("Asks Apple Health for heart rate variability, resting heart rate and sleep")
         } else if model.tuneOn {
             Button { tuning = true } label: {
-                tile("Today", tuned > 0 ? "Tuned · \(tuned)" : "Tune", detail: "light · push ›", colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E9BFF)])
+                lineTile("Today", tuned > 0 ? "Tuned · \(tuned)" : "Tune", detail: "light · push ›", colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E9BFF)])
             }
             .accessibilityHint("Tap sore muscles or pick light, medium or push for today's workout")
         } else {
             Button { explainingPhase = true } label: {
-                tile("Plan", "\(plan.sessions.count) sessions", detail: "\(plan.sessionMinutes) min", colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E9BFF)])
+                lineTile("Plan", "\(plan.sessions.count) sessions", detail: "\(plan.sessionMinutes) min", colors: [Color(hex: 0x00C6A7), Color(hex: 0x1E9BFF)])
             }
             .accessibilityHint("Explains this week's training phase")
         }
     }
 
+    /// Tiles 48 pt tall (#752): the Coach card is shorter, This week and the phase are compact squares.
+    private static let height: CGFloat = 48
+
     /// Same size whatever the text (#529): content in an overlay on a fixed frame.
-    /// `bars`: the cycle's weeks under the value, this one brightest.
-    private func tile(_ key: String, _ value: String, detail: String?, colors: [Color], bars: Bool = false) -> some View {
+    /// `bars`: the cycle's weeks under the value, this one brightest. `width`: a compact tile (#752).
+    private func tile(_ key: String, _ value: String, detail: String?, colors: [Color], bars: Bool = false, width: CGFloat? = nil) -> some View {
         Color.clear
-            .frame(maxWidth: .infinity)
-            .frame(height: 66)
+            .frame(width: width)
+            .frame(maxWidth: width ?? .infinity)
+            .frame(height: Self.height)
             .overlay(alignment: .topLeading) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(key).font(Theme.label(9)).tracking(0.8).textCase(.uppercase).opacity(0.9).lineLimit(1).minimumScaleFactor(0.7)
-                    Text(value).font(Theme.display(value.count > 6 ? 14 : 20)).lineLimit(1).minimumScaleFactor(0.6)
+                    Text(value).font(Theme.display(value.count > 6 ? 14 : 18)).lineLimit(1).minimumScaleFactor(0.6)
                     if let detail {
                         Text(detail).font(Theme.label(9)).monospacedDigit().opacity(0.9).lineLimit(1).minimumScaleFactor(0.6)
                     }
@@ -848,16 +860,37 @@ private struct WeekTiles: View {
                                 Capsule().fill(.white.opacity(w == plan.week ? 1 : w < plan.week ? 0.6 : 0.3)).frame(height: 3)
                             }
                         }
-                        .padding(.top, 3)
+                        .padding(.top, 1)
                     }
                 }
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
-                .padding(8)
+                .padding(.horizontal, 8).padding(.vertical, 6)
             }
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
             .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    /// Readiness on one line (#752): key and verdict side by side; the detail (markers) is read by VoiceOver and
+    /// shown in the sheet.
+    private func lineTile(_ key: String, _ value: String, detail: String?, colors: [Color]) -> some View {
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .frame(height: Self.height)
+            .overlay(alignment: .leading) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(key).font(Theme.label(9)).tracking(0.8).textCase(.uppercase).opacity(0.9).fixedSize()
+                    Text(value).font(Theme.display(16)).lineLimit(1).minimumScaleFactor(0.6)
+                }
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                .padding(.horizontal, 10)
+            }
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)))
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .accessibilityValue(detail ?? "")
     }
 }
 
@@ -893,6 +926,8 @@ private struct NextUpCard: View {
     var later: DaySelection? = nil
     var onPick: (Int) -> Void = { _ in }
     var onBack: () -> Void = {}
+    /// Shows another workout of the same day (#758, the day line).
+    var onSelect: (Session) -> Void = { _ in }
     /// Opens the player; nil = nothing to start here (a later week's day, #473).
     var onStart: (() -> Void)? = nil
     @Environment(AppModel.self) private var model
@@ -912,6 +947,8 @@ private struct NextUpCard: View {
     /// Plan sport on a later day with a workout (#481); or the dated sport day / trip on it.
     @State private var planningSport = false
     @State private var editingTrip: SportTrip?
+    /// HIIT settings (#757) from the Format tile.
+    @State private var hiitSettings = false
     /// A later day picked in the strip (#343): nothing can be started or logged in advance.
     private var ahead: Bool { later != nil || (picked.map { $0 > model.todayWeekday } ?? false) }
     /// Today's card: the only one with Build as I go, Log sport and Track live.
@@ -989,6 +1026,7 @@ private struct NextUpCard: View {
         .sheet(isPresented: $moving) { MoveSessionSheet(sessionId: session.id, later: later?.week) }
         .sheet(isPresented: $planningSport) { PlanSportSheet(day: dayKey ?? PlanCalendar.key(Date(), model.planCalendar), sport: model.profile?.otherSports.first?.sport) }
         .sheet(item: $editingTrip) { PlanSportSheet(day: $0.start, editing: $0) }
+        .sheet(isPresented: $hiitSettings) { HiitSettingsSheet() }
     }
 
     /// Long press (#643, #671): the same moves as the card's tiles, this week or a later one.
@@ -1026,7 +1064,17 @@ private struct NextUpCard: View {
         HStack(spacing: 8) {
             DayActionTile(title: "Move", detail: "another day", symbol: "arrow.left.arrow.right",
                           fill: AnyShapeStyle(Color.white.opacity(0.15))) { moving = true }
-            if let trip = dayKey.flatMap({ model.profile?.sportTrip(on: $0) }) {
+            if session.hiit != nil {
+                // A HIIT day (#757, design A2): the middle tile picks its format and length.
+                Menu {
+                    HiitDayMenuItems(session: session, thisWeek: later == nil) { hiitSettings = true }
+                } label: {
+                    DayActionTileLabel(title: "Format", detail: model.hiitDaySpec(session).map { "\($0.format.label) \($0.minutes)′" } ?? "Coach mix",
+                                       symbol: "slider.horizontal.3", fill: AnyShapeStyle(LinearGradient.hiit))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("train.hiitFormat")
+            } else if let trip = dayKey.flatMap({ model.profile?.sportTrip(on: $0) }) {
                 DayActionTile(title: trip.title, detail: "edit", symbol: trip.sport.symbol,
                               fill: AnyShapeStyle(trip.sport.gradient)) { editingTrip = trip }
             } else {
@@ -1053,13 +1101,17 @@ private struct NextUpCard: View {
                 VStack(alignment: .leading, spacing: 6) {
                     if !showsJump && placeDay == nil { eyebrowText }
                     // Long titles wrap instead of shrinking or cutting off (#538).
-                    Text(session.displayTitle).font(Theme.display(compact ? 26 : 30)).foregroundStyle(.white)
-                        .lineLimit(3).minimumScaleFactor(0.9).fixedSize(horizontal: false, vertical: true)
-                    HStack(spacing: 10) {
-                        Label("\(session.estMin) min", systemImage: "clock.fill").font(Theme.label(14)).foregroundStyle(.white.opacity(0.9))
+                    // Minutes and XP on the title's line (#752, design C).
+                    HStack(alignment: .center, spacing: 8) {
+                        Text(session.displayTitle).font(Theme.display(compact ? 26 : 30)).foregroundStyle(.white)
+                            .lineLimit(3).minimumScaleFactor(0.9).fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 4)
+                        Label("\(session.estMin) min", systemImage: "clock.fill").font(Theme.label(13)).foregroundStyle(.white.opacity(0.9))
+                            .lineLimit(1).fixedSize()
                         // XP it earns (#227).
-                        Text("+\(model.xp(for: session)) XP").font(Theme.label(13)).foregroundStyle(Theme.lime)
-                            .padding(.horizontal, 9).padding(.vertical, 4)
+                        Text("+\(model.xp(for: session)) XP").font(Theme.label(12)).foregroundStyle(Theme.lime)
+                            .lineLimit(1).fixedSize()
+                            .padding(.horizontal, 8).padding(.vertical, 4)
                             .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.ink.opacity(0.85)))
                     }
                     if !compact {
@@ -1078,7 +1130,12 @@ private struct NextUpCard: View {
                 }
             }
             // Where and with what (#684, #685): lift at the day's gym, then its run, then climbing; the Coach's note.
-            if let d = later?.weekday ?? day { DayComboRow(session: session, day: d, thisWeek: later == nil, showNote: !compact, showPlace: placeDay == nil) }
+            if let d = later?.weekday ?? day {
+                // The whole day (#758, design A): its workouts, sport and, on coming days, the daily routines.
+                DayComboRow(session: session, day: d, thisWeek: later == nil, showNote: !compact, showPlace: placeDay == nil,
+                            daySessions: (later?.week.plan ?? model.plan)?.sessions.filter { $0.weekday == d } ?? [],
+                            onSelect: onSelect, dayKey: dayKey, routines: !isToday && !past && !done)
+            }
             if !compact { BlockStripe(blocks: session.blocks) }
         }
         .contentShape(Rectangle())
@@ -1102,8 +1159,12 @@ private struct NextUpCard: View {
     }
 
     private var eyebrowText: some View {
-        Text(eyebrow).font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
-            .lineLimit(1).minimumScaleFactor(0.8)
+        HStack(spacing: 6) {
+            // A HIIT day says so (#757, design A2).
+            if session.hiit != nil { HiitBadge() }
+            Text(eyebrow).font(Theme.label(12)).tracking(1.4).foregroundStyle(.white.opacity(0.8))
+                .lineLimit(1).minimumScaleFactor(0.8)
+        }
     }
 
     private var eyebrow: String {
@@ -1121,9 +1182,12 @@ private struct NextUpCard: View {
     private var actions: some View {
         VStack(spacing: 10) {
             Group {
-                if let later {
-                    Button { laterDay = later } label: { Label("See workout", systemImage: "list.bullet") }
-                        .buttonStyle(LimeButtonStyle())
+                if later != nil {
+                    // A later week's workout opens its full page too (#758), to read, not to edit.
+                    NavigationLink { SessionView(sessionId: session.id, preview: session) } label: {
+                        Label("See workout", systemImage: "list.bullet")
+                    }
+                    .buttonStyle(LimeButtonStyle())
                 } else if done {
                     NavigationLink(value: session.id) { Label("Done · see workout", systemImage: "checkmark.seal.fill") }
                         .buttonStyle(LimeButtonStyle())
@@ -1555,25 +1619,24 @@ private struct DayActionTileLabel: View {
     var ink: Color = .white
 
     var body: some View {
-        // Content in an overlay so label lengths never change a tile's size (#529).
+        // Content in an overlay so label lengths never change a tile's size (#529). Short, title only (#752, design C):
+        // the day card fits above the tab bar; the detail is read by VoiceOver.
         Color.clear
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
+            .frame(height: 44)
             .overlay(alignment: .leading) {
-                HStack(spacing: 8) {
-                    Image(systemName: symbol).font(.system(size: 15, weight: .heavy))
-                        .frame(width: 32, height: 32)
-                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.black.opacity(0.18)))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(title).font(Theme.label(15)).lineLimit(1).minimumScaleFactor(0.6)
-                        Text(detail).font(Theme.label(10)).opacity(0.8).lineLimit(1).minimumScaleFactor(0.7)
-                    }
+                HStack(spacing: 7) {
+                    Image(systemName: symbol).font(.system(size: 13, weight: .heavy))
+                        .frame(width: 26, height: 26)
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.black.opacity(0.18)))
+                    Text(title).font(Theme.label(14)).lineLimit(1).minimumScaleFactor(0.6)
                 }
                 .foregroundStyle(ink)
                 .padding(.horizontal, 10)
             }
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(fill))
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .accessibilityValue(detail)
     }
 }
 
@@ -1711,7 +1774,7 @@ private struct RestDayCard: View {
                                    onTrack: { trackingSport = SportLog(start: Date()) })
                 } else {
                     // Sport actions live in the hero (#658): Freestyle stays for today's gym.
-                    DayActionTile(title: "Freestyle", detail: model.freestyleInProgress != nil ? "resume" : "add as you train",
+                    DayActionTile(title: model.freestyleInProgress != nil ? "Resume" : "Freestyle", detail: model.freestyleInProgress != nil ? "resume" : "add as you train",
                                   symbol: "plus.square.on.square", fill: AnyShapeStyle(LinearGradient.freestyle)) {
                         Haptics.start()
                         freestyle = model.freestyleInProgress ?? model.startFreestyle()

@@ -5,14 +5,19 @@ import WorkoutEngine
 extension AppModel {
     /// The session as planned or as the library has it, before the member's edit.
     func uneditedSession(_ id: String) -> Session? {
-        uneditedPlan?.sessions.first { $0.id == id } ?? standaloneSession(id)
+        uneditedPlan?.sessions.first { $0.id == id } ?? standaloneSession(id) ?? aheadSession(id)?.session
+    }
+
+    /// A coming week's workout with the edit made ahead for it (#758), for its page.
+    func aheadEdited(_ id: String) -> Session? {
+        aheadSession(id).map { $0.session.applying(sessionEdit(id)) }
     }
 
     /// The member's edit of `id`, when it still fits the session it was made on.
     func sessionEdit(_ id: String) -> SessionEdit? {
         guard let edit = state.synced?.sessionEdits?.first(where: { $0.sessionId == id }),
-              let base = uneditedPlan?.sessions.first(where: { $0.id == id }) ?? standaloneSession(id),
-              edit.base == base.editBase else { return nil }
+              let base = uneditedPlan?.sessions.first(where: { $0.id == id }) ?? standaloneSession(id) ?? aheadSession(id)?.session,
+              edit.base == base.editBase || edit.ahead != nil else { return nil }
         return edit
     }
 
@@ -37,8 +42,9 @@ extension AppModel {
         guard var sp = state.synced else { return }
         var list = (sp.sessionEdits ?? []).filter { $0.sessionId != id }
         if blocks != base.blocks {
+            let ahead = aheadSession(id)
             let week = uneditedPlan?.sessions.contains { $0.id == id } == true ? uneditedPlan?.week : nil
-            list.append(SessionEdit(sessionId: id, week: week, base: base.editBase, blocks: blocks))
+            list.append(SessionEdit(sessionId: id, week: week, base: base.editBase, blocks: blocks, ahead: ahead?.monday))
         }
         sp.sessionEdits = list.isEmpty ? nil : list
         state.synced = sp

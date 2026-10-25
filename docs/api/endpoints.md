@@ -130,7 +130,8 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | Method | Path | Auth | Summary | Errors / limits |
 |---|---|---|---|---|
 | PUT | `/v1/me/push-device` | Bearer | `{token (hex), env sandbox\|production, topic (bundle id), tz?}` → `{ok, pushConfigured}`; a token moves to the last account registering it | 400 `invalid_topic` |
-| DELETE | `/v1/me/push-device/:token` | Bearer | → 204 (sign-out) | |
+| DELETE | `/v1/me/push-device` | Bearer | `{token}` → 204 (sign-out); token in the body so it stays out of URLs and logs | |
+| DELETE | `/v1/me/push-device/:token` | Bearer | → 204; apps before #762 (path redacted in logs) | |
 | GET | `/v1/me/notification-prefs` | Bearer | → `{prefs, pushConfigured}`: toggles, reminder / check-in times, quiet hours (minutes after midnight) | |
 | PUT | `/v1/me/notification-prefs` | Bearer | `{prefs}` (any subset; what it leaves out keeps its saved value) → `{prefs}` | |
 | POST | `/v1/me/achievements` | Bearer | `{achievements[≤30]: {id, type, text}}` → `{announced}`; each new id pushed once to followers, at most 20 a day per member | 30/min |
@@ -160,6 +161,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | PUT | `/v1/community/posts/:id/reactions/:kind` | Bearer | Cheer (`like`, `strong`, `fire`, `clap`, `beast`, `banana`), not on own posts → `{post}` | 400 `own_post`; 404 |
 | DELETE | `/v1/community/posts/:id/reactions/:kind` | Bearer | Remove a cheer → `{post}` | 404 `not_found` (post you can't see) |
 | GET | `/v1/community/members` | Bearer | Find members: `?q=` nickname or gym, `?gym=mine`, `?limit≤50`; empty `q` = suggestions → `{members}` | |
+| GET | `/v1/community/members/by-code/:code` | Bearer | Add a friend by invite code (#747), case-insensitive, any account age → `{member}` | 400 `own_code`; 404 `invalid_code`, `not_joined` (code real, owner not in Social); 403 `community_profile_required` |
 | GET | `/v1/community/members/:userId` | Bearer | → `{member, posts, blockedByMe, followedByMe}` | 404 `not_found` (not a member, blocked, or hidden by reports) |
 | GET | `/v1/community/follows` | Bearer | Members you follow, by nickname: `?limit=1–500 (default 500)&after=nickname` → `{following, nextAfter}` | |
 | PUT | `/v1/community/follows/:userId` | Bearer | Follow → 204 | 400 `own_content`; 404 `not_found` |
@@ -196,7 +198,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | Method | Path | Auth | Summary | Errors / limits |
 |---|---|---|---|---|
 | GET | `/v1/referrals/me` | Bearer | → `{code, path, joined, subscribed, invitedBy: {nickname, at} \| null, canRedeem}`; `subscribed` = invitees with a paid (non-trial, not revoked) App Store subscription | |
-| POST | `/v1/referrals/redeem` | Bearer | `{code}` (case-insensitive), accounts ≤ 14 days old, once → same as GET | 404 `invalid_code`; 400 `own_code`, `account_too_old`, `referral_cycle`; 409 `already_redeemed`; 10/hour |
+| POST | `/v1/referrals/redeem` | Bearer | `{code}` (case-insensitive), accounts ≤ 14 days old, once → same as GET. Inviter and invitee follow each other once both are in Social (#747; also on join) | 404 `invalid_code`; 400 `own_code`, `account_too_old`, `referral_cycle`; 409 `already_redeemed`; 10/hour |
 
 ## Workout library
 

@@ -487,7 +487,8 @@ struct DailyRoutinePicker: View {
             .foregroundStyle(.white)
             .padding(9)
             .frame(maxWidth: .infinity, minHeight: 86, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(r.gradient).opacity(on ? 1 : 0.45))
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(r.gradient))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white, lineWidth: on ? 3 : 0))
             .overlay(alignment: .topTrailing) {
                 if on {
                     Image(systemName: "checkmark").font(.system(size: 10, weight: .heavy)).foregroundStyle(Theme.ink)
