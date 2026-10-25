@@ -111,7 +111,7 @@ Layout (#738, `SocialStories`): header (Coach, **+** → `ShareHubSheet`: Win, P
 
 ## Me sheet and Settings (`Views/Account`)
 
-Me sheet (#736): hero with photo, name, @nickname and **Edit ›** → **Your profile**; its level bar → Levels; then six square Settings chapter tiles (`SettingsChapter.summary`) opening `AccountView(start:)` at that chapter, and **All ›** for Settings at the top. Settings (`AccountView`) has a chapter bar and search:
+Me sheet (#736): hero with photo, name, @nickname and **Edit ›** → **Your profile**; its level bar → Levels; then six square Settings chapter tiles (`SettingsChapter.summary`) opening `AccountView(start:)` at that chapter, and **All ›** for Settings at the top. Under the tiles, a full-width lime **How it works** tile (#769) opens `HowItWorksView`: one gradient card per topic from `HowItWorks.topics` (GymCore) with the member's live number (`HowItWorksLive`); a topic page (`HowItWorksTopicView`) shows where the numbers show, *You: …* with the member's own values, each rule, sources and **Feels off?** (Report a problem, area *How it works*, screen the topic). Rules quote the engine constants (`GameProgress`, `DailyMove`, `Fuel`, `AutoTune`, `HeartZones`, …) so the page follows code changes; `HowItWorksTests` pins them. Any new member-facing calculation gets a topic or part there. Settings (`AccountView`) has a chapter bar and search:
 
 | Chapter | Contents |
 |---|---|

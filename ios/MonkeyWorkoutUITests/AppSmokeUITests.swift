@@ -223,6 +223,19 @@ final class AppSmokeUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "Settings page")
     }
 
+    /// Demo screen `how-it-works` (#769): a topic card opens its page with the rules and Feels off?.
+    func testHowItWorksTopicOpens() {
+        launch("how-it-works")
+        let xp = app.buttons["how.xp"]
+        XCTAssertTrue(xp.waitForExistence(timeout: 20), "XP & levels card")
+        xp.tap()
+        let off = app.buttons["how.feelsOff"]
+        XCTAssertTrue(off.waitForExistence(timeout: 10), "Feels off? on the topic page")
+        XCTAssertTrue(scrollTo(off))
+        off.tap()
+        XCTAssertTrue(app.staticTexts["Report a problem"].waitForExistence(timeout: 10), "Report prefilled")
+    }
+
     // MARK: HIIT
 
     /// Demo screen `explore-hiit`: Explore on HIIT; a format tile opens the builder.
