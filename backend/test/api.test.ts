@@ -437,6 +437,20 @@ describe('account deletion, data sync & export', () => {
     }
   });
 
+  it('stores a separate lowering load (#792)', async () => {
+    const { tokens } = await signUp();
+    const t = tokens.accessToken;
+    const set = { id: randomUUID(), date: '2026-10-26T10:00:00Z', exerciseId: 'leg-extension', sessionId: 's', weightKg: 26.25, lowerKg: 35, reps: 10, setIndex: 0 };
+    const plain = { ...set, id: randomUUID(), lowerKg: undefined, setIndex: 1 };
+    expect((await post('/v1/me/logs', { logs: [set, plain] }, t)).json().saved).toBe(2);
+    const byId = new Map(((await get('/v1/me/logs', t)).json().logs as Record<string, unknown>[]).map((l) => [l.id, l]));
+    expect(byId.get(set.id)).toMatchObject({ weightKg: 26.25, lowerKg: 35 });
+    expect(byId.get(plain.id)).toMatchObject({ weightKg: 26.25, lowerKg: null });
+    for (const bad of [{ lowerKg: -1 }, { lowerKg: 1001 }]) {
+      expect((await post('/v1/me/logs', { logs: [{ ...set, ...bad }] }, t)).statusCode).toBe(400);
+    }
+  });
+
   it('validates log payloads', async () => {
     const { tokens } = await signUp();
     const bad = await post('/v1/me/logs', { logs: [{ id: 'x', date: 'nope', exerciseId: '' }] }, tokens.accessToken);

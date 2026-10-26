@@ -167,6 +167,7 @@ struct MachineNoteSheet: View {
                         Text("Only you see this.").font(.footnote).foregroundStyle(Theme.muted)
                     }
                     photoCard
+                    splitLoadToggle
                     fieldsSection
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Note").eyebrow()
@@ -276,6 +277,29 @@ struct MachineNoteSheet: View {
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .foregroundStyle(.white)
         }
+    }
+
+    /// eGym-style machines (#792): the player then takes a push and a lowering weight for each set.
+    private var splitLoadToggle: some View {
+        Toggle(isOn: Binding(get: { draft.splitLoad == true }, set: { draft.splitLoad = $0 ? true : nil })) {
+            HStack(spacing: 10) {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.system(size: 16, weight: .heavy))
+                    .frame(width: 34, height: 34)
+                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(.white.opacity(0.25)))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Separate push / lower weight").font(Theme.label(14))
+                    Text("For machines like eGym").font(.caption).opacity(0.85)
+                }
+            }
+        }
+        .tint(Theme.lime)
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .fill(LinearGradient(colors: [Color(red: 0.48, green: 0.3, blue: 1), Color(red: 0.88, green: 0.31, blue: 0.88)],
+                                 startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .foregroundStyle(.white)
+        .accessibilityIdentifier("setup.splitLoad")
     }
 
     private var fieldsSection: some View {

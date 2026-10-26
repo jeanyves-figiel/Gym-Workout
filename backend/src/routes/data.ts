@@ -44,6 +44,8 @@ const logEntry = z.object({
   /** Plan-insert ids are `custom-<uuid>~plan-<uuid>` (85 chars), so leave room. */
   sessionId: z.string().max(200).nullish(),
   weightKg: z.number().min(0).max(1000).nullish(),
+  /** Lowering (eccentric) load when the machine sets it apart from the push (#792); weightKg is then the push. */
+  lowerKg: z.number().min(0).max(1000).nullish(),
   reps: z.number().int().min(0).max(1000).nullish(),
   /** 0-based set number within the session (per-set logging); absent for legacy one-weight logs. */
   setIndex: z.number().int().min(0).max(99).nullish(),
@@ -57,6 +59,7 @@ interface LogRow {
   exercise_id: string;
   session_id: string | null;
   weight_kg: number | null;
+  lower_kg: number | null;
   reps: number | null;
   set_index: number | null;
   rir: number | null;
@@ -69,6 +72,7 @@ const toLog = (r: LogRow) => ({
   exerciseId: r.exercise_id,
   sessionId: r.session_id,
   weightKg: r.weight_kg,
+  lowerKg: r.lower_kg,
   reps: r.reps,
   setIndex: r.set_index,
   rir: r.rir,
@@ -114,10 +118,10 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
     const b = z.object({ logs: z.array(logEntry).max(500) }).parse(req.body);
     const ts = now().toISOString();
     const up = db.prepare(
-      `INSERT INTO workout_logs (id, user_id, date, exercise_id, session_id, weight_kg, reps, set_index, rir, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO workout_logs (id, user_id, date, exercise_id, session_id, weight_kg, lower_kg, reps, set_index, rir, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET date = excluded.date, exercise_id = excluded.exercise_id, session_id = excluded.session_id,
-         weight_kg = excluded.weight_kg, reps = excluded.reps, set_index = excluded.set_index, rir = excluded.rir,
+         weight_kg = excluded.weight_kg, lower_kg = excluded.lower_kg, reps = excluded.reps, set_index = excluded.set_index, rir = excluded.rir,
          updated_at = excluded.updated_at
        WHERE workout_logs.user_id = excluded.user_id`,
     );
@@ -127,7 +131,7 @@ export const dataRoutes = (r: FastifyInstance, db: DB, now: () => Date, auth: Au
       assertRowQuota(db, 'workout_logs', req.userId!, logs.map((l) => l.id));
       let count = 0;
       for (const l of logs) count += Number(up.run(
-          l.id, req.userId!, l.date, l.exerciseId, l.sessionId ?? null, l.weightKg ?? null, l.reps ?? null,
+          l.id, req.userId!, l.date, l.exerciseId, l.sessionId ?? null, l.weightKg ?? null, l.lowerKg ?? null, l.reps ?? null,
           l.setIndex ?? null, l.rir ?? null, ts,
         ).changes);
       return { saved: count, conflicts };

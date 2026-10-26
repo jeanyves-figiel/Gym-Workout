@@ -1168,7 +1168,7 @@
         "tags": [
           "Sync: profile, logs, workouts"
         ],
-        "summary": "→ {logs, deleted?, serverTime} set logs {id, date, exerciseId, sessionId?, weightKg?, reps?, setIndex?, rir?}",
+        "summary": "→ {logs, deleted?, serverTime} set logs {id, date, exerciseId, sessionId?, weightKg?, lowerKg?, reps?, setIndex?, rir?} (lowerKg = lowering load when the machine sets it apart, #792; weightKg is then the push)",
         "security": [
           {
             "bearer": []
@@ -1856,7 +1856,7 @@
         "tags": [
           "Sync: member content"
         ],
-        "summary": "→ {notes, deleted?, serverTime} private machine setup notes (gym, exercise, fields, text, photoId)",
+        "summary": "→ {notes, deleted?, serverTime} private machine setup notes (gym, exercise, fields, text, splitLoad? push/lower loads apart #792, photoId)",
         "security": [
           {
             "bearer": []

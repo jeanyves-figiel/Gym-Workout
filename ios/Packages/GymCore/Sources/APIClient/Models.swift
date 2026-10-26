@@ -42,6 +42,8 @@ public struct LogEntry: Codable, Sendable, Equatable, Identifiable {
     public var exerciseId: String
     public var sessionId: String?
     public var weightKg: Double?
+    /// Lowering (eccentric) load when the machine sets it apart from the push (#792); `weightKg` is then the push.
+    public var lowerKg: Double?
     public var reps: Int?
     /// 0-based set number within the session (per-set logging). Nil for legacy one-weight-per-exercise logs.
     public var setIndex: Int?
@@ -52,13 +54,14 @@ public struct LogEntry: Codable, Sendable, Equatable, Identifiable {
 
     public init(
         id: UUID = UUID(), date: Date, exerciseId: String, sessionId: String? = nil, weightKg: Double? = nil, reps: Int? = nil,
-        setIndex: Int? = nil, rir: Int? = nil, updatedAt: String? = nil
+        setIndex: Int? = nil, rir: Int? = nil, lowerKg: Double? = nil, updatedAt: String? = nil
     ) {
         self.id = id
         self.date = date
         self.exerciseId = exerciseId
         self.sessionId = sessionId
         self.weightKg = weightKg
+        self.lowerKg = lowerKg
         self.reps = reps
         self.setIndex = setIndex
         self.rir = rir

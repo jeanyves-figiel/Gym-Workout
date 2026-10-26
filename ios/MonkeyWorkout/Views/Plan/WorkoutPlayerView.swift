@@ -1124,6 +1124,11 @@ struct WorkoutPlayerView: View {
                                finalSet: coach.enabled && sets > 1 && done == sets - 1) { i in
                     _ = log.log(i, model: model)
                 }
+                // Setup's push / lower switch (#792) applies at once, even mid-exercise.
+                .onChange(of: model.machineNote(exerciseId: step.item.exerciseId,
+                                                gymId: model.gymRef(forItem: step.item.uid).id)?.splitLoad == true) { _, on in
+                    log.split = on
+                }
             }
         } else if let spec = step.timedSpec {
             let run = timed.flatMap { $0.uid == step.item.uid ? $0 : nil }
