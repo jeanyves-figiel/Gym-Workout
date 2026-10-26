@@ -150,6 +150,9 @@ export const ensureSchemaExtras = (db: DB): void => {
   // Access tokens issued before this instant are refused (#712): set by password change / reset and logout-all.
   const userCols = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
   if (!userCols.some((c) => c.name === 'tokens_valid_after')) db.exec('ALTER TABLE users ADD COLUMN tokens_valid_after TEXT');
+  // Separate push / lower loads (#792): the lowering (eccentric) kg of a set; null = same as the push.
+  const logCols = db.prepare('PRAGMA table_info(workout_logs)').all() as { name: string }[];
+  if (!logCols.some((c) => c.name === 'lower_kg')) db.exec('ALTER TABLE workout_logs ADD COLUMN lower_kg REAL');
   // The export lists records by their own instant, not their text (#714): `julianday()` reads any offset.
   db.exec(`
     CREATE INDEX IF NOT EXISTS logs_user_time ON workout_logs(user_id, julianday(date));

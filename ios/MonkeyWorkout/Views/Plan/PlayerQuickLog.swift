@@ -256,8 +256,12 @@ struct CurrentSetCard: View {
             }
             if !allDone {
                 HStack(spacing: 10) {
-                    stepper(value: state.rows.indices.contains(i) ? state.rows[i].kg : "", unit: "kg",
-                            minus: { state.stepKg(i, by: -1) }, plus: { state.stepKg(i, by: 1) })
+                    if state.split {
+                        splitStepper(i)
+                    } else {
+                        stepper(value: state.rows.indices.contains(i) ? state.rows[i].kg : "", unit: "kg",
+                                minus: { state.stepKg(i, by: -1) }, plus: { state.stepKg(i, by: 1) })
+                    }
                     stepper(value: state.rows.indices.contains(i) ? state.rows[i].reps : "", unit: "reps",
                             minus: { state.stepReps(i, by: -1) }, plus: { state.stepReps(i, by: 1) })
                 }
@@ -266,7 +270,8 @@ struct CurrentSetCard: View {
                 SetChips(count: n, done: done, current: i, color: color) { j in
                     guard state.rows.indices.contains(j) else { return nil }
                     guard let v = state.values(j), j < done || state.rows[j].logged else { return nil }
-                    return "\(LoadAdvisor.formatKg(v.kg))×\(v.reps)"
+                    let kg = v.lowerKg.map { "\(LoadAdvisor.formatKg(v.kg))/\(LoadAdvisor.formatKg($0))" } ?? LoadAdvisor.formatKg(v.kg)
+                    return "\(kg)×\(v.reps)"
                 } onTap: { j in
                     editing = editing == j ? nil : j
                     EditSetTip().invalidate(reason: .actionPerformed)
@@ -295,6 +300,51 @@ struct CurrentSetCard: View {
         .padding(4)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.cardStrong))
         .accessibilityElement(children: .contain)
+    }
+
+    /// Split-load machine (#792): push and lowering kg, each its own stepper, in the height of one weight box.
+    private func splitStepper(_ i: Int) -> some View {
+        let row = state.rows.indices.contains(i) ? state.rows[i] : SetLogState.Row()
+        return VStack(spacing: 3) {
+            splitHalf(value: row.kg, label: "Push", symbol: "arrowtriangle.up.fill",
+                      colors: [Color(red: 0.23, green: 0.51, blue: 1), Color(red: 0.48, green: 0.3, blue: 1)],
+                      minus: { state.stepKg(i, by: -1) }, plus: { state.stepKg(i, by: 1) })
+            splitHalf(value: row.lower, label: "Lower", symbol: "arrowtriangle.down.fill",
+                      colors: [Color(red: 1, green: 0.31, blue: 0.64), Color(red: 1, green: 0.54, blue: 0.24)],
+                      minus: { state.stepLower(i, by: -1) }, plus: { state.stepLower(i, by: 1) })
+        }
+        .padding(3)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.cardStrong))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("player.splitLoad")
+    }
+
+    private func splitHalf(value: String, label: String, symbol: String, colors: [Color],
+                           minus: @escaping () -> Void, plus: @escaping () -> Void) -> some View {
+        HStack(spacing: 0) {
+            Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                minus()
+            } label: {
+                Image(systemName: "minus").font(.system(size: 13, weight: .heavy)).frame(width: 30, height: 24).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Less \(label.lowercased()) kg")
+            Label(label, systemImage: symbol).font(Theme.label(9)).textCase(.uppercase).labelStyle(.titleAndIcon)
+                .lineLimit(1).minimumScaleFactor(0.7)
+            Spacer(minLength: 2)
+            Text(value.isEmpty ? "–" : value).font(Theme.display(17)).monospacedDigit().minimumScaleFactor(0.5).lineLimit(1)
+            Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                plus()
+            } label: {
+                Image(systemName: "plus").font(.system(size: 13, weight: .heavy)).frame(width: 30, height: 24).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("More \(label.lowercased()) kg")
+        }
+        .background(RoundedRectangle(cornerRadius: 11, style: .continuous)
+            .fill(LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)))
     }
 
     private func stepButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {

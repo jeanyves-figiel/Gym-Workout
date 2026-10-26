@@ -841,17 +841,20 @@ final class AppModel {
 
     /// Per-set log (kg × reps, optional RIR). Re-logging the same set of the same workout (today, or since a
     /// workout running past midnight began) updates it in place.
-    func logSet(exerciseId: String, sessionId: String, setIndex: Int, kg: Double, reps: Int, rir: Int?) {
+    /// `lowerKg`: lowering load on a split-load machine (#792), nil = same as `kg`.
+    func logSet(exerciseId: String, sessionId: String, setIndex: Int, kg: Double, reps: Int, rir: Int?, lowerKg: Double? = nil) {
         let from = workoutWindowStart(sessionId)
         if let i = state.logs.firstIndex(where: {
             $0.exerciseId == exerciseId && $0.sessionId == sessionId && $0.setIndex == setIndex && $0.date >= from
         }) {
             state.logs[i].weightKg = kg
+            state.logs[i].lowerKg = lowerKg
             state.logs[i].reps = reps
             state.logs[i].rir = rir
             state.pendingLogIds.insert(state.logs[i].id)
         } else {
-            let entry = LogEntry(date: Date(), exerciseId: exerciseId, sessionId: sessionId, weightKg: kg, reps: reps, setIndex: setIndex, rir: rir)
+            let entry = LogEntry(date: Date(), exerciseId: exerciseId, sessionId: sessionId, weightKg: kg, reps: reps, setIndex: setIndex, rir: rir,
+                                 lowerKg: lowerKg)
             state.logs.append(entry)
             state.pendingLogIds.insert(entry.id)
         }
@@ -861,6 +864,11 @@ final class AppModel {
 
     func lastWeight(_ exerciseId: String) -> Double? {
         state.logs.last { $0.exerciseId == exerciseId && $0.weightKg != nil }?.weightKg
+    }
+
+    /// Last lowering load logged for the exercise (#792).
+    func lastLowerWeight(_ exerciseId: String) -> Double? {
+        state.logs.last { $0.exerciseId == exerciseId && $0.lowerKg != nil }?.lowerKg
     }
 
     // MARK: Sync

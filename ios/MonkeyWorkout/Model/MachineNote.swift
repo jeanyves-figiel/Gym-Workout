@@ -37,6 +37,8 @@ struct MachineNote: Codable, Identifiable, Hashable, Sendable {
     var equipment: String?
     var fields: [Field] = []
     var text: String?
+    /// The machine sets push and lowering loads apart (eGym style, #792): the player shows both.
+    var splitLoad: Bool?
     /// Server id of the photo; nil = none on the server.
     var photoId: String?
     /// Server version this copy was pulled or saved as (`ServerVersioned`); nil until the server has it.
@@ -49,11 +51,12 @@ struct MachineNote: Codable, Identifiable, Hashable, Sendable {
         return t.isEmpty ? nil : t
     }
 
-    var isEmpty: Bool { filledFields.isEmpty && trimmedText == nil }
+    var isEmpty: Bool { filledFields.isEmpty && trimmedText == nil && splitLoad != true }
 
     /// One line: "Seat 4 · Pad 2 · ROM off", else the start of the text.
     var summary: String {
-        let f = filledFields.map { "\($0.label) \($0.value)" }.joined(separator: " · ")
+        let f = (filledFields.map { "\($0.label) \($0.value)" } + (splitLoad == true ? ["Push ≠ lower"] : []))
+            .joined(separator: " · ")
         return f.isEmpty ? (trimmedText ?? "") : f
     }
 

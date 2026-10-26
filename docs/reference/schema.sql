@@ -674,7 +674,7 @@ CREATE TABLE workout_logs (
      weight_kg REAL,
      reps INTEGER,
      updated_at TEXT NOT NULL
-   , set_index INTEGER, rir INTEGER);
+   , set_index INTEGER, rir INTEGER, lower_kg REAL);
 
 CREATE INDEX logs_user_time ON workout_logs(user_id, julianday(date));
 

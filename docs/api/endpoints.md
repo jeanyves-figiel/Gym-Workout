@@ -88,7 +88,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 |---|---|---|---|---|
 | GET | `/v1/me/profile` | Bearer | → `{data, updatedAt}` opaque app profile JSON | |
 | PUT | `/v1/me/profile` | Bearer | `{data}` → `{updatedAt}` (last write wins) | 413 `too_large` (200 KB) |
-| GET | `/v1/me/logs` | Bearer | → `{logs, deleted?, serverTime}` set logs `{id, date, exerciseId, sessionId?, weightKg?, reps?, setIndex?, rir?}` | |
+| GET | `/v1/me/logs` | Bearer | → `{logs, deleted?, serverTime}` set logs `{id, date, exerciseId, sessionId?, weightKg?, lowerKg?, reps?, setIndex?, rir?}` (`lowerKg` = lowering load when the machine sets it apart, #792; `weightKg` is then the push) | |
 | POST | `/v1/me/logs` | Bearer | `{logs[≤500]}` → `{saved, serverTime, conflicts?}` | 409 `quota_exceeded` |
 | DELETE | `/v1/me/logs/:id` | Bearer | → 204, tombstoned | |
 | GET | `/v1/me/workouts` | Bearer | → `{workouts, deleted?, serverTime}` completed sessions (opaque JSON with `id`, `startedAt`) | |
@@ -118,7 +118,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | DELETE | `/v1/me/sports/:id` | Bearer | → 204 | |
 | POST | `/v1/me/watch-key` | Bearer | → `{key}`: upload key for the Apple Watch's direct sport upload (replaces the previous one) | |
 | POST | `/v1/watch/sports` | X-Watch-Key | Watch uploads finished sport sessions without the phone: `{sports[≤10]}` → `{saved, serverTime}` | 401 `invalid_token`; 30/min |
-| GET | `/v1/me/machine-notes` | Bearer | → `{notes, deleted?, serverTime}` private machine setup notes (gym, exercise, fields, text, `photoId`) | |
+| GET | `/v1/me/machine-notes` | Bearer | → `{notes, deleted?, serverTime}` private machine setup notes (gym, exercise, fields, text, `splitLoad?` push/lower loads apart #792, `photoId`) | |
 | POST | `/v1/me/machine-notes` | Bearer | `{notes[≤200]}` → `{saved, serverTime, conflicts?}` | 409 `quota_exceeded`; 413 `too_large` |
 | DELETE | `/v1/me/machine-notes/:id` | Bearer | → 204 (photo removed too) | |
 | PUT | `/v1/me/machine-notes/:id/photo` | Bearer | Raw `image/jpeg` body, EXIF stripped → `{photoId, updatedAt}` | 404 `not_found` (sync the note first); 415 `unsupported_media_type`; 400 `invalid_image`; 409 `quota_exceeded` |

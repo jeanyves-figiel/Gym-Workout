@@ -66,6 +66,7 @@ extension AppModel {
         var copy = machineNote(exerciseId: exerciseId, gymId: gym.id) ?? MachineNote(gymId: gym.id, gymName: gym.name, exerciseId: exerciseId)
         copy.fields = source.fields.map { .init(label: $0.label, value: $0.value) }
         copy.text = source.text
+        copy.splitLoad = source.splitLoad
         copy.equipment = source.equipment ?? Exercise.find(exerciseId)?.equipment.first?.rawValue
         saveMachineNote(copy, photo: photo.map { Optional($0) })
         return copy

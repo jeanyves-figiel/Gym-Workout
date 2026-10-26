@@ -8,6 +8,8 @@ import WorkoutEngine
 final class SetLogState {
     struct Row: Equatable {
         var kg = ""
+        /// Lowering load on a split-load machine (#792).
+        var lower = ""
         var reps = ""
         var rir = ""
         var logged = false
@@ -17,6 +19,8 @@ final class SetLogState {
         var kg: Double
         var reps: Int
         var rir: Int?
+        /// Set only while `split` is on.
+        var lowerKg: Double? = nil
     }
 
     private(set) var item: PlannedExercise?
@@ -25,6 +29,8 @@ final class SetLogState {
     private(set) var suggestion: LoadSuggestion?
     /// Lift Focus block or Pro Sets style sets (#499), one per row; nil = straight sets.
     private(set) var planned: [PlannedSet]?
+    /// The machine sets push and lowering loads apart (#792, Setup): `kg` is the push, `lower` the lowering.
+    var split = false
 
     /// Weight step of the kg stepper (equipment-aware: 2.5 barbell, 1 dumbbell, …).
     var kgStep: Double {
@@ -42,15 +48,19 @@ final class SetLogState {
         let kg = s.map { LoadAdvisor.formatKg($0.kg) } ?? model.lastWeight(item.exerciseId).map { LoadAdvisor.formatKg($0) } ?? ""
         var reps = ""
         if let r = s?.reps ?? item.prescription.repRange?.low { reps = String(r) }
+        split = model.machineNote(exerciseId: item.exerciseId, gymId: model.gymRef(forItem: item.uid).id)?.splitLoad == true
+        let lower = model.lastLowerWeight(item.exerciseId).map { LoadAdvisor.formatKg($0) }
         let sets = model.plannedSets(for: item, sessionId: sessionId, workingKg: Self.parseKg(kg))
         planned = sets
         rows = (0..<max(1, item.prescription.sets)).map { i in
             let p = sets?.indices.contains(i) == true ? sets?[i] : nil
             let rowKg = p?.kg.map { LoadAdvisor.formatKg($0) } ?? kg
             let rowReps = p?.reps.map { String($0) } ?? reps
-            guard let l = logged[i] else { return Row(kg: rowKg, reps: rowReps) }
+            guard let l = logged[i] else { return Row(kg: rowKg, lower: lower ?? rowKg, reps: rowReps) }
+            let kg = l.weightKg.map { LoadAdvisor.formatKg($0) } ?? rowKg
             return Row(
-                kg: l.weightKg.map { LoadAdvisor.formatKg($0) } ?? rowKg,
+                kg: kg,
+                lower: l.lowerKg.map { LoadAdvisor.formatKg($0) } ?? lower ?? kg,
                 reps: l.reps.map { String($0) } ?? rowReps,
                 rir: l.rir.map { String($0) } ?? "",
                 logged: true)
@@ -65,14 +75,16 @@ final class SetLogState {
     func values(_ i: Int) -> Values? {
         guard rows.indices.contains(i), let kg = Self.parseKg(rows[i].kg),
               let reps = Int(rows[i].reps), reps >= 0, reps <= 1000 else { return nil }
-        return Values(kg: kg, reps: reps, rir: Int(rows[i].rir).map { min(10, max(0, $0)) })
+        return Values(kg: kg, reps: reps, rir: Int(rows[i].rir).map { min(10, max(0, $0)) },
+                      lowerKg: split ? Self.parseKg(rows[i].lower) ?? kg : nil)
     }
 
     /// Saves row `i` and carries its load forward to the sets not logged yet. Returns false when the row is incomplete.
     @discardableResult
     func log(_ i: Int, model: AppModel) -> Bool {
         guard let item, let v = values(i) else { return false }
-        model.logSet(exerciseId: item.exerciseId, sessionId: sessionId, setIndex: i, kg: v.kg, reps: v.reps, rir: v.rir)
+        model.logSet(exerciseId: item.exerciseId, sessionId: sessionId, setIndex: i, kg: v.kg, reps: v.reps, rir: v.rir,
+                     lowerKg: v.lowerKg)
         rows[i].logged = true
         if let planned {
             // Pro Sets: later sets keep their own loads; back-offs follow the top set's weight and effort.
@@ -85,7 +97,10 @@ final class SetLogState {
                 }
             }
         } else {
-            for j in rows.indices where j > i && !rows[j].logged { rows[j].kg = rows[i].kg }
+            for j in rows.indices where j > i && !rows[j].logged {
+                rows[j].kg = rows[i].kg
+                rows[j].lower = rows[i].lower
+            }
         }
         return true
     }
@@ -117,6 +132,14 @@ final class SetLogState {
         let step = kgStep
         let now = Self.parseKg(rows[i].kg) ?? 0
         rows[i].kg = LoadAdvisor.formatKg(LoadAdvisor.round(max(0, now + sign * step), to: step))
+    }
+
+    /// Lowering load stepper (#792): same step as the push.
+    func stepLower(_ i: Int, by sign: Double) {
+        guard rows.indices.contains(i) else { return }
+        let step = kgStep
+        let now = Self.parseKg(rows[i].lower) ?? Self.parseKg(rows[i].kg) ?? 0
+        rows[i].lower = LoadAdvisor.formatKg(LoadAdvisor.round(max(0, now + sign * step), to: step))
     }
 
     /// Weight said to the player mic (#412).
