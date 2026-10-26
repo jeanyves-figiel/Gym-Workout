@@ -95,21 +95,15 @@ struct ExercisePickerView: View {
                         .buttonStyle(.plain)
                         ForEach(entries(results), id: \.exercise.id) { entry in
                             let e = entry.exercise
-                            VStack(spacing: 6) {
-                                Button { toggle(e) } label: { PickerCard(exercise: e, order: selected.firstIndex(of: e.id)) }
-                                    .buttonStyle(.plain)
-                                    .contextMenu { customMenu(e) }
-                                if entry.variations > 0 {
-                                    Button {
-                                        withAnimation(.snappy) {
-                                            if expanded.contains(e.id) { expanded.remove(e.id) } else { expanded.insert(e.id) }
-                                        }
-                                    } label: {
-                                        VariationsChip(count: entry.variations, open: expanded.contains(e.id))
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
+                            PickerCard(exercise: e, order: selected.firstIndex(of: e.id),
+                                       variations: entry.variations, open: expanded.contains(e.id),
+                                       onTap: { toggle(e) },
+                                       onVariations: {
+                                           withAnimation(.snappy) {
+                                               if expanded.contains(e.id) { expanded.remove(e.id) } else { expanded.insert(e.id) }
+                                           }
+                                       })
+                                .contextMenu { customMenu(e) }
                         }
                     }
                     .padding(.horizontal, 16)
@@ -232,8 +226,12 @@ struct ExercisePickerView: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
+        .padding(.top, 22)
         .padding(.bottom, 8)
         .readableColumn()
+        // Fade behind the bar (#790): cards scroll under it without showing through.
+        .background(LinearGradient(stops: [.init(color: Theme.bg.opacity(0), location: 0), .init(color: Theme.bg, location: 0.45)],
+                                   startPoint: .top, endPoint: .bottom).ignoresSafeArea(edges: .bottom))
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
@@ -340,7 +338,8 @@ private struct NewExerciseCard: View {
             Text("Your own machine,\nphoto or pose").font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)
         }
-        .frame(maxWidth: .infinity, minHeight: 196)
+        // Fills the grid row so it matches the picture cards next to it (#790).
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.card))
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -354,10 +353,12 @@ private struct NewExerciseCard: View {
 }
 
 /// Picture card: photo or illustration on the category gradient, category pill, tap-order badge.
-/// "+N variations" under a base exercise's card; opens or folds them (#174).
+/// "+N variations" footer of a base exercise's card; opens or folds them (#174).
 private struct VariationsChip: View {
     let count: Int
     let open: Bool
+    /// Every card reserves this footer, so cards share one height and rows line up (#790).
+    static let height: CGFloat = 28
 
     var body: some View {
         HStack(spacing: 6) {
@@ -365,10 +366,9 @@ private struct VariationsChip: View {
             Text(open ? "Hide variations" : "+\(count) variation\(count == 1 ? "" : "s")").font(Theme.label(12))
         }
         .foregroundStyle(Theme.lime)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 7)
-        .background(Capsule().fill(Theme.cardStrong))
-        .contentShape(Capsule())
+        .frame(maxWidth: .infinity, minHeight: VariationsChip.height)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.cardStrong))
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityLabel(open ? "Hide variations" : "Show \(count) variations")
     }
 }
@@ -376,8 +376,39 @@ private struct VariationsChip: View {
 private struct PickerCard: View {
     let exercise: Exercise
     let order: Int?
+    let variations: Int
+    let open: Bool
+    let onTap: () -> Void
+    let onVariations: () -> Void
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button(action: onTap) { content }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(exercise.name), \(exercise.category.label), \(exercise.primary.map(\.name).joined(separator: ", "))")
+                .accessibilityValue(order.map { "Selected, number \($0 + 1)" } ?? "")
+                .accessibilityAddTraits(order == nil ? .isButton : [.isButton, .isSelected])
+            Spacer(minLength: 0)
+            // Footer inside the card, kept empty without variations so every card has the same height (#790).
+            if variations > 0 {
+                Button(action: onVariations) { VariationsChip(count: variations, open: open) }
+                    .buttonStyle(.plain)
+            } else {
+                Color.clear.frame(height: VariationsChip.height).accessibilityHidden(true)
+            }
+        }
+        .padding(8)
+        // Fills the grid row: cards side by side keep one height (#790).
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.card))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(order == nil ? Theme.stroke : Theme.lime, lineWidth: order == nil ? 1 : 2.5)
+        )
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 8) {
             ExerciseImage(exercise: exercise)
                 .frame(maxWidth: .infinity)
@@ -386,7 +417,8 @@ private struct PickerCard: View {
                 .overlay(alignment: .bottomLeading) {
                     CategoryPill(category: exercise.category, compact: true).padding(7)
                 }
-                .overlay(alignment: .topTrailing) { badge.padding(7) }
+                // Bottom right (#790): the art's muscle map sits in a top corner.
+                .overlay(alignment: .bottomTrailing) { badge.padding(7) }
             VStack(alignment: .leading, spacing: 2) {
                 Text(exercise.name)
                     .font(.system(size: 15, weight: .heavy, design: .rounded))
@@ -400,23 +432,13 @@ private struct PickerCard: View {
             }
             .padding(.horizontal, 4)
         }
-        .padding(8)
-        .padding(.bottom, 4)
-        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.card))
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(order == nil ? Theme.stroke : Theme.lime, lineWidth: order == nil ? 1 : 2.5)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(exercise.name), \(exercise.category.label), \(exercise.primary.map(\.name).joined(separator: ", "))")
-        .accessibilityValue(order.map { "Selected, number \($0 + 1)" } ?? "")
-        .accessibilityAddTraits(order == nil ? .isButton : [.isButton, .isSelected])
+        .contentShape(Rectangle())
     }
 
     @ViewBuilder private var badge: some View {
         ZStack {
-            Circle().fill(order == nil ? AnyShapeStyle(Theme.ink.opacity(0.55)) : AnyShapeStyle(Theme.lime))
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(order == nil ? AnyShapeStyle(Theme.ink.opacity(0.55)) : AnyShapeStyle(Theme.lime))
             if let order {
                 Text("\(order + 1)").font(Theme.label(14)).foregroundStyle(Theme.ink)
             } else {
