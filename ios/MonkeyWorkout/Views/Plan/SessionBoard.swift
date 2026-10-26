@@ -133,9 +133,17 @@ extension Session {
 
     var exerciseCount: Int { blocks.reduce(0) { $0 + $1.items.count } }
 
-    /// First moves of the main part (Up first strip).
+    /// Third stat square: work sets, or HIIT work intervals (a HIIT day has no strength sets).
+    var setsStat: (value: Int, label: String, short: String) {
+        if workSets == 0, let hiit { return (hiit.blocks.reduce(0) { $0 + $1.intervals }, "Rounds", "Rounds") }
+        return (workSets, "Work sets", "Sets")
+    }
+
+    /// First moves of the main part (Up first strip): lifting, else the main cardio / mobility block, never the warm-up.
     var upFirst: [PlannedExercise] {
-        let main = blocks.first { [BlockKind.power, .strength].contains($0.kind) && !$0.items.isEmpty } ?? blocks.first { !$0.items.isEmpty }
+        let main = blocks.first { [BlockKind.power, .strength].contains($0.kind) && !$0.items.isEmpty }
+            ?? blocks.first { [BlockKind.cardio, .mobility].contains($0.kind) && !$0.items.isEmpty }
+            ?? blocks.first { !$0.items.isEmpty }
         return Array((main?.items ?? []).prefix(3))
     }
 }
@@ -281,7 +289,7 @@ struct SessionBoard: View {
                     exercisesTile(
                         GradientStat(symbol: "figure.strengthtraining.traditional", value: "\(session.exerciseCount)", label: "Exercises",
                                      gradient: WorkoutEngine.Category.mobility.gradient))
-                    GradientStat(symbol: "square.stack.3d.up.fill", value: "\(session.workSets)", label: "Work sets",
+                    GradientStat(symbol: "square.stack.3d.up.fill", value: "\(session.setsStat.value)", label: session.setsStat.label,
                                  gradient: WorkoutEngine.Category.strength.gradient)
                 }
             }
@@ -333,7 +341,8 @@ struct SessionBoard: View {
             .padding(18)
         }
         .foregroundStyle(.white)
-        .frame(height: mapSize.height)
+        // Min height, not fixed: a two-line title + chips + bars grow the hero rather than clip it.
+        .frame(minHeight: mapSize.height)
         .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
         .simultaneousGesture(LongPressGesture(minimumDuration: 0.5).onEnded { _ in startArranging() })
     }
@@ -385,7 +394,7 @@ struct SessionBoard: View {
                 VStack(spacing: 10) {
                     MiniStat(value: "\(session.estMin)′", label: "Min", gradient: WorkoutEngine.Category.cardio.gradient)
                     exercisesTile(MiniStat(value: "\(session.exerciseCount)", label: "Exercises", gradient: WorkoutEngine.Category.mobility.gradient))
-                    MiniStat(value: "\(session.workSets)", label: "Sets", gradient: WorkoutEngine.Category.strength.gradient)
+                    MiniStat(value: "\(session.setsStat.value)", label: session.setsStat.short, gradient: WorkoutEngine.Category.strength.gradient)
                 }
                 .frame(width: 104)
             }
