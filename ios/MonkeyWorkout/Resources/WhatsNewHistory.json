@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "id": "2026-10-26.2",
+      "build": 77,
+      "date": "2026-10-26",
+      "items": [
+        {
+          "symbol": "moon.zzz.fill",
+          "tint": "cardio",
+          "title": "Removed days rest",
+          "body": "A workout you removed leaves a plain rest day in the Calendar, no Skipped tag."
+        }
+      ]
+    },
+    {
       "id": "2026-10-26.1",
       "build": 76,
       "date": "2026-10-26",
