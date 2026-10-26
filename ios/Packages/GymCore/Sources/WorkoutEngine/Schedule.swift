@@ -266,6 +266,23 @@ extension Profile {
                    sameDay: climbSameDay ?? sportSameDay ?? .avoid, sports: sportDays())
     }
 
+    /// Stops training on `weekday` every week (#784): the day leaves the gym days (and its place) and the week has one
+    /// session fewer, never below 2 (a 2-session week keeps both, the workout moves to another day). `planned`: this
+    /// week's workout days, the gym days when none are picked.
+    public func droppingGymDay(_ weekday: Int, planned: [Int]) -> Profile {
+        var p = self
+        let days = (gymDays.isEmpty ? WeekSchedule.normalized(planned) : gymDays).filter { $0 != weekday }
+        p.gymWeekdays = days.isEmpty ? nil : days
+        p.dayPlaces?[String(weekday)] = nil
+        if p.dayPlaces?.isEmpty == true { p.dayPlaces = nil }
+        if p.sessionsPerWeek > 2 {
+            p.sessionsPerWeek -= 1
+            // Per-day picks (#200) were for the old week size.
+            p.splitDays = nil
+        }
+        return p
+    }
+
     /// Keeps `climbingDaysPerWeek` equal to the number of picked climbing weekdays, when any are picked.
     public mutating func syncClimbingDays() {
         let n = climbingDays.count

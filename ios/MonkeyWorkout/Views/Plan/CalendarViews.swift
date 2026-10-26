@@ -381,6 +381,8 @@ struct DaySheet: View {
     @State private var adding = false
     @State private var insertsBefore = 0
     @State private var logging: Session?
+    /// Remove… (#784): this day, every week or just skip.
+    @State private var removing: RemoveRequest?
     /// Plan sport (#474): a new sport on this day, or the dated sport day / trip being edited.
     @State private var planningSport = false
     @State private var editingTrip: SportTrip?
@@ -443,14 +445,19 @@ struct DaySheet: View {
                             .padding(14)
                             .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(MissedStyle.gradient))
                         }
-                        SessionPreview(session: session, current: selection.current, done: done, canMove: selection.current && !done && !missed) {
+                        SessionPreview(session: session, current: selection.current, done: done, canMove: selection.current && !done && !missed,
+                                       canRemove: !done && model.state.activeWorkout?.sessionId != session.id) {
                             moving = session
+                        } onRemove: {
+                            profileBefore = model.profile
+                            removing = model.removeRequest(session, weekday: wd, in: selection.current ? nil : selection.week)
                         }
                     }
                     if !skipped.isEmpty {
                         SkippedLine(sessions: skipped, week: selection.current ? nil : selection.week)
                     }
-                    if all.isEmpty && away == nil && selection.week.trips[wd] == nil {
+                    if sessions.isEmpty && skipped.allSatisfy({ model.isRemoved($0.id, in: selection.current ? nil : selection.week) })
+                        && away == nil && selection.week.trips[wd] == nil {
                         Text("No gym session planned.").foregroundStyle(Theme.muted)
                     }
                     if selection.current && selection.week.off[wd] == nil {
@@ -504,6 +511,8 @@ struct DaySheet: View {
         .presentationDetents(fitDetent.map { [$0, .large] } ?? [.large], selection: $detent)
         .sheet(item: $moving) { s in MoveSessionSheet(sessionId: s.id) { _ in dismiss() } }
         .sheet(item: $logging) { s in MissedLogSheet(session: s) }
+        // Every week changes the plan: the sheet's week is a snapshot, so it closes.
+        .removeWorkoutFlow($removing) { if model.profile != profileBefore { dismiss() } }
         .sheet(isPresented: $planningSport, onDismiss: closeIfPlanned) { PlanSportSheet(day: key, sport: model.profile?.otherSports.first?.sport) }
         .sheet(item: $editingTrip, onDismiss: closeIfPlanned) { t in PlanSportSheet(day: t.start, editing: t) }
         .sheet(isPresented: $adding, onDismiss: { if (model.state.synced?.planInserts?.count ?? 0) > insertsBefore { dismiss() } }) { AddWorkoutSheet(weekday: wd) }
@@ -531,7 +540,10 @@ private struct SessionPreview: View {
     let done: Bool
     /// This week, not done: "Move to…".
     var canMove = false
+    /// Not done (#784): "Remove…", any week.
+    var canRemove = false
     var onMove: () -> Void = {}
+    var onRemove: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -567,7 +579,7 @@ private struct SessionPreview: View {
                     .buttonStyle(LimeButtonStyle())
                     if canMove {
                         Button(action: onMove) {
-                            Label("Move to…", systemImage: "arrow.left.arrow.right")
+                            Label(canRemove ? "Move" : "Move to…", systemImage: "arrow.left.arrow.right")
                                 .lineLimit(1)
                                 .font(Theme.label(15)).foregroundStyle(.white)
                                 .frame(maxWidth: .infinity).frame(height: 56)
@@ -575,13 +587,30 @@ private struct SessionPreview: View {
                         }
                         .buttonStyle(.plain)
                     }
+                    if canRemove { removeButton }
                 }
             } else {
                 Text("Exercises may still change with your progress and plan settings.")
                     .font(.caption).foregroundStyle(Theme.muted)
+                if canRemove { removeButton }
             }
         }
         .card()
+    }
+}
+
+extension SessionPreview {
+    /// Remove… (#784, design B): this day only, every week or just skip.
+    fileprivate var removeButton: some View {
+        Button(action: onRemove) {
+            Label("Remove…", systemImage: "trash")
+                .lineLimit(1).minimumScaleFactor(0.8)
+                .font(Theme.label(15)).foregroundStyle(.white)
+                .frame(maxWidth: .infinity).frame(height: 56)
+                .background(Capsule().fill(MissedStyle.gradient))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("calendar.remove")
     }
 }
 

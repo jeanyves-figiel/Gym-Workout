@@ -949,6 +949,8 @@ private struct NextUpCard: View {
     @State private var editingTrip: SportTrip?
     /// HIIT settings (#757) from the Format tile.
     @State private var hiitSettings = false
+    /// Remove… from the long press (#784).
+    @State private var removing: RemoveRequest?
     /// A later day picked in the strip (#343): nothing can be started or logged in advance.
     private var ahead: Bool { later != nil || (picked.map { $0 > model.todayWeekday } ?? false) }
     /// Today's card: the only one with Build as I go, Log sport and Track live.
@@ -1027,6 +1029,7 @@ private struct NextUpCard: View {
         .sheet(isPresented: $planningSport) { PlanSportSheet(day: dayKey ?? PlanCalendar.key(Date(), model.planCalendar), sport: model.profile?.otherSports.first?.sport) }
         .sheet(item: $editingTrip) { PlanSportSheet(day: $0.start, editing: $0) }
         .sheet(isPresented: $hiitSettings) { HiitSettingsSheet() }
+        .removeWorkoutFlow($removing)
     }
 
     /// Long press (#643, #671): the same moves as the card's tiles, this week or a later one.
@@ -1043,6 +1046,12 @@ private struct NextUpCard: View {
             if canToggleSkip {
                 Button(skippedHere ? "Unskip" : skipTitle, systemImage: skippedHere ? "arrow.uturn.backward" : "nosign",
                        role: skippedHere ? nil : .destructive) { toggleSkip(model, session, in: later?.week) }
+            }
+            // Remove… (#784): this day, every week or just skip.
+            if let d = later?.weekday ?? day, model.state.activeWorkout?.sessionId != session.id {
+                Button("Remove…", systemImage: "trash", role: .destructive) {
+                    removing = model.removeRequest(session, weekday: d, in: later?.week)
+                }
             }
         }
         if later != nil {
