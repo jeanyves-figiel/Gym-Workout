@@ -111,7 +111,10 @@ struct CalendarView: View {
 
     private func hero(_ weeks: [PlanCalendar.Week]) -> some View {
         let next4 = weeks.prefix(4)
-        let count = next4.reduce(0) { $0 + $1.plan.sessions.filter { !model.doneIds.contains($0.id) }.count }
+        // Skipped sessions (#784) aren't coming any more.
+        let count = next4.enumerated().reduce(0) { n, e in
+            n + e.element.plan.sessions.filter { !model.doneIds.contains($0.id) && !model.isSkipped($0.id, in: e.element, current: e.offset == 0) }.count
+        }
         let adapted = next4.filter(\.adapted).count
         return HStack(spacing: 14) {
             Image(systemName: "calendar")
@@ -206,9 +209,12 @@ struct WeekCalendarCard: View {
             .sorted { $0.start < $1.start }
     }
 
+    /// The week's sessions not skipped (#784): skipped ones leave a rest day behind.
+    private var planned: [Session] { week.plan.sessions.filter { !model.isSkipped($0.id, in: week, current: current) } }
+
     private var summary: String {
-        let n = week.plan.sessions.count
-        let trips = week.plan.sessions.filter { $0.weekday.map { week.travel[$0] != nil } ?? false }.count
+        let n = planned.count
+        let trips = planned.filter { $0.weekday.map { week.travel[$0] != nil } ?? false }.count
         return "\(n) session\(n == 1 ? "" : "s")" + (trips > 0 ? " · \(trips) away" : "")
     }
 
@@ -220,7 +226,8 @@ struct WeekCalendarCard: View {
     @ViewBuilder
     private func tile(_ wd: Int, today: String, cal: Calendar) -> some View {
         let key = week.days[wd - 1]
-        let session = week.plan.sessions.first { $0.weekday == wd }
+        let session = planned.first { $0.weekday == wd }
+        let skipped = session == nil && week.plan.sessions.contains { $0.weekday == wd }
         let done = session.map { current && model.doneIds.contains($0.id) } ?? false
         let off = week.off[wd] != nil
         let travel = week.travel[wd] != nil
@@ -229,12 +236,12 @@ struct WeekCalendarCard: View {
         // An earlier day of this week with its session not done (#266).
         let missed = current && !done && session.map { s in model.missedSessions.contains { $0.id == s.id } } == true
         let day = week.date(wd, cal).map { cal.component(.day, from: $0) } ?? 0
-        let count = week.plan.sessions.filter { $0.weekday == wd }.count
+        let count = planned.filter { $0.weekday == wd }.count
         // Other sports' days (#416), in season on that date.
         let sport = model.profile?.sportDays(on: week.date(wd, cal) ?? Date()).first { $0.weekday == wd }?.sport
         // A dated sport day or trip (#474) shows in the sport's colours.
         let trip = week.trips[wd]
-        let tag: String? = session.map { short($0.focus) + (count > 1 ? " +\(count - 1)" : "") } ?? (off ? "Off" : trip.map { $0.sport.short } ?? (climb ? "Climb" : sport?.short))
+        let tag: String? = session.map { short($0.focus) + (count > 1 ? " +\(count - 1)" : "") } ?? (off ? "Off" : trip.map { $0.sport.short } ?? (climb ? "Climb" : sport?.short ?? (skipped ? "Skipped" : nil)))
         let fill = missed ? AnyShapeStyle(MissedStyle.gradient)
             : trip.map { AnyShapeStyle($0.sport.gradient) } ?? tileFill(session: session != nil, off: off, travel: travel, climb: climb)
         VStack(spacing: 1) {
@@ -257,7 +264,7 @@ struct WeekCalendarCard: View {
         .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(Theme.lime, lineWidth: key == today ? 2 : 0))
         .opacity(past && !done && !missed ? 0.45 : 1)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibility(wd, session: session, done: done, off: off, travel: travel, climb: climb) + (missed ? ", missed" : ""))
+        .accessibilityLabel(accessibility(wd, session: session, done: done, off: off, travel: travel, climb: climb) + (missed ? ", missed" : "") + (skipped ? ", skipped" : ""))
     }
 
     private func tileFill(session: Bool, off: Bool, travel: Bool, climb: Bool) -> AnyShapeStyle {
@@ -374,6 +381,8 @@ struct DaySheet: View {
     @State private var adding = false
     @State private var insertsBefore = 0
     @State private var logging: Session?
+    /// Remove… (#784): this day, every week or just skip.
+    @State private var removing: RemoveRequest?
     /// Plan sport (#474): a new sport on this day, or the dated sport day / trip being edited.
     @State private var planningSport = false
     @State private var editingTrip: SportTrip?
@@ -388,7 +397,10 @@ struct DaySheet: View {
         let cal = model.planCalendar
         let wd = selection.weekday
         let key = selection.week.days[wd - 1]
-        let sessions = selection.week.plan.sessions.filter { $0.weekday == wd }
+        let all = selection.week.plan.sessions.filter { $0.weekday == wd }
+        // Skipped workouts (#784) leave a rest day with a "skipped · Unskip" line, as on Train (#698).
+        let skipped = all.filter { model.isSkipped($0.id, in: selection.week, current: selection.current) }
+        let sessions = all.filter { s in !skipped.contains { $0.id == s.id } }
         let away = selection.week.off[wd] ?? selection.week.travel[wd]
         NavigationStack {
             ScrollView {
@@ -424,11 +436,7 @@ struct DaySheet: View {
                     ForEach(sessions) { session in
                         let done = selection.current && model.doneIds.contains(session.id)
                         let missed = selection.current && model.missedSessions.contains { $0.id == session.id }
-                        if missed && model.skippedIds.contains(session.id) {
-                            // Skipped (#340): let go, no more catch-up actions.
-                            Label("Skipped", systemImage: "nosign")
-                                .font(Theme.label(13)).foregroundStyle(Theme.muted)
-                        } else if missed {
+                        if missed {
                             // Missed (#266): log it, mark it done, do it today or skip.
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Missed").font(Theme.label(12)).tracking(1.4).textCase(.uppercase).foregroundStyle(.white.opacity(0.9))
@@ -437,11 +445,19 @@ struct DaySheet: View {
                             .padding(14)
                             .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(MissedStyle.gradient))
                         }
-                        SessionPreview(session: session, current: selection.current, done: done, canMove: selection.current && !done && !missed) {
+                        SessionPreview(session: session, current: selection.current, done: done, canMove: selection.current && !done && !missed,
+                                       canRemove: !done && model.state.activeWorkout?.sessionId != session.id) {
                             moving = session
+                        } onRemove: {
+                            profileBefore = model.profile
+                            removing = model.removeRequest(session, weekday: wd, in: selection.current ? nil : selection.week)
                         }
                     }
-                    if sessions.isEmpty && away == nil && selection.week.trips[wd] == nil {
+                    if !skipped.isEmpty {
+                        SkippedLine(sessions: skipped, week: selection.current ? nil : selection.week)
+                    }
+                    if sessions.isEmpty && skipped.allSatisfy({ model.isRemoved($0.id, in: selection.current ? nil : selection.week) })
+                        && away == nil && selection.week.trips[wd] == nil {
                         Text("No gym session planned.").foregroundStyle(Theme.muted)
                     }
                     if selection.current && selection.week.off[wd] == nil {
@@ -495,6 +511,8 @@ struct DaySheet: View {
         .presentationDetents(fitDetent.map { [$0, .large] } ?? [.large], selection: $detent)
         .sheet(item: $moving) { s in MoveSessionSheet(sessionId: s.id) { _ in dismiss() } }
         .sheet(item: $logging) { s in MissedLogSheet(session: s) }
+        // Every week changes the plan: the sheet's week is a snapshot, so it closes.
+        .removeWorkoutFlow($removing) { if model.profile != profileBefore { dismiss() } }
         .sheet(isPresented: $planningSport, onDismiss: closeIfPlanned) { PlanSportSheet(day: key, sport: model.profile?.otherSports.first?.sport) }
         .sheet(item: $editingTrip, onDismiss: closeIfPlanned) { t in PlanSportSheet(day: t.start, editing: t) }
         .sheet(isPresented: $adding, onDismiss: { if (model.state.synced?.planInserts?.count ?? 0) > insertsBefore { dismiss() } }) { AddWorkoutSheet(weekday: wd) }
@@ -522,7 +540,10 @@ private struct SessionPreview: View {
     let done: Bool
     /// This week, not done: "Move to…".
     var canMove = false
+    /// Not done (#784): "Remove…", any week.
+    var canRemove = false
     var onMove: () -> Void = {}
+    var onRemove: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -558,7 +579,7 @@ private struct SessionPreview: View {
                     .buttonStyle(LimeButtonStyle())
                     if canMove {
                         Button(action: onMove) {
-                            Label("Move to…", systemImage: "arrow.left.arrow.right")
+                            Label(canRemove ? "Move" : "Move to…", systemImage: "arrow.left.arrow.right")
                                 .lineLimit(1)
                                 .font(Theme.label(15)).foregroundStyle(.white)
                                 .frame(maxWidth: .infinity).frame(height: 56)
@@ -566,13 +587,30 @@ private struct SessionPreview: View {
                         }
                         .buttonStyle(.plain)
                     }
+                    if canRemove { removeButton }
                 }
             } else {
                 Text("Exercises may still change with your progress and plan settings.")
                     .font(.caption).foregroundStyle(Theme.muted)
+                if canRemove { removeButton }
             }
         }
         .card()
+    }
+}
+
+extension SessionPreview {
+    /// Remove… (#784, design B): this day only, every week or just skip.
+    fileprivate var removeButton: some View {
+        Button(action: onRemove) {
+            Label("Remove…", systemImage: "trash")
+                .lineLimit(1).minimumScaleFactor(0.8)
+                .font(Theme.label(15)).foregroundStyle(.white)
+                .frame(maxWidth: .infinity).frame(height: 56)
+                .background(Capsule().fill(MissedStyle.gradient))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("calendar.remove")
     }
 }
 

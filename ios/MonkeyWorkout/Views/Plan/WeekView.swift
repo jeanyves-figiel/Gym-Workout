@@ -949,6 +949,8 @@ private struct NextUpCard: View {
     @State private var editingTrip: SportTrip?
     /// HIIT settings (#757) from the Format tile.
     @State private var hiitSettings = false
+    /// Remove… from the long press (#784).
+    @State private var removing: RemoveRequest?
     /// A later day picked in the strip (#343): nothing can be started or logged in advance.
     private var ahead: Bool { later != nil || (picked.map { $0 > model.todayWeekday } ?? false) }
     /// Today's card: the only one with Build as I go, Log sport and Track live.
@@ -1027,6 +1029,7 @@ private struct NextUpCard: View {
         .sheet(isPresented: $planningSport) { PlanSportSheet(day: dayKey ?? PlanCalendar.key(Date(), model.planCalendar), sport: model.profile?.otherSports.first?.sport) }
         .sheet(item: $editingTrip) { PlanSportSheet(day: $0.start, editing: $0) }
         .sheet(isPresented: $hiitSettings) { HiitSettingsSheet() }
+        .removeWorkoutFlow($removing)
     }
 
     /// Long press (#643, #671): the same moves as the card's tiles, this week or a later one.
@@ -1043,6 +1046,12 @@ private struct NextUpCard: View {
             if canToggleSkip {
                 Button(skippedHere ? "Unskip" : skipTitle, systemImage: skippedHere ? "arrow.uturn.backward" : "nosign",
                        role: skippedHere ? nil : .destructive) { toggleSkip(model, session, in: later?.week) }
+            }
+            // Remove… (#784): this day, every week or just skip.
+            if let d = later?.weekday ?? day, model.state.activeWorkout?.sessionId != session.id {
+                Button("Remove…", systemImage: "trash", role: .destructive) {
+                    removing = model.removeRequest(session, weekday: d, in: later?.week)
+                }
             }
         }
         if later != nil {
@@ -1826,7 +1835,7 @@ private struct RestDayCard: View {
                 Spacer(minLength: 0)
                 DayJumpChip(label: backTitle ?? backChipTitle(model, toToday: backToToday), action: onBack)
             }
-            if !skipped.isEmpty { skippedLine }
+            if !skipped.isEmpty { SkippedLine(sessions: skipped, week: skippedWeek) }
             if let sport = daySport {
                 SportDayHero(sport: sport, trip: trip, today: isToday, past: past,
                              onChange: change,
@@ -1889,28 +1898,6 @@ private struct RestDayCard: View {
             if let week = laterWeekPlan { MoveHereSheet(week: week, weekday: weekday) }
         }
         .sportOffFlow($restRequest)
-    }
-
-    /// "Pull skipped" struck through with a small lime Unskip chip (#698, design A).
-    private var skippedLine: some View {
-        HStack(spacing: 8) {
-            Text("\(skipped.map(\.displayTitle).joined(separator: " · ")) skipped")
-                .font(Theme.label(13)).strikethrough().foregroundStyle(.white.opacity(0.6)).lineLimit(1)
-            Button {
-                withAnimation {
-                    for s in skipped {
-                        if let skippedWeek { model.setSkipped(false, s.id, in: skippedWeek) } else { model.unskip(s.id) }
-                    }
-                }
-            } label: {
-                Label("Unskip", systemImage: "arrow.uturn.backward").font(Theme.label(12)).foregroundStyle(Theme.ink)
-                    .padding(.horizontal, 9).padding(.vertical, 5)
-                    .background(Capsule().fill(Theme.lime))
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("train.unskip")
-            Spacer(minLength: 0)
-        }
     }
 
     /// Workout tile (#671): Add workout this week; a later week moves one of its workouts here.

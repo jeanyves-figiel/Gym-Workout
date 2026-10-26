@@ -122,6 +122,8 @@ extension AppModel {
         state.ticked = [:]
         let ahead = state.skippedAhead?[key] ?? []
         state.skippedAhead = state.skippedAhead?.filter { $0.key > key }
+        state.removed = state.removed?.filter { $0 >= key }
+        if state.removed?.isEmpty == true { state.removed = nil }
         applyProfile(sp.profile, seed: sp.seed, week: PlanCalendar.cycleWeek(current: sp.week, offset: weeks), rolled: true)
         // Sessions skipped ahead for the new week (#671) are its skips now: after the roll, which clears skips.
         guard !ahead.isEmpty else { return }

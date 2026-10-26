@@ -45,6 +45,11 @@ extension AppModel {
         state.skippedAhead?[PlanCalendar.key(week.start, planCalendar)]?.contains(sessionId) ?? false
     }
 
+    /// Skipped on the Calendar (#784): this week's skips or a later week's skips ahead.
+    func isSkipped(_ sessionId: String, in week: PlanCalendar.Week, current: Bool) -> Bool {
+        current ? skippedIds.contains(sessionId) : isSkipped(sessionId, in: week)
+    }
+
     func setSkipped(_ skipped: Bool, _ sessionId: String, in week: PlanCalendar.Week) {
         let key = PlanCalendar.key(week.start, planCalendar)
         var all = state.skippedAhead ?? [:]
@@ -54,6 +59,40 @@ extension AppModel {
         all[key] = ids.isEmpty ? nil : ids
         state.skippedAhead = all.isEmpty ? nil : all
         persist()
+    }
+
+    // MARK: Remove (#784)
+
+    private func removedKey(_ sessionId: String, in week: PlanCalendar.Week?) -> String {
+        (week.map { PlanCalendar.key($0.start, planCalendar) } ?? weekKey(Date())) + ":" + sessionId
+    }
+
+    /// Removed from its day only (#784): skipped without a "skipped · Unskip" line. `week` nil = this week.
+    func isRemoved(_ sessionId: String, in week: PlanCalendar.Week?) -> Bool {
+        state.removed?.contains(removedKey(sessionId, in: week)) ?? false
+    }
+
+    /// Removes a workout of this week (`week` nil) or a later week from its day only: the day turns into a rest day.
+    func removeSession(_ sessionId: String, in week: PlanCalendar.Week?) {
+        let key = removedKey(sessionId, in: week)
+        state.removed = (state.removed ?? []).filter { $0 != key } + [key]
+        if let week { setSkipped(true, sessionId, in: week) } else { skipMissed(sessionId) }
+    }
+
+    /// Puts a removed workout back (Undo).
+    func restoreSession(_ sessionId: String, in week: PlanCalendar.Week?) {
+        let key = removedKey(sessionId, in: week)
+        state.removed = state.removed?.filter { $0 != key }
+        if state.removed?.isEmpty == true { state.removed = nil }
+        if let week { setSkipped(false, sessionId, in: week) } else { unskip(sessionId) }
+    }
+
+    /// Stops training on `weekday` every week (#784). Returns the profile before, for Undo.
+    @discardableResult
+    func removeEveryWeek(_ weekday: Int) -> Profile? {
+        guard let p = profile else { return nil }
+        updateProfile(p.droppingGymDay(weekday, planned: (plan?.sessions ?? []).compactMap(\.weekday)))
+        return p
     }
 
     // MARK: Sport day → rest day

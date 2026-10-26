@@ -229,6 +229,8 @@ struct WeekDayStrip: View {
     @State private var addingDay: DayPick?
     /// Long press on any day, any week (#671): the same moves as its day card's tiles.
     @State private var movingLater: LaterPick?
+    /// Remove… from the long press (#784).
+    @State private var removing: RemoveRequest?
     @State private var movingHere: LaterDay?
     @State private var editingTrip: SportTrip?
     @State private var restRequest: SportOffRequest?
@@ -264,6 +266,7 @@ struct WeekDayStrip: View {
             }
             .sheet(item: $addingDay) { AddWorkoutSheet(weekday: $0.id) }
             .sheet(item: $movingLater) { MoveSessionSheet(sessionId: $0.session, later: $0.week) }
+            .removeWorkoutFlow($removing)
             .sheet(item: $movingHere) { MoveHereSheet(week: $0.week, weekday: $0.weekday) }
             .sheet(item: $editingTrip) { PlanSportSheet(day: $0.start, editing: $0) }
             .sportOffFlow($restRequest)
@@ -298,6 +301,9 @@ struct WeekDayStrip: View {
         } else if model.skippedIds.contains(s.id), wd >= model.todayWeekday {
             Button("Unskip", systemImage: "arrow.uturn.backward") { withAnimation { model.unskip(s.id) } }
         }
+        if !model.doneIds.contains(s.id), model.state.activeWorkout?.sessionId != s.id {
+            Button("Remove…", systemImage: "trash", role: .destructive) { removing = model.removeRequest(s, weekday: wd, in: nil) }
+        }
     }
 
     /// Long press on a later week's day (#671): a workout moves or is skipped there, that week only; a rest or sport day
@@ -311,6 +317,7 @@ struct WeekDayStrip: View {
             Button("Plan a sport", systemImage: "figure.snowboarding") { planningSport = w.days[wd - 1] }
             Button(skipped ? "Unskip" : "Skip \(WeekSchedule.name(wd))", systemImage: skipped ? "arrow.uturn.backward" : "nosign",
                    role: skipped ? nil : .destructive) { toggleSkip(model, s, in: w) }
+            Button("Remove…", systemImage: "trash", role: .destructive) { removing = model.removeRequest(s, weekday: wd, in: w) }
         } else {
             Button("Workout here", systemImage: "plus") { movingHere = LaterDay(week: w, weekday: wd) }
             sportMenu(key: w.days[wd - 1], wd: wd, date: date)

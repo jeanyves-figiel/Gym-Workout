@@ -40,6 +40,24 @@ private func climber(_ sessions: Int, climbing: [Int]?, gym: [Int]? = nil, goal:
         #expect(q.climbingDaysPerWeek == 3) // nothing picked → untouched
     }
 
+    @Test func droppingGymDayEveryWeek() {
+        // Picked days: Tuesday leaves them, one session fewer, per-day picks reset.
+        var p = climber(4, climbing: nil, gym: [1, 2, 4, 6])
+        p.splitDays = [.push, .pull, .legs, .upper]
+        p.dayPlaces = ["2": "home", "4": "gym"]
+        let q = p.droppingGymDay(2, planned: [])
+        #expect(q.gymWeekdays == [1, 4, 6])
+        #expect(q.sessionsPerWeek == 3)
+        #expect(q.splitDays == nil)
+        #expect(q.dayPlaces == ["4": "gym"])
+        // No picked days: this week's workout days are the base.
+        let r = climber(3, climbing: nil).droppingGymDay(3, planned: [5, 1, 3])
+        #expect(r.gymWeekdays == [1, 5])
+        #expect(r.sessionsPerWeek == 2)
+        // Never below 2 sessions.
+        #expect(climber(2, climbing: nil, gym: [2, 5]).droppingGymDay(2, planned: []).sessionsPerWeek == 2)
+    }
+
     @Test func combinatorics() {
         #expect(WeekSchedule.combinations(WeekSchedule.weekdays, 3).count == 35)
         #expect(WeekSchedule.combinations(WeekSchedule.weekdays, 3).first == [1, 2, 3])
