@@ -227,7 +227,8 @@ struct WeekCalendarCard: View {
     private func tile(_ wd: Int, today: String, cal: Calendar) -> some View {
         let key = week.days[wd - 1]
         let session = planned.first { $0.weekday == wd }
-        let skipped = session == nil && week.plan.sessions.contains { $0.weekday == wd }
+        // Removed from the day (#787) leaves a plain rest day, not "Skipped".
+        let skipped = session == nil && week.plan.sessions.contains { $0.weekday == wd && !model.isRemoved($0.id, in: current ? nil : week) }
         let done = session.map { current && model.doneIds.contains($0.id) } ?? false
         let off = week.off[wd] != nil
         let travel = week.travel[wd] != nil
