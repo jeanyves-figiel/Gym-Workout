@@ -1,6 +1,25 @@
 {
   "releases": [
     {
+      "id": "2026-10-26.1",
+      "build": 76,
+      "date": "2026-10-26",
+      "items": [
+        {
+          "symbol": "calendar.badge.minus",
+          "tint": "cardio",
+          "title": "Remove a workout",
+          "body": "Remove… on a day asks: just this day or every Tuesday. Skipped workouts leave the Calendar too."
+        },
+        {
+          "symbol": "rectangle.portrait.fill",
+          "tint": "strength",
+          "title": "Workout page fits",
+          "body": "The big title and muscle bars no longer get cut, and HIIT days show their rounds."
+        }
+      ]
+    },
+    {
       "id": "2026-10-25.3",
       "build": 75,
       "date": "2026-10-25",

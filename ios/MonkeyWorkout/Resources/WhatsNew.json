@@ -1,17 +1,11 @@
 {
-  "id": "2026-10-26.1",
+  "id": "2026-10-26.2",
   "items": [
     {
-      "symbol": "calendar.badge.minus",
+      "symbol": "moon.zzz.fill",
       "tint": "cardio",
-      "title": "Remove a workout",
-      "body": "Remove… on a day asks: just this day or every Tuesday. Skipped workouts leave the Calendar too."
-    },
-    {
-      "symbol": "rectangle.portrait.fill",
-      "tint": "strength",
-      "title": "Workout page fits",
-      "body": "The big title and muscle bars no longer get cut, and HIIT days show their rounds."
+      "title": "Removed days rest",
+      "body": "A workout you removed leaves a plain rest day in the Calendar, no Skipped tag."
     }
   ]
 }
