@@ -45,6 +45,11 @@ extension AppModel {
         state.skippedAhead?[PlanCalendar.key(week.start, planCalendar)]?.contains(sessionId) ?? false
     }
 
+    /// Skipped on the Calendar (#784): this week's skips or a later week's skips ahead.
+    func isSkipped(_ sessionId: String, in week: PlanCalendar.Week, current: Bool) -> Bool {
+        current ? skippedIds.contains(sessionId) : isSkipped(sessionId, in: week)
+    }
+
     func setSkipped(_ skipped: Bool, _ sessionId: String, in week: PlanCalendar.Week) {
         let key = PlanCalendar.key(week.start, planCalendar)
         var all = state.skippedAhead ?? [:]

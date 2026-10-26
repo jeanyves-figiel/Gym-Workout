@@ -126,3 +126,33 @@ struct MoveHereSheet: View {
         .preferredColorScheme(.dark)
     }
 }
+
+/// "Pull skipped" struck through with a small lime Unskip chip (#698, design A), on Train's rest day card and in
+/// the Calendar day sheet (#784).
+struct SkippedLine: View {
+    let sessions: [Session]
+    /// The later week they were skipped in; nil = this week.
+    var week: PlanCalendar.Week? = nil
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("\(sessions.map(\.displayTitle).joined(separator: " · ")) skipped")
+                .font(Theme.label(13)).strikethrough().foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+            Button {
+                withAnimation {
+                    for s in sessions {
+                        if let week { model.setSkipped(false, s.id, in: week) } else { model.unskip(s.id) }
+                    }
+                }
+            } label: {
+                Label("Unskip", systemImage: "arrow.uturn.backward").font(Theme.label(12)).foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 9).padding(.vertical, 5)
+                    .background(Capsule().fill(Theme.lime))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("train.unskip")
+            Spacer(minLength: 0)
+        }
+    }
+}
