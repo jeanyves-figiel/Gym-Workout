@@ -1,11 +1,17 @@
 {
-  "id": "2026-10-26.2",
+  "id": "2026-10-26.3",
   "items": [
     {
-      "symbol": "moon.zzz.fill",
-      "tint": "cardio",
-      "title": "Removed days rest",
-      "body": "A workout you removed leaves a plain rest day in the Calendar, no Skipped tag."
+      "symbol": "square.grid.2x2.fill",
+      "tint": "strength",
+      "title": "Tidier exercise picker",
+      "body": "Cards line up, variations sit inside each card, and the + never covers the muscle map."
+    },
+    {
+      "symbol": "arrow.up.arrow.down",
+      "tint": "power",
+      "title": "Push ≠ lower",
+      "body": "eGym-style machine? Turn on Separate push / lower weight in Setup and log both weights for each set."
     }
   ]
 }
