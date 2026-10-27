@@ -203,6 +203,8 @@ struct CurrentSetCard: View {
     var watchLift: WLiftLive? = nil
     /// Coach (#379): the coming set is the exercise's last; the badge takes the source chip's place.
     var finalSet = false
+    /// Freestyle (#795): + set at the end of the chips, any time; nil = the planned count stays.
+    var onAddSet: (() -> Void)? = nil
     let onSave: (Int) -> Void
 
     var body: some View {
@@ -266,8 +268,8 @@ struct CurrentSetCard: View {
                             minus: { state.stepReps(i, by: -1) }, plus: { state.stepReps(i, by: 1) })
                 }
             }
-            if n > 1 || done > 0 {
-                SetChips(count: n, done: done, current: i, color: color) { j in
+            if n > 1 || done > 0 || onAddSet != nil {
+                SetChips(count: n, done: done, current: i, color: color, onAdd: onAddSet) { j in
                     guard state.rows.indices.contains(j) else { return nil }
                     guard let v = state.values(j), j < done || state.rows[j].logged else { return nil }
                     let kg = v.lowerKg.map { "\(LoadAdvisor.formatKg(v.kg))/\(LoadAdvisor.formatKg($0))" } ?? LoadAdvisor.formatKg(v.kg)
@@ -368,6 +370,8 @@ struct SetChips: View {
     let done: Int
     var current: Int?
     let color: Color
+    /// + set after the chips (#795); nil = none.
+    var onAdd: (() -> Void)? = nil
     /// Text inside a chip; nil shows the set number.
     var detail: (Int) -> String? = { _ in nil }
     /// Tap on a done set; nil leaves chips inert.
@@ -391,6 +395,20 @@ struct SetChips: View {
                     .onTapGesture { if isDone { onTap?(i) } }
                     .accessibilityLabel(isDone ? "Set \(i + 1) done \(detail(i) ?? "")" : "Set \(i + 1)")
                     .accessibilityAddTraits(isDone && onTap != nil ? .isButton : [])
+            }
+            if let onAdd {
+                Button(action: onAdd) {
+                    Label("Set", systemImage: "plus")
+                        .font(Theme.label(12)).lineLimit(1).fixedSize()
+                        .foregroundStyle(Theme.lime)
+                        .padding(.horizontal, 10)
+                        .frame(minHeight: 30)
+                        .overlay(Capsule().strokeBorder(Theme.lime, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add a set")
+                .accessibilityIdentifier("player.addSet")
             }
         }
         .animation(.spring(duration: 0.3), value: done)

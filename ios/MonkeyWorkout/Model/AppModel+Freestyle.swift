@@ -42,6 +42,12 @@ extension AppModel {
         return added.uid
     }
 
+    /// One more (or one less) set on a freestyle exercise while doing it (#795).
+    func setFreestyleSets(_ sessionId: String, uid: String, sets: Int) {
+        guard let s = freestyleSession(sessionId) else { return }
+        saveFreestyle(sessionId, blocks: Freestyle.settingSets(sets, of: uid, in: s.blocks))
+    }
+
     /// Exercises the member logged lately, newest first, without repeats.
     func recentExerciseIds(limit: Int = 20) -> [String] {
         var seen = Set<String>()
