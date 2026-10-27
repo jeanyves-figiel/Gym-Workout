@@ -67,6 +67,19 @@ final class SetLogState {
         }
     }
 
+    /// Freestyle + / − set (#795): rows follow `item`'s new set count without a reload, so values being entered stay.
+    /// A new row starts from the last one's kg and reps; only rows not logged yet are dropped.
+    func resize(to item: PlannedExercise) {
+        guard item.uid == self.item?.uid else { return }
+        self.item = item
+        let n = max(1, item.prescription.sets)
+        while rows.count < n {
+            let last = rows.last ?? Row()
+            rows.append(Row(kg: last.kg, lower: last.lower, reps: last.reps))
+        }
+        while rows.count > n, rows.last?.logged == false { rows.removeLast() }
+    }
+
     static func parseKg(_ s: String) -> Double? {
         guard let kg = Double(s.replacingOccurrences(of: ",", with: ".")), kg >= 0, kg <= 1000 else { return nil }
         return kg

@@ -12,6 +12,24 @@ import Testing
         #expect(Freestyle.session().id != s.id)
     }
 
+    @Test func settingSetsChangesOnlyThatExerciseAndItsTime() throws {
+        let s = Freestyle.session()
+        let a = try #require(Exercise.find("back-squat"))
+        let b = try #require(Exercise.find("bench-press"))
+        var blocks = Freestyle.adding(a, to: s.blocks, sessionId: s.id).blocks
+        let added = Freestyle.adding(b, to: blocks, sessionId: s.id)
+        blocks = added.blocks
+        let uid = try #require(added.uid)
+        let before = try #require(blocks.flatMap(\.items).first { $0.uid == uid })
+        let more = Freestyle.settingSets(before.prescription.sets + 1, of: uid, in: blocks)
+        let after = try #require(more.flatMap(\.items).first { $0.uid == uid })
+        #expect(after.prescription.sets == before.prescription.sets + 1)
+        #expect(after.estSec > before.estSec)
+        #expect(more.flatMap(\.items).first?.prescription == blocks.flatMap(\.items).first?.prescription)
+        #expect(Freestyle.settingSets(0, of: uid, in: blocks).flatMap(\.items).last?.prescription.sets == 1)
+        #expect(Freestyle.settingSets(99, of: uid, in: blocks).flatMap(\.items).last?.prescription.sets == Freestyle.maxSets)
+    }
+
     @Test func namedFreestyleNotByFocus() {
         #expect(Freestyle.session().displayTitle == Freestyle.title)
     }
