@@ -19,6 +19,14 @@ extension Exercise {
         Exercise(id: "machine-pullover", name: "Pullover machine", category: .strength, pattern: .vPull, primary: [.lats], secondary: [.serratus, .triceps, .chest], equipment: [.pulloverMachine], level: 1, secPerRep: 3, cues: ["Elbows on the pads", "Sweep the arms down to the hips", "Let the lats stretch on the way up"], generator: false),
         Exercise(id: "db-bench-pullover", name: "Dumbbell bench pullover", category: .strength, pattern: .vPull, primary: [.lats], secondary: [.chest, .serratus, .triceps], equipment: [.dumbbells, .bench], level: 1, secPerRep: 3, cues: ["Upper back across the bench", "Arms softly bent, fixed", "Ribs down as the weight goes back"], generator: false),
 
+        // MARK: Machine gaps (#796)
+        Exercise(id: "seated-leg-curl", name: "Seated leg curl (machine)", category: .strength, pattern: .kneeFlex, primary: [.hamstrings], secondary: [.calves], equipment: [.legCurl], level: 1, secPerRep: 3, cues: ["Knees on the pivot, thigh pad snug", "Push the pad down and under the seat", "3 s back up, stop short of locking"], generator: false),
+        Exercise(id: "standing-leg-curl", name: "Standing leg curl (machine)", category: .strength, pattern: .kneeFlex, primary: [.hamstrings], secondary: [.calves, .glutes], equipment: [.legCurl], level: 1, unilateral: true, secPerRep: 3, cues: ["Thigh on the pad, hips square", "Curl the heel to the glute", "Lower slowly, knee stays put"], generator: false),
+        Exercise(id: "machine-lateral-raise", name: "Machine lateral raise", category: .strength, pattern: .lateralRaise, primary: [.sideDelts], secondary: [.traps, .frontDelts], equipment: [.lateralRaiseMachine], level: 1, secPerRep: 3, cues: ["Shoulders on the pivots", "Lead with the elbows on the pads", "Stop at shoulder height, slow down"], generator: false),
+        Exercise(id: "incline-chest-press-machine", name: "Incline chest press machine", category: .strength, pattern: .hPush, primary: [.chest, .frontDelts], secondary: [.triceps], equipment: [.chestPress], level: 1, secPerRep: 3, cues: ["Handles at upper chest", "Press up and out, shoulders down", "Slow return to a stretch"], generator: false),
+        Exercise(id: "seated-dip-machine", name: "Seated dip machine", category: .strength, pattern: .armsExt, primary: [.triceps], secondary: [.chest, .frontDelts], equipment: [.tricepsMachine], level: 1, secPerRep: 3, cues: ["Sit tall, handles by the ribs", "Push down to straight arms", "Elbows back, not flared"], generator: false),
+        Exercise(id: "machine-high-row", name: "High row machine", category: .strength, pattern: .vPull, primary: [.lats, .upperBack], secondary: [.rearDelts, .biceps, .brachialis], equipment: [.rowMachine], level: 1, secPerRep: 3, cues: ["Thighs under the pad, chest up", "Pull the elbows down and back", "Arms reach long overhead"], generator: false),
+
         // MARK: Free weights
         Exercise(id: "barbell-thruster", name: "Barbell thruster", category: .power, pattern: .squat, primary: [.quads, .glutes, .frontDelts], secondary: [.triceps, .upperBack, .abs], equipment: [.barbell, .rack], level: 2, secPerRep: 3, cues: ["Front squat to full depth", "Drive up and press in one move", "Bar finishes over the mid-foot"], generator: false),
         Exercise(id: "db-thruster", name: "Dumbbell thruster", category: .power, pattern: .squat, primary: [.quads, .glutes, .frontDelts], secondary: [.triceps, .abs], equipment: [.dumbbells], level: 1, secPerRep: 3, cues: ["Bells on the shoulders", "Squat, then use the drive to press", "Lock out overhead"], generator: false),
@@ -111,7 +119,11 @@ extension Exercise {
         "spiderman-push-up": "push-up", "wall-push-up": "push-up", "bosu-push-up": "push-up",
         "sandbag-squat": "goblet-squat", "bosu-squat": "goblet-squat",
         "sandbag-lunge": "reverse-lunge", "slider-reverse-lunge": "reverse-lunge",
-        "slider-leg-curl": "leg-curl",
+        "slider-leg-curl": "leg-curl", "seated-leg-curl": "leg-curl", "standing-leg-curl": "leg-curl",
+        "machine-lateral-raise": "db-lateral-raise",
+        "incline-chest-press-machine": "chest-press-machine",
+        "seated-dip-machine": "machine-triceps-extension",
+        "machine-high-row": "lat-pulldown",
         "weighted-muscle-up": "muscle-up",
         "tuck-front-lever": "front-lever", "tuck-back-lever": "back-lever", "band-iron-cross": "iron-cross",
         "one-arm-pull-up": "pull-up", "archer-pull-up": "pull-up", "bar-static-hold": "pull-up",

@@ -47,7 +47,7 @@ public enum GymArea: String, Codable, CaseIterable, Sendable, Identifiable {
         case .machines: [.smith, .legPress, .hackSquat, .legCurl, .legExtension, .chestPress, .pecDeck, .hipThrustMachine,
                          .seatedCalf, .hipAdAbductor, .abCrunch, .torsoRotation, .shoulderPress, .standingCalf, .tBarRow,
                          .curlMachine, .tricepsMachine, .rowMachine, .backExtensionMachine, .squatMachine, .beltSquat,
-                         .gluteMachine, .multiHip, .pulloverMachine]
+                         .gluteMachine, .multiHip, .pulloverMachine, .lateralRaiseMachine]
         case .stations: [.pullupBar, .dipStation, .assistedMachine, .backExtension, .reverseHyper, .rings, .trx, .ghd, .stallBars]
         case .functional: [.kettlebells, .plyoBox, .medBall, .slamBall, .sled, .battleRope, .abWheel, .bands, .stabilityBall, .jumpRope, .dipBelt,
                            .sandbag, .sliders, .balanceTrainer, .massageBall]
@@ -290,6 +290,7 @@ extension Equipment {
         case .gluteMachine: "glute-kickback-machine"
         case .multiHip: "multi-hip-extension"
         case .pulloverMachine: "machine-pullover"
+        case .lateralRaiseMachine: "machine-lateral-raise"
         case .sandbag: "sandbag-shouldering"
         case .sliders: "slider-leg-curl"
         case .balanceTrainer: "bosu-squat"
@@ -333,7 +334,7 @@ extension Equipment {
         case .assistedMachine: ["gravitron", "assisted chin-up", "assisted dip"]
         case .reverseHyper: ["reverse hyperextension"]
         case .curlMachine: ["arm curl machine"]
-        case .tricepsMachine: ["triceps press machine", "triceps dip machine"]
+        case .tricepsMachine: ["triceps press machine", "triceps dip machine", "seated dip machine", "dip machine"]
         case .dipBelt: ["weight belt", "weighted vest", "chain belt", "weighted pull-up"]
         case .rowMachine: ["row machine", "chest-supported row machine", "iso-lateral row", "low row machine"]
         case .backExtensionMachine: ["lower back machine", "lumbar machine", "seated back extension"]
@@ -342,6 +343,7 @@ extension Equipment {
         case .gluteMachine: ["glute machine", "kickback machine", "glute isolator"]
         case .multiHip: ["hip machine", "pendulum hip", "4-way hip"]
         case .pulloverMachine: ["pullover", "lat pullover"]
+        case .lateralRaiseMachine: ["side raise machine", "deltoid machine", "lateral delt machine"]
         case .sandbag: ["core bag", "bulgarian bag", "power bag"]
         case .sliders: ["gliders", "slide pads", "valslide"]
         case .balanceTrainer: ["bosu", "balance pad", "airex", "wobble board"]

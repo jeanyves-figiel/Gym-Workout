@@ -39,7 +39,7 @@ final class YourGymUITests: XCTestCase {
         openYourGym()
         XCTAssertTrue(count(48).waitForExistence(timeout: 5))
         app.buttons["ADD ALL"].tap()
-        XCTAssertTrue(count(68).waitForExistence(timeout: 5), "ADD ALL shows the full list")
+        XCTAssertTrue(count(69).waitForExistence(timeout: 5), "ADD ALL shows the full list")
         // The Equipment page opened and closed keeps the edit (wait for ADD ALL's list to settle first).
         let equipment = app.staticTexts["Equipment"].firstMatch
         XCTAssertTrue(equipment.waitForExistence(timeout: 5))
@@ -49,10 +49,10 @@ final class YourGymUITests: XCTestCase {
         let close = app.navigationBars["Equipment"].buttons["Close"]
         XCTAssertTrue(close.waitForExistence(timeout: 10), "Equipment sheet")
         close.tap()
-        XCTAssertTrue(count(68).waitForExistence(timeout: 5), "still 68 after the Equipment page")
+        XCTAssertTrue(count(69).waitForExistence(timeout: 5), "still 69 after the Equipment page")
         save()
         openYourGym()
-        XCTAssertTrue(count(68).waitForExistence(timeout: 5), "saved list reopened")
+        XCTAssertTrue(count(69).waitForExistence(timeout: 5), "saved list reopened")
         XCTAssertFalse(app.buttons["ADD ALL"].exists)
     }
 

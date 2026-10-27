@@ -100,6 +100,8 @@ public enum Equipment: String, Codable, CaseIterable, Sendable, Identifiable {
     case balanceTrainer = "balance-trainer"
     case massageBall = "massage-ball"
     case stallBars = "stall-bars"
+    // Machine gaps (#796).
+    case lateralRaiseMachine = "lateral-raise-machine"
     // Climbing gym (#366).
     case hangboard
     case climbingWall = "climbing-wall"
