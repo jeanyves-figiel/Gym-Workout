@@ -1,7 +1,7 @@
 import XCTest
 
-/// Player setup strip (#809): a saved machine setup opens again from the player, also when it only keeps the
-/// push / lower switch. Demo screen `player-setup`: a machine exercise with Seat 4 · Pad 2 · ROM off and a note.
+/// Player Setup chip (#809): stays in its slot once a setup is saved and opens it again, also when the setup only
+/// keeps the push / lower switch. Demo screen `player-setup`: a machine exercise with Seat 4 · Pad 2 · ROM off and a note.
 final class PlayerSetupUITests: XCTestCase {
     private var app: XCUIApplication!
 
@@ -12,12 +12,10 @@ final class PlayerSetupUITests: XCTestCase {
         app.launch()
     }
 
-    private var strip: XCUIElement {
-        app.buttons.containing(NSPredicate(format: "label BEGINSWITH[c] %@", "My setup")).firstMatch
-    }
+    private var strip: XCUIElement { app.buttons["player.setup"].firstMatch }
 
     private func openSetup(_ step: String) {
-        XCTAssertTrue(strip.waitForExistence(timeout: 15), "Setup strip (\(step))")
+        XCTAssertTrue(strip.waitForExistence(timeout: 15), "Setup chip (\(step))")
         strip.tap()
         XCTAssertTrue(app.navigationBars["Machine setup"].waitForExistence(timeout: 5), "Setup sheet opens (\(step))")
     }
@@ -53,7 +51,7 @@ final class PlayerSetupUITests: XCTestCase {
         }
         closeSetup()
         XCTAssertTrue(app.buttons.containing(NSPredicate(format: "label CONTAINS[c] %@", "Push ≠ lower")).firstMatch
-            .waitForExistence(timeout: 10), "Strip shows the push / lower setup")
+            .waitForExistence(timeout: 10), "Setup chip holds the push / lower setup")
         openSetup("push / lower only")
         closeSetup()
         openSetup("push / lower only, again")

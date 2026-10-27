@@ -53,7 +53,6 @@ struct WorkoutPlayerView: View {
     @State private var changeFor: PlannedExercise?
     @State private var changeChoice: ChangeExerciseSheet.Choice?
     @State private var setupFor: MachineNoteTarget?
-    @State private var setupPhotoFor: MachineNote?
     @State private var gate: ProGate?
     @State private var log = SetLogState()
     /// Done set opened for a correction in the set card.
@@ -229,11 +228,6 @@ struct WorkoutPlayerView: View {
             }
         }
         .sheet(item: $setupFor) { MachineNoteSheet(exerciseId: $0.exerciseId, gym: $0.gym) }
-        .fullScreenCover(item: $setupPhotoFor) { n in
-            MachineNotePhotoViewer(note: n) {
-                setupFor = MachineNoteTarget(exerciseId: n.exerciseId, gym: GymRef(id: n.gymId, name: n.gymName, address: ""))
-            }
-        }
         .sheet(item: $groupFix, onDismiss: runGroupChoice) { item in
             if let step = steps.first(where: { $0.item.uid == item.uid }) {
                 SupersetFixSheet(title: groupTitle(step), partner: swappablePartner(step).map { Exercise.get($0.exerciseId).name },
@@ -457,7 +451,6 @@ struct WorkoutPlayerView: View {
                                  onChange: canChange(step) ? { changeFor = step.item } : nil,
                                  setup: setup,
                                  onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
-                                 onSetupPhoto: { setupPhotoFor = setup },
                                  onSplit: canSplit(step) ? { split(step) } : nil,
                                  onGroup: canSplit(step) ? { groupFix = step.item } : nil,
                                  onAdd: isFree ? { freeBrowse = FreeBrowse(group: nil, jump: false) } : nil,
@@ -670,7 +663,6 @@ struct WorkoutPlayerView: View {
                                      onChange: canChange(step) ? { changeFor = step.item } : nil,
                                      setup: setup,
                                      onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
-                                     onSetupPhoto: { setupPhotoFor = setup },
                                      onSplit: canSplit(step) ? { split(step) } : nil,
                                      onGroup: canSplit(step) ? { groupFix = step.item } : nil,
                                      onAdd: isFree ? { freeBrowse = FreeBrowse(group: nil, jump: false) } : nil,
@@ -752,7 +744,6 @@ struct WorkoutPlayerView: View {
                                      onChange: canChange(step) ? { changeFor = step.item } : nil,
                                      setup: setup,
                                      onSetup: step.exercise.equipment.isEmpty ? nil : { setupFor = setupTarget },
-                                     onSetupPhoto: { setupPhotoFor = setup },
                                      onSplit: canSplit(step) ? { split(step) } : nil,
                                      onGroup: canSplit(step) ? { groupFix = step.item } : nil,
                                      onAdd: isFree ? { freeBrowse = FreeBrowse(group: nil, jump: false) } : nil,
