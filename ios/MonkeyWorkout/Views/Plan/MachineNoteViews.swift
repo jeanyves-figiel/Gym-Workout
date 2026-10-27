@@ -72,17 +72,22 @@ struct MachineNoteStrip: View {
         }
     }
 
+    /// Values as chips: the filled fields, then "Push ≠ lower" when the machine splits the load (#809).
+    private var chips: [String] {
+        note.filledFields.map { "\($0.label) \($0.value)" } + (note.splitLoad == true ? ["Push ≠ lower"] : [])
+    }
+
     @ViewBuilder
     private func values(_ n: Int) -> some View {
-        let fields = note.filledFields
-        if fields.isEmpty || n == 0 {
-            Text(fields.isEmpty ? (note.trimmedText ?? "My setup") : note.summary)
+        let chips = chips
+        if chips.isEmpty || n == 0 {
+            Text(note.summary.isEmpty ? "My setup" : note.summary)
                 .font(Theme.label(12))
                 .lineLimit(1)
         } else {
             HStack(spacing: 4) {
-                ForEach(fields.prefix(n)) { f in
-                    Text("\(f.label) \(f.value)")
+                ForEach(Array(chips.prefix(n).enumerated()), id: \.offset) { _, c in
+                    Text(c)
                         .font(Theme.label(12))
                         .lineLimit(1)
                         .fixedSize()
@@ -90,7 +95,7 @@ struct MachineNoteStrip: View {
                         .padding(.vertical, 4)
                         .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.white.opacity(0.2)))
                 }
-                if fields.count > n { Text("+\(fields.count - n)").font(Theme.label(11)).opacity(0.8).fixedSize() }
+                if chips.count > n { Text("+\(chips.count - n)").font(Theme.label(11)).opacity(0.8).fixedSize() }
             }
         }
     }
@@ -370,6 +375,7 @@ struct MachineNoteSheet: View {
                     Button("Use") {
                         draft.fields = n.fields.map { .init(label: $0.label, value: $0.value) }
                         draft.text = n.text
+                        draft.splitLoad = n.splitLoad
                         Task {
                             if let photo = await model.machineNotePhoto(n) { newPhoto = .some(photo) }
                         }
