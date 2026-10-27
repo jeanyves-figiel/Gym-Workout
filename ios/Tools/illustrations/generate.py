@@ -47,7 +47,7 @@ LEDGER = IOS / "EXERCISE_MEDIA.md"
 SCENE_MODULES = ["scenes", "scenes_lower", "scenes_upper", "scenes_arms_core", "scenes_power", "scenes_mobility",
                  "scenes_extra", "scenes_var_lower", "scenes_var_push", "scenes_var_pull", "scenes_var_core",
                  "scenes_gym_machines", "scenes_gym_free", "scenes_gym_props", "scenes_gym_calis",
-                 "scenes_gym_mobility", "scenes_climb"]
+                 "scenes_gym_mobility", "scenes_climb", "scenes_gym_gaps"]
 FRAMES = art.FRAMES  # the default; fast, large movements get more (TIERS)
 # #256: an exercise gets the fewest frames of TIERS at which no joint moves more than MAX_STEP of the picture's
 # width between two frames (a bigger jump reads as flicker while the movement plays).

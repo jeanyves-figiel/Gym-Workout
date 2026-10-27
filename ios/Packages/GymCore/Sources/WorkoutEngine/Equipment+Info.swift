@@ -21,7 +21,7 @@ extension Equipment {
              .hipThrustMachine, .backExtension, .dipStation, .pullupBar, .seatedCalf, .hipAdAbductor, .abCrunch,
              .torsoRotation, .shoulderPress, .standingCalf, .tBarRow, .ghd,
              .assistedMachine, .reverseHyper, .curlMachine, .tricepsMachine, .rowMachine, .backExtensionMachine, .squatMachine,
-             .beltSquat, .gluteMachine, .multiHip, .pulloverMachine: .machines
+             .beltSquat, .gluteMachine, .multiHip, .pulloverMachine, .lateralRaiseMachine: .machines
         case .kettlebells, .rings, .trx, .plyoBox, .medBall, .slamBall, .sled, .battleRope, .abWheel, .bands, .stabilityBall, .jumpRope, .dipBelt,
              .sandbag, .sliders, .balanceTrainer, .stallBars, .hangboard, .climbingWall, .liftBlock: .functional
         case .treadmill, .bike, .airBike, .rower, .skiErg, .stairClimber, .elliptical: .cardio
@@ -95,6 +95,7 @@ extension Equipment {
         case .gluteMachine: "Chest pad so the hips sit square; foot plate or pad behind the working heel."
         case .multiHip: "Platform height so the pivot lines up with your hip joint; pad just above the knee."
         case .pulloverMachine: "Seat so the shoulders line up with the cam; elbows on the pads, belt across the lap."
+        case .lateralRaiseMachine: "Seat so the shoulders line up with the pivots; pads on the outside of the arms, just above the elbows."
         case .sandbag: "Pick a weight you can lap and stand with; check the inner bags are closed tight."
         case .sliders: "Use them on a smooth floor or a mat; cloth side on hard floors, plastic side on carpet."
         case .balanceTrainer: "Dome up for balance work, flat side up for push-ups and squats; centre the feet or hands."

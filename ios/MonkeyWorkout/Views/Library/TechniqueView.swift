@@ -11,7 +11,7 @@ extension Equipment {
         case .cable, .legPress, .hackSquat, .legCurl, .legExtension, .latPulldown, .seatedRow, .chestPress, .pecDeck,
              .hipThrustMachine, .backExtension, .seatedCalf, .hipAdAbductor, .abCrunch, .torsoRotation, .shoulderPress, .standingCalf,
              .tBarRow, .ghd, .reverseHyper, .curlMachine, .tricepsMachine, .rowMachine, .backExtensionMachine, .squatMachine,
-             .beltSquat, .gluteMachine, .multiHip, .pulloverMachine: "gearshape.fill"
+             .beltSquat, .gluteMachine, .multiHip, .pulloverMachine, .lateralRaiseMachine: "gearshape.fill"
         case .pullupBar, .dipStation, .assistedMachine, .stallBars, .hangboard, .climbingWall: "figure.climbing"
         case .liftBlock: "hand.raised.fill"
         case .rings: "circle.circle"

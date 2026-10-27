@@ -19,7 +19,7 @@ HAND_SHARE = 0.5  # hands (they hold the load) win when they travel at least thi
 # The load goes up while the point goes down (cable / machine pulled down, lowered stack).
 DOWN_IS_EFFORT = ("pulldown", "pull-down", "pushdown", "push-down", "straight-arm", "cable-crunch",
                   "crunch-machine", "rope-crunch", "seated-leg-curl", "leg-curl-seated", "pullover-machine",
-                  "kneeling-cable", "woodchop-high", "high-to-low", "slam")
+                  "kneeling-cable", "woodchop-high", "high-to-low", "slam", "seated-dip-machine", "machine-high-row")
 JUMPS = ("jump", "bound", "hop", "skater", "burpee")
 # Read as up / down even when the point travels more sideways (curling the trunk up, raising the legs).
 VERTICAL = ("sit-up", "crunch", "v-up", "leg-raise", "knee-raise", "toes-to-bar")

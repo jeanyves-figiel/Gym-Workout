@@ -5,7 +5,7 @@ own art (#170): a shaded anatomical figure in 17 to 49 frames (start to end of t
 worked muscles in the app's load colours (primary red, secondary amber), the machine or equipment drawn
 in the scene, and a small front/back muscle map. No third-party images or video.
 
-Illustrations: 435 · Total: 435
+Illustrations: 441 · Total: 441
 
 | Id | Exercise | Media | Source | License |
 |---|---|---|---|---|
@@ -28,7 +28,7 @@ Illustrations: 435 · Total: 435
 | `step-up` | Dumbbell step-up | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `single-leg-rdl` | Single-leg RDL | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `cossack-squat` | Goblet Cossack squat | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
-| `leg-curl` | Leg curl (machine) | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `leg-curl` | Lying leg curl (machine) | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `nordic-curl` | Nordic curl (assisted) | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `leg-extension` | Leg extension | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `bench-press` | Barbell bench press | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
@@ -367,6 +367,12 @@ Illustrations: 435 · Total: 435
 | `multi-hip-abduction` | Multi-hip abduction | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `machine-pullover` | Pullover machine | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `db-bench-pullover` | Dumbbell bench pullover | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `seated-leg-curl` | Seated leg curl (machine) | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `standing-leg-curl` | Standing leg curl (machine) | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `machine-lateral-raise` | Machine lateral raise | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `incline-chest-press-machine` | Incline chest press machine | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `seated-dip-machine` | Seated dip machine | Illustration (17 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
+| `machine-high-row` | High row machine | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `barbell-thruster` | Barbell thruster | Illustration (25 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `db-thruster` | Dumbbell thruster | Illustration (49 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |
 | `kb-thruster` | Kettlebell thruster | Illustration (33 frames) | Own work, `ios/Tools/illustrations` | MonkeyWorkout (own) |

@@ -15,7 +15,7 @@ import Testing
         }
         let used = Set(Exercise.catalog.flatMap(\.equipment))
         for eq in [Equipment.rowMachine, .backExtensionMachine, .squatMachine, .beltSquat, .gluteMachine, .multiHip,
-                   .pulloverMachine, .sandbag, .sliders, .balanceTrainer, .massageBall, .stallBars] {
+                   .pulloverMachine, .sandbag, .sliders, .balanceTrainer, .massageBall, .stallBars, .lateralRaiseMachine] {
             #expect(used.contains(eq), "\(eq) has no exercise")
             #expect(GymArea.allCases.contains { $0.items.contains(eq) } || GymArea.floor.contains(eq), "\(eq) has no area")
         }
