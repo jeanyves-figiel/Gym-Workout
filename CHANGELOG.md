@@ -102,6 +102,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     - **Watch workout finishing on iPhone** (A): the mirrored player shows the finish screen with its summary; **Finish workout** ends it on the Watch; DONE gives the *Workout saved · Undo* bar.
     - **iPad** (A + B): sign-in column capped, Calendar two-week grid, session flow as a grid, live-on-Watch card, Undo after Move / programme switch / Plan sport.
     - **Gym counts** (keep both, clearer labels): machine and item counts come from one source and say which they count.
+    - **UI test**: Your gym tests match the new *N items · M machines* row.
     - **Close buttons**: water, cook mode, challenge score, suggest a challenge, measurement guide, workout style, muscle picker and report sheet use the lime ✕ top right.
     - **Demo data agrees with itself**: one level (13), one avatar letter, Train / Progress / week chest show the same done session, *today* is the same weekday on every screen, one growth goal, hotel gym lists match, *Deload* everywhere, Bento says *Work sets*.
     - **Truncations**: style, goal, records, set-style, muscle-tile, focus, gym-result, Coach-memory and customise rows wrap to two lines; measurement tips shortened; gym chip and widget record names shrink to fit; day sheet button reads *Remove*.
