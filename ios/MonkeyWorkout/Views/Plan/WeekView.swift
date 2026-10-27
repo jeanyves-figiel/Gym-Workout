@@ -1324,9 +1324,12 @@ private struct PastDayCard: View {
     @State private var sport: SportLog?
     @State private var newSport: SportLog?
     @State private var healthSport: SportEntry?
-    /// A missed session, or a copy of one logged as an extra workout on this day.
+    /// A missed session, or a copy of any workout logged as an extra on this day.
     @State private var loggingWorkout: Session?
     @State private var loggingHealth: GymEntry?
+    /// "What did you do?" (#800) is open; its pick opens the log sheet once it's down.
+    @State private var choosing = false
+    @State private var chosen: PastDayPick?
     @State private var itemsMemo = ItemsMemo()
 
     /// This day's history items, kept until the day, the state, Health or MonkeyGrade change (#720: the whole
@@ -1419,6 +1422,7 @@ private struct PastDayCard: View {
         .sheet(item: $newSport) { LogSportView(initial: $0) }
         .sheet(item: $healthSport) { SportSessionSheet(entry: $0) }
         .sheet(item: $loggingWorkout) { MissedLogSheet(session: $0, day: date) }
+        .sheet(isPresented: $choosing, onDismiss: logChosen) { PastDayLogSheet(day: date) { chosen = $0 } }
         .sheet(item: $loggingHealth) { m in if let missed { MissedLogSheet(session: missed, fromHealth: m) } }
     }
 
@@ -1475,33 +1479,20 @@ private struct PastDayCard: View {
         }
     }
 
-    /// Add a forgotten workout: one of this week's workouts, logged on this day as an extra (the plan's stays as is).
-    @ViewBuilder private var workoutTile: some View {
-        let sessions = model.plan?.sessions ?? []
-        if sessions.isEmpty {
-            DayActionTile(title: "Workout", detail: "forgot one?", symbol: "plus", fill: AnyShapeStyle(Theme.lime), ink: Theme.ink) {
-                newSport = SportLog(start: evening)
-            }
-        } else {
-            Menu {
-                Section("Log a workout on this day") {
-                    ForEach(sessions) { s in
-                        Button(s.displayTitle, systemImage: "dumbbell.fill") { loggingWorkout = Self.extra(s) }
-                    }
-                }
-            } label: {
-                DayActionTileLabel(title: "Workout", detail: "forgot one?", symbol: "plus", fill: AnyShapeStyle(Theme.lime), ink: Theme.ink)
-            }
-            .buttonStyle(.plain)
+    /// Add a forgotten workout (#800, design B): any workout, logged on this day as an extra (the plan's stays as is).
+    private var workoutTile: some View {
+        DayActionTile(title: "Workout", detail: "forgot one?", symbol: "plus", fill: AnyShapeStyle(Theme.lime), ink: Theme.ink) {
+            choosing = true
         }
     }
 
-    /// A copy of a plan session with its own id, so logging it never marks the planned one done.
-    static func extra(_ s: Session) -> Session {
-        var c = s
-        c.id = "extra-\(UUID().uuidString)"
-        c.weekday = nil
-        return c
+    private func logChosen() {
+        guard let pick = chosen else { return }
+        chosen = nil
+        switch pick {
+        case let .workout(s): loggingWorkout = s
+        case let .sport(sport): newSport = sport.map { SportLog(sport: $0, start: evening, minutes: 60) } ?? SportLog(start: evening)
+        }
     }
 }
 
