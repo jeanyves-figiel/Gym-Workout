@@ -1688,7 +1688,9 @@ struct WorkoutPlayerView: View {
             reloadLog()
             if demoMode == "finish" { finishingEarly = true } else { finishEarly(minutes: 15) }
         }
-        if demoMode == "setup", let s = steps.firstIndex(where: { $0.block.kind == .strength && !$0.exercise.equipment.isEmpty }) {
+        // A weight-stack machine first, so the setup sheet shows the push / lower card (#813).
+        if demoMode == "setup", let s = steps.firstIndex(where: { $0.block.kind == .strength && $0.exercise.splitLoadMachine })
+            ?? steps.firstIndex(where: { $0.block.kind == .strength && !$0.exercise.equipment.isEmpty }) {
             index = s
             reloadLog()
         }
