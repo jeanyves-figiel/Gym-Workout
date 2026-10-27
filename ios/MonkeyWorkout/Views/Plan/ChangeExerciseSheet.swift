@@ -16,6 +16,8 @@ struct ChangeExerciseSheet: View {
     var takenZone: String? = nil
     let onPick: (Choice) -> Void
     @Environment(\.dismiss) private var dismiss
+    /// Sheet fits its content (#807): measured, not guessed per option.
+    @State private var contentHeight: CGFloat = 280
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -51,11 +53,13 @@ struct ChangeExerciseSheet: View {
             }
         }
         .padding(20)
+        .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         .frame(maxHeight: .infinity, alignment: .top)
         .glassSheetBackground()
         .foregroundStyle(.white)
         .preferredColorScheme(.dark)
-        .presentationDetents([.height((setsDone > 0 ? 330 : 300) + (takenZone == nil ? 0 : 62))])
+        .presentationDetents([.height(contentHeight)])
     }
 
     private func pick(_ c: Choice) {
