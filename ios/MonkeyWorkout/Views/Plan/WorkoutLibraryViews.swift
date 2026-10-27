@@ -287,7 +287,9 @@ struct WorkoutLibraryView: View {
     /// Pick mode (#178, Add workout → Browse library): tapping a workout hands it over instead of opening it.
     private let onPick: ((LibraryEntry) -> Void)?
 
-    init(onPick: ((LibraryEntry) -> Void)? = nil) {
+    /// `filter`: chip it opens on (#800: past day's "My workouts" card opens on Mine).
+    init(filter: Filter = .all, onPick: ((LibraryEntry) -> Void)? = nil) {
+        _filter = State(initialValue: filter)
         self.onPick = onPick
     }
 

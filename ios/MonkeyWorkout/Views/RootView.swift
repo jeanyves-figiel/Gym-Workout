@@ -497,6 +497,7 @@ private struct DemoScreen: View {
         case "train-rest-day", "train-sport-day": NavigationStack { WeekView(demoPick: .rest) }
         case "train-skipped": NavigationStack { WeekView() }
         case "train-past-day": NavigationStack { WeekView(demoPick: .past) }
+        case "past-day-log": PastDayLogSheet(day: Date().addingTimeInterval(-86_400)) { _ in }
         case "train-run", "train-hybrid", "train-hiit": NavigationStack { WeekView() }
         case "run-session", "run-start":
             if let day = model.runWeek.first(where: { $0.workout.kind == .intervals }) ?? model.runWeek.first {
