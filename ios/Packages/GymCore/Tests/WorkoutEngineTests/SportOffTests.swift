@@ -36,6 +36,20 @@ private let monday = PlanCalendar.date("2026-10-12", cal)!
         #expect(w.climbing == [5])
     }
 
+    @Test func planningSportAgainBringsTheDayBack() {
+        // #815: a climbing day turned into a rest day, then a climbing day planned on it again.
+        var p = Profile(goal: .climbing, sessionsPerWeek: 3, climbingDaysPerWeek: 2, climbingWeekdays: [2, 5])
+        p.sportOff = ["2026-10-13", "2026-10-16"]
+        p.sportTrips = [SportTrip(sport: .climbing, start: "2026-10-13", end: "2026-10-13")]
+        #expect(p.sportTrip(on: "2026-10-13") == nil)
+        p.clearSportOff(from: "2026-10-13", through: "2026-10-13")
+        #expect(p.sportOff == ["2026-10-16"])
+        #expect(p.sportTrip(on: "2026-10-13")?.sport == .climbing)
+        #expect(p.sport(onWeekday: 2, key: "2026-10-13") == .climbing)
+        p.clearSportOff(from: "2026-10-12", through: "2026-10-18")
+        #expect(p.sportOff == nil)
+    }
+
     @Test func laterWeekMovesKeepTheirDay() throws {
         let p = Profile(goal: .balanced, sessionsPerWeek: 3, gymWeekdays: [1, 3, 5])
         let plain = PlanCalendar.weeks(p, seed: 4, currentWeek: 1, current: nil, done: [], away: [], now: monday, count: 2, calendar: cal)
