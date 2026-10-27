@@ -30,88 +30,32 @@ struct MachineNotePhotoImage: View {
     }
 }
 
-/// Player strip (B + C): photo thumbnail (tap = full photo) and the member's values (tap = edit). One line; values
-/// that don't fit are dropped rather than wrapping, so the set card never moves (#206).
-struct MachineNoteStrip: View {
-    let note: MachineNote
-    let hasPhoto: Bool
-    let onEdit: () -> Void
-    let onPhoto: () -> Void
-
-    var body: some View {
-        HStack(spacing: 6) {
-            if hasPhoto {
-                Button(action: onPhoto) {
-                    MachineNotePhotoImage(note: note)
-                        .frame(width: 34, height: 34)
-                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(.white, lineWidth: 1.5))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Setup photo")
-            }
-            Button(action: onEdit) {
-                HStack(spacing: 5) {
-                    Image(systemName: "gearshape.fill").font(.system(size: 12, weight: .bold))
-                    ViewThatFits(in: .horizontal) {
-                        values(8)
-                        values(3)
-                        values(2)
-                        values(1)
-                        values(0)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 8)
-                .frame(height: 34)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.black.opacity(0.28)))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("My setup: \(note.summary.isEmpty ? "photo" : note.summary)")
-        }
-    }
-
-    @ViewBuilder
-    private func values(_ n: Int) -> some View {
-        let fields = note.filledFields
-        if fields.isEmpty || n == 0 {
-            Text(fields.isEmpty ? (note.trimmedText ?? "My setup") : note.summary)
-                .font(Theme.label(12))
-                .lineLimit(1)
-        } else {
-            HStack(spacing: 4) {
-                ForEach(fields.prefix(n)) { f in
-                    Text("\(f.label) \(f.value)")
-                        .font(Theme.label(12))
-                        .lineLimit(1)
-                        .fixedSize()
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 4)
-                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.white.opacity(0.2)))
-                }
-                if fields.count > n { Text("+\(fields.count - n)").font(Theme.label(11)).opacity(0.8).fixedSize() }
-            }
-        }
-    }
-}
-
-/// "Setup" chip on the exercise card when there's no note yet at this gym.
-struct MachineNoteAddChip: View {
+/// "Setup" chip on the exercise card: dashed while there's no note at this gym, filled with a tick once there is
+/// (#809), always in the same slot so the picture never shrinks.
+struct MachineNoteChip: View {
+    let note: MachineNote?
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Label("Setup", systemImage: "gearshape.fill")
+            Label(note == nil ? "Setup" : "Setup ✓", systemImage: "gearshape.fill")
                 .font(Theme.label(11))
                 .lineLimit(1)
                 .fixedSize()
+                .foregroundStyle(note == nil ? Color.white : Theme.ink)
                 .padding(.horizontal, 9)
                 .padding(.vertical, 5)
-                .background(Capsule().strokeBorder(.white.opacity(0.6), style: StrokeStyle(lineWidth: 1.2, dash: [4, 3])))
+                .background {
+                    if note == nil {
+                        Capsule().strokeBorder(.white.opacity(0.6), style: StrokeStyle(lineWidth: 1.2, dash: [4, 3]))
+                    } else {
+                        Capsule().fill(.white)
+                    }
+                }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Add my machine setup")
+        .accessibilityLabel(note.map { "My setup: \($0.summary.isEmpty ? "photo" : $0.summary)" } ?? "Add my machine setup")
+        .accessibilityIdentifier("player.setup")
     }
 }
 
@@ -380,6 +324,7 @@ struct MachineNoteSheet: View {
                     Button("Use") {
                         draft.fields = n.fields.map { .init(label: $0.label, value: $0.value) }
                         draft.text = n.text
+                        draft.splitLoad = n.splitLoad
                         Task {
                             if let photo = await model.machineNotePhoto(n) { newPhoto = .some(photo) }
                         }
@@ -427,46 +372,6 @@ struct MachineNoteRowLabel: View {
             }
             Spacer(minLength: 0)
         }
-    }
-}
-
-/// Full-screen photo with the note over it (C).
-struct MachineNotePhotoViewer: View {
-    let note: MachineNote
-    let onEdit: () -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            Color.black.ignoresSafeArea()
-            MachineNotePhotoImage(note: note, contentMode: .fit).ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 8) {
-                Text("My setup · \(note.gymName)").eyebrow()
-                Text(Exercise.find(note.exerciseId)?.name ?? "").font(Theme.display(22))
-                if !note.filledFields.isEmpty { Text(note.summary).font(.headline.weight(.heavy)) }
-                if let t = note.trimmedText { Text(t).font(.subheadline.weight(.medium)) }
-                HStack {
-                    Button { dismiss(); onEdit() } label: { Label("Edit", systemImage: "pencil") }
-                        .font(Theme.label(13))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(Capsule().fill(.white.opacity(0.18)))
-                    Spacer()
-                    Button("Done") { dismiss() }
-                        .font(Theme.label(13))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Capsule().fill(Theme.lime))
-                        .foregroundStyle(Theme.ink)
-                }
-                .buttonStyle(.plain)
-            }
-            .foregroundStyle(.white)
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.black.opacity(0.65))
-        }
-        .preferredColorScheme(.dark)
     }
 }
 
