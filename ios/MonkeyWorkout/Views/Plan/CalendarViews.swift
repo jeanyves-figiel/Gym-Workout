@@ -382,6 +382,12 @@ struct DaySheet: View {
     @State private var adding = false
     @State private var insertsBefore = 0
     @State private var logging: Session?
+    /// An earlier day of this week is logged, never planned (#537, #818): the past day's "What did you do?" (#800),
+    /// then the workout or sport picked there.
+    @State private var loggingPast = false
+    @State private var pastPick: PastDayPick?
+    @State private var pastWorkout: Session?
+    @State private var pastSport: SportLog?
     /// Remove… (#784): this day, every week or just skip.
     @State private var removing: RemoveRequest?
     /// Plan sport (#474): a new sport on this day, or the dated sport day / trip being edited.
@@ -462,11 +468,17 @@ struct DaySheet: View {
                         Text("No gym session planned.").foregroundStyle(Theme.muted)
                     }
                     if selection.current && selection.week.off[wd] == nil {
+                        let past = key < PlanCalendar.key(Date(), cal)
                         Button {
-                            insertsBefore = model.state.synced?.planInserts?.count ?? 0
-                            adding = true
+                            if past {
+                                loggingPast = true
+                            } else {
+                                insertsBefore = model.state.synced?.planInserts?.count ?? 0
+                                adding = true
+                            }
                         } label: {
-                            Label(sessions.isEmpty ? "Add workout" : "Add another workout", systemImage: "plus.circle.fill")
+                            Label(past ? "Log a workout" : sessions.isEmpty ? "Add workout" : "Add another workout",
+                                  systemImage: past ? "square.and.pencil" : "plus.circle.fill")
                                 .font(Theme.label(15)).foregroundStyle(Theme.ink)
                                 .frame(maxWidth: .infinity).padding(.vertical, 14)
                                 .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.lime))
@@ -512,11 +524,28 @@ struct DaySheet: View {
         .presentationDetents(fitDetent.map { [$0, .large] } ?? [.large], selection: $detent)
         .sheet(item: $moving) { s in MoveSessionSheet(sessionId: s.id) { _ in dismiss() } }
         .sheet(item: $logging) { s in MissedLogSheet(session: s) }
+        .sheet(isPresented: $loggingPast, onDismiss: logPastPick) { PastDayLogSheet(day: dayDate) { pastPick = $0 } }
+        .sheet(item: $pastWorkout) { s in MissedLogSheet(session: s, day: dayDate) }
+        .sheet(item: $pastSport) { LogSportView(initial: $0) }
         // Every week changes the plan: the sheet's week is a snapshot, so it closes.
         .removeWorkoutFlow($removing) { if model.profile != profileBefore { dismiss() } }
         .sheet(isPresented: $planningSport, onDismiss: closeIfPlanned) { PlanSportSheet(day: key, sport: model.profile?.otherSports.first?.sport) }
         .sheet(item: $editingTrip, onDismiss: closeIfPlanned) { t in PlanSportSheet(day: t.start, editing: t) }
         .sheet(isPresented: $adding, onDismiss: { if (model.state.synced?.planInserts?.count ?? 0) > insertsBefore { dismiss() } }) { AddWorkoutSheet(weekday: wd) }
+    }
+
+    /// This day's date, for logging on it.
+    private var dayDate: Date { selection.week.date(selection.weekday, model.planCalendar) ?? Date() }
+
+    /// Opens the log sheet for what "What did you do?" picked, once it's down (#818).
+    private func logPastPick() {
+        guard let pick = pastPick else { return }
+        pastPick = nil
+        let evening = model.planCalendar.date(bySettingHour: 18, minute: 0, second: 0, of: dayDate) ?? dayDate
+        switch pick {
+        case let .workout(s): pastWorkout = s
+        case let .sport(sport): pastSport = sport.map { SportLog(sport: $0, start: evening, minutes: 60) } ?? SportLog(start: evening)
+        }
     }
 
     private func closeIfPlanned() {

@@ -10,6 +10,8 @@ final class WatchPlayer {
         var reps: Int
         var rir: Int?
         var logged = false
+        /// When the set was logged (#820): sent with it and with its effort, so the phone dates it right.
+        var at: Date?
     }
 
     enum Phase: Equatable {
@@ -91,9 +93,11 @@ final class WatchPlayer {
         var effortSet: Int?
         if step.loggable, var r = rows[step.uid], r.indices.contains(i) {
             r[i].logged = true
+            r[i].at = Date()
             for j in r.indices where j > i && !r[j].logged { r[j].kg = r[i].kg }
             rows[step.uid] = r
-            events.append(.setLogged(sessionId: session.id, exerciseId: step.exerciseId, setIndex: i, kg: r[i].kg, reps: r[i].reps, rir: nil))
+            events.append(.setLogged(sessionId: session.id, exerciseId: step.exerciseId, setIndex: i, kg: r[i].kg, reps: r[i].reps, rir: nil,
+                                   date: r[i].at))
             effortSet = i
         }
         setsDone[step.uid] = i + 1
@@ -126,7 +130,8 @@ final class WatchPlayer {
         guard case let .rest(end, total, effortSet?) = phase, let step, var r = rows[step.uid], r.indices.contains(effortSet) else { return [] }
         r[effortSet].rir = rir
         rows[step.uid] = r
-        let logged = WatchEvent.setLogged(sessionId: session.id, exerciseId: step.exerciseId, setIndex: effortSet, kg: r[effortSet].kg, reps: r[effortSet].reps, rir: rir)
+        let logged = WatchEvent.setLogged(sessionId: session.id, exerciseId: step.exerciseId, setIndex: effortSet, kg: r[effortSet].kg, reps: r[effortSet].reps, rir: rir,
+                                             date: r[effortSet].at)
         if end == nil { return [logged] + skipRest() }
         phase = .rest(end: end, total: total, effortSet: nil)
         return [logged]

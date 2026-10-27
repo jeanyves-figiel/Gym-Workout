@@ -314,12 +314,15 @@ final class WatchSync: NSObject {
 
     /// Tells the Watch the iPhone workout ended and how; a tracked workout's Health save waits for the Watch (#347).
     func endLive(_ outcome: WLiveOutcome, sessionId: String, record: WorkoutRecord? = nil) {
-        if let record, trackedBy == sessionId { waitForWatch(record) }
+        // Who saves the Health workout (#820): only the Watch this phone knows tracks the session, else the phone did.
+        let watchSaves = trackedBy == sessionId
+        if let record, watchSaves { waitForWatch(record) }
         if outcome != .paused, trackedBy == sessionId { trackedBy = nil }
         lastLive = nil
         guard let session, session.activationState == .activated else { return }
         var message: [String: Any] = [WatchKeys.liveEnded: true, WatchKeys.outcome: outcome.rawValue]
         if let record { message[WatchKeys.recordId] = record.id.uuidString }
+        if outcome == .finished { message[WatchKeys.watchSaves] = watchSaves }
         if session.isReachable {
             session.sendMessage(message, replyHandler: nil) { _ in
                 // Missed: queue it so a tracking Watch still learns the workout ended.
@@ -356,8 +359,9 @@ final class WatchSync: NSObject {
     private func apply(_ event: WatchEvent) {
         guard let model else { return }
         switch event {
-        case let .setLogged(sessionId, exerciseId, setIndex, kg, reps, rir):
-            model.logSet(exerciseId: exerciseId, sessionId: sessionId, setIndex: setIndex, kg: kg, reps: reps, rir: rir)
+        case let .setLogged(sessionId, exerciseId, setIndex, kg, reps, rir, date):
+            // Dated when done on the watch (#820): a set queued while the phone was away stays in its workout.
+            model.logSet(exerciseId: exerciseId, sessionId: sessionId, setIndex: setIndex, kg: kg, reps: reps, rir: rir, date: date ?? Date())
         case let .itemDone(uid):
             model.setTicked(uid)
         case let .homeStyle(style, changedAt):

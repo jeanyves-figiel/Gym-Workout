@@ -55,7 +55,7 @@ extension AppModel {
         var all = state.skippedAhead ?? [:]
         var ids = all[key] ?? []
         ids.removeAll { $0 == sessionId }
-        if skipped { ids.append(sessionId) }
+        if skipped { ids.append(sessionId) } else { clearRemoved(sessionId, in: week) }
         all[key] = ids.isEmpty ? nil : ids
         state.skippedAhead = all.isEmpty ? nil : all
         persist()
@@ -79,12 +79,26 @@ extension AppModel {
         if let week { setSkipped(true, sessionId, in: week) } else { skipMissed(sessionId) }
     }
 
-    /// Puts a removed workout back (Undo).
-    func restoreSession(_ sessionId: String, in week: PlanCalendar.Week?) {
+    /// Drops the removed mark of a workout put back on its day (#818: Unskip used to leave it, hiding a later skip).
+    func clearRemoved(_ sessionId: String, in week: PlanCalendar.Week?) {
         let key = removedKey(sessionId, in: week)
+        guard state.removed?.contains(key) == true else { return }
         state.removed = state.removed?.filter { $0 != key }
         if state.removed?.isEmpty == true { state.removed = nil }
+    }
+
+    /// Puts a removed workout back (Undo).
+    func restoreSession(_ sessionId: String, in week: PlanCalendar.Week?) {
+        clearRemoved(sessionId, in: week)
         if let week { setSkipped(false, sessionId, in: week) } else { unskip(sessionId) }
+    }
+
+    /// Whether "Every <weekday>" fits `s` (#818): a workout of the regular week on one of the member's gym days, not
+    /// an added one or one moved there for that week only.
+    func canRemoveEveryWeek(_ s: Session, weekday: Int, in week: PlanCalendar.Week?) -> Bool {
+        guard !s.isPlanInsert, let p = profile else { return false }
+        let moved = week.map { laterMoves()[PlanCalendar.key($0.start, planCalendar)]?[s.id] != nil } ?? (movesThisWeek()[s.id] != nil)
+        return !moved && (p.gymDays.isEmpty || p.gymDays.contains(weekday))
     }
 
     /// Stops training on `weekday` every week (#784). Returns the profile before, for Undo.

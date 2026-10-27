@@ -129,6 +129,7 @@ struct CoachSmallWidget: View {
 struct WeekSmallWidget: View {
     let plan: WeekPlan
     let done: Int
+    @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @State private var explaining = false
 
@@ -138,7 +139,8 @@ struct WeekSmallWidget: View {
             WidgetTile(kind: .week, title: "W\(plan.week)/\(Generator.mesocycleWeeks) · \(Generator.phaseName(plan.week))") {
                 HStack {
                     Spacer(minLength: 0)
-                    DoneRing(done: done, total: plan.sessions.count)
+                    // Skipped and removed workouts leave the week (#818).
+                    DoneRing(done: done, total: model.weekSessionCount)
                     Spacer(minLength: 0)
                 }
                 Text(readiness?.title ?? "\(plan.sessions.count) sessions · \(plan.sessionMinutes) min")

@@ -33,11 +33,16 @@ final class WatchStore: NSObject {
     /// Home style picked on this Watch (#219) and when; the phone's pick in the snapshot wins when newer.
     private var localStyle = UserDefaults.standard.string(forKey: "homeStyle").flatMap(WatchHomeStyle.init)
     private var localStyleAt = UserDefaults.standard.object(forKey: "homeStyleAt") as? Date
+    /// A snapshot from the phone is on disk or was received (#820): an older one (the context watchOS hands back at each
+    /// launch) must not undo what was done here since.
+    private var hasPhoneSnapshot = false
 
     private static let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("snapshot.json")
 
     override init() {
-        snapshot = (try? Data(contentsOf: Self.url)).flatMap { try? JSONDecoder.watch.decode(WatchSnapshot.self, from: $0) } ?? WatchSnapshot()
+        let stored = (try? Data(contentsOf: Self.url)).flatMap { try? JSONDecoder.watch.decode(WatchSnapshot.self, from: $0) }
+        snapshot = stored ?? WatchSnapshot()
+        hasPhoneSnapshot = stored != nil
         super.init()
         Self.current = self
         #if DEBUG
@@ -179,6 +184,9 @@ final class WatchStore: NSObject {
     fileprivate func receive(context: [String: Any]) {
         guard let data = context[WatchKeys.snapshot] as? Data,
               let s = try? JSONDecoder.watch.decode(WatchSnapshot.self, from: data) else { return }
+        // Same or older than what this Watch has (#820): the workouts finished and glasses counted here since stay.
+        if hasPhoneSnapshot, s.generatedAt <= snapshot.generatedAt { return }
+        hasPhoneSnapshot = true
         // Badges the finished workout unlocked arrive with the phone's snapshot (#227).
         if reward != nil, let before = snapshot.game, let after = s.game {
             let new = after.earned.filter { !before.badges.contains($0.id) && !(reward?.badges.contains($0) ?? false) }
@@ -214,12 +222,19 @@ final class WatchStore: NSObject {
         if message[WatchKeys.liveEnded] != nil {
             live = nil
             phoneEnded(message[WatchKeys.outcome].flatMap { $0 as? String }.flatMap(WLiveOutcome.init),
-                       recordId: (message[WatchKeys.recordId] as? String).flatMap(UUID.init))
+                       recordId: (message[WatchKeys.recordId] as? String).flatMap(UUID.init),
+                       watchSaves: message[WatchKeys.watchSaves] as? Bool)
         }
         if let data = message[WatchKeys.live] as? Data, let l = try? JSONDecoder.watch.decode(WLive.self, from: data) {
             // A new coach line (#379): tap on the wrist.
             if let at = l.coachAt, at != live?.coachAt, Date().timeIntervalSince(at) < 6 { WKInterfaceDevice.current().play(.notification) }
             live = l
+            // Started before the iPhone said which workout runs (#820): track the right one, so the phone waits for
+            // this Watch's Health workout instead of saving a second one.
+            if let sid = l.sessionId, let tracked = workout.phoneSessionId, tracked != sid {
+                workout.retarget(sid)
+                sendNow(.tracking(sessionId: sid, on: true))
+            }
             if pausedAt != nil, workout.phoneSessionId != nil {
                 pausedAt = nil
                 workout.resume()
@@ -268,12 +283,14 @@ final class WatchStore: NSObject {
         sendNow(.tracking(sessionId: id, on: false))
     }
 
-    private func phoneEnded(_ outcome: WLiveOutcome?, recordId: UUID?) {
+    private func phoneEnded(_ outcome: WLiveOutcome?, recordId: UUID?, watchSaves: Bool?) {
         if offered, outcome != .paused, outcome != nil { declineOffer() }
         guard let id = workout.phoneSessionId else { return }
         switch outcome {
         case .finished:
             guard !finishing else { return }
+            // The iPhone saved the Health workout itself (#820): saving here too would make two.
+            if watchSaves == false { return stopTracking() }
             finishing = true
             Task {
                 defer { finishing = false }

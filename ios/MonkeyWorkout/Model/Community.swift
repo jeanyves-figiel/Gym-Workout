@@ -16,7 +16,8 @@ final class Community {
     private(set) var feed: [CommunityPost] = []
     private(set) var mine: [CommunityPost] = []
     private(set) var following: [CommunityPost] = []
-    private var next: [CommunityFeedScope: String] = [:]
+    /// Cursor of the next page per feed: `nextBefore` and `nextBeforeId` (#819).
+    private var next: [CommunityFeedScope: (before: String, id: String?)] = [:]
     private(set) var loading = false
     var error: String?
     private var ownerId: String?
@@ -30,6 +31,8 @@ final class Community {
         }
     }
     func hasMore(_ scope: CommunityFeedScope) -> Bool { next[scope] != nil }
+    /// The next page's cursor, so the feed's loader runs again once a page or a refresh moved it (#819).
+    func cursor(_ scope: CommunityFeedScope) -> String? { next[scope].map { "\($0.before)|\($0.id ?? "")" } }
 
     /// What the tab last showed (#641): kept per account so it opens at once, offline too.
     private struct Snapshot: Codable {
@@ -98,7 +101,8 @@ final class Community {
             feed = fp.posts
             mine = mp.posts
             following = gp.posts
-            next = [.members: fp.nextBefore, .mine: mp.nextBefore, .following: gp.nextBefore].compactMapValues { $0 }
+            let pages: [CommunityFeedScope: CommunityFeedPage] = [.members: fp, .mine: mp, .following: gp]
+            next = pages.compactMapValues { p in p.nextBefore.map { (before: $0, id: p.nextBeforeId) } }
             error = nil
             persist()
         } catch {
@@ -125,17 +129,17 @@ final class Community {
     }
 
     func loadMore(_ scope: CommunityFeedScope, api: APIClient) async {
-        guard let before = next[scope], !loading else { return }
+        guard let cursor = next[scope], !loading else { return }
         loading = true
         defer { loading = false }
         do {
-            let page = try await api.communityFeed(scope, before: before)
+            let page = try await api.communityFeed(scope, before: cursor.before, beforeId: cursor.id)
             switch scope {
             case .members: feed += page.posts
             case .following: following += page.posts
             case .mine: mine += page.posts
             }
-            next[scope] = page.nextBefore
+            next[scope] = page.nextBefore.map { (before: $0, id: page.nextBeforeId) }
         } catch {
             self.error = error.localizedDescription
         }
@@ -222,10 +226,12 @@ final class Community {
         mine.removeAll { $0.id == id }
     }
 
-    /// Hides everything from a member just blocked.
+    /// Hides everything from a member just blocked: posts, shared plans, and the cached snapshot (#819).
     func blocked(_ userId: String) {
         feed.removeAll { $0.author.userId == userId }
         following.removeAll { $0.author.userId == userId }
+        SharedPlans.shared.blocked(userId)
+        persist()
     }
 
     func unfollowed(_ userId: String) {

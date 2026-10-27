@@ -482,7 +482,11 @@ struct FuelSlotSheet: View {
 
                     if ticked != nil {
                         Button {
-                            store.update(day, plan: plan) { $0.untick(slot.id) }
+                            // The foods logged next to its recipe go too (#819).
+                            store.update(day, plan: plan) {
+                                $0.untick(slot.id)
+                                $0.untick(FuelDayLog.foodKey(slot.id))
+                            }
                             dismiss()
                         } label: { Label("Not eaten after all", systemImage: "arrow.uturn.backward") }
                             .buttonStyle(LimeButtonStyle(fill: Theme.cardStrong, text: .white))

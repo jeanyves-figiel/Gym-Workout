@@ -10,9 +10,10 @@ extension AppModel {
 
     var skippedIds: Set<String> { Set((state.skipped ?? [:]).filter(\.value).keys) }
 
-    /// Missed sessions this week, skipped ones included (they still count as missed).
+    /// Missed sessions this week, skipped ones included (they still count as missed). Removed ones (#784) are rest
+    /// days, not missed (#818).
     var missedSessions: [Session] {
-        plan.map { WeekProgress.missed($0, today: todayWeekday, done: doneIds) } ?? []
+        (plan.map { WeekProgress.missed($0, today: todayWeekday, done: doneIds) } ?? []).filter { !isRemoved($0.id, in: nil) }
     }
 
     /// Missed sessions still waiting for the member: not skipped.
@@ -20,6 +21,12 @@ extension AppModel {
 
     /// Sessions still to do this week, from today on (skipped ones don't count, #643).
     var remainingCount: Int { plan.map { WeekProgress.remaining($0, today: todayWeekday, done: doneIds.union(skippedIds)) } ?? 0 }
+
+    /// This week's sessions the ring and tiles count (#818): skipped and removed ones leave the week unless done.
+    var weekSessionCount: Int {
+        let done = doneIds, skipped = skippedIds
+        return plan?.sessions.filter { done.contains($0.id) || !skipped.contains($0.id) }.count ?? 0
+    }
 
     /// "Today", "Tomorrow" or the weekday of a session coming up.
     func upcomingDayLabel(_ s: Session) -> String {
@@ -59,7 +66,11 @@ extension AppModel {
             state.logs.append(entry)
             state.pendingLogIds.insert(entry.id)
         }
-        for b in s.blocks { for it in b.items where (setsDone[it.uid] ?? 0) > 0 { state.ticked[it.uid] = true } }
+        // Only a session of this week's plan ticks its exercises: a copy logged as an extra on a past day (#800)
+        // shares the planned one's uids (#818).
+        if plan?.sessions.contains(where: { $0.id == s.id }) == true {
+            for b in s.blocks { for it in b.items where (setsDone[it.uid] ?? 0) > 0 { state.ticked[it.uid] = true } }
+        }
         state.skipped?[s.id] = nil
         return recordWorkout(session: s, setsDone: setsDone, startedAt: start,
                       endedAt: start.addingTimeInterval(TimeInterval(max(1, minutes) * 60)), bodyMassKg: body.weightKg)
@@ -80,6 +91,8 @@ extension AppModel {
     /// Puts a skipped session back on its day (#643).
     func unskip(_ sessionId: String) {
         state.skipped?[sessionId] = nil
+        // Back on its day: no longer removed either (#818).
+        clearRemoved(sessionId, in: nil)
         persist()
     }
 
@@ -101,7 +114,7 @@ extension AppModel {
     /// after the finish. A workout paused long ago doesn't hold the week back.
     func rollWeekIfNeeded(now: Date = Date()) {
         let inProgress = state.activeWorkout.map { now.timeIntervalSince($0.updatedAt) < Self.interruptedWindow } ?? false
-        guard runningProgramme == nil, !inProgress, let sp = state.synced else { return }
+        guard !inProgress, let sp = state.synced else { return }
         let cal = planCalendar
         let monday = Progression.weekStart(now, cal)
         let key = PlanCalendar.key(monday, cal)
@@ -113,6 +126,25 @@ extension AppModel {
         }
         let weeks = WeekProgress.weeksBetween(ofDate, monday, cal)
         guard weeks > 0 else { return }
+        // A running programme rolls its own plan (`syncProgramme`); the calendar week still moves on (#818): this
+        // week's Monday, skips made ahead for it, removals of past weeks dropped.
+        guard runningProgramme == nil else {
+            state.synced?.weekOf = key
+            state.profileDirty = true
+            let ahead = state.skippedAhead?[key] ?? []
+            state.skippedAhead = state.skippedAhead?.filter { $0.key > key }
+            if state.skippedAhead?.isEmpty == true { state.skippedAhead = nil }
+            state.removed = state.removed?.filter { $0 >= key }
+            if state.removed?.isEmpty == true { state.removed = nil }
+            if !ahead.isEmpty {
+                var skipped = state.skipped ?? [:]
+                for id in ahead { skipped[id] = true }
+                state.skipped = skipped
+            }
+            persist()
+            Task { await sync() }
+            return
+        }
         state.synced?.weekOf = key
         state.synced?.planInserts = nil
         state.synced?.variation = nil

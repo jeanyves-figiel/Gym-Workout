@@ -103,10 +103,17 @@ extension AppModel {
     }
 
     /// Planned, not yet done sessions with their date, from `from` to `to` inclusive (e.g. for reminders).
+    /// Skipped and removed ones (#643, #784) aren't planned any more (#818): no reminder, no agenda line.
     func plannedSessions(from: Date, to: Date) -> [(date: Date, session: Session)] {
         let cal = planCalendar
-        let weeks = Int(ceil(to.timeIntervalSince(Progression.weekStart(Date(), cal)) / (7 * 86_400))) + 1
-        return PlanCalendar.planned(in: calendarWeeks(count: min(52, max(1, weeks))), from: from, to: to, done: doneIds, calendar: cal)
+        let count = Int(ceil(to.timeIntervalSince(Progression.weekStart(Date(), cal)) / (7 * 86_400))) + 1
+        let weeks = calendarWeeks(count: min(52, max(1, count))).enumerated().map { i, w -> PlanCalendar.Week in
+            let week = w
+            var out = w
+            out.plan.sessions.removeAll { isSkipped($0.id, in: week, current: i == 0) }
+            return out
+        }
+        return PlanCalendar.planned(in: weeks, from: from, to: to, done: doneIds, calendar: cal)
     }
 
     /// The away period covering a weekday of the current week, if any.
@@ -202,7 +209,8 @@ extension AppModel {
     func moveTargets(_ sessionId: String, now: Date = Date()) -> [Int] {
         guard let week = calendarWeeks(count: 1, now: now).first,
               let s = week.plan.sessions.first(where: { $0.id == sessionId }), !doneIds.contains(sessionId) else { return [] }
-        return WeekSchedule.weekdays.filter { $0 != s.weekday && week.off[$0] == nil }
+        // Never an earlier day (#818): a session there could only be missed, as Add workout already knows (#537).
+        return WeekSchedule.weekdays.filter { $0 != s.weekday && week.off[$0] == nil && $0 >= todayWeekday }
     }
 
     /// Moves a session of this week to `weekday`, this week only; a session already there (not done) takes its day

@@ -72,6 +72,7 @@ struct HiitPlayerView: View {
         .statusBarHidden()
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
+            restoreRun()
             remote(nil, index: nil)
         }
         .onDisappear {
@@ -81,7 +82,7 @@ struct HiitPlayerView: View {
         .onReceive(NotificationCenter.default.publisher(for: .watchTimerToggle)) { _ in toggle() }
         // Back from the background (#716): the clock jumps on, the cues it slept through aren't played.
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { cuedTo = elapsed(Date()) }
+            if phase == .active { cuedTo = elapsed(Date()) } else { saveRun() }
         }
     }
 
@@ -412,6 +413,7 @@ struct HiitPlayerView: View {
 
     private func complete() {
         guard record == nil, finishedAt == nil else { return }
+        HiitRun.clear(session.id)
         let e = elapsed(Date())
         finishedAt = e
         since = nil
@@ -424,6 +426,7 @@ struct HiitPlayerView: View {
 
     /// X: nothing done closes at once; else what was done is logged and the Undo bar takes it back.
     private func close() {
+        HiitRun.clear(session.id)
         let e = elapsed(Date())
         since = nil
         guard let r = save(at: e) else { return dismiss() }
@@ -435,6 +438,25 @@ struct HiitPlayerView: View {
             title: "HIIT saved", detail: "\(r.totalSets) intervals · \(max(1, r.durationSec / 60))′",
             colors: Theme.hiitColors, reopen: { AnyView(EmptyView()) },
             revert: { [model] in _ = model.undoWorkout(id) }))
+    }
+
+    // MARK: Kept across an app kill (#817)
+
+    /// Saved as the app leaves the foreground: iOS may close it, and starting the same HIIT again picks up there.
+    private func saveRun() {
+        guard started != nil, record == nil, finishedAt == nil else { return }
+        HiitRun(banked: elapsed(Date()), running: running, savedAt: Date(), started: started, skipped: Array(skipped),
+                amrapRounds: amrapRounds).save(session.id)
+    }
+
+    private func restoreRun() {
+        guard started == nil, let r = HiitRun.load(session.id) else { return }
+        banked = r.banked
+        since = r.running ? r.savedAt : nil
+        started = r.started
+        skipped = Set(r.skipped)
+        amrapRounds = r.amrapRounds
+        cuedTo = elapsed(Date())
     }
 
     // MARK: Watch
@@ -463,4 +485,28 @@ struct HiitPlayerView: View {
         }
         WatchSync.shared.sendWodRemote(WWodRemote(timer: timer, running: running, hiit: live))
     }
+}
+
+/// A HIIT run in progress (#817), kept in the defaults for a few hours: the time away counts when it was running.
+private struct HiitRun: Codable {
+    var banked: TimeInterval
+    var running: Bool
+    var savedAt: Date
+    var started: Date?
+    var skipped: [Int]
+    var amrapRounds: [Int: Int]
+
+    private static func key(_ id: String) -> String { "hiitRun.\(id)" }
+
+    func save(_ id: String) {
+        if let data = try? JSONEncoder().encode(self) { UserDefaults.standard.set(data, forKey: Self.key(id)) }
+    }
+
+    static func load(_ id: String) -> HiitRun? {
+        guard let data = UserDefaults.standard.data(forKey: key(id)), let r = try? JSONDecoder().decode(HiitRun.self, from: data),
+              Date().timeIntervalSince(r.savedAt) < AppModel.interruptedWindow else { return nil }
+        return r
+    }
+
+    static func clear(_ id: String) { UserDefaults.standard.removeObject(forKey: key(id)) }
 }

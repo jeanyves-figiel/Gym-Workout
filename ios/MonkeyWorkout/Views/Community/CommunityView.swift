@@ -118,7 +118,7 @@ struct CommunityView: View {
             }
         }
         if community.hasMore(scope) {
-            ProgressView().padding().task { await community.loadMore(scope, api: model.api) }
+            ProgressView().padding().task(id: community.cursor(scope)) { await community.loadMore(scope, api: model.api) }
         }
     }
 }

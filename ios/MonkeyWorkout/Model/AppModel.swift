@@ -821,7 +821,8 @@ final class AppModel {
     /// never into a later workout of the same session.
     func setLogs(of r: WorkoutRecord) -> [LogEntry] {
         let next = state.history.filter { $0.sessionId == r.sessionId && $0.startedAt > r.startedAt }.map(\.startedAt).min()
-        let from = r.startedAt.addingTimeInterval(-60)
+        // A run closed and resumed later starts before its record's `startedAt` (#817).
+        let from = WorkoutReport.setsFrom(r, history: state.history)
         let to = min(next ?? .distantFuture, r.endedAt.addingTimeInterval(6 * 3600))
         return state.logs.filter { $0.sessionId == r.sessionId && $0.date >= from && $0.date < to }
     }
@@ -842,8 +843,12 @@ final class AppModel {
     /// Per-set log (kg × reps, optional RIR). Re-logging the same set of the same workout (today, or since a
     /// workout running past midnight began) updates it in place.
     /// `lowerKg`: lowering load on a split-load machine (#792), nil = same as `kg`.
-    func logSet(exerciseId: String, sessionId: String, setIndex: Int, kg: Double, reps: Int, rir: Int?, lowerKg: Double? = nil) {
-        let from = workoutWindowStart(sessionId)
+    /// `date`: when the set was done (#820), for a set from a watch that arrives later; its own day counts as this workout.
+    func logSet(exerciseId: String, sessionId: String, setIndex: Int, kg: Double, reps: Int, rir: Int?, lowerKg: Double? = nil,
+                date: Date = Date()) {
+        // A set done before the window (a Watch set arriving after midnight, #820) still finds itself; a second run of
+        // the same session today never edits the first run's sets (#817).
+        let from = min(workoutWindowStart(sessionId), date.addingTimeInterval(-60))
         if let i = state.logs.firstIndex(where: {
             $0.exerciseId == exerciseId && $0.sessionId == sessionId && $0.setIndex == setIndex && $0.date >= from
         }) {
@@ -853,7 +858,7 @@ final class AppModel {
             state.logs[i].rir = rir
             state.pendingLogIds.insert(state.logs[i].id)
         } else {
-            let entry = LogEntry(date: Date(), exerciseId: exerciseId, sessionId: sessionId, weightKg: kg, reps: reps, setIndex: setIndex, rir: rir,
+            let entry = LogEntry(date: date, exerciseId: exerciseId, sessionId: sessionId, weightKg: kg, reps: reps, setIndex: setIndex, rir: rir,
                                  lowerKg: lowerKg)
             state.logs.append(entry)
             state.pendingLogIds.insert(entry.id)

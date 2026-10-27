@@ -375,12 +375,14 @@ struct WeekDayStrip: View {
             thisWeek(wd, day: n, isToday: isToday, date: date)
         } else if week > 0, week < weeks.count {
             let w = weeks[week]
-            let session = w.plan.sessions.first { $0.weekday == wd }
+            // A day is skipped once all its workouts are (#818); its menu acts on one still on.
+            let daySessions = w.plan.sessions.filter { $0.weekday == wd }
+            let session = daySessions.first { !model.isSkipped($0.id, in: w) } ?? daySessions.first
             // The same sport the day card shows (#670): dated days first, then weekly climbing and other sports.
             let daySport = w.off[wd] == nil ? model.profile?.sport(onWeekday: wd, key: w.days[wd - 1], date: date) : nil
             let climb = daySport == .climbing
             let sport = climb ? nil : daySport
-            let skipped = session.map { model.isSkipped($0.id, in: w) } ?? false
+            let skipped = !daySessions.isEmpty && daySessions.allSatisfy { model.isSkipped($0.id, in: w) }
             // A skipped day with nothing else on it is a rest day (#698): moon, or its sport.
             let state: DayState = session != nil && !skipped ? (session?.hiit != nil ? .hiit : .planned) : climb ? .climb : sport.map { DayState.sport($0) } ?? .rest
             Button { onPick(fromMonday + 1) } label: { cell(wd, day: n, isToday: false, state: state, picked: selected == fromMonday + 1) }

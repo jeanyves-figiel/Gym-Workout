@@ -40,12 +40,28 @@ extension AppModel {
         persist()
     }
 
-    /// Start of the window a session's sets belong to (#716): the running workout's start when it began before
-    /// today (a workout past midnight keeps its sets), else the start of today.
+    /// Start of the window a session's sets belong to (#716): the running workout's start (a workout past midnight
+    /// keeps its sets, and a second run of the same session today never edits the first run's sets, #817), else the
+    /// start of today. Runs saved before `startedAt` existed keep the start-of-today floor.
     func workoutWindowStart(_ sessionId: String, now: Date = Date()) -> Date {
         let today = Calendar.current.startOfDay(for: now)
         guard let w = activeWorkout(sessionId) else { return today }
-        return min(today, w.startedAt ?? w.updatedAt.addingTimeInterval(-w.elapsed))
+        guard let start = w.startedAt else { return min(today, w.updatedAt.addingTimeInterval(-w.elapsed)) }
+        return start.addingTimeInterval(-60)
+    }
+
+    /// A discarded run's sets go too (#817), as Undo workout does, so they don't sync, prefill the next run or count
+    /// as records. Only logs of `sessionId` from the run's start; a run without a start keeps them.
+    func dropRunLogs(_ run: ActiveWorkout) {
+        guard let start = run.startedAt else { return }
+        let from = start.addingTimeInterval(-60)
+        let ids = Set(state.logs.filter { $0.sessionId == run.sessionId && $0.date >= from }.map(\.id))
+        guard !ids.isEmpty else { return }
+        state.logs.removeAll { ids.contains($0.id) }
+        state.pendingLogIds.subtract(ids)
+        state.deletedLogIds = (state.deletedLogIds ?? []).union(ids)
+        persist()
+        Task { await sync() }
     }
 
     /// Gym zones set during a workout (#352): re-plans once the player closed with no workout left running.

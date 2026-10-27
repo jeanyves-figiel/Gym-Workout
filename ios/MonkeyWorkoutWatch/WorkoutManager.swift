@@ -78,6 +78,13 @@ final class WorkoutManager: NSObject {
         }
     }
 
+    /// The iPhone workout turned out to be another session than the one guessed at the start (#820).
+    func retarget(_ phoneSessionId: String) {
+        guard self.phoneSessionId != nil, self.phoneSessionId != phoneSessionId else { return }
+        self.phoneSessionId = phoneSessionId
+        UserDefaults.standard.set(phoneSessionId, forKey: Self.phoneSessionKey)
+    }
+
     private func makeSession() -> Bool {
         let config = HKWorkoutConfiguration()
         config.activityType = .functionalStrengthTraining

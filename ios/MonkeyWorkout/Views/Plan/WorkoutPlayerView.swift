@@ -218,7 +218,7 @@ struct WorkoutPlayerView: View {
                 addFree(steps.isEmpty ? picked + freeLined.filter { l in !picked.contains { $0.id == l.id } } : picked, jump: b.jump)
             }
         }
-        .sheet(item: $notHereFor) { NotHereSheet(exerciseId: $0.exerciseId, uid: $0.uid) }
+        .sheet(item: $notHereFor, onDismiss: notHereDone) { NotHereSheet(exerciseId: $0.exerciseId, uid: $0.uid) }
         .sheet(item: $changeFor, onDismiss: runChange) { item in
             if let step = steps.first(where: { $0.item.uid == item.uid }) {
                 let done = setsDone[item.uid] ?? 0
@@ -1245,6 +1245,12 @@ struct WorkoutPlayerView: View {
     private func completeSet(_ step: Step, sets: Int, done: Int, effort tapped: Effort? = nil) {
         if let e = editingSet {
             editingSet = nil
+            // Correcting a done set (#817): the tile rates that set; the coming set stays to do.
+            if let tapped, log.rows.indices.contains(e), e < done {
+                log.rows[e].rir = String(tapped.rir)
+                _ = log.log(e, model: model)
+                return
+            }
             _ = log.log(e, model: model)
         }
         guard done < sets else { return advance(step) }
@@ -1408,6 +1414,7 @@ struct WorkoutPlayerView: View {
     }
 
     private func discard() {
+        if let run = model.activeWorkout(sessionId) { model.dropRunLogs(run) }
         model.clearActiveWorkout(sessionId)
         discarded = true
         live.end()
@@ -1654,8 +1661,13 @@ struct WorkoutPlayerView: View {
             if w.interrupted == true, Date().timeIntervalSince(w.updatedAt) < AppModel.interruptedWindow {
                 // iOS closed the app mid-workout (#359): the time away was training, and a rest may still run.
                 started = w.updatedAt.addingTimeInterval(-w.elapsed)
+                let jump = w.restJumpUid.flatMap { uid in steps.firstIndex { $0.item.uid == uid } }
                 if let end = w.restEnd, end > Date() {
                     pause = Pause(start: end.addingTimeInterval(-TimeInterval(w.restTotal ?? 0)), end: end, total: w.restTotal ?? 0)
+                    pendingJump = jump
+                } else if let jump {
+                    // The rest ran out while closed: on to the next member of the round (#817).
+                    index = jump
                 }
             } else {
                 started = Date().addingTimeInterval(-w.elapsed)
@@ -1792,7 +1804,8 @@ struct WorkoutPlayerView: View {
         model.saveActiveWorkout(ActiveWorkout(
             sessionId: sessionId, index: index, setsDone: setsDone,
             elapsed: Date().timeIntervalSince(started), updatedAt: Date(), fitted: fitted, fitEnd: fitEnd,
-            interrupted: interrupted ? true : nil, restEnd: rest?.end, restTotal: rest?.total))
+            interrupted: interrupted ? true : nil, restEnd: rest?.end, restTotal: rest?.total,
+            restJumpUid: rest == nil ? nil : pendingJump.flatMap { steps.indices.contains($0) ? steps[$0].item.uid : nil }))
     }
 
     // MARK: Finish early (#300)
@@ -1828,12 +1841,23 @@ struct WorkoutPlayerView: View {
         relocate(uid)
     }
 
+    /// "Not here?" swapped exercises in the plan (#817): the re-fitted workout follows, and the set card reloads.
+    private func notHereDone() {
+        guard steps.indices.contains(index) else { return }
+        let here = steps[index].item.uid
+        for it in (fitted ?? []).flatMap(\.items) {
+            if let id = model.plannedItem(uid: it.uid)?.item.exerciseId, id != it.exerciseId { fitted?.swap(it.uid, to: id) }
+        }
+        relocate(here)
+    }
+
     /// Same item on screen after the step list changed.
     private func relocate(_ uid: String) {
-        // A new index reloads the set log through onChange; the same index reloads it only when the item's sets changed.
-        let before = log.item?.prescription
+        // A new index reloads the set log through onChange; the same index reloads it when the item on screen changed
+        // in any way (#817): a swap keeps the uid and sets, a removal can leave a same-sets item at this index.
+        let before = log.item
         let i = steps.firstIndex { $0.item.uid == uid } ?? min(index, max(0, steps.count - 1))
-        if i == index, steps.indices.contains(i), steps[i].item.prescription != before { reloadLog() }
+        if i == index, steps.indices.contains(i), steps[i].item != before { reloadLog() }
         index = i
         saveProgress()
         updateLive()
@@ -2097,7 +2121,9 @@ enum PendingDiscard {
             try? await Task.sleep(for: .seconds(UndoCloseCenter.seconds + 0.5))
             guard !Task.isCancelled else { return }
             PendingDiscard.tasks[sessionId] = nil
-            PendingDiscard.kept[sessionId] = nil
+            if let run = PendingDiscard.kept.removeValue(forKey: sessionId)?.run, model.activeWorkout(sessionId) == nil {
+                model.dropRunLogs(run)
+            }
             WatchSync.shared.endLive(.discarded, sessionId: sessionId)
             model.replanAfterWorkoutIfDone()
         }

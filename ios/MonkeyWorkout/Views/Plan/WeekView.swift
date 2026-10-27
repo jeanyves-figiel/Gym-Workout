@@ -242,7 +242,8 @@ struct WeekView: View {
                 // Every earlier day gets the same card (#592): what was logged, a missed session, add what was forgotten.
                 let cal = model.planCalendar
                 PastDayCard(day: d, date: cal.date(byAdding: .day, value: d - 1, to: Progression.weekStart(Date(), cal)) ?? Date(),
-                            session: plan.sessions.first { $0.weekday == d }, onPick: pick, onBack: back)
+                            // A workout removed from the day (#784) leaves a rest day (#818).
+                            session: plan.sessions.first { $0.weekday == d && !model.isRemoved($0.id, in: nil) }, onPick: pick, onBack: back)
             } else if let d = pickedDay, let skipped = skippedOnly(plan, d) {
                 RestDayCard(weekday: d, onPick: pick, onBack: back, onAdd: { addingDay = d; adding = true }, skipped: skipped)
             } else if let d = pickedDay, let s = daySession(plan, d) {
@@ -293,9 +294,10 @@ struct WeekView: View {
         let wd = d - week * 7
         if week > 0 {
             let weeks = model.calendarWeeks(count: 3)
-            if week < weeks.count, let s = weeks[week].plan.sessions.first(where: { $0.weekday == wd }), model.isSkipped(s.id, in: weeks[week]) {
-                // Skipped that week (#698): a rest day with Unskip.
-                RestDayCard(weekday: wd, day: d, date: date, onPick: pick, onBack: back, skipped: [s], skippedWeek: weeks[week])
+            // Skipped that week (#698): a rest day with Unskip, once every workout of the day is (#818).
+            let skipped = week < weeks.count ? weeks[week].plan.sessions.filter { $0.weekday == wd } : []
+            if !skipped.isEmpty, skipped.allSatisfy({ model.isSkipped($0.id, in: weeks[week]) }) {
+                RestDayCard(weekday: wd, day: d, date: date, onPick: pick, onBack: back, skipped: skipped, skippedWeek: weeks[week])
             } else if week < weeks.count, let s = daySession(weeks[week].plan, wd, skipped: { model.isSkipped($0.id, in: weeks[week]) }) {
                 NextUpCard(session: s, picked: d, later: DaySelection(week: weeks[week], weekday: wd, current: false),
                            onPick: pick, onBack: back, onSelect: select(d))
@@ -562,7 +564,8 @@ struct WeekView: View {
             }
             let days = calendarDays
             // By day, so moved and extra sessions sit where they happen (#113).
-            let ordered = byDay(plan.sessions, days: days)
+            // Removed workouts (#784) are rest days, not rows (#818).
+            let ordered = byDay(plan.sessions.filter { !model.isRemoved($0.id, in: nil) }, days: days)
             let missed = Set(model.missedSessions.map(\.id))
             if quest {
                 QuestMap(sessions: ordered, days: days) { s, day in sessionMenu(s, day: day) }
@@ -606,8 +609,12 @@ struct WeekView: View {
     /// this week's missed days don't count as planned.
     private var plannedCount: Int {
         let done = model.doneIds, today = model.todayWeekday
+        // Skipped and removed ones aren't planned (#818), as on the Calendar's weeks.
         return model.calendarWeeks(count: 4).enumerated().reduce(0) { n, w in
-            n + w.element.plan.sessions.filter { !done.contains($0.id) && (w.offset > 0 || ($0.weekday ?? today) >= today) }.count
+            n + w.element.plan.sessions.filter {
+                !done.contains($0.id) && (w.offset > 0 || ($0.weekday ?? today) >= today)
+                    && !model.isSkipped($0.id, in: w.element, current: w.offset == 0)
+            }.count
         }
     }
 
@@ -669,7 +676,8 @@ private struct WeekHero: View {
         let p = phase
         let readiness = Readiness.assess(health.snapshot)
         HStack(spacing: 12) {
-            DoneRing(done: done, total: plan.sessions.count, size: 48)
+            // Skipped and removed workouts leave the week (#818).
+            DoneRing(done: done, total: model.weekSessionCount, size: 48)
             VStack(alignment: .leading, spacing: 2) {
                 Button { explainingPhase = true } label: {
                     HStack(spacing: 4) {
@@ -791,10 +799,10 @@ private struct WeekTiles: View {
         let assessed = Readiness.assess(health.snapshot)
         HStack(spacing: 6) {
             NavigationLink { CalendarView() } label: {
-                tile("This week", "\(done)/\(plan.sessions.count)", detail: nil,
+                tile("This week", "\(done)/\(model.weekSessionCount)", detail: nil,
                      colors: [Color(hex: 0x3D5AFF), Color(hex: 0x8A4FFF)], width: 76)
             }
-            .accessibilityLabel("\(done) of \(plan.sessions.count) sessions done this week").accessibilityHint("Opens the calendar")
+            .accessibilityLabel("\(done) of \(model.weekSessionCount) sessions done this week").accessibilityHint("Opens the calendar")
             Button { explainingPhase = true } label: {
                 tile("\(p.title) ⓘ", "W\(plan.week)/\(Generator.mesocycleWeeks)", detail: nil, colors: p.palette.colors, bars: true, width: 76)
             }

@@ -302,8 +302,8 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
   };
 
   const SELECT_POSTS = `SELECT p.*, cp.nickname, cp.avatar_id, cp.level, cp.pronouns FROM community_posts p LEFT JOIN community_profiles cp ON cp.user_id = p.user_id`;
-  /** Posts `viewer` may see that are not their own. */
-  const VISIBLE_TO_OTHERS = `cp.user_id IS NOT NULL AND ${visibleToOthersSql('p.user_id', 'p.visibility', 'p.hidden_at')}`;
+  /** Posts `viewer` may see that are not their own; none from a member hidden by reports (#819, as their page and search). */
+  const VISIBLE_TO_OTHERS = `cp.user_id IS NOT NULL AND ${visibleToOthersSql('p.user_id', 'p.visibility', 'p.hidden_at')} AND ${memberNotHiddenSql('p.user_id')}`;
 
   const toPosts = (rows: PostRow[], viewer: string) => {
     if (!rows.length) return [];
@@ -854,7 +854,7 @@ export const communityPublicRoutes = (app: FastifyInstance, db: DB, appName: str
     const p = db
       .prepare(
         `SELECT p.caption, p.payload, p.created_at, cp.nickname, cp.avatar_id FROM community_posts p JOIN community_profiles cp ON cp.user_id = p.user_id
-         WHERE p.id = ? AND p.visibility = 'public' AND p.hidden_at IS NULL`,
+         WHERE p.id = ? AND p.visibility = 'public' AND p.hidden_at IS NULL AND ${memberNotHiddenSql('p.user_id')}`,
       )
       .get(id.toLowerCase()) as { caption: string | null; payload: string; created_at: string; nickname: string; avatar_id: string | null } | undefined;
     reply.header('Content-Type', 'text/html; charset=utf-8').header('X-Content-Type-Options', 'nosniff')

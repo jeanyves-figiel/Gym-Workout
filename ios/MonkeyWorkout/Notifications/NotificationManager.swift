@@ -242,7 +242,9 @@ final class NotificationManager: NSObject {
     /// Water nudges for the rest of today (#520, design A), on the pace from `WaterPace`: rebuilt whenever a glass is
     /// counted, the water settings change or the plan is rescheduled.
     func scheduleWater(now: Date = Date()) async {
-        let old = await center.pendingNotificationRequests().map(\.identifier).filter { $0.hasPrefix("water|") }
+        // A "Later" the member asked for stays (#820): this runs at every foreground.
+        let old = await center.pendingNotificationRequests().map(\.identifier)
+            .filter { $0.hasPrefix("water|") && !$0.hasPrefix("water|later|") }
         center.removePendingNotificationRequests(withIdentifiers: old)
         #if DEBUG
         if Demo.enabled { return }

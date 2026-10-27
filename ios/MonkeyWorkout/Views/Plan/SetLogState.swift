@@ -65,6 +65,15 @@ final class SetLogState {
                 rir: l.rir.map { String($0) } ?? "",
                 logged: true)
         }
+        // Straight sets: a set not logged yet starts from the last one logged before it, so a load changed this
+        // workout survives going to a superset partner, Previous or a resume (#817).
+        if sets == nil {
+            for i in rows.indices where !rows[i].logged {
+                guard let prev = rows[..<i].last(where: \.logged) else { continue }
+                rows[i].kg = prev.kg
+                rows[i].lower = prev.lower
+            }
+        }
     }
 
     /// Freestyle + / − set (#795): rows follow `item`'s new set count without a reload, so values being entered stay.
@@ -109,7 +118,8 @@ final class SetLogState {
                     rows[j].kg = LoadAdvisor.formatKg(kg)
                 }
             }
-        } else {
+        } else if !rows.indices.contains(where: { $0 > i && rows[$0].logged }) {
+            // Only the latest logged set carries forward: correcting an earlier one keeps the loads set since (#817).
             for j in rows.indices where j > i && !rows[j].logged {
                 rows[j].kg = rows[i].kg
                 rows[j].lower = rows[i].lower

@@ -238,6 +238,8 @@ public struct CommunityFeedPage: Decodable, Sendable {
     public var posts: [CommunityPost]
     /// Pass back as `before` for the next page; nil at the end.
     public var nextBefore: String?
+    /// Pass back as `beforeId` with `before` (#819): posts sharing the boundary time aren't skipped. Nil from older servers.
+    public var nextBeforeId: String?
 }
 
 public struct CommunityMemberPage: Decodable, Sendable {
@@ -376,9 +378,10 @@ extension APIClient {
         _ = try await authorizedRaw("DELETE", "/v1/community/me", Empty?.none)
     }
 
-    public func communityFeed(_ scope: CommunityFeedScope, before: String? = nil, limit: Int = 20) async throws -> CommunityFeedPage {
+    public func communityFeed(_ scope: CommunityFeedScope, before: String? = nil, beforeId: String? = nil, limit: Int = 20) async throws -> CommunityFeedPage {
         var path = "/v1/community/feed?scope=\(scope.rawValue)&limit=\(limit)"
         if let before { path += "&before=\(before.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? before)" }
+        if before != nil, let beforeId { path += "&beforeId=\(beforeId.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? beforeId)" }
         return try await authorized("GET", path, Empty?.none, as: CommunityFeedPage.self)
     }
 

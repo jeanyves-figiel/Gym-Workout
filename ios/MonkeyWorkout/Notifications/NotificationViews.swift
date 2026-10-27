@@ -30,7 +30,10 @@ struct NotificationsHost: ViewModifier {
     private var key: String {
         let plan = model.plan?.sessions.map { "\($0.id)@\($0.weekday ?? 0)" }.joined(separator: ",") ?? ""
         let done = model.state.done.filter(\.value).keys.sorted().joined(separator: ",")
-        return [plan, done, "\(model.state.history.count)", "\(notify.prefs.hashValue)", "\(model.away.count)", model.user?.id ?? ""]
+        // A skip or removal (this week or ahead) takes its reminders off (#818).
+        let skipped = model.skippedIds.sorted().joined(separator: ",")
+        let ahead = (model.state.skippedAhead ?? [:]).map { "\($0.key):\($0.value.sorted().joined(separator: "+"))" }.sorted().joined(separator: ",")
+        return [plan, done, skipped, ahead, "\(model.state.history.count)", "\(notify.prefs.hashValue)", "\(model.away.count)", model.user?.id ?? ""]
             .joined(separator: "|")
     }
 
@@ -334,7 +337,8 @@ struct MissedSessionSheet: View {
                                 big: "GO", gradient: NotifyStyle.today)
                     }
                     .buttonStyle(.plain)
-                    .disabled(session == nil)
+                    // Done meanwhile (an old notification, #817): training it again would record a second workout.
+                    .disabled(session == nil || model.doneIds.contains(sessionId))
 
                     // One tap moves it, as the card says; the Undo bar puts it back (#285).
                     Button(action: moveNow) {

@@ -304,7 +304,6 @@ struct SharedPlanView: View {
             do {
                 if !model.demo { try await model.api.block(plan.author.userId) }
                 Community.shared.blocked(plan.author.userId)
-                SharedPlans.shared.blocked(plan.author.userId)
                 dismiss()
             } catch {
                 SharedPlans.shared.error = error.localizedDescription

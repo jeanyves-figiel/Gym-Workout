@@ -107,6 +107,11 @@ public struct FuelDayLog: Codable, Hashable, Sendable {
     }
 
     public mutating func tick(_ slot: FuelSlot, recipe: Recipe? = nil, servings: Int = 1) {
+        // Plain foods logged on the meal itself move next to the recipe instead of being wiped (#819).
+        if let t = ticks[slot.id], t.foods != nil, ticks[Self.foodKey(slot.id)] == nil {
+            ticks[Self.foodKey(slot.id)] = t
+            ticks[slot.id] = nil
+        }
         untick(slot.id)
         var add = recipe?.portions ?? slot.portions
         if recipe != nil && servings > 1 {

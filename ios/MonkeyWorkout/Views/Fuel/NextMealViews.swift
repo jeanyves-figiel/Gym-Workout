@@ -144,7 +144,7 @@ struct JustAteSheet: View {
         let log = store.log(day)
         let open = plan.slots.filter { log.ticks[$0.id] == nil }
         let slot = open.first { $0.id == picked } ?? nearest(open)
-        let done = plan.slots.filter { log.ticks[$0.id] != nil || log.ticks[FuelDayLog.foodKey($0.id)] != nil }
+        let done = plan.slots.filter { log.ticks[$0.id] != nil || log.ticks[FuelDayLog.foodKey($0.id)] != nil } + Self.orphans(log, plan: plan)
         let target = plan.slots.first { $0.id == picked } ?? nearest(plan.slots)
         NavigationStack {
             ScrollView {
@@ -220,6 +220,23 @@ struct JustAteSheet: View {
         }
         .preferredColorScheme(.dark)
         .presentationDetents([.large])
+    }
+
+    /// Meals ticked on a slot the day's plan no longer has (training moved, an extra meal), so they can still be
+    /// seen and undone (#819). Built from a copy of a plan slot: kind from the key ("recovery-0" → recovery).
+    static func orphans(_ log: FuelDayLog, plan: FuelPlan) -> [FuelSlot] {
+        guard let template = plan.slots.first else { return [] }
+        let ids = Set(plan.slots.map(\.id))
+        let prefix = FuelDayLog.foodKey("")
+        let keys = Set(log.ticks.keys.filter { !$0.hasPrefix("supp-") }.map { $0.hasPrefix(prefix) ? String($0.dropFirst(prefix.count)) : $0 })
+        return keys.subtracting(ids).sorted().map { id in
+            var s = template
+            s.id = id
+            s.kind = MealKind(rawValue: String(id.split(separator: "-").first ?? "")) ?? .snack
+            s.afterTraining = false
+            s.hint = ""
+            return s
+        }
     }
 
     private var isToday: Bool { Calendar.current.isDateInToday(day) }
@@ -453,7 +470,13 @@ struct JustAteSheet: View {
         let open = plan.slots.filter { ticks[$0.id] == nil }
         let suits = open.filter { r.slots.contains($0.recipeKind) || r.slots.contains($0.kind) }
         let pool = !suits.isEmpty ? suits : !open.isEmpty ? open : plan.slots
-        guard let target = slot ?? pool.min(by: { abs($0.minute - now) < abs($1.minute - now) }) else { return }
+        guard var target = slot ?? pool.min(by: { abs($0.minute - now) < abs($1.minute - now) }) else { return }
+        // Every meal already ticked: an extra meal gets its own key instead of replacing an eaten one (#819).
+        if slot == nil, open.isEmpty {
+            var n = 1
+            while ticks["extra-\(n)"] != nil { n += 1 }
+            target.id = "extra-\(n)"
+        }
         Haptics.success()
         store.update(day, plan: plan) { $0.tick(target, recipe: r) }
         dismiss()
