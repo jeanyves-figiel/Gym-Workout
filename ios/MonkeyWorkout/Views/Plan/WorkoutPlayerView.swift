@@ -968,7 +968,7 @@ struct WorkoutPlayerView: View {
                             .frame(height: 5)
                     }
                 }
-                .frame(height: 40)
+                .frame(minWidth: 20).frame(height: 40)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -987,10 +987,12 @@ struct WorkoutPlayerView: View {
                     if let fitEnd {
                         let left = fitEnd.timeIntervalSince(ctx.date)
                         Text((left < 0 ? "+" : "−") + Format.elapsed(abs(left))).font(Theme.label(14)).monospacedDigit()
+                            .lineLimit(1).fixedSize()
                             .padding(.horizontal, 8).padding(.vertical, 4)
                             .background(Capsule().fill(LinearGradient(colors: UndoOffer.warm, startPoint: .leading, endPoint: .trailing)))
                     } else {
                         Text(Format.elapsed(ctx.date.timeIntervalSince(started))).font(Theme.label(14)).monospacedDigit()
+                            .lineLimit(1).fixedSize()
                             .padding(.horizontal, 8).padding(.vertical, 4)
                             .background(Capsule().stroke(Theme.stroke, lineWidth: 1.5))
                     }
@@ -1000,6 +1002,8 @@ struct WorkoutPlayerView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            // Never wraps or squeezes (#804): the progress dots give up width first, up to 1:00:00 and over.
+            .layoutPriority(1)
             .disabled(steps.isEmpty)
             .accessibilityLabel(fitEnd == nil ? "Workout time. Finish early" : "Time left. Change or undo finish early")
             // Closes at once (#538): the workout stays paused to resume, with Undo on Train.

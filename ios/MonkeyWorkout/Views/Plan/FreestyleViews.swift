@@ -31,6 +31,7 @@ struct FreestyleStartView: View {
                 Spacer()
                 TimelineView(.periodic(from: started, by: 1)) { ctx in
                     Text(Format.elapsed(ctx.date.timeIntervalSince(started))).font(Theme.label(14)).monospacedDigit()
+                        .lineLimit(1).fixedSize()
                         .padding(.horizontal, 8).padding(.vertical, 4)
                         .background(Capsule().stroke(Theme.stroke, lineWidth: 1.5))
                 }
