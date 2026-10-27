@@ -48,6 +48,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - **Workout page customise button in the top bar** (#771): the grid button that opens *Customise workout page* moved from the hero card (and the Bento title row) to the top bar, top right.
 - **One Coach button: the talking monkey** (#775, design B from `coach-one-button/proposals.png`): Train had two ways into the same Coach chat, the 🐵 header tile and a 💬 button on the Coach Monkey card (an *Ask Coach for today's workout* bar on bigger phones). Now the header tile is the only one: the card keeps just ↻ next tip, and the tile on every tab is redesigned so it clearly talks: bigger monkey, lime glow and a pink **•••** speech bubble on its corner that wiggles once a day (not with Reduce Motion). Tap to ask, hold to talk, as before. App `CoachHeaderTile`; `AskCoachBar` removed.
+- **What's new 2026-10-27.1** (bundle 79, 2 cards): Freestyle in full control (#797), more machines (#798). Notes 2026-10-26.3 moved to the history as build 78.
 - **What's new 2026-10-26.3** (bundle 78, 2 cards): tidier exercise picker (#791), push ≠ lower (#793). Notes 2026-10-26.2 moved to the history as build 77.
 - **What's new 2026-10-26.2** (bundle 77, 1 card): removed days rest (#788). Notes 2026-10-26.1 moved to the history as build 76.
 - **What's new 2026-10-26.1** (bundle 76, 2 cards): remove a workout, workout page fits (#783, #785). Notes 2026-10-25.3 moved to the history as build 75.
