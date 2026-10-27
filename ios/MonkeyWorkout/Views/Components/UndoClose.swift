@@ -113,7 +113,7 @@ final class UndoCloseCenter {
             window = w
         }
         if haptic { Haptics.undo() }
-        state.present(offer)
+        state.present(offer, lift: Self.tabBarLift())
         UIAccessibility.post(notification: .announcement, argument: "\(offer.title). Undo available.")
     }
 
@@ -124,6 +124,26 @@ final class UndoCloseCenter {
         let host = UIHostingController(rootView: environment(offer.reopen()))
         host.modalPresentationStyle = offer.fullScreen ? .fullScreen : .pageSheet
         Self.topController()?.present(host, animated: true)
+    }
+
+    /// Height the tab bar takes above the bottom safe area when it shows (no sheet over it), so the bar sits
+    /// above it instead of covering it (#811).
+    private static func tabBarLift() -> CGFloat {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        guard let window = scenes.flatMap(\.windows).first(where: { $0.isKeyWindow && !($0 is PassthroughWindow) })
+                ?? scenes.flatMap(\.windows).first(where: { !($0 is PassthroughWindow) }),
+              let root = window.rootViewController,
+              root.presentedViewController == nil || root.presentedViewController?.isBeingDismissed == true,
+              let tabs = tabController(in: root), !tabs.tabBar.isHidden, tabs.tabBar.alpha > 0.01
+        else { return 0 }
+        let top = tabs.tabBar.convert(tabs.tabBar.bounds, to: window).minY
+        return max(0, window.bounds.height - window.safeAreaInsets.bottom - top)
+    }
+
+    private static func tabController(in vc: UIViewController) -> UITabBarController? {
+        if let tabs = vc as? UITabBarController { return tabs }
+        for child in vc.children { if let tabs = tabController(in: child) { return tabs } }
+        return nil
     }
 
     private static func topController() -> UIViewController? {
@@ -148,10 +168,13 @@ private final class PassthroughWindow: UIWindow {
 private final class UndoBarState {
     struct Shown: Identifiable { let id = UUID(); let offer: UndoOffer }
     var shown: Shown?
+    /// Room for the tab bar under the bar.
+    var lift: CGFloat = 0
     private var timer: Task<Void, Never>?
 
-    func present(_ offer: UndoOffer) {
+    func present(_ offer: UndoOffer, lift: CGFloat = 0) {
         let next = Shown(offer: offer)
+        self.lift = lift
         withAnimation(.spring(duration: 0.35)) { shown = next }
         timer?.cancel()
         timer = Task { [weak self] in
@@ -180,20 +203,42 @@ private struct UndoBarHost: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.bottom, 8)
+        .padding(.bottom, 8 + state.lift)
         .frame(maxWidth: Theme.readableWidth)
         .frame(maxWidth: .infinity)
     }
 }
 
 /// Design A: gradient bar, icon tile, what was closed, lime Undo inside a draining countdown ring.
+/// Grabber on top (#811, design B from `undo-dismiss/proposals.png`): swipe down or tap the bar (outside
+/// Undo) closes it at once; the first bars say so.
 struct UndoBar: View {
     let offer: UndoOffer
     let undo: () -> Void
     var close: () -> Void = {}
     @State private var left: Double = 1
+    @AppStorage("undoBarDismissHints") private var hintsShown = 0
+    @State private var hint = false
 
     var body: some View {
+        VStack(spacing: 4) {
+            if hint {
+                Text("Swipe down or tap to dismiss")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(Capsule().fill(.black.opacity(0.6)))
+                    .accessibilityHidden(true)
+            }
+            bar
+        }
+        .onAppear {
+            hint = hintsShown < 3
+            if hint { hintsShown += 1 }
+        }
+    }
+
+    private var bar: some View {
         HStack(spacing: 12) {
             Image(systemName: offer.symbol)
                 .font(.system(size: 17, weight: .bold))
@@ -228,15 +273,23 @@ struct UndoBar: View {
             .accessibilityLabel("Undo, reopen \(offer.title.lowercased())")
         }
         .padding(10)
+        .padding(.top, 6)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(LinearGradient(colors: offer.colors, startPoint: .leading, endPoint: .trailing))
                 .shadow(color: (offer.colors.dropFirst().first ?? .black).opacity(0.45), radius: 14, y: 6)
         )
+        .overlay(alignment: .top) {
+            Capsule().fill(.white.opacity(0.6)).frame(width: 36, height: 4).padding(.top, 5)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .onTapGesture(perform: close)
         .gesture(DragGesture(minimumDistance: 10).onEnded { if $0.translation.height > 20 { close() } })
         .onAppear { withAnimation(.linear(duration: UndoCloseCenter.seconds)) { left = 0 } }
         .accessibilityElement(children: .combine)
         .accessibilityAction(named: "Undo", undo)
+        .accessibilityAction(named: "Dismiss", close)
+        .accessibilityAction(.escape, close)
     }
 }
 
