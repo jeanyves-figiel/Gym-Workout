@@ -77,6 +77,8 @@ struct WorkoutPlayerView: View {
     @State private var zonesOpen = false
     /// Build as I go (#490): the catalog open to add exercises, and whether the pick is played at once.
     @State private var freeBrowse: FreeBrowse?
+    /// Freestyle start screen (#795): exercises lined up before the first one starts.
+    @State private var freeLined: [Exercise] = []
     @State private var zoneDraft: (layout: GymLayout?, equipment: [Equipment]) = (nil, [])
     /// Workout map (#361): what's done and what's left, read-only.
     @State private var mapOpen = false
@@ -200,7 +202,9 @@ struct WorkoutPlayerView: View {
                     FreestyleStartView(
                         started: started, picks: picks,
                         recent: model.recentExerciseIds(limit: 6).compactMap(Exercise.find).filter { e in !picks.contains { $0.id == e.id } },
-                        onPick: { addFree([$0], jump: true) },
+                        lined: $freeLined,
+                        onPick: { e in addFree([e] + freeLined.filter { $0.id != e.id }, jump: true) },
+                        onStartLined: { addFree(freeLined, jump: true) },
                         onBrowse: { freeBrowse = FreeBrowse(group: $0, jump: true) },
                         // Pause: keep for later or discard (#538), with nothing added yet.
                         onClose: { mapOpen = true })
@@ -210,7 +214,9 @@ struct WorkoutPlayerView: View {
         .preferredColorScheme(.dark)
         .sheet(item: $formFor) { FormSheet(exercise: $0) }
         .sheet(item: $freeBrowse) { b in
-            ExercisePickerView(limit: 10, group: b.group) { addFree($0, jump: b.jump) }
+            ExercisePickerView(limit: 10, group: b.group) { picked in
+                addFree(steps.isEmpty ? picked + freeLined.filter { l in !picked.contains { $0.id == l.id } } : picked, jump: b.jump)
+            }
         }
         .sheet(item: $notHereFor) { NotHereSheet(exerciseId: $0.exerciseId, uid: $0.uid) }
         .sheet(item: $changeFor, onDismiss: runChange) { item in
@@ -837,10 +843,14 @@ struct WorkoutPlayerView: View {
         let next = upNext(after: step, done: done, sets: sets, includeSets: false)
         let items = OverviewItem.list(session.blocks, setsDone: setsDone, current: step.item.uid)
         if isFree {
-            // Build as I go (#581, design C): the Coach's next picks always hold Up next's place (what's queued shows in
-            // the trail); lit up once this exercise is done.
-            FreestyleNextBar(picks: model.freestylePicks(sessionId), ready: done >= sets, onPick: { addFree([$0], jump: true) },
-                             onMore: { freeBrowse = FreeBrowse(group: nil, jump: true) })
+            // Build as I go (#795, design A): the queue shelf holds Up next's place: what's lined up, then the Coach's picks.
+            // A pick lines up and never leaves this exercise (once it's done with nothing lined up, it plays at once).
+            let queued = steps.indices.filter { $0 > index && (setsDone[steps[$0].item.uid] ?? 0) < steps[$0].sets }
+            FreestyleQueueBar(queued: queued.map { steps[$0].exercise }, picks: model.freestylePicks(sessionId),
+                              ready: done >= sets && queued.isEmpty,
+                              onQueued: { go(queued[$0]) },
+                              onPick: { addFree([$0], jump: false) },
+                              onMore: { freeBrowse = FreeBrowse(group: nil, jump: false) })
         } else {
             SmartUpNextBar(next: next,
                               then: SmartUpNextBar.after(items, current: step.item.uid, next: next?.exercise),
@@ -1121,7 +1131,8 @@ struct WorkoutPlayerView: View {
             if log.item?.uid == step.item.uid {
                 CurrentSetCard(state: log, done: done, color: colors[0], editing: $editingSet,
                                watchLift: watchLift.flatMap { $0.exerciseId == step.item.exerciseId && $0.setIndex == done ? $0 : nil },
-                               finalSet: coach.enabled && sets > 1 && done == sets - 1) { i in
+                               finalSet: coach.enabled && !isFree && sets > 1 && done == sets - 1,
+                               onAddSet: isFree && sets < Freestyle.maxSets ? { addFreeSet(step) } : nil) { i in
                     _ = log.log(i, model: model)
                 }
                 // Setup's push / lower switch (#792) applies at once, even mid-exercise.
@@ -1190,8 +1201,8 @@ struct WorkoutPlayerView: View {
     }
 
     private func skipButton(_ step: Step, size: CGFloat) -> some View {
-        // Build as I go (#581, design C): search for the next exercise in skip's place (the trail goes to queued ones).
-        let pickNext = isFree
+        // Build as I go (#581, design C): search for the next exercise in skip's place, or on to the lined-up one (#795).
+        let pickNext = isFree && nextStep == nil
         return Button { pickNext ? (freeBrowse = FreeBrowse(group: nil, jump: true)) : advance(step) } label: {
             Image(systemName: pickNext ? "magnifyingglass" : "forward.end.fill").font(.system(size: size > 50 ? 18 : 15, weight: .heavy))
                 .frame(width: size, height: size)
@@ -1204,7 +1215,7 @@ struct WorkoutPlayerView: View {
 
     private func mainLabel(_ step: Step, sets: Int, done: Int) -> String {
         if done >= sets {
-            if isFree { return nextStep == nil ? "FINISH WORKOUT" : "NEXT" }
+            if isFree { return nextStep.map { "NEXT · \(steps[$0].exercise.name.uppercased())" } ?? "FINISH WORKOUT" }
             return index == steps.count - 1 ? "FINISH" : "NEXT"
         }
         if let spec = step.timedSpec {
@@ -1518,6 +1529,16 @@ struct WorkoutPlayerView: View {
         }, onAdd: { freeBrowse = FreeBrowse(group: nil, jump: false) })
     }
 
+    /// Freestyle + set (#795): one more set on this exercise, done with it or not; a "Next in" countdown stops.
+    private func addFreeSet(_ step: Step) {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        autoNext = nil
+        model.setFreestyleSets(sessionId, uid: step.item.uid, sets: step.sets + 1)
+        if let f = fitted { fitted = Freestyle.settingSets(step.sets + 1, of: step.item.uid, in: f) }
+        if let now = steps.first(where: { $0.item.uid == step.item.uid }) { log.resize(to: now.item) }
+        updateLive()
+    }
+
     struct FreeBrowse: Identifiable {
         let id = UUID()
         let group: MuscleGroup?
@@ -1525,12 +1546,16 @@ struct WorkoutPlayerView: View {
         let jump: Bool
     }
 
-    /// Adds the picks at the end of the workout, in order. The first exercise opens at once; with `jump` (a Coach pick
-    /// or More) the first pick is played at once, done with the current exercise or not (a cardio timer never run
-    /// would otherwise hold the workout on it); Add (`jump` false) queues them in Up next.
-    private func addFree(_ picked: [Exercise], jump: Bool) {
+    /// Adds the picks at the end of the workout, in order. The first exercise opens at once; with `jump` (search in
+    /// skip's place) the first pick is played at once, done with the current exercise or not (a cardio timer never run
+    /// would otherwise hold the workout on it); otherwise they're lined up (#795), played at once only when the current
+    /// exercise is done and nothing else is lined up.
+    private func addFree(_ picked: [Exercise], jump requested: Bool) {
         guard isFree, !picked.isEmpty else { return }
         let wasEmpty = steps.isEmpty
+        freeLined = []
+        let jump = requested || (steps.indices.contains(index) && (setsDone[steps[index].item.uid] ?? 0) >= steps[index].sets
+            && nextStep == nil)
         var first: String?
         for e in picked {
             let id = UUID()

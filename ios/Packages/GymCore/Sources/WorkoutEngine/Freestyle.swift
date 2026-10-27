@@ -27,6 +27,26 @@ public enum Freestyle {
         return (out, uid)
     }
 
+    /// Most sets one exercise takes in a freestyle workout (#795: + set while doing it).
+    public static let maxSets = 12
+
+    /// `blocks` with the exercise `uid` set to `sets` sets (1…`maxSets`); its time estimate follows.
+    public static func settingSets(_ sets: Int, of uid: String, in blocks: [Block]) -> [Block] {
+        let n = min(maxSets, max(1, sets))
+        return blocks.map { b in
+            var b = b
+            b.items = b.items.map { it in
+                guard it.uid == uid, it.prescription.sets != n else { return it }
+                var it = it
+                let old = max(1, it.prescription.sets)
+                it.estSec = max(1, it.estSec * n / old)
+                it.prescription.sets = n
+                return it
+            }
+            return b
+        }
+    }
+
     /// Muscle groups the workout already trains as a primary mover.
     public static func groupsHit(_ blocks: [Block]) -> Set<MuscleGroup> {
         Set(blocks.flatMap(\.items).compactMap { Exercise.find($0.exerciseId) }.flatMap { $0.primary.map(\.group) })

@@ -4,12 +4,15 @@ import WorkoutEngine
 // MARK: - Build as I go (#490: mockups A + B + C, all three)
 
 /// The player before the first exercise: what first? Coach's picks (B), muscle tiles and search (A), what the member
-/// did lately. One screen, no scrolling.
+/// did lately. One screen, no scrolling. + on a pick or a recent one lines it up (#795): the next tap starts the first
+/// exercise with the lined-up ones queued after it, or the header card starts the lined-up ones in order.
 struct FreestyleStartView: View {
     let started: Date
     let picks: [Exercise]
     let recent: [Exercise]
+    @Binding var lined: [Exercise]
     let onPick: (Exercise) -> Void
+    let onStartLined: () -> Void
     let onBrowse: (MuscleGroup?) -> Void
     let onClose: () -> Void
 
@@ -33,20 +36,45 @@ struct FreestyleStartView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                Label("FREESTYLE", systemImage: "plus.square.on.square").font(Theme.label(11)).tracking(1.2).opacity(0.9)
-                Text("What first?").font(Theme.display(32)).lineLimit(1).minimumScaleFactor(0.6)
-                Text("Add exercises as you go. Each one is logged like a planned workout.")
-                    .font(Theme.label(12)).opacity(0.85).lineLimit(2).minimumScaleFactor(0.8)
+            if lined.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("FREESTYLE", systemImage: "plus.square.on.square").font(Theme.label(11)).tracking(1.2).opacity(0.9)
+                    Text("What first?").font(Theme.display(32)).lineLimit(1).minimumScaleFactor(0.6)
+                    Text("Tap to start one, + to line up the next ones too.")
+                        .font(Theme.label(12)).opacity(0.85).lineLimit(2).minimumScaleFactor(0.8)
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(LinearGradient.freestyle))
+            } else {
+                // Same place and size: the header becomes START with what's lined up.
+                Button(action: onStartLined) {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label("\(lined.count) LINED UP", systemImage: "list.number").font(Theme.label(11)).tracking(1.2).opacity(0.9)
+                            Text("Start").font(Theme.display(32)).lineLimit(1)
+                            Text(lined.map(\.name).joined(separator: " → "))
+                                .font(Theme.label(12)).opacity(0.85).lineLimit(2).minimumScaleFactor(0.8)
+                        }
+                        Spacer(minLength: 4)
+                        Image(systemName: "play.fill").font(.system(size: 20, weight: .heavy))
+                            .frame(width: 52, height: 52)
+                            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.lime))
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(LinearGradient.freestyle))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("freestyle.startLined")
             }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(LinearGradient.freestyle))
 
             if !picks.isEmpty {
                 Text("Coach picks").eyebrow()
-                FreestylePickRow(picks: picks, height: 74, onPick: onPick)
+                FreestylePickRow(picks: picks, height: 74, lined: lined.map(\.id), onLine: line, onPick: onPick)
             }
 
             Text("By muscle").eyebrow()
@@ -66,18 +94,24 @@ struct FreestyleStartView: View {
                 Text("Lately").eyebrow()
                 VStack(spacing: 6) {
                     ForEach(recent.prefix(2), id: \.id) { e in
-                        Button { onPick(e) } label: {
-                            HStack(spacing: 10) {
-                                FreestyleThumb(exercise: e, size: 34)
-                                Text(e.name).font(Theme.label(14)).lineLimit(1)
-                                Spacer(minLength: 4)
-                                Image(systemName: "plus").font(.system(size: 14, weight: .heavy)).foregroundStyle(Theme.lime)
+                        let at = lined.firstIndex { $0.id == e.id }
+                        HStack(spacing: 10) {
+                            Button { onPick(e) } label: {
+                                HStack(spacing: 10) {
+                                    FreestyleThumb(exercise: e, size: 34)
+                                    Text(e.name).font(Theme.label(14)).lineLimit(1)
+                                    Spacer(minLength: 4)
+                                }
+                                .contentShape(Rectangle())
                             }
-                            .padding(8)
-                            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.card))
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Start \(e.name)")
+                            Button { line(e) } label: { FreestyleLineMark(position: at.map { $0 + 1 }, size: 34) }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(at == nil ? "Line up \(e.name)" : "Take \(e.name) out of the line-up")
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Add \(e.name)")
+                        .padding(8)
+                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.card))
                     }
                 }
             }
@@ -87,6 +121,14 @@ struct FreestyleStartView: View {
         .padding(.horizontal, 20)
         .padding(.top, 8)
         .readableColumn()
+    }
+
+    /// + lines an exercise up, tapped again takes it out.
+    private func line(_ e: Exercise) {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        withAnimation(.snappy) {
+            if let i = lined.firstIndex(where: { $0.id == e.id }) { lined.remove(at: i) } else { lined.append(e) }
+        }
     }
 
     private func tile(_ title: String, symbol: String, fill: LinearGradient, ink: Color = .white) -> some View {
@@ -103,19 +145,27 @@ struct FreestyleStartView: View {
     }
 }
 
-/// In Up next's place (#490 B; always since #581): the Coach's three next picks, one tap = next, and
-/// More for the whole catalog. Same height as Up next, so nothing else moves.
-struct FreestyleNextBar: View {
+/// Queue shelf in Up next's place (#795, design A): what's lined up first (outlined), then the Coach's picks to fill
+/// three tiles, and + for the whole catalog. A tap on a pick lines it up and never leaves this exercise; a lined-up
+/// one opens. Same height as Up next, so nothing else moves.
+struct FreestyleQueueBar: View {
+    let queued: [Exercise]
     let picks: [Exercise]
-    /// This exercise is done: the picks light up, as what comes next.
+    /// This exercise is done and nothing is lined up: the picks light up, as what comes next.
     var ready = false
+    let onQueued: (Int) -> Void
     let onPick: (Exercise) -> Void
     let onMore: () -> Void
 
+    private static let slots = 3
+
     var body: some View {
+        let shown = Array(queued.prefix(Self.slots))
+        let fill = Array(picks.filter { p in !queued.contains { $0.id == p.id } }.prefix(Self.slots - shown.count))
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
-                Text(ready ? "Pick next · Coach" : "Next · Coach picks").font(Theme.label(10)).tracking(1.2).textCase(.uppercase).opacity(0.85)
+                Text(queued.isEmpty ? (ready ? "Pick next · Coach" : "Line up next · Coach picks") : "Queue · \(queued.count) lined up")
+                    .font(Theme.label(10)).tracking(1.2).textCase(.uppercase).opacity(0.85).lineLimit(1)
                 Spacer(minLength: 4)
                 Button(action: onMore) {
                     Label("More", systemImage: "magnifyingglass")
@@ -125,17 +175,78 @@ struct FreestyleNextBar: View {
                         .foregroundStyle(Theme.ink)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Add another exercise")
+                .accessibilityLabel("Line up another exercise")
                 .accessibilityIdentifier("freestyle.more")
             }
-            FreestylePickRow(picks: picks, height: 44, onPick: onPick)
+            HStack(spacing: 6) {
+                ForEach(Array(shown.enumerated()), id: \.offset) { i, e in
+                    Button { onQueued(i) } label: {
+                        tile(e, detail: i == 0 ? "Next" : "\(i + 1)\(i == 1 ? "nd" : "rd")", lined: true)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(e.name), lined up \(i + 1)")
+                }
+                ForEach(fill, id: \.id) { e in
+                    Button { onPick(e) } label: { tile(e, detail: "+ Coach", lined: false) }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Line up \(e.name)")
+                }
+                Button(action: onMore) {
+                    Image(systemName: "plus").font(.system(size: 15, weight: .heavy))
+                        .foregroundStyle(Theme.lime)
+                        .frame(width: 38, height: 44)
+                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Theme.lime, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Line up an exercise from the catalog")
+            }
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 10).padding(.vertical, 7)
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Theme.cardStrong))
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Theme.lime, lineWidth: ready ? 2 : 0))
         .animation(.spring(duration: 0.3), value: ready)
+        .animation(.snappy, value: queued.map(\.id))
         .accessibilityIdentifier("freestyle.next")
+    }
+
+    private func tile(_ e: Exercise, detail: String, lined: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(e.name).font(Theme.label(11)).lineLimit(2).minimumScaleFactor(0.7).multilineTextAlignment(.leading)
+            Spacer(minLength: 0)
+            Text(detail).font(Theme.label(9)).opacity(0.9).lineLimit(1)
+        }
+        .foregroundStyle(.white)
+        .padding(7)
+        .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(e.primary.first?.group.gradient ?? WorkoutEngine.Category.strength.gradient))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white, lineWidth: lined ? 2 : 0))
+    }
+}
+
+/// + / lined-up number beside a start-screen exercise (#795).
+struct FreestyleLineMark: View {
+    /// Place in the line-up; nil = not lined up.
+    let position: Int?
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let position {
+                Text("\(position)").font(Theme.label(size > 30 ? 15 : 12)).monospacedDigit()
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: size, height: size)
+                    .background(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).fill(Theme.lime))
+            } else {
+                Image(systemName: "plus").font(.system(size: size > 30 ? 14 : 11, weight: .heavy))
+                    .foregroundStyle(Theme.lime)
+                    .frame(width: size, height: size)
+                    .background(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).fill(.black.opacity(0.28)))
+            }
+        }
+        .contentShape(Rectangle())
     }
 }
 
@@ -205,6 +316,10 @@ struct FreestyleTrail: View {
 struct FreestylePickRow: View {
     let picks: [Exercise]
     let height: CGFloat
+    /// Ids lined up on the start screen (#795), in order.
+    var lined: [String] = []
+    /// + in each tile's corner lines it up; nil = no corner button.
+    var onLine: ((Exercise) -> Void)? = nil
     let onPick: (Exercise) -> Void
 
     var body: some View {
@@ -224,7 +339,16 @@ struct FreestylePickRow: View {
                         .fill(e.primary.first?.group.gradient ?? WorkoutEngine.Category.strength.gradient))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Add \(e.name)")
+                .accessibilityLabel(onLine == nil ? "Add \(e.name)" : "Start \(e.name)")
+                .overlay(alignment: .bottomTrailing) {
+                    if let onLine {
+                        let at = lined.firstIndex(of: e.id)
+                        Button { onLine(e) } label: { FreestyleLineMark(position: at.map { $0 + 1 }, size: 26) }
+                            .buttonStyle(.plain)
+                            .padding(5)
+                            .accessibilityLabel(at == nil ? "Line up \(e.name)" : "Take \(e.name) out of the line-up")
+                    }
+                }
             }
         }
     }
