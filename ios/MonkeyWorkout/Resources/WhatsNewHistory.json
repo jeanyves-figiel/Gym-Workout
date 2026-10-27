@@ -1,6 +1,25 @@
 {
   "releases": [
     {
+      "id": "2026-10-26.3",
+      "build": 78,
+      "date": "2026-10-26",
+      "items": [
+        {
+          "symbol": "square.grid.2x2.fill",
+          "tint": "strength",
+          "title": "Tidier exercise picker",
+          "body": "Cards line up, variations sit inside each card, and the + never covers the muscle map."
+        },
+        {
+          "symbol": "arrow.up.arrow.down",
+          "tint": "power",
+          "title": "Push ≠ lower",
+          "body": "eGym-style machine? Turn on Separate push / lower weight in Setup and log both weights for each set."
+        }
+      ]
+    },
+    {
       "id": "2026-10-26.2",
       "build": 77,
       "date": "2026-10-26",

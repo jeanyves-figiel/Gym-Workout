@@ -1,17 +1,17 @@
 {
-  "id": "2026-10-26.3",
+  "id": "2026-10-27.1",
   "items": [
     {
-      "symbol": "square.grid.2x2.fill",
-      "tint": "strength",
-      "title": "Tidier exercise picker",
-      "body": "Cards line up, variations sit inside each card, and the + never covers the muscle map."
+      "symbol": "list.number",
+      "tint": "power",
+      "title": "Freestyle, in full control",
+      "body": "Line up your next exercises while you lift: Coach picks queue instead of jumping, + Set adds one more any time, and the start screen lines up several before you begin."
     },
     {
-      "symbol": "arrow.up.arrow.down",
-      "tint": "power",
-      "title": "Push ≠ lower",
-      "body": "eGym-style machine? Turn on Separate push / lower weight in Setup and log both weights for each set."
+      "symbol": "figure.strengthtraining.functional",
+      "tint": "strength",
+      "title": "More machines",
+      "body": "Seated and standing leg curl, lateral raise, incline press, seated dip and high row machines, with animations and 3D guide."
     }
   ]
 }
