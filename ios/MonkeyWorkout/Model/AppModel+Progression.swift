@@ -20,6 +20,11 @@ extension AppModel {
         LoadAdvisor.sessions(setLogs, exerciseId: exerciseId, records: state.history)
     }
 
+    /// Finish screen charts + lift report (#801): this workout against earlier ones and its own set logs.
+    func workoutReport(_ r: WorkoutRecord) -> WorkoutReport {
+        WorkoutReport.build(r, history: state.history, logs: setLogs)
+    }
+
     /// Planned item + the session it belongs to (this week's plan or an example workout).
     func plannedItem(uid: String) -> (item: PlannedExercise, sessionId: String)? {
         for s in plan?.sessions ?? [] {

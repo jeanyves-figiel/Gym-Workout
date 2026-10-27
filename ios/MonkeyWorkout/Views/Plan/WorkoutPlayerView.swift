@@ -29,6 +29,7 @@ struct WorkoutPlayerView: View {
     @State private var wins: [Win] = []
     /// Instant recap (#608 B), reworded by the on-device model when it can.
     @State private var recap: WorkoutRecap?
+    @State private var report: WorkoutReport?
     @State private var recapOnDevice = false
 
     @State private var index = 0
@@ -191,7 +192,7 @@ struct WorkoutPlayerView: View {
                 if finished {
                     SummaryView(session: session, elapsed: Date().timeIntervalSince(started), setsDone: setsDone.values.reduce(0, +),
                                 kcal: record?.kcal, healthSaved: health.connected && health.writeWorkouts, reward: reward,
-                                wins: wins, record: record, recap: recap, recapOnDevice: recapOnDevice) {
+                                wins: wins, record: record, recap: recap, recapOnDevice: recapOnDevice, report: report) {
                         dismiss()
                     }
                     .transition(.scale.combined(with: .opacity))
@@ -1351,6 +1352,7 @@ struct WorkoutPlayerView: View {
             reward = GameReward(before: before.game, after: model.game, badgesBefore: before.badges, badgesAfter: model.badges)
             if reward?.weekCleared == true { model.markChestSeen() }
             wins = model.wins(for: r)
+            report = model.workoutReport(r)
             if let base = WorkoutRecap.build(r, history: model.history) {
                 recap = base
                 Task {
@@ -1712,6 +1714,7 @@ struct WorkoutPlayerView: View {
             reward = Demo.reward
             wins = Demo.wins
             recap = Demo.recap
+            report = Demo.report
             finished = true
         }
         if demoMode == "next", let s = steps.firstIndex(where: { $0.loggable }), s < steps.count - 1 {
@@ -2125,10 +2128,13 @@ struct SummaryView: View {
     var record: WorkoutRecord?
     var recap: WorkoutRecap?
     var recapOnDevice = false
+    /// Charts + lift report (#801).
+    var report: WorkoutReport?
     let onDone: () -> Void
     @State private var pop = false
 
     private var recordId: UUID? { record?.id }
+    private var moves: Int { session.blocks.reduce(0) { $0 + $1.items.count } }
 
     var body: some View {
         ScrollView {
@@ -2145,20 +2151,29 @@ struct SummaryView: View {
                         .padding(.top, 30)
                     Text("Session\ncomplete").font(Theme.display(48)).multilineTextAlignment(.center)
                 }
-                // Wins you missed (#501): three personal wins, even on a weak day, and how you feel now.
-                if !wins.isEmpty { WinsCard(wins: wins, recordId: recordId) }
-                if let recap { RecapCard(recap: recap, onDevice: recapOnDevice) }
-                // Effort to Apple Health (#614 A).
-                if let record { EffortCard(record: record) }
                 HStack(spacing: 10) {
                     GradientStat(symbol: "stopwatch.fill", value: Format.elapsed(elapsed), label: "Time", gradient: WorkoutEngine.Category.cardio.gradient)
                     GradientStat(symbol: "square.stack.3d.up.fill", value: "\(setsDone)", label: "Sets", gradient: WorkoutEngine.Category.strength.gradient)
                     if let kcal { GradientStat(symbol: "flame.fill", value: "\(Int(kcal))", label: "kcal", gradient: WorkoutEngine.Category.warmup.gradient, ink: WorkoutEngine.Category.warmup.ink) }
-                    GradientStat(symbol: "figure.strengthtraining.traditional", value: "\(session.blocks.reduce(0) { $0 + $1.items.count })", label: "Moves", gradient: WorkoutEngine.Category.mobility.gradient)
+                    // Volume replaces Moves when weights were logged (#801).
+                    if let report, report.volumeKg > 0 {
+                        GradientStat(symbol: "scalemass.fill", value: ReportFormat.volume(report.volumeKg), label: "Volume", gradient: WorkoutEngine.Category.mobility.gradient)
+                    } else {
+                        GradientStat(symbol: "figure.strengthtraining.traditional", value: "\(moves)", label: "Moves", gradient: WorkoutEngine.Category.mobility.gradient)
+                    }
                 }
+                // Progress charts on top, then every lift vs last time (#801 B + A).
+                if let report, !report.isEmpty {
+                    ReportCharts(report: report)
+                    LiftReportList(report: report)
+                }
+                if let recap { RecapCard(recap: recap, onDevice: recapOnDevice) }
+                // Wins you missed (#501): three personal wins, even on a weak day, and how you feel now.
+                if !wins.isEmpty { WinsCard(wins: wins, recordId: recordId) }
+                // Effort to Apple Health (#614 A).
+                if let record { EffortCard(record: record) }
                 // Story poster (#745): 9:16 image for Instagram Stories and friends, with your invite code.
-                StoryShareButton(poster: .workout(title: session.title, minutes: max(1, Int(elapsed / 60)), sets: setsDone,
-                                                  moves: session.blocks.reduce(0) { $0 + $1.items.count }))
+                StoryShareButton(poster: .workout(title: session.title, minutes: max(1, Int(elapsed / 60)), sets: setsDone, moves: moves))
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Muscles hit").eyebrow()
                     BodyMapPair(heat: session.muscleHeat).frame(height: 260)
