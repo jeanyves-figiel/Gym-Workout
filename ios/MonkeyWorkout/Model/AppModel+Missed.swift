@@ -52,10 +52,12 @@ extension AppModel {
     }
 
     /// Marks a missed session done as planned: every set, the last weights used, the planned length.
-    func markMissedDone(_ s: Session) {
+    /// Returns the record, for the Undo bar (#822).
+    @discardableResult
+    func markMissedDone(_ s: Session) -> WorkoutRecord {
         var sets: [String: Int] = [:]
         for b in s.blocks { for it in b.items { sets[it.uid] = it.prescription.sets } }
-        logMissed(s, setsDone: sets, weights: [:], start: defaultStart(of: s), minutes: s.estMin)
+        return logMissed(s, setsDone: sets, weights: [:], start: defaultStart(of: s), minutes: s.estMin)
     }
 
     /// Records a missed session after the fact on its day: sets done per item, weights per exercise.

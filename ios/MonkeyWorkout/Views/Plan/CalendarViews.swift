@@ -365,9 +365,9 @@ struct AwayStrip: View {
     private func dates(_ cal: Calendar) -> String? {
         guard let a = PlanCalendar.date(period.start, cal), let b = PlanCalendar.date(period.end, cal) else { return nil }
         let short: Date.FormatStyle = .dateTime.day().month(.abbreviated)
-        if a == b { return a.formatted(short) }
-        if cal.isDate(a, equalTo: b, toGranularity: .month) { return "\(cal.component(.day, from: a))–\(b.formatted(short))" }
-        return "\(a.formatted(short)) – \(b.formatted(short))"
+        guard a < b else { return a.formatted(short) }
+        // The locale's own range, "Oct 29 – 30" / "29–30 Oct", never "29–Oct 30" (#823).
+        return (a..<b).formatted(.interval.day().month(.abbreviated))
     }
 }
 
@@ -768,10 +768,15 @@ struct AwayEditorView: View {
                     }
                     if !isNew {
                         Button(role: .destructive) {
+                            // As saved, auto-saved edits included, for the Undo bar (#822).
+                            let stored = model.away.first { $0.id == initial.id } ?? period
                             removed.done()
                             closeGuard.done()
                             onDone(nil)
                             dismiss()
+                            UndoCloseCenter.shared.deleted("\(stored.kind.label) removed", detail: undoDetail(stored.note), symbol: stored.kind.symbol) { [model] in
+                                model.saveAway(stored)
+                            }
                         } label: {
                             Text("Remove").font(Theme.label(15)).frame(maxWidth: .infinity).padding(.vertical, 12)
                         }
@@ -968,14 +973,20 @@ struct RescheduleSheet: View {
                     Label("Moved to \(d.formatted(.dateTime.weekday(.wide)))", systemImage: "checkmark.circle.fill")
                         .font(Theme.label(17)).foregroundStyle(Theme.lime)
                 case .some(.none):
-                    Label("No free day left this week. It's skipped; the plan carries on next week.", systemImage: "info.circle.fill")
+                    // A missed session that finds no free day stays where it was (#822): nothing is skipped.
+                    Label("No free day left this week, so it stays where it was. The plan carries on next week.", systemImage: "info.circle.fill")
                         .font(.subheadline.weight(.semibold)).foregroundStyle(.orange)
                 case .none:
-                    Button { result = .some(model.reschedule(sessionId: sessionId)) } label: {
-                        Label("Move to next free day", systemImage: "arrow.forward.circle.fill")
+                    if session == nil {
+                        // Its week has rolled on (#822): no dead Move button.
+                        Label("That week is over and your plan has moved on: nothing left to move.", systemImage: "info.circle.fill")
+                            .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
+                    } else {
+                        Button { result = .some(model.reschedule(sessionId: sessionId)) } label: {
+                            Label("Move to next free day", systemImage: "arrow.forward.circle.fill")
+                        }
+                        .buttonStyle(LimeButtonStyle())
                     }
-                    .buttonStyle(LimeButtonStyle())
-                    .disabled(session == nil)
                 }
                 if result == nil, session != nil {
                     NavigationLink {

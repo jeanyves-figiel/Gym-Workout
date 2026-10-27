@@ -221,7 +221,7 @@ struct HiitPlayerView: View {
         return HStack {
             Label("Heart rate", systemImage: "heart.fill").font(Theme.label(13))
             Spacer()
-            Text(bpm.map { "\($0) · Zone \(model.heartZones.zone(Double($0)))" } ?? "Open MonkeyFit on Watch")
+            Text(bpm.map { "\($0) · Zone \(model.heartZones.zone(Double($0)))" } ?? "Open the app on your Watch") // no "MonkeyFit" (#823)
                 .font(Theme.label(13)).monospacedDigit()
         }
         .padding(.horizontal, 12).frame(height: 40)

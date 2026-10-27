@@ -294,7 +294,8 @@ private struct SoundBars: View {
     }
 }
 
-/// Subtitle bubble (A) over the picture: what the coach just said, about 3.5 s. Doesn't take layout space.
+/// Subtitle bubble (A) over the picture: what the coach just said, about 3.5 s. Doesn't take layout space, and is
+/// see-through (#823) so the set values under it stay readable until it fades.
 struct CoachBubble: View {
     let call: WorkoutCoach.Call
 
@@ -306,9 +307,8 @@ struct CoachBubble: View {
         .foregroundStyle(Theme.ink)
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.lime, lineWidth: 2.5))
-        .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.62)))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.lime.opacity(0.7), lineWidth: 2))
         .frame(maxWidth: 300)
         .allowsHitTesting(false)
         .accessibilityIdentifier("player.coachBubble")

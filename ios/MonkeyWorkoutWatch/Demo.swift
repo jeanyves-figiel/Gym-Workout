@@ -70,7 +70,9 @@ enum Demo {
         @State private var ready = false
 
         var body: some View {
-            Group {
+            // A ZStack with a real child: onAppear on an empty Group never fires, so the screen stayed black (#824).
+            ZStack {
+                Color.clear
                 if ready {
                     switch screen {
                     case "boxing": TimerRunView()
@@ -112,7 +114,8 @@ enum Demo {
                 Text("80 kg · set 2 of 4").font(W.label(10)).opacity(0.85)
                 LiftPanel(lift: lift, reps: stop ? 6 : confirm ? 8 : 5, tint: 0x7B2FF7, waiting: confirm)
                 if logging {
-                    AutoLogBanner(title: "80 kg × 8", end: Date().addingTimeInterval(4.2), onUndo: {})
+                    // Still counting when CI captures ~5 s after launch; at 0 it shows Logged (#824).
+                    AutoLogBanner(title: "80 kg × 8", end: Date().addingTimeInterval(9.2), onUndo: {})
                 } else if confirm {
                     LimeButton(title: "✓ LOG 8 REPS") {}
                 } else {

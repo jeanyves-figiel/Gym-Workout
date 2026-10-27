@@ -39,6 +39,15 @@ final class WodStore {
         try? FileManager.default.removeItem(at: Self.url)
     }
 
+    /// The account's timers, kept on this device while signed out (#822).
+    func exportData() -> Data? { try? JSONEncoder().encode(timers) }
+
+    /// Brings back the timers an account had when it signed out on this device (#822).
+    func restore(_ data: Data) {
+        guard let list = try? JSONDecoder().decode([WodTimer].self, from: data) else { return }
+        write(list)
+    }
+
     private func write(_ list: [WodTimer]) {
         timers = list
         if let data = try? JSONEncoder().encode(list) {
@@ -120,6 +129,15 @@ final class SwimStore {
     func signOut() {
         saved = Saved()
         try? FileManager.default.removeItem(at: Self.url)
+    }
+
+    /// The account's swim plan and blocks, kept on this device while signed out (#822).
+    func exportData() -> Data? { try? JSONEncoder().encode(saved) }
+
+    /// Brings back the swims an account had when it signed out on this device (#822).
+    func restore(_ data: Data) {
+        guard let s = try? JSONDecoder().decode(Saved.self, from: data) else { return }
+        write(s)
     }
 
     private func write(_ s: Saved) {

@@ -275,28 +275,33 @@ struct RingsHome: View {
             min(1, Double(p.streakWeeks) / Double(max(4, p.bestStreakWeeks))),
             ready?.progress ?? 0,
         ]
+        // Rings shrink on small screens so the stats row and the XP line fit under them (#824): 156 pt on 45/46 mm, 128 on 41 mm.
+        let side = min(156, max(128, WKInterfaceDevice.current().screenBounds.height - 92))
+        let k = side / 156
         ScrollView {
-            VStack(spacing: 6) {
+            VStack(spacing: 4) {
                 ZStack {
-                    RingTrack(value: fill(values[0]), colors: [W.lime, W.color(0x3DFFB0)])
+                    RingTrack(value: fill(values[0]), colors: [W.lime, W.color(0x3DFFB0)], lineWidth: 11 * k)
                         .rotationEffect(.degrees(lap ? 360 : 0))
-                        .padding(6)
-                    RingTrack(value: fill(values[1]), colors: [W.color(0xFFC23D), W.color(0xFF3D5A)]).padding(19)
-                    RingTrack(value: fill(values[2]), colors: [W.color(0x1E9BFF), W.color(0xB23DFF)]).padding(32)
-                    center(next: next, progress: p, ready: ready).padding(41)
+                        .padding(6 * k)
+                    RingTrack(value: fill(values[1]), colors: [W.color(0xFFC23D), W.color(0xFF3D5A)], lineWidth: 11 * k).padding(19 * k)
+                    RingTrack(value: fill(values[2]), colors: [W.color(0x1E9BFF), W.color(0xB23DFF)], lineWidth: 11 * k).padding(32 * k)
+                    center(next: next, progress: p, ready: ready).padding(41 * k)
                 }
-                .frame(width: 156, height: 156)
+                .frame(width: side, height: side)
                 HStack {
                     Text("\(p.thisWeek)/\(p.target)").foregroundStyle(W.lime)
-                    Spacer()
+                    Spacer(minLength: 4)
                     Text("🔥\(p.streakWeeks)w").foregroundStyle(W.color(0xFF7A3D))
-                    Spacer()
-                    Text(ready?.word ?? "–").foregroundStyle(W.color(0x5AA8FF))
+                    Spacer(minLength: 4)
+                    // Labelled: "Push" alone read as a button (#824).
+                    Text("Readiness: \(ready?.word ?? "–")").foregroundStyle(W.color(0x5AA8FF))
                 }
                 .font(W.label(12))
+                .lineLimit(1).minimumScaleFactor(0.7)
                 .padding(.horizontal, 6)
                 // Level bar on the iPhone (#227).
-                if let g = snap.game { XPBar(game: g).padding(.top, 2) }
+                if let g = snap.game { XPBar(game: g) }
                 if next != nil {
                     Text(charge > 0 ? "Keep holding…" : "Hold to start · tap for stats")
                         .font(W.label(9)).foregroundStyle(.secondary)
@@ -334,10 +339,18 @@ struct RingsHome: View {
                 Group {
                     switch stat {
                     case 0:
-                        VStack(spacing: 0) {
-                            Text(next.map { $0.startsToday ? "HOLD TO GO" : $0.dayLabel.uppercased() } ?? "WEEK DONE").font(W.label(7)).tracking(1)
-                            Text(next?.title ?? "🏆").font(W.display(13)).lineLimit(2).minimumScaleFactor(0.6)
-                            if let next { Text("\(next.estMin)′").font(W.label(9)) }
+                        if let next, next.startsToday {
+                            // Readable hold label (#824): "HOLD TO START" at 13 pt, the workout under it.
+                            VStack(spacing: 1) {
+                                Text("HOLD TO START").font(W.display(13)).lineLimit(2).minimumScaleFactor(0.8)
+                                Text(next.title).font(W.label(10)).lineLimit(1).minimumScaleFactor(0.6)
+                            }
+                        } else {
+                            VStack(spacing: 0) {
+                                Text(next.map { $0.dayLabel.uppercased() } ?? "WEEK DONE").font(W.label(9)).tracking(1)
+                                Text(next?.title ?? "🏆").font(W.display(13)).lineLimit(2).minimumScaleFactor(0.6)
+                                if let next { Text("\(next.estMin)′").font(W.label(9)) }
+                            }
                         }
                     case 1: statText("\(p.thisWeek)/\(p.target)", "this week")
                     case 2: statText("\(p.streakWeeks)w", "streak")
@@ -410,16 +423,17 @@ struct RingsHome: View {
 private struct RingTrack: View {
     let value: Double
     let colors: [Color]
+    var lineWidth: CGFloat = 11
 
     /// Rounded squares with square ends (#541), as the iPhone's progress: tiles, not circles.
     var body: some View {
         GeometryReader { geo in
             let shape = RoundedRectangle(cornerRadius: min(geo.size.width, geo.size.height) * 0.3, style: .continuous)
             ZStack {
-                shape.stroke(colors[0].opacity(0.2), lineWidth: 11)
+                shape.stroke(colors[0].opacity(0.2), lineWidth: lineWidth)
                 shape.trim(from: 0, to: max(0.0001, value))
                     .stroke(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing),
-                            style: StrokeStyle(lineWidth: 11, lineCap: .butt))
+                            style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt))
                     .opacity(value > 0 ? 1 : 0)
             }
         }

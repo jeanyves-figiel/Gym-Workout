@@ -128,6 +128,14 @@ struct SessionView: View {
         if readOnly {
             // A later week (#758): when it's planned, nothing to start yet.
             if let wd = s.weekday { bar { PlannedDayBadge(weekday: wd) } }
+        } else if model.liveOnWatch(s) {
+            // Running on the Watch (#822): open its twin player, never start it a second time.
+            bar {
+                Button { MirroredWorkout.shared.presented = true } label: {
+                    Label("Open on iPhone ›", systemImage: "applewatch").lineLimit(1).minimumScaleFactor(0.9)
+                }
+                .buttonStyle(LimeButtonStyle())
+            }
         } else if model.startableToday(s) {
             bar {
                 Button { Haptics.start(); playing = true } label: {

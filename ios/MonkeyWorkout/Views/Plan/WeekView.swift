@@ -224,13 +224,17 @@ struct WeekView: View {
             ?? later.map { "\(WeekSchedule.shortName($0.day.weekday)) · \($0.session.displayTitle)" }
         // Today skipped with nothing else on it (#698): a rest day with Unskip.
         let todaySkipped = skippedOnly(plan, today)
+        let coach: String? = coachMerged ? coachLine : nil
         Group {
-            if pickedDay == nil, let skipped = todaySkipped {
+            if pickedDay == nil, let live = mirroredLive {
+                // On the Watch now (#822, design 1A): the card goes live, one way into the twin player, no Start.
+                WatchLiveCard(state: live, onPick: pick)
+            } else if pickedDay == nil, let skipped = todaySkipped {
                 RestDayCard(weekday: today, onPick: pick, onBack: back, onAdd: { addingDay = today; adding = true },
                             backTitle: nextTitle ?? "This week", skipped: skipped)
             } else if pickedDay == nil, opensToday {
                 if let s = daySession(plan, today) {
-                    NextUpCard(session: s, picked: today, onPick: pick, onBack: back, onSelect: select(today)) { start(s) }
+                    NextUpCard(session: s, picked: today, coachLine: coach, onPick: pick, onBack: back, onSelect: select(today)) { start(s) }
                 } else {
                     RestDayCard(weekday: today, onPick: pick, onBack: back,
                                 onAdd: { addingDay = today; adding = true }, backTitle: nextTitle)
@@ -251,7 +255,7 @@ struct WeekView: View {
             } else if let d = pickedDay {
                 RestDayCard(weekday: d, onPick: pick, onBack: back) { addingDay = d; adding = true }
             } else if let next {
-                NextUpCard(session: next, picked: nil, onPick: pick, onBack: back, onSelect: select(next.weekday)) { start(next) }
+                NextUpCard(session: next, picked: nil, coachLine: coach, onPick: pick, onBack: back, onSelect: select(next.weekday)) { start(next) }
             } else if let later = model.nextWeekSession() {
                 // This week has nothing left (#473): Next up is next week's first session, shown, not startable.
                 NextUpCard(session: later.session, later: later.day, onPick: pick, onBack: back, onSelect: select(laterDay))
@@ -423,10 +427,43 @@ struct WeekView: View {
         return "\(p.sessionsPerWeek)× · \(p.goal.config.label)"
     }
 
-    /// Coach and week cards both wide (#564, design D1): the week shows as tiles inside the Coach card. Apart while editing.
+    /// Coach and week cards both wide (#564, design D1): the week shows as tiles inside the Coach card. Apart while editing,
+    /// and when the Coach folds into Next up (#823): the week card then has its own row again.
     private var weekInCoach: Bool {
         let w = model.trainLayout.widgets
-        return !arranging && w.contains { $0.kind == .coach && $0.size != .small } && w.contains { $0.kind == .week && $0.size != .small }
+        return !arranging && !coachMerged && w.contains { $0.kind == .coach && $0.size != .small } && w.contains { $0.kind == .week && $0.size != .small }
+    }
+
+    /// Coach merges into Next up (#823, design 2C): while today's card has a workout to start, the wide Coach card
+    /// steps aside and its line sits in that card. One Start, and it stays above the tab bar on programme days too.
+    /// Rest days, other picked days and a workout on the Watch keep the Coach card.
+    private var coachMerged: Bool {
+        guard !arranging, pickedDay == nil, mirroredLive == nil,
+              model.trainLayout.widgets.contains(where: { $0.kind == .nextUp && $0.size == .large }),
+              let next = model.nextSession else { return false }
+        return model.startableToday(next)
+    }
+
+    /// The Coach's word for today, in the Next up card (#823): the readiness verdict, else the monkey's mood.
+    private var coachLine: String {
+        if let r = Readiness.assess(health.snapshot)?.0 { return r.title }
+        let target = model.gameTarget
+        let stats = Progression.stats(records: model.state.history, weights: model.weightEntries, targetPerWeek: target)
+        let mood = MonkeyFace.Mood.from(weekDone: model.weekDone(thisWeek: stats.thisWeek, target: target), readiness: nil,
+                                        streakWeeks: stats.currentStreakWeeks)
+        switch mood {
+        case .fired: return "let's crush it 💥"
+        case .sleepy: return "easy does it, quality reps"
+        case .party: return "bonus round 🏆"
+        case .happy: return "you're good to go 💪"
+        }
+    }
+
+    /// A workout running on the Watch right now (#822), as the Watch player shows it.
+    private var mirroredLive: WMirrorState? {
+        let m = MirroredWorkout.shared
+        guard m.live, let s = m.state, !s.finished else { return nil }
+        return s
     }
 
     /// One widget, in edit chrome while editing.
@@ -446,7 +483,7 @@ struct WeekView: View {
         case .coach:
             if small {
                 CoachSmallWidget()
-            } else {
+            } else if !coachMerged {
                 MonkeyCoachCard(weekFooter: weekInCoach ? AnyView(WeekTiles(plan: plan, done: model.completedCount)) : nil) { start($0) }
             }
         case .week:
@@ -460,8 +497,9 @@ struct WeekView: View {
         case .nextUp:
             if w.size == .large {
                 VStack(alignment: .leading, spacing: 18) {
-                    // Workout running on the Watch (#603): back to its twin player.
-                    if !arranging { WatchLiveBanner() }
+                    // Workout running on the Watch (#603): back to its twin player. Today's card is the live card itself
+                    // (#822), so the banner only shows over another picked day.
+                    if !arranging, pickedDay != nil { WatchLiveBanner() }
                     nextUpCard(plan)
                     // One slot for the cards that only show for a while (#538): Start workout never moves down for them.
                     if !arranging { TrainNoticeSlot() }
@@ -932,6 +970,8 @@ private struct NextUpCard: View {
     var picked: Int? = nil
     /// Day of a later week (#473): its session is shown (opens the calendar day sheet), not started.
     var later: DaySelection? = nil
+    /// The Coach's line when its card folded in here (#823, design 2C); nil = the Coach card shows its own.
+    var coachLine: String? = nil
     var onPick: (Int) -> Void = { _ in }
     var onBack: () -> Void = {}
     /// Shows another workout of the same day (#758, the day line).
@@ -1134,6 +1174,11 @@ private struct NextUpCard: View {
                             .lineLimit(1).fixedSize()
                             .padding(.horizontal, 8).padding(.vertical, 4)
                             .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.ink.opacity(0.85)))
+                    }
+                    if let coachLine, isToday, !done {
+                        // The Coach card's line, folded in (#823): one Start on Train.
+                        Text("Coach: \(coachLine)").font(Theme.label(13)).foregroundStyle(Theme.lime)
+                            .lineLimit(1).minimumScaleFactor(0.8)
                     }
                     if !compact {
                         // As many of the top muscles as fit on one line.
@@ -2220,7 +2265,8 @@ private struct TrainNoticeSlot: View {
                 card(cards[i])
                     .id(cards[i])
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
-                footer(cards, current: i)
+                // A card with its own ✕ gets no second one here (#823): only the bars, when there are more cards.
+                if cards.count > 1 || !Self.ownClose.contains(cards[i]) { footer(cards, current: i) }
             }
             .simultaneousGesture(
                 DragGesture(minimumDistance: 24).onEnded { v in
@@ -2276,15 +2322,20 @@ private struct TrainNoticeSlot: View {
             } else {
                 Spacer(minLength: 0)
             }
-            Button { dismiss(cards[i]) } label: {
-                Image(systemName: "xmark").font(.system(size: 13, weight: .heavy)).foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(Color.white.opacity(0.1)))
+            if !Self.ownClose.contains(cards[i]) {
+                Button { dismiss(cards[i]) } label: {
+                    Image(systemName: "xmark").font(.system(size: 13, weight: .heavy)).foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(Color.white.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss \(title(cards[i]))")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Dismiss \(title(cards[i]))")
         }
     }
+
+    /// Cards that carry their own ✕ (#823): Variation undo, the block review and What Monkey noticed.
+    private static let ownClose: Set<Kind> = [.variation, .block, .noticed]
 
     private func title(_ k: Kind) -> String {
         switch k {
@@ -2353,10 +2404,70 @@ extension AppModel {
     /// Only today's session can be played (#537): a planned session on its own day (or unscheduled) and not done yet;
     /// a library or freestyle workout any day; a workout in progress always resumes.
     func startableToday(_ s: Session) -> Bool {
+        // Running on the Watch (#822): opened on the iPhone as its twin player, never started a second time.
+        if liveOnWatch(s) { return false }
         if activeWorkout(s.id) != nil { return true }
         guard let planned = plan?.sessions.first(where: { $0.id == s.id }) else { return true }
         if state.done[planned.id] ?? false { return false }
         return planned.weekday.map { $0 == todayWeekday } ?? true
+    }
+}
+
+extension AppModel {
+    /// The Watch runs `s` right now (#822): its twin player opens it on the iPhone.
+    func liveOnWatch(_ s: Session) -> Bool {
+        let m = MirroredWorkout.shared
+        return m.live && m.state?.finished != true && m.state?.sessionId == s.id
+    }
+}
+
+/// Today's card while a workout runs on the Watch (#822, design 1A from `full-app-audit-3/mockups/proposals-1.png`):
+/// the Watch's red to orange, minutes running, the exercise and set, and one lime "Open on iPhone" into the twin player.
+private struct WatchLiveCard: View {
+    let state: WMirrorState
+    var onPick: (Int) -> Void = { _ in }
+
+    var body: some View {
+        let start = WatchLiveClock.start(state.sessionId)
+        VStack(alignment: .leading, spacing: 10) {
+            WeekDayStrip(selected: nil, onPick: onPick)
+            TimelineView(.periodic(from: .now, by: 30)) { ctx in
+                let minutes = max(0, Int(ctx.date.timeIntervalSince(start) / 60))
+                Text("Live on Watch · \(minutes)′" + (MirroredWorkout.shared.heartRate.map { " · ♥ \($0)" } ?? ""))
+                    .font(Theme.label(12)).tracking(1.4).textCase(.uppercase).foregroundStyle(.white.opacity(0.9))
+                    .lineLimit(1).minimumScaleFactor(0.8)
+            }
+            Text(state.title).font(Theme.display(30)).foregroundStyle(.white)
+                .lineLimit(2).minimumScaleFactor(0.8).fixedSize(horizontal: false, vertical: true)
+            if !state.exercise.isEmpty {
+                Text(state.setLabel.isEmpty ? state.exercise : "\(state.exercise) · \(state.setLabel.lowercased())")
+                    .font(Theme.label(15)).foregroundStyle(.white.opacity(0.9)).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            Button { MirroredWorkout.shared.presented = true } label: {
+                Label("Open on iPhone ›", systemImage: "applewatch").lineLimit(1).minimumScaleFactor(0.9)
+            }
+            .buttonStyle(LimeButtonStyle())
+            .accessibilityHint("Opens the workout running on your Watch")
+        }
+        .padding(16)
+        .background {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(LinearGradient(colors: [Color(hex: 0xFF3D5A), Color(hex: 0xFF8A3D)], startPoint: .topLeading, endPoint: .bottomTrailing))
+        }
+        .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Color.white.opacity(0.15)))
+    }
+}
+
+/// When this iPhone first saw each Watch workout (#822): the mirrored state carries no start, so the live card counts
+/// from here (a relaunch mid-workout starts the count again).
+@MainActor private enum WatchLiveClock {
+    static var seen: [String: Date] = [:]
+
+    static func start(_ id: String) -> Date {
+        if let d = seen[id] { return d }
+        let d = Date()
+        seen[id] = d
+        return d
     }
 }
 

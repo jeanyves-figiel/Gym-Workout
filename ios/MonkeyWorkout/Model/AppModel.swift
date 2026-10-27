@@ -257,12 +257,16 @@ final class AppModel {
     /// Call after any successful sign-in / verification.
     func didAuthenticate(_ user: User) async {
         if state.ownerId != user.id {
+            // Another account was still on this device (session expired): its device-only data is kept for it (#822).
+            if let previous = state.ownerId { keepDeviceOnlyData(previous) }
             store.wipe()
             state = LocalState()
             state.ownerId = user.id
             accountEpoch += 1
             // The previous account's set history, Fuel, Move, Pro, Health cache, prefs and keys.
             wipeAccountLocalData()
+            // This account's on-device-only data, kept when it signed out here (#822).
+            restoreDeviceOnlyData(user.id)
         }
         self.user = user
         phase = .signedIn
@@ -273,25 +277,27 @@ final class AppModel {
         await ProStore.shared.start(api: api, userId: user.id)
     }
 
-    /// Explicit sign-out: revoke this device and wipe local data.
+    /// Explicit sign-out: revoke this device and wipe local data; the device-only data waits for this account (#822).
     func signOut() async {
         await flushPendingSync()
         await NotificationManager.shared.signOut(api: api)
         await api.logout()
-        resetLocal()
+        resetLocal(keepDeviceOnly: true)
     }
 
     func signOutEverywhere() async throws {
         await flushPendingSync()
         await NotificationManager.shared.signOut(api: api)
         try await api.logoutAllDevices()
-        resetLocal()
+        resetLocal(keepDeviceOnly: true)
     }
 
     /// Caller confirms it's the member first (`ReauthGate`, #257).
     func deleteAccount() async throws {
         try await api.deleteAccount()
         await NotificationManager.shared.signOut(api: api)
+        // Gone for good (#822): nothing kept on this device either.
+        if let id = user?.id ?? state.ownerId { try? FileManager.default.removeItem(at: Self.deviceOnlyFolder(id)) }
         resetLocal()
     }
 
@@ -307,7 +313,10 @@ final class AppModel {
         FileManager.default.temporaryDirectory.appendingPathComponent("gym-workout-export.json")
     }
 
-    private func resetLocal() {
+    /// `keepDeviceOnly`: a sign-out keeps the account's data that never reaches the server (Fuel, WOD timers, swims,
+    /// saved HIITs) in its own folder on this device, back when it signs in here again (#822).
+    private func resetLocal(keepDeviceOnly: Bool = false) {
+        if keepDeviceOnly, let id = user?.id ?? state.ownerId { keepDeviceOnlyData(id) }
         stopAutoSync()
         store.wipe()
         state = LocalState()
@@ -317,6 +326,47 @@ final class AppModel {
         wipeAccountLocalData()
         // Signed-out snapshots for the Watch and the Home Screen widgets (WatchSync.push refreshes both).
         WatchSync.shared.push()
+    }
+
+    /// Per-account folder for the data that only lives on this device (#822).
+    private static func deviceOnlyFolder(_ userId: String) -> URL {
+        let safe = userId.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "account"
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("signed-out", isDirectory: true).appendingPathComponent(safe, isDirectory: true)
+    }
+
+    private static let deviceOnlyFiles = (fuel: "fuel.json", wod: "wod-timers.json", swim: "swim.json", hiit: "hiits.txt")
+
+    /// Sign-out (#822): Fuel, WOD timers, swims and saved HIITs are copied aside before the wipe, so signing back in
+    /// doesn't lose them; another account never sees them.
+    private func keepDeviceOnlyData(_ userId: String) {
+        guard !demo else { return }
+        let dir = Self.deviceOnlyFolder(userId)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        func put(_ data: Data?, _ name: String) {
+            guard let data else { return }
+            try? data.write(to: dir.appendingPathComponent(name), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        }
+        let f = Self.deviceOnlyFiles
+        put(FuelStore.shared.exportData(), f.fuel)
+        put(WodStore.shared.exportData(), f.wod)
+        put(SwimStore.shared.exportData(), f.swim)
+        put(UserDefaults.standard.string(forKey: HiitPrefs.savedKey).map { Data($0.utf8) }, f.hiit)
+    }
+
+    /// Signed back in on this device (#822): what `keepDeviceOnlyData` kept comes back, then the copy is removed.
+    private func restoreDeviceOnlyData(_ userId: String) {
+        let dir = Self.deviceOnlyFolder(userId)
+        guard FileManager.default.fileExists(atPath: dir.path) else { return }
+        func get(_ name: String) -> Data? { try? Data(contentsOf: dir.appendingPathComponent(name)) }
+        let f = Self.deviceOnlyFiles
+        if let d = get(f.fuel) { FuelStore.shared.restore(d) }
+        if let d = get(f.wod) { WodStore.shared.restore(d) }
+        if let d = get(f.swim) { SwimStore.shared.restore(d) }
+        if let d = get(f.hiit), let raw = String(data: d, encoding: .utf8), !raw.isEmpty {
+            UserDefaults.standard.set(raw, forKey: HiitPrefs.savedKey)
+        }
+        try? FileManager.default.removeItem(at: dir)
     }
 
     /// The account's data kept outside state.json on this device: wiped on sign-out and when another account signs in.

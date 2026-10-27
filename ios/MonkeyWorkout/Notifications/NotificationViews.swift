@@ -306,17 +306,28 @@ struct MissedSessionSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var training = false
     @State private var calendar = false
+    /// Move it found no free day left this week (#822).
+    @State private var noFreeDay = false
 
     private var session: Session? { model.session(sessionId) }
 
     private func moveNow() {
         let before = Set(model.away.map(\.id))
+        let title = session?.displayTitle ?? ""
+        let from = session?.weekday
         let moved = model.reschedule(sessionId: sessionId)
         let added = model.away.filter { !before.contains($0.id) }.map(\.id)
+        // Nothing changed (#822): say so here, never a toast claiming a move or a skip.
+        guard moved != nil || !added.isEmpty else {
+            withAnimation { noFreeDay = true }
+            return
+        }
         dismiss()
-        let title = moved.map { "Moved to \($0.formatted(.dateTime.weekday(.wide)))" } ?? "No free day left: skipped"
-        UndoCloseCenter.shared.deleted(title, detail: session?.title ?? "", symbol: "arrow.uturn.forward") { [model] in
+        let toast = moved.map { "Moved to \($0.formatted(.dateTime.weekday(.wide)))" } ?? "No free day left: skipped"
+        UndoCloseCenter.shared.deleted(toast, detail: title, symbol: "arrow.uturn.forward") { [model, sessionId] in
             for id in added { model.deleteAway(id) }
+            // A missed day moves without a day off (#822): Undo puts it back on its day.
+            if added.isEmpty, let from { model.moveSession(sessionId, to: from, swap: false) }
         }
     }
 
@@ -327,25 +338,36 @@ struct MissedSessionSheet: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Missed \(day.formatted(.dateTime.weekday(.wide)))").font(Theme.label(12)).tracking(1.6)
                             .foregroundStyle(Theme.muted).textCase(.uppercase)
-                        Text(session?.title ?? "Your session").font(Theme.display(34))
-                        Text("No stress. Train today or move it to a free day.").font(.body.weight(.medium)).foregroundStyle(Theme.muted)
+                        // Same name as Train and the missed card, "Lower body", not "Day 2 · Lower body" (#823).
+                        Text(session?.displayTitle ?? "Your session").font(Theme.display(34))
+                        // A week that has rolled on (#822): the session left the plan, so no dead Train / Move buttons.
+                        Text(session == nil ? "That week is over and your plan has moved on. See what's coming in the calendar."
+                             : "No stress. Train today or move it to a free day.")
+                            .font(.body.weight(.medium)).foregroundStyle(Theme.muted)
                     }
                     .padding(.bottom, 4)
 
-                    Button { training = true } label: {
-                        DayCard(symbol: "bolt.fill", title: "Train now", detail: session.map { "\($0.estMin) min" } ?? "",
-                                big: "GO", gradient: NotifyStyle.today)
-                    }
-                    .buttonStyle(.plain)
-                    // Done meanwhile (an old notification, #817): training it again would record a second workout.
-                    .disabled(session == nil || model.doneIds.contains(sessionId))
+                    if session != nil {
+                        Button { training = true } label: {
+                            DayCard(symbol: "bolt.fill", title: "Train now", detail: session.map { "\($0.estMin) min" } ?? "",
+                                    big: "GO", gradient: NotifyStyle.today)
+                        }
+                        .buttonStyle(.plain)
+                        // Done meanwhile (an old notification, #817): training it again would record a second workout.
+                        .disabled(session == nil || model.doneIds.contains(sessionId))
 
-                    // One tap moves it, as the card says; the Undo bar puts it back (#285).
-                    Button(action: moveNow) {
-                        DayCard(symbol: "arrow.uturn.forward", title: "Move it", detail: "Next free day this week",
-                                big: "→", gradient: NotifyStyle.missed)
+                        // One tap moves it, as the card says; the Undo bar puts it back (#285).
+                        Button(action: moveNow) {
+                            DayCard(symbol: "arrow.uturn.forward", title: "Move it", detail: "Next free day this week",
+                                    big: "→", gradient: NotifyStyle.missed)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(noFreeDay)
+                        if noFreeDay {
+                            Text("No free day left this week, so it stays where it was. Pick a day in the calendar, or let it go.")
+                                .font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted)
+                        }
                     }
-                    .buttonStyle(.plain)
 
                     Button { calendar = true } label: {
                         DayCard(symbol: "calendar", title: "Open calendar", detail: "See the coming weeks, mark days off",
@@ -358,9 +380,8 @@ struct MissedSessionSheet: View {
             }
             .readableWidth()
             .background(Theme.bg.ignoresSafeArea())
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Skip") { dismiss() } }
-            }
+            // X top right as everywhere (#822): "Skip" read as skipping the session, but only closed.
+            .toolbar { CloseToolbarItem { dismiss() } }
             .fullScreenCover(isPresented: $training, onDismiss: { dismiss() }) {
                 WorkoutPlayerView(sessionId: sessionId)
             }

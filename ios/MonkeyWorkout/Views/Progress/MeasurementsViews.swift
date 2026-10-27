@@ -317,7 +317,8 @@ struct MeasurementLogSheet: View {
                         }
                     }
 
-                    if health.connected {
+                    // Only a new entry goes to Health (#822): editing one never did, so no toggle there.
+                    if health.connected && isNew {
                         Toggle(isOn: $toHealth) {
                             Text("Also save weight, body fat & waist to Health").font(.body.weight(.semibold))
                         }

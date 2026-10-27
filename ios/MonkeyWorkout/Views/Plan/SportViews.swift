@@ -729,7 +729,9 @@ struct SportTile: View {
         Button(action: action) {
             VStack(spacing: 6) {
                 Image(systemName: sport.symbol).font(.system(size: 24, weight: .bold)).frame(height: 28)
-                Text(sport.short).font(Theme.label(12)).lineLimit(1).minimumScaleFactor(0.7)
+                // Inset so a long name ("Snowboard") scales inside the tile and its border, never past it (#823).
+                Text(sport.short).font(Theme.label(12)).lineLimit(1).minimumScaleFactor(0.6)
+                    .padding(.horizontal, 5)
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, minHeight: 74)

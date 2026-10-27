@@ -61,7 +61,9 @@ struct WaterSheet: View {
         let now = Calendar.current.isDateInToday(day) ? Self.minuteNow() : -1
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("TODAY'S PACE").font(Theme.label(10)).tracking(1.2).opacity(0.85)
+                // The day it's opened for (#822), not always "today".
+                Text(Calendar.current.isDateInToday(day) ? "TODAY'S PACE" : "PACE · \(day.formatted(.dateTime.weekday(.abbreviated).day()).uppercased())")
+                    .font(Theme.label(10)).tracking(1.2).opacity(0.85)
                 Spacer()
                 Text("\(store.log(day).glasses)/\(plan.glasses) · \(store.prefs.litres(plan.waterMl))").font(Theme.label(13)).monospacedDigit()
             }

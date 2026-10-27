@@ -49,6 +49,11 @@ struct VerifyEmailView: View {
             do {
                 try await model.api.resendVerification(email: email)
                 resent = true
+                // Resend works again after 30 s (#822): one lost email no longer means a dead end.
+                Task {
+                    try? await Task.sleep(for: .seconds(30))
+                    resent = false
+                }
             } catch {
                 resendError = error.localizedDescription
             }

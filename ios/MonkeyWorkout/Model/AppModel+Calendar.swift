@@ -144,8 +144,9 @@ extension AppModel {
         Task { await sync() }
     }
 
-    /// Moves a session of this week to the next free day by marking its day as "can't train"
-    /// (today when the session has no weekday). Returns the session's new date, nil if it no longer fits.
+    /// Moves a session of this week to the next free day: a missed one with a plain move (#822), a later one by marking
+    /// its day as "can't train" (today when the session has no weekday). Returns the session's new date, nil if it no
+    /// longer fits (a missed one then stays where it was).
     @discardableResult
     func reschedule(sessionId: String, now: Date = Date()) -> Date? {
         let cal = planCalendar
@@ -153,9 +154,19 @@ extension AppModel {
         let today = WeekSchedule.fromCalendar(cal.component(.weekday, from: now))
         guard let session = plan?.sessions.first(where: { $0.id == sessionId }) else { return nil }
         let weekday = session.weekday ?? today
+        // A missed earlier day (#822): moved to the next free day from today, not saved as a "can't train" day.
+        // Nil = nothing changed (no free day left).
+        if weekday < today {
+            let busy = Set((calendarWeeks(count: 1, now: now).first?.plan.sessions ?? []).filter { $0.id != sessionId }.compactMap(\.weekday))
+            guard let free = moveTargets(sessionId, now: now).first(where: { !busy.contains($0) }) else { return nil }
+            state.skipped?[sessionId] = nil
+            moveSession(sessionId, to: free, swap: false, now: now)
+            guard let moved = plan?.sessions.first(where: { $0.id == sessionId })?.weekday, moved != weekday else { return nil }
+            return cal.date(byAdding: .day, value: moved - 1, to: monday)
+        }
         let key = PlanCalendar.dayKeys(weekStart: monday, cal)[weekday - 1]
         if !away.contains(where: { $0.kind == .off && $0.covers(key) }) {
-            saveAway(AwayPeriod(kind: .off, start: key, end: key, note: weekday < today ? "Missed" : "Moved"))
+            saveAway(AwayPeriod(kind: .off, start: key, end: key, note: "Moved"))
         }
         guard let moved = plan?.sessions.first(where: { $0.id == sessionId })?.weekday else { return nil }
         return cal.date(byAdding: .day, value: moved - 1, to: monday)

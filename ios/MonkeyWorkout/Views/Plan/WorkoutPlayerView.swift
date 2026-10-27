@@ -189,10 +189,12 @@ struct WorkoutPlayerView: View {
             Theme.bg.ignoresSafeArea()
             if let session {
                 if finished {
-                    SummaryView(session: session, elapsed: Date().timeIntervalSince(started), setsDone: setsDone.values.reduce(0, +),
+                    // The recorded duration once saved (#822): the clock doesn't keep running on the summary.
+                    SummaryView(session: session, elapsed: record.map { TimeInterval($0.durationSec) } ?? Date().timeIntervalSince(started),
+                                setsDone: setsDone.values.reduce(0, +),
                                 kcal: record?.kcal, healthSaved: health.connected && health.writeWorkouts, reward: reward,
                                 wins: wins, record: record, recap: recap, recapOnDevice: recapOnDevice, report: report) {
-                        dismiss()
+                        doneWithUndo()
                     }
                     .transition(.scale.combined(with: .opacity))
                 } else if ready, steps.indices.contains(index) {
@@ -1377,6 +1379,17 @@ struct WorkoutPlayerView: View {
         WatchSync.shared.endLive(.finished, sessionId: sessionId, record: record)
         pause = nil
         finished = true
+    }
+
+    /// DONE on the summary (#822): closes with "Workout saved" and Undo, which takes a mis-tapped FINISH back off the
+    /// history so the workout can be done again.
+    private func doneWithUndo() {
+        dismiss()
+        guard let r = record else { return }
+        UndoCloseCenter.shared.show(UndoOffer(
+            title: "Workout saved", detail: undoDetail(r.title, "\(max(1, r.durationSec / 60))′"), symbol: "checkmark.circle.fill",
+            colors: [Color(hex: 0x2FD27A), Color(hex: 0x1E9E8F)], reopen: { AnyView(EmptyView()) },
+            revert: { [model] in _ = model.undoWorkout(r.id) }))
     }
 
     /// X (#538): closes at once and keeps the workout paused to resume; the Undo bar on Train reopens it.

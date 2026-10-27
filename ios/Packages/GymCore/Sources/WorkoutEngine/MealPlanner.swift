@@ -244,7 +244,7 @@ public enum MealPlanner {
 
     /// Plain text to share (Notes, Reminders, Messages).
     public static func shareText(_ items: [GroceryItem]) -> String {
-        var lines = ["🛒 MonkeyFit groceries"]
+        var lines = ["🛒 MonkeyWorkout groceries"]
         for a in aisles {
             let group = items.filter { $0.aisle == a.id }
             guard !group.isEmpty else { continue }

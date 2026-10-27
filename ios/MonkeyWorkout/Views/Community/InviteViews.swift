@@ -53,7 +53,7 @@ struct InviteView: View {
     }
 
     private var code: String { store.code ?? "·······" }
-    private var link: URL? { store.summary.flatMap { model.api.resolve($0.path) } }
+    private var link: URL? { store.summary.flatMap { AppConfig.publicLink($0.path) } } // public web base, never localhost (#823)
     private var message: String {
         "Train with me on MonkeyWorkout 🐵 Use my code \(code)" + (link.map { ": \($0.absoluteString)" } ?? "")
     }
@@ -73,7 +73,9 @@ struct InviteView: View {
                     Text("JOINED").font(Theme.label(9)).tracking(1.2).opacity(0.85)
                 }
             }
-            Text("Friends who join with your code unlock XP and app icons for you. When one subscribes, you both get a month of Pro.")
+            // No Pro promise while Pro isn't on (#822).
+            Text("Friends who join with your code unlock XP and app icons for you."
+                 + (ProStore.shared.visible ? " When one subscribes, you both get a month of Pro." : ""))
                 .font(.footnote.weight(.semibold)).opacity(0.92)
             Button { copy() } label: {
                 HStack {

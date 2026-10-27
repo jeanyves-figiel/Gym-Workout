@@ -122,8 +122,8 @@ private struct HiitSavedRow: View {
             }
             Spacer(minLength: 4)
             HStack(alignment: .firstTextBaseline, spacing: 1) {
-                Text("\(spec.minutes)").font(Theme.display(26))
-                Text("′").font(Theme.label(13))
+                // ′ in the number's own font: a small label-font ′ read as a clipped comma, "10," (#823).
+                Text("\(spec.minutes)′").font(Theme.display(26))
             }
         }
         .foregroundStyle(.white)
@@ -166,8 +166,8 @@ struct HiitBuilderSheet: View {
                         }
                         Spacer()
                         HStack(alignment: .firstTextBaseline, spacing: 1) {
-                            Text("\(w.minutes)").font(Theme.display(34))
-                            Text("′").font(Theme.label(15))
+                            // ′ in the number's own font: a small label-font ′ read as a clipped comma, "10," (#823).
+                            Text("\(w.minutes)′").font(Theme.display(34))
                         }
                     }
                     .foregroundStyle(.white)

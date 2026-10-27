@@ -52,16 +52,45 @@ struct PlanSportSheet: View {
     @State private var name: String
     /// Removed: nothing left to auto save.
     @State private var removed = false
+    @State private var closeGuard = CloseGuard()
+    /// A new sport day as it opened, to tell whether anything was entered (#822).
+    private let baseline: Draft
 
-    init(day: String, editing: SportTrip? = nil, sport: Sport? = nil) {
+    /// What's entered on a new sport day, kept for Undo when it's closed without planning (#822).
+    struct Draft: Equatable {
+        var sport: Sport
+        var mode: Mode
+        var until: Date
+        var name: String
+    }
+
+    /// `restoring`: brought back by Undo (#822).
+    init(day: String, editing: SportTrip? = nil, sport: Sport? = nil, restoring: Draft? = nil) {
         self.day = editing?.start ?? day
         self.editing = editing
         let cal = Progression.calendar()
         let start = PlanCalendar.date(editing?.start ?? day, cal) ?? Date()
-        _sport = State(initialValue: editing?.sport ?? sport ?? .snowboard)
-        _mode = State(initialValue: editing.map { $0.isTrip ? .trip : .once } ?? .once)
-        _until = State(initialValue: editing.flatMap { PlanCalendar.date($0.end, cal) } ?? cal.date(byAdding: .day, value: 6, to: start) ?? start)
-        _name = State(initialValue: editing?.name ?? "")
+        let opened = Draft(sport: editing?.sport ?? sport ?? .snowboard,
+                           mode: editing.map { $0.isTrip ? .trip : .once } ?? .once,
+                           until: editing.flatMap { PlanCalendar.date($0.end, cal) } ?? cal.date(byAdding: .day, value: 6, to: start) ?? start,
+                           name: editing?.name ?? "")
+        baseline = opened
+        let shown = restoring ?? opened
+        _sport = State(initialValue: shown.sport)
+        _mode = State(initialValue: shown.mode)
+        _until = State(initialValue: shown.until)
+        _name = State(initialValue: shown.name)
+    }
+
+    /// Undo bar when a new sport day is closed with something entered (#822), as the Away editor does.
+    private var undoOffer: UndoOffer? {
+        guard editing == nil else { return nil }
+        let kept = Draft(sport: sport, mode: mode, until: until, name: name)
+        guard kept != baseline else { return nil }
+        let day = self.day
+        return UndoOffer(title: "Sport day closed", detail: undoDetail(sport.label, mode.rawValue, name), symbol: sport.symbol) {
+            AnyView(PlanSportSheet(day: day, restoring: kept))
+        }
     }
 
     private var cal: Calendar { model.planCalendar }
@@ -107,6 +136,7 @@ struct PlanSportSheet: View {
                       save: { [model] t in model.saveSportTrip(t) })
         }
         .preferredColorScheme(.dark)
+        .undoableClose(closeGuard, offer: undoOffer)
     }
 
     /// The sport's colours hold what is planned.
@@ -174,6 +204,7 @@ struct PlanSportSheet: View {
         case .weekly: model.addWeeklySportDay(sport, weekday: weekday)
         case .once, .trip: model.saveSportTrip(trip)
         }
+        closeGuard.done()
         dismiss()
     }
 

@@ -232,7 +232,9 @@ struct FuelSetupView: View {
                 }
                 section("🎯", "Goal", FuelPalette.coach) {
                     VStack(spacing: 6) {
-                        choice("From my training (\(FuelGoal.from(model.profile?.goal ?? .balanced).label.lowercased()))", on: prefs.goal == nil) { prefs.goal = nil }
+                        // Lower-case the first letter only: "stay as I am", never "stay as i am" (#823).
+                        let goal = FuelGoal.from(model.profile?.goal ?? .balanced).label
+                        choice("From my training (\(goal.prefix(1).lowercased() + String(goal.dropFirst())))", on: prefs.goal == nil) { prefs.goal = nil }
                         ForEach(FuelGoal.allCases) { g in
                             choice(g.label, detail: g.detail, on: prefs.goal == g) { prefs.goal = g }
                         }

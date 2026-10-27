@@ -236,7 +236,19 @@ struct NextUpCompactWidget: View {
 
     /// Start for today's session only (#537); a later day shows its day instead.
     @ViewBuilder private func startButton(_ s: Session) -> some View {
-        if !model.startableToday(s), let wd = s.weekday {
+        if model.liveOnWatch(s) {
+            // Running on the Watch (#822): its twin player, never a second Start.
+            Button { MirroredWorkout.shared.presented = true } label: {
+                Label("Open", systemImage: "applewatch")
+                    .font(Theme.label(14))
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .frame(maxWidth: wide ? nil : .infinity)
+                    .background(Capsule().fill(Theme.lime))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open on iPhone")
+        } else if !model.startableToday(s), let wd = s.weekday {
             PlannedDayBadge(weekday: wd, compact: true)
                 .frame(maxWidth: wide ? nil : .infinity)
         } else {

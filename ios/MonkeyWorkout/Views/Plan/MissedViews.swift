@@ -14,9 +14,41 @@ struct MissedActionsRow: View {
     var body: some View {
         HStack(spacing: 6) {
             action("Log it", "square.and.pencil", fill: primary, ink: primaryInk, onLog)
-            action("Mark done", "checkmark") { withAnimation { model.markMissedDone(session) } }
-            action("Do today", "arrow.uturn.forward") { withAnimation { model.doMissedToday(session.id) } }
-            action("Skip", "nosign") { withAnimation { model.skipMissed(session.id) } }
+            action("Mark done", "checkmark") { markDone() }
+            action("Do today", "arrow.uturn.forward") { doToday() }
+            action("Skip", "nosign") { skip() }
+        }
+    }
+
+    // Each one at once with the Undo bar (#822), as Skip and Remove elsewhere.
+
+    private func markDone() {
+        let s = session
+        let r = withAnimation { model.markMissedDone(s) }
+        UndoCloseCenter.shared.deleted("\(s.displayTitle) done", detail: "Logged on \(s.dayLabel)", symbol: "checkmark") { [model] in
+            withAnimation { _ = model.undoWorkout(r.id) }
+        }
+    }
+
+    private func doToday() {
+        let s = session
+        let wasSkipped = model.skippedIds.contains(s.id)
+        withAnimation { model.doMissedToday(s.id) }
+        guard let from = s.weekday else { return }
+        UndoCloseCenter.shared.deleted("\(s.displayTitle) moved to today", detail: "Back to \(WeekSchedule.name(from)) on Undo",
+                                       symbol: "arrow.uturn.forward") { [model] in
+            withAnimation {
+                model.moveSession(s.id, to: from, swap: false)
+                if wasSkipped { model.skipMissed(s.id) }
+            }
+        }
+    }
+
+    private func skip() {
+        let s = session
+        withAnimation { model.skipMissed(s.id) }
+        UndoCloseCenter.shared.deleted("\(s.displayTitle) skipped", detail: "It stops asking", symbol: "nosign") { [model] in
+            withAnimation { model.unskip(s.id) }
         }
     }
 
@@ -285,7 +317,7 @@ struct WeekDayStrip: View {
             if !swaps.isEmpty {
                 Menu("Swap with…", systemImage: "arrow.up.arrow.down") {
                     ForEach(swaps, id: \.id) { o in
-                        Button("\(o.displayTitle) · \(o.weekday.map(WeekSchedule.name) ?? "")") { model.swapDays(s, with: o) }
+                        Button("\(o.displayTitle) · \(o.weekday.map(WeekSchedule.name) ?? "")") { swapWithUndo(model, s, with: o) }
                     }
                 }
             }
@@ -577,6 +609,18 @@ struct MissedCatchUpSheet: View {
         }
         .onChange(of: missed.map(\.id)) { _, ids in if ids.isEmpty && logging == nil { dismiss() } }
     }
+}
+
+/// Swap with… from the strip's long press (#822): swapped at once, the Undo bar swaps back (as Focus' swap does).
+@MainActor func swapWithUndo(_ model: AppModel, _ s: Session, with other: Session) {
+    guard let day = s.weekday, let otherDay = other.weekday else { return }
+    withAnimation { model.swapDays(s, with: other) }
+    let otherId = other.id
+    UndoCloseCenter.shared.show(UndoOffer(
+        title: "\(other.displayTitle) on \(WeekSchedule.shortName(day))",
+        detail: "\(s.displayTitle) moved to \(WeekSchedule.shortName(otherDay))",
+        symbol: "arrow.up.arrow.down", colors: other.focus.palette.colors, reopen: { AnyView(EmptyView()) },
+        revert: { [model] in withAnimation { model.moveSession(otherId, to: otherDay) } }))
 }
 
 /// Skips a session of today or later this week (#643): at once, with the Undo bar (no confirmation, #285).

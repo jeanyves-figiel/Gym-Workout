@@ -484,8 +484,10 @@ struct TwoStepView: View {
             VStack(alignment: .leading, spacing: 8) {
                 if let url = URL(string: s.otpauthUrl) {
                     Link(destination: url) {
-                        Label("Open in authenticator", systemImage: "arrow.up.forward.app.fill")
+                        // Shorter and one line that scales (#823): "Open in authenticat…" ran past the card.
+                        Label("Open authenticator", systemImage: "arrow.up.forward.app.fill")
                             .font(Theme.label(13)).foregroundStyle(Theme.ink)
+                            .lineLimit(1).minimumScaleFactor(0.7)
                             .padding(.horizontal, 12).padding(.vertical, 10)
                             .background(Capsule().fill(Theme.lime))
                     }

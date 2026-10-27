@@ -499,7 +499,8 @@ struct NoticedBar: View {
                         .frame(width: 32, height: 32)
                         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.22)))
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(insights.count == 1 ? "Monkey noticed 1 thing" : "Monkey noticed \(insights.count) things")
+                        // One insight: no "1 thing" over "9 new best lifts", which read as a mismatch (#823).
+                        Text(insights.count == 1 ? "Monkey noticed" : "Monkey noticed \(insights.count) things")
                             .font(Theme.label(14))
                         Text(insights.map(\.title).joined(separator: " · ")).font(.caption.weight(.semibold)).opacity(0.85).lineLimit(1)
                     }

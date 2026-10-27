@@ -423,11 +423,14 @@ struct AttemptsCard: View {
             Spacer(minLength: 4)
             HStack(spacing: 6) {
                 ForEach(Array(attempts.enumerated()), id: \.offset) { _, kg in
+                    // One line: "82.5", never "82" over ".5" (#823).
                     Text(LoadAdvisor.formatKg(kg)).font(Theme.display(17)).monospacedDigit()
+                        .lineLimit(1).minimumScaleFactor(0.7)
                         .padding(.horizontal, 7).padding(.vertical, 5)
                         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.black.opacity(0.22)))
                 }
             }
+            .layoutPriority(1)
         }
         .gradientCard(gradient(focusColors), padding: 14)
         .accessibilityElement(children: .combine)

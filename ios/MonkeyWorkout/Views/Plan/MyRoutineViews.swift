@@ -190,8 +190,8 @@ struct MyRoutineEditor: View {
             }
             Spacer(minLength: 4)
             HStack(alignment: .firstTextBaseline, spacing: 1) {
-                Text("\(draft.items.isEmpty ? 0 : draft.session.estMin)").font(Theme.display(30)).monospacedDigit()
-                Text("′").font(Theme.label(14))
+                // ′ in the number's own font: a small label-font ′ read as a clipped comma, "10," (#823).
+                Text("\(draft.items.isEmpty ? 0 : draft.session.estMin)′").font(Theme.display(30)).monospacedDigit()
             }
         }
         .foregroundStyle(.white)

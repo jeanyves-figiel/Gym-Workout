@@ -170,7 +170,8 @@ struct ProgressTabView: View {
         switch w.kind {
         case .level:
             // Level card, trophy shelf or quest log: the member's game look (#227); a placeholder before the first workout.
-            if fresh {
+            // XP from set-up already lifts the level (the header says "LV 2"): then the real card, not "shows after" (#823).
+            if fresh && model.game.level <= 1 {
                 ProgressWidgetPlaceholder(widget: w, note: "Your level shows after your first workout")
             } else {
                 GameProgressCard(badges: badges)

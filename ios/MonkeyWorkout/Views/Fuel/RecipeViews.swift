@@ -343,7 +343,7 @@ struct RecipeDetailView: View {
         lines += ["", "Steps:"]
         lines += recipe.steps.enumerated().map { "\($0.offset + 1). \($0.element)" }
         if let tip = recipe.tip { lines += ["", "Tip: \(tip)"] }
-        lines += ["", "From MonkeyFit"]
+        lines += ["", "From MonkeyWorkout"]
         return lines.joined(separator: "\n")
     }
 }

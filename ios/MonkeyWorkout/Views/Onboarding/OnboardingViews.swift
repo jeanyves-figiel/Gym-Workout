@@ -246,7 +246,8 @@ struct OnboardingFlowView: View {
         VStack(spacing: 18) {
             Text("🐵").font(.system(size: 88)).padding(.top, 20)
             Text("Want me to show you round?").font(Theme.display(26)).multilineTextAlignment(.center)
-            Text("Six stops: Train, Explore, Progress, Fuel, Community and Ask Coach. Run it again any time in Settings → Onboarding.")
+            // The names the tabs and the tour bubbles use (#822).
+            Text("Six stops: Train, Explore, Progress, Fuel, Social and Coach Monkey. Run it again any time in Settings → Onboarding.")
                 .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
             VStack(spacing: 8) {
                 ForEach(AppTour.steps) { s in
@@ -573,7 +574,8 @@ struct AppTourOverlay: View {
             ZStack(alignment: .bottom) {
                 Color.black.opacity(0.55).ignoresSafeArea()
                     .contentShape(Rectangle())
-                    .onTapGesture { model.nextTourStep() }
+                    // Only NEXT moves on (#822): a stray tap on the dim layer skipped stops. It still keeps taps off the tabs.
+                    .onTapGesture {}
                 VStack(alignment: .leading, spacing: 10) {
                     Text("🐵").font(.system(size: 44))
                     VStack(alignment: .leading, spacing: 8) {

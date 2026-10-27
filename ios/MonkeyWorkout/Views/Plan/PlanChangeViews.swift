@@ -87,8 +87,10 @@ struct MoveDayPicker: View {
                                      today: week.days[wd - 1] == today, cal: cal)
                     if targets.contains(wd) {
                         Button {
+                            let from = session.weekday
                             if let later { model.moveSession(sessionId, to: wd, in: later) } else { model.moveSession(sessionId, to: wd) }
                             onMoved(wd)
+                            if let from { undoMove(session, from: from, to: wd) }
                         } label: { row }
                         .buttonStyle(.plain)
                     } else {
@@ -102,6 +104,23 @@ struct MoveDayPicker: View {
                 ContentUnavailableView("Not in this week", systemImage: "calendar.badge.exclamationmark")
             }
         }
+    }
+
+    /// "Moved to Thu" with Undo (#822), as Skip and Remove have: back on its day, a session it swapped with swaps back.
+    private func undoMove(_ s: Session, from: Int, to: Int) {
+        let id = s.id
+        let start = later?.start
+        UndoCloseCenter.shared.show(UndoOffer(
+            title: "Moved to \(WeekSchedule.shortName(to))", detail: s.displayTitle, symbol: "arrow.left.arrow.right",
+            colors: s.focus.palette.colors, reopen: { AnyView(EmptyView()) },
+            revert: { [model] in
+                if let start {
+                    // That later week as it is now, not the snapshot the picker had.
+                    if let w = model.calendarWeeks().first(where: { $0.start == start }) { model.moveSession(id, to: from, in: w) }
+                } else {
+                    model.moveSession(id, to: from)
+                }
+            }))
     }
 
     private func header(_ s: Session) -> some View {

@@ -603,7 +603,13 @@ private struct DemoScreen: View {
                 .navigationTitle("Week quest")
             }
         case "reschedule":
-            MissedSessionSheet(sessionId: second, day: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
+            // The week's real missed session on its own day, as missed-catchup shows it (#823): not the plan's
+            // second session labelled "yesterday", which named a different workout.
+            if let s = model.missedToHandle.first {
+                let cal = model.planCalendar
+                let day = cal.date(byAdding: .day, value: (s.weekday ?? 1) - 1, to: Progression.weekStart(Date(), cal))
+                MissedSessionSheet(sessionId: s.id, day: day ?? Date())
+            }
         default: MainTabView()
         }
     }

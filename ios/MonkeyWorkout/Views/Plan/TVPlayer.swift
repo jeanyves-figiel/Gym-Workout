@@ -79,7 +79,7 @@ struct TVIdleView: View {
                 WorkoutEngine.Category.strength.gradient.ignoresSafeArea()
                 VStack(spacing: 2 * u) {
                     Image(systemName: "dumbbell.fill").font(.system(size: 14 * u, weight: .black))
-                    Text("MonkeyFit").font(.system(size: 9 * u, weight: .black, design: .rounded))
+                    Text("MonkeyWorkout").font(.system(size: 9 * u, weight: .black, design: .rounded)) // brand name, not MonkeyFit (#823)
                     Text("Start a workout on your iPhone: it shows here.")
                         .font(.system(size: 3.5 * u, weight: .heavy, design: .rounded)).opacity(0.85)
                 }

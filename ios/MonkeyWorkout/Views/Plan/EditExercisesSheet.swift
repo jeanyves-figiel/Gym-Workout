@@ -125,7 +125,8 @@ struct EditExercisesSheet: View {
                             .padding(.horizontal, 4).padding(.vertical, 1)
                             .background(RoundedRectangle(cornerRadius: 5).fill(Theme.lime))
                     }
-                    Text(e.name).font(Theme.label(14)).lineLimit(1).minimumScaleFactor(0.8)
+                    // Two lines that shrink a little, ahead of the fixed controls (#823): names were cut to "Wal…".
+                    Text(e.name).font(Theme.label(14)).lineLimit(2).minimumScaleFactor(0.75)
                 }
                 HStack(spacing: 6) {
                     Text(item.prescription.reps).font(.caption.weight(.semibold)).opacity(0.85)
@@ -143,6 +144,7 @@ struct EditExercisesSheet: View {
                     }
                 }
             }
+            .layoutPriority(1)
             Spacer(minLength: 4)
             SetsStepper(sets: item.prescription.sets) { n in withAnimation { blocks.setSets(item.uid, n) } }
             Button { swapping = item } label: {

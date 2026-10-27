@@ -19,8 +19,6 @@ struct MuscleHero: View {
     @AppStorage(MachineFilterStore.key) private var machineFilter = MachineFilter.all.key
     @State private var picked: Muscle?
     @State private var facing: BodyMapFacing = .front
-    /// Demo screens only: vertex count once the figure is built.
-    @State private var demoVertices: Int?
 
     private var mode: BodyMapMode { demo?.mode ?? storedMode }
     private var facings: [BodyMapFacing] { mode == .solid ? BodyMapFacing.allCases : [.front, .back] }
@@ -62,13 +60,8 @@ struct MuscleHero: View {
 
     @ViewBuilder private var figure: some View {
         if mode == .solid {
-            BodyMap3DView(heat: heat, selected: picked, yaw: facing.yaw, onTap: pick,
-                          onReady: demo == nil ? nil : { demoVertices = $0 })
-                .overlay(alignment: .bottom) {
-                    if demo != nil {
-                        Text(demoVertices.map { "\($0) vertices" } ?? "building figure…").font(.caption2).opacity(0.7)
-                    }
-                }
+            // No "52,857 vertices" debug caption under the figure (#823).
+            BodyMap3DView(heat: heat, selected: picked, yaw: facing.yaw, onTap: pick)
         } else {
             BodyMapView(side: facing == .back ? .back : .front, heat: heat, selected: picked,
                         showLabel: false, onColor: true, onTap: pick)

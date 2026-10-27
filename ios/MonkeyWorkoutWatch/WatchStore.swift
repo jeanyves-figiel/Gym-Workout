@@ -245,8 +245,13 @@ final class WatchStore: NSObject {
     // MARK: iPhone workout on the Watch (#347)
 
     /// Title of the iPhone workout, from its live state or the plan.
+    /// The plan session the iPhone runs, when the Watch knows it.
+    var phoneSession: WSession? {
+        live?.sessionId.flatMap(snapshot.session) ?? (live == nil ? next : nil)
+    }
+
     var phoneWorkout: (title: String, estMin: Int?, exercises: Int?, tint: UInt32) {
-        let s = live?.sessionId.flatMap(snapshot.session) ?? (live == nil ? next : nil)
+        let s = phoneSession
         return (live?.sessionTitle ?? s?.title ?? "Workout", live?.estMin ?? s?.estMin,
                 live?.exercises ?? s.map { $0.blocks.reduce(0) { $0 + $1.items.count } }, s?.tint ?? live?.tint ?? 0xCCFF3D)
     }
