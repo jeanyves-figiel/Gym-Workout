@@ -481,3 +481,55 @@ struct GradientSegments<Value: Hashable>: View {
         .contentShape(shape)
     }
 }
+
+/// Explore-categories row for list screens (#823): vivid gradient card, square tile left (a number, an emoji or a
+/// symbol), heavy title with a small line under it, optional big value right. `outlined` rings it in lime (this week,
+/// the picked one). Dark `ink` on light gradients (#540).
+struct GradientTile: View {
+    let gradient: LinearGradient
+    var number: String? = nil
+    var emoji: String? = nil
+    var symbol: String? = nil
+    let title: String
+    var detail: String? = nil
+    var value: String? = nil
+    var ink: Color = .white
+    var outlined = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
+        HStack(alignment: .center, spacing: 12) {
+            if number != nil || emoji != nil || symbol != nil {
+                Group {
+                    if let number {
+                        Text(number).font(Theme.display(20)).monospacedDigit().minimumScaleFactor(0.6)
+                    } else if let emoji {
+                        Text(emoji).font(.system(size: 22))
+                    } else if let symbol {
+                        Image(systemName: symbol).font(.system(size: 17, weight: .bold))
+                    }
+                }
+                .lineLimit(1)
+                .frame(width: 44, height: 44)
+                .background(RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .fill(ink == .white ? Color.white.opacity(0.22) : Theme.ink.opacity(0.12)))
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(Theme.display(17)).lineLimit(2).minimumScaleFactor(0.8)
+                if let detail {
+                    Text(detail).font(.system(size: 12, weight: .bold, design: .rounded)).opacity(0.88)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 4)
+            if let value {
+                Text(value).font(Theme.display(22)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6).opacity(0.9)
+            }
+        }
+        .foregroundStyle(ink)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(shape.fill(gradient))
+        .overlay { if outlined { shape.strokeBorder(Theme.lime, lineWidth: 3) } }
+    }
+}

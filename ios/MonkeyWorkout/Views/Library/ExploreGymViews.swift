@@ -19,9 +19,12 @@ extension AppModel {
     }
 
     /// Machines (not mats or rollers) in the member's gym.
-    var gymMachineCount: Int {
+    var gymMachineCount: Int { Self.machineCount(profile?.equipment ?? []) }
+
+    /// Machines among `equipment` (#823, design C): what Explore counts, so gym cards say "69 items · 67 machines".
+    static func machineCount(_ equipment: [Equipment]) -> Int {
         let all = Set(GymArea.allCases.flatMap(\.items))
-        return Set(profile?.equipment ?? []).filter { all.contains($0) }.count
+        return Set(equipment).filter { all.contains($0) }.count
     }
 
     /// Browsable machines the member's gym doesn't have yet.
@@ -44,10 +47,11 @@ struct GymChipTile: View {
                 HStack(spacing: 6) {
                     Image(systemName: on ? "checkmark" : "mappin.and.ellipse").font(.system(size: 13, weight: .heavy))
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(model.gymName).font(Theme.label(12)).lineLimit(1)
+                        // Shrinks to fit: "Fitnesspark Pu…" lost the gym's number (#823).
+                        Text(model.gymName).font(Theme.label(12)).lineLimit(1).minimumScaleFactor(0.7)
                         Text(on ? "Only mine" : "\(model.gymMachineCount) machines").font(Theme.label(9)).opacity(0.7).lineLimit(1)
                     }
-                    .frame(maxWidth: 104, alignment: .leading)
+                    .frame(maxWidth: 116, alignment: .leading)
                 }
                 .padding(.leading, 10).padding(.vertical, 5)
                 .contentShape(Rectangle())

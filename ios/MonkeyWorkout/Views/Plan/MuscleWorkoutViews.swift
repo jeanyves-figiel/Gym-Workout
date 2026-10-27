@@ -162,8 +162,9 @@ struct MuscleGroupTile: View {
                     }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(group.label).font(Theme.display(16)).lineLimit(1).minimumScaleFactor(0.7)
+                    // Two lines kept for every tile, so the row stays even and "Front delts · Si…" reads whole (#823).
                     Text(group.muscles.prefix(3).map(\.name).joined(separator: " · "))
-                        .font(.caption2.weight(.semibold)).opacity(0.85).lineLimit(1)
+                        .font(.caption2.weight(.semibold)).opacity(0.85).lineLimit(2, reservesSpace: true)
                 }
                 Spacer(minLength: 0)
             }

@@ -113,8 +113,17 @@ final class AppModel {
             if let first = state.plan?.sessions.first { state.done[first.id] = true }
             let demo = Demo.history()
             state.history = demo.records
+            // The session ticked done this week is in history too (#823), so Progress and the week chest count it
+            // like Train's strip (Train 1/4 vs Progress 0/4).
+            if let first = state.plan?.sessions.first, let plan = state.plan {
+                state.history.append(Demo.doneThisWeek(first, deload: plan.deload))
+            }
             state.logs = demo.logs
-            if ["train-smart", "block-tweak", "auto-tune", "growth-path", "coach-memory"].contains(Demo.screen) { applyDemoGrowth() }
+            if ["train-smart", "block-tweak", "auto-tune", "growth-path", "coach-memory"].contains(Demo.screen) {
+                applyDemoGrowth()
+            } else if Demo.screen != "progress-empty" {
+                applyDemoGrowthGoal() // same goal and growth level on every screen (#823)
+            }
             // Kind streaks (#501): 16 days away, then the first session back today (Comeback quest 1/3).
             if Demo.screen == "train-comeback", let last = state.history.max(by: { $0.startedAt < $1.startedAt }) {
                 let cut = Date().addingTimeInterval(-16 * 86_400)

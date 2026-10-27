@@ -442,7 +442,8 @@ struct GymSetupView: View {
                         ForEach(misfits.prefix(4)) { e in
                             HStack(spacing: 10) {
                                 ExerciseThumbnail(exercise: e, size: 40)
-                                Text(e.name).font(.subheadline.weight(.medium)).lineLimit(1)
+                                // Two lines, ahead of the kit label: "Incline barbell bench p…" (#823).
+                                Text(e.name).font(.subheadline.weight(.medium)).lineLimit(2).layoutPriority(1)
                                 Spacer()
                                 Text(e.missing(from: equipment).first?.label ?? "").font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
                             }

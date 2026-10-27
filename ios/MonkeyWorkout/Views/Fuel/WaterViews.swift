@@ -22,35 +22,37 @@ struct WaterSheet: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack {
-                    Text("Water").font(Theme.display(28))
-                    Spacer()
-                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 17, weight: .bold)) }
-                        .accessibilityLabel("Close")
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack {
+                        Text("Water").font(Theme.display(28))
+                        Spacer()
+                    }
+                    // Every glass, tap to fill up to it (#733: the home tank adds one at a time).
+                    WaterGlasses(filled: store.log(day).glasses, target: plan.glasses) { n in store.update(day, plan: plan) { $0.glasses = n } }
+                        .padding(12)
+                        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(FuelPalette.water))
+                    pace
+                    remind
+                    quiet
+                    if notify.authorization == .denied || notify.authorization == .notDetermined { permission }
+                    Text("🐵 Training days raise the target and the pace on their own.")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(FuelPalette.coach))
                 }
-                // Every glass, tap to fill up to it (#733: the home tank adds one at a time).
-                WaterGlasses(filled: store.log(day).glasses, target: plan.glasses) { n in store.update(day, plan: plan) { $0.glasses = n } }
-                    .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(FuelPalette.water))
-                pace
-                remind
-                quiet
-                if notify.authorization == .denied || notify.authorization == .notDetermined { permission }
-                Text("🐵 Training days raise the target and the pace on their own.")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(FuelPalette.coach))
+                .foregroundStyle(.white)
+                .padding(20)
             }
-            .foregroundStyle(.white)
-            .padding(20)
+            .background(Theme.bg.ignoresSafeArea())
+            .presentationDetents([.large])
+            .task { await notify.refreshAuthorization() }
+            // Standard ✕ top right (#823): was a plain white ✕ in the title row.
+            .toolbar { CloseToolbarItem { dismiss() } }
         }
-        .background(Theme.bg.ignoresSafeArea())
-        .presentationDetents([.large])
-        .task { await notify.refreshAuthorization() }
     }
 
     private var buckets: [WaterBucket] { WaterPace.buckets(plan, prefs: store.prefs) }

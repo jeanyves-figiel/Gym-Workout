@@ -558,6 +558,9 @@ enum WCommand: String, Codable {
     case main, skipRest, addRest, effort0, effort1, effort2, effort3, effort4, next, previous
     /// Twin player on the iPhone (#603): − / + on the coming set's kg.
     case kgDown, kgUp
+    /// Twin player's Finish workout (#822): the Watch ends and saves the workout. Older Watch apps can't decode it and
+    /// ignore it.
+    case finish
 }
 
 /// A workout run on the Watch, as the iPhone's twin player shows it (#603). Sent through HealthKit workout

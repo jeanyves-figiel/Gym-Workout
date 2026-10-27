@@ -166,13 +166,11 @@ struct SharedPlanView: View {
                 }
                 if !p.signatures.isEmpty {
                     Text("Signature workouts").eyebrow()
-                    ForEach(p.signatures) { s in
-                        HStack {
-                            Text(s.name).font(Theme.display(15)).lineLimit(1)
-                            Spacer(minLength: 4)
-                            Text("\(s.items.count) exercises").font(Theme.label(11)).foregroundStyle(Theme.muted)
-                        }
-                        .card(padding: 12)
+                    // Gradient tiles, number left (#823).
+                    ForEach(Array(p.signatures.enumerated()), id: \.element.id) { i, s in
+                        GradientTile(gradient: Theme.routineGradient(i), number: "\(i + 1)", title: s.name,
+                                     detail: "\(s.items.count) exercises")
+                            .accessibilityElement(children: .combine)
                     }
                 }
                 actions

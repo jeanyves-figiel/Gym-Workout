@@ -245,7 +245,7 @@ struct ClimbingCategoryView: View {
 
                 ForEach(Climbing.Group.allCases) { g in
                     Text("\(g.label) · \(g.exercises.count)").eyebrow().padding(.top, 4)
-                    ForEach(g.exercises) { e in row(e) }
+                    ForEach(g.exercises) { e in row(e, group: g) }
                 }
             }
             .padding(16)
@@ -256,19 +256,32 @@ struct ClimbingCategoryView: View {
         .sheet(item: $open) { ref in NavigationStack { ExerciseDetailView(exerciseId: ref.exerciseId) } }
     }
 
-    private func row(_ e: Exercise) -> some View {
-        Button { open = ExerciseRef(exerciseId: e.id) } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(e.name).font(.system(.headline, design: .rounded).weight(.heavy)).multilineTextAlignment(.leading)
-                    if e.monkeyGradeSlug != nil { MonkeyGradeTag() }
-                    Spacer()
-                    Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.muted)
+    /// Gradient tiles (#823): one gradient and icon per group.
+    private static func look(_ g: Climbing.Group) -> (gradient: LinearGradient, symbol: String) {
+        switch g {
+        case .warmup: (LinearGradient.hiit, "flame.fill")
+        case .hangboard: (WorkoutEngine.Category.strength.gradient, "hand.raised.fill")
+        case .cooldown: (WorkoutEngine.Category.cardio.gradient, "figure.cooldown")
+        }
+    }
+
+    private func row(_ e: Exercise, group: Climbing.Group) -> some View {
+        let look = Self.look(group)
+        return Button { open = ExerciseRef(exerciseId: e.id) } label: {
+            HStack(alignment: .top, spacing: 12) {
+                IconTile(symbol: look.symbol, size: 44)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text(e.name).font(Theme.display(17)).multilineTextAlignment(.leading)
+                        if e.monkeyGradeSlug != nil { MonkeyGradeTag() }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption.bold()).opacity(0.75)
+                    }
+                    MuscleChips(primary: e.primary, secondary: e.secondary)
                 }
-                MuscleChips(primary: e.primary, secondary: e.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .card(padding: 14)
+            .gradientCard(look.gradient, padding: 14)
         }
         .buttonStyle(.plain)
     }

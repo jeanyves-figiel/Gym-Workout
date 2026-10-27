@@ -112,9 +112,21 @@ struct OnboardingFlowView: View {
                 }
             }
             if !single {
-                HStack(spacing: 4) {
-                    ForEach(steps) { s in
-                        Capsule().fill(s.number <= step.number ? Theme.lime : Color.white.opacity(0.14)).frame(height: 6)
+                HStack(spacing: 10) {
+                    // Back (#822, design A from `full-app-audit-3/mockups/proposals-6.png`): steps 2–4 go to the step
+                    // before, answers kept.
+                    if let previous {
+                        Button { withAnimation(.snappy) { step = previous } } label: {
+                            Text("‹ Back").font(Theme.label(15)).foregroundStyle(Theme.lime)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Back to \(previous.title)")
+                        .accessibilityIdentifier("onboarding.back")
+                    }
+                    HStack(spacing: 4) {
+                        ForEach(steps) { s in
+                            Capsule().fill(s.number <= step.number ? Theme.lime : Color.white.opacity(0.14)).frame(height: 6)
+                        }
                     }
                 }
                 Text("Step \(step.number) of \(steps.count) · \(subtitle)")
@@ -126,6 +138,12 @@ struct OnboardingFlowView: View {
         .padding(.horizontal, 16)
         .padding(.top, isNew ? 12 : 0)
         .padding(.bottom, 10)
+    }
+
+    /// The step Back returns to: on steps 2–4 of the guided flow (#822); the plan is made once the tour starts.
+    private var previous: OnboardingStep? {
+        guard !single, (2...4).contains(step.number) else { return nil }
+        return steps[step.number - 2]
     }
 
     private var subtitle: String {
@@ -180,7 +198,7 @@ struct OnboardingFlowView: View {
         VStack(alignment: .leading, spacing: 12) {
             Button { equipmentOpen = true } label: {
                 bigCard(symbol: "dumbbell.fill", title: "Tick your machines", line: "Pictures of every machine, rack and bench. Tap what's there.",
-                        number: "\(p.equipment.count)", unit: "ITEMS", category: .strength)
+                        number: "\(p.equipment.count)", unit: "ITEMS · \(AppModel.machineCount(p.equipment)) MACHINES", category: .strength)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("onboarding.machines")

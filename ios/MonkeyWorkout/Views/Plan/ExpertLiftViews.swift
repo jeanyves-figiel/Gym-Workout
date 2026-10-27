@@ -217,7 +217,8 @@ struct SetStyleSheet: View {
                                         .frame(width: 36, height: 36)
                                         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.black.opacity(0.22)))
                                     Text(s.label).font(Theme.display(16)).lineLimit(1).minimumScaleFactor(0.6)
-                                    Text(s.blurb).font(.caption2.weight(.semibold)).opacity(0.9).lineLimit(3)
+                                    // Four lines: the longest blurb ended "the back-o…" at three (#823).
+                                    Text(s.blurb).font(.caption2.weight(.semibold)).opacity(0.9).lineLimit(4)
                                         .fixedSize(horizontal: false, vertical: true)
                                     Spacer(minLength: 0)
                                 }

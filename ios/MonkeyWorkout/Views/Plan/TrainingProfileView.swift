@@ -343,7 +343,7 @@ struct ProfileSectionCard: View {
         case .flow:
             ("\(Generator.flowMinutes(profile, focus: Generator.referenceFocus(profile), minutes: Generator.sessionMinutes(profile), flow: profile.sessionFlow).count)", "BLOCKS")
         case .method: (profile.trainingMethod.big.value, profile.trainingMethod.big.unit)
-        case .gym: ("\(profile.equipment.count)", "ITEMS")
+        case .gym: ("\(profile.equipment.count)", "ITEMS · \(AppModel.machineCount(profile.equipment)) MACHINES") // #823
         }
     }
 

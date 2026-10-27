@@ -329,7 +329,8 @@ struct ProView: View {
             Text(planLine(plan))
                 .font(.footnote.weight(.semibold)).foregroundStyle(.white.opacity(0.85))
                 .frame(maxWidth: .infinity).multilineTextAlignment(.center).padding(.top, 4)
-            LimeActionButton(title: buyTitle(plan), busy: busy, disabled: plan.product == nil && !pro.testing) {
+            // Lime whenever a plan is picked (#822, design A): the App Store products load on the tap if needed.
+            LimeActionButton(title: buyTitle(plan), busy: busy) {
                 busy = true
                 Task {
                     await pro.buy(plan)

@@ -189,20 +189,22 @@ struct MeasureGuideView: View {
 
     private var header: some View {
         VStack(spacing: 10) {
+            // ✕ top right in lime as on every sheet (#823); Skip moves to the left.
             HStack {
+                Button("Skip") { advance() }
+                    .font(.body.weight(.bold))
+                    .foregroundStyle(Theme.lime)
+                    .frame(width: 34 + 20, alignment: .leading)
+                Spacer()
+                Text("\(index + 1) / \(steps.count)").font(Theme.label(13)).foregroundStyle(Theme.muted)
+                Spacer()
                 Button { dismiss() } label: {
-                    Image(systemName: "xmark").font(.system(size: 15, weight: .bold))
+                    Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundStyle(Theme.lime)
                         .frame(width: 34, height: 34)
                         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.cardStrong))
                 }
                 .accessibilityLabel("Close")
-                Spacer()
-                Text("\(index + 1) / \(steps.count)").font(Theme.label(13)).foregroundStyle(Theme.muted)
-                Spacer()
-                Button("Skip") { advance() }
-                    .font(.body.weight(.bold))
-                    .foregroundStyle(Theme.lime)
-                    .frame(width: 34 + 20, alignment: .trailing)
+                .frame(width: 34 + 20, alignment: .trailing)
             }
             HStack(spacing: 4) {
                 ForEach(steps.indices, id: \.self) { i in

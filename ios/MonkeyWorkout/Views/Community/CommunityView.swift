@@ -118,7 +118,17 @@ struct CommunityView: View {
             }
         }
         if community.hasMore(scope) {
-            ProgressView().padding().task(id: community.cursor(scope)) { await community.loadMore(scope, api: model.api) }
+            if community.moreFailed.contains(scope) {
+                // Same slot as the spinner (#819): a failed page asks to try again instead of spinning forever.
+                Button { community.retryMore(scope) } label: {
+                    Label("Couldn't load · Retry", systemImage: "arrow.clockwise")
+                        .font(Theme.label(13)).foregroundStyle(Theme.muted)
+                        .frame(maxWidth: .infinity).padding()
+                }
+                .buttonStyle(.plain)
+            } else {
+                ProgressView().padding().task(id: community.cursor(scope)) { await community.loadMore(scope, api: model.api) }
+            }
         }
     }
 }

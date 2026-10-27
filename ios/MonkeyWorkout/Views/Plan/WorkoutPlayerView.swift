@@ -18,6 +18,8 @@ struct WorkoutPlayerView: View {
     @Environment(\.scenePhase) private var scenePhase
     /// Compact = iPhone on its side (#362): the cockpit layout.
     @Environment(\.verticalSizeClass) private var verticalSize
+    /// Regular = iPad (#824): the coach bubble sits lower, under the taller exercise header.
+    @Environment(\.horizontalSizeClass) private var horizontalSize
     /// Height of the upright player: under 720 pt (iPhone Duo outer screen, #594) the hero and timer go short.
     @State private var playerHeight: CGFloat = 0
     /// iPhone Duo posture (#598): Flex, Book and Tent get their own layouts.
@@ -381,7 +383,7 @@ struct WorkoutPlayerView: View {
             switch posture {
             case .flex: flex(step, session: session)
             // Book (#598, B): the landscape cockpit, one page each side of the hinge.
-            case .book: cockpit(step, session: session, gap: 36)
+            case .book: cockpit(step, session: session, gap: 36, book: true)
             case .tent: tent(step, session: session)
             case .flat where verticalSize == .compact: cockpit(step, session: session)
             case .flat:
@@ -494,9 +496,10 @@ struct WorkoutPlayerView: View {
                     .padding(.top, 66)
                     .readableColumn()
             } else if let b = coach.bubble {
+                // Under the exercise header, over the picture: the iPad's header is taller (#824).
                 CoachBubble(call: b)
                     .padding(.horizontal, 36)
-                    .padding(.top, 150)
+                    .padding(.top, horizontalSize == .regular ? 250 : 150)
             }
             if let v = voiceToast {
                 CoachVoiceToast(name: v) {
@@ -643,7 +646,7 @@ struct WorkoutPlayerView: View {
 
     /// #373 (A + C mix from `player-layout/landscape-mix.png`): the exercise card at full height on the left; on the right
     /// the one input and the controls, and the smart Up next bar at the bottom. Rest takes the set card's slot, as upright (#538).
-    private func cockpit(_ step: Step, session: Session, gap: CGFloat = 12) -> some View {
+    private func cockpit(_ step: Step, session: Session, gap: CGFloat = 12, book: Bool = false) -> some View {
         let cat = step.category
         let sets = step.sets
         let done = setsDone[step.item.uid] ?? 0
@@ -691,12 +694,22 @@ struct WorkoutPlayerView: View {
                         } else if let zoneCleared {
                             ZoneClearedBanner(zone: zoneCleared.cleared, next: zoneCleared.next)
                         }
-                        if let p = pause {
-                            restSlot(p, step: step, sets: sets, done: done, colors: cat.colors)
-                        } else {
-                            setCard(step, sets: sets, done: done, colors: cat.colors)
+                        Group {
+                            if let p = pause {
+                                restSlot(p, step: step, sets: sets, done: done, colors: cat.colors)
+                            } else {
+                                setCard(step, sets: sets, done: done, colors: cat.colors)
+                            }
                         }
-                        Spacer(minLength: 0)
+                        // Book (#824 A): the set card's page fills the right half, no empty space between it and START.
+                        .frame(maxWidth: .infinity, maxHeight: book ? CGFloat.infinity : nil)
+                        .background {
+                            if book {
+                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                    .fill(LinearGradient(colors: cat.colors.map { $0.opacity(0.22) }, startPoint: .topLeading, endPoint: .bottomTrailing))
+                            }
+                        }
+                        if !book { Spacer(minLength: 0) }
                         controls(step, sets: sets, done: done)
                             .overlay(alignment: .bottom) {
                                 if let a = autoNext, a.uid == step.item.uid {
@@ -796,28 +809,46 @@ struct WorkoutPlayerView: View {
         return ZStack {
             LinearGradient(colors: cat.colors, startPoint: .topLeading, endPoint: .bottomTrailing).ignoresSafeArea()
             VStack(spacing: 12) {
-                Text("\(step.exercise.name) · set \(min(done + 1, sets))/\(sets)".uppercased())
-                    .font(Theme.label(18)).lineLimit(1).minimumScaleFactor(0.6)
                 Spacer(minLength: 0)
+                // Across the room (#824 B): the number as big as the screen allows, what it is under it.
                 TimelineView(.periodic(from: .now, by: 1)) { ctx in
                     Text(tentFigure(step, done: done, now: ctx.date))
-                        .font(.system(size: 160, weight: .black, design: .rounded))
+                        .font(.system(size: 340, weight: .black, design: .rounded))
                         .monospacedDigit()
-                        .lineLimit(1).minimumScaleFactor(0.3)
+                        .lineLimit(1).minimumScaleFactor(0.2)
                 }
-                Text(pause != nil ? "Rest" : (step.loggable ? "reps × kg" : step.item.prescription.reps))
-                    .font(Theme.label(20)).opacity(0.85)
+                Text("\(step.exercise.name) · set \(min(done + 1, sets))/\(sets)")
+                    .font(Theme.display(30)).lineLimit(1).minimumScaleFactor(0.6)
+                // Only when the number needs saying: a timed or plain target already is the number ("6:00", not "6 min" again).
+                if pause != nil || step.loggable {
+                    Text(pause != nil ? "Rest" : "reps × kg").font(Theme.label(20)).opacity(0.85)
+                }
                 Spacer(minLength: 0)
                 if let next {
                     Text("Next: \(next.title)").font(Theme.display(28)).lineLimit(1).minimumScaleFactor(0.6)
                 }
+                // Back and skip readable on the bright gradient (#824 B).
                 controls(step, sets: sets, done: done)
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(.black.opacity(0.4)))
             }
             .foregroundStyle(.white)
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("player.tent")
+        }
+        // Tent had no way out (#824 B): the same ✕ as the top bar, paused to resume from Train.
+        .overlay(alignment: .topTrailing) {
+            Button(action: closeWorkout) {
+                Image(systemName: "xmark").font(.system(size: 20, weight: .heavy)).foregroundStyle(Theme.lime)
+                    .frame(width: 52, height: 52)
+                    .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.black.opacity(0.55)))
+            }
+            .accessibilityLabel("Close workout")
+            .accessibilityHint("Pauses it. Resume from Train.")
+            .padding(.trailing, 20)
+            .padding(.top, 8)
         }
     }
 
@@ -1386,10 +1417,8 @@ struct WorkoutPlayerView: View {
     private func doneWithUndo() {
         dismiss()
         guard let r = record else { return }
-        UndoCloseCenter.shared.show(UndoOffer(
-            title: "Workout saved", detail: undoDetail(r.title, "\(max(1, r.durationSec / 60))′"), symbol: "checkmark.circle.fill",
-            colors: [Color(hex: 0x2FD27A), Color(hex: 0x1E9E8F)], reopen: { AnyView(EmptyView()) },
-            revert: { [model] in _ = model.undoWorkout(r.id) }))
+        // Same bar as DONE after a Watch finish (#822 A).
+        UndoCloseCenter.shared.show(.workoutSaved(r, model: model))
     }
 
     /// X (#538): closes at once and keeps the workout paused to resume; the Undo bar on Train reopens it.
@@ -2018,6 +2047,8 @@ struct WorkoutPlayerView: View {
         case .previous: go(index - 1)
         case .kgDown: stepKgFromLockScreen(-1)
         case .kgUp: stepKgFromLockScreen(1)
+        // Only the twin player of a Watch workout sends it (#822); the Watch doesn't finish an iPhone workout.
+        case .finish: break
         }
     }
 }

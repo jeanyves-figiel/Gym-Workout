@@ -386,8 +386,10 @@ final class WatchSync: NSObject {
         case let .finished(f):
             guard !handled.contains(f.id) else { return }
             handled.insert(f.id)
+            let before = (game: model.game, badges: model.badges)
             let r: WorkoutRecord
-            if let session = model.session(f.sessionId) ?? knownSessions[f.sessionId] {
+            let session = model.session(f.sessionId) ?? knownSessions[f.sessionId]
+            if let session {
                 r = model.recordWorkout(
                     session: session, setsDone: f.setsDone, startedAt: f.start, endedAt: f.end,
                     bodyMassKg: health?.snapshot.weightKg ?? model.body.weightKg)
@@ -403,6 +405,10 @@ final class WatchSync: NSObject {
                 Task { await model.sync() }
             }
             model.clearActiveWorkout(f.sessionId)
+            // Finished on the Watch (#822 A): the twin player shows the finish screen for this record.
+            MirroredWorkout.shared.recorded(r, session: session, sessionId: f.sessionId,
+                                            reward: GameReward(before: before.game, after: model.game,
+                                                               badgesBefore: before.badges, badgesAfter: model.badges))
             if f.savedToHealth {
                 model.attachHeartRate(r.id, avg: f.avgHeartRate, max: f.maxHeartRate)
             } else if let health {

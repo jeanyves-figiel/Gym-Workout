@@ -125,6 +125,10 @@ final class FuelStore {
         if log.glasses > glasses, cal.isDateInToday(day), let health {
             let ml = Double((log.glasses - glasses) * s.prefs.glassMl)
             Task { await health.saveWater(ml: ml) }
+        } else if log.glasses < glasses, cal.isDateInToday(day), let health {
+            // Taken off in the app: off Apple Health too (#819).
+            let keep = Double(log.glasses * s.prefs.glassMl)
+            Task { await health.replaceTodayWater(keepMl: keep) }
         }
         let water = log.glasses != glasses && cal.isDateInToday(day)
         s.logs[k] = log.isEmpty ? nil : log

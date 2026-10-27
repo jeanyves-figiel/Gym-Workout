@@ -297,7 +297,7 @@ struct MeasurementLogSheet: View {
 
                     section("Body")
                     field(Self.weightKey, metric: .weight, hint: previous?.weightKg)
-                    field(Self.fatKey, metric: .bodyFat, hint: previous?.bodyFatPct, howTo: "From a smart scale, calipers or a scan")
+                    field(Self.fatKey, metric: .bodyFat, hint: previous?.bodyFatPct, howTo: "Smart scale, calipers or a scan") // fits two lines (#823)
 
                     section("Girths · cm")
                     Toggle(isOn: $perSide) {

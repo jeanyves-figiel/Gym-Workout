@@ -491,7 +491,9 @@ struct ProgressTabView: View {
                                 .foregroundStyle(Theme.ink)
                                 .frame(width: 32, height: 32)
                                 .background(RoundedRectangle(cornerRadius: 10).fill(ProgressStyle.gold))
-                            Text(Exercise.find(pr.exerciseId)?.name ?? pr.exerciseId).font(.body.weight(.semibold)).lineLimit(1)
+                            // Two lines that shrink a little: "Goblet Cossack…" hid the lift (#823).
+                            Text(Exercise.find(pr.exerciseId)?.name ?? pr.exerciseId).font(.body.weight(.semibold))
+                                .lineLimit(2).minimumScaleFactor(0.85)
                             Spacer()
                             Text("\(Format.kg(pr.kg)) kg").font(Theme.display(18)).monospacedDigit()
                             Text(pr.date.formatted(.dateTime.day().month())).font(.caption).foregroundStyle(Theme.muted)

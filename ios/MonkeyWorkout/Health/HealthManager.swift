@@ -892,6 +892,19 @@ final class HealthManager {
         try? await store.save(sample)
     }
 
+    /// Glasses taken off in Fuel (#819): today's water this app wrote is replaced by what's still counted, `keepMl`.
+    /// Delete-and-write needs only the sharing permission the glasses were written with (water isn't read).
+    func replaceTodayWater(keepMl: Double, now: Date = Date()) async {
+        guard connected, available else { return }
+        let ownToday = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            HKQuery.predicateForSamples(withStart: Calendar.current.startOfDay(for: now), end: now.addingTimeInterval(60)),
+            HKQuery.predicateForObjects(from: HKSource.default()),
+        ])
+        // Not allowed any more (sharing turned off): Health keeps it, as before.
+        guard (try? await store.deleteObjects(of: HKQuantityType(.dietaryWater), predicate: ownToday)) != nil else { return }
+        await saveWater(ml: keepMl, at: now)
+    }
+
     /// Writes body metrics entered in-app back to Apple Health.
     func saveBody(_ body: BodyMetrics) async {
         guard connected, available else { return }

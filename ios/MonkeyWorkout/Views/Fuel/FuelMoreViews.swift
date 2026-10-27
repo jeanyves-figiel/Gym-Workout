@@ -329,6 +329,10 @@ struct FuelSetupView: View {
         }
         // Settings page: saved as you go (auto save).
         .onChange(of: prefs) { if !sheet { store.setPrefs(prefs) } }
+        // Set-up sheet (#822): choices save as you go, like the market picker, so X never drops them; nothing changed
+        // saves nothing, and the Undo bar on close puts the old values back.
+        .autoSave(sheet ? prefs : nil, title: "Your fuel", symbol: "fork.knife",
+                  save: { p in FuelStore.shared.setPrefs(p) })
     }
 
     private func section<C: View>(_ emoji: String, _ title: String, _ g: LinearGradient, ink: Color = .white, @ViewBuilder _ content: () -> C) -> some View {

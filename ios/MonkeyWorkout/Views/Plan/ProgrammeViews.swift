@@ -1085,7 +1085,7 @@ struct ProgrammeLengthSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Same programme, more or less time in Base and Build. Peak, Ease and Test stay as they are.")
+                    Text("Same programme, more or less time in Base and Build. Peak, Deload and Test stay as they are.")
                         .font(.subheadline.weight(.medium)).foregroundStyle(Theme.muted)
                     ForEach(programme.lengths) { l in
                         let off = running.map { l.weeks <= $0 } ?? false

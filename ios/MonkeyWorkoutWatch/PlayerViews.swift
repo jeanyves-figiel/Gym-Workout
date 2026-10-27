@@ -145,6 +145,8 @@ struct PlayerView: View {
         case .previous: player.back()
         case .kgDown: player.adjustKg(-1)
         case .kgUp: player.adjustKg(1)
+        // Finish workout on the iPhone's twin player (#822): ends here, the summary shows and the phone gets the record.
+        case .finish: finish()
         }
         WKInterfaceDevice.current().play(.click)
     }

@@ -36,6 +36,8 @@ private let dayFormat: Date.FormatStyle = .dateTime.weekday(.abbreviated).day().
 /// Coming weeks with dated sessions, climbing days and away periods.
 struct CalendarView: View {
     @Environment(AppModel.self) private var model
+    /// Regular = iPad (#824): two weeks per row in a wider column.
+    @Environment(\.horizontalSizeClass) private var horizontalSize
     @State private var editing: AwayPeriod?
     @State private var editingIsNew = false
     @State private var selected: DaySelection?
@@ -66,9 +68,22 @@ struct CalendarView: View {
                     }
                 }
                 // Away periods live in their week cards as tappable strips; no separate list.
-                ForEach(Array(weeks.enumerated()), id: \.element.id) { i, w in
-                    Text(header(i, w)).eyebrow().padding(.top, 4)
-                    WeekCalendarCard(week: w, current: i == 0, onAway: { edit($0) }) { wd in selected = DaySelection(week: w, weekday: wd, current: i == 0) }
+                if horizontalSize == .regular {
+                    // iPad (#824): two weeks side by side instead of one narrow column down the middle.
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 16, alignment: .top), GridItem(.flexible(), spacing: 16, alignment: .top)],
+                              alignment: .leading, spacing: 16) {
+                        ForEach(Array(weeks.enumerated()), id: \.element.id) { i, w in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(header(i, w)).eyebrow().padding(.top, 4)
+                                WeekCalendarCard(week: w, current: i == 0, onAway: { edit($0) }) { wd in selected = DaySelection(week: w, weekday: wd, current: i == 0) }
+                            }
+                        }
+                    }
+                } else {
+                    ForEach(Array(weeks.enumerated()), id: \.element.id) { i, w in
+                        Text(header(i, w)).eyebrow().padding(.top, 4)
+                        WeekCalendarCard(week: w, current: i == 0, onAway: { edit($0) }) { wd in selected = DaySelection(week: w, weekday: wd, current: i == 0) }
+                    }
                 }
                 // Periods starting after the last week shown keep a way in.
                 let later = laterAway(weeks)
@@ -81,7 +96,7 @@ struct CalendarView: View {
             }
             .padding(16)
         }
-        .readableWidth()
+        .modifier(CalendarColumn(maxWidth: horizontalSize == .regular ? 1100 : Theme.readableWidth))
         .background(Theme.bg.ignoresSafeArea())
         // Title in the content (#539), not under the toolbar's glass buttons.
         .titleInContent("Calendar")
@@ -160,6 +175,18 @@ struct CalendarView: View {
     private func edit(_ a: AwayPeriod) {
         editingIsNew = false
         editing = a
+    }
+}
+
+/// `readableWidth()` with its own cap (#824): the iPad calendar's two-week rows get a wider column.
+private struct CalendarColumn: ViewModifier {
+    let maxWidth: CGFloat
+    @State private var width: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        content
+            .safeAreaPadding(.horizontal, max(0, (width - maxWidth) / 2))
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 }
 
@@ -633,7 +660,8 @@ extension SessionPreview {
     /// Remove… (#784, design B): this day only, every week or just skip.
     fileprivate var removeButton: some View {
         Button(action: onRemove) {
-            Label("Remove…", systemImage: "trash")
+            // "Remove" on the button: "Remove…" in a narrow capsule read as cut off (#823); the choice still follows.
+            Label("Remove", systemImage: "trash")
                 .lineLimit(1).minimumScaleFactor(0.8)
                 .font(Theme.label(15)).foregroundStyle(.white)
                 .frame(maxWidth: .infinity).frame(height: 56)

@@ -136,7 +136,9 @@ extension Session {
     /// Third stat square: work sets, or HIIT work intervals (a HIIT day has no strength sets).
     var setsStat: (value: Int, label: String, short: String) {
         if workSets == 0, let hiit { return (hiit.blocks.reduce(0) { $0 + $1.intervals }, "Rounds", "Rounds") }
-        return (workSets, "Work sets", "Sets")
+        // "Work sets" in both looks (#823): plain "Sets" under 16 exercises read as a counting bug; warm-up and
+        // mobility moves count as exercises but not as work sets.
+        return (workSets, "Work sets", "Work sets")
     }
 
     /// First moves of the main part (Up first strip): lifting, else the main cardio / mobility block, never the warm-up.

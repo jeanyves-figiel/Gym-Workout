@@ -292,6 +292,8 @@ struct ExerciseRef: Identifiable, Hashable {
 private struct FlowOverview: View {
     let session: Session
     var onEdit: (() -> Void)?
+    /// Regular = iPad (#824): every part fits across, so no scrolling strip and no cut-off muscles.
+    @Environment(\.horizontalSizeClass) private var horizontalSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -311,23 +313,38 @@ private struct FlowOverview: View {
                     .accessibilityLabel("Edit session flow")
                 }
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
+            if horizontalSize == .regular {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 10, alignment: .top)], alignment: .leading, spacing: 10) {
                     ForEach(session.blocks) { b in
-                        VStack(alignment: .leading, spacing: 8) {
-                            CategoryPill(category: b.kind.category, compact: true)
-                            Text("\(b.targetMin)′").font(Theme.display(28))
-                            Text(session.muscles(in: b.kind).prefix(3).map(\.name).joined(separator: "\n"))
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(Theme.muted)
-                                .lineLimit(3)
+                        part(b, wide: true)
+                    }
+                }
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(session.blocks) { b in
+                            part(b, wide: false)
                         }
-                        .frame(width: 120, alignment: .leading)
-                        .card(padding: 12)
                     }
                 }
             }
         }
+    }
+
+    /// One part: pill, minutes, muscles. `wide`: fills its grid cell and shows every muscle name in full (#824).
+    private func part(_ b: Block, wide: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            CategoryPill(category: b.kind.category, compact: true)
+            Text("\(b.targetMin)′").font(Theme.display(28))
+            Text(session.muscles(in: b.kind).prefix(3).map(\.name).joined(separator: "\n"))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Theme.muted)
+                .lineLimit(wide ? nil : 3)
+                .fixedSize(horizontal: false, vertical: wide)
+        }
+        .frame(maxWidth: wide ? CGFloat.infinity : nil, alignment: .topLeading)
+        .frame(width: wide ? nil : CGFloat(120), alignment: .leading)
+        .card(padding: 12)
     }
 }
 

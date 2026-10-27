@@ -127,30 +127,30 @@ struct NotificationSettingsView: View {
                         .card()
                 }
 
+                // Cards show the real state (#822, design A from `full-app-audit-3/mockups/proposals-4.png`): dimmed with
+                // "Off · iPhone notifications are off" until iPhone allows them; a time shows once, its number opens the picker.
+                let blocked = !notify.allowed
                 NotifyCard(symbol: "alarm.fill", title: "Session reminder", detail: "Morning of each planned session",
                            gradient: NotifyStyle.reminder, trailing: notify.prefs.sessionReminders ? NotificationPrefs.clock(notify.prefs.reminderMinutes) : "Off",
-                           isOn: $notify.prefs.sessionReminders) {
-                    TimeRow(title: "Remind me at", minutes: $notify.prefs.reminderMinutes)
-                }
+                           isOn: $notify.prefs.sessionReminders, blocked: blocked, time: $notify.prefs.reminderMinutes) { EmptyView() }
 
                 NotifyCard(symbol: "arrow.uturn.forward.circle.fill", title: "Missed session", detail: "Next-day check-in: train today or pick another day",
                            gradient: NotifyStyle.missed, trailing: notify.prefs.missedCheckIn ? NotificationPrefs.clock(notify.prefs.checkInMinutes) : "Off",
-                           isOn: $notify.prefs.missedCheckIn) {
-                    TimeRow(title: "Check in at", minutes: $notify.prefs.checkInMinutes)
-                }
+                           isOn: $notify.prefs.missedCheckIn, blocked: blocked, time: $notify.prefs.checkInMinutes) { EmptyView() }
 
+                // No big "On" (#822): the switch says it.
                 NotifyCard(symbol: "medal.fill", title: "Your achievements", detail: "When you unlock a badge",
-                           gradient: NotifyStyle.badge, trailing: notify.prefs.ownAchievements ? "On" : "Off",
-                           isOn: $notify.prefs.ownAchievements) { EmptyView() }
+                           gradient: NotifyStyle.badge, trailing: nil,
+                           isOn: $notify.prefs.ownAchievements, blocked: blocked) { EmptyView() }
 
                 NotifyCard(symbol: "trophy.fill", title: "People you follow", detail: "When they set a PR or unlock a badge",
-                           gradient: NotifyStyle.follow, trailing: notify.prefs.followAchievements ? "On" : "Off",
-                           isOn: $notify.prefs.followAchievements) { EmptyView() }
+                           gradient: NotifyStyle.follow, trailing: nil,
+                           isOn: $notify.prefs.followAchievements, blocked: blocked) { EmptyView() }
 
                 NotifyCard(symbol: "figure.walk", title: "Daily Move nudge",
                            detail: "One nudge on a day well below your usual steps, at the hour you usually walk",
                            gradient: NotifyStyle.move, trailing: notify.prefs.moveNudges ? NotificationPrefs.clock(MoveStore.shared.hour * 60) : "Off",
-                           isOn: $notify.prefs.moveNudges) {
+                           isOn: $notify.prefs.moveNudges, blocked: blocked) {
                     Text("Skipped when you trained or logged a sport, hit your usual, or tapped Rest day. Steps never leave your iPhone.")
                         .font(.footnote.weight(.semibold)).opacity(0.9)
                 }
@@ -167,7 +167,7 @@ struct NotificationSettingsView: View {
                 NotifyCard(symbol: "moon.stars.fill", title: "Quiet hours", detail: "Reminders move out; follow alerts arrive silently",
                            gradient: NotifyStyle.quiet,
                            trailing: notify.prefs.quietHours ? "\(NotificationPrefs.clock(notify.prefs.quietStart))–\(NotificationPrefs.clock(notify.prefs.quietEnd))" : "Off",
-                           isOn: $notify.prefs.quietHours) {
+                           isOn: $notify.prefs.quietHours, blocked: blocked) {
                     TimeRow(title: "From", minutes: $notify.prefs.quietStart)
                     TimeRow(title: "Until", minutes: $notify.prefs.quietEnd)
                 }
@@ -224,9 +224,15 @@ private struct NotifyCard<Options: View>: View {
     let title: String
     let detail: String
     let gradient: LinearGradient
-    let trailing: String
+    /// Big value on the right; nil = none (the switch says it, #822).
+    let trailing: String?
     @Binding var isOn: Bool
+    /// iPhone notifications not allowed (#822): dimmed, and the switch line says so.
+    var blocked = false
+    /// The card's time (#822): its big number opens the time picker, so the time shows once.
+    var time: Binding<Int>? = nil
     @ViewBuilder var options: () -> Options
+    @State private var picking = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -240,16 +246,36 @@ private struct NotifyCard<Options: View>: View {
                     Text(detail).font(.footnote.weight(.medium)).opacity(0.85)
                 }
                 Spacer(minLength: 4)
-                Text(trailing).font(Theme.display(20)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.6)
+                if let trailing {
+                    if time != nil, isOn {
+                        Button { picking.toggle() } label: {
+                            Text(trailing).font(Theme.display(20)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.6)
+                                .underline(picking)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(title) at \(trailing)")
+                        .accessibilityHint("Changes the time")
+                    } else {
+                        Text(trailing).font(Theme.display(20)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.6)
+                    }
+                }
             }
-            Toggle(isOn: $isOn) { Text(isOn ? "On" : "Off").font(Theme.label(14)) }
+            Toggle(isOn: $isOn) {
+                Text(blocked ? "Off · iPhone notifications are off" : isOn ? "On" : "Off").font(Theme.label(14))
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            }
                 .tint(.white.opacity(0.9))
-            if isOn { options() }
+            if isOn {
+                if let time, picking { TimeRow(title: "Time", minutes: time, wheel: true) }
+                options()
+            }
         }
         .foregroundStyle(.white)
         .padding(18)
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(gradient))
+        .opacity(blocked ? 0.55 : 1)
         .animation(.snappy, value: isOn)
+        .animation(.snappy, value: picking)
     }
 }
 
@@ -257,6 +283,8 @@ private struct NotifyCard<Options: View>: View {
 private struct TimeRow: View {
     let title: String
     @Binding var minutes: Int
+    /// The picker opened from a card's big time (#822): a wheel, no label (the number above is the time).
+    var wheel = false
 
     private var date: Binding<Date> {
         Binding(
@@ -268,6 +296,19 @@ private struct TimeRow: View {
     }
 
     var body: some View {
+        if wheel {
+            DatePicker(title, selection: date, displayedComponents: .hourAndMinute)
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .colorScheme(.dark)
+                .frame(maxWidth: .infinity)
+                .background(RoundedRectangle(cornerRadius: 14).fill(.black.opacity(0.18)))
+        } else {
+            row
+        }
+    }
+
+    private var row: some View {
         HStack {
             Text(title).font(Theme.label(14))
             Spacer()
@@ -308,6 +349,11 @@ struct MissedSessionSheet: View {
     @State private var calendar = false
     /// Move it found no free day left this week (#822).
     @State private var noFreeDay = false
+    /// Log it from the catch-up row (#822).
+    @State private var logging: Session?
+
+    /// This week's session, still missed and not let go: the same catch-up row as Train and Calendar (#822).
+    private var stillMissed: Session? { model.missedToHandle.first { $0.id == sessionId } }
 
     private var session: Session? { model.session(sessionId) }
 
@@ -346,6 +392,13 @@ struct MissedSessionSheet: View {
                             .font(.body.weight(.medium)).foregroundStyle(Theme.muted)
                     }
                     .padding(.bottom, 4)
+
+                    // Log it · Mark done · Do today · Skip (#822), each with its Undo bar, as on Train's missed card.
+                    if let missed = stillMissed {
+                        MissedActionsRow(session: missed) { logging = missed }
+                            .padding(14)
+                            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(MissedStyle.gradient))
+                    }
 
                     if session != nil {
                         Button { training = true } label: {
@@ -388,6 +441,9 @@ struct MissedSessionSheet: View {
             .sheet(isPresented: $calendar) {
                 NavigationStack { CalendarView() }
             }
+            .sheet(item: $logging, onDismiss: { if stillMissed == nil { dismiss() } }) { MissedLogSheet(session: $0) }
+            // Handled from the row (#822): done, moved to today or let go, so nothing is left to ask.
+            .onChange(of: stillMissed == nil) { _, gone in if gone && logging == nil { dismiss() } }
         }
     }
 }
