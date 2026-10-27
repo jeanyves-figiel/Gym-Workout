@@ -1,17 +1,23 @@
 {
-  "id": "2026-10-27.1",
+  "id": "2026-10-27.2",
   "items": [
     {
-      "symbol": "list.number",
-      "tint": "power",
-      "title": "Freestyle, in full control",
-      "body": "Line up your next exercises while you lift: Coach picks queue instead of jumping, + Set adds one more any time, and the start screen lines up several before you begin."
+      "symbol": "chart.xyaxis.line",
+      "tint": "strength",
+      "title": "Progress on the finish screen",
+      "body": "See your volume and est. 1-rep max charts, and every lift against last time: +2.5 kg, +1 rep, new best."
     },
     {
-      "symbol": "figure.strengthtraining.functional",
-      "tint": "strength",
-      "title": "More machines",
-      "body": "Seated and standing leg curl, lateral raise, incline press, seated dip and high row machines, with animations and 3D guide."
+      "symbol": "calendar.badge.plus",
+      "tint": "cardio",
+      "title": "Log any workout on a past day",
+      "body": "Did something off-plan? A past day's Workout tile now lists My workouts, the Library, Custom gym session, HIIT and Sport."
+    },
+    {
+      "symbol": "timer",
+      "tint": "power",
+      "title": "Clock stays on one line",
+      "body": "The workout clock in the player never wraps, even with a full toolbar."
     }
   ]
 }
