@@ -396,6 +396,13 @@ extension Profile {
     /// The day was turned into a rest day (#671).
     public func isSportOff(_ key: String) -> Bool { sportOff?.contains(key) ?? false }
 
+    /// Planning a sport again on days turned into rest days (#671) brings them back (#815): otherwise the new
+    /// sport day is hidden and the day keeps offering Plan sport.
+    public mutating func clearSportOff(from start: String, through end: String) {
+        sportOff?.removeAll { start <= $0 && $0 <= end }
+        if sportOff?.isEmpty == true { sportOff = nil }
+    }
+
     /// Picked sports other than climbing.
     public var otherSports: [SportPlan] { (sports ?? []).filter { $0.sport != .climbing } }
 }

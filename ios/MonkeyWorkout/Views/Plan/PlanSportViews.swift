@@ -201,7 +201,7 @@ struct PlanSportSheet: View {
 
     private func save() {
         switch mode {
-        case .weekly: model.addWeeklySportDay(sport, weekday: weekday)
+        case .weekly: model.addWeeklySportDay(sport, weekday: weekday, key: day)
         case .once, .trip: model.saveSportTrip(trip)
         }
         closeGuard.done()

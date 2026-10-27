@@ -107,3 +107,32 @@ extension Equipment {
         }
     }
 }
+
+extension Equipment {
+    /// Weight-stack (selectorized) machines, the kind eGym-style smart machines replace: they can set
+    /// a push and a lowering weight apart (#792, #813). Cable stations, plate-loaded and assisted machines can't.
+    public var weightStack: Bool {
+        switch self {
+        case .legPress, .legCurl, .legExtension, .latPulldown, .seatedRow, .chestPress, .pecDeck, .hipThrustMachine,
+             .seatedCalf, .hipAdAbductor, .abCrunch, .torsoRotation, .shoulderPress, .standingCalf, .curlMachine,
+             .tricepsMachine, .rowMachine, .backExtensionMachine, .squatMachine, .gluteMachine, .multiHip,
+             .pulloverMachine, .lateralRaiseMachine: true
+        default: false
+        }
+    }
+}
+
+extension Exercise {
+    /// Setup shows *Separate push / lower weight* up front (#813): a strength move on a weight-stack machine.
+    public var splitLoadMachine: Bool { loadedStrength && equipment.contains { $0.weightStack } }
+    /// Other loaded strength moves (free weights, cable, plate-loaded) offer it as a chip, for smart machines the catalog doesn't know.
+    public var splitLoadPossible: Bool {
+        loadedStrength && equipment.contains { [.freeWeights, .machines].contains($0.zone) && !Equipment.bodyweightRigs.contains($0) }
+    }
+    private var loadedStrength: Bool { category == .strength && unit != .sec }
+}
+
+extension Equipment {
+    /// Machines-zone kit that only carries your bodyweight.
+    static let bodyweightRigs: Set<Equipment> = [.pullupBar, .dipStation, .backExtension, .ghd, .assistedMachine]
+}

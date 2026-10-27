@@ -1,23 +1,35 @@
 {
-  "id": "2026-10-27.2",
+  "id": "2026-10-27.3",
   "items": [
     {
-      "symbol": "chart.xyaxis.line",
+      "symbol": "sparkles",
       "tint": "strength",
-      "title": "Progress on the finish screen",
-      "body": "See your volume and est. 1-rep max charts, and every lift against last time: +2.5 kg, +1 rep, new best."
+      "title": "Big polish, every corner",
+      "body": "The player keeps every set, your week stays right after skips and moves, and Undo is there after Move, Swap and finishing a workout."
     },
     {
-      "symbol": "calendar.badge.plus",
+      "symbol": "applewatch",
       "tint": "cardio",
-      "title": "Log any workout on a past day",
-      "body": "Did something off-plan? A past day's Workout tile now lists My workouts, the Library, Custom gym session, HIIT and Sport."
+      "title": "Watch workout, live on iPhone",
+      "body": "Train shows the workout running on your Watch. Open it on iPhone, and finish it from there with its summary."
     },
     {
-      "symbol": "timer",
+      "symbol": "arrow.up.arrow.down",
       "tint": "power",
-      "title": "Clock stays on one line",
-      "body": "The workout clock in the player never wraps, even with a full toolbar."
+      "title": "Push or lower weight where it fits",
+      "body": "Separate push and lower weights now show only on machines that can take them."
+    },
+    {
+      "symbol": "slider.horizontal.3",
+      "tint": "mobility",
+      "title": "Tidier player",
+      "body": "The Change sheet fits its options, Setup stays in place once saved, and the Undo bar dismisses with a tap or swipe."
+    },
+    {
+      "symbol": "figure.climbing",
+      "tint": "cardio",
+      "title": "Plan sport on a rest day",
+      "body": "Planning a sport on a day you made a rest day brings the sport back."
     }
   ]
 }
