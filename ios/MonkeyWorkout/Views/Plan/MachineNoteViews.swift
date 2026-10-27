@@ -167,7 +167,7 @@ struct MachineNoteSheet: View {
                         Text("Only you see this.").font(.footnote).foregroundStyle(Theme.muted)
                     }
                     photoCard
-                    splitLoadToggle
+                    if draft.splitLoad == true || exercise.splitLoadMachine { splitLoadToggle }
                     fieldsSection
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Note").eyebrow()
@@ -302,6 +302,14 @@ struct MachineNoteSheet: View {
         .accessibilityIdentifier("setup.splitLoad")
     }
 
+    /// Loaded strength moves off the weight-stack list (#813): a chip turns the split on for smart machines the catalog doesn't know.
+    private var splitLoadChip: Bool { draft.splitLoad != true && !exercise.splitLoadMachine && exercise.splitLoadPossible }
+
+    private var splitChip: some View {
+        FilterChip(title: "⇅ Push ≠ lower", on: false, small: true) { withAnimation { draft.splitLoad = true } }
+            .accessibilityIdentifier("setup.splitLoadChip")
+    }
+
     private var fieldsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Settings").eyebrow()
@@ -321,9 +329,11 @@ struct MachineNoteSheet: View {
                 }
             }
             let unused = MachineNote.presets.filter { p in !draft.fields.contains { $0.label.caseInsensitiveCompare(p) == .orderedSame } }
-            if draft.fields.count < MachineNote.maxFields, !unused.isEmpty {
+            let room = draft.fields.count < MachineNote.maxFields && !unused.isEmpty
+            if room || splitLoadChip {
                 FlowLayout(spacing: 6) {
-                    ForEach(unused, id: \.self) { p in FilterChip(title: p, on: false, small: true) { addField(p) } }
+                    if room { ForEach(unused, id: \.self) { p in FilterChip(title: p, on: false, small: true) { addField(p) } } }
+                    if splitLoadChip { splitChip }
                 }
             }
         }
