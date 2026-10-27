@@ -163,7 +163,7 @@ import Testing
         var stray = pin
         stray.slot = "recovery-9"
         let moved = MealPlanner.plan(days: days, prefs: prefs, favourites: [], own: [], have: [], kept: [stray])
-        #expect(moved.contains { $0.id == pin.id && $0.recipeId == pinnedId && $0.pinned })
+        #expect(moved.contains { $0.day == pin.day && $0.slot != "recovery-9" && $0.recipeId == pinnedId && $0.pinned })
         let items = MealPlanner.groceries(meals, recipes: [], foods: [], have: [], dayLabel: { $0 })
         #expect(!items.isEmpty)
         #expect(items.allSatisfy { $0.grams > 0 })
