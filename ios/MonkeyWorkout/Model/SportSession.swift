@@ -13,6 +13,8 @@ struct SportLog: Codable, Identifiable, Equatable, Sendable {
     var effort: Int = 6
     var distanceKm: Double?
     var notes: String?
+    /// Gym, ski resort, trail… (#832).
+    var place: SessionPlace?
     /// Rated from an Apple Health workout (Spotted, #416): `id` is that workout's id; never written back to Health.
     var fromHealth: Bool?
     /// Hyrox race or sim recorded on the Watch (#426): splits, Roxzone, division and goal.
@@ -41,6 +43,8 @@ struct SportEntry: Identifiable, Equatable, Codable, Sendable {
     var local = false
     /// Recorded live by the MonkeyWorkout Watch app (#479: auto-shared like a logged session).
     var tracked: Bool?
+    /// Where, when logged or rated here (#832).
+    var place: SessionPlace?
 
     var minutes: Int { max(0, Int(end.timeIntervalSince(start) / 60)) }
 
@@ -76,6 +80,7 @@ struct SportEntry: Identifiable, Equatable, Codable, Sendable {
     init(_ log: SportLog) {
         self.init(id: log.id, sport: log.sport, start: log.start, end: log.end, source: "MonkeyWorkout",
                   effort: log.effort, distanceKm: log.distanceKm, local: log.fromHealth != true)
+        place = log.place
     }
 }
 
@@ -88,6 +93,7 @@ enum Sports {
             guard let log = byId[h.id] else { return h }
             var e = h
             e.effort = log.effort
+            e.place = log.place
             return e
         }
         let healthIds = Set(health.map(\.id))

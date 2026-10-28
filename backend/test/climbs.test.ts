@@ -56,6 +56,14 @@ const sample = (id: string = randomUUID()) => ({
 });
 
 describe('climbs sync (#312)', () => {
+  it('keeps the gym or crag of a climb (#832)', async () => {
+    const t = await signUp('crag@example.com');
+    const place = { id: 'custom:block', name: 'Block Factory', gymId: 'custom:block' };
+    expect((await post('/v1/me/climbs', { climbs: [{ ...sample(), place }] }, t)).json().saved).toBe(1);
+    expect((await get('/v1/me/climbs', t)).json().climbs[0].place).toEqual(place);
+    expect((await post('/v1/me/climbs', { climbs: [{ ...sample(), place: { id: 'x', name: 'y'.repeat(200) } }] }, t)).statusCode).toBe(400);
+  });
+
   it('upserts, deltas, isolates, exports and deletes climbs; account delete removes them', async () => {
     const t = await signUp('climber@example.com');
     const a = sample();

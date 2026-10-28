@@ -4,6 +4,7 @@ import { randomToken, sha256 } from '../crypto.ts';
 import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
 import { baseUpdatedAt, conflictsField, opaqueCopy, reviveUploaded, recordTombstone, sendPull, type SyncTable, syncId, syncIdParams, takeConflicts } from './sync.ts';
+import { sessionPlace } from './climbs.ts';
 import { assertByteQuota, assertItemSize, assertRowQuota } from '../quota.ts';
 
 /** Other sport sessions (#416): snowboard, MTB, Hyrox… Synced like climbs (upsert by client id). */
@@ -16,6 +17,7 @@ const sport = z
     effort: z.number().int().min(1).max(10),
     sport: z.string().min(1).max(32),
     notes: z.string().max(2000).nullish(),
+    place: sessionPlace.nullish(),
   })
   .catchall(z.unknown());
 

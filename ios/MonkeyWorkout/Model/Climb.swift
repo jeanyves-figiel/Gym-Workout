@@ -36,6 +36,8 @@ struct ClimbLog: Codable, Identifiable, Equatable, Sendable {
     /// Free text, any scale (6B+, V5, 7a).
     var topGrade: String?
     var notes: String?
+    /// Gym or crag (#832).
+    var place: SessionPlace?
     /// Server version this copy was pulled or saved as (`ServerVersioned`); nil until the server has it.
     var updatedAt: String?
 
@@ -66,6 +68,8 @@ struct ClimbEntry: Identifiable, Equatable, Codable, Sendable {
     var local = false
     /// Extra line, e.g. "12 sends · 3 flashes" from MonkeyGrade.
     var detail: String?
+    /// Where, when logged here (#832).
+    var place: SessionPlace?
 
     var minutes: Int { max(0, Int(end.timeIntervalSince(start) / 60)) }
 
@@ -83,6 +87,7 @@ struct ClimbEntry: Identifiable, Equatable, Codable, Sendable {
     init(_ log: ClimbLog) {
         self.init(id: log.id, start: log.start, end: log.end, source: "MonkeyWorkout",
                   kind: log.kind, effort: log.effort, topGrade: log.topGrade, local: true)
+        place = log.place
     }
 
     /// Hard on fingers and pulling: logged effort ≥ 8, or ≥ 2 h when the effort is unknown.
