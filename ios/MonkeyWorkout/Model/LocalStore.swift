@@ -150,8 +150,6 @@ struct LocalState: Codable {
     var skipped: [String: Bool]?
     /// Sessions of later weeks skipped ahead (#671): that week's Monday ("yyyy-MM-dd") → session ids.
     var skippedAhead: [String: [String]]?
-    /// Workouts removed from their day only (#784): "Monday key:session id". Skipped too, without the Unskip line.
-    var removed: [String]?
     /// Today's auto-tune choices (#495).
     var dayTune: DayTune?
     var logs: [LogEntry] = []
@@ -303,7 +301,6 @@ extension LocalState {
         ticked = (try? c.decodeIfPresent([String: Bool].self, forKey: .ticked)) ?? [:]
         skipped = try? c.decodeIfPresent([String: Bool].self, forKey: .skipped)
         skippedAhead = try? c.decodeIfPresent([String: [String]].self, forKey: .skippedAhead)
-        removed = try? c.decodeIfPresent([String].self, forKey: .removed)
         let logList = lossy(LogEntry.self, .logs)
         logs = logList?.elements ?? []
         pendingLogIds = (try? c.decodeIfPresent(Set<UUID>.self, forKey: .pendingLogIds)) ?? []

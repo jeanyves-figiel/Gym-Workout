@@ -84,7 +84,8 @@ private final class ProbeController: UIViewController {
 @MainActor
 final class UndoCloseCenter {
     static let shared = UndoCloseCenter()
-    static let seconds: Double = 6
+    /// The Undo window (#854: skip → 5 s to take it back, then final).
+    static let seconds: Double = 5
 
     /// Adds the app's environment (model, health, …) to a reopened screen. Set once by the app.
     var environment: (AnyView) -> AnyView = { $0 }

@@ -312,7 +312,7 @@ private struct DemoScreen: View {
         // Missed sessions (#266); train-missed is the Train tab.
         case "calendar-missed": NavigationStack { CalendarView() }
         case "missed-catchup":
-            if let wd = model.missedToHandle.first?.weekday { MissedCatchUpSheet(weekday: wd) }
+            if let wd = model.missedSessions.first?.weekday { MissedCatchUpSheet(weekday: wd) }
         case "missed-log":
             if let s = model.missedSessions.first { MissedLogSheet(session: s) }
         case "programme-finished":
@@ -636,7 +636,7 @@ private struct DemoScreen: View {
         case "reschedule":
             // The week's real missed session on its own day, as missed-catchup shows it (#823): not the plan's
             // second session labelled "yesterday", which named a different workout.
-            if let s = model.missedToHandle.first {
+            if let s = model.missedSessions.first {
                 let cal = model.planCalendar
                 let day = cal.date(byAdding: .day, value: (s.weekday ?? 1) - 1, to: Progression.weekStart(Date(), cal))
                 MissedSessionSheet(sessionId: s.id, day: day ?? Date())

@@ -437,7 +437,6 @@ struct LibraryActionsPanel: View {
     @State private var planning: CustomWorkout?
     @State private var reporting = false
     @State private var confirmBlock = false
-    @State private var confirmRemove = false
     @State private var notice: String?
 
     var body: some View {
@@ -475,17 +474,25 @@ struct LibraryActionsPanel: View {
                 Text(isExtra ? "Added to this week." : "Placed into this week's plan.").font(.caption).foregroundStyle(Theme.muted)
             }
             Spacer()
-            Button("Remove") { confirmRemove = true }
+            // At once with the Undo bar (#854), no dialog: Skip for an extra, back to the planned session for a replaced day.
+            Button(isExtra ? "Skip" : "Back to planned") { removeInsert() }
                 .font(Theme.label(13))
                 .foregroundStyle(Theme.lime)
         }
         .card()
-        .confirmationDialog("Remove from this week?", isPresented: $confirmRemove, titleVisibility: .visible) {
-            Button("Remove from plan", role: .destructive) {
-                if let id = session.planInsertId { model.removePlanInsert(id) }
+    }
+
+    private func removeInsert() {
+        guard let ins = model.planInsert(for: session) else { return }
+        let s = session
+        withAnimation { model.removePlanInsert(ins.id) }
+        UndoCloseCenter.shared.deleted(ins.replacing == nil ? "\(s.displayTitle) skipped" : "Back to planned session",
+                                       detail: "This week only", symbol: "nosign") { [model] in
+            if let generated = ins.generated, let wd = ins.weekday {
+                _ = model.addExtra(ins.workout, generated: generated, weekday: wd)
+            } else {
+                _ = model.insertIntoPlan(ins.workout, replacing: ins.replacing, weekday: ins.weekday)
             }
-        } message: {
-            Text(isExtra ? "It comes off this week's plan." : "A replaced day goes back to its planned session.")
         }
     }
 

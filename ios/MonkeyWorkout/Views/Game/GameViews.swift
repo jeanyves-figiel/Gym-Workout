@@ -177,7 +177,7 @@ struct MonkeyCoachCard: View {
                                         readiness: Readiness.assess(health.snapshot)?.0.title, streakWeeks: stats.currentStreakWeeks)
         let all = tips(mood: mood, next: next, stats: stats, target: target)
         let current = all[tip % all.count]
-        let missed = model.missedToHandle
+        let missed = model.missedSessions
         // Slim (#337, design A): smaller monkey, two-line tip, action as a pill beside the chips, so Next up's
         // Start workout fits above the tab bar.
         VStack(alignment: .leading, spacing: 10) {
@@ -339,7 +339,7 @@ struct MonkeyCoachCard: View {
     /// Same tips as the Watch's Monkey coach home.
     private func tips(mood: MonkeyFace.Mood, next: Session?, stats: ProgressStats, target: Int) -> [Tip] {
         let title = next?.displayTitle ?? "it"
-        let missed = model.missedToHandle
+        let missed = model.missedSessions
         let go: Action = next.map { .start($0) } ?? .progress(.training)
         // Only today's session starts (#537): another day's tip opens its page, so it says See.
         let cta = next.map { "\(model.startableToday($0) ? "Start" : "See") \($0.displayTitle)" } ?? "See progress"
