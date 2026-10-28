@@ -1,6 +1,43 @@
 {
   "releases": [
     {
+      "id": "2026-10-27.3",
+      "build": 81,
+      "date": "2026-10-27",
+      "items": [
+        {
+          "symbol": "sparkles",
+          "tint": "strength",
+          "title": "Big polish, every corner",
+          "body": "The player keeps every set, your week stays right after skips and moves, and Undo is there after Move, Swap and finishing a workout."
+        },
+        {
+          "symbol": "applewatch",
+          "tint": "cardio",
+          "title": "Watch workout, live on iPhone",
+          "body": "Train shows the workout running on your Watch. Open it on iPhone, and finish it from there with its summary."
+        },
+        {
+          "symbol": "arrow.up.arrow.down",
+          "tint": "power",
+          "title": "Push or lower weight where it fits",
+          "body": "Separate push and lower weights now show only on machines that can take them."
+        },
+        {
+          "symbol": "slider.horizontal.3",
+          "tint": "mobility",
+          "title": "Tidier player",
+          "body": "The Change sheet fits its options, Setup stays in place once saved, and the Undo bar dismisses with a tap or swipe."
+        },
+        {
+          "symbol": "figure.climbing",
+          "tint": "cardio",
+          "title": "Plan sport on a rest day",
+          "body": "Planning a sport on a day you made a rest day brings the sport back."
+        }
+      ]
+    },
+    {
       "id": "2026-10-27.2",
       "build": 80,
       "date": "2026-10-27",
