@@ -75,9 +75,9 @@ import Testing
         #expect(MindScore.score(.init(mood: 5, hrv: 60, hrvBaseline: 50, sleepHours: 8, workoutDays: 2)) == 100)
         #expect(MindScore.score(.init(mood: 5, hrv: 60, hrvBaseline: 50, sleepHours: 9, workoutDays: 1, calmMinutes: 3)) == 100)
         #expect(MindScore.score(.init(mood: 1, hrv: 35, hrvBaseline: 50, sleepHours: 5, workoutDays: 0)) == 9)
-        // Mood only: mood and load reweighted, 17.5 + 15 of 50.
-        #expect(MindScore.score(.init(mood: 3)) == 65)
-        #expect(MindScore.score(.init(mood: 3, calmMinutes: 10)) == 65 + MindScore.calmBonusMax)
+        // Mood only: mood and training reweighted, 17.5 + 9 (no workout days, 60 %) of 50.
+        #expect(MindScore.score(.init(mood: 3)) == 53)
+        #expect(MindScore.score(.init(mood: 3, calmMinutes: 10)) == 53 + MindScore.calmBonusMax)
         #expect(MindScore.parts(.init(mood: 3)).map(\.name) == ["Mood", "Training"])
         #expect(MindScore.Inputs(hrv: 50, hrvBaseline: 0).hrvRatio == nil)
     }
