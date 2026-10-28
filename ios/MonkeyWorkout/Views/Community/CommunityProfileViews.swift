@@ -246,6 +246,7 @@ struct CommunityProfileForm: View {
                     } else {
                         AvatarView(url: removePhoto ? nil : model.api.resolve(savedAvatar),
                                    nickname: nickname.isEmpty ? "?" : nickname, size: 84, ring: Theme.lime)
+                            .overlay(alignment: .topLeading) { if Community.shared.me.avatarInReview == true { InReviewPill(compact: true) } }
                     }
                     Image(systemName: "camera.fill").font(.caption.bold()).foregroundStyle(Theme.ink)
                         .padding(7).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
@@ -254,7 +255,9 @@ struct CommunityProfileForm: View {
             .accessibilityLabel("Choose profile photo")
             VStack(alignment: .leading, spacing: 6) {
                 Text("Profile photo").font(.system(.body, design: .rounded).weight(.heavy))
-                Text("Optional. Location and camera details are removed.").font(.footnote).foregroundStyle(Theme.muted)
+                Text(Community.shared.me.avatarInReview == true
+                     ? "New photo in review · old one shows until then."
+                     : "Optional. Location and camera details are removed.").font(.footnote).foregroundStyle(Theme.muted)
                 if photo != nil || (savedAvatar != nil && !removePhoto) {
                     Button("Remove photo", role: .destructive) {
                         photo = nil

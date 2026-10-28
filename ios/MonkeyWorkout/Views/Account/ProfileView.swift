@@ -166,6 +166,7 @@ struct ProfileView: View {
                 ZStack(alignment: .bottomTrailing) {
                     AvatarView(url: model.api.resolve(community.me.avatarUrl), nickname: nickname.isEmpty ? (name.isEmpty ? "?" : name) : nickname,
                                size: 76, ring: Theme.lime)
+                        .overlay(alignment: .topLeading) { if community.me.avatarInReview == true { InReviewPill(compact: true) } }
                     Image(systemName: "camera.fill").font(.caption.bold()).foregroundStyle(Theme.ink)
                         .padding(6).background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.lime))
                 }
@@ -202,6 +203,9 @@ struct ProfileView: View {
                         .background(Capsule().fill(.red.opacity(0.75)))
                 }
                 Text(model.user?.email ?? "Hidden (Apple)").font(.footnote.weight(.medium)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.8)
+                if community.me.avatarInReview == true {
+                    Text("New photo in review · old one shows until then").font(.caption.bold()).lineLimit(2)
+                }
                 if community.me.avatarUrl != nil {
                     Button("Remove photo", role: .destructive) { removePhoto() }
                         .font(.caption.bold())

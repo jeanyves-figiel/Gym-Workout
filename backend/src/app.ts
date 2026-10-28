@@ -5,6 +5,7 @@ import { z, ZodError } from 'zod';
 import type { AppleVerifier } from './apple.ts';
 import { AppleTokenService, type Fetch } from './appleTokens.ts';
 import { AuthService, publicUser } from './auth.ts';
+import { aiModerator, claudeModeration, type ModerationModel } from './community/aiModeration.ts';
 import type { Config } from './config.ts';
 import type { DB } from './db.ts';
 import { EmailChangeService } from './emailChange.ts';
@@ -92,6 +93,8 @@ export interface AppDeps {
   snapScan?: SnapScanModel;
   /** Meal ideas from the pantry (#869); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
   mealIdeas?: MealIdeasModel;
+  /** AI moderation of shared names, captions and photos (#871); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
+  moderation?: ModerationModel;
   /** Studio coach voices (#395); defaults to Polly when credentials are configured. Injectable for tests. */
   synth?: Synthesize;
   /** Sees every route as it is registered (`src/docsReference.ts`, #586). */
@@ -317,8 +320,11 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       dataRoutes(r, deps.db, deps.now ?? (() => new Date()), auth, (id) => subscriptions.export(id));
       accountRoutes(r, emailChange, security, deps.config.authRateLimitPerMin);
       securityRoutes(r, security, deps.config.authRateLimitPerMin);
-      customWorkoutRoutes(r, deps.db, deps.now ?? (() => new Date()));
-      communityRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
+      const cc = deps.config.coachChat;
+      const moderationModel = deps.moderation ?? (cc.apiKey ? claudeModeration(cc.apiKey, cc.workspaceId, cc.models.moderate) : undefined);
+      const mod = aiModerator(deps.db, now, moderationModel, deps.config.aiDailyLimit, deps.mailer, deps.config.moderationEmail, r.log);
+      customWorkoutRoutes(r, deps.db, deps.now ?? (() => new Date()), mod);
+      communityRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail, mod);
       liveRoutes(r, deps.db, now, push);
       referralRoutes(r, deps.db, now);
       customExerciseRoutes(r, deps.db, deps.now ?? (() => new Date()));
@@ -331,7 +337,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       bodyMeasurementRoutes(r, deps.db, deps.now ?? (() => new Date()));
       pushRoutes(r, push, deps.config.appleBundleIds, (id) => sharing(id)?.nickname ?? null);
       libraryRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
-      programRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
+      programRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail, mod);
       subscriptionRoutes(r, subscriptions);
       gymRoutes(r, deps.db, now);
       const coach = deps.coach ?? (deps.config.coachChat.apiKey ? claudeCoach(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.chat) : undefined);

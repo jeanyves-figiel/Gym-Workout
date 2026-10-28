@@ -69,6 +69,7 @@ struct LibraryEntry: Identifiable, Hashable {
     /// Small tag on shared or reported workouts of mine.
     var badge: String? {
         guard case let .mine(w) = source else { return nil }
+        if w.inReview { return "IN REVIEW" }
         if w.hidden { return "HIDDEN" }
         return w.visibility == .private ? nil : w.visibility.label.uppercased()
     }
@@ -516,7 +517,9 @@ struct LibraryActionsPanel: View {
             GradientSegments(selection: Binding(get: { w.visibility }, set: { v in
                 model.setVisibility(w.id, v)
             }), items: WorkoutVisibility.allCases.map { SegmentItem(value: $0, title: $0.label, symbol: $0.symbol) })
-            Text(w.hidden
+            Text(w.inReview
+                 ? "In review: only you see it until a moderator checks the name."
+                 : w.hidden
                  ? "Hidden from members after reports, pending review."
                  : w.visibility == .private ? "Only you see it." : "Members can find it in their library, start it and save a copy.")
                 .font(.caption)

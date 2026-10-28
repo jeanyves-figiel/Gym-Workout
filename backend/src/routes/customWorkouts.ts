@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { type HoldCategory, type Moderator, noModerator } from '../community/aiModeration.ts';
 import { assertClean, hasAcceptedGuidelines, VISIBILITIES } from '../community/moderation.ts';
 import { type DB, tx } from '../db.ts';
 import { baseUpdatedAt, conflictsField, reviveUploaded, recordTombstone, sendPull, type SyncTable, syncId, syncIdParams, takeConflicts } from './sync.ts';
@@ -23,29 +24,53 @@ interface Row {
   updated_at: string;
   visibility: string;
   hidden_at: string | null;
+  in_review: number;
   saves: number;
 }
 
 /** Shared workouts' saves counted from `library_saves` (#714), so a deleted saver no longer counts. */
 const SAVES = '(SELECT COUNT(*) FROM library_saves s WHERE s.workout_id = custom_workouts.id) AS saves';
+/** Shared name held by AI moderation (#871). */
+const IN_REVIEW = `EXISTS (SELECT 1 FROM moderation_holds h WHERE h.target_type = 'workout' AND h.target_id = custom_workouts.id AND h.resolved_at IS NULL) AS in_review`;
 
 /** Stored JSON plus server-owned sharing state (the column is authoritative for visibility). */
 const toWorkout = (r: Row) => ({
   ...(JSON.parse(r.data) as object),
   visibility: r.visibility,
   hidden: !!r.hidden_at,
+  inReview: !!r.in_review,
   saves: r.saves,
   updatedAt: r.updated_at,
 });
 
 export const customWorkoutTable: SyncTable<Row> = {
   table: 'custom_workouts',
-  cols: `data, updated_at, visibility, hidden_at, ${SAVES}`,
+  cols: `data, updated_at, visibility, hidden_at, ${IN_REVIEW}, ${SAVES}`,
   timeCol: 'updated_at',
   map: toWorkout,
 };
 
-export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
+/**
+ * AI check (#871) of shared workout names that are new to the library (new, renamed or just shared). One call for the
+ * batch; when it flags, each name alone, so only the offending workouts are held. Ids to hold, with their category.
+ */
+const flaggedNames = async (db: DB, mod: Moderator, userId: string, shared: { id: string; name: string }[]) => {
+  const fresh = shared.filter((w) => {
+    const row = db.prepare('SELECT data, visibility FROM custom_workouts WHERE id = ? AND user_id = ?').get(w.id, userId) as { data: string; visibility: string } | undefined;
+    return !row || row.visibility === 'private' || (JSON.parse(row.data) as { name?: string }).name !== w.name;
+  });
+  const out = new Map<string, HoldCategory>();
+  const all = await mod.check({ texts: fresh.map((w) => w.name) });
+  if (!all) return out;
+  if (fresh.length === 1) return out.set(fresh[0]!.id, all);
+  for (const w of fresh) {
+    const c = await mod.check({ texts: [w.name] });
+    if (c) out.set(w.id, c);
+  }
+  return out;
+};
+
+export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date, mod: Moderator = noModerator()) => {
   r.get('/me/custom-workouts', async (req, reply) =>
     sendPull(reply, db, customWorkoutTable, { key: 'workouts', kind: 'custom-workouts', userId: req.userId!, query: req.query, now }),
   );
@@ -59,6 +84,7 @@ export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date)
       if (!hasAcceptedGuidelines(db, userId)) throw new ApiError(403, 'community_profile_required', 'Create your community profile first.');
       assertClean(...shared.map((w) => w.name));
     }
+    const held = shared.length ? await flaggedNames(db, mod, userId, shared) : new Map<string, HoldCategory>();
     const ts = now().toISOString();
     const up = db.prepare(
       `INSERT INTO custom_workouts (id, user_id, data, updated_at, visibility, shared_at) VALUES (?, ?, ?, ?, ?, ?)
@@ -80,6 +106,10 @@ export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date)
         const visibility = w.visibility ?? 'private';
         count += Number(up.run(w.id, userId, jsons[i]!, ts, visibility, visibility === 'private' ? null : ts).changes);
       });
+      // Held names stay out of the library until reviewed; the owner keeps the workout as is.
+      for (const [id, category] of held)
+        if (Number(db.prepare('UPDATE custom_workouts SET hidden_at = COALESCE(hidden_at, ?) WHERE id = ? AND user_id = ?').run(ts, id, userId).changes))
+          mod.hold({ userId, type: 'workout', id, category, texts: [shared.find((w) => w.id === id)?.name] });
       return { saved: count, conflicts };
     });
     return { saved, serverTime: ts, ...conflictsField(conflicts) };

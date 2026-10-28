@@ -115,17 +115,21 @@ struct SharedPlanCard: View {
             }
             .layoutPriority(1)
             Spacer(minLength: 4)
-            VStack(alignment: .trailing, spacing: 0) {
-                Text("\(plan.copies)").font(Theme.display(24)).monospacedDigit()
-                Text("COPIES").font(Theme.label(9)).tracking(1).opacity(0.85)
+            if plan.inReview == true {
+                InReviewPill().fixedSize()
+            } else {
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text("\(plan.copies)").font(Theme.display(24)).monospacedDigit()
+                    Text("COPIES").font(Theme.label(9)).tracking(1).opacity(0.85)
+                }
+                .fixedSize()
             }
-            .fixedSize()
         }
         .foregroundStyle(.white)
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(plan.programme.palette.gradient))
-        .opacity(plan.hidden ? 0.6 : 1)
+        .opacity(plan.hidden && plan.inReview != true ? 0.6 : 1)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
