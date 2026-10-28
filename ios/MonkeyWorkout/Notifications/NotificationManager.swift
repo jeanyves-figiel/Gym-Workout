@@ -42,6 +42,7 @@ final class NotificationManager: NSObject {
         static let badge = "BADGE_UNLOCKED"
         static let move = "MOVE_NUDGE"
         static let water = "WATER_NUDGE"
+        static let comeback = "COMEBACK_NUDGE"
     }
 
     enum Action {
@@ -52,6 +53,8 @@ final class NotificationManager: NSObject {
         static let waterOne = "WATER_ONE"
         static let waterTwo = "WATER_TWO"
         static let waterLater = "WATER_LATER"
+        static let comebackNow = "COMEBACK_NOW"
+        static let comebackTonight = "COMEBACK_TONIGHT"
     }
 
     private static let prefsKey = "notifications.prefs"
@@ -68,6 +71,10 @@ final class NotificationManager: NSObject {
     /// Set when a notification is tapped; the main tab view presents it.
     var route: NotificationRoute?
     private(set) var pendingCount = 0
+    /// Comeback offer taken from the banner (#876 C); Train adds the workout and clears it.
+    var comebackPick: ComebackPick?
+    /// On-device rewording of Coach reminders, by their facts: rebuilds don't ask the model again.
+    @ObservationIgnored private var reworded: [String: CoachNudge] = [:]
 
     private var deviceToken: String?
     private var registeredFor: String?
@@ -96,6 +103,11 @@ final class NotificationManager: NSObject {
                 UNNotificationAction(identifier: Action.waterOne, title: "+1 glass", options: []),
                 UNNotificationAction(identifier: Action.waterTwo, title: "+2", options: []),
                 UNNotificationAction(identifier: Action.waterLater, title: "Later", options: []),
+            ], intentIdentifiers: []),
+            // Comeback nudge (#876 C): one kind offer after 2+ missed sessions or a long break.
+            UNNotificationCategory(identifier: Category.comeback, actions: [
+                UNNotificationAction(identifier: Action.comebackNow, title: "Start \(CoachNudges.comebackMinutes)′ now", options: [.foreground]),
+                UNNotificationAction(identifier: Action.comebackTonight, title: "Tonight 19:00", options: [.foreground]),
             ], intentIdentifiers: []),
             UNNotificationCategory(identifier: Category.move, actions: [
                 UNNotificationAction(identifier: Action.moveLater, title: "Later", options: []),
@@ -148,11 +160,22 @@ final class NotificationManager: NSObject {
         let from = cal.date(byAdding: .day, value: -1, to: today) ?? today
         let through = cal.date(byAdding: .day, value: 8, to: today) ?? today
         let source = CalendarSessionSource(model: model, from: from, through: through)
-        let reminders = ReminderPlanner.plan(source.plannedSessions(from: from, through: through, calendar: cal), prefs: prefs, now: now, calendar: cal)
+        let sessions = source.plannedSessions(from: from, through: through, calendar: cal)
+        let reminders = ReminderPlanner.plan(sessions, prefs: prefs, now: now, calendar: cal)
+        let history = model.state.history
+        let planned = Dictionary(sessions.map { ($0.sessionId, $0) }) { a, _ in a }
+        var reworded = 0
         for r in reminders {
             let content = UNMutableNotificationContent()
             content.title = r.title
             content.body = r.body
+            // Coach-written reminder (#876 A): from the member's last time; the next few reworded on the iPhone.
+            if r.kind == .upcoming, let s = planned[r.sessionId],
+               var nudge = CoachNudges.reminder(title: s.title, sessionId: s.sessionId, focus: s.focus, estMin: s.estMin, day: r.day,
+                                                history: history, calendar: cal) {
+                if reworded < 3 { nudge = await rewordOnDevice(nudge); reworded += 1 }
+                content.body = nudge.body
+            }
             content.sound = .default
             content.threadIdentifier = r.kind.rawValue
             content.categoryIdentifier = r.kind == .upcoming ? Category.upcoming : Category.missed
@@ -162,7 +185,8 @@ final class NotificationManager: NSObject {
             try? await center.add(req)
         }
         let nudges = await scheduleSportNudges(model.profile, away: model.away, today: today, now: now, calendar: cal)
-        pendingCount = reminders.count + nudges
+        let comeback = await scheduleComeback(model, now: now, calendar: cal)
+        pendingCount = reminders.count + nudges + comeback
         // A check-in already on screen for a session that is now done or moved is stale.
         let open = Set(reminders.map(\.id))
         let delivered = await center.deliveredNotifications().map(\.request.identifier).filter { $0.hasPrefix("missed|") && !open.contains($0) }
@@ -195,7 +219,65 @@ final class NotificationManager: NSObject {
         return count
     }
 
-    private static func isOurs(_ id: String) -> Bool { id.hasPrefix("upcoming|") || id.hasPrefix("missed|") || id.hasPrefix("sport|") }
+    private static func isOurs(_ id: String) -> Bool {
+        id.hasPrefix("upcoming|") || id.hasPrefix("missed|") || id.hasPrefix("sport|") || id.hasPrefix("comeback|")
+    }
+
+    // MARK: Coach nudges (#876)
+
+    private static let comebackSentKey = "notifications.comebackSent"
+
+    /// Comeback nudge (C): once per drift (2+ missed sessions since the last workout, or a long break), at the next
+    /// 12:00 or 17:00. Rebuilt with the plan, so a workout done before it fires cancels it.
+    private func scheduleComeback(_ model: AppModel, now: Date, calendar cal: Calendar) async -> Int {
+        guard prefs.comebackNudge, let at = CoachNudges.comebackFireAt(now: now, prefs: prefs, calendar: cal) else { return 0 }
+        let history = model.state.history
+        let key = CoachNudges.driftKey(history: history, calendar: cal)
+        let store = UserDefaults.standard
+        // Sent already for this drift: the one scheduled before has fired.
+        if let sent = store.dictionary(forKey: Self.comebackSentKey), sent["key"] as? String == key,
+           let fired = sent["at"] as? Double, Date(timeIntervalSince1970: fired) <= now { return 0 }
+        let focus = model.comebackFocus
+        guard var nudge = CoachNudges.comeback(missedDays: model.missedDays, focus: focus, history: history, fireAt: at, calendar: cal)
+        else { return 0 }
+        nudge = await rewordOnDevice(nudge)
+        let content = UNMutableNotificationContent()
+        content.title = nudge.title
+        content.body = nudge.body
+        content.sound = .default
+        content.threadIdentifier = "comeback"
+        content.categoryIdentifier = Category.comeback
+        content.userInfo = ["kind": "comeback", "focus": focus.rawValue]
+        let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: at)
+        try? await center.add(UNNotificationRequest(identifier: key, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)))
+        store.set(["key": key, "at": at.timeIntervalSince1970], forKey: Self.comebackSentKey)
+        return 1
+    }
+
+    /// The nudge in Coach's words from the on-device model (#608); the built text when it isn't there.
+    private func rewordOnDevice(_ nudge: CoachNudge) async -> CoachNudge {
+        let cacheKey = nudge.title + "|" + nudge.facts.joined(separator: "|")
+        if let done = reworded[cacheKey] { return done }
+        guard let better = await OnDeviceCoach.nudge(nudge) else { return nudge }
+        reworded[cacheKey] = better
+        return better
+    }
+
+    /// "Tonight 19:00" on the comeback nudge: a reminder for the workout it just added to today.
+    func scheduleTonight(_ session: Session, now: Date = Date()) async {
+        let cal = Calendar.current
+        guard let at = cal.date(bySettingHour: 19, minute: 0, second: 0, of: now), at > now else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Tonight: \(session.displayTitle)"
+        content.body = "\(session.estMin) min, ready on Train. Coach is in."
+        content.sound = .default
+        content.threadIdentifier = LocalReminder.Kind.upcoming.rawValue
+        content.categoryIdentifier = Category.upcoming
+        content.userInfo = ["kind": LocalReminder.Kind.upcoming.rawValue, "sessionId": session.id]
+        let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: at)
+        try? await center.add(UNNotificationRequest(identifier: "tonight|\(session.id)", content: content,
+                                                    trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)))
+    }
 
     // MARK: Daily Move (#454)
 
@@ -449,6 +531,8 @@ final class NotificationManager: NSObject {
     func resetPrefs() {
         prefs = NotificationPrefs()
         prefsDirty = true
+        UserDefaults.standard.removeObject(forKey: Self.comebackSentKey)
+        reworded = [:]
     }
 
     // MARK: Storage
@@ -504,6 +588,15 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
             }
             return
         }
+        if info["kind"] as? String == "comeback", [Action.comebackNow, Action.comebackTonight].contains(response.actionIdentifier) {
+            let pick = ComebackPick(focus: Focus(rawValue: info["focus"] as? String ?? "") ?? .fullUpper,
+                                    tonight: response.actionIdentifier == Action.comebackTonight)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { NotificationManager.shared.comebackPick = pick }
+                completionHandler()
+            }
+            return
+        }
         let route = Self.route(kind: info["kind"] as? String, action: response.actionIdentifier,
                                sessionId: info["sessionId"] as? String,
                                day: (info["day"] as? Double).map { Date(timeIntervalSince1970: $0) },
@@ -542,7 +635,8 @@ struct CalendarSessionSource: PlannedSessionSource {
     @MainActor init(model: AppModel, from: Date, through: Date) {
         let end = Calendar.current.date(byAdding: .day, value: 1, to: through).map { $0.addingTimeInterval(-1) } ?? through
         items = model.plannedSessions(from: from, to: end).map {
-            PlannedSession(sessionId: $0.session.id, title: $0.session.title, estMin: $0.session.estMin, day: $0.date, done: false)
+            PlannedSession(sessionId: $0.session.id, title: $0.session.title, estMin: $0.session.estMin, day: $0.date, done: false,
+                           focus: $0.session.focus)
         }
     }
 
