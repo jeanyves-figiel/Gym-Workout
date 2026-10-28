@@ -8,7 +8,7 @@ import Testing
         var base = Profile()
         base.equipment = [.dumbbells, .bench]
         let d = CoachPlanDraft(goal: "build", experience: "beginner", sessions: 4, weekdays: [6, 2, 4, 1, 2], minutes: 60,
-                               protect: " knee ", summary: "Muscle and fat loss, 4 days.")
+                               protect: .init(area: "knee", side: "right", level: "loaded"), summary: "Muscle and fat loss, 4 days.")
         let p = d.applied(to: base)
         #expect(p.goal == .build)
         #expect(p.experience == .beginner)
@@ -17,11 +17,12 @@ import Testing
         #expect(p.maxSessionMinutes == 60)
         #expect(p.equipment == [.dumbbells, .bench])
         #expect(!p.climbs)
-        #expect(d.protectText == "knee")
+        #expect(d.pain()?.spot == "right knee")
+        #expect(d.pain()?.level == .loaded)
     }
 
     @Test func unknownValuesFallBack() {
-        let d = CoachPlanDraft(goal: "yoga", experience: "pro", sessions: 9, weekdays: [0, 8], minutes: 50, climbs: true, climbDays: 7, protect: "  ")
+        let d = CoachPlanDraft(goal: "yoga", experience: "pro", sessions: 9, weekdays: [0, 8], minutes: 50, climbs: true, climbDays: 7, protect: .init(area: "toe"))
         let p = d.applied(to: Profile())
         #expect(p.goal == .balanced)
         #expect(p.experience == .beginner)
@@ -29,7 +30,8 @@ import Testing
         #expect(p.gymWeekdays == nil)
         #expect(p.maxSessionMinutes == nil)
         #expect(p.climbingDaysPerWeek == 4)
-        #expect(d.protectText == nil)
+        #expect(d.pain() == nil)
+        #expect(CoachPlanDraft(goal: "build", experience: "beginner", sessions: 3, protect: .init(area: "lower-back", side: "left", level: "x")).pain()?.spot == "lower back")
     }
 
     @Test func helpPickOnlyFromOptions() {

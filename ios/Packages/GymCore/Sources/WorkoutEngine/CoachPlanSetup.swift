@@ -11,12 +11,24 @@ public struct CoachPlanDraft: Codable, Sendable, Equatable {
     public var minutes: Int?
     public var climbs: Bool
     public var climbDays: Int?
-    /// Body part to spare ("left knee"), kept as a Coach note.
-    public var protect: String?
+    /// The spot to spare; turns on train around pain (#870) when the plan is built.
+    public struct Protect: Codable, Sendable, Equatable {
+        public var area: String
+        public var side: String
+        public var level: String
+
+        public init(area: String, side: String = "both", level: String = "mild") {
+            self.area = area
+            self.side = side
+            self.level = level
+        }
+    }
+
+    public var protect: Protect?
     public var summary: String
 
     public init(goal: String, experience: String, sessions: Int, weekdays: [Int] = [], minutes: Int? = nil, climbs: Bool = false,
-                climbDays: Int? = nil, protect: String? = nil, summary: String = "") {
+                climbDays: Int? = nil, protect: Protect? = nil, summary: String = "") {
         self.goal = goal
         self.experience = experience
         self.sessions = sessions
@@ -35,9 +47,11 @@ public struct CoachPlanDraft: Codable, Sendable, Equatable {
     public var sessionCount: Int { min(6, max(2, sessions)) }
     public var days: [Int] { Array(Set(weekdays.filter { (1...7).contains($0) })).sorted().prefix(sessionCount).map { $0 } }
     public var length: Int? { minutes.flatMap { m in Self.lengths.contains(m) ? m : nil } }
-    public var protectText: String? {
-        let t = protect?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return t.isEmpty ? nil : String(t.prefix(30))
+    /// Pain mode for the spot Coach heard (#870); nil when none or unknown to this app version.
+    public func pain(since: Date = Date()) -> PainProtect? {
+        guard let protect, let area = PainArea(rawValue: protect.area) else { return nil }
+        return PainProtect(area: area, side: PainSide(rawValue: protect.side) ?? .both, level: PainLevel(rawValue: protect.level) ?? .mild,
+                           since: since)
     }
 
     /// The draft on the form's profile: gym, machines and map from the steps before stay as they are.

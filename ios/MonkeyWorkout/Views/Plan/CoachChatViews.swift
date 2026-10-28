@@ -16,6 +16,8 @@ struct CoachChatMessage: Identifiable, Equatable {
     var action: CoachChatAction?
     /// Follow-up questions to tap (#412).
     var suggestions: [String] = []
+    /// Train around pain (#870): the plan Coach offers, with Apply.
+    var protect: PainProtect?
     /// Answered by the on-device model (#608): badge + how long it took.
     var onDevice = false
     var seconds: Double?
@@ -248,6 +250,7 @@ struct CoachChatView: View {
                 if m.onDevice { OnDeviceBadge(seconds: m.seconds) }
                 if !m.text.isEmpty { coachBubble(m.text) }
                 if let a = m.action { actionButton(a) }
+                if let p = m.protect { PainPlanCard(protect: p) }
                 if let w = m.workout { workoutCard(w, message: m) }
             }
         }
@@ -504,6 +507,7 @@ struct CoachChatView: View {
                 let a = try await model.coachChat(history, readiness: readiness, focus: focus)
                 store.remaining = a.remainingToday
                 var reply = CoachChatMessage(role: .coach, text: a.reply, action: a.action, suggestions: a.suggestions ?? [])
+                reply.protect = a.protect.flatMap(PainProtect.init(chat:))
                 if let s = a.workout, let profile = model.profile {
                     let w = s.workout(profile: profile, seed: UInt32.random(in: .min ... .max))
                         .withFlow(CoachWorkoutSettings.flowMinutes, profile: profile)

@@ -93,7 +93,8 @@ struct OnboardingFlowView: View {
                 CoachPlanSetupView(base: p) { made, protect in
                     talking = false
                     finishPlan(made)
-                    if let protect { model.addCoachNote("Protect \(protect): go easy on it") }
+                    // Protect (#873) turns on train around pain (#870) for that spot.
+                    if let protect { model.setPainProtect(protect) }
                 }
             }
         }

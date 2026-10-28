@@ -437,6 +437,12 @@ final class AppModel {
     }
 
     private func makePlan() -> WeekPlan? {
+        // Train around pain (#870) last: the protected spot wins over every other change.
+        unguardedPlan().map { painGuarded($0) }
+    }
+
+    /// The plan before Train around pain (#870): what its preview is made from.
+    func unguardedPlan() -> WeekPlan? {
         guard let edited = uneditedPlan?.applying(edits: state.synced?.sessionEdits ?? []) else { return nil }
         // Lift Focus and Pro Sets (#499): the focus lift's block sets, then the member's set styles.
         // Sport add-on (#620 C) on the week's first strength sessions.
@@ -508,7 +514,7 @@ final class AppModel {
         let keptGrowth = state.synced?.growth
         let outside = (sportAddOn: state.synced?.sportAddOn, skills: state.synced?.skills, bikeFTP: state.synced?.bikeFTP,
                     bikeFTPTestedAt: state.synced?.bikeFTPTestedAt, lifeStage: state.synced?.lifeStage,
-                    onboarding: state.synced?.onboarding)
+                    onboarding: state.synced?.onboarding, pain: state.synced?.pain)
         let learning = (tasteOff: state.synced?.tasteOff, recap: newWeek ? nil : state.synced?.tasteRecap)
         state.synced = sp
         state.synced?.tasteOff = learning.tasteOff
@@ -523,6 +529,7 @@ final class AppModel {
         state.synced?.bikeFTPTestedAt = outside.bikeFTPTestedAt
         state.synced?.lifeStage = outside.lifeStage
         state.synced?.onboarding = outside.onboarding
+        state.synced?.pain = outside.pain
         // A profile edit (goal, days, gym…) re-plans the rest of this week (#194): sessions already done and the
         // one in progress keep their content; everything else follows the new profile.
         let kept = newWeek ? [] : doneIds.union([state.activeWorkout?.sessionId].compactMap { $0 })

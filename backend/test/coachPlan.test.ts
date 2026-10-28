@@ -25,7 +25,7 @@ const help: HelpAsk = {
 const fake: PlanSetupModel = {
   plan: async (text) => {
     heard.push(text);
-    return cleanPlan({ goal: 'build', experience: 'beginner', sessions: 9, weekdays: [6, 2, 2, 9, 4, 1, 3], minutes: 50, climbs: false, climbDays: 3, protect: '  knee ', summary: 'Muscle and fat loss, 4 days.' });
+    return cleanPlan({ goal: 'build', experience: 'beginner', sessions: 9, weekdays: [6, 2, 2, 9, 4, 1, 3], minutes: 50, climbs: false, climbDays: 3, protect: { area: 'knee', side: 'left', level: 'nope' as never }, summary: 'Muscle and fat loss, 4 days.' });
   },
   help: async (h) => cleanHelp({ answer: 'Hypertrophy is 8–12 reps for size. For climbing pick Strength.', pick: 'strength' }, h),
 };
@@ -69,7 +69,7 @@ describe('plan set-up with Coach (#873)', () => {
       minutes: 45,
       climbs: false,
       climbDays: null,
-      protect: 'knee',
+      protect: { area: 'knee', side: 'left', level: 'mild' },
       summary: 'Muscle and fat loss, 4 days.',
     });
     expect(heard[0]).toContain('bad knee');
@@ -87,9 +87,10 @@ describe('plan set-up with Coach (#873)', () => {
   });
 
   it('keeps unknown values on safe defaults', () => {
-    const d = cleanPlan({ goal: 'yoga' as never, sessions: 0, weekdays: [], minutes: null, climbs: false, protect: ' ', summary: '' });
+    const d = cleanPlan({ goal: 'yoga' as never, sessions: 0, weekdays: [], minutes: null, climbs: false, protect: { area: 'toe' as never, side: 'left', level: 'mild' }, summary: '' });
     expect(d).toMatchObject({ goal: 'balanced', experience: 'beginner', sessions: 3, minutes: null, protect: null });
     expect(cleanPlan({ goal: 'climbing', climbDays: 7 })).toMatchObject({ climbs: true, climbDays: 4 });
+    expect(cleanPlan({ protect: { area: 'lower-back', side: 'left', level: 'sharp' } }).protect).toEqual({ area: 'lower-back', side: 'both', level: 'sharp' });
   });
 
   it('caps calls per member per day across both', async () => {

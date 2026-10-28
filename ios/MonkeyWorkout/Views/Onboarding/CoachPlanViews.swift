@@ -4,11 +4,12 @@ import WorkoutEngine
 
 /// Set up the plan by talking to Coach (#873, design B from `ai-epic/a3.png`): the member says what they want once,
 /// typed or spoken; Coach fills the plan tiles (goal, days, length, protect), each tap opens a quick fix, then
-/// BUILD MY PLAN makes the plan on the profile the guided steps set up (gym, machines, map stay).
+/// BUILD MY PLAN makes the plan on the profile the guided steps set up (gym, machines, map stay); Protect turns on
+/// train around pain (#870) for that spot.
 struct CoachPlanSetupView: View {
     let base: Profile
-    /// The plan's profile and the body part to spare, kept as a Coach note.
-    let onBuild: (Profile, String?) -> Void
+    /// The plan's profile and the spot to protect (pain mode, #870).
+    let onBuild: (Profile, PainProtect?) -> Void
     @Environment(AppModel.self) private var model
     @State private var text = ""
     @State private var said = ""
@@ -19,7 +20,7 @@ struct CoachPlanSetupView: View {
     @State private var listener = CoachListener()
     @FocusState private var typing: Bool
 
-    init(base: Profile, onBuild: @escaping (Profile, String?) -> Void) {
+    init(base: Profile, onBuild: @escaping (Profile, PainProtect?) -> Void) {
         self.base = base
         self.onBuild = onBuild
         #if DEBUG
@@ -32,7 +33,7 @@ struct CoachPlanSetupView: View {
 
     static let demoText = "Lose weight and build muscle, 4 days, 1 hour max, bad knee"
     static let demoDraft = CoachPlanDraft(goal: "build", experience: "beginner", sessions: 4, weekdays: [1, 2, 4, 6], minutes: 60,
-                                          protect: "knee", summary: "Muscle and fat loss, 4 days of an hour, sparing your knee.")
+                                          protect: .init(area: "knee", side: "right", level: "loaded"), summary: "Muscle and fat loss, 4 days of an hour, sparing your knee.")
 
     var body: some View {
         ScrollView {
@@ -200,7 +201,7 @@ struct CoachPlanSetupView: View {
 
     private func build() {
         guard let draft else { return }
-        onBuild(draft.applied(to: base), draft.protectText)
+        onBuild(draft.applied(to: base), draft.pain())
     }
 }
 
@@ -238,7 +239,9 @@ enum CoachPlanTile: String, CaseIterable, Identifiable {
         case .length:
             return (d.length.map { _ in "minutes a session" } ?? "auto, fits the goal", d.length.map { "\($0)′" }, "timer")
         case .protect:
-            return (d.protectText ?? "nothing to spare", nil, d.protectText == nil ? "checkmark.shield.fill" : "shield.lefthalf.filled")
+            let pain = d.pain()
+            return (pain.map { "\($0.spot) · \($0.level.label.lowercased())" } ?? "nothing to spare", nil,
+                    pain == nil ? "checkmark.shield.fill" : "shield.lefthalf.filled")
         }
     }
 }
@@ -300,13 +303,32 @@ struct CoachPlanFixSheet: View {
                 }
             }
         case .protect:
-            Text("Body part to spare").eyebrow()
-            TextField("e.g. left knee", text: Binding(get: { draft.protect ?? "" }, set: { draft.protect = String($0.prefix(30)) }))
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .padding(12)
-                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.cardStrong))
-            FixChip(title: "Nothing to protect", selected: draft.protectText == nil) { draft.protect = nil }
-            Text("Coach keeps it as a note and plans around it when you ask. For pain that doesn't go away, see a doctor or physio.")
+            Text("Where it hurts").eyebrow()
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                FixChip(title: "Nothing", selected: draft.pain() == nil) { draft.protect = nil }
+                ForEach(PainArea.allCases) { a in
+                    FixChip(title: a.label.capitalized, selected: draft.protect?.area == a.rawValue) {
+                        draft.protect = .init(area: a.rawValue, side: draft.protect?.side ?? "both", level: draft.protect?.level ?? PainLevel.mild.rawValue)
+                    }
+                }
+            }
+            if let pain = draft.pain() {
+                if pain.area.sided {
+                    Text("Side").eyebrow()
+                    HStack(spacing: 8) {
+                        ForEach(PainSide.allCases, id: \.self) { side in
+                            FixChip(title: side.rawValue.capitalized, selected: pain.side == side) { draft.protect?.side = side.rawValue }
+                        }
+                    }
+                }
+                Text("How bad").eyebrow()
+                HStack(spacing: 8) {
+                    ForEach(PainLevel.allCases) { l in
+                        FixChip(title: l.label, selected: pain.level == l) { draft.protect?.level = l.rawValue }
+                    }
+                }
+            }
+            Text("Your plan swaps the moves that load it until you tap Feels better on Train. \(PainProtect.notAdvice)")
                 .font(.footnote).foregroundStyle(Theme.muted)
         }
     }

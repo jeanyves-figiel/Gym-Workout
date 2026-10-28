@@ -500,6 +500,8 @@ struct WeekView: View {
                     // Workout running on the Watch (#603): back to its twin player. Today's card is the live card itself
                     // (#822), so the banner only shows over another picked day.
                     if !arranging, pickedDay != nil { WatchLiveBanner() }
+                    // Train around pain (#870 C): the Protected badge over the day.
+                    if !arranging { PainProtectBar() }
                     nextUpCard(plan)
                     // One slot for the cards that only show for a while (#538): Start workout never moves down for them.
                     if !arranging { TrainNoticeSlot() }
@@ -517,6 +519,7 @@ struct WeekView: View {
                 }
             } else {
                 VStack(alignment: .leading, spacing: 18) {
+                    if !arranging, !small { PainProtectBar() }
                     NextUpCompactWidget(session: model.nextSession, wide: !small) { start($0) }
                         .frame(maxHeight: small ? .infinity : nil, alignment: .top)
                     // A small Next up gets the slot under its row instead (#538).

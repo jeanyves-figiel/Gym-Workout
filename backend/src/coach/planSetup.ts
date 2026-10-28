@@ -12,6 +12,16 @@ import { AI_MODELS, CACHED, tracked } from './models.ts';
 export const GOALS = ['balanced', 'build', 'strength', 'climbing', 'endurance', 'athletic'] as const;
 export const LEVELS = ['beginner', 'intermediate', 'advanced'] as const;
 export const MINUTES = [45, 60, 75, 90] as const;
+/** Pain and injury mode's spots and levels (#870): onboarding's Protect turns it on. */
+export const AREAS = ['neck', 'shoulder', 'elbow', 'wrist', 'lower-back', 'hip', 'knee', 'ankle'] as const;
+export const SIDES = ['left', 'right', 'both'] as const;
+export const PAIN_LEVELS = ['mild', 'loaded', 'sharp'] as const;
+
+export interface PlanProtect {
+  area: (typeof AREAS)[number];
+  side: (typeof SIDES)[number];
+  level: (typeof PAIN_LEVELS)[number];
+}
 
 export interface PlanDraft {
   goal: (typeof GOALS)[number];
@@ -21,7 +31,7 @@ export interface PlanDraft {
   minutes: number | null;
   climbs: boolean;
   climbDays: number | null;
-  protect: string | null;
+  protect: PlanProtect | null;
   summary: string;
 }
 
@@ -50,7 +60,7 @@ const PLAN_SYSTEM = `You are Coach Monkey, the upbeat coach inside the MonkeyWor
 - weekdays: only the weekdays they name (1 = Monday … 7 = Sunday), else empty. At most as many as sessions.
 - minutes: 45, 60, 75 or 90 when they give a session length (round to the nearest), else null.
 - climbs: true when they climb or boulder besides the gym. climbDays: climbing days a week (1 to 4) when said, else null.
-- protect: the body part they want to spare (pain, old injury, "bad knee"), in 1 to 3 words like "left knee" or "lower back", else null. Never diagnose.
+- protect: the joint they want to spare (pain, old injury, "bad knee"), else null. area: neck, shoulder, elbow, wrist, lower-back, hip, knee or ankle (the closest one). side: left, right or both (both when not said or the middle of the body). level: mild (a niggle, old injury), loaded (hurts under load or when they say "bad"), sharp (sharp or recent pain). Never diagnose.
 - summary: one short warm sentence saying what you set up, plain text, no emoji, like "Muscle and fat loss, 4 days, sparing your knee."
 Only use what they said; when unsure pick the safe default.`;
 
@@ -71,7 +81,17 @@ const planSchema = {
     minutes: { anyOf: [{ type: 'null' }, { type: 'integer' }] },
     climbs: { type: 'boolean' },
     climbDays: { anyOf: [{ type: 'null' }, { type: 'integer' }] },
-    protect: { anyOf: [{ type: 'null' }, { type: 'string' }] },
+    protect: {
+      anyOf: [
+        { type: 'null' },
+        {
+          type: 'object',
+          properties: { area: { type: 'string', enum: [...AREAS] }, side: { type: 'string', enum: [...SIDES] }, level: { type: 'string', enum: [...PAIN_LEVELS] } },
+          required: ['area', 'side', 'level'],
+          additionalProperties: false,
+        },
+      ],
+    },
     summary: { type: 'string' },
   },
   required: ['goal', 'experience', 'sessions', 'weekdays', 'minutes', 'climbs', 'climbDays', 'protect', 'summary'],
@@ -104,7 +124,14 @@ export const cleanPlan = (d: Partial<PlanDraft>): PlanDraft => {
     minutes,
     climbs,
     climbDays: climbs && cd ? Math.min(4, Math.max(1, Math.round(cd))) : null,
-    protect: d.protect?.trim().slice(0, 30) || null,
+    protect:
+      d.protect && AREAS.includes(d.protect.area)
+        ? {
+            area: d.protect.area,
+            side: SIDES.includes(d.protect.side) && !['neck', 'lower-back'].includes(d.protect.area) ? d.protect.side : 'both',
+            level: PAIN_LEVELS.includes(d.protect.level) ? d.protect.level : 'mild',
+          }
+        : null,
     summary: d.summary?.trim().slice(0, 200) || 'Here is what I set up. Tap a tile to change it.',
   };
 };

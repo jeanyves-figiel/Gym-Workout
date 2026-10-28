@@ -60,6 +60,24 @@ public struct CoachChatAnswer<W: Decodable & Sendable>: Decodable, Sendable {
     public var action: CoachChatAction?
     /// Follow-up questions to tap (#412).
     public var suggestions: [String]?
+    /// Train around pain (#870): the spot to protect; the app's engine picks the swaps.
+    public var protect: CoachChatProtect?
+}
+
+/// Coach's train-around-pain offer (#870): area neck … ankle, side left / right / both, level mild / loaded / sharp.
+public struct CoachChatProtect: Codable, Sendable, Equatable {
+    public var area: String
+    public var side: String
+    public var level: String
+    /// Red flags were mentioned: see a doctor first.
+    public var seeDoctor: Bool
+
+    public init(area: String, side: String, level: String, seeDoctor: Bool = false) {
+        self.area = area
+        self.side = side
+        self.level = level
+        self.seeDoctor = seeDoctor
+    }
 }
 
 /// Coach's "open this" button (#412): target progress / calendar / explore / settings / exercise (+ name).

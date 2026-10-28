@@ -4117,7 +4117,7 @@
         "tags": [
           "Coach (AI and voices)"
         ],
-        "summary": "{turns[1–30]{role member|coach, text}, context{goal, level, sessionMinutes, equipment, readiness, todayPlanned, method, screen, focus, pronouns, callName, memory}} → {reply, workout?, action?, suggestions, remainingToday}",
+        "summary": "{turns[1–30]{role member|coach, text}, context{goal, level, sessionMinutes, equipment, readiness, todayPlanned, method, screen, focus, pronouns, callName, memory}} → {reply, workout?, action?, suggestions, protect?{area neck|shoulder|elbow|wrist|lower-back|hip|knee|ankle, side left|right|both, level mild|loaded|sharp, seeDoctor} (#870 train around pain), remainingToday}",
         "description": "Errors / limits: 402 pro_required; 429 daily_limit, busy; 502 coach_failed; 503 coach_unavailable",
         "security": [
           {
@@ -4169,7 +4169,7 @@
         "tags": [
           "Coach (AI and voices)"
         ],
-        "summary": "Set up the plan with Coach (#873), \"say it once\": {text 3–500} → plan form values {goal balanced|build|strength|climbing|endurance|athletic, experience, sessions 2–6, weekdays[1–7], minutes 45|60|75|90|null, climbs, climbDays 1–4|null, protect|null, summary}. Free (onboarding); 15 a day per member with /help",
+        "summary": "Set up the plan with Coach (#873), \"say it once\": {text 3–500} → plan form values {goal balanced|build|strength|climbing|endurance|athletic, experience, sessions 2–6, weekdays[1–7], minutes 45|60|75|90|null, climbs, climbDays 1–4|null, protect{area neck|shoulder|elbow|wrist|lower-back|hip|knee|ankle, side left|right|both, level mild|loaded|sharp}|null (turns on pain mode #870), summary}. Free (onboarding); 15 a day per member with /help",
         "description": "Errors / limits: 400, 429 daily_limit / busy, 502 coach_failed, 503 coach_unavailable",
         "security": [
           {
