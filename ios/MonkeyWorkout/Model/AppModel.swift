@@ -401,6 +401,7 @@ final class AppModel {
         URLCache.shared.removeAllCachedResponses()
         MeAvatar.shared.wipe()
         DeviceCache.wipe()
+        FormReportStore.shared.wipe()
     }
 
     /// Before a sign-out wipes this device: one last try (5 s at most) to send what hasn't reached the server.

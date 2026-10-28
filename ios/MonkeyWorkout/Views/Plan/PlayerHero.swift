@@ -63,6 +63,8 @@ struct ExerciseHeroCard: View {
     var onGroup: (() -> Void)?
     /// Build as I go (#490 C): add an exercise to the queue at any time.
     var onAdd: (() -> Void)?
+    /// Form check (#833): film this set; nil when the camera can't check the exercise.
+    var onFilm: (() -> Void)?
     /// Landscape player (#362, #373 design A): smaller type, the picture takes all the height left with Form /
     /// Change / Setup stacked beside it, no note.
     var compact = false
@@ -192,6 +194,14 @@ struct ExerciseHeroCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Setup and technique")
+        if let onFilm {
+            Button(action: onFilm) {
+                Image(systemName: "video.fill").heroChip()
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Film this set")
+            .accessibilityIdentifier("player.film")
+        }
         if let onChange {
             Button(action: onChange) {
                 Label("Change", systemImage: "arrow.triangle.2.circlepath")

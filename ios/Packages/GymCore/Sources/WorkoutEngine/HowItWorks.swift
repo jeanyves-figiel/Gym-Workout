@@ -34,7 +34,7 @@ public enum HowItWorks {
     public static func topic(_ id: String) -> Topic? { topics.first { $0.id == id } }
 
     public static let topics: [Topic] = [xp, move, streaks, plan, methods, load, readiness, growth, zones, effort,
-                                         cardio, fuel, water, caffeine, recovery, body]
+                                         cardio, fuel, water, caffeine, recovery, body, form]
 
     // MARK: Game
 
@@ -342,6 +342,36 @@ public enum HowItWorks {
             Part("Change", "Charts show the change from the first to the latest point; Health copies of a logged value are counted once.", rule: []),
         ],
         sources: ["Morton RW et al. A systematic review, meta-analysis and meta-regression of the effect of protein supplementation on resistance training-induced gains in muscle mass and strength in healthy adults. Br J Sports Med 2018;52(6):376-384."])
+
+    static let form = Topic(
+        id: "form", title: "Form check", symbol: "video.fill",
+        summary: "Camera reps, faults and a score out of 100",
+        colors: [0xFF4D6D, 0xFF9A3C],
+        shows: "Exercise page Check my form, Coach Watch my form, player camera chip, form report",
+        parts: [
+            Part("What is read", "Apple's body pose finds 14 joints in each camera frame, on your iPhone. No picture is kept or sent; the report keeps the joints of the worst rep for its replay.", rule: []),
+            Part("Reps", "Counted on the joint that moves most in the exercise's 3D position guide, from its start (0 %) to its main position (100 %).",
+                 rule: ["rep starts past \(pct(FormModel.Limit.repStart)) of the way, ends back under \(pct(FormModel.Limit.repEnd))",
+                        "short rep: under \(pct(FormModel.Limit.fullRange)) of the way",
+                        "not finished: stays past \(pct(FormModel.Limit.lockout)) between reps"]),
+            Part("Faults", "Only what the camera can see from that side: from the side range, trunk lean and sagging hips; from the front knees caving and one side ahead.",
+                 rule: ["trunk lean: \(fmt(FormModel.Limit.torsoLean))° more than the guide at the bottom",
+                        "knees caving: knee-to-ankle width under \(pct(FormModel.Limit.kneeWidth)) of the guide's",
+                        "hips sag: \(pct(FormModel.Limit.hipSag)) of body length under the shoulder–ankle line",
+                        "one side ahead: left and right \(fmt(FormModel.Limit.uneven))° apart",
+                        "too fast: rep under \(fmt(FormModel.Limit.minRepSeconds)) s (not jumps or throws)"]),
+            Part("Score", "Each rep starts at 100 and loses points once per fault; the set score is the average.",
+                 rule: [FormFault.allCases.map { "\($0.title.lowercased()) −\($0.penalty)" }.joined(separator: " · "),
+                        "faded from: every rep from there scores \(FormReport.fadeScore) or less"]),
+            Part("Match", "How close your joints are to the guide at the bottom of the rep.",
+                 rule: ["joint match = 1 − difference ÷ \(fmt(FormModel.Limit.matchZero))°, 0 at worst",
+                        "green within \(fmt(FormModel.Limit.angleOK))°, amber within \(fmt(FormModel.Limit.angleOK * 2))°"]),
+        ],
+        sources: ["Apple Vision framework, VNDetectHumanBodyPoseRequest (2D body pose).",
+                  "Myer GD et al. The back squat: a proposed assessment of functional deficits and technical factors that limit performance. Strength Cond J 2014;36(6):4-27.",
+                  "Thresholds are app design, tuned on the 3D position guide's poses."])
+
+    private static func pct(_ v: Double) -> String { "\(Int((v * 100).rounded())) %" }
 
     static func fmt(_ v: Double) -> String {
         v == v.rounded() ? String(Int(v)) : String(format: "%g", v)
