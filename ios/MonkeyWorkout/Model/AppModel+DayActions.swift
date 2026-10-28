@@ -98,14 +98,23 @@ extension AppModel {
     func canRemoveEveryWeek(_ s: Session, weekday: Int, in week: PlanCalendar.Week?) -> Bool {
         guard !s.isPlanInsert, let p = profile else { return false }
         let moved = week.map { laterMoves()[PlanCalendar.key($0.start, planCalendar)]?[s.id] != nil } ?? (movesThisWeek()[s.id] != nil)
-        return !moved && (p.gymDays.isEmpty || p.gymDays.contains(weekday))
+        // A planned HIIT day (#841) goes off its weekday through HIIT settings, whatever the gym days.
+        return !moved && (isPlannedHiit(s) || p.gymDays.isEmpty || p.gymDays.contains(weekday))
     }
+
+    /// A HIIT day the plan adds from HIIT settings (#841), not one added from Explore.
+    func isPlannedHiit(_ s: Session) -> Bool { s.hiit != nil && !s.isPlanInsert && profile?.hiit?.days ?? 0 > 0 }
 
     /// Stops training on `weekday` every week (#784). Returns the profile before, for Undo.
     @discardableResult
-    func removeEveryWeek(_ weekday: Int) -> Profile? {
+    func removeEveryWeek(_ weekday: Int, hiit: Bool = false) -> Profile? {
         guard let p = profile else { return nil }
-        updateProfile(p.droppingGymDay(weekday, planned: (plan?.sessions ?? []).compactMap(\.weekday)))
+        // A HIIT day (#841): one HIIT day fewer, lifting days as they are.
+        if hiit {
+            updateProfile(p.droppingHiitDay(weekday, planned: (plan?.sessions ?? []).filter { $0.hiit != nil }.compactMap(\.weekday)))
+            return p
+        }
+        updateProfile(p.droppingGymDay(weekday, planned: (plan?.sessions ?? []).filter { $0.hiit == nil }.compactMap(\.weekday)))
         return p
     }
 

@@ -269,7 +269,7 @@ struct WeekCalendarCard: View {
         let sport = model.sportDays(on: week.date(wd, cal) ?? Date()).first { $0.weekday == wd }?.sport
         // A dated sport day or trip (#474) shows in the sport's colours.
         let trip = week.trips[wd]
-        let tag: String? = session.map { short($0.focus) + (count > 1 ? " +\(count - 1)" : "") } ?? (off ? "Off" : trip.map { $0.sport.short } ?? (climb ? "Climb" : sport?.short ?? (skipped ? "Skipped" : nil)))
+        let tag: String? = session.map { ($0.hiit != nil ? "HIIT" : short($0.focus)) + (count > 1 ? " +\(count - 1)" : "") } ?? (off ? "Off" : trip.map { $0.sport.short } ?? (climb ? "Climb" : sport?.short ?? (skipped ? "Skipped" : nil)))
         let fill = missed ? AnyShapeStyle(MissedStyle.gradient)
             : trip.map { AnyShapeStyle($0.sport.gradient) } ?? tileFill(session: session != nil, off: off, travel: travel, climb: climb)
         VStack(spacing: 1) {
@@ -601,6 +601,8 @@ private struct SessionPreview: View {
     var canRemove = false
     var onMove: () -> Void = {}
     var onRemove: () -> Void = {}
+    @Environment(AppModel.self) private var model
+    @State private var hiitSettings = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -613,6 +615,7 @@ private struct SessionPreview: View {
                     Text("\(session.estMin)′").font(Theme.label(15)).foregroundStyle(Theme.muted)
                 }
             }
+            if model.isPlannedHiit(session) { hiitSource }
             BlockStripe(blocks: session.blocks, height: 6)
             ForEach(session.blocks.filter { $0.kind == .power || $0.kind == .strength }) { b in
                 VStack(alignment: .leading, spacing: 4) {
@@ -657,6 +660,26 @@ private struct SessionPreview: View {
 }
 
 extension SessionPreview {
+    /// Where a planned HIIT day comes from (#841, design B): HIIT settings, opened from here.
+    fileprivate var hiitSource: some View {
+        let h = model.profile?.hiit
+        let picked = h?.weekdays.contains(session.weekday ?? 0) == true
+        return HStack(spacing: 6) {
+            Image(systemName: "bolt.fill")
+            Text("HIIT day · \(h?.days ?? 1)× a week, \(picked ? "your pick" : "Coach picks the day")")
+                .lineLimit(1).minimumScaleFactor(0.8)
+            Spacer(minLength: 4)
+            Button { hiitSettings = true } label: {
+                Text("HIIT ›").padding(.horizontal, 9).padding(.vertical, 4)
+                    .background(Capsule().fill(Color(hex: 0xFF8A3D).opacity(0.25)))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("calendar.hiitSettings")
+        }
+        .font(Theme.label(12)).foregroundStyle(Color(hex: 0xFFB27A))
+        .sheet(isPresented: $hiitSettings) { HiitSettingsSheet() }
+    }
+
     /// Remove… (#784, design B): this day only, every week or just skip.
     fileprivate var removeButton: some View {
         Button(action: onRemove) {

@@ -102,6 +102,26 @@ import Testing
         #expect(deload?.hiit?.name == "Easy intervals")
     }
 
+    @Test func droppingHiitDayEveryWeek() throws {
+        var p = Profile(goal: .balanced, sessionsPerWeek: 3, experience: .intermediate, climbingDaysPerWeek: 0)
+        p.gymWeekdays = [1, 3, 5]
+        p.hiit = HiitPlan(days: 2, lowImpact: true)
+        let planned = Generator.generateWeek(p, week: 1, seed: 42).sessions.filter { $0.hiit != nil }.compactMap(\.weekday)
+        let gone = try #require(planned.last)
+        let one = p.droppingHiitDay(gone, planned: planned)
+        #expect(one.hiit?.days == 1 && one.hiit?.weekdays == [planned[0]])
+        // The dropped day never comes back; lifting untouched.
+        let week = Generator.generateWeek(one, week: 1, seed: 42)
+        #expect(week.sessions.filter { $0.hiit != nil }.compactMap(\.weekday) == [planned[0]])
+        #expect(one.gymWeekdays == p.gymWeekdays && one.sessionsPerWeek == 3)
+        // Last HIIT day: off (low impact kept as a setting), no HIIT session left.
+        let none = one.droppingHiitDay(planned[0], planned: [planned[0]])
+        #expect(none.hiit?.days == 0 && none.hiit?.on == false)
+        #expect(!Generator.generateWeek(none, week: 1, seed: 42).sessions.contains { $0.hiit != nil })
+        p.hiit = HiitPlan(days: 1)
+        #expect(p.droppingHiitDay(6, planned: [6]).hiit == nil)
+    }
+
     @Test func offOrNoFreeDayKeepsThePlan() {
         var p = Profile(goal: .balanced, sessionsPerWeek: 3, experience: .intermediate, climbingDaysPerWeek: 0)
         p.gymWeekdays = [1, 3, 5]

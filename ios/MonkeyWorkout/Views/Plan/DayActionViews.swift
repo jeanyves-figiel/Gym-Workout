@@ -216,14 +216,14 @@ private struct RemoveWorkoutSheet: View {
                     }
                 }
                 .accessibilityIdentifier("remove.day")
-                // Every week only for a regular gym day's workout (#818): not an added or moved one.
+                // Every week only for a regular gym day's workout (#818) or a planned HIIT day (#841): not an added or moved one.
                 if everyWeek {
-                    option("Every \(WeekSchedule.name(request.weekday))",
-                           detail: n > 2 ? "train \(n - 1)× a week instead of \(n)" : "keeps \(n)× a week, on other days",
+                    option("Every \(WeekSchedule.name(request.weekday))", detail: everyWeekDetail(n),
                            symbol: "arrow.triangle.2.circlepath",
                            fill: AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x9A3BD8), Color(hex: 0x5A4AB0)], startPoint: .leading, endPoint: .trailing))) {
-                        guard let before = withAnimation(.snappy, { model.removeEveryWeek(request.weekday) }) else { return }
-                        UndoCloseCenter.shared.deleted("No more \(WeekSchedule.name(request.weekday)) workouts", detail: "My plan updated", symbol: "trash") { [model] in
+                        let hiit = model.isPlannedHiit(s)
+                        guard let before = withAnimation(.snappy, { model.removeEveryWeek(request.weekday, hiit: hiit) }) else { return }
+                        UndoCloseCenter.shared.deleted("No more \(WeekSchedule.name(request.weekday)) \(hiit ? "HIIT" : "workouts")", detail: "My plan updated", symbol: "trash") { [model] in
                             withAnimation(.snappy) { model.updateProfile(before) }
                         }
                     }
@@ -242,6 +242,15 @@ private struct RemoveWorkoutSheet: View {
         }
         .preferredColorScheme(.dark)
         .presentationDetents([.height(CGFloat(380 - (skipped ? 80 : 0) - (everyWeek ? 0 : 80)))])
+    }
+
+    /// What Every <weekday> does: a HIIT day (#841) changes HIIT days only.
+    private func everyWeekDetail(_ n: Int) -> String {
+        if model.isPlannedHiit(request.session) {
+            let h = model.profile?.hiit?.days ?? 1
+            return h > 1 ? "HIIT \(h - 1)× a week instead of \(h)" : "no more HIIT days in your plan"
+        }
+        return n > 2 ? "train \(n - 1)× a week instead of \(n)" : "keeps \(n)× a week, on other days"
     }
 
     private var everyWeek: Bool { model.canRemoveEveryWeek(request.session, weekday: request.weekday, in: request.week) }
