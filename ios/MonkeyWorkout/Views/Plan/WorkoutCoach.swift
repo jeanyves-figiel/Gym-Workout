@@ -101,6 +101,16 @@ final class WorkoutCoach {
     /// Short answer to the player mic (#412): bubble + voice, even between key moments.
     func reply(_ text: String) { deliver(text, key: false, clips: []) }
 
+    /// Talk to Coach mid-set (#874 C): the answer out loud, unless Ask Coach's voice is Never or the pill muted it. No
+    /// subtitle bubble: the answer card shows the words.
+    func answer(_ text: String) {
+        #if DEBUG
+        guard !Demo.enabled else { return }
+        #endif
+        guard AskCoachPref.speak != .never, !muted else { return }
+        voice.speak(text, style: CoachPref.style)
+    }
+
     /// A resumed workout: what was already said before (e.g. "half") stays unsaid.
     func markSaid(_ key: String) { said.insert(key) }
 

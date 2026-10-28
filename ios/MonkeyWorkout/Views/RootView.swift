@@ -225,6 +225,7 @@ private struct DemoScreen: View {
         case "player-next": WorkoutPlayerView(sessionId: second, demoMode: "next")
         case "player-coach": WorkoutPlayerView(sessionId: second, demoMode: "coach")
         case "player-record": WorkoutPlayerView(sessionId: second, demoMode: "coach-record")
+        case "player-talk": WorkoutPlayerView(sessionId: second, demoMode: "talk")
         case "coach-settings": NavigationStack { CoachSettingsView() }
         case "watch-options": NavigationStack { WatchOptionsView() }
         case "watch-lift": NavigationStack { WatchOptionsView(focus: .lift) }
