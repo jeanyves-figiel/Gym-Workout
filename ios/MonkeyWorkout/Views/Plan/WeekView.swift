@@ -2049,7 +2049,12 @@ private struct SportDayHero: View {
                                 SportPrepPage(sport: sport)
                             }
                         } label: {
-                            label("Prep", symbol: "flame.fill", primary: false)
+                            // Climbing names its Wall session (#826): a plain "Prep" read as no Wall session at all.
+                            if sport == .climbing {
+                                label("Wall session", symbol: "hand.raised.fill", primary: false)
+                            } else {
+                                label("Prep", symbol: "flame.fill", primary: false)
+                            }
                         }
                         .buttonStyle(.plain)
                     }
