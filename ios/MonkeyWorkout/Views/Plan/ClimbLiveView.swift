@@ -52,9 +52,7 @@ struct ClimbLiveView: View {
                 Text("\(t.tops)").font(Theme.display(54)).monospacedDigit()
                 VStack(alignment: .leading, spacing: 0) {
                     Text(t.tops == 1 ? "send" : "sends").font(Theme.label(15))
-                    Text([t.falls > 0 ? "\(t.falls) fall\(t.falls == 1 ? "" : "s")" : nil, t.top.map { "top \($0)" }]
-                        .compactMap { $0 }.joined(separator: " · "))
-                        .font(Theme.label(13)).foregroundStyle(Theme.muted)
+                    Text(Self.detail(t)).font(Theme.label(13)).foregroundStyle(Theme.muted)
                 }
                 Spacer(minLength: 0)
                 scalePicker(s)
@@ -215,6 +213,14 @@ struct ClimbLiveView: View {
                 }
             }
         }
+    }
+
+    /// "3 falls · top 6B" under the sends.
+    static func detail(_ t: ClimbTally) -> String {
+        var parts: [String] = []
+        if t.falls > 0 { parts.append("\(t.falls) fall\(t.falls == 1 ? "" : "s")") }
+        if let top = t.top { parts.append("top \(top)") }
+        return parts.joined(separator: " · ")
     }
 
     static func clock(_ seconds: Int) -> String {
