@@ -103,6 +103,22 @@ private let monday = PlanCalendar.date("2026-10-12", cal)!
         }
     }
 
+    @Test func quickDurationSnapsToTheClosestChip() {
+        #expect(Generator.quickDuration(near: 55) == 60)
+        #expect(Generator.quickDuration(near: 100) == 90)
+        #expect(Generator.quickDuration(near: 10) == 20)
+        #expect(Generator.quickDuration(near: 200) == 120)
+    }
+
+    @Test func coachExtraFocusPicksTheLeastTrainedMuscles() {
+        // Upper body trained hard this week: the pick is a lower-body focus.
+        var heat: [Muscle: Double] = [:]
+        for g in [MuscleGroup.shoulders, .chest, .back, .arms] { for m in g.muscles { heat[m] = 1 } }
+        #expect(Generator.coachExtraFocus(heat: heat).muscleGroups.isDisjoint(with: [.chest, .back]))
+        // Nothing trained: the first focus offered.
+        #expect(Generator.coachExtraFocus(heat: [:]) == Generator.quickFoci[0])
+    }
+
     @Test func quickSessionWithoutMinutesIsUnchanged() throws {
         let a = try #require(Generator.quickSession(climber, focus: .push, week: 2, seed: 5))
         let b = try #require(Generator.quickSession(climber, focus: .push, week: 2, seed: 5, minutes: nil))
