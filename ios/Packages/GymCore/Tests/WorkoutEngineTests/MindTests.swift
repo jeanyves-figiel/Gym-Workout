@@ -127,4 +127,13 @@ import Testing
         #expect(text.contains("0 → 1, 1 → 0.8, 2 → 0.5, 3 → 0.2"))
         #expect(text.contains("max +\(MindScore.calmBonusMax)"))
     }
+
+    @Test func todayCall() {
+        #expect(MindScore.todayCall(body: 90, mind: nil).hasPrefix("Check in"))
+        #expect(MindScore.todayCall(body: 90, mind: 80).hasPrefix("Both high"))
+        #expect(MindScore.todayCall(body: 70, mind: 80).hasPrefix("Steady"))
+        #expect(MindScore.todayCall(body: 30, mind: 30).hasPrefix("Both low"))
+        #expect(MindScore.todayCall(body: 30, mind: 80).hasPrefix("Body's tired"))
+        #expect(MindScore.todayCall(body: 90, mind: 40).hasPrefix("Mind's strained"))
+    }
 }

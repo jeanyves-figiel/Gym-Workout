@@ -16,6 +16,10 @@ public enum ProgressWidgetKind: String, Codable, CaseIterable, Sendable, Identif
     case growth
     /// Mood after workouts against their effort (#614 B).
     case mood
+    /// Today's Body (auto-tune ready score) and Mind score side by side, with Coach's line (#852 C).
+    case today
+    /// Mind score and the last 7 days; small = the Mind part tile (#852 A). Opens the Mind page.
+    case mind
 
     public var id: String { rawValue }
 
@@ -36,6 +40,8 @@ public enum ProgressWidgetKind: String, Codable, CaseIterable, Sendable, Identif
         case .chest: "Week chest"
         case .growth: "Growth path"
         case .mood: "Mood vs training"
+        case .today: "Today: Body + Mind"
+        case .mind: "Mind"
         }
     }
 
@@ -56,13 +62,15 @@ public enum ProgressWidgetKind: String, Codable, CaseIterable, Sendable, Identif
         case .chest: "This week's chest and XP, and the last 8 weeks"
         case .growth: "Your goal, its predicted date and what Monkey noticed"
         case .mood: "How you felt after each workout against how hard it was"
+        case .today: "Body ready score and Mind score for today, with Coach's call"
+        case .mind: "Mind score, the last 7 days, check-ins and calm minutes"
         }
     }
 
     public var sizes: [TrainWidgetSize] {
         switch self {
-        case .level, .streak, .consistency, .chest, .growth, .mood: [.wide]
-        case .training, .body, .records, .badges, .muscles, .programmes: [.small, .wide]
+        case .level, .streak, .consistency, .chest, .growth, .mood, .today: [.wide]
+        case .training, .body, .records, .badges, .muscles, .programmes, .mind: [.small, .wide]
         case .history: [.small, .wide]
         case .weekly: [.wide, .large]
         case .sport: [.small, .wide, .large]
@@ -71,7 +79,7 @@ public enum ProgressWidgetKind: String, Codable, CaseIterable, Sendable, Identif
 
     public var defaultSize: TrainWidgetSize {
         switch self {
-        case .level, .streak, .history, .consistency, .weekly, .programmes, .chest, .growth, .mood: .wide
+        case .level, .streak, .history, .consistency, .weekly, .programmes, .chest, .growth, .mood, .today: .wide
         default: .small
         }
     }
@@ -233,7 +241,7 @@ public struct ProgressBoard: Codable, Equatable, Sendable {
 
         public var detail: String {
             switch self {
-            case .classic: "Level, streak, every part of Progress and recent sessions"
+            case .classic: "Body + Mind today, level, streak, every part of Progress and recent sessions"
             case .lifter: "Records, weekly sessions, muscles and body first"
             case .sports: "A big card for each of your sports up top"
             case .minimal: "Streak, this week and recent sessions"
@@ -241,11 +249,11 @@ public struct ProgressBoard: Codable, Equatable, Sendable {
         }
     }
 
-    /// The default board: today's Progress page as widgets.
+    /// The default board: today's Body + Mind on top (#852), then today's Progress page as widgets.
     public static var classic: ProgressBoard {
         ProgressBoard([
-            ProgressWidget(.level), ProgressWidget(.chest), ProgressWidget(.streak), ProgressWidget(.growth),
-            ProgressWidget(.training), ProgressWidget(.body), ProgressWidget(.records), ProgressWidget(.badges),
+            ProgressWidget(.today), ProgressWidget(.level), ProgressWidget(.chest), ProgressWidget(.streak), ProgressWidget(.growth),
+            ProgressWidget(.training), ProgressWidget(.body), ProgressWidget(.mind), ProgressWidget(.records), ProgressWidget(.badges),
             ProgressWidget(.muscles), ProgressWidget(.programmes, size: .small),
             ProgressWidget(.history), ProgressWidget(.consistency), ProgressWidget(.weekly), ProgressWidget(.mood),
         ])

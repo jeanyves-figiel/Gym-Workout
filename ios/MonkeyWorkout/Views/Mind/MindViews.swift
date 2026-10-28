@@ -357,6 +357,7 @@ struct MindView: View {
                 MindScoreCard(score: model.mindScore)
                 stats(inputs)
                 coachTip
+                MindMoodCalendar()
                 Button { playing = pick.breath } label: {
                     BreathTile(breath: pick.breath, eyebrow: "Breathe now · \(pick.why)", minutes: pick.breath.defaultMinutes)
                 }

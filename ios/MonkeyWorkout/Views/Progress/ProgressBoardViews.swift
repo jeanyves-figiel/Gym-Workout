@@ -17,6 +17,7 @@ extension ProgressWidgetKind {
         case .muscles: .muscles
         case .history: .history
         case .programmes: .programmes
+        case .mind, .today: .mind
         }
     }
 
@@ -30,6 +31,7 @@ extension ProgressWidgetKind {
         case .chest: "gift.fill"
         case .growth: "chart.line.uptrend.xyaxis"
         case .mood: "face.smiling.inverse"
+        case .today: "sun.max.fill"
         default: section.symbol
         }
     }
@@ -44,6 +46,7 @@ extension ProgressWidgetKind {
         case .chest: [Color(hex: 0xFF7A3D), Color(hex: 0xFF3D8A)]
         case .growth: WorkoutEngine.Category.mobility.colors
         case .mood: [Color(hex: 0x00C9A7), Color(hex: 0x2F6BFF)]
+        case .today: [Theme.lime, Color(hex: 0x7A2CFF)]
         default: section.colors
         }
     }

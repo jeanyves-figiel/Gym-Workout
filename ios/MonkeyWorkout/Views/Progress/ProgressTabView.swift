@@ -112,7 +112,7 @@ struct ProgressTabView: View {
         .navigationDestination(for: UUID.self) { id in HistoryDetailView(recordId: id) }
         .navigationDestination(for: ProgrammeRoute.self) { r in model.findProgramme(r.id).map { ProgrammeDetailView(programme: $0) } }
         .navigationDestination(item: $opened) { s in
-            if s == .history { HistoryView() } else { ProgressTabView(demoFlipped: demoFlipped, detail: s) }
+            if s == .history { HistoryView() } else if s == .mind { MindView() } else { ProgressTabView(demoFlipped: demoFlipped, detail: s) }
         }
         .navigationDestination(item: $openedSport) { HistoryView(initial: .sport($0)) }
         .sheet(isPresented: $addingWidget) { ProgressWidgetGallery() }
@@ -189,6 +189,16 @@ struct ProgressTabView: View {
         case .mood:
             // Mood vs training (#614 B): the finish faces against each workout's effort.
             MoodWidget(widget: w)
+        case .today:
+            // Body + Mind today (#852 C): ready score → auto-tune sheet, Mind score → Mind page, Coach's call.
+            TodayBodyMindWidget { opened = .mind }
+        case .mind:
+            // Mind (#852 A): the part tile when small, the score card with 7-day bars when wide.
+            Button { opened = .mind } label: {
+                if w.size == .small { ProgressSectionTile(h: top, section: .mind) } else { MindScoreCard(score: top.mind) }
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens Mind")
         case .streak:
             StreakRow(current: s.currentStreakWeeks, best: s.bestStreakWeeks, thisWeek: s.thisWeek, target: target, fresh: fresh,
                       shields: s.streakShields)
@@ -265,7 +275,7 @@ struct ProgressTabView: View {
                     achievements
                 case .muscles:
                     muscleBalance(s, fresh: fresh)
-                case .history:
+                case .history, .mind:
                     EmptyView()
                 }
             }
@@ -316,7 +326,8 @@ struct ProgressTabView: View {
             programme: model.activeProgramme.flatMap { a in
                 a.programme.map { (name: $0.name, state: a.paused ? "Paused" : "Week \(model.programmeWeek ?? 1) of \($0.weeks)") }
             },
-            programmesFinished: model.programmeHistory.filter(\.finished).count)
+            programmesFinished: model.programmeHistory.filter(\.finished).count,
+            mind: model.mindScore)
     }
 
     @ViewBuilder
