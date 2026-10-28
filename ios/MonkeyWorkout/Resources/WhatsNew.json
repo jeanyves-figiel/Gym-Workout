@@ -1,47 +1,101 @@
 {
-  "id": "2026-10-28.1",
+  "id": "2026-10-28.2",
   "items": [
     {
-      "symbol": "figure.climbing",
+      "symbol": "sparkles",
+      "tint": "strength",
+      "title": "Coach's week review",
+      "body": "Every Sunday Coach scores your week and suggests up to 3 changes for the next one, applied in a tap."
+    },
+    {
+      "symbol": "mic.fill",
+      "tint": "power",
+      "title": "Talk to Coach mid-set",
+      "body": "Hold the mic in Up next, ask \"too heavy?\" and Coach answers out loud with a one-tap fix."
+    },
+    {
+      "symbol": "cross.case.fill",
+      "tint": "mobility",
+      "title": "Train around pain",
+      "body": "Tap where it hurts or tell Coach, and your plan swaps the moves that load it until it feels better."
+    },
+    {
+      "symbol": "text.bubble.fill",
       "tint": "cardio",
-      "title": "Climbing live",
-      "body": "Track live on a climbing day times your goes: grade chips, Flash, Sent or Fell in one tap, rest timer and today's pyramid. With a Watch, tap goes on your wrist too."
+      "title": "Tell Coach your goal",
+      "body": "Say what you want in one sentence: Coach fills in your plan and protects a sore spot. Not sure on a step? Ask Coach."
+    },
+    {
+      "symbol": "chart.bar.xaxis",
+      "tint": "strength",
+      "title": "Ask your history",
+      "body": "\"Am I squatting more than in June?\" Progress answers with the number and a mini chart, right on your iPhone."
+    },
+    {
+      "symbol": "chart.line.flattrend.xyaxis",
+      "tint": "power",
+      "title": "Plateau explainer",
+      "body": "Stuck on a lift? Coach spots a plateau, says why and gives one fix you apply in a tap (Apple Intelligence iPhones)."
+    },
+    {
+      "symbol": "fork.knife",
+      "tint": "warmup",
+      "title": "What can I eat?",
+      "body": "Monkey turns what's in your fridge into 3 meals that hit what's left today."
+    },
+    {
+      "symbol": "tag.fill",
+      "tint": "stretch",
+      "title": "Read a nutrition label",
+      "body": "Snap it → Label: point at the nutrition table, values fill in live, save it as your own food. Free, offline."
+    },
+    {
+      "symbol": "bell.badge.fill",
+      "tint": "cardio",
+      "title": "Smarter reminders",
+      "body": "Coach writes your reminders: last time's lift and the number to beat. Drifting? One kind nudge with a 20′ workout, now or tonight."
+    },
+    {
+      "symbol": "checkmark.shield.fill",
+      "tint": "mobility",
+      "title": "Safer community",
+      "body": "New posts, plans and photos get a quick check before others see them. Yours shows IN REVIEW until a moderator looks."
+    },
+    {
+      "symbol": "bubble.left.and.text.bubble.right.fill",
+      "tint": "strength",
+      "title": "Ask Coach as you go",
+      "body": "Building a workout as you go? Ask Coach right on the start screen: name a muscle, describe or snap the machine in front of you, then start an exercise at once or line them up."
+    },
+    {
+      "symbol": "plus.circle.fill",
+      "tint": "power",
+      "title": "Add any workout",
+      "body": "Add any workout to a day: your own, the library, HIIT or a generated one from 20 min to 2 h. Your sport stays."
+    },
+    {
+      "symbol": "forward.end.fill",
+      "tint": "cardio",
+      "title": "Skip in one tap",
+      "body": "Skip is one tap now: 5 seconds to undo, then it's gone, also from past days and the Calendar. Long press for Stop training Tuesdays."
     },
     {
       "symbol": "brain.head.profile",
       "tint": "mobility",
-      "title": "Mind: check in and breathe",
-      "body": "A quick mood check-in on Train, Calm breathing sessions in Explore and a Mind score from mood, HRV, sleep and training. On your Watch too."
+      "title": "Body and Mind today",
+      "body": "Progress now opens on Today: your Body and Mind scores side by side with Coach's call, plus a Mind tile and a 4-week mood calendar."
     },
     {
-      "symbol": "video.fill",
-      "tint": "strength",
-      "title": "Check your form",
-      "body": "Prop your phone up: the camera counts reps, flags short reps, lean or caving knees, and shows the right position as a ghost. Data stays on your phone."
+      "symbol": "flask.fill",
+      "tint": "stretch",
+      "title": "Backed by science",
+      "body": "4-7-8 counts breaths (4, or 8 once easy), training days lift your Mind score, readiness and Mind use your 7-day HRV, and carb loading follows the 10 g/kg guideline."
     },
     {
-      "symbol": "mappin.and.ellipse",
-      "tint": "power",
-      "title": "Where you climbed",
-      "body": "Log climb and Log sport now keep the gym, crag or ski resort. Pick a chip or search maps."
-    },
-    {
-      "symbol": "airplane",
-      "tint": "cardio",
-      "title": "Holidays clear the week",
-      "body": "Weekly climbing and sport no longer show on away days. Climbing there anyway? Add it for that day with Sport."
-    },
-    {
-      "symbol": "calendar",
-      "tint": "strength",
-      "title": "Calendar touch-ups",
-      "body": "Tap a workout in the Calendar day sheet to open it, the Remove sheet fits its content, and your HIIT day is named HIIT."
-    },
-    {
-      "symbol": "face.smiling",
-      "tint": "power",
-      "title": "A friendlier icon",
-      "body": "MonkeyFit now winks at you. The Iron, Titan and Legend reward icons got the same new face."
+      "symbol": "wrench.and.screwdriver.fill",
+      "tint": "warmup",
+      "title": "Fixes",
+      "body": "Undo on the bar works again, ✕ leaves an empty freestyle workout at once, Track live goes dark after you discard a climb, and the Mind check-in chips are explained."
     }
   ]
 }

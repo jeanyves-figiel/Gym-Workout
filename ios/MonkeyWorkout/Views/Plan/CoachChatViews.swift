@@ -1,4 +1,5 @@
 import APIClient
+import PhotosUI
 import SwiftUI
 import WorkoutEngine
 
@@ -16,9 +17,17 @@ struct CoachChatMessage: Identifiable, Equatable {
     var action: CoachChatAction?
     /// Follow-up questions to tap (#412).
     var suggestions: [String] = []
+    /// Train around pain (#870): the plan Coach offers, with Apply.
+    var protect: PainProtect?
     /// Answered by the on-device model (#608): badge + how long it took.
     var onDevice = false
     var seconds: Double?
+    /// Exercises to add now (#856, freestyle), as ▶ / + cards.
+    var exercises: [Exercise] = []
+    /// The machine photo the member sent (#856), shown in their bubble; never sent again.
+    var photo: UIImage?
+    /// History question (#868 C): the answer card with its mini chart.
+    var history: HistoryAnswer?
 }
 
 /// Today's conversation, kept while the app runs; a new day starts a fresh chat.
@@ -55,7 +64,9 @@ extension AppModel {
                                 equipment: p.equipment.map(\.rawValue), readiness: readiness, todayPlanned: today,
                                 method: p.trainingMethod.rawValue, screen: focus?.screen, focus: focus?.text, pronouns: pronouns, callName: call,
                                 // What the coach remembers (#495), within the server's limits.
-                                memory: coachFacts.isEmpty ? nil : coachFacts.prefix(20).map { String($0.prefix(120)) })
+                                memory: coachFacts.isEmpty ? nil : coachFacts.prefix(20).map { String($0.prefix(120)) },
+                                // Building as they go (#856): the names Coach may hand back as exercises to add.
+                                exercises: focus?.screen == CoachFocus.freestyleScreen ? Freestyle.coachNames(profile: p) : nil)
     }
 
     /// Throws when the server can't be reached, so the chat shows an error card with Retry (#539).
@@ -66,8 +77,9 @@ extension AppModel {
         return try await api.coachChatStatus()
     }
 
-    /// Sends the conversation; the last message is the member's.
-    func coachChat(_ messages: [CoachChatMessage], readiness: String?, focus: CoachFocus? = nil) async throws -> CoachChatAnswer<CoachWorkoutSettings> {
+    /// Sends the conversation; the last message is the member's, with `photo` (JPEG) when they snapped a machine (#856).
+    func coachChat(_ messages: [CoachChatMessage], readiness: String?, focus: CoachFocus? = nil, photo: Data? = nil) async throws
+        -> CoachChatAnswer<CoachWorkoutSettings> {
         #if DEBUG
         if demo { return try Demo.coachAnswer(messages.last?.text ?? "", focus: focus) }
         #endif
@@ -75,7 +87,8 @@ extension AppModel {
         let turns = messages.filter { !$0.text.isEmpty }.map { m in
             CoachChatTurn(role: m.role.rawValue, text: m.role == .coach ? Self.slotName(m.text, name) : m.text)
         }
-        var answer = try await api.coachChat(turns, context: coachChatContext(readiness: readiness, focus: focus), as: CoachWorkoutSettings.self)
+        var answer = try await api.coachChat(turns, context: coachChatContext(readiness: readiness, focus: focus), photo: photo,
+                                             as: CoachWorkoutSettings.self)
         answer.reply = Self.fillName(answer.reply, name)
         answer.suggestions = answer.suggestions?.map { Self.fillName($0, name) }
         return answer
@@ -96,10 +109,20 @@ extension AppModel {
     }
 }
 
+/// Freestyle start screen hooks (#856): Coach's exercises start at once (▶) or line up (+) like the screen's own.
+struct CoachFreestyle {
+    /// What's lined up on the start screen, in order.
+    var lined: Binding<[Exercise]>
+    /// ▶: this one now, then what's lined up.
+    let start: (Exercise) -> Void
+}
+
 /// The chat: a sheet from the 🐵 header tile and sparks (#412) that knows the screen.
 struct CoachChatView: View {
     /// Asked from a screen (#412): its focus, a question to send, or listen at once.
     var ask: AskCoachRequest?
+    /// Asked from the freestyle start screen (#856): exercise cards with ▶ / + and the 📷 machine photo.
+    var freestyle: CoachFreestyle?
     @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @Environment(\.dismiss) private var dismiss
@@ -121,6 +144,12 @@ struct CoachChatView: View {
     @State private var detent: PresentationDetent = .large
     /// The last question was spoken: read the answer aloud (#412).
     @State private var spoken = false
+    /// Machine photo (#856): camera, or the photo library where there's no camera.
+    @State private var snapping = false
+    @State private var picking = false
+    @State private var photoItem: PhotosPickerItem?
+    /// Ids lined up on the start screen, mirrored here so the + marks update in the sheet (#856).
+    @State private var linedIds: [String] = []
     @FocusState private var typing: Bool
 
     private var focus: CoachFocus? { ask?.focus }
@@ -134,7 +163,7 @@ struct CoachChatView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 10) {
-                            if let focus, focus.screen != "train" { focusChip(focus) }
+                            if let focus, focus.screen != "train", freestyle == nil { focusChip(focus) }
                             if let statusError {
                                 InlineErrorCard(title: "Couldn't reach Coach", message: statusError) { Task { await loadStatus() } }
                             }
@@ -168,6 +197,17 @@ struct CoachChatView: View {
             }
             .sheet(isPresented: $formPicking) { FormCheckPicker { e in formFilming = e } }
             .fullScreenCover(item: $formFilming) { e in FormCheckView(exercise: e) }
+            .fullScreenCover(isPresented: $snapping) {
+                CameraPicker { if let img = $0 { send("", photo: img) } }.ignoresSafeArea()
+            }
+            .photosPicker(isPresented: $picking, selection: $photoItem, matching: .images)
+            .onChange(of: photoItem) {
+                guard let item = photoItem else { return }
+                photoItem = nil
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self), let img = UIImage(data: data) { send("", photo: img) }
+                }
+            }
             .sheet(item: $opening) { o in
                 NavigationStack {
                     switch o {
@@ -181,10 +221,12 @@ struct CoachChatView: View {
         .presentationDetents(ask == nil ? [.large] : [.medium, .large], selection: $detent)
         .task {
             store.rollOver()
+            linedIds = freestyle?.lined.wrappedValue.map(\.id) ?? []
             await loadStatus()
             guard let ask else { return }
             if let q = ask.question { send(q, spoken: ask.spoken) }
             else if ask.listen { listen() }
+            else if ask.photo { snap() }
         }
         .onDisappear {
             listener.cancel()
@@ -228,6 +270,7 @@ struct CoachChatView: View {
     }
 
     private var hello: String {
+        if freestyle != nil { return "What do you want to hit now? Name a muscle, tell me the machine in front of you, or snap it." }
         if let focus, focus.screen != "train" { return "Ask me anything about \(focus.title), by text or voice." }
         return "Hey! What do you feel like today? Tell me your time, what to train and anything sore."
     }
@@ -235,19 +278,30 @@ struct CoachChatView: View {
     @ViewBuilder private func message(_ m: CoachChatMessage) -> some View {
         switch m.role {
         case .member:
-            Text(m.text)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.ink)
-                .padding(.horizontal, 12).padding(.vertical, 9)
-                .background(UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: 18, bottomTrailingRadius: 5, topTrailingRadius: 18)
-                    .fill(Theme.lime))
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.leading, 48)
+            VStack(alignment: .trailing, spacing: 6) {
+                if let photo = m.photo {
+                    Image(uiImage: photo).resizable().scaledToFill()
+                        .frame(width: 150, height: 150)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .accessibilityLabel("Your photo of the machine")
+                }
+                Text(m.text)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 12).padding(.vertical, 9)
+                    .background(UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: 18, bottomTrailingRadius: 5, topTrailingRadius: 18)
+                        .fill(Theme.lime))
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.leading, 48)
         case .coach:
             VStack(alignment: .leading, spacing: 10) {
                 if m.onDevice { OnDeviceBadge(seconds: m.seconds) }
                 if !m.text.isEmpty { coachBubble(m.text) }
+                if !m.exercises.isEmpty, freestyle != nil { exerciseCards(m.exercises) }
                 if let a = m.action { actionButton(a) }
+                if let h = m.history { HistoryAnswerCard(answer: h) { opening = .exercise($0) }.padding(.leading, 42) }
+                if let p = m.protect { PainPlanCard(protect: p) }
                 if let w = m.workout { workoutCard(w, message: m) }
             }
         }
@@ -360,6 +414,59 @@ struct CoachChatView: View {
         .opacity(latest ? 1 : 0.7)
     }
 
+    /// Coach's exercises on the freestyle screen (#856, design A + B): ▶ starts it now, + lines it up (the number once
+    /// lined up), and "Line up all" for the rest.
+    private func exerciseCards(_ list: [Exercise]) -> some View {
+        let fresh = list.filter { !linedIds.contains($0.id) }
+        return VStack(spacing: 6) {
+            ForEach(list, id: \.id) { e in
+                let at = linedIds.firstIndex(of: e.id)
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(e.name).font(Theme.label(14)).lineLimit(2).minimumScaleFactor(0.8)
+                        Text(e.primary.first?.group.label ?? e.category.label).font(Theme.label(10)).opacity(0.85).lineLimit(1)
+                    }
+                    Spacer(minLength: 4)
+                    Button { line(e) } label: { FreestyleLineMark(position: at.map { $0 + 1 }, size: 34) }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(at == nil ? "Line up \(e.name)" : "Take \(e.name) out of the line-up")
+                    Button { startNow(e) } label: { FreestylePlayMark(size: 34) }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Start \(e.name) now")
+                }
+                .foregroundStyle(.white)
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(e.primary.first?.group.gradient ?? WorkoutEngine.Category.strength.gradient))
+            }
+            if fresh.count > 1 {
+                Button { fresh.forEach { line($0) } } label: {
+                    Label("Line up all \(fresh.count)", systemImage: "plus")
+                        .font(Theme.label(13)).foregroundStyle(Theme.ink)
+                        .frame(maxWidth: .infinity).padding(.vertical, 11)
+                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.lime))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.leading, 42)
+    }
+
+    /// + on a Coach card: lines it up on the start screen, tapped again takes it out.
+    private func line(_ e: Exercise) {
+        guard let lined = freestyle?.lined else { return }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        withAnimation(.snappy) {
+            if let i = lined.wrappedValue.firstIndex(where: { $0.id == e.id }) { lined.wrappedValue.remove(at: i) } else { lined.wrappedValue.append(e) }
+            linedIds = lined.wrappedValue.map(\.id)
+        }
+    }
+
+    private func startNow(_ e: Exercise) {
+        freestyle?.start(e)
+        dismiss()
+    }
+
     private func cardButton(_ title: String, symbol: String, primary: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: symbol)
@@ -412,6 +519,22 @@ struct CoachChatView: View {
                         .submitLabel(.send)
                         .onSubmit { send(draft) }
                         .onChange(of: draft) { if draft.count > 500 { draft = String(draft.prefix(500)) } }
+                }
+                // Freestyle (#856): snap the machine in front of you.
+                if freestyle != nil, draft.isEmpty, !listener.listening {
+                    Button(action: snap) {
+                        Image(systemName: "camera.fill").font(.system(size: 15, weight: .black))
+                            .foregroundStyle(.white)
+                            .frame(width: 34, height: 34)
+                            .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.white.opacity(0.14)))
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canSnap)
+                    .opacity(canSnap ? 1 : 0.4)
+                    .accessibilityLabel("Snap the machine")
+                    .accessibilityIdentifier("askCoach.photo")
                 }
                 // Empty field: the mic (#412), on-device speech-to-text; tap again to send now.
                 if draft.isEmpty {
@@ -467,6 +590,16 @@ struct CoachChatView: View {
     private var canTalk: Bool { !sending && (serverOpen || OnDeviceCoach.available) }
     private var serverOpen: Bool { store.available != false && store.remaining != 0 }
 
+    /// A photo needs the server Coach (the on-device one can't see).
+    private var canSnap: Bool { !sending && serverOpen }
+
+    private func snap() {
+        guard canSnap else { return }
+        voice.stop()
+        typing = false
+        if UIImagePickerController.isSourceTypeAvailable(.camera) { snapping = true } else { picking = true }
+    }
+
     private func listen() {
         guard canTalk else { return }
         voice.stop()
@@ -474,16 +607,45 @@ struct CoachChatView: View {
         listener.start { said in send(said, spoken: true) }
     }
 
-    private func send(_ text: String, spoken: Bool = false) {
-        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func send(_ text: String, spoken: Bool = false, photo: UIImage? = nil) {
+        var said = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A machine photo (#856) asks what to do on it unless the member typed something.
+        let jpeg: Data?
+        if let photo {
+            jpeg = GymScanSheet.jpeg(photo)
+            guard jpeg != nil else {
+                store.messages.append(CoachChatMessage(role: .coach, text: "I couldn't read that photo. Try another one."))
+                return
+            }
+            if said.isEmpty { said = "What can I do on this machine?" }
+        } else {
+            jpeg = nil
+        }
+        let t = said
         // "Check my form" opens the camera (#833) instead of a chat answer.
         if FormCheckCoachTile.asks(t) {
             draft = ""
             if let e = focusExercise { formFilming = e } else { formPicking = true }
             return
         }
-        guard !t.isEmpty, canTalk else { return }
-        store.messages.append(CoachChatMessage(role: .member, text: t))
+        guard !t.isEmpty, !sending else { return }
+        // About the logged workouts (#868 C): answered on the iPhone with a chart card, free, even when chat is off.
+        if photo == nil, HistoryAsk.answer(t, records: model.state.history) != nil {
+            store.messages.append(CoachChatMessage(role: .member, text: t))
+            draft = ""
+            sending = true
+            self.spoken = spoken
+            let records = model.state.history
+            Task {
+                defer { sending = false }
+                guard let r = await HistoryAskService.ask(t, records: records) else { return }
+                store.messages.append(CoachChatMessage(role: .coach, text: r.text, onDevice: true, seconds: r.seconds, history: r.answer))
+                speak(r.text)
+            }
+            return
+        }
+        guard canTalk else { return }
+        store.messages.append(CoachChatMessage(role: .member, text: t, photo: photo))
         draft = ""
         sending = true
         self.spoken = spoken
@@ -491,7 +653,7 @@ struct CoachChatView: View {
         let readiness = Readiness.assess(health.snapshot)?.0.title
         let focus = focus
         // Short questions, or no server Coach: the on-device model answers (#608 A).
-        let local = OnDeviceCoach.available && (CoachRoute.onDevice(t) || !serverOpen)
+        let local = jpeg == nil && OnDeviceCoach.available && (CoachRoute.onDevice(t) || !serverOpen)
         let about = model.onDeviceCoachAbout(focus: focus)
         Task {
             defer { sending = false }
@@ -501,9 +663,12 @@ struct CoachChatView: View {
                 return
             }
             do {
-                let a = try await model.coachChat(history, readiness: readiness, focus: focus)
+                let a = try await model.coachChat(history, readiness: readiness, focus: focus, photo: jpeg)
                 store.remaining = a.remainingToday
                 var reply = CoachChatMessage(role: .coach, text: a.reply, action: a.action, suggestions: a.suggestions ?? [])
+                var seen = Set<String>()
+                reply.exercises = (a.exercises ?? []).compactMap { Exercise.named($0) }.filter { seen.insert($0.id).inserted }
+                reply.protect = a.protect.flatMap(PainProtect.init(chat:))
                 if let s = a.workout, let profile = model.profile {
                     let w = s.workout(profile: profile, seed: UInt32.random(in: .min ... .max))
                         .withFlow(CoachWorkoutSettings.flowMinutes, profile: profile)
@@ -521,7 +686,7 @@ struct CoachChatView: View {
                     if code == "daily_limit" { store.remaining = 0 }
                     if code == "coach_unavailable" { store.available = false }
                     store.messages.append(CoachChatMessage(role: .coach, text: message))
-                } else if OnDeviceCoach.available, await answerOnDevice(t, about: about, history: Array(history.dropLast())) {
+                } else if jpeg == nil, OnDeviceCoach.available, await answerOnDevice(t, about: about, history: Array(history.dropLast())) {
                     // No signal (#608 A): the on-device Coach answers instead.
                 } else {
                     store.messages.append(CoachChatMessage(role: .coach, text: "I couldn't reach the gym floor. Check your connection and try again."))
@@ -565,6 +730,14 @@ extension Demo {
     /// Demo coach (no network): a shoulder-safe legs workout for any message; a form tip with an open button when asked
     /// from an exercise (#412).
     static func coachAnswer(_ text: String, focus: CoachFocus? = nil) throws -> CoachChatAnswer<CoachWorkoutSettings> {
+        if focus?.screen == CoachFocus.freestyleScreen {
+            let json = #"""
+            {"reply":"That's a cable stack with a rope: perfect for triceps. Start with pushdowns, elbows pinned to your sides.",
+             "workout":null,"action":null,"exercises":["Cable triceps pushdown","Face pull","Straight-arm pulldown"],
+             "suggestions":["Something harder","Add biceps"],"remainingToday":17}
+            """#
+            return try JSONDecoder().decode(CoachChatAnswer<CoachWorkoutSettings>.self, from: Data(json.utf8))
+        }
         if focus?.screen == "exercise" || focus?.screen == "player" {
             let json = #"""
             {"reply":"Tuck your elbows to about 45 degrees and grip a little narrower. Still clicking? Swap to the neutral-grip dumbbell press.",

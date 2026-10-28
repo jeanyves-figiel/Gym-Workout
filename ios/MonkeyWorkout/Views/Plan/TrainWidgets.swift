@@ -118,7 +118,7 @@ struct CoachSmallWidget: View {
                 MonkeyFace(mood: mood, scale: 1.1, gear: model.rank.gear)
                 Spacer(minLength: 0)
             }
-            let missed = model.missedToHandle.count
+            let missed = model.missedSessions.count
             caption("🔥 \(stats.currentStreakWeeks) wk · \(stats.thisWeek)/\(target) this week\(missed > 0 ? " · \(missed) missed" : "")")
         }
         .opensLevels()
@@ -181,9 +181,9 @@ struct NextUpCompactWidget: View {
         tile
             // Missed this week (#266): the red chip opens the catch-up sheet of the first missed day.
             .overlay(alignment: .topTrailing) {
-                if !model.missedToHandle.isEmpty {
+                if !model.missedSessions.isEmpty {
                     Button { catchUp = true } label: {
-                        Text("\(model.missedToHandle.count) missed").font(Theme.label(11)).foregroundStyle(.white)
+                        Text("\(model.missedSessions.count) missed").font(Theme.label(11)).foregroundStyle(.white)
                             .padding(.horizontal, 8).padding(.vertical, 4)
                             .background(Capsule().fill(MissedStyle.gradient))
                     }
@@ -225,7 +225,7 @@ struct NextUpCompactWidget: View {
                 }
             }
         } else {
-            let missed = model.missedToHandle.count
+            let missed = model.missedSessions.count
             WidgetTile(kind: .nextUp, title: "This week") {
                 Label(missed > 0 ? "No more sessions" : "Week complete", systemImage: missed > 0 ? "moon.zzz.fill" : "trophy.fill")
                     .font(Theme.display(18))

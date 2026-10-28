@@ -35,7 +35,12 @@ import Testing
         #expect(Breath.box.cycles(minutes: 3) == 11)
         #expect(Breath.box.totalSeconds(minutes: 3) == 176)
         #expect(Breath.sleep478.cycleSeconds == 19)
-        #expect(Breath.sleep478.cycles(minutes: 4) == 13)
+        // 4-7-8 counts breaths (#861): Weil's 4, at most 8.
+        #expect(Breath.sleep478.byBreaths && Breath.sleep478.lengths == [4, 8])
+        #expect(Breath.sleep478.cycles(minutes: 4) == 4)
+        #expect(Breath.sleep478.totalSeconds(minutes: 8) == 152)
+        #expect(Breath.sleep478.lengthLabel(4) == "4 breaths" && Breath.box.lengthLabel(3) == "3 min")
+        #expect(Breath.allCases.filter(\.byBreaths) == [.sleep478])
     }
 
     @Test func phaseAtATime() {
@@ -64,13 +69,16 @@ import Testing
     }
 
     @Test func scoreWeighsMoodHrvSleepAndLoad() {
-        #expect(MindScore.score(.init(mood: 5, hrv: 60, hrvBaseline: 50, sleepHours: 8, workoutDays: 0)) == 100)
-        #expect(MindScore.score(.init(mood: 5, hrv: 60, hrvBaseline: 50, sleepHours: 9, workoutDays: 0, calmMinutes: 3)) == 100)
-        #expect(MindScore.score(.init(mood: 1, hrv: 35, hrvBaseline: 50, sleepHours: 5, workoutDays: 3)) == 3)
-        // Mood only: mood and load reweighted, 17.5 + 15 of 50.
-        #expect(MindScore.score(.init(mood: 3)) == 65)
-        #expect(MindScore.score(.init(mood: 3, calmMinutes: 10)) == 65 + MindScore.calmBonusMax)
-        #expect(MindScore.parts(.init(mood: 3)).map(\.name) == ["Mood", "Load"])
+        #expect(MindScore.score(.init(mood: 5, hrv: 60, hrvBaseline: 50, sleepHours: 8, workoutDays: 1)) == 100)
+        // Training lifts the score (#862): none or three days in a row score less than one or two.
+        #expect(MindScore.score(.init(mood: 5, hrv: 60, hrvBaseline: 50, sleepHours: 8, workoutDays: 0)) == 94)
+        #expect(MindScore.score(.init(mood: 5, hrv: 60, hrvBaseline: 50, sleepHours: 8, workoutDays: 2)) == 100)
+        #expect(MindScore.score(.init(mood: 5, hrv: 60, hrvBaseline: 50, sleepHours: 9, workoutDays: 1, calmMinutes: 3)) == 100)
+        #expect(MindScore.score(.init(mood: 1, hrv: 35, hrvBaseline: 50, sleepHours: 5, workoutDays: 0)) == 9)
+        // Mood only: mood and training reweighted, 17.5 + 9 (no workout days, 60 %) of 50.
+        #expect(MindScore.score(.init(mood: 3)) == 53)
+        #expect(MindScore.score(.init(mood: 3, calmMinutes: 10)) == 53 + MindScore.calmBonusMax)
+        #expect(MindScore.parts(.init(mood: 3)).map(\.name) == ["Mood", "Training"])
         #expect(MindScore.Inputs(hrv: 50, hrvBaseline: 0).hrvRatio == nil)
     }
 
@@ -122,9 +130,9 @@ import Testing
     @Test func howItWorksQuotesTheWeights() {
         let t = HowItWorks.topic("mind")!
         let text = t.parts.flatMap { [$0.text] + $0.rule }.joined(separator: "\n")
-        #expect(text.contains("mood 35 · HRV 25 · sleep 25 · load 15"))
+        #expect(text.contains("mood 35 · HRV 25 · sleep 25 · training 15"))
         #expect(text.contains("0.7 → 0, 1.2 → 1"))
-        #expect(text.contains("0 → 1, 1 → 0.8, 2 → 0.5, 3 → 0.2"))
+        #expect(text.contains("0 → 0.6, 1 → 1, 2 → 1, 3 → 0.7"))
         #expect(text.contains("max +\(MindScore.calmBonusMax)"))
     }
 

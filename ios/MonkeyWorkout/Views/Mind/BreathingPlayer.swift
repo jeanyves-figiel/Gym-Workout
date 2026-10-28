@@ -128,7 +128,7 @@ struct BreathingPlayer: View {
     private func controls(left: Int) -> some View {
         VStack(spacing: 12) {
             if startedAt == nil {
-                RoutineLengthChips(lengths: breath.lengths, selected: minutes) { minutes = $0 }
+                RoutineLengthChips(lengths: breath.lengths, selected: minutes, breaths: breath.byBreaths) { minutes = $0 }
             } else {
                 Text("\(left / 60):\(String(format: "%02d", left % 60)) left").font(Theme.label(15)).monospacedDigit().opacity(0.9)
             }
@@ -164,7 +164,7 @@ struct BreathingPlayer: View {
             Image(systemName: "checkmark").font(.system(size: 40, weight: .black))
                 .frame(width: 96, height: 96)
                 .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(.white.opacity(0.25)))
-            Text("Done · \(Int((total / 60).rounded())) min").font(Theme.display(30))
+            Text("Done · \(breath.byBreaths ? breath.lengthLabel(minutes) : "\(Int((total / 60).rounded())) min")").font(Theme.display(30))
             Text("Saved as mindful minutes. \(MindStore.shared.weekMinutes) calm minutes this week.")
                 .font(.subheadline.weight(.semibold)).multilineTextAlignment(.center).opacity(0.9)
             Spacer()

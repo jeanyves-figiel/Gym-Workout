@@ -57,9 +57,9 @@ struct ReadinessSheet: View {
                     Text("The markers").eyebrow()
                     marker(
                         "HRV", "Heart rate variability", "waveform.path.ecg",
-                        value: snapshot.hrv.map { "\(Int($0)) ms" }, avg: snapshot.hrvBaseline.map { "\(Int($0)) ms" },
+                        value: (snapshot.hrvWeek ?? snapshot.hrv).map { "\(Int($0)) ms" }, avg: snapshot.hrvBaseline.map { "\(Int($0)) ms" },
                         what: "Tiny changes in time between heartbeats, in milliseconds. Higher than your normal = well recovered. Lower = stress, poor sleep, illness or hard training is still in your body.",
-                        rule: "Counts as off when more than \(Int((1 - Readiness.hrvFloor) * 100)) % below your 30-day average.",
+                        rule: "Counts as off when your 7-day average is more than \(Int((1 - Readiness.hrvFloor) * 100)) % below your 30-day average.",
                         off: flags.contains("HRV below your baseline"), gradient: WorkoutEngine.Category.mobility.gradient)
                     marker(
                         "Rest HR", "Resting heart rate", "heart.fill",

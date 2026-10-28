@@ -8,8 +8,14 @@
  *   node src/admin.ts challenges                      week challenge suggestions waiting for review (#748)
  *   node src/admin.ts challenge-approve <id>          into the member-week vote
  *   node src/admin.ts challenge-reject <id>
+ *   node src/admin.ts ai-usage [--days N]              paid AI calls per day and feature: calls, failures, tokens, cost (#877)
+ *   node src/admin.ts holds                           shared items held by AI moderation (#871), oldest first
+ *   node src/admin.ts hold-release <id>               put it live (unless reports still hide it)
+ *   node src/admin.ts hold-reject <id>                keep it hidden (a held photo is deleted)
  */
 import { parseArgs } from 'node:util';
+import { aiUsageReport } from './aiUsage.ts';
+import { openHolds, resolveHold } from './community/aiModeration.ts';
 import { pendingSuggestions, reviewSuggestion } from './community/challenges.ts';
 import { loadConfig } from './config.ts';
 import { openDb } from './db.ts';
@@ -18,7 +24,7 @@ import { SubscriptionService } from './subscriptions/service.ts';
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
-  options: { until: { type: 'string' }, before: { type: 'string' }, note: { type: 'string' } },
+  options: { until: { type: 'string' }, before: { type: 'string' }, note: { type: 'string' }, days: { type: 'string' } },
 });
 const [cmd, email] = positionals;
 const config = loadConfig();
@@ -78,7 +84,33 @@ switch (cmd) {
     console.log(reviewSuggestion(db, email!.trim(), status, new Date()) ? `Suggestion ${email} ${status}.` : `No pending suggestion ${email}.`);
     break;
   }
+  case 'ai-usage': {
+    const days = Number(values.days ?? 7);
+    if (!Number.isInteger(days) || days < 1 || days > 90) fail('--days must be 1 to 90');
+    const r = aiUsageReport(db, days, new Date(), config.aiDailyLimit);
+    const usd = (v: number) => `$${v.toFixed(2)}`;
+    console.log(`AI usage, last ${days} day(s): ${usd(r.totalUsd)}`);
+    console.table(r.days.map((d) => ({ day: d.day, calls: d.calls, failures: d.failures, cost: usd(d.costUsd), cap: `${d.capUsed} / ${d.cap}` })));
+    console.table(
+      r.rows.map((x) => ({
+        day: x.day, feature: x.feature, model: x.model, calls: x.calls, failures: x.failures, input: x.input, output: x.output,
+        cacheHit: `${Math.round(x.cacheHit * 100)} %`, cost: usd(x.costUsd),
+      })),
+    );
+    break;
+  }
+  case 'holds':
+    // Ids, category and nickname only, never the content: the workflow log is public (#432). Content is in the moderation mail.
+    console.table(openHolds(db).map((h) => ({ id: h.id, type: h.target_type, category: h.category, by: h.nickname, at: h.created_at })));
+    break;
+  case 'hold-release':
+  case 'hold-reject': {
+    if (!email) fail('Hold id required');
+    const decision = cmd === 'hold-release' ? 'released' : 'rejected';
+    console.log(resolveHold(db, email!.trim(), decision, new Date()) ? `Hold ${email} ${decision}.` : `No open hold ${email}.`);
+    break;
+  }
   default:
-    fail('Usage: node src/admin.ts grant <email> [--until YYYY-MM-DD] [--note text] | grant-all --until YYYY-MM-DD [--before YYYY-MM-DD] | revoke <email> | list | challenges | challenge-approve <id> | challenge-reject <id>');
+    fail('Usage: node src/admin.ts grant <email> [--until YYYY-MM-DD] [--note text] | grant-all --until YYYY-MM-DD [--before YYYY-MM-DD] | revoke <email> | list | challenges | challenge-approve <id> | challenge-reject <id> | ai-usage [--days N] | holds | hold-release <id> | hold-reject <id>');
 }
 db.close();

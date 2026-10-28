@@ -57,7 +57,6 @@ struct WorkoutPlayerView: View {
     @State private var changeFor: PlannedExercise?
     @State private var changeChoice: ChangeExerciseSheet.Choice?
     @State private var setupFor: MachineNoteTarget?
-    @State private var gate: ProGate?
     @State private var log = SetLogState()
     /// Done set opened for a correction in the set card.
     @State private var editingSet: Int?
@@ -97,12 +96,22 @@ struct WorkoutPlayerView: View {
     @State private var coach = WorkoutCoach()
     /// Hands-free mic (#412 C) and a question for Coach about this exercise.
     @State private var listener = CoachListener()
+    /// Talk to Coach mid-set (#874): the question and its answer over the exercise picture; a rest Coach set for the next set.
+    @State private var talk: Talk?
+    @State private var talkRest: Int?
+    /// Ask Coach from the freestyle start screen (#856).
     @State private var asking: AskCoachRequest?
     /// #402: the coach voice setup sheet (A) and the toast after an automatic pick (C).
     @State private var voiceSetup = false
     @State private var voiceToast: String?
     /// Items that already had their record burst this workout.
     @State private var coachRecorded: Set<String> = []
+
+    struct Talk: Equatable {
+        let id = UUID()
+        let heard: String
+        var answer: SetTalkAnswer?
+    }
 
     struct AutoNext: Equatable {
         let uid: String
@@ -119,7 +128,7 @@ struct WorkoutPlayerView: View {
         var effort: Effort?
     }
 
-    enum MapAction { case finish, finishEarly, discard, close }
+    enum MapAction { case finish, finishEarly, discard }
 
     struct SplitUndo: Equatable {
         var text: String
@@ -212,8 +221,11 @@ struct WorkoutPlayerView: View {
                         onPick: { e in addFree([e] + freeLined.filter { $0.id != e.id }, jump: true) },
                         onStartLined: { addFree(freeLined, jump: true) },
                         onBrowse: { freeBrowse = FreeBrowse(group: $0, jump: true) },
-                        // Pause: keep for later or discard (#538), with nothing added yet.
-                        onClose: { mapOpen = true })
+                        onCoach: { entry in
+                            asking = AskCoachRequest(focus: .freestyle(), listen: entry == .talk, photo: entry == .photo)
+                        },
+                        // ✕ with nothing added (#857 A): discarded at once, Undo brings it back.
+                        onClose: closeWorkout)
                 }
             }
         }
@@ -262,7 +274,6 @@ struct WorkoutPlayerView: View {
                            layout: Binding(get: { zoneDraft.layout }, set: { zoneDraft.layout = $0 }))
         }
         .fullScreenCover(item: $prFor) { PRAttemptView(exerciseId: $0.id) }
-        .proPaywall($gate)
         .sheet(isPresented: $finishingEarly) {
             if let base = model.session(sessionId), steps.indices.contains(index) {
                 FinishEarlySheet(blocks: base.blocks, setsDone: setsDone, current: steps[index].item.uid, fitted: fitted != nil,
@@ -270,27 +281,20 @@ struct WorkoutPlayerView: View {
             }
         }
         .sheet(isPresented: $voiceSetup) { CoachVoiceSetupSheet() }
-        .sheet(item: $asking) { CoachChatView(ask: $0).remotePaused(.askCoach) }
+        .sheet(item: $asking) { r in
+            // From the freestyle start screen (#856): Coach's exercises start (▶) or line up (+) like the screen's own.
+            let free = r.focus?.screen == CoachFocus.freestyleScreen && isFree
+            CoachChatView(ask: r, freestyle: free ? CoachFreestyle(lined: $freeLined, start: { e in
+                addFree([e] + freeLined.filter { $0.id != e.id }, jump: true)
+            }) : nil)
+            .remotePaused(.askCoach)
+        }
         .overlay(alignment: .top) { if listener.listening || listener.problem != nil { heardPill.padding(.top, 60) } }
         .sheet(isPresented: $mapOpen, onDismiss: runMapAction) {
             if let session, steps.indices.contains(index) {
                 // Finish, Finish early and Discard live here (#538), not in a dialog behind the pause button.
                 WorkoutMapSheet(blocks: session.blocks, setsDone: setsDone, current: steps[index].item.uid)
                     .safeAreaInset(edge: .bottom) { mapActions }
-            } else if isFree, steps.isEmpty {
-                // Build as I go before the first exercise (#490): nothing to map, but it can be kept or discarded.
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Workout map").eyebrow()
-                    Text("Nothing added yet").font(Theme.display(26))
-                    Text("Keep it for later, or discard it.").font(.subheadline).foregroundStyle(Theme.muted)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(20)
-                .glassSheetBackground()
-                .foregroundStyle(.white)
-                .preferredColorScheme(.dark)
-                .safeAreaInset(edge: .bottom) { mapActions }
-                .presentationDetents([.medium])
             }
         }
         .animation(.spring(duration: 0.4), value: index)
@@ -377,7 +381,7 @@ struct WorkoutPlayerView: View {
             if let l = n.object as? WLiftLive { applyWatchLift(l) }
         }
         .onChange(of: setsDone) { watchLift = nil }
-        .onChange(of: index) { watchLift = nil }
+        .onChange(of: index) { watchLift = nil; talk = nil; talkRest = nil }
         .onChange(of: index) { old, new in zoneHop(from: old, to: new) }
     }
 
@@ -496,8 +500,14 @@ struct WorkoutPlayerView: View {
             .padding(.top, 8)
             .readableColumn()
 
-            // Coach (#379): over the picture, never in the layout, so nothing moves.
-            if let r = coach.record {
+            // Coach (#379): over the picture, never in the layout, so nothing moves. Talk to Coach (#874) first.
+            if let t = talk {
+                talkCard(t)
+                    .padding(.horizontal, 20)
+                    .padding(.top, horizontalSize == .regular ? 250 : 120)
+                    .readableColumn()
+                    .transition(.scale(scale: 0.95).combined(with: .opacity))
+            } else if let r = coach.record {
                 CoachRecordBurst(record: r) { withAnimation(.spring(duration: 0.3)) { coach.record = nil } }
                     .frame(maxHeight: 340)
                     .padding(.horizontal, 20)
@@ -520,6 +530,7 @@ struct WorkoutPlayerView: View {
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { playerHeight = $0 }
         .animation(.spring(duration: 0.35), value: voiceToast)
+        .animation(.spring(duration: 0.35), value: talk)
         .animation(.spring(duration: 0.35), value: coach.bubble)
         .animation(.spring(duration: 0.35), value: coach.record)
     }
@@ -547,28 +558,17 @@ struct WorkoutPlayerView: View {
     }
 
     /// Workout map footer (#538): Finish and Discard side by side, Finish early under them. Each runs once the map closed.
-    /// An empty Build as I go workout gets Keep for later in Finish's place.
     private var mapActions: some View {
         VStack(spacing: 6) {
             HStack(spacing: 10) {
-                if steps.isEmpty {
-                    Button {
-                        mapAction = .close
-                        mapOpen = false
-                    } label: {
-                        Label("Keep for later", systemImage: "pause.fill").lineLimit(1).minimumScaleFactor(0.9)
-                    }
-                    .buttonStyle(LimeButtonStyle())
-                } else {
-                    Button {
-                        mapAction = .finish
-                        mapOpen = false
-                    } label: {
-                        Label("Finish", systemImage: "flag.checkered").lineLimit(1).minimumScaleFactor(0.9)
-                    }
-                    .buttonStyle(LimeButtonStyle())
-                    .accessibilityHint("Saves the workout as it is now")
+                Button {
+                    mapAction = .finish
+                    mapOpen = false
+                } label: {
+                    Label("Finish", systemImage: "flag.checkered").lineLimit(1).minimumScaleFactor(0.9)
                 }
+                .buttonStyle(LimeButtonStyle())
+                .accessibilityHint("Saves the workout as it is now")
                 Button {
                     mapAction = .discard
                     mapOpen = false
@@ -582,23 +582,20 @@ struct WorkoutPlayerView: View {
                 .buttonStyle(.plain)
                 .accessibilityHint("Closes without saving. Undo for a few seconds.")
             }
-            if !steps.isEmpty {
-                Button {
-                    mapAction = .finishEarly
-                    mapOpen = false
-                } label: {
-                    Label("Short on time? Finish early", systemImage: "timer")
-                        .font(Theme.label(14)).foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+            Button {
+                mapAction = .finishEarly
+                mapOpen = false
+            } label: {
+                Label("Short on time? Finish early", systemImage: "timer")
+                    .font(Theme.label(14)).foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             moveToWatch
         }
         .padding(.horizontal, 20)
         .padding(.top, 10)
-        .padding(.bottom, steps.isEmpty ? 8 : 0)
         .background(Theme.bg.ignoresSafeArea())
     }
 
@@ -628,7 +625,6 @@ struct WorkoutPlayerView: View {
         mapAction = nil
         switch a {
         case .finish: finish()
-        case .close: closeWorkout()
         case .finishEarly: finishingEarly = true
         case .discard: discardWithUndo()
         }
@@ -686,7 +682,9 @@ struct WorkoutPlayerView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .overlay {
                             // Coach (#379) over the exercise card only.
-                            if let r = coach.record {
+                            if let t = talk {
+                                talkCard(t).padding(12)
+                            } else if let r = coach.record {
                                 CoachRecordBurst(record: r) { withAnimation(.spring(duration: 0.3)) { coach.record = nil } }
                             } else if let b = coach.bubble {
                                 CoachBubble(call: b).padding(12)
@@ -777,7 +775,9 @@ struct WorkoutPlayerView: View {
                         .transition(.opacity)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .overlay {
-                            if let r = coach.record {
+                            if let t = talk {
+                                talkCard(t).padding(12)
+                            } else if let r = coach.record {
                                 CoachRecordBurst(record: r) { withAnimation(.spring(duration: 0.3)) { coach.record = nil } }
                             } else if let b = coach.bubble {
                                 CoachBubble(call: b).padding(12)
@@ -887,12 +887,19 @@ struct WorkoutPlayerView: View {
                               onPick: { addFree([$0], jump: false) },
                               onMore: { freeBrowse = FreeBrowse(group: nil, jump: false) })
         } else {
-            SmartUpNextBar(next: next,
-                              then: SmartUpNextBar.after(items, current: step.item.uid, next: next?.exercise),
-                              left: items.filter { $0.state == .left }.count,
-                              doneBy: OverviewItem.doneBy(session.blocks, setsDone: setsDone, current: step.item.uid),
-                              fallback: step.category.colors,
-                              walk: walk(from: step.exercise, to: next?.exercise)) { mapOpen = true }
+            HStack(spacing: 8) {
+                // Talk to Coach (#874 A): hold the mic, ask about this set.
+                if AskCoachPref.playerMic {
+                    SetTalkMic(listening: listener.listening, onStart: listenForCommand, onEnd: { listener.finish() })
+                }
+                SmartUpNextBar(next: next,
+                               then: SmartUpNextBar.after(items, current: step.item.uid, next: next?.exercise),
+                               left: items.filter { $0.state == .left }.count,
+                               doneBy: OverviewItem.doneBy(session.blocks, setsDone: setsDone, current: step.item.uid),
+                               fallback: step.category.colors,
+                               walk: walk(from: step.exercise, to: next?.exercise)) { mapOpen = true }
+            }
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -1012,7 +1019,8 @@ struct WorkoutPlayerView: View {
             // Gym buddies (#675 C): LIVE ⇄ PRIVATE for this workout, only while someone could see it.
             if LiveRoom.shared.canShare { LiveShareTile() }
             // Hands-free (#412 C): say a command, or ask Coach about this exercise.
-            if AskCoachPref.playerMic { micButton }
+            // #874: in Up next otherwise; build-as-you-go has its queue shelf there instead.
+            if AskCoachPref.playerMic, isFree { micButton }
             // Cast to a TV (#724): Chromecast or AirPlay.
             CastButton()
             // Tap the clock to finish early (#300); after a fit it counts down to the time to be done by.
@@ -1073,7 +1081,7 @@ struct WorkoutPlayerView: View {
     private var heardPill: some View {
         HStack(spacing: 8) {
             if listener.listening { ListeningBars() }
-            Text(listener.problem ?? (listener.text.isEmpty ? "Say \"done\", \"80 kg\", \"skip rest\" or ask…" : listener.text))
+            Text(listener.problem ?? (listener.text.isEmpty ? "Ask \"too heavy?\", or say \"done\", \"80 kg\", \"skip rest\"…" : listener.text))
                 .font(.subheadline.weight(.semibold)).lineLimit(2)
         }
         .foregroundStyle(.white)
@@ -1154,10 +1162,71 @@ struct WorkoutPlayerView: View {
         case .next: handle(.next)
         case .previous: handle(.previous)
         case let .ask(q):
-            let detail = onCard ? "set \(row + 1) of \(step.sets), \(log.rows[row].kg) kg × \(log.rows[row].reps)" : "set \(done + 1) of \(step.sets)"
-            ProStore.shared.run(.askCoach, $gate) {
-                asking = AskCoachRequest(focus: CoachFocus(screen: "player", title: step.exercise.name, detail: "during the workout, " + detail),
-                                         question: q, spoken: true)
+            askCoach(q, step: step)
+        }
+    }
+
+    // MARK: Talk to Coach mid-set (#874)
+
+    /// The answer card stays until closed, a fix is tapped or the player moves on; the answer is spoken (C).
+    private func askCoach(_ question: String, step: Step) {
+        let t = Talk(heard: question)
+        talk = t
+        let context = setTalkContext(step)
+        Task {
+            let a = await model.setTalk(question, context: context)
+            guard talk?.id == t.id else { return }
+            talk?.answer = a
+            coach.answer(a.text)
+        }
+    }
+
+    private func setTalkContext(_ step: Step) -> SetTalkContext {
+        let done = setsDone[step.item.uid] ?? 0
+        let onCard = step.loggable && log.item?.uid == step.item.uid && !log.rows.isEmpty
+        let row = min(done, max(0, log.rows.count - 1))
+        let coming = onCard ? log.rows[row] : nil
+        let logged: [SetTalkContext.Logged] = onCard
+            ? log.rows.indices.filter { log.rows[$0].logged }.compactMap { i in log.values(i).map { .init(kg: $0.kg, reps: $0.reps, rir: $0.rir) } }
+            : []
+        let swaps = canSwapHere(step) ? model.profile.map { p in step.exercise.swapOptions(for: p).prefix(4).map { SetTalkContext.Option(id: $0.id, name: $0.name) } } ?? [] : []
+        return SetTalkContext(exercise: step.exercise.name, set: min(step.sets, done + 1), sets: step.sets,
+                              kg: coming.flatMap { SetLogState.parseKg($0.kg) }, reps: coming.flatMap { Int($0.reps) },
+                              step: onCard ? log.kgStep : 2.5, done: logged,
+                              lastTime: model.setTalkLastTime(exerciseId: step.exercise.id, sessionId: sessionId),
+                              restSec: step.item.prescription.restSec, swaps: swaps)
+    }
+
+    private func talkCard(_ t: Talk) -> some View {
+        SetTalkCard(heard: t.heard, answer: t.answer, onAction: runTalk, onClose: {
+            coach.stop()
+            talk = nil
+        })
+    }
+
+    /// A fix from Coach's answer: the weight for the sets still to do, a swap in this workout, or the rest.
+    private func runTalk(_ action: SetTalkAction) {
+        guard steps.indices.contains(index) else { return }
+        let step = steps[index]
+        talk = nil
+        coach.stop()
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        switch action {
+        case let .weight(kg):
+            guard step.loggable, log.item?.uid == step.item.uid else { return }
+            for i in log.rows.indices where !log.rows[i].logged { log.setKg(i, kg) }
+        case let .swap(id, _):
+            guard canSwapHere(step) else { return }
+            model.swapInSession(sessionId, uid: step.item.uid, to: id)
+            fitted?.swap(step.item.uid, to: id)
+            relocate(step.item.uid)
+        case let .rest(sec):
+            if var p = pause {
+                p.end = p.start.addingTimeInterval(TimeInterval(sec))
+                p.total = sec
+                pause = p
+            } else {
+                talkRest = sec
             }
         }
     }
@@ -1315,7 +1384,8 @@ struct WorkoutPlayerView: View {
         let target = jump.flatMap { $0.index == index ? nil : $0.index }
         // Pro Sets (#499): drops and minis have their own short rest.
         let planRest = onScreen ? log.restAfter(done, fallback: step.item.prescription.restSec) : step.item.prescription.restSec
-        let rest = jump?.rest ?? (now < sets ? step.timedSpec?.easySec ?? planRest : 0)
+        let rest = jump?.rest ?? (now < sets ? step.timedSpec?.easySec ?? talkRest ?? planRest : 0)
+        talkRest = nil
         // No rest: the next group member at once, or after the last set the "Next in" countdown (#357).
         guard rest > 0 else {
             if let target { return moveTo(target) }
@@ -1797,6 +1867,14 @@ struct WorkoutPlayerView: View {
                 coach.say(.finalSet(exercise: name))
             }
         }
+        // Talk to Coach (#874): the answer card with its fixes.
+        if demoMode == "talk", let s = steps.firstIndex(where: { $0.loggable && $0.sets > 2 }) {
+            index = s
+            reloadLog()
+            setsDone[steps[s].item.uid] = 2
+            let q = "Felt it in my lower back"
+            talk = Talk(heard: q, answer: SetTalk.rules(q, setTalkContext(steps[s])))
+        }
         if demoMode == "logged", let s = steps.firstIndex(where: { $0.loggable && $0.sets > 2 }) {
             index = s
             reloadLog()
@@ -2245,6 +2323,8 @@ struct SummaryView: View {
                     LiftReportList(report: report)
                 }
                 if let recap { RecapCard(recap: recap, onDevice: recapOnDevice) }
+                // Plateau explainer (#875 C): a stalled lift of this workout, with a fix.
+                if let record { PlateauNudge(record: record) }
                 // Wins you missed (#501): three personal wins, even on a weak day, and how you feel now.
                 if !wins.isEmpty { WinsCard(wins: wins, recordId: recordId) }
                 // Effort to Apple Health (#614 A).

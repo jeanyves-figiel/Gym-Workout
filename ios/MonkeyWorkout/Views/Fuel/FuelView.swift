@@ -100,6 +100,7 @@ struct FuelView: View {
                 if Calendar.current.startOfDay(for: day) <= Calendar.current.startOfDay(for: Date()) {
                     FuelLogButton { justAte = true }
                 }
+                if Calendar.current.isDateInToday(day) { MealIdeasCard(plan: plan, log: log, day: day) }
                 FuelNextCard(plan: plan, log: log, day: day, open: { slot = $0 })
                 FuelKitchen(plan: plan, day: day, settings: { setup = true })
                 Text(FuelLearn.disclaimer)

@@ -19,6 +19,8 @@ public struct NotificationPrefs: Codable, Hashable, Sendable {
     public var quietEnd = 7 * 60
     /// Daily Move (#454): one nudge on a day well below your usual steps.
     public var moveNudges = true
+    /// Comeback nudge (#876 C): one offer from Coach after 2+ missed sessions or a long break.
+    public var comebackNudge = true
 
     public init() {}
 
@@ -37,6 +39,7 @@ public struct NotificationPrefs: Codable, Hashable, Sendable {
         quietStart = NotificationPrefs.clamp(v(.quietStart, d.quietStart))
         quietEnd = NotificationPrefs.clamp(v(.quietEnd, d.quietEnd))
         moveNudges = v(.moveNudges, d.moveNudges)
+        comebackNudge = v(.comebackNudge, d.comebackNudge)
     }
 
     static func clamp(_ m: Int) -> Int { min(max(m, 0), 1439) }
@@ -60,9 +63,12 @@ public struct PlannedSession: Hashable, Sendable {
     /// Start of the calendar day the session is planned on.
     public var day: Date
     public var done: Bool
+    /// For the Coach-written reminder (#876): the last workout of this focus when the session itself is new.
+    public var focus: Focus?
 
-    public init(sessionId: String, title: String, estMin: Int, day: Date, done: Bool) {
+    public init(sessionId: String, title: String, estMin: Int, day: Date, done: Bool, focus: Focus? = nil) {
         self.sessionId = sessionId
+        self.focus = focus
         self.title = title
         self.estMin = estMin
         self.day = day

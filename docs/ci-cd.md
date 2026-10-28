@@ -28,7 +28,7 @@ Several streams of work are bundled into one release: all merge to staging, an i
 | Workflow | File | Trigger | Does |
 |---|---|---|---|
 | CI | `ci.yml` | PR, called by Deploy staging | What's new check; backend `npm ci`, typecheck, tests (incl. docs drift); backend image build |
-| iOS | `ios.yml` | PR / push to `main` touching `ios/**` | GymCore package tests, simulator builds (Debug, Staging), UI tests |
+| iOS | `ios.yml` | PR / push to `main` touching `ios/**` | GymCore package tests, simulator builds (Debug, Staging), UI tests (build-for-testing, booted simulator, a failed test retried once) |
 | App Store screenshots | `app-store-screenshots.yml` | PR, manual | Demo-mode screens captured (≤ 800 px) to branch `screenshots/pr-<n>` and an artifact |
 | Deploy staging | `deploy-staging.yml` | push to `main` | CI, image to GHCR, deploy to staging |
 | Staging smoke test | `staging-smoke.yml` | after Deploy staging, manual | Health + real mail transport, sign-up email, unverified login refused, forgot password, auth guards |
@@ -37,6 +37,7 @@ Several streams of work are bundled into one release: all merge to staging, an i
 | TestFlight distribute | `testflight-distribute.yml` | manual, called | Add a build to a TestFlight group |
 | TestFlight crashes | `testflight-crashes.yml` | manual | Download crash reports from App Store Connect |
 | Symbolicate crash | `symbolicate.yml` | manual | Symbolicate a crash log |
+| App Store listing | `asc-listing.yml` | manual (dry run first) | Push `ios/AppStore/listing.json` (text, categories, age rating, App Review info) to App Store Connect |
 | App Store subscriptions | `asc-subscriptions.yml` | manual (dry run first) | Create / update Pro products in App Store Connect |
 | Garmin watch app | `garmin.yml` | PR, push, manual | Build the Connect IQ app (once Garmin secrets exist) |
 | Garmin signing key | `garmin-key.yml` | manual | Generate the Connect IQ developer key straight into a secret (never in a log or artifact) |
@@ -54,6 +55,8 @@ All manual, target `staging` or `production`, run commands on the Fly machine ov
 | Fly undo workout | Remove a wrongly recorded workout for a member (dry run first, then apply) |
 | Free access | Grant / revoke / list free Pro access per account, or grant-all with an end date |
 | Week challenge review | List member challenge suggestions waiting for review, approve (into the member-week vote) or reject one (#748) |
+| AI usage | Paid AI calls per day and feature: calls, failures, tokens, cache hit, estimated US$ cost, `AI_DAILY_LIMIT` use (#877) |
+| Moderation holds | List shared items held by AI moderation, release (live unless reports hide it) or reject one; content and photo are in the moderation mail (#871) |
 
 ## Signing and App Store
 

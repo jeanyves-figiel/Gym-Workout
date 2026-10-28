@@ -78,7 +78,12 @@ public enum Breath: String, CaseIterable, Codable, Sendable, Identifiable {
     /// Dark type on the light lime gradient, white on the rest.
     public var lightGradient: Bool { self == .wake }
 
-    /// Lengths offered in minutes; the first is the default.
+    /// 4-7-8 is counted in breaths, not minutes (#861): Weil, who made it up, prescribes 4 breaths (about 1¼ min)
+    /// twice a day and at most 8 once it feels easy. The others follow session lengths used in studies (5 min daily
+    /// in Balban 2023; 10–20 min of slow breathing in resonance-breathing work) with a shorter start.
+    public var byBreaths: Bool { self == .sleep478 }
+
+    /// Lengths offered, in minutes (in breaths when `byBreaths`); the first is the default.
     public var lengths: [Int] {
         switch self {
         case .box: [3, 5, 10]
@@ -140,8 +145,14 @@ public enum Breath: String, CaseIterable, Codable, Sendable, Identifiable {
 
     public var cycleSeconds: Double { phases.reduce(0) { $0 + $1.seconds } }
 
-    /// Whole cycles for `minutes` (at least one), so a session always ends on a breath out.
-    public func cycles(minutes: Int) -> Int { max(1, Int((Double(minutes) * 60 / cycleSeconds).rounded())) }
+    /// Whole cycles for `minutes` (at least one), so a session always ends on a breath out. With `byBreaths`, the
+    /// length is the number of breaths.
+    public func cycles(minutes: Int) -> Int {
+        byBreaths ? max(1, minutes) : max(1, Int((Double(minutes) * 60 / cycleSeconds).rounded()))
+    }
+
+    /// "4 breaths", "5 min".
+    public func lengthLabel(_ n: Int) -> String { byBreaths ? "\(n) breaths" : "\(n) min" }
 
     public func totalSeconds(minutes: Int) -> Double { Double(cycles(minutes: minutes)) * cycleSeconds }
 
@@ -239,9 +250,10 @@ public enum MindScore {
     /// Sleep hours scoring 0 and full.
     public static let sleepLow = 5.0
     public static let sleepHigh = 8.0
-    /// Workout days in the last `loadDays` days (today included) and the load points each count leaves.
+    /// Workout days in the last `loadDays` days (today included) and the points each count gives (#862): exercise
+    /// lifts mood (Singh 2023), so 1–2 days score full; none, or every day in a row, a little less.
     public static let loadDays = 3
-    public static let loadPoints: [Double] = [1, 0.8, 0.5, 0.2]
+    public static let loadPoints: [Double] = [0.6, 1, 1, 0.7]
     /// +1 a calm minute today, up to this.
     public static let calmBonusMax = 5
     /// Check-ins in the last 28 days before Coach looks for patterns.
@@ -309,7 +321,7 @@ public enum MindScore {
         if let m = i.mood { out.append(Part(name: "Mood", points: Double(min(5, max(1, m)) - 1) / 4, weight: moodWeight)) }
         if let r = i.hrvRatio { out.append(Part(name: "HRV", points: clamp((r - hrvLow) / (hrvHigh - hrvLow)), weight: hrvWeight)) }
         if let s = i.sleepHours { out.append(Part(name: "Sleep", points: clamp((s - sleepLow) / (sleepHigh - sleepLow)), weight: sleepWeight)) }
-        out.append(Part(name: "Load", points: loadPoints[min(loadPoints.count - 1, max(0, i.workoutDays))], weight: loadWeight))
+        out.append(Part(name: "Training", points: loadPoints[min(loadPoints.count - 1, max(0, i.workoutDays))], weight: loadWeight))
         return out
     }
 

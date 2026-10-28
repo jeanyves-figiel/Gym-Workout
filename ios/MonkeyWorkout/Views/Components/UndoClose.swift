@@ -84,7 +84,8 @@ private final class ProbeController: UIViewController {
 @MainActor
 final class UndoCloseCenter {
     static let shared = UndoCloseCenter()
-    static let seconds: Double = 6
+    /// The Undo window (#854: skip → 5 s to take it back, then final).
+    static let seconds: Double = 5
 
     /// Adds the app's environment (model, health, …) to a reopened screen. Set once by the app.
     var environment: (AnyView) -> AnyView = { $0 }
@@ -105,6 +106,7 @@ final class UndoCloseCenter {
         else { return }
         if window == nil || window?.windowScene !== scene {
             let w = PassthroughWindow(windowScene: scene)
+            w.state = state
             w.windowLevel = .alert + 1
             let host = UIHostingController(rootView: UndoBarHost(state: state))
             host.view.backgroundColor = .clear
@@ -114,6 +116,14 @@ final class UndoCloseCenter {
         }
         if haptic { Haptics.undo() }
         state.present(offer, lift: Self.tabBarLift())
+        // Shown while the closed screen is still going away: measure the tab bar again once it is gone, so the bar
+        // never sits on it (#857).
+        Task { [state] in
+            try? await Task.sleep(for: .milliseconds(600))
+            let lift = Self.tabBarLift()
+            guard state.shown != nil, lift != state.lift else { return }
+            withAnimation(.spring(duration: 0.3)) { state.lift = lift }
+        }
         UIAccessibility.post(notification: .announcement, argument: "\(offer.title). Undo available.")
     }
 
@@ -156,11 +166,14 @@ final class UndoCloseCenter {
     }
 }
 
-/// Touches go through except on the bar itself.
+/// Touches go through except on the bar itself. SwiftUI answers every point with its hosting view, so the bar's
+/// measured frame decides (#857): comparing against the hosting view let taps on Undo fall through to the app.
 private final class PassthroughWindow: UIWindow {
+    fileprivate weak var state: UndoBarState?
+
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        let hit = super.hitTest(point, with: event)
-        return hit === rootViewController?.view ? nil : hit
+        guard let state, state.shown != nil, state.barFrame.insetBy(dx: -4, dy: -4).contains(point) else { return nil }
+        return super.hitTest(point, with: event) ?? rootViewController?.view
     }
 }
 
@@ -170,6 +183,8 @@ private final class UndoBarState {
     var shown: Shown?
     /// Room for the tab bar under the bar.
     var lift: CGFloat = 0
+    /// Where the bar is, in window points: only touches there are taken.
+    var barFrame: CGRect = .zero
     private var timer: Task<Void, Never>?
 
     func present(_ offer: UndoOffer, lift: CGFloat = 0) {
@@ -187,6 +202,7 @@ private final class UndoBarState {
     func clear() {
         timer?.cancel()
         withAnimation(.easeOut(duration: 0.25)) { shown = nil }
+        barFrame = .zero
     }
 }
 
@@ -199,6 +215,7 @@ private struct UndoBarHost: View {
             if let shown = state.shown {
                 UndoBar(offer: shown.offer, undo: { UndoCloseCenter.shared.undo(shown.offer) }, close: { state.clear() })
                     .id(shown.id)
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { state.barFrame = $0 }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }

@@ -254,8 +254,7 @@ struct WeekCalendarCard: View {
     private func tile(_ wd: Int, today: String, cal: Calendar) -> some View {
         let key = week.days[wd - 1]
         let session = planned.first { $0.weekday == wd }
-        // Removed from the day (#787) leaves a plain rest day, not "Skipped".
-        let skipped = session == nil && week.plan.sessions.contains { $0.weekday == wd && !model.isRemoved($0.id, in: current ? nil : week) }
+        // A skipped workout is gone (#854): a plain rest day, no "Skipped" tag.
         let done = session.map { current && model.doneIds.contains($0.id) } ?? false
         let off = week.off[wd] != nil
         let travel = week.travel[wd] != nil
@@ -269,7 +268,7 @@ struct WeekCalendarCard: View {
         let sport = model.sportDays(on: week.date(wd, cal) ?? Date()).first { $0.weekday == wd }?.sport
         // A dated sport day or trip (#474) shows in the sport's colours.
         let trip = week.trips[wd]
-        let tag: String? = session.map { ($0.hiit != nil ? "HIIT" : short($0.focus)) + (count > 1 ? " +\(count - 1)" : "") } ?? (off ? "Off" : trip.map { $0.sport.short } ?? (climb ? "Climb" : sport?.short ?? (skipped ? "Skipped" : nil)))
+        let tag: String? = session.map { ($0.hiit != nil ? "HIIT" : short($0.focus)) + (count > 1 ? " +\(count - 1)" : "") } ?? (off ? "Off" : trip.map { $0.sport.short } ?? (climb ? "Climb" : sport?.short))
         let fill = missed ? AnyShapeStyle(MissedStyle.gradient)
             : trip.map { AnyShapeStyle($0.sport.gradient) } ?? tileFill(session: session != nil, off: off, travel: travel, climb: climb)
         VStack(spacing: 1) {
@@ -292,7 +291,7 @@ struct WeekCalendarCard: View {
         .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(Theme.lime, lineWidth: key == today ? 2 : 0))
         .opacity(past && !done && !missed ? 0.45 : 1)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibility(wd, session: session, done: done, off: off, travel: travel, climb: climb) + (missed ? ", missed" : "") + (skipped ? ", skipped" : ""))
+        .accessibilityLabel(accessibility(wd, session: session, done: done, off: off, travel: travel, climb: climb) + (missed ? ", missed" : ""))
     }
 
     private func tileFill(session: Bool, off: Bool, travel: Bool, climb: Bool) -> AnyShapeStyle {
@@ -415,8 +414,6 @@ struct DaySheet: View {
     @State private var pastPick: PastDayPick?
     @State private var pastWorkout: Session?
     @State private var pastSport: SportLog?
-    /// Remove… (#784): this day, every week or just skip.
-    @State private var removing: RemoveRequest?
     /// Plan sport (#474): a new sport on this day, or the dated sport day / trip being edited.
     @State private var planningSport = false
     @State private var editingTrip: SportTrip?
@@ -479,11 +476,15 @@ struct DaySheet: View {
                             .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(MissedStyle.gradient))
                         }
                         SessionPreview(session: session, current: selection.current, done: done, canMove: selection.current && !done && !missed,
-                                       canRemove: !done && model.state.activeWorkout?.sessionId != session.id) {
+                                       canSkip: !done && model.state.activeWorkout?.sessionId != session.id,
+                                       stopTitle: stopWeekdayTitle(model, session, weekday: wd, in: selection.current ? nil : selection.week)) {
                             moving = session
-                        } onRemove: {
-                            profileBefore = model.profile
-                            removing = model.removeRequest(session, weekday: wd, in: selection.current ? nil : selection.week)
+                        } onSkip: {
+                            skipDay(model, session, in: selection.current ? nil : selection.week)
+                        } onStop: {
+                            // The plan changes: the sheet's week is a snapshot, so it closes.
+                            stopWeekday(model, session, weekday: wd)
+                            dismiss()
                         }
                     }
                     if sessions.isEmpty && away == nil && selection.week.trips[wd] == nil {
@@ -549,8 +550,6 @@ struct DaySheet: View {
         .sheet(isPresented: $loggingPast, onDismiss: logPastPick) { PastDayLogSheet(day: dayDate) { pastPick = $0 } }
         .sheet(item: $pastWorkout) { s in MissedLogSheet(session: s, day: dayDate) }
         .sheet(item: $pastSport) { LogSportView(initial: $0) }
-        // Every week changes the plan: the sheet's week is a snapshot, so it closes.
-        .removeWorkoutFlow($removing) { if model.profile != profileBefore { dismiss() } }
         .sheet(isPresented: $planningSport, onDismiss: closeIfPlanned) { PlanSportSheet(day: key, sport: model.profile?.otherSports.first?.sport) }
         .sheet(item: $editingTrip, onDismiss: closeIfPlanned) { t in PlanSportSheet(day: t.start, editing: t) }
         .sheet(isPresented: $adding, onDismiss: { if (model.state.synced?.planInserts?.count ?? 0) > insertsBefore { dismiss() } }) { AddWorkoutSheet(weekday: wd) }
@@ -592,10 +591,12 @@ private struct SessionPreview: View {
     let done: Bool
     /// This week, not done: "Move to…".
     var canMove = false
-    /// Not done (#784): "Remove…", any week.
-    var canRemove = false
+    /// Not done (#854): Skip, any week; long press it for "Stop training <weekday>s" when `stopTitle` is set.
+    var canSkip = false
+    var stopTitle: String? = nil
     var onMove: () -> Void = {}
-    var onRemove: () -> Void = {}
+    var onSkip: () -> Void = {}
+    var onStop: () -> Void = {}
     @Environment(AppModel.self) private var model
     @State private var hiitSettings = false
 
@@ -619,7 +620,7 @@ private struct SessionPreview: View {
                     .buttonStyle(LimeButtonStyle())
                     if canMove {
                         Button(action: onMove) {
-                            Label(canRemove ? "Move" : "Move to…", systemImage: "arrow.left.arrow.right")
+                            Label(canSkip ? "Move" : "Move to…", systemImage: "arrow.left.arrow.right")
                                 .lineLimit(1)
                                 .font(Theme.label(15)).foregroundStyle(.white)
                                 .frame(maxWidth: .infinity).frame(height: 56)
@@ -627,12 +628,12 @@ private struct SessionPreview: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    if canRemove { removeButton }
+                    if canSkip { skipButton }
                 }
             } else {
                 Text("Exercises may still change with your progress and plan settings.")
                     .font(.caption).foregroundStyle(Theme.muted)
-                if canRemove { removeButton }
+                if canSkip { skipButton }
             }
         }
         .card()
@@ -690,18 +691,20 @@ extension SessionPreview {
         .contentShape(Rectangle())
     }
 
-    /// Remove… (#784, design B): this day only, every week or just skip.
-    fileprivate var removeButton: some View {
-        Button(action: onRemove) {
-            // "Remove" on the button: "Remove…" in a narrow capsule read as cut off (#823); the choice still follows.
-            Label("Remove", systemImage: "trash")
+    /// Skip (#854, design A): one tap with the Undo bar; long press for the plan change.
+    fileprivate var skipButton: some View {
+        Button(action: onSkip) {
+            Label("Skip", systemImage: "nosign")
                 .lineLimit(1).minimumScaleFactor(0.8)
                 .font(Theme.label(15)).foregroundStyle(.white)
                 .frame(maxWidth: .infinity).frame(height: 56)
                 .background(Capsule().fill(MissedStyle.gradient))
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier("calendar.remove")
+        .contextMenu {
+            if let stopTitle { Button(stopTitle, systemImage: "arrow.triangle.2.circlepath", role: .destructive, action: onStop) }
+        }
+        .accessibilityIdentifier("calendar.skip")
     }
 }
 

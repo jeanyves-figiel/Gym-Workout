@@ -595,15 +595,22 @@ struct WBreath: Codable, Equatable, Hashable, Identifiable {
     var symbol: String
     var tint: UInt32
     var tint2: UInt32
-    /// Minutes offered, the first is the default.
+    /// Minutes offered (breaths with `byBreaths`), the first is the default.
     var lengths: [Int]
     var phases: [WBreathPhase]
     /// Spoken / shown cues of guided sessions, spread evenly.
     var cues: [String]
+    /// 4-7-8 (#861): lengths are breaths, not minutes. nil from an older iPhone app = minutes.
+    var byBreaths: Bool?
 
     var cycleSeconds: Double { phases.reduce(0) { $0 + $1.seconds } }
 
-    func cycles(minutes: Int) -> Int { max(1, Int((Double(minutes) * 60 / max(1, cycleSeconds)).rounded())) }
+    func cycles(minutes: Int) -> Int {
+        byBreaths == true ? max(1, minutes) : max(1, Int((Double(minutes) * 60 / max(1, cycleSeconds)).rounded()))
+    }
+
+    /// "4×" for breaths, "3′" for minutes.
+    func lengthShort(_ n: Int) -> String { byBreaths == true ? "\(n)×" : "\(n)′" }
 
     func totalSeconds(minutes: Int) -> Double { Double(cycles(minutes: minutes)) * cycleSeconds }
 

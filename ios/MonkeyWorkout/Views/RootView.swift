@@ -225,6 +225,7 @@ private struct DemoScreen: View {
         case "player-next": WorkoutPlayerView(sessionId: second, demoMode: "next")
         case "player-coach": WorkoutPlayerView(sessionId: second, demoMode: "coach")
         case "player-record": WorkoutPlayerView(sessionId: second, demoMode: "coach-record")
+        case "player-talk": WorkoutPlayerView(sessionId: second, demoMode: "talk")
         case "coach-settings": NavigationStack { CoachSettingsView() }
         case "watch-options": NavigationStack { WatchOptionsView() }
         case "watch-lift": NavigationStack { WatchOptionsView(focus: .lift) }
@@ -312,7 +313,7 @@ private struct DemoScreen: View {
         // Missed sessions (#266); train-missed is the Train tab.
         case "calendar-missed": NavigationStack { CalendarView() }
         case "missed-catchup":
-            if let wd = model.missedToHandle.first?.weekday { MissedCatchUpSheet(weekday: wd) }
+            if let wd = model.missedSessions.first?.weekday { MissedCatchUpSheet(weekday: wd) }
         case "missed-log":
             if let s = model.missedSessions.first { MissedLogSheet(session: s) }
         case "programme-finished":
@@ -342,6 +343,7 @@ private struct DemoScreen: View {
         case "progress-flipped": NavigationStack { ProgressTabView(demoFlipped: .volume, demoSection: .training) }
         case "progress-records": NavigationStack { ProgressTabView(demoSection: .records) }
         case "progress-mind": NavigationStack { ProgressTabView(demoSection: .mind) }
+        case "progress-ask": NavigationStack { ProgressTabView(demoAsk: true) }
         case "progress-edit": NavigationStack { ProgressTabView(demoEditing: true) }
         case "progress-sports": NavigationStack { ProgressTabView() }
         case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
@@ -401,7 +403,7 @@ private struct DemoScreen: View {
         }
         case "account-recovery": NavigationStack { RecoveryCodesView(codes: Demo.recoveryCodes) }
         case "account-passkeys": NavigationStack { PasskeysView(passkeys: Demo.security.passkeys) }
-        case "community", "community-join", "community-post", "community-story", "community-post-detail": NavigationStack { CommunityView() }
+        case "community", "community-join", "community-post", "community-story", "community-post-detail", "community-review": NavigationStack { CommunityView() }
         case "challenge", "challenge-suggest": NavigationStack { ChallengeRoomView() }
         case "how-it-works": NavigationStack { HowItWorksView() }
         case "how-it-works-fuel": NavigationStack { HowItWorksTopicView(topic: HowItWorks.topic("fuel")!) }
@@ -409,6 +411,12 @@ private struct DemoScreen: View {
         case "mind-checkin", "mind-train":
             NavigationStack {
                 ScrollView { MindTrainCard().padding(16) }
+                    .background(Theme.bg.ignoresSafeArea())
+            }
+        // Weekly Coach review (#867): the Train card with Coach's score, summary and changes.
+        case "week-review":
+            NavigationStack {
+                ScrollView { DemoWeekReview().padding(16) }
                     .background(Theme.bg.ignoresSafeArea())
             }
         case "explore-calm": NavigationStack { LibraryView(mode: .calm) }
@@ -440,6 +448,10 @@ private struct DemoScreen: View {
         case "ask-coach":
             CoachChatView(ask: AskCoachRequest(focus: CoachFocus(screen: "exercise", title: "Barbell bench press"),
                                                question: "My shoulder clicks on this one"))
+        case "ask-coach-freestyle":
+            // Freestyle start screen's Coach (#856): exercises with ▶ / +.
+            CoachChatView(ask: AskCoachRequest(focus: .freestyle(), question: "Cable machine with a rope, I want triceps"),
+                          freestyle: CoachFreestyle(lined: .constant([]), start: { _ in }))
         // Guided onboarding (#664): each step, the app tour, the set-up card and Settings → Onboarding.
         case "onboarding-gym", "onboarding-machines", "onboarding-map", "onboarding-plan", "onboarding-tour":
             OnboardingFlowView(mode: .newMember, profile: nil,
@@ -447,9 +459,11 @@ private struct DemoScreen: View {
         case "app-tour": MainTabView()
         case "train-setup": NavigationStack { WeekView() }
         case "onboarding-hub": NavigationStack { OnboardingHubView() }
-        case "onboarding", "onboarding-climbing":
+        // Set up the plan with Coach (#873): say it once, and Not sure? Ask Coach on the form.
+        case "coach-plan": NavigationStack { CoachPlanSetupView(base: Profile()) { _, _ in } }
+        case "onboarding", "onboarding-climbing", "coach-help":
             NavigationStack {
-                ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
+                ProfileFormView(initial: Demo.screen == "onboarding-climbing" ? Demo.climbingProfile : nil) { _ in }
                     .navigationTitle("Your training")
             }
         case "profile": NavigationStack { TrainingProfileView().navigationTitle(TrainingProfileView.title) }
@@ -542,7 +556,7 @@ private struct DemoScreen: View {
         case "own-gym": OwnGymSheet(name: "Kraftwerk Garage Gym") { _ in }
         case "move": MoveSessionSheet(sessionId: second)
         // Fuel (#496).
-        case "fuel", "fuel-setup-card": NavigationStack { FuelView() }
+        case "fuel", "fuel-setup-card", "fuel-ideas": NavigationStack { FuelView() }
         // Fuel home redesign (#733): the Log sheet with Magic Snap on top, and the Magic Snap camera.
         case "fuel-log": JustAteSheet(plan: model.fuelPlan(on: Date()), day: Date())
         case "fuel-recipes": NavigationStack { RecipeBrowserView().navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }.fuelDestinations() }
@@ -565,6 +579,11 @@ private struct DemoScreen: View {
         case "fuel-plate":
             JustAteSheet(plan: model.fuelPlan(on: Date()), day: Date(),
                          plate: [FoodServing(foodId: "coffee"), FoodServing(foodId: "cornflakes", servings: 1.5)])
+        // What can I eat? (#869): one idea as the recipe card.
+        case "fuel-idea":
+            if let slot = model.fuelPlan(on: Date()).slots.first(where: { $0.kind == .dinner }) ?? model.fuelPlan(on: Date()).slots.first {
+                MealIdeaSheet(idea: AppModel.demoIdeas[1], plan: model.fuelPlan(on: Date()), day: Date(), slot: slot)
+            }
         case "fuel-snap-plate":
             if let slot = model.fuelPlan(on: Date()).slots.first(where: { $0.kind == .lunch }) ?? model.fuelPlan(on: Date()).slots.first {
                 PlateScanSheet(plan: model.fuelPlan(on: Date()), day: Date(), slot: slot)
@@ -572,6 +591,11 @@ private struct DemoScreen: View {
         case "fuel-snap":
             if let slot = model.fuelPlan(on: Date()).slots.first(where: { $0.kind == .lunch }) ?? model.fuelPlan(on: Date()).slots.first {
                 MagicSnapSheet(plan: model.fuelPlan(on: Date()), day: Date(), slot: slot)
+            }
+        // New food from a read nutrition label (#872), values in lime.
+        case "fuel-label":
+            NavigationStack {
+                LabelFoodForm(label: NutritionLabel(kcal: 372, protein: 13, carbs: 58, fat: 7.1, fibre: 8, salt: 0.3))
             }
         case "fuel-water": WaterSheet(plan: model.fuelPlan(on: Date()), glasses: FuelStore.shared.log(Date()).glasses, day: Date())
         case "fuel-setup": NavigationStack { FuelSetupView(sheet: true) }
@@ -636,7 +660,7 @@ private struct DemoScreen: View {
         case "reschedule":
             // The week's real missed session on its own day, as missed-catchup shows it (#823): not the plan's
             // second session labelled "yesterday", which named a different workout.
-            if let s = model.missedToHandle.first {
+            if let s = model.missedSessions.first {
                 let cal = model.planCalendar
                 let day = cal.date(byAdding: .day, value: (s.weekday ?? 1) - 1, to: Progression.weekStart(Date(), cal))
                 MissedSessionSheet(sessionId: s.id, day: day ?? Date())

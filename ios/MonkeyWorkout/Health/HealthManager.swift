@@ -85,6 +85,8 @@ struct HealthSnapshot: Equatable, Codable {
     var restingHRBaseline: Double?
     var hrv: Double?
     var hrvBaseline: Double?
+    /// 7-day HRV average (#862): the Mind score compares it with the baseline, a single reading is too noisy.
+    var hrvWeek: Double?
     var vo2Max: Double?
     var sleepHours: Double?
     var climbingThisWeek = 0
@@ -147,7 +149,8 @@ enum Readiness: String {
     static func assess(_ s: HealthSnapshot) -> (Readiness, [String])? {
         guard s.hasRecoveryData else { return nil }
         var low: [String] = []
-        if let h = s.hrv, let b = s.hrvBaseline, b > 0, h < b * hrvFloor { low.append("HRV below your baseline") }
+        // 7-day HRV average (#864): one reading is too noisy; the latest until a week is known.
+        if let h = s.hrvWeek ?? s.hrv, let b = s.hrvBaseline, b > 0, h < b * hrvFloor { low.append("HRV below your baseline") }
         if let r = s.restingHR, let b = s.restingHRBaseline, r > b + restHRRise { low.append("Resting HR elevated") }
         if let sl = s.sleepHours, sl < minSleep { low.append("Short sleep") }
         return (low.count >= 2 ? .easy : low.count == 1 ? .normal : .ready, low)
@@ -281,6 +284,7 @@ final class HealthManager {
         async let restingHRBaseline = average(.restingHeartRate, unit: bpm, from: d30, to: now)
         async let hrv = latestValue(.heartRateVariabilitySDNN, unit: ms)
         async let hrvBaseline = average(.heartRateVariabilitySDNN, unit: ms, from: d30, to: now)
+        async let hrvWeek = average(.heartRateVariabilitySDNN, unit: ms, from: now.addingTimeInterval(-7 * 86_400), to: now)
         async let vo2Max = latestValue(.vo2Max, unit: vo2Unit)
         async let sleep = sleepLastNight()
         async let weightTrend = trend(.bodyMass, unit: kg, days: 365)
@@ -315,6 +319,7 @@ final class HealthManager {
         s.restingHRBaseline = await restingHRBaseline
         s.hrv = await hrv?.value
         s.hrvBaseline = await hrvBaseline
+        s.hrvWeek = await hrvWeek
         s.vo2Max = await vo2Max?.value
         s.sleepHours = await sleep
         s.weightTrend = await weightTrend

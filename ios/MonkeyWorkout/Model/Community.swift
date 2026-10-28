@@ -154,14 +154,14 @@ final class Community {
 
     /// Nickname, photo and about for Account and the join form, joined or not.
     var me: PublicProfile {
-        if let p = profile { return PublicProfile(nickname: p.nickname, bio: p.bio, avatarUrl: p.avatarUrl, member: true) }
+        if let p = profile { return PublicProfile(nickname: p.nickname, bio: p.bio, avatarUrl: p.avatarUrl, member: true, avatarInReview: p.avatarInReview) }
         return publicProfile ?? PublicProfile()
     }
 
     func setProfile(_ p: CommunityProfile) {
         let joined = profile == nil
         profile = p
-        publicProfile = PublicProfile(nickname: p.nickname, bio: p.bio, avatarUrl: p.avatarUrl, member: true)
+        publicProfile = PublicProfile(nickname: p.nickname, bio: p.bio, avatarUrl: p.avatarUrl, member: true, avatarInReview: p.avatarInReview)
         loaded = true
         if joined { feed = []; mine = []; following = [] }
         persist()
@@ -175,6 +175,7 @@ final class Community {
         if let n = p.nickname, !n.isEmpty { profile!.nickname = n }
         profile!.bio = p.bio
         profile!.avatarUrl = p.avatarUrl
+        profile!.avatarInReview = p.avatarInReview
     }
 
     /// Leaving keeps nickname, photo and about on Account.
@@ -348,6 +349,8 @@ final class Community {
                 id: "p5", author: me, mine: true, kind: "workout", visibility: .members,
                 payload: CommunityCard(title: "Legs", subtitle: "Today", metric: .init(value: "9.1", unit: "t lifted"), style: "strength",
                                        stats: [.init(label: "min", value: "55"), .init(label: "sets", value: "27"), .init(label: "exercises", value: "12")]),
+                // Demo screen community-review (#871): held by AI moderation.
+                hidden: Demo.screen == "community-review", inReview: Demo.screen == "community-review" ? true : nil,
                 createdAt: now.addingTimeInterval(-3.5 * 3600), reactions: ["like": 4, "strong": 2, "beast": 1]),
             CommunityPost(
                 id: "p4", author: tom, mine: false, kind: "workout", visibility: .members,

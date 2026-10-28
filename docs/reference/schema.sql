@@ -14,6 +14,19 @@ CREATE TABLE achievement_announcements (
       PRIMARY KEY (user_id, achievement_id)
     );
 
+CREATE TABLE ai_call_log (
+      day TEXT NOT NULL,
+      feature TEXT NOT NULL,
+      model TEXT NOT NULL,
+      calls INTEGER NOT NULL,
+      failures INTEGER NOT NULL,
+      input INTEGER NOT NULL,
+      output INTEGER NOT NULL,
+      cache_read INTEGER NOT NULL,
+      cache_write INTEGER NOT NULL,
+      PRIMARY KEY (day, feature, model)
+    );
+
 CREATE TABLE ai_daily_usage (
       day TEXT PRIMARY KEY,
       count INTEGER NOT NULL
@@ -78,6 +91,27 @@ CREATE INDEX climbs_user_time ON climbs(user_id, julianday(start));
 CREATE INDEX climbs_user_updated ON climbs(user_id, updated_at);
 
 CREATE TABLE coach_chat_usage (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      count INTEGER NOT NULL,
+      PRIMARY KEY (user_id, day)
+    );
+
+CREATE TABLE coach_plan_usage (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      count INTEGER NOT NULL,
+      PRIMARY KEY (user_id, day)
+    );
+
+CREATE TABLE coach_review_usage (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      count INTEGER NOT NULL,
+      PRIMARY KEY (user_id, day)
+    );
+
+CREATE TABLE coach_set_usage (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       day TEXT NOT NULL,
       count INTEGER NOT NULL,
@@ -441,6 +475,13 @@ CREATE TABLE machine_notes (
 
 CREATE INDEX machine_notes_user_updated ON machine_notes(user_id, updated_at);
 
+CREATE TABLE meal_ideas_usage (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      count INTEGER NOT NULL,
+      PRIMARY KEY (user_id, day)
+    );
+
 CREATE TABLE member_report_shots (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -469,6 +510,21 @@ CREATE TABLE mfa_challenges (
       expires_at TEXT NOT NULL,
       consumed_at TEXT
     );
+
+CREATE TABLE moderation_holds (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      target_type TEXT NOT NULL CHECK (target_type IN ('post', 'program', 'workout', 'avatar')),
+      target_id TEXT NOT NULL,
+      category TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      resolved_at TEXT,
+      decision TEXT CHECK (decision IN ('released', 'rejected'))
+    );
+
+CREATE INDEX moderation_holds_open ON moderation_holds(resolved_at, created_at);
+
+CREATE INDEX moderation_holds_target ON moderation_holds(target_type, target_id);
 
 CREATE TABLE notification_prefs (
       user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

@@ -5,7 +5,7 @@ import WorkoutEngine
 
 // Magic Snap (#733, design C from `fuel-redesign/c.png`): one camera for Fuel. Point it at anything; Monkey sorts it:
 // a meal or drink is logged (Snap my plate), food at home, shopping or a receipt goes to What I have. Plate, Fridge and
-// Barcode chips go straight to one kind.
+// Barcode chips go straight to one kind. Label (#872, free) reads a nutrition table on the iPhone into a new food.
 
 /// What one Magic Snap photo turned out to be.
 enum FuelSnap {
@@ -24,6 +24,7 @@ struct MagicSnapCard: View {
     @State private var plate = false
     @State private var fridge = false
     @State private var barcode = false
+    @State private var label = false
     @State private var gate: ProGate?
 
     var body: some View {
@@ -51,12 +52,17 @@ struct MagicSnapCard: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("fuel.snap")
-            HStack(spacing: 6) {
-                chip("🍽️ Plate", lime: true) { ProStore.shared.run(.foodScan, $gate) { plate = true } }
-                    .accessibilityIdentifier("fuel.justAte.snapPlate")
-                chip("🧊 Fridge") { ProStore.shared.run(.foodScan, $gate) { fridge = true } }
-                if LiveFoodScanner.available { chip("▥ Barcode") { barcode = true } }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    chip("🍽️ Plate", lime: true) { ProStore.shared.run(.foodScan, $gate) { plate = true } }
+                        .accessibilityIdentifier("fuel.justAte.snapPlate")
+                    chip("🧊 Fridge") { ProStore.shared.run(.foodScan, $gate) { fridge = true } }
+                    if LiveFoodScanner.available { chip("▥ Barcode") { barcode = true } }
+                    chip("🏷️ Label") { label = true }
+                        .accessibilityIdentifier("fuel.snap.label")
+                }
             }
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         }
         .foregroundStyle(.white)
         .padding(12)
@@ -66,6 +72,7 @@ struct MagicSnapCard: View {
         .sheet(isPresented: $plate) { PlateScanSheet(plan: plan, day: day, slot: slot, logged: logged).remotePaused(.foodScan) }
         .sheet(isPresented: $fridge) { FoodPhotoScanSheet().remotePaused(.foodScan) }
         .sheet(isPresented: $barcode) { LiveScanSheet() }
+        .sheet(isPresented: $label) { LabelReadSheet() }
         .proPaywall($gate)
     }
 

@@ -179,22 +179,45 @@ struct ProfileFormView: View {
             Text("Pick a goal, then how your week splits your muscles.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.muted)
+            coachHelp("Goal", Goal.allCases.map { ($0.rawValue, "\($0.config.label): \($0.config.blurb)") }) { id in
+                if let g = Goal(rawValue: id), p.goal != g { p.applyGoal(g) }
+            }
             goals
         case .week:
             summary
+            coachHelp("Gym days a week", (2...6).map { ("\($0)", "\($0) gym days a week") }) { id in
+                if let n = Int(id), p.sessionsPerWeek != n {
+                    p.splitDays = nil
+                    p.sessionsPerWeek = n
+                }
+            }
             week
         case .time:
             WorkoutTimeSection(profile: $p)
         case .variety:
+            coachHelp("Week to week", PlanVariety.allCases.map { ($0.rawValue, "\($0.title): \($0.subtitle)") }) { id in
+                if let v = PlanVariety(rawValue: id) { p.variety = v }
+            }
             variety
         case .style:
             TrainingStyleSection(profile: $p)
         case .flow:
             SessionFlowSection(profile: $p)
         case .method:
+            coachHelp("Training method", TrainingMethod.allCases.map { ($0.rawValue, "\($0.label): \($0.blurb)") }) { id in
+                if let m = TrainingMethod(rawValue: id) { p.method = m }
+            }
             TrainingMethodSection(profile: $p)
         case .gym:
             GymPicker(profile: $p)
+        }
+    }
+
+    /// "Not sure? Ask Coach" (#873, design C from `ai-epic/a3.png`) on the new member's form steps.
+    @ViewBuilder
+    private func coachHelp(_ step: String, _ options: [(String, String)], use: @escaping (String) -> Void) -> some View {
+        if isNew && section == nil {
+            AskCoachFormHelp(step: step, options: options.map { .init(id: $0.0, label: String($0.1.prefix(120))) }, profile: p, onUse: use)
         }
     }
 

@@ -21,6 +21,8 @@ Optional env:
 | `APPLE_CLIENT_ID` | first `APPLE_BUNDLE_IDS` | client_id fallback; the identity token's audience (bundle id) is preferred |
 | `APPLE_TWO_STEP` | off | `on`: Sign in with Apple also asks for the authenticator code when 2-step is on (needs an app that handles `mfa_required` there) |
 | `AI_DAILY_LIMIT` | `500` | paid model calls (coach chat, gym scan, food scan) across all members per UTC day; over it they answer 429 `daily_limit` |
+| `AI_MODEL_CHAT` / `AI_MODEL_SCAN` | `claude-opus-5-5` / `claude-sonnet-5-5` | model per task (#866): chat plans workouts and answers Coach; scan reads gym, pantry and plate photos against the app's lists. Stable prompt parts (Coach rules, catalogs) are prompt-cached. Every call is counted per day, feature and model (`ai_call_log`, no member ids): Actions → **AI usage** (`admin.ts ai-usage`) shows calls, failures, tokens, cache hit and estimated cost (#877) |
+| `AI_MODEL_MODERATE` | `claude-haiku-5-5` | AI moderation (#871): checks shared names, captions and profile photos before they go live; counts in `AI_DAILY_LIMIT`, fails open to the word filter |
 | `HIBP_CHECK` | on (off when `NODE_ENV=test`) | `0` disables the breached-password check |
 | `PURGE_INTERVAL_MIN` | `60` | purge of expired codes / refresh tokens (also runs at startup; `0` = startup only) |
 | `MODERATION_EMAIL` | – | receives community reports (unset → stored only) |
