@@ -30,6 +30,15 @@ import Testing
         #expect(Freestyle.settingSets(99, of: uid, in: blocks).flatMap(\.items).last?.prescription.sets == Freestyle.maxSets)
     }
 
+    @Test func coachNamesAreKnownStrengthMovesWithinTheLimit() throws {
+        let names = Freestyle.coachNames(profile: profile)
+        #expect(!names.isEmpty)
+        #expect(names.count <= Freestyle.coachNameLimit)
+        #expect(names == names.sorted())
+        #expect(names.contains(try #require(Exercise.find("back-squat")).name))
+        #expect(names.allSatisfy { Exercise.named($0) != nil })
+    }
+
     @Test func namedFreestyleNotByFocus() {
         #expect(Freestyle.session().displayTitle == Freestyle.title)
     }

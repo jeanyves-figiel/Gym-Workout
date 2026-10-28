@@ -53,6 +53,16 @@ struct CoachFocus: Equatable {
         case .community: CoachFocus(screen: "community", title: "Social", starters: ["How do I stay motivated?"])
         }
     }
+
+    /// Building a workout as I go (#856): Coach answers with exercises to start or line up.
+    static let freestyleScreen = "freestyle"
+
+    /// `done`: names already in this workout, so Coach doesn't hand them back.
+    static func freestyle(done: [String] = []) -> CoachFocus {
+        CoachFocus(screen: freestyleScreen, title: "Building my workout as I go",
+                   detail: done.isEmpty ? "nothing done yet" : "done so far: " + done.joined(separator: ", "),
+                   starters: ["Hit chest now", "The rack is busy", "Something for my back", "20 minutes left"])
+    }
 }
 
 struct AskCoachRequest: Identifiable {
@@ -64,6 +74,8 @@ struct AskCoachRequest: Identifiable {
     var listen = false
     /// The question was spoken: the answer is read aloud (unless Settings says never).
     var spoken = false
+    /// Open the camera at once to snap a machine (#856).
+    var photo = false
 }
 
 /// Which screen is on top, for the bubble's chat.

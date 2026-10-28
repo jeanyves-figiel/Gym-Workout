@@ -14,7 +14,11 @@ struct FreestyleStartView: View {
     let onPick: (Exercise) -> Void
     let onStartLined: () -> Void
     let onBrowse: (MuscleGroup?) -> Void
+    /// Ask Coach bar (#856): type, talk or snap the machine.
+    var onCoach: ((FreestyleCoachEntry) -> Void)? = nil
     let onClose: () -> Void
+    @AppStorage(AskCoachPref.bubbleKey) private var coachShown = true
+    @State private var gate: ProGate?
 
     private static let tiles: [MuscleGroup] = [.chest, .back, .legs, .shoulders, .arms, .core, .hips]
     private static let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
@@ -77,9 +81,11 @@ struct FreestyleStartView: View {
                 .accessibilityIdentifier("freestyle.startLined")
             }
 
+            if coachShown, let onCoach { FreestyleCoachBar { entry in ProStore.shared.run(.askCoach, $gate) { onCoach(entry) } } }
+
             if !picks.isEmpty {
                 Text("Coach picks").eyebrow()
-                FreestylePickRow(picks: picks, height: 74, lined: lined.map(\.id), onLine: line, onPick: onPick)
+                FreestylePickRow(picks: picks, height: coachShown && onCoach != nil ? 66 : 74, lined: lined.map(\.id), onLine: line, onPick: onPick)
             }
 
             Text("By muscle").eyebrow()
@@ -114,6 +120,10 @@ struct FreestyleStartView: View {
                             Button { line(e) } label: { FreestyleLineMark(position: at.map { $0 + 1 }, size: 34) }
                                 .buttonStyle(.plain)
                                 .accessibilityLabel(at == nil ? "Line up \(e.name)" : "Take \(e.name) out of the line-up")
+                            // ▶ beside + on every card (#856): start now or build the list first, both one tap.
+                            Button { onPick(e) } label: { FreestylePlayMark(size: 34) }
+                                .buttonStyle(.plain)
+                                .accessibilityHidden(true)
                         }
                         .padding(8)
                         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.card))
@@ -126,6 +136,7 @@ struct FreestyleStartView: View {
         .padding(.horizontal, 20)
         .padding(.top, 8)
         .readableColumn()
+        .proPaywall($gate)
     }
 
     /// + lines an exercise up, tapped again takes it out.
@@ -335,7 +346,10 @@ struct FreestylePickRow: View {
                         Text(e.name).font(Theme.label(height > 60 ? 13 : 11)).lineLimit(2).minimumScaleFactor(0.7)
                             .multilineTextAlignment(.leading)
                         Spacer(minLength: 0)
-                        Text(e.primary.first?.group.label ?? e.category.label).font(Theme.label(9)).opacity(0.85).lineLimit(1)
+                        // With ▶ and + in the corner (#856) the tile's colour says the muscle.
+                        if onLine == nil {
+                            Text(e.primary.first?.group.label ?? e.category.label).font(Theme.label(9)).opacity(0.85).lineLimit(1)
+                        }
                     }
                     .foregroundStyle(.white)
                     .padding(7)
@@ -348,14 +362,86 @@ struct FreestylePickRow: View {
                 .overlay(alignment: .bottomTrailing) {
                     if let onLine {
                         let at = lined.firstIndex(of: e.id)
-                        Button { onLine(e) } label: { FreestyleLineMark(position: at.map { $0 + 1 }, size: 26) }
-                            .buttonStyle(.plain)
-                            .padding(5)
-                            .accessibilityLabel(at == nil ? "Line up \(e.name)" : "Take \(e.name) out of the line-up")
+                        HStack(spacing: 4) {
+                            Button { onLine(e) } label: { FreestyleLineMark(position: at.map { $0 + 1 }, size: 26) }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(at == nil ? "Line up \(e.name)" : "Take \(e.name) out of the line-up")
+                            // ▶ beside + (#856): the tile starts it too, the mark says so.
+                            Button { onPick(e) } label: { FreestylePlayMark(size: 26) }
+                                .buttonStyle(.plain)
+                                .accessibilityHidden(true)
+                        }
+                        .padding(5)
                     }
                 }
             }
         }
+    }
+}
+
+/// ▶ beside + on a start-screen exercise (#856): start this one now.
+struct FreestylePlayMark: View {
+    let size: CGFloat
+
+    var body: some View {
+        Image(systemName: "play.fill").font(.system(size: size > 30 ? 13 : 10, weight: .heavy))
+            .foregroundStyle(Theme.ink)
+            .frame(width: size, height: size)
+            .background(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).fill(Theme.lime))
+            .contentShape(Rectangle())
+    }
+}
+
+/// How the member opens Coach from the freestyle screen (#856).
+enum FreestyleCoachEntry {
+    case type, talk, photo
+}
+
+/// Ask Coach bar on the freestyle start screen (#856, design A): tap to type, 📷 to snap the machine in front of you,
+/// 🎙 to talk. Coach answers with exercises to start (▶) or line up (+).
+struct FreestyleCoachBar: View {
+    @Environment(AppModel.self) private var model
+    let open: (FreestyleCoachEntry) -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button { open(.type) } label: {
+                HStack(spacing: 10) {
+                    MonkeyFace(mood: .fired, scale: 0.45, gear: model.rank.gear)
+                        .frame(width: 30, height: 28)
+                        .frame(width: 38, height: 38)
+                        .background(RoundedRectangle(cornerRadius: 11, style: .continuous)
+                            .fill(RadialGradient(colors: [Color(hex: 0xEDFF7A), Theme.lime], center: .init(x: 0.3, y: 0.3), startRadius: 2, endRadius: 30)))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Ask Coach").font(Theme.label(14)).lineLimit(1)
+                        Text("A muscle, a machine, an idea").font(Theme.label(11)).foregroundStyle(Theme.muted).lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Ask Coach what to do")
+            .accessibilityIdentifier("freestyle.coach")
+            Button { open(.photo) } label: { icon("camera.fill", fill: Theme.cardStrong, ink: .white) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Snap the machine in front of you")
+            Button { open(.talk) } label: { icon("mic.fill", fill: Theme.lime, ink: Theme.ink) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Talk to Coach")
+        }
+        .padding(5)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.card))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Theme.lime.opacity(0.7), lineWidth: 1.5))
+    }
+
+    private func icon(_ symbol: String, fill: Color, ink: Color) -> some View {
+        Image(systemName: symbol).font(.system(size: 15, weight: .heavy))
+            .foregroundStyle(ink)
+            .frame(width: 44, height: 38)
+            .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(fill))
+            .contentShape(Rectangle())
     }
 }
 

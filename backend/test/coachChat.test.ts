@@ -11,7 +11,7 @@ const PW = 'correct-horse-battery';
 let app: FastifyInstance;
 let mailer: ConsoleMailer;
 let clock: Date;
-let calls: { turns: ChatTurn[]; context: ChatContext }[];
+let calls: { turns: ChatTurn[]; context: ChatContext; photo?: Buffer }[];
 
 const legs: CoachAnswer = {
   reply: 'Legs it is, shoulder-safe.',
@@ -22,8 +22,8 @@ const start = (opts: { coach?: CoachModel | null; env?: Record<string, string> }
   clock = new Date('2026-10-16T10:00:00Z');
   mailer = new ConsoleMailer(() => {});
   calls = [];
-  const coach: CoachModel = async (turns, context) => {
-    calls.push({ turns, context });
+  const coach: CoachModel = async (turns, context, photo) => {
+    calls.push({ turns, context, ...(photo ? { photo } : {}) });
     return legs;
   };
   app = buildApp({
@@ -196,6 +196,7 @@ describe('clean', () => {
     expect(a).toEqual({
       reply: 'Go!',
       action: null,
+      exercises: [],
       suggestions: [],
       workout: { name: 'Coach workout', minutes: 120, groups: ['legs'], rest: 'standard', grouping: 'straight', avoidGroups: ['shoulders'], avoidEquipment: ['rack'], avoidKeywords: ['lunge'] },
     });
@@ -266,5 +267,28 @@ describe('pronouns and call name (#415)', () => {
     const t = await signUp('q@example.com');
     const res = await chat(t, { turns: [{ role: 'member', text: 'Hi' }], context: { pronouns: 'x'.repeat(31) } });
     expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('freestyle: Coach adds exercises (#856)', () => {
+  const list = ['Rope triceps pushdown', 'Overhead rope extension', 'Face pull'];
+
+  it('keeps only names from the app list, spelled as the app spells them, max 4', () => {
+    const a = clean({ reply: 'Cable with a rope.', workout: null, exercises: ['rope TRICEPS pushdown', 'Made-up curl', 'Face pull', 'Face pull'] }, { exercises: list });
+    expect(a.exercises).toEqual(['Rope triceps pushdown', 'Face pull']);
+    expect(clean({ reply: 'x', workout: null, exercises: ['Face pull'] }, {}).exercises).toEqual([]);
+    expect(describeMember({ exercises: list })).toContain('Exercises in the app');
+  });
+
+  it('passes a machine photo with the last message, rejects a non-JPEG', async () => {
+    start();
+    const t = await signUp('f@example.com');
+    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(200, 7)]);
+    const ok = await chat(t, { turns: [{ role: 'member', text: 'What can I do on this?' }], context: { screen: 'freestyle', exercises: list }, photo: jpeg.toString('base64') });
+    expect(ok.statusCode).toBe(200);
+    expect(calls[0]!.photo?.equals(jpeg)).toBe(true);
+    expect(calls[0]!.context.exercises).toEqual(list);
+    const bad = await chat(t, { turns: [{ role: 'member', text: 'This?' }], photo: Buffer.alloc(200, 1).toString('base64') });
+    expect(bad.statusCode).toBe(400);
   });
 });

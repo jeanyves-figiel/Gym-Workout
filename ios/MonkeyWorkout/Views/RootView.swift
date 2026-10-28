@@ -440,6 +440,10 @@ private struct DemoScreen: View {
         case "ask-coach":
             CoachChatView(ask: AskCoachRequest(focus: CoachFocus(screen: "exercise", title: "Barbell bench press"),
                                                question: "My shoulder clicks on this one"))
+        case "ask-coach-freestyle":
+            // Freestyle start screen's Coach (#856): exercises with ▶ / +.
+            CoachChatView(ask: AskCoachRequest(focus: .freestyle(), question: "Cable machine with a rope, I want triceps"),
+                          freestyle: CoachFreestyle(lined: .constant([]), start: { _ in }))
         // Guided onboarding (#664): each step, the app tour, the set-up card and Settings → Onboarding.
         case "onboarding-gym", "onboarding-machines", "onboarding-map", "onboarding-plan", "onboarding-tour":
             OnboardingFlowView(mode: .newMember, profile: nil,

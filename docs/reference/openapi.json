@@ -4117,8 +4117,8 @@
         "tags": [
           "Coach (AI and voices)"
         ],
-        "summary": "{turns[1–30]{role member|coach, text}, context{goal, level, sessionMinutes, equipment, readiness, todayPlanned, method, screen, focus, pronouns, callName, memory}} → {reply, workout?, action?, suggestions, remainingToday}",
-        "description": "Errors / limits: 402 pro_required; 429 daily_limit, busy; 502 coach_failed; 503 coach_unavailable",
+        "summary": "{turns[1–30]{role member|coach, text}, context{goal, level, sessionMinutes, equipment, readiness, todayPlanned, method, screen, focus, pronouns, callName, memory, exercises[≤400 names]}, photo?} (photo: base64 JPEG ≤1.5 MB of a machine, sent with the last message, #856) → {reply, workout?, action?, suggestions, exercises, remainingToday} (exercises: ≤4 names from context.exercises, freestyle)",
+        "description": "Errors / limits: 400 bad_photo; 402 pro_required; 429 daily_limit, busy; 502 coach_failed; 503 coach_unavailable",
         "security": [
           {
             "bearer": []

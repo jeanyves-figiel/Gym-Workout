@@ -5,6 +5,8 @@ import type { DB } from '../db.ts';
 import { ApiError } from '../errors.ts';
 import { inFlight, refundAiCall, reserveAiCall } from '../quota.ts';
 
+const MAX_PHOTO = 1_500_000;
+
 const turn = z.object({ role: z.enum(['member', 'coach']), text: z.string().trim().min(1).max(600) });
 const body = z.object({
   turns: z.array(turn).min(1).max(30),
@@ -22,8 +24,11 @@ const body = z.object({
       pronouns: z.string().trim().max(30).optional(),
       callName: z.string().trim().max(30).optional(),
       memory: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
+      exercises: z.array(z.string().trim().min(1).max(60)).max(400).optional(),
     })
     .default({}),
+  /** JPEG of the machine in front of the member (#856), base64, sent with the last message. */
+  photo: z.string().min(100).max(Math.ceil((MAX_PHOTO * 4) / 3) + 4).optional(),
 });
 
 /** Messages the model sees: the last 12, starting with the member, same-role turns merged (the API alternates roles). */
@@ -61,12 +66,16 @@ export const coachChatRoutes = (
   /** Whether the chat is switched on, and messages left today. */
   r.get('/me/coach-chat', async (req) => ({ available: !!coach, remainingToday: Math.max(0, dailyLimit - usedToday(req.userId!)) }));
 
-  r.post('/me/coach-chat', async (req) => {
+  // Room for one machine photo (#856).
+  r.post('/me/coach-chat', { bodyLimit: 2_200_000 }, async (req) => {
     if (!coach) throw new ApiError(503, 'coach_unavailable', 'Coach chat is not available right now.');
     if (!hasAccess(req.userId!)) throw new ApiError(402, 'pro_required', 'Coach chat is part of MonkeyWorkout Pro.');
     const b = body.parse(req.body);
     const turns = modelTurns(b.turns);
     if (turns.at(-1)?.role !== 'member') throw new ApiError(400, 'bad_request', 'The last message must be from the member.');
+    const photo = b.photo ? Buffer.from(b.photo, 'base64') : undefined;
+    if (photo && (photo.length > MAX_PHOTO || photo[0] !== 0xff || photo[1] !== 0xd8))
+      throw new ApiError(400, 'bad_photo', 'Send one JPEG photo up to 1.5 MB.');
     const day = now().toISOString().slice(0, 10);
     if (!busy.enter(req.userId!)) throw new ApiError(429, 'busy', 'Coach is still answering your last message.');
     let answer;
@@ -78,7 +87,7 @@ export const coachChatRoutes = (
       if (slot === 'all') throw new ApiError(429, 'daily_limit', 'Coach is very busy today. Try again tomorrow!');
       count = slot;
       try {
-        answer = await coach(turns, b.context);
+        answer = await coach(turns, b.context, photo);
       } catch (e) {
         refundAiCall(db, 'coach_chat_usage', req.userId!, day);
         req.log.warn(`coach chat failed: ${(e as Error).message}`);
