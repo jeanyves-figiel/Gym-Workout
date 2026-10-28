@@ -127,42 +127,6 @@ struct MoveHereSheet: View {
     }
 }
 
-/// "Pull skipped" struck through with a small lime Unskip chip (#698, design A), on Train's rest day card and in
-/// the Calendar day sheet (#784). Workouts removed from the day show nothing.
-struct SkippedLine: View {
-    let sessions: [Session]
-    /// The later week they were skipped in; nil = this week.
-    var week: PlanCalendar.Week? = nil
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        // Removed ones (#784) leave no line.
-        let shown = sessions.filter { !model.isRemoved($0.id, in: week) }
-        if !shown.isEmpty { line(shown) }
-    }
-
-    private func line(_ sessions: [Session]) -> some View {
-        HStack(spacing: 8) {
-            Text("\(sessions.map(\.displayTitle).joined(separator: " · ")) skipped")
-                .font(Theme.label(13)).strikethrough().foregroundStyle(.white.opacity(0.6)).lineLimit(1)
-            Button {
-                withAnimation {
-                    for s in sessions {
-                        if let week { model.setSkipped(false, s.id, in: week) } else { model.unskip(s.id) }
-                    }
-                }
-            } label: {
-                Label("Unskip", systemImage: "arrow.uturn.backward").font(Theme.label(12)).foregroundStyle(Theme.ink)
-                    .padding(.horizontal, 9).padding(.vertical, 5)
-                    .background(Capsule().fill(Theme.lime))
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("train.unskip")
-            Spacer(minLength: 0)
-        }
-    }
-}
-
 // MARK: Remove a workout (#784, design B from `remove-workout/proposals.png`)
 
 /// A workout to remove: from its day only, every week on its weekday, or just skipped. `week` nil = this week.
@@ -241,7 +205,7 @@ private struct RemoveWorkoutSheet: View {
                 .accessibilityIdentifier("remove.everyWeek")
             }
             if !skipped {
-                option("Just skip it", detail: "keeps \"skipped · Unskip\"", symbol: "nosign", fill: AnyShapeStyle(Color.white.opacity(0.14))) {
+                option("Just skip it", detail: "gone, counts as skipped", symbol: "nosign", fill: AnyShapeStyle(Color.white.opacity(0.14))) {
                     skip()
                 }
             }
