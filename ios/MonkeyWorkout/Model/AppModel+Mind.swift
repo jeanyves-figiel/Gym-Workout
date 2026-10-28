@@ -16,7 +16,8 @@ extension AppModel {
         let store = MindStore.shared
         let snap = health?.snapshot
         let since = cal.date(byAdding: .day, value: -(MindScore.loadDays - 1), to: cal.startOfDay(for: now)) ?? now
-        return MindScore.Inputs(mood: store.checkIn(on: now)?.mood, hrv: snap?.hrv, hrvBaseline: snap?.hrvBaseline,
+        // HRV: the 7-day average against the 30-day one (#862), the latest reading until a week is known.
+        return MindScore.Inputs(mood: store.checkIn(on: now)?.mood, hrv: snap?.hrvWeek ?? snap?.hrv, hrvBaseline: snap?.hrvBaseline,
                                 sleepHours: snap?.sleepHours, workoutDays: workoutDays(since: since).count,
                                 calmMinutes: store.calmMinutes(on: now))
     }

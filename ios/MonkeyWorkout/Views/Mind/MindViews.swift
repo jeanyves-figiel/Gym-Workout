@@ -331,7 +331,7 @@ struct MindScoreCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(score.map { "\(MindScore.Level.of($0).title) today" } ?? "Mind score").font(Theme.display(22))
                         .lineLimit(1).minimumScaleFactor(0.7)
-                    Text(score == nil ? "Check in or connect Health" : "Mood · HRV · sleep · load")
+                    Text(score == nil ? "Check in or connect Health" : "Mood · HRV · sleep · training")
                         .font(Theme.label(10)).tracking(1).textCase(.uppercase).opacity(0.85).lineLimit(1).minimumScaleFactor(0.7)
                 }
                 Spacer(minLength: 4)
@@ -411,7 +411,7 @@ struct MindView: View {
         let hrvDelta = i.hrv.flatMap { h in i.hrvBaseline.map { Int((h - $0).rounded()) } }
         return HStack(spacing: 8) {
             stat(i.hrv.map { "\(Int($0.rounded())) ms" } ?? "–",
-                 hrvDelta.map { "HRV \($0 >= 0 ? "+" : "")\($0)" } ?? "HRV")
+                 hrvDelta.map { "HRV 7d \($0 >= 0 ? "+" : "")\($0)" } ?? "HRV 7d")
             stat(i.sleepHours.map(Self.hours) ?? "–", "Sleep")
             stat(mood.map { Feel(rawValue: Int($0.rounded()))?.emoji ?? "–" } ?? "–", "Mood 7d")
         }

@@ -374,12 +374,12 @@ public enum HowItWorks {
     private static func pct(_ v: Double) -> String { "\(Int((v * 100).rounded())) %" }
     static let mind = Topic(
         id: "mind", title: "Mind score & calm", symbol: "brain.head.profile",
-        summary: "Mood, HRV, sleep and load → 0–100",
+        summary: "Mood, HRV, sleep and training → 0–100",
         colors: [0x7A2CFF, 0x2E8BFF],
         shows: "Train check-in card, Progress Body + Mind and Mind widgets, Explore → Calm, Mind page",
         parts: [
-            Part("Mind score", "Your check-in mood, HRV against your 30-day average, last night's sleep and recent training, each scored 0–1 and weighted. A part with no reading drops out and the others count more. No mood, HRV or sleep: no score.",
-                 rule: ["mood \(fmt(MindScore.moodWeight)) · HRV \(fmt(MindScore.hrvWeight)) · sleep \(fmt(MindScore.sleepWeight)) · load \(fmt(MindScore.loadWeight))",
+            Part("Mind score", "Your check-in mood, your 7-day HRV average against your 30-day one (a single reading is too noisy), last night's sleep (adults need 7 h or more) and recent training (exercise lifts mood, so a day or two scores best), each scored 0–1 and weighted. A part with no reading drops out and the others count more. No mood, HRV or sleep: no score. The weights are app design, not a validated scale.",
+                 rule: ["mood \(fmt(MindScore.moodWeight)) · HRV \(fmt(MindScore.hrvWeight)) · sleep \(fmt(MindScore.sleepWeight)) · training \(fmt(MindScore.loadWeight))",
                         "mood: 1 → 0, 5 → 1",
                         "HRV ÷ baseline: \(fmt(MindScore.hrvLow)) → 0, \(fmt(MindScore.hrvHigh)) → 1",
                         "sleep: \(fmt(MindScore.sleepLow)) h → 0, \(fmt(MindScore.sleepHigh)) h → 1",
@@ -402,6 +402,8 @@ public enum HowItWorks {
         ],
         sources: ["Balban MY et al. Brief structured respiration practices enhance mood and reduce physiological arousal. Cell Rep Med 2023;4(1):100895.",
                   "Zaccaro A et al. How breath-control can change your life: a systematic review on psycho-physiological correlates of slow breathing. Front Hum Neurosci 2018;12:353.",
+                  "Singh B et al. Effectiveness of physical activity interventions for improving depression, anxiety and distress: an overview of systematic reviews. Br J Sports Med 2023;57(18):1203-1209.",
+                  "Watson NF et al. Recommended amount of sleep for a healthy adult: a joint consensus statement of the AASM and SRS. Sleep 2015;38(6):843-844.",
                   "Weil A. Breathing: The Master Key to Self Healing. Sounds True, 1999 (4-7-8: four breaths twice a day, up to eight).",
                   "Vierra J, Boonla O, Prasertsri P. Effects of sleep deprivation and 4-7-8 breathing control on heart rate variability, blood pressure, blood glucose, and endothelial function in healthy young adults. Physiol Rep 2022;10(13):e15389.",
                   "Plews DJ et al. Training adaptation and heart rate variability in elite endurance athletes. Int J Sports Physiol Perform 2013;8(6):688-694."])

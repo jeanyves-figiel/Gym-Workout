@@ -250,9 +250,10 @@ public enum MindScore {
     /// Sleep hours scoring 0 and full.
     public static let sleepLow = 5.0
     public static let sleepHigh = 8.0
-    /// Workout days in the last `loadDays` days (today included) and the load points each count leaves.
+    /// Workout days in the last `loadDays` days (today included) and the points each count gives (#862): exercise
+    /// lifts mood (Singh 2023), so 1–2 days score full; none, or every day in a row, a little less.
     public static let loadDays = 3
-    public static let loadPoints: [Double] = [1, 0.8, 0.5, 0.2]
+    public static let loadPoints: [Double] = [0.6, 1, 1, 0.7]
     /// +1 a calm minute today, up to this.
     public static let calmBonusMax = 5
     /// Check-ins in the last 28 days before Coach looks for patterns.
@@ -320,7 +321,7 @@ public enum MindScore {
         if let m = i.mood { out.append(Part(name: "Mood", points: Double(min(5, max(1, m)) - 1) / 4, weight: moodWeight)) }
         if let r = i.hrvRatio { out.append(Part(name: "HRV", points: clamp((r - hrvLow) / (hrvHigh - hrvLow)), weight: hrvWeight)) }
         if let s = i.sleepHours { out.append(Part(name: "Sleep", points: clamp((s - sleepLow) / (sleepHigh - sleepLow)), weight: sleepWeight)) }
-        out.append(Part(name: "Load", points: loadPoints[min(loadPoints.count - 1, max(0, i.workoutDays))], weight: loadWeight))
+        out.append(Part(name: "Training", points: loadPoints[min(loadPoints.count - 1, max(0, i.workoutDays))], weight: loadWeight))
         return out
     }
 
