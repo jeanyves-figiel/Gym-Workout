@@ -386,6 +386,7 @@ final class AppModel {
         // Personal copies outside state.json: cached Health readings, the data export, HTTP responses.
         HealthManager.clearCache()
         MoveStore.shared.signOut()
+        MindStore.shared.signOut()
         ReferralStore.shared.signOut()
         WodStore.shared.signOut()
         SwimStore.shared.signOut()

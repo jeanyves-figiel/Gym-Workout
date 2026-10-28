@@ -58,6 +58,8 @@ struct WatchSnapshot: Codable, Equatable {
     var swim: WSwim?
     /// Climbing session running on the iPhone (#829), picked up by the Watch it wakes; nil when none.
     var climbLive: WClimbLive?
+    /// Mind (#834): score, check-in, Coach's breathing pick and the Calm sessions; nil from older phone apps.
+    var mind: WMind?
 
     func session(_ id: String) -> WSession? { (sessions + extras).first { $0.id == id } }
 }
@@ -260,6 +262,10 @@ enum WatchEvent: Codable, Equatable {
     case buddyCheer(userId: String, kind: String)
     /// Climbing live (#829): the session after a go tapped on the Watch, or ended there (`ended` set).
     case climbLive(WClimbLive)
+    /// Mind (#834): a mood check-in on the Watch (mood 1–5, `MindFeeling` raw values) and a finished breathing session
+    /// (`Breath` raw value, seconds breathed). The phone saves them and writes Apple Health.
+    case mindCheckIn(date: Date, mood: Int, feelings: [String])
+    case mindSession(breath: String, start: Date, seconds: Int)
 }
 
 /// Reps and bar speed the Watch measured for one set (#383). Speeds in m/s, ranges in m, times in s.
@@ -555,6 +561,80 @@ struct WWater: Codable, Equatable {
 
     /// Glasses for today; a snapshot from yesterday counts as 0.
     func today(_ now: Date = Date()) -> Int { day == Self.key(now) ? glasses : 0 }
+}
+
+/// Mind (#834) as the Watch shows it: the phone flattens the engine's `MindScore` and `Breath` into plain values.
+struct WMind: Codable, Equatable {
+    /// `WWater.key` day the values belong to.
+    var day: String
+    var score: Int?
+    /// "Calm", "Steady", "Strained", "Low".
+    var level: String?
+    /// Last 7 days' scores, today last; nil = no score that day.
+    var week: [Int?]
+    var checkedIn: Bool
+    /// Coach's pick: a `breaths` id and why.
+    var pick: String
+    var pickWhy: String
+    var weekMinutes: Int
+    var breaths: [WBreath]
+
+    /// Checked in today; a snapshot from yesterday says no.
+    func checkedInToday(_ now: Date = Date()) -> Bool { checkedIn && day == WWater.key(now) }
+
+    func today(_ now: Date = Date()) -> Bool { day == WWater.key(now) }
+
+    var pickBreath: WBreath? { breaths.first { $0.id == pick } ?? breaths.first }
+}
+
+/// One breathing or relax session, as the engine's `Breath` describes it.
+struct WBreath: Codable, Equatable, Hashable, Identifiable {
+    var id: String
+    var label: String
+    var purpose: String
+    var symbol: String
+    var tint: UInt32
+    var tint2: UInt32
+    /// Minutes offered, the first is the default.
+    var lengths: [Int]
+    var phases: [WBreathPhase]
+    /// Spoken / shown cues of guided sessions, spread evenly.
+    var cues: [String]
+
+    var cycleSeconds: Double { phases.reduce(0) { $0 + $1.seconds } }
+
+    func cycles(minutes: Int) -> Int { max(1, Int((Double(minutes) * 60 / max(1, cycleSeconds)).rounded())) }
+
+    func totalSeconds(minutes: Int) -> Double { Double(cycles(minutes: minutes)) * cycleSeconds }
+
+    /// Same as `Breath.at` on the phone: phase index, seconds into it, cycle and cue at `t`.
+    func at(_ t: Double, minutes: Int) -> (index: Int, into: Double, cycle: Int, cue: String?) {
+        guard !phases.isEmpty, cycleSeconds > 0 else { return (0, 0, 0, nil) }
+        let total = totalSeconds(minutes: minutes)
+        let clamped = min(max(0, t), max(0, total - 0.001))
+        let cycle = min(cycles(minutes: minutes) - 1, Int(clamped / cycleSeconds))
+        var rest = clamped - Double(cycle) * cycleSeconds
+        var index = phases.count - 1
+        for (i, p) in phases.enumerated() {
+            if rest < p.seconds {
+                index = i
+                break
+            }
+            rest -= p.seconds
+        }
+        let cue: String? = cues.isEmpty ? nil : cues[min(cues.count - 1, Int(clamped / (total / Double(cues.count))))]
+        return (index, min(max(0, rest), phases[index].seconds), cycle, cue)
+    }
+}
+
+struct WBreathPhase: Codable, Equatable, Hashable {
+    /// "Breathe in", "Hold", …
+    var label: String
+    var seconds: Double
+    /// Square size at the end of the phase, 0–1.
+    var fill: Double
+    /// Breathing in (a stronger tap on the wrist).
+    var inhale: Bool
 }
 
 /// Watch → phone remote control of the iPhone player.

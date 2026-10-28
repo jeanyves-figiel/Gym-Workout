@@ -112,6 +112,36 @@ final class WatchStore: NSObject {
         WCSession.default.transferUserInfo([WatchKeys.water: today])
     }
 
+    /// Mind (#834): a mood check-in, shown at once (Home row, Smart Stack) and queued to the iPhone, which saves it and
+    /// writes Apple Health.
+    func checkIn(mood: Int) {
+        let now = Date()
+        if var m = snapshot.mind {
+            m.checkedIn = true
+            m.day = WWater.key(now)
+            snapshot.mind = m
+        }
+        #if DEBUG
+        if Demo.on { return }
+        #endif
+        save()
+        send(.mindCheckIn(date: now, mood: mood, feelings: []))
+    }
+
+    /// A finished breathing session (#834): this week's calm minutes at once, mindful minutes saved by the iPhone.
+    func calmDone(breath: String, start: Date, seconds: Int) {
+        guard seconds >= 60 else { return }
+        if var m = snapshot.mind {
+            m.weekMinutes += seconds / 60
+            snapshot.mind = m
+        }
+        #if DEBUG
+        if Demo.on { return }
+        #endif
+        save()
+        send(.mindSession(breath: breath, start: start, seconds: seconds))
+    }
+
     func send(_ command: WCommand) {
         guard WCSession.isSupported(), WCSession.default.isReachable else { return }
         WCSession.default.sendMessage([WatchKeys.command: command.rawValue], replyHandler: nil, errorHandler: nil)

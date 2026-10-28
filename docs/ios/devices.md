@@ -47,11 +47,15 @@ sequenceDiagram
 - **Run player** (`SportTracker.run`, `SportTrackView.runDashboard`, #618 B): a planned run (`WRun`, sent with `WSportStart.run` or as `WatchSnapshot.run`, top row of Track a sport) shows each step as a big block: REP 3 OF 6 · 400 M, pace now vs target (✓ within 8 s/km), metres or time left, zone tiles, **NEXT** to skip. Steps move on by distance or time, each one a Health segment, with a buzz and a spoken cue (`AVSpeechSynthesizer`: "Rep 3 of 6. 400 metres at 4 30 a kilometre").
 - Data: `snapshot.json` in the Watch container + App Group snapshot for complications.
 
+### Mind and Calm (#834, `MindViews.swift`, `CalmTracker.swift`)
+
+Home row **Check in** (before today's check-in) / **Mind** (score) opens `WatchMindView`: `WatchCheckIn` (five mood squares + Later; `WatchStore.checkIn` marks `snapshot.mind` and sends `WatchEvent.mindCheckIn`, the iPhone saves it to `MindStore` and Health), then `MindCard` (score, level, 7-day bars), Coach's pick button and every Calm session (`CalmRow`). The iPhone flattens the engine into `WMind` / `WBreath` (`AppModel.watchMind`). `CalmTracker` plays a `WBreath` (`WBreath.at` mirrors `Breath.at`): a haptic per phase (`.directionUp` on the breath in, `.click` otherwise), a mind & body `HKWorkoutSession` only for live heart rate and the screen (discarded at the end), tap / double tap pauses, End on the second page. `CalmRunView` square + phase + ♥ + time left; `CalmSummaryView` minutes, heart rate start → end, Mind +1/min (max 5). A minute or more sends `WatchEvent.mindSession`; the iPhone saves the session and writes mindful minutes. Demo screens `mind-checkin`, `mind`, `calm-breathe`, `calm-done`.
+
 ### Complications (`MonkeyWorkoutWatchComplications`)
 
 Next workout, Weekly goal, Streak, Week strip, Readiness, Top lift, Last workout, Water, and **My stat** (configurable). All watch families; read from the shared snapshot.
 
-**Smart Stack** (`SmartStack.swift`, rectangular): three moment cards that rise on their own. **Gym time**: from 30′ before the usual training time (mean start of recent workouts) to an hour after on a training day, and at the home gym (`snapshot.gym`, 150 m region). **Rest day**: 7:00–10:00, easy day + water pace. **After workout**: the hour after the last workout, recap + protein. Relevance from entry scores (`TimelineEntryRelevance`) and `RelevantIntentManager` (date windows, gym region), refreshed with every timeline.
+**Smart Stack** (`SmartStack.swift`, rectangular): five moment cards that rise on their own. **Gym time**: from 30′ before the usual training time (mean start of recent workouts) to an hour after on a training day, and at the home gym (`snapshot.gym`, 150 m region). **Rest day**: 7:00–10:00, easy day + water pace. **After workout**: the hour after the last workout, recap + protein. **Morning check-in** (#834): 7:00–10:00 until the Mind check-in is done today (then the score and Coach's pick), **Wind down**: 21:00–23:00, 4-7-8 with the score and calm minutes this week; both need `snapshot.mind` and open the Mind screen (`widgetURL monkeyworkout://mind` → `WatchRootView.onOpenURL`). Relevance from entry scores (`TimelineEntryRelevance`) and `RelevantIntentManager` (date windows, gym region), refreshed with every timeline.
 
 ## iPhone widgets (`MonkeyWorkoutWidgets`, `HomeWidgets`)
 

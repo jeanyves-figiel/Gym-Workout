@@ -396,6 +396,10 @@ final class WatchSync: NSObject {
             model.saveHyroxRace(race)
         case let .bikeFTP(watts, date):
             model.setBikeFTP(watts, testedAt: date)
+        case let .mindCheckIn(date, mood, feelings):
+            model.checkIn(mood: mood, feelings: feelings.compactMap(MindFeeling.init(rawValue:)), at: date)
+        case let .mindSession(breath, start, seconds):
+            if let b = Breath(rawValue: breath) { model.finishCalm(b, from: start, to: start.addingTimeInterval(Double(seconds))) }
         case let .buddyCheer(userId, kind):
             if let k = LiveCheer(rawValue: kind) { LiveRoom.shared.cheer(userId, k, api: model.api) }
             return
@@ -482,6 +486,8 @@ final class WatchSync: NSObject {
         // Timers (#622) and swimming (#624).
         s.wods = WodStore.shared.timers
         s.swim = model.watchSwim()
+        // Mind (#834): score, check-in, Coach's pick and the Calm sessions.
+        s.mind = model.watchMind()
         let today = Date()
         let fuel = FuelStore.shared
         s.water = WWater(day: fuel.key(today), glasses: fuel.log(today).glasses, target: model.fuelPlan(on: today).glasses,

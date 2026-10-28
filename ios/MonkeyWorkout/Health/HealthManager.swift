@@ -234,7 +234,9 @@ final class HealthManager {
     private var shareTypes: Set<HKSampleType> {
         let base: Set<HKSampleType> = [HKObjectType.workoutType(), HKQuantityType(.activeEnergyBurned), HKQuantityType(.bodyMass),
                                        HKQuantityType(.height), HKQuantityType(.bodyFatPercentage), HKQuantityType(.leanBodyMass),
-                                       HKQuantityType(.waistCircumference), HKQuantityType(.dietaryWater)]
+                                       HKQuantityType(.waistCircumference), HKQuantityType(.dietaryWater),
+                                       // Breathing and relax sessions (#834).
+                                       HKCategoryType(.mindfulSession)]
         return base.union(HealthEffort.shareTypes)
     }
 
@@ -850,6 +852,36 @@ final class HealthManager {
         guard connected, available else { return }
         await HealthEffort.authorize(store)
         try? await HealthEffort.saveMood(feel.rawValue, at: date, store: store)
+    }
+
+    /// Mind check-in (#834): today's mood, with what it is about, as a daily State of Mind.
+    func saveCheckIn(_ c: MindCheckIn) async {
+        guard connected, available else { return }
+        await HealthEffort.authorize(store)
+        let assoc = Array(Set(c.feelings.map(Self.association))).sorted { $0.rawValue < $1.rawValue }
+        try? await HealthEffort.saveMood(c.mood, at: c.date, kind: .dailyMood, associations: assoc, store: store)
+    }
+
+    static func association(_ f: MindFeeling) -> HKStateOfMind.Association {
+        switch f {
+        case .sleep: .selfCare
+        case .work: .work
+        case .family: .family
+        case .friends: .friends
+        case .training: .fitness
+        case .health: .health
+        case .money: .money
+        case .weather: .weather
+        }
+    }
+
+    /// A finished breathing or relax session (#834) as mindful minutes.
+    func saveMindful(from start: Date, to end: Date) async {
+        guard connected, available, end > start else { return }
+        let type = HKCategoryType(.mindfulSession)
+        try? await store.requestAuthorization(toShare: [type], read: [])
+        let sample = HKCategorySample(type: type, value: HKCategoryValue.notApplicable.rawValue, start: start, end: end)
+        try? await store.save(sample)
     }
 
     func heartRate(from: Date, to: Date) async -> (avg: Double?, max: Double?) {
