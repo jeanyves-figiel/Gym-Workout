@@ -2226,6 +2226,8 @@ struct SummaryView: View {
                     LiftReportList(report: report)
                 }
                 if let recap { RecapCard(recap: recap, onDevice: recapOnDevice) }
+                // Plateau explainer (#875 C): a stalled lift of this workout, with a fix.
+                if let record { PlateauNudge(record: record) }
                 // Wins you missed (#501): three personal wins, even on a weak day, and how you feel now.
                 if !wins.isEmpty { WinsCard(wins: wins, recordId: recordId) }
                 // Effort to Apple Health (#614 A).

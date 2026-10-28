@@ -64,6 +64,27 @@ import FoundationModels
         return nil
     }
 
+    /// Why a lift is stuck (#875), in two short sentences from the rule facts only; nil when the model fails.
+    static func plateau(_ s: StalledLift, lift: String, fix: String?) async -> String? {
+        guard available else { return nil }
+        #if DEBUG
+        if Demo.enabled { return "Your \(lift.lowercased()) sets dropped since the weeks before, and the weight stayed the same. Try heavier, shorter sets for 2 weeks." }
+        #endif
+        #if canImport(FoundationModels)
+        if #available(iOS 26, *) {
+            let session = LanguageModelSession(instructions: Self.instructions)
+            let prompt = "The member's \(lift) estimated 1RM has been flat at \(Int(s.kg.rounded())) kg for \(s.weeks) weeks. "
+                + "In two short sentences say the likely cause from these facts only, then the fix.\n- "
+                + s.causes.map(\.fact).joined(separator: "\n- ")
+                + (fix.map { "\nFix to suggest: \($0)" } ?? "")
+            guard let text = try? await session.respond(to: prompt).content.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !text.isEmpty else { return nil }
+            return text
+        }
+        #endif
+        return nil
+    }
+
     private static let instructions = """
     You are Coach Monkey, the upbeat gym coach in the MonkeyWorkout app. Answer in at most three short sentences of plain text: \
     no lists, no markdown, no emoji. Use kg and minutes. Be concrete with numbers. You can't build or change workouts here: \
