@@ -152,6 +152,8 @@ struct WeekView: View {
             model.syncProgramme()
             model.rollWeekIfNeeded()
             if demoEditing { arranging = true }
+            // Weekly Coach review (#867): asked once on Sunday or Monday, then kept.
+            Task { await model.loadWeekReview() }
             resumeInterruptedOnce()
             if let demoPick, let plan = model.plan {
                 let today = model.todayWeekday
@@ -2212,7 +2214,7 @@ private struct VariationUndoCard: View {
 /// recap, the block review, what Monkey noticed and kind streaks. One at a time: the bars show where it is, a swipe or
 /// a tap on the bars shows the next, ✕ puts the current one away. Start workout never moves down for them.
 private struct TrainNoticeSlot: View {
-    enum Kind: Hashable { case setup, recover, addOn, variation, taste, block, noticed, kind }
+    enum Kind: Hashable { case setup, review, recover, addOn, variation, taste, block, noticed, kind }
 
     @Environment(AppModel.self) private var model
     @State private var index = 0
@@ -2234,6 +2236,8 @@ private struct TrainNoticeSlot: View {
         var out: [Kind] = []
         // Onboarding steps not done yet (#664), first: a new member's next things to set up.
         if model.onboarding?.showsCard == true { out.append(.setup) }
+        // Coach's weekly review (#867), Sunday and Monday until closed.
+        if model.weekReview != nil { out.append(.review) }
         // Low readiness on a heavy day (#619 B): swap it for mobility, before anything else.
         if recoverKeptDay != todayKey, model.recoverSwap != nil { out.append(.recover) }
         // The Coach saw a sport played 3+ times in two weeks (#620 B).
@@ -2284,6 +2288,8 @@ private struct TrainNoticeSlot: View {
         switch k {
         case .setup:
             if let p = model.onboarding { SetupCard(progress: p) }
+        case .review:
+            if let r = model.weekReview { WeekReviewCard(saved: r) }
         case .recover:
             if let swap = model.recoverSwap { RecoverSwapCard(swap: swap) { dismiss(.recover) } }
         case .addOn:
@@ -2332,12 +2338,13 @@ private struct TrainNoticeSlot: View {
         }
     }
 
-    /// Cards that carry their own ✕ (#823): Variation undo, the block review and What Monkey noticed.
-    private static let ownClose: Set<Kind> = [.variation, .block, .noticed]
+    /// Cards that carry their own ✕ (#823): the week review, Variation undo, the block review and What Monkey noticed.
+    private static let ownClose: Set<Kind> = [.review, .variation, .block, .noticed]
 
     private func title(_ k: Kind) -> String {
         switch k {
         case .setup: "Set-up card"
+        case .review: "Week review"
         case .recover: "Readiness swap"
         case .addOn: "Sport add-on"
         case .variation: "Variation undo"
@@ -2352,6 +2359,7 @@ private struct TrainNoticeSlot: View {
         withAnimation(.snappy) {
             switch k {
             case .setup: model.hideSetupCard()
+            case .review: model.closeWeekReview()
             case .recover: recoverKeptDay = todayKey
             case .addOn: addOnNoUntil = Date().addingTimeInterval(30 * 86_400).timeIntervalSince1970
             case .variation: model.variationUndo = nil

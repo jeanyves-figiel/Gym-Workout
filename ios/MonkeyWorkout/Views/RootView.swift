@@ -411,6 +411,12 @@ private struct DemoScreen: View {
                 ScrollView { MindTrainCard().padding(16) }
                     .background(Theme.bg.ignoresSafeArea())
             }
+        // Weekly Coach review (#867): the Train card with Coach's score, summary and changes.
+        case "week-review":
+            NavigationStack {
+                ScrollView { DemoWeekReview().padding(16) }
+                    .background(Theme.bg.ignoresSafeArea())
+            }
         case "explore-calm": NavigationStack { LibraryView(mode: .calm) }
         case "breathing": BreathingPlayer(breath: .box)
         case "mind": NavigationStack { MindView() }

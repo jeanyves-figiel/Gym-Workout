@@ -100,6 +100,13 @@ export const ensureSchemaExtras = (db: DB): void => {
       count INTEGER NOT NULL,
       PRIMARY KEY (user_id, day)
     );
+    -- Weekly Coach review (#867): reviews per member per UTC day, for the daily cap (routes/coachReview.ts).
+    CREATE TABLE IF NOT EXISTS coach_review_usage (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      count INTEGER NOT NULL,
+      PRIMARY KEY (user_id, day)
+    );
     -- Machine setup notes (#355), private to the member (routes/machineNotes.ts).
     CREATE TABLE IF NOT EXISTS machine_notes (
       id TEXT PRIMARY KEY,
