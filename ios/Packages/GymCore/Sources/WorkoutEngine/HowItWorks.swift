@@ -356,7 +356,7 @@ public enum HowItWorks {
                         "not finished: stays past \(pct(FormModel.Limit.lockout)) between reps"]),
             Part("Faults", "Only what the camera can see from that side: from the side range, trunk lean and sagging hips; from the front knees caving and one side ahead.",
                  rule: ["trunk lean: \(fmt(FormModel.Limit.torsoLean))° more than the guide at the bottom",
-                        "knees caving: knee width under \(pct(FormModel.Limit.kneeWidth)) of ankle width",
+                        "knees caving: knee-to-ankle width under \(pct(FormModel.Limit.kneeWidth)) of the guide's",
                         "hips sag: \(pct(FormModel.Limit.hipSag)) of body length under the shoulder–ankle line",
                         "one side ahead: left and right \(fmt(FormModel.Limit.uneven))° apart",
                         "too fast: rep under \(fmt(FormModel.Limit.minRepSeconds)) s (not jumps or throws)"]),

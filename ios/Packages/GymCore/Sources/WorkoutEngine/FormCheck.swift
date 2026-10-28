@@ -200,7 +200,7 @@ public struct FormModel: Sendable {
         public static let lockout = 0.2
         /// Trunk leaning this many degrees more than the guide at the bottom.
         public static let torsoLean = 15.0
-        /// Knees closer than this share of the ankles' width (front view).
+        /// Knees (vs the ankles' width) closer than this share of the guide's at the same point (front view).
         public static let kneeWidth = 0.85
         /// Hips this share of the body's length under the shoulder–ankle line.
         public static let hipSag = 0.07
@@ -339,7 +339,7 @@ public struct FormRep: Codable, Sendable, Hashable {
     public var faults: [FormFault]
     /// Degrees more trunk lean than the guide at the bottom.
     public var torsoExtra: Double?
-    /// Knee width ÷ ankle width at the bottom (front view).
+    /// Knee width ÷ ankle width at the bottom, as a share of the guide's (front view).
     public var kneeWidth: Double?
     /// Hips under the shoulder–ankle line, share of body length.
     public var sag: Double?
@@ -651,12 +651,11 @@ public struct FormAnalyzer: Sendable {
            lean - ref > FormModel.Limit.torsoLean {
             out.append((.torsoLean, lean - ref))
         }
-        if f.contains(.kneesIn), p > 0.5, let lk = pose[.leftKnee], let rk = pose[.rightKnee], let la = pose[.leftAnkle], let ra = pose[.rightAnkle] {
-            let ankles = abs(la.x - ra.x)
-            if ankles > 0.02 {
-                let ratio = abs(lk.x - rk.x) / ankles
-                if ratio < FormModel.Limit.kneeWidth { out.append((.kneesIn, ratio)) }
-            }
+        // Knee width against ankle width, compared with the guide's at the same point: a wide stance has its knees
+        // inside the feet by design.
+        if f.contains(.kneesIn), p > 0.5, let ratio = Self.kneeRatio(pose), let ref = Self.kneeRatio(model.guidePose(at: p)), ref > 0.05 {
+            let share = ratio / ref
+            if share < FormModel.Limit.kneeWidth { out.append((.kneesIn, share)) }
         }
         if f.contains(.hipsSag), let s = pose.shoulders, let h = pose.hips, let a = pose.ankles, abs(a.x - s.x) > 0.05 {
             let t = (h.x - s.x) / (a.x - s.x)
@@ -670,6 +669,14 @@ public struct FormAnalyzer: Sendable {
             out.append((.uneven, abs(l - r)))
         }
         return out
+    }
+
+    /// Knee width ÷ ankle width; nil when the feet are together.
+    static func kneeRatio(_ pose: FormPose) -> Double? {
+        guard let lk = pose[.leftKnee], let rk = pose[.rightKnee], let la = pose[.leftAnkle], let ra = pose[.rightAnkle] else { return nil }
+        let ankles = abs(la.x - ra.x), len = pose.length ?? 1
+        guard ankles > 0.04 * len else { return nil }
+        return abs(lk.x - rk.x) / ankles
     }
 
     private static func joints(of f: FormFault) -> [FormJoint] {

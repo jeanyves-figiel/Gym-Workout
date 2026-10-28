@@ -66,8 +66,17 @@ import Testing
         var a = FormAnalyzer(model: m)
         var t = 0.0
         // Rep 1 to the bottom and back up only to a quarter of the way, then rep 2.
-        let down = Array(stride(from: 0.0, through: 1, by: 0.05)), halfUp = Array(stride(from: 1.0, through: 0.24, by: -0.04))
-        let hold = Array(repeating: 0.24, count: 12), up = Array(stride(from: 1.0, through: 0, by: -0.05))
+        // Poses are drawn by position; find the one whose counted angle is a quarter of the way.
+        let a0 = try #require(m.start.angle(m.primary)), a1 = try #require(m.peak.angle(m.primary))
+        var lo = 0.0, hi = 1.0
+        for _ in 0..<40 {
+            let mid = (lo + hi) / 2
+            let v = ((FormDemo.pose(m, progress: mid).angle(m.primary) ?? a0) - a0) / (a1 - a0)
+            if v < 0.25 { lo = mid } else { hi = mid }
+        }
+        let quarter = lo
+        let down = Array(stride(from: 0.0, through: 1, by: 0.05)), halfUp = Array(stride(from: 1.0, through: quarter, by: -0.04))
+        let hold = Array(repeating: quarter, count: 12), up = Array(stride(from: 1.0, through: 0, by: -0.05))
         for p in down + halfUp + hold + down + up + Array(repeating: 0.0, count: 8) {
             a.add(FormDemo.pose(m, progress: p), at: t)
             t += 0.1
@@ -77,15 +86,8 @@ import Testing
     }
 
     @Test func frontViewSeesKneesCaving() throws {
-        // An exercise filmed from the front whose right position keeps the knees over the feet.
-        func kneesOverFeet(_ m: FormModel) -> Bool {
-            guard let lk = m.peak[.leftKnee], let rk = m.peak[.rightKnee], let la = m.peak[.leftAnkle], let ra = m.peak[.rightAnkle],
-                  abs(la.x - ra.x) > 1 else { return false }
-            return abs(lk.x - rk.x) / abs(la.x - ra.x) >= 0.95
-        }
-        guard let e = Exercise.catalog.first(where: { e in
-            FormModel(exercise: e).map { $0.view == .front && $0.faults.contains(.kneesIn) && kneesOverFeet($0) } == true
-        }) else { return }
+        guard let e = Exercise.catalog.first(where: { FormModel(exercise: $0).map { $0.view == .front && $0.faults.contains(.kneesIn) } == true })
+        else { return }
         let m = try model(e.id)
         let a = run(m, FormDemo.frames(m, reps: 3, kneesIn: [2]))
         #expect(a.reps.count == 3)
