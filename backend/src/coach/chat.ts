@@ -36,6 +36,8 @@ export interface ChatContext {
   callName?: string;
   /** What the coach remembers about the member (#495): goal, likes, the member's own notes. */
   memory?: string[];
+  /** Exercise names Coach may suggest from (#856, freestyle): the app's catalog at the member's level. */
+  exercises?: string[];
 }
 
 export interface CoachAction {
@@ -65,9 +67,15 @@ export interface CoachAnswer {
   action?: CoachAction | null;
   /** Up to 3 short follow-up questions the member can tap (#412). */
   suggestions?: string[];
+  /** Exercises to add right now (#856, freestyle): exact names from the context list, best first. */
+  exercises?: string[];
 }
 
-export type CoachModel = (turns: ChatTurn[], context: ChatContext) => Promise<CoachAnswer>;
+/** `photo`: a JPEG of the machine in front of the member (#856), with the last message. */
+export type CoachModel = (turns: ChatTurn[], context: ChatContext, photo?: Buffer) => Promise<CoachAnswer>;
+
+/** Most exercises Coach hands back at once (#856). */
+export const MAX_EXERCISES = 4;
 
 /** Stands for the member's first name, which stays on the device (#415). */
 export const NAME_SLOT = '{name}';
@@ -82,6 +90,7 @@ Answering questions (#412):
 - action: a button to open a screen when it truly helps ("progress", "calendar", "explore", "fuel", "settings", or "exercise" with the exact exercise name, e.g. a safer alternative). Else null.
 - suggestions: up to 3 short follow-up questions the member might tap next (max 5 words each), in their language.
 - Food (Fuel, #496): give general pointers on eating around training, using the day's training and the targets in "Looking at" when given (protein, carbs, water, meals). Suggest simple meals. Never prescribe diets, calorie restriction or supplements as treatment; for a medical condition, pregnancy or an eating disorder suggest a doctor or dietitian.
+- Freestyle (#856, Screen "freestyle"): the member is at the gym building the workout as they go. When they ask what to do, name a muscle, name or describe a machine, or send a photo of one, put up to 4 exercises in "exercises", best first, using exact names from "Exercises in the app" only. For a photo or description, say in the reply which machine it is and one setup tip. workout null. Elsewhere exercises is an empty list.
 - Replies may be read aloud: no lists, no symbols, no emoji, write units in words when short ("kilos", "minutes").
 
 Building a workout: only when the member wants one. Turn what they say into settings for the app's workout generator.
@@ -141,8 +150,9 @@ const schema = {
       ],
     },
     suggestions: { type: 'array', items: { type: 'string' } },
+    exercises: { type: 'array', items: { type: 'string' } },
   },
-  required: ['reply', 'workout', 'action', 'suggestions'],
+  required: ['reply', 'workout', 'action', 'suggestions', 'exercises'],
   additionalProperties: false,
 } as const;
 
@@ -161,6 +171,7 @@ export const describeMember = (c: ChatContext) =>
     !c.pronouns && 'Pronouns: not set (use neutral wording; never guess a gender)',
     c.callName === NAME_SLOT && `Likes to be called by first name: write ${NAME_SLOT} where you use it, the app fills it in (now and then, not in every reply)`,
     c.callName && c.callName !== NAME_SLOT && `Likes to be called: ${c.callName} (use it now and then, not in every reply)`,
+    c.exercises?.length && `Exercises in the app (use these exact names in "exercises"): ${c.exercises.join('; ')}`,
     c.memory?.length && `What you remember about the member (use it when it helps, never recite the list): ${c.memory.join('; ')}`,
   ]
     .filter(Boolean)
@@ -175,20 +186,33 @@ const cleanAction = (a: CoachAction | null | undefined): CoachAction | null => {
   return { target: a.target, exercise: a.target === 'exercise' ? exercise : null, label };
 };
 
+/** Exercises only from the list the app sent, spelled as the app spells them (#856); none without a list. */
+const cleanExercises = (names: string[] | undefined, context: ChatContext): string[] => {
+  if (!context.exercises?.length) return [];
+  const known = new Map(context.exercises.map((n) => [n.trim().toLowerCase(), n]));
+  const out = (names ?? []).flatMap((n) => {
+    const hit = known.get(n.trim().toLowerCase());
+    return hit ? [hit] : [];
+  });
+  return [...new Set(out)].slice(0, MAX_EXERCISES);
+};
+
 export const clean = (a: CoachAnswer, context: ChatContext): CoachAnswer => {
   const reply = a.reply.trim().slice(0, 600) || "Let's train!";
   const action = cleanAction(a.action);
   const suggestions = [...new Set((a.suggestions ?? []).map((q) => q.trim().slice(0, 50)).filter(Boolean))].slice(0, 3);
+  const exercises = cleanExercises(a.exercises, context);
   const w = a.workout;
-  if (!w) return { reply, workout: null, action, suggestions };
+  if (!w) return { reply, workout: null, action, suggestions, exercises };
   const groups = [...new Set(w.groups.filter((g) => MUSCLE_GROUPS.includes(g)))];
   const avoidGroups = [...new Set(w.avoidGroups.filter((g) => MUSCLE_GROUPS.includes(g) && !groups.includes(g)))];
-  if (groups.length === 0) return { reply, workout: null, action, suggestions };
+  if (groups.length === 0) return { reply, workout: null, action, suggestions, exercises };
   const known = new Set(context.equipment ?? []);
   return {
     reply,
     action,
     suggestions,
+    exercises,
     workout: {
       name: w.name.trim().slice(0, 40) || 'Coach workout',
       minutes: Math.min(120, Math.max(15, Math.round(w.minutes || context.sessionMinutes || 45))),
@@ -211,9 +235,19 @@ export const claudeCoach = (apiKey: string, workspaceId?: string): CoachModel =>
     maxRetries: 1,
     defaultHeaders: workspaceId ? { 'anthropic-workspace-id': workspaceId } : undefined,
   });
-  return async (turns, context) => {
+  return async (turns, context, photo) => {
     const about = describeMember(context);
-    const messages: Anthropic.Beta.BetaMessageParam[] = turns.map((t) => ({ role: t.role === 'member' ? 'user' : 'assistant', content: t.text }));
+    const messages: Anthropic.Beta.BetaMessageParam[] = turns.map((t, i) => ({
+      role: t.role === 'member' ? 'user' : 'assistant',
+      // The machine photo (#856) goes with the member's last message.
+      content:
+        photo && i === turns.length - 1
+          ? [
+              { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: photo.toString('base64') } },
+              { type: 'text', text: t.text },
+            ]
+          : t.text,
+    }));
     const res = await client.beta.messages.create({
       model: COACH_MODEL_ID,
       max_tokens: 4000,
@@ -223,7 +257,7 @@ export const claudeCoach = (apiKey: string, workspaceId?: string): CoachModel =>
       output_config: { effort: 'low', format: { type: 'json_schema', schema } },
       messages,
     });
-    if (res.stop_reason === 'refusal') return { reply: "I can't help with that one. Ask me about your training!", workout: null, action: null, suggestions: [] };
+    if (res.stop_reason === 'refusal') return { reply: "I can't help with that one. Ask me about your training!", workout: null, action: null, suggestions: [], exercises: [] };
     const text = res.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
     return clean(JSON.parse(text) as CoachAnswer, context);
   };

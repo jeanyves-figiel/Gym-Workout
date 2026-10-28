@@ -212,6 +212,9 @@ struct WorkoutPlayerView: View {
                         onPick: { e in addFree([e] + freeLined.filter { $0.id != e.id }, jump: true) },
                         onStartLined: { addFree(freeLined, jump: true) },
                         onBrowse: { freeBrowse = FreeBrowse(group: $0, jump: true) },
+                        onCoach: { entry in
+                            asking = AskCoachRequest(focus: .freestyle(), listen: entry == .talk, photo: entry == .photo)
+                        },
                         // Pause: keep for later or discard (#538), with nothing added yet.
                         onClose: { mapOpen = true })
                 }
@@ -270,7 +273,14 @@ struct WorkoutPlayerView: View {
             }
         }
         .sheet(isPresented: $voiceSetup) { CoachVoiceSetupSheet() }
-        .sheet(item: $asking) { CoachChatView(ask: $0).remotePaused(.askCoach) }
+        .sheet(item: $asking) { r in
+            // From the freestyle start screen (#856): Coach's exercises start (▶) or line up (+) like the screen's own.
+            let free = r.focus?.screen == CoachFocus.freestyleScreen && isFree
+            CoachChatView(ask: r, freestyle: free ? CoachFreestyle(lined: $freeLined, start: { e in
+                addFree([e] + freeLined.filter { $0.id != e.id }, jump: true)
+            }) : nil)
+            .remotePaused(.askCoach)
+        }
         .overlay(alignment: .top) { if listener.listening || listener.problem != nil { heardPill.padding(.top, 60) } }
         .sheet(isPresented: $mapOpen, onDismiss: runMapAction) {
             if let session, steps.indices.contains(index) {
