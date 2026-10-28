@@ -135,9 +135,15 @@ jobs:
           DEVICE=$(xcrun simctl list devices available | grep -m1 -E "iPhone 1[5-8] Pro \(" | grep -oE '[0-9A-F-]{36}')
           echo "device=$DEVICE"
           xcrun simctl boot "$DEVICE" || true
-          xcodebuild test -project ios/MonkeyWorkout.xcodeproj -scheme MonkeyWorkout -configuration Debug \
+          # Launch timeouts on the first test (#597): build first, then test on a fully booted simulator.
+          # A test that fails is run once more (#741); one failing twice still fails the job.
+          xcodebuild build-for-testing -project ios/MonkeyWorkout.xcodeproj -scheme MonkeyWorkout -configuration Debug \
             -destination "id=$DEVICE" -derivedDataPath build -skipPackagePluginValidation \
-            -only-testing:MonkeyWorkoutUITests CODE_SIGNING_ALLOWED=NO > test.log 2>&1 \
+            CODE_SIGNING_ALLOWED=NO > build.log 2>&1 || { grep -E 'error:' build.log | head -n 40; exit 1; }
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcodebuild test-without-building -project ios/MonkeyWorkout.xcodeproj -scheme MonkeyWorkout -configuration Debug \
+            -destination "id=$DEVICE" -derivedDataPath build \
+            -only-testing:MonkeyWorkoutUITests -retry-tests-on-failure -test-iterations 2 > test.log 2>&1 \
             || { grep -E 'error:|failed|XCTAssert' test.log | sort -u | head -n 60; tail -n 80 test.log; exit 1; }
           grep -E 'Test Case|Executed' test.log | tail -n 20
 

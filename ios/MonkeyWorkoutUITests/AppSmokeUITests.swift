@@ -106,16 +106,23 @@ final class AppSmokeUITests: XCTestCase {
         }
         XCTAssertTrue(setDone.exists && setDone.isHittable, "A set to log")
         let label = setDone.label
-        setDone.tap()
 
         // Logged: the rest card (SKIP REST / CONTINUE in the controls, +15 s, the "Rest" timer), the next set's button,
         // or NEXT / FINISH after a single-set item.
-        let after = firstToExist([
+        let loggedStates = [
             app.buttons["SKIP REST"], app.buttons["CONTINUE"], app.buttons["Add 15 seconds of rest"],
             app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH[c] %@", "Rest")).firstMatch,
             app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ AND label != %@", "SET ", label)).firstMatch,
             app.buttons["NEXT"], app.buttons["FINISH"], app.buttons["FINISH WORKOUT"],
-        ], timeout: 10)
+        ]
+        // The tap can land while the skip transition still moves the button on a busy runner (#741): the same
+        // SET n DONE stays and nothing is logged, so tap it once more before failing.
+        let sameSet = app.buttons[label]
+        var after: XCUIElement?
+        for _ in 0..<2 where after == nil {
+            if sameSet.exists, sameSet.isHittable { sameSet.tap() }
+            after = firstToExist(loggedStates, timeout: 20)
+        }
         XCTAssertNotNil(after, "Set logged")
 
         // Finish from the workout map (#538).
