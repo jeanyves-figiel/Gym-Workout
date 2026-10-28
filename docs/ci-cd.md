@@ -37,6 +37,7 @@ Several streams of work are bundled into one release: all merge to staging, an i
 | TestFlight distribute | `testflight-distribute.yml` | manual, called | Add a build to a TestFlight group |
 | TestFlight crashes | `testflight-crashes.yml` | manual | Download crash reports from App Store Connect |
 | Symbolicate crash | `symbolicate.yml` | manual | Symbolicate a crash log |
+| App Store listing | `asc-listing.yml` | manual (dry run first) | Push `ios/AppStore/listing.json` (text, categories, age rating, App Review info) to App Store Connect |
 | App Store subscriptions | `asc-subscriptions.yml` | manual (dry run first) | Create / update Pro products in App Store Connect |
 | Garmin watch app | `garmin.yml` | PR, push, manual | Build the Connect IQ app (once Garmin secrets exist) |
 | Garmin signing key | `garmin-key.yml` | manual | Generate the Connect IQ developer key straight into a secret (never in a log or artifact) |

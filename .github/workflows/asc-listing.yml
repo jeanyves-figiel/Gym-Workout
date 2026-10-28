@@ -1,0 +1,41 @@
+name: App Store listing
+
+# Pushes ios/AppStore/listing.json to App Store Connect (#882): name, subtitle, categories,
+# privacy URL, age rating, version description / keywords / promo text / URLs and App Review
+# information. Needs an editable iOS version (App Store Connect → + Version). Default is a
+# read-only dry run. App Privacy labels and screenshots stay manual (no API).
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Apply changes (unchecked = dry run, read-only)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  listing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      APP_ID: '6819971090'
+      APPLY: ${{ inputs.apply }}
+      REVIEW_DEMO_EMAIL: ${{ secrets.REVIEW_DEMO_EMAIL }}
+      REVIEW_DEMO_PASSWORD: ${{ secrets.REVIEW_DEMO_PASSWORD }}
+      REVIEW_CONTACT_PHONE: ${{ secrets.REVIEW_CONTACT_PHONE }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: pip install --quiet 'pyjwt[crypto]==2.9.0'
+      - name: Sync listing
+        run: |
+          if [ -z "$ASC_KEY_ID" ]; then echo "::warning::ASC_* secrets not set; skipping."; exit 0; fi
+          mkdir -p "$RUNNER_TEMP/asc"
+          export ASC_KEY_PATH="$RUNNER_TEMP/asc/key.p8"
+          if printf '%s' "$ASC_KEY_P8" | grep -q 'BEGIN PRIVATE KEY'; then printf '%s\n' "$ASC_KEY_P8" > "$ASC_KEY_PATH"; else printf '%s' "$ASC_KEY_P8" | base64 --decode > "$ASC_KEY_PATH"; fi
+          python3 .github/scripts/asc_listing.py
+          rm -rf "$RUNNER_TEMP/asc"
