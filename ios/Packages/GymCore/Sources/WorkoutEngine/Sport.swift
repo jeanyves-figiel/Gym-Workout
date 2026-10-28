@@ -370,12 +370,14 @@ extension WeekSchedule {
 
 extension Profile {
     /// Other sports' days planned around this week (#416); empty without sports or out of season.
-    public func sportDays(on date: Date = Date(), calendar cal: Calendar = Progression.calendar()) -> [SportDay] {
+    /// Away days (`away`) drop the weekly sport; dated sport days and trips on them stay.
+    public func sportDays(on date: Date = Date(), calendar cal: Calendar = Progression.calendar(),
+                          away: [AwayPeriod] = []) -> [SportDay] {
         let defaults = sportDefaults
         var out = (sports ?? []).filter { $0.sport != .climbing }.flatMap { $0.days(on: date, defaults: defaults) }
         let keys = PlanCalendar.dayKeys(weekStart: Progression.weekStart(date, cal), cal)
         // Days turned into rest days (#671) lose their sport.
-        out.removeAll { isSportOff(keys[$0.weekday - 1]) }
+        out.removeAll { sd in isSportOff(keys[sd.weekday - 1]) || away.contains { $0.covers(keys[sd.weekday - 1]) } }
         // Dated sport days and trips (#474) of that week take their weekday over.
         guard let trips = sportTrips, !trips.isEmpty else { return out }
         for (i, key) in keys.enumerated() where !isSportOff(key) {

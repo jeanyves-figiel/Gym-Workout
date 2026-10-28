@@ -36,6 +36,20 @@ private let monday = PlanCalendar.date("2026-10-12", cal)!
         #expect(w.climbing == [5])
     }
 
+    @Test func awayDaysDropWeeklySportUnlessAddedForThatDay() {
+        // A holiday on a climbing day and a road bike day: no weekly sport there; a climb added for the day stays.
+        var p = Profile(goal: .climbing, sessionsPerWeek: 3, climbingDaysPerWeek: 2, climbingWeekdays: [2, 5])
+        p.sports = [SportPlan(sport: .roadBike, weekdays: [3])]
+        let away = [AwayPeriod(kind: .travel, start: "2026-10-13", end: "2026-10-16", note: "Holiday", setup: .bodyweight)]
+        #expect(p.sport(onWeekday: 2, key: "2026-10-13", away: away) == nil)
+        #expect(p.sport(onWeekday: 3, key: "2026-10-14", away: away) == nil)
+        #expect(p.sport(onWeekday: 2, key: "2026-10-20", away: away) == .climbing)
+        #expect(p.sportDays(on: monday, calendar: cal, away: away).isEmpty)
+        p.sportTrips = [SportTrip(sport: .climbing, start: "2026-10-16", end: "2026-10-16")]
+        #expect(p.sport(onWeekday: 5, key: "2026-10-16", away: away) == .climbing)
+        #expect(p.sportDays(on: monday, calendar: cal, away: away).map(\.weekday) == [5])
+    }
+
     @Test func planningSportAgainBringsTheDayBack() {
         // #815: a climbing day turned into a rest day, then a climbing day planned on it again.
         var p = Profile(goal: .climbing, sessionsPerWeek: 3, climbingDaysPerWeek: 2, climbingWeekdays: [2, 5])

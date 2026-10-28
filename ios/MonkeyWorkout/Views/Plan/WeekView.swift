@@ -193,7 +193,7 @@ struct WeekView: View {
         let next = model.nextSession?.weekday
         guard pickedDay == nil, !plan.sessions.contains(where: { $0.weekday == today }) || skippedOnly(plan, today) != nil,
               next.map({ $0 != today }) ?? (model.nextWeekSession() != nil) else { return false }
-        return model.profile?.sport(onWeekday: today, key: PlanCalendar.key(Date(), model.planCalendar)) != nil
+        return model.daySport(onWeekday: today, key: PlanCalendar.key(Date(), model.planCalendar)) != nil
     }
 
     /// Today's prep and Wall session bars (#670) only while the card shows today, not under another picked day.
@@ -1407,7 +1407,7 @@ private struct PastDayCard: View {
     /// 1 = Monday … 7 = Sunday.
     private var weekday: Int { ((day - 1) % 7 + 7) % 7 + 1 }
     private var climbing: Bool {
-        model.profile?.sport(onWeekday: weekday, key: PlanCalendar.key(date, model.planCalendar), date: date) == .climbing
+        model.daySport(onWeekday: weekday, key: PlanCalendar.key(date, model.planCalendar), date: date) == .climbing
     }
     /// 18:00 on this day: the default start of anything added here.
     private var evening: Date { model.planCalendar.date(bySettingHour: 18, minute: 0, second: 0, of: date) ?? date }
@@ -1844,7 +1844,7 @@ private struct RestDayCard: View {
     private var trip: SportTrip? { model.profile?.sportTrip(on: dayKey) }
 
     /// The day's sport (#658): a dated sport day or trip beats the weekly climbing day.
-    private var daySport: Sport? { model.profile?.sport(onWeekday: weekday, key: dayKey, date: date ?? Date()) }
+    private var daySport: Sport? { model.daySport(onWeekday: weekday, key: dayKey, date: date ?? Date()) }
     /// A later day (#343): a workout can be planned, a climb is only logged on or after its day.
     private var ahead: Bool { date != nil || weekday > model.todayWeekday }
     /// A day of a later week (#481): Add workout only plans this week, so it's left out.

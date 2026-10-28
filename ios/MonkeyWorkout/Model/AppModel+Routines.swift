@@ -66,7 +66,7 @@ extension AppModel {
     /// Today is one of the member's climbing days: daily hangs stay easy or wait for tomorrow. A day made a rest day
     /// or taken by a dated sport day (#671, #474) isn't (#818).
     var climbingToday: Bool {
-        profile?.sport(onWeekday: todayWeekday, key: PlanCalendar.key(Date(), planCalendar)) == .climbing
+        daySport(onWeekday: todayWeekday, key: PlanCalendar.key(Date(), planCalendar)) == .climbing
     }
 
     var isClimber: Bool { profile.map(Generator.isClimber) ?? false }

@@ -79,7 +79,7 @@ struct ClimbSection: View {
     /// Today's sport is climbing (#658): a dated snowboard day on a weekly climbing day shows its own prep instead.
     private var isClimbingDay: Bool {
         let today = WeekSchedule.fromCalendar(Calendar.current.component(.weekday, from: Date()))
-        return model.profile?.sport(onWeekday: today, key: PlanCalendar.key(Date(), model.planCalendar)) == .climbing
+        return model.daySport(onWeekday: today, key: PlanCalendar.key(Date(), model.planCalendar)) == .climbing
     }
 }
 

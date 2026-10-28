@@ -161,7 +161,7 @@ final class NotificationManager: NSObject {
             let req = UNNotificationRequest(identifier: r.id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false))
             try? await center.add(req)
         }
-        let nudges = await scheduleSportNudges(model.profile, today: today, now: now, calendar: cal)
+        let nudges = await scheduleSportNudges(model.profile, away: model.away, today: today, now: now, calendar: cal)
         pendingCount = reminders.count + nudges
         // A check-in already on screen for a session that is now done or moved is stale.
         let open = Set(reminders.map(\.id))
@@ -174,14 +174,14 @@ final class NotificationManager: NSObject {
     }
 
     /// Sport-day start nudge (#418, design C): 08:00 on planned sport days, mirrored to the Watch. Dives are left to dive apps.
-    private func scheduleSportNudges(_ profile: Profile?, today: Date, now: Date, calendar cal: Calendar) async -> Int {
+    private func scheduleSportNudges(_ profile: Profile?, away: [AwayPeriod], today: Date, now: Date, calendar cal: Calendar) async -> Int {
         guard let profile, prefs.sessionReminders else { return 0 }
         var count = 0
         for offset in 0..<8 {
             guard let day = cal.date(byAdding: .day, value: offset, to: today),
                   let fire = cal.date(bySettingHour: 8, minute: 0, second: 0, of: day), fire > now else { continue }
             let wd = WeekSchedule.fromCalendar(cal.component(.weekday, from: day))
-            guard let sport = profile.sportDays(on: day).first(where: { $0.weekday == wd && $0.sport != .scubaDiving })?.sport else { continue }
+            guard let sport = profile.sportDays(on: day, away: away).first(where: { $0.weekday == wd && $0.sport != .scubaDiving })?.sport else { continue }
             let content = UNMutableNotificationContent()
             content.title = "\(sport.label) today?"
             content.body = "Start it on your Apple Watch: route, speed and HR, with a battery saver mode."

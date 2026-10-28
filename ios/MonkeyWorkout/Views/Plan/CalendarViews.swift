@@ -266,7 +266,7 @@ struct WeekCalendarCard: View {
         let day = week.date(wd, cal).map { cal.component(.day, from: $0) } ?? 0
         let count = planned.filter { $0.weekday == wd }.count
         // Other sports' days (#416), in season on that date.
-        let sport = model.profile?.sportDays(on: week.date(wd, cal) ?? Date()).first { $0.weekday == wd }?.sport
+        let sport = model.sportDays(on: week.date(wd, cal) ?? Date()).first { $0.weekday == wd }?.sport
         // A dated sport day or trip (#474) shows in the sport's colours.
         let trip = week.trips[wd]
         let tag: String? = session.map { short($0.focus) + (count > 1 ? " +\(count - 1)" : "") } ?? (off ? "Off" : trip.map { $0.sport.short } ?? (climb ? "Climb" : sport?.short ?? (skipped ? "Skipped" : nil)))
@@ -461,7 +461,7 @@ struct DaySheet: View {
                             .padding(.horizontal, 14).padding(.vertical, 10)
                             .background(Capsule().fill(WorkoutEngine.Category.warmup.gradient))
                     }
-                    ForEach((model.profile?.sportDays(on: selection.week.date(wd, cal) ?? Date()) ?? []).filter { $0.weekday == wd && selection.week.trips[wd] == nil }, id: \.sport) { sd in
+                    ForEach(model.sportDays(on: selection.week.date(wd, cal) ?? Date()).filter { $0.weekday == wd && selection.week.trips[wd] == nil }, id: \.sport) { sd in
                         Label("\(sd.sport.label) day", systemImage: sd.sport.symbol)
                             .font(Theme.label(15)).foregroundStyle(.white)
                             .padding(.horizontal, 14).padding(.vertical, 10)
