@@ -111,6 +111,8 @@ struct WeekView: View {
         .toolbarTitleDisplayMode(.inlineLarge)
         .navigationDestination(for: String.self) { id in SessionView(sessionId: id) }
         .navigationDestination(for: ProgrammeRoute.self) { r in model.findProgramme(r.id).map { ProgrammeDetailView(programme: $0) } }
+        .navigationDestination(for: WallSessionRoute.self) { WallSessionPage(today: true, climbedToday: $0.climbedToday) }
+        .navigationDestination(for: SportPrepRoute.self) { SportPrepPage(sport: $0.sport) }
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $editing) {
             NavigationStack {
@@ -2042,21 +2044,15 @@ private struct SportDayHero: View {
                     }
                     button(past ? "Log \(sport.short.lowercased())" : "Log", symbol: "plus.circle.fill", primary: !(today && link.ready), action: onLog)
                     if today && hasPrep {
-                        NavigationLink {
-                            if sport == .climbing {
-                                WallSessionPage(today: true, climbedToday: false)
-                            } else {
-                                SportPrepPage(sport: sport)
-                            }
-                        } label: {
-                            // Climbing names its Wall session (#826): a plain "Prep" read as no Wall session at all.
-                            if sport == .climbing {
-                                label("Wall session", symbol: "hand.raised.fill", primary: false)
-                            } else {
-                                label("Prep", symbol: "flame.fill", primary: false)
-                            }
+                        // Climbing names its Wall session (#826): a plain "Prep" read as no Wall session at all.
+                        // Pushed by value (#828), like the sessions these pages open.
+                        if sport == .climbing {
+                            NavigationLink(value: WallSessionRoute()) { label("Wall session", symbol: "hand.raised.fill", primary: false) }
+                                .buttonStyle(.plain)
+                        } else {
+                            NavigationLink(value: SportPrepRoute(sport: sport)) { label("Prep", symbol: "flame.fill", primary: false) }
+                                .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
