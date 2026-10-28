@@ -2032,10 +2032,12 @@ private struct SportDayHero: View {
             if today || past {
                 HStack(spacing: 6) {
                     if canTrack {
-                        // Climbing tracks on the iPhone too (#829), with or without a Watch.
-                        button(sport == .climbing && ClimbLive.shared.running ? "Climbing live" : "Track live",
+                        // Climbing tracks on the iPhone too (#829), with or without a Watch. Its button is white only while
+                        // a session runs (#847): white read as still live after a discard.
+                        let live = sport == .climbing && ClimbLive.shared.running
+                        button(live ? "Climbing live" : "Track live",
                                symbol: link.ready ? "applewatch.radiowaves.left.and.right" : "dot.radiowaves.left.and.right",
-                               primary: true, action: onTrack)
+                               primary: sport != .climbing || live, action: onTrack)
                     }
                     button(past ? "Log \(sport.short.lowercased())" : "Log", symbol: "plus.circle.fill", primary: !canTrack, action: onLog)
                     if today && hasPrep {
