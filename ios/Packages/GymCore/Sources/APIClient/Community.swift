@@ -44,6 +44,8 @@ public struct CommunityProfile: Codable, Sendable, Equatable {
     /// Social handles (#745) and who sees them; nil from older servers.
     public var socials: SocialHandles?
     public var socialsVisibility: SocialsVisibility?
+    /// A new photo waits for moderation review (#871); the current one shows until then. Nil from older servers.
+    public var avatarInReview: Bool?
 
     public init(
         userId: String, nickname: String, bio: String? = nil, avatarUrl: String? = nil, defaultVisibility: CommunityVisibility = .onlyMe,
@@ -74,12 +76,15 @@ public struct PublicProfile: Codable, Sendable, Equatable {
     public var avatarUrl: String?
     /// Joined the community.
     public var member: Bool
+    /// A new photo waits for moderation review (#871); nil from older servers.
+    public var avatarInReview: Bool?
 
-    public init(nickname: String? = nil, bio: String? = nil, avatarUrl: String? = nil, member: Bool = false) {
+    public init(nickname: String? = nil, bio: String? = nil, avatarUrl: String? = nil, member: Bool = false, avatarInReview: Bool? = nil) {
         self.nickname = nickname
         self.bio = bio
         self.avatarUrl = avatarUrl
         self.member = member
+        self.avatarInReview = avatarInReview
     }
 
     public var isEmpty: Bool { (nickname ?? "").isEmpty && (bio ?? "").isEmpty && avatarUrl == nil }
@@ -206,6 +211,8 @@ public struct CommunityPost: Codable, Sendable, Equatable, Identifiable {
     public var payload: CommunityCard
     /// Hidden pending moderation review (only its author still sees it).
     public var hidden: Bool
+    /// Held by AI moderation until a moderator checks it (#871); told to its author only. Nil from older servers.
+    public var inReview: Bool?
     public var createdAt: Date
     public var reactions: [String: Int]
     public var myReactions: [String]
@@ -216,9 +223,10 @@ public struct CommunityPost: Codable, Sendable, Equatable, Identifiable {
 
     public init(
         id: String, author: CommunityAuthor, mine: Bool, kind: String, refId: String? = nil, visibility: CommunityVisibility,
-        caption: String? = nil, payload: CommunityCard, hidden: Bool = false, createdAt: Date,
+        caption: String? = nil, payload: CommunityCard, hidden: Bool = false, inReview: Bool? = nil, createdAt: Date,
         reactions: [String: Int] = [:], myReactions: [String] = []
     ) {
+        self.inReview = inReview
         self.id = id
         self.author = author
         self.mine = mine

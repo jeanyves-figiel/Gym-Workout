@@ -216,7 +216,9 @@ struct PostCard: View {
             if let c = post.caption {
                 Text(c).font(post.tipTopic == nil ? .subheadline.weight(.medium) : .system(size: 17, weight: .bold, design: .rounded))
             }
-            if post.hidden {
+            if post.inReview == true {
+                Text("Only you see it until a moderator checks it.").font(.caption.bold())
+            } else if post.hidden {
                 Label("Hidden from members while reports are reviewed", systemImage: "eye.slash.fill").font(.caption.bold())
             }
             HStack(spacing: 6) {
@@ -230,7 +232,8 @@ struct PostCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(post.gradient))
-        .opacity(post.hidden ? 0.6 : 1)
+        .overlay(alignment: .topTrailing) { if post.inReview == true { InReviewPill().padding(12) } }
+        .opacity(post.hidden && post.inReview != true ? 0.6 : 1)
         // The whole card opens the post (#779); its avatar, cheers, action and menu keep their own taps.
         .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .onTapGesture { opened = true }
@@ -532,6 +535,31 @@ struct PronounsChip: View {
                 .background(Capsule().fill(Theme.lime))
                 .foregroundStyle(Theme.ink)
                 .accessibilityLabel("Pronouns \(pronouns)")
+        }
+    }
+}
+
+/// Amber tag on the member's own post, plan, workout or photo that AI moderation holds for review (#871, design A).
+struct InReviewPill: View {
+    var compact = false
+
+    var body: some View {
+        Label(compact ? "" : "IN REVIEW", systemImage: "hourglass")
+            .labelStyle(InReviewLabelStyle(compact: compact))
+            .font(Theme.label(compact ? 9 : 10)).tracking(0.5)
+            .foregroundStyle(Color(red: 0.16, green: 0.09, blue: 0))
+            .padding(.horizontal, compact ? 4 : 7).padding(.vertical, compact ? 2 : 4)
+            .background(RoundedRectangle(cornerRadius: compact ? 6 : 8, style: .continuous).fill(Color(red: 1, green: 0.69, blue: 0.13)))
+            .accessibilityLabel("In review: only you see it until a moderator checks it")
+    }
+}
+
+private struct InReviewLabelStyle: LabelStyle {
+    let compact: Bool
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 3) {
+            configuration.icon
+            if !compact { configuration.title }
         }
     }
 }
