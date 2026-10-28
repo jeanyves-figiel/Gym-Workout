@@ -77,7 +77,9 @@ import Testing
         let quarter = lo
         let down = Array(stride(from: 0.0, through: 1, by: 0.05)), halfUp = Array(stride(from: 1.0, through: quarter, by: -0.04))
         let hold = Array(repeating: quarter, count: 12), up = Array(stride(from: 1.0, through: 0, by: -0.05))
-        for p in down + halfUp + hold + down + up + Array(repeating: 0.0, count: 8) {
+        // Rep 2 starts from where rep 1 stopped, never back at the start.
+        let downAgain = Array(stride(from: quarter, through: 1, by: 0.05))
+        for p in down + halfUp + hold + downAgain + up + Array(repeating: 0.0, count: 8) {
             a.add(FormDemo.pose(m, progress: p), at: t)
             t += 0.1
         }
