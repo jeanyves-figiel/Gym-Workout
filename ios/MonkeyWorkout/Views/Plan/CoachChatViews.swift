@@ -24,6 +24,8 @@ struct CoachChatMessage: Identifiable, Equatable {
     var exercises: [Exercise] = []
     /// The machine photo the member sent (#856), shown in their bubble; never sent again.
     var photo: UIImage?
+    /// History question (#868 C): the answer card with its mini chart.
+    var history: HistoryAnswer?
 }
 
 /// Today's conversation, kept while the app runs; a new day starts a fresh chat.
@@ -296,6 +298,7 @@ struct CoachChatView: View {
                 if !m.text.isEmpty { coachBubble(m.text) }
                 if !m.exercises.isEmpty, freestyle != nil { exerciseCards(m.exercises) }
                 if let a = m.action { actionButton(a) }
+                if let h = m.history { HistoryAnswerCard(answer: h) { opening = .exercise($0) }.padding(.leading, 42) }
                 if let w = m.workout { workoutCard(w, message: m) }
             }
         }
@@ -622,7 +625,23 @@ struct CoachChatView: View {
             if let e = focusExercise { formFilming = e } else { formPicking = true }
             return
         }
-        guard !t.isEmpty, canTalk else { return }
+        guard !t.isEmpty, !sending else { return }
+        // About the logged workouts (#868 C): answered on the iPhone with a chart card, free, even when chat is off.
+        if photo == nil, HistoryAsk.answer(t, records: model.state.history) != nil {
+            store.messages.append(CoachChatMessage(role: .member, text: t))
+            draft = ""
+            sending = true
+            self.spoken = spoken
+            let records = model.state.history
+            Task {
+                defer { sending = false }
+                guard let r = await HistoryAskService.ask(t, records: records) else { return }
+                store.messages.append(CoachChatMessage(role: .coach, text: r.text, onDevice: true, seconds: r.seconds, history: r.answer))
+                speak(r.text)
+            }
+            return
+        }
+        guard canTalk else { return }
         store.messages.append(CoachChatMessage(role: .member, text: t, photo: photo))
         draft = ""
         sending = true
