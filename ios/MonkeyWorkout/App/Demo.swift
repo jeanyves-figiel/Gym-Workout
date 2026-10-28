@@ -392,7 +392,8 @@ enum Demo {
     static func climbs() -> [ClimbLog] {
         let day: Double = 86_400
         return [
-            ClimbLog(kind: .boulder, start: Date().addingTimeInterval(-day - 3_600 * 3), minutes: 105, effort: 8, topGrade: "6C+"),
+            ClimbLog(kind: .boulder, start: Date().addingTimeInterval(-day - 3_600 * 3), minutes: 105, effort: 8, topGrade: "6C+",
+                     place: SessionPlace.map(name: "Minimum Bouldering", address: "Zürich", latitude: 47.3916, longitude: 8.5112)),
             ClimbLog(kind: .lead, start: Date().addingTimeInterval(-6 * day), minutes: 120, effort: 6, topGrade: "6b"),
         ]
     }
@@ -401,7 +402,8 @@ enum Demo {
     static func sportLogs() -> [SportLog] {
         let day: Double = 86_400
         return [
-            SportLog(sport: .snowboard, start: Date().addingTimeInterval(-2 * day - 3_600 * 5), minutes: 240, effort: 7, distanceKm: 38),
+            SportLog(sport: .snowboard, start: Date().addingTimeInterval(-2 * day - 3_600 * 5), minutes: 240, effort: 7, distanceKm: 38,
+                     place: SessionPlace.map(name: "Laax", address: "Graubünden", latitude: 46.8393, longitude: 9.2599)),
             SportLog(sport: .hyrox, start: Date().addingTimeInterval(-8 * day), minutes: 84, effort: 9),
             SportLog(sport: .run, start: Date().addingTimeInterval(-4 * day), minutes: 42, effort: 5, distanceKm: 8.2),
             SportLog(sport: .snowboard, start: Date().addingTimeInterval(-16 * day), minutes: 300, effort: 6, distanceKm: 45),

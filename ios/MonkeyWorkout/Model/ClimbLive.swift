@@ -16,6 +16,8 @@ struct ClimbLiveSession: Codable, Equatable, Sendable {
     var updatedAt = Date()
     /// The Watch records it (heart rate, the Health workout).
     var watch = false
+    /// Gym or crag (#832): the last climbing place to start with.
+    var place: SessionPlace?
 
     var tally: ClimbTally { ClimbTally(attempts, scale: scale) }
     func minutes(_ now: Date = Date()) -> Int { max(1, Int(now.timeIntervalSince(start) / 60)) }
@@ -40,10 +42,10 @@ final class ClimbLive {
     }
 
     /// Starts a session, or keeps the one running. `watch`: also tracked on a paired Watch.
-    func start(watch: Bool) {
+    func start(watch: Bool, place: SessionPlace?) {
         guard session == nil else { return }
         let scale = UserDefaults.standard.string(forKey: Self.scaleKey).flatMap(ClimbScale.init(rawValue:)) ?? .font
-        session = ClimbLiveSession(scale: scale, grade: scale.start, watch: watch)
+        session = ClimbLiveSession(scale: scale, grade: scale.start, watch: watch, place: place)
         save(send: false)
         if watch { WatchSync.shared.startClimb() }
     }
@@ -77,6 +79,12 @@ final class ClimbLive {
         save()
     }
 
+    func setPlace(_ place: SessionPlace?) {
+        guard session != nil else { return }
+        session?.place = place
+        save(send: false)
+    }
+
     func setKind(_ kind: ClimbKind) {
         guard session?.kind != kind else { return }
         session?.kind = kind
@@ -100,7 +108,7 @@ final class ClimbLive {
         let minutes = s.minutes(end)
         let log = ClimbLog(id: s.id, kind: s.kind, start: s.start, minutes: minutes,
                            effort: ClimbTally.effort(attempts: t.attempts, minutes: minutes), topGrade: t.top,
-                           attempts: s.attempts.isEmpty ? nil : s.attempts, scale: s.scale)
+                           attempts: s.attempts.isEmpty ? nil : s.attempts, scale: s.scale, place: s.place)
         model.saveClimb(log)
         let weight = model.body.weightKg ?? health.snapshot.weightKg
         Task {

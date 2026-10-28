@@ -41,13 +41,15 @@ struct ClimbLiveView: View {
                 CloseToolbarItem { dismiss() }
             }
         }
-        .onAppear { live.start(watch: link.ready) }
+        .onAppear { live.start(watch: link.ready, place: model.lastPlace(for: .climbing)) }
     }
 
     private func content(_ s: ClimbLiveSession) -> some View {
         let t = s.tally
         return VStack(alignment: .leading, spacing: 14) {
             header(s)
+            // Where (#832): the last climbing place, tap another or + to search.
+            PlaceChips(place: Binding(get: { live.session?.place }, set: { live.setPlace($0) }), sport: .climbing)
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("\(t.tops)").font(Theme.display(54)).monospacedDigit()
                 VStack(alignment: .leading, spacing: 0) {

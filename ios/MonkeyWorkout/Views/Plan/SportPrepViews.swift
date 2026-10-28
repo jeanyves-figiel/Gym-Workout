@@ -10,7 +10,7 @@ struct SportPrepBar: View {
 
     /// Today's sport (#658), dated days first; climbing has its Wall session instead.
     private var todaySport: Sport? {
-        guard let sport = model.profile?.sport(onWeekday: model.todayWeekday, key: PlanCalendar.key(Date(), model.planCalendar)),
+        guard let sport = model.daySport(onWeekday: model.todayWeekday, key: PlanCalendar.key(Date(), model.planCalendar)),
               SportPrep.family(sport) != nil else { return nil }
         return sport
     }

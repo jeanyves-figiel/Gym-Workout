@@ -39,6 +39,8 @@ struct ClimbLog: Codable, Identifiable, Equatable, Sendable {
     /// Each go of a session tracked live (#829) and the grade scale they use; nil when logged after.
     var attempts: [ClimbAttempt]?
     var scale: ClimbScale?
+    /// Gym or crag (#832).
+    var place: SessionPlace?
     /// Server version this copy was pulled or saved as (`ServerVersioned`); nil until the server has it.
     var updatedAt: String?
 
@@ -69,6 +71,8 @@ struct ClimbEntry: Identifiable, Equatable, Codable, Sendable {
     var local = false
     /// Extra line, e.g. "12 sends · 3 flashes" from MonkeyGrade.
     var detail: String?
+    /// Where, when logged here (#832).
+    var place: SessionPlace?
 
     var minutes: Int { max(0, Int(end.timeIntervalSince(start) / 60)) }
 
@@ -88,6 +92,7 @@ struct ClimbEntry: Identifiable, Equatable, Codable, Sendable {
                   kind: log.kind, effort: log.effort, topGrade: log.topGrade, local: true)
         // Tracked live (#829): "6 sends · 2 flashes · 3 falls".
         if let a = log.attempts { detail = ClimbTally(a, scale: log.scale ?? .font).summary }
+        place = log.place
     }
 
     /// Hard on fingers and pulling: logged effort ≥ 8, or ≥ 2 h when the effort is unknown.

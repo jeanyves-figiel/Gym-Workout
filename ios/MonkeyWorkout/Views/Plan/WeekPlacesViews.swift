@@ -101,7 +101,7 @@ struct DayComboRow: View {
     /// The day's sport (#758): a dated sport day or trip, else the weekly climbing or sport day.
     private var sport: Sport? {
         let date = dayKey.flatMap { PlanCalendar.date($0, model.planCalendar) } ?? Date()
-        return model.profile?.sport(onWeekday: day, key: dayKey, date: date)
+        return model.daySport(onWeekday: day, key: dayKey, date: date)
     }
     private var sessions: [Session] { daySessions.isEmpty ? [session] : daySessions }
 
