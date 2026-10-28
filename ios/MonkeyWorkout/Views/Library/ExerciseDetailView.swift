@@ -166,6 +166,8 @@ struct ExerciseDetailView: View {
                 if plannedUid != nil && e.category == .strength && !e.equipment.isEmpty && e.unit != .sec {
                     weightLog
                 }
+                // Plateau explainer (#875 A): why the lift is stuck and one fix.
+                PlateauCard(exercise: e)
                 ExerciseProgressCard(exerciseId: e.id, plannedUid: plannedUid)
                 PRCard(exerciseId: e.id)
                 FormHistoryCard(exerciseId: e.id)
