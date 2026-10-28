@@ -196,9 +196,15 @@ final class WatchStore: NSObject {
         save()
         // Power zones (#623): the phone's FTP, set by hand or from a test.
         if let ftp = s.bikeFTP { BikeSensors.shared.setFTP(ftp) }
+        // Climbing live (#829): goes tapped on the iPhone while this Watch was out of reach.
+        if let c = s.climbLive { SportTracker.shared.climbFromPhone(c) }
     }
 
     fileprivate func receive(message: [String: Any]) {
+        if let data = message[WatchKeys.climbLive] as? Data, let c = try? JSONDecoder.watch.decode(WClimbLive.self, from: data) {
+            SportTracker.shared.climbFromPhone(c)
+            return
+        }
         if let data = message[WatchKeys.buddy] as? Data, let p = try? JSONDecoder.watch.decode(WBuddyPing.self, from: data) {
             buddyPing = p
             WKInterfaceDevice.current().play(p.cheer == nil ? .click : .success)
@@ -325,6 +331,14 @@ final class WatchStore: NSObject {
                 if pausedAt == at, workout.phoneSessionId == id { stopTracking() }
             }
         }
+    }
+
+    /// Climbing live (#829 A): the session after a go here, at once when the phone is reachable.
+    func sendClimb(_ live: WClimbLive) {
+        #if DEBUG
+        if Demo.on { return }
+        #endif
+        sendNow(.climbLive(live))
     }
 
     /// Sent at once when the phone is reachable (it decides who saves the Health workout), queued otherwise.

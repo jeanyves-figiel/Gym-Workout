@@ -36,6 +36,9 @@ struct ClimbLog: Codable, Identifiable, Equatable, Sendable {
     /// Free text, any scale (6B+, V5, 7a).
     var topGrade: String?
     var notes: String?
+    /// Each go of a session tracked live (#829) and the grade scale they use; nil when logged after.
+    var attempts: [ClimbAttempt]?
+    var scale: ClimbScale?
     /// Server version this copy was pulled or saved as (`ServerVersioned`); nil until the server has it.
     var updatedAt: String?
 
@@ -83,6 +86,8 @@ struct ClimbEntry: Identifiable, Equatable, Codable, Sendable {
     init(_ log: ClimbLog) {
         self.init(id: log.id, start: log.start, end: log.end, source: "MonkeyWorkout",
                   kind: log.kind, effort: log.effort, topGrade: log.topGrade, local: true)
+        // Tracked live (#829): "6 sends · 2 flashes · 3 falls".
+        if let a = log.attempts { detail = ClimbTally(a, scale: log.scale ?? .font).summary }
     }
 
     /// Hard on fingers and pulling: logged effort ≥ 8, or ≥ 2 h when the effort is unknown.

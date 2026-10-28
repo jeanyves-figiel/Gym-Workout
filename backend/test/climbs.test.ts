@@ -270,6 +270,18 @@ describe('climbs sync (#312)', () => {
     expect((await post('/v1/me/climbs', { climbs: [{ ...a, topGrade: null }] }, t)).json().saved).toBe(1);
   });
 
+  it('keeps a live session with 300 goes, refuses one far bigger (#829)', async () => {
+    const t = await signUp('climber@example.com');
+    const go = (i: number) => ({ id: randomUUID(), grade: '6A+', result: i % 3 ? 'send' : 'fall', at: 1_800_000_000 + i * 60 });
+    const live = { ...sample(), scale: 'font', attempts: Array.from({ length: 300 }, (_, i) => go(i)) };
+    expect((await post('/v1/me/climbs', { climbs: [live] }, t)).json().saved).toBe(1);
+    const back = (await get('/v1/me/climbs', t)).json().climbs[0];
+    expect(back.attempts).toHaveLength(300);
+    expect(back.attempts[1]).toMatchObject({ grade: '6A+', result: 'send' });
+    const huge = { ...sample(), attempts: Array.from({ length: 600 }, (_, i) => go(i)) };
+    expect((await post('/v1/me/climbs', { climbs: [huge] }, t)).statusCode).toBe(413);
+  });
+
   it('exports climbs in time order whatever the offset of start (#714)', async () => {
     const t = await signUp('climber@example.com');
     const late = { ...sample(), start: '2026-10-07T11:00:00Z' };

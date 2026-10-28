@@ -56,6 +56,8 @@ struct WatchSnapshot: Codable, Equatable {
     var wods: [WodTimer]?
     /// Swimming (#624): pool length, plan, today's and the next swim; nil when the member never set it up.
     var swim: WSwim?
+    /// Climbing session running on the iPhone (#829), picked up by the Watch it wakes; nil when none.
+    var climbLive: WClimbLive?
 
     func session(_ id: String) -> WSession? { (sessions + extras).first { $0.id == id } }
 }
@@ -256,6 +258,8 @@ enum WatchEvent: Codable, Equatable {
     case bikeFTP(watts: Int, date: Date)
     /// Cheer for a gym buddy from the Watch (#626 B): `fire`, `banana` or `beast`.
     case buddyCheer(userId: String, kind: String)
+    /// Climbing live (#829): the session after a go tapped on the Watch, or ended there (`ended` set).
+    case climbLive(WClimbLive)
 }
 
 /// Reps and bar speed the Watch measured for one set (#383). Speeds in m/s, ranges in m, times in s.
@@ -615,6 +619,8 @@ enum WatchKeys {
     static let swimBuddy = "swimBuddy"
     /// Gym buddy (#626 B): `WBuddyPing` phone → Watch, a buddy's set or a cheer for you.
     static let buddy = "buddy"
+    /// Climbing live (#829): `WClimbLive` phone → Watch after each change on the iPhone (Watch → phone is a `WatchEvent`).
+    static let climbLive = "climbLive"
 }
 
 extension JSONEncoder {
@@ -631,6 +637,27 @@ extension JSONDecoder {
         d.dateDecodingStrategy = .secondsSince1970
         return d
     }()
+}
+
+/// One go on a problem (#829): `result` is `flash`, `send` or `fall` (the iPhone's `ClimbResult`).
+struct WClimbAttempt: Codable, Equatable, Identifiable {
+    var id: UUID
+    var grade: String
+    var result: String
+    var at: Date
+}
+
+/// A climbing session tracked live (#829), the same on both sides. The newer `updatedAt` wins; `grades` is the scale's
+/// list, easiest first, for the Crown. `ended`: finished on the side that sent it; `discarded`: thrown away, nothing logged.
+struct WClimbLive: Codable, Equatable {
+    var id: UUID
+    var start: Date
+    var grades: [String]
+    var grade: String
+    var attempts: [WClimbAttempt]
+    var updatedAt: Date
+    var ended: Date? = nil
+    var discarded: Bool? = nil
 }
 
 /// Hyrox settings for the Watch (#426), from the iPhone's Hyrox hub.

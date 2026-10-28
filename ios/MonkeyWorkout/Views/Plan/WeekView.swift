@@ -1824,6 +1824,8 @@ private struct RestDayCard: View {
     @State private var around: Sport?
     /// Log or Track live from the sport hero (#658): the day's sport already picked.
     @State private var heroSport: HeroLog?
+    /// Climbing live (#829): Track live on a climbing day opens the session screen instead of the log.
+    @State private var climbingLive = false
     /// Workout on a later week's day (#671): one of that week's workouts moved here.
     @State private var movingHere = false
     /// Rest day on a sport day (#671): just this day, every week or the whole trip.
@@ -1888,7 +1890,9 @@ private struct RestDayCard: View {
                              onAround: { around = sport },
                              onRest: askRestDay,
                              onLog: { log(sport) },
-                             onTrack: { heroSport = HeroLog(log: SportLog(sport: sport, start: Date()), live: true) })
+                             onTrack: {
+                                 if sport == .climbing { climbingLive = true } else { heroSport = HeroLog(log: SportLog(sport: sport, start: Date()), live: true) }
+                             })
             }
             if !laterWeek && weekday < model.todayWeekday {
                 // An earlier day is logged, never planned (#537): a workout added there could only be logged.
@@ -1936,6 +1940,7 @@ private struct RestDayCard: View {
         .sheet(item: $loggingSport) { LogSportView(initial: $0) }
         .sheet(item: $trackingSport) { LogSportView(initial: $0, live: true) }
         .sheet(item: $heroSport) { LogSportView(initial: $0.log, picked: true, live: $0.live) }
+        .sheet(isPresented: $climbingLive) { ClimbLiveView() }
         .fullScreenCover(item: $freestyle) { WorkoutPlayerView(sessionId: $0.id) }
         .sheet(isPresented: $planningSport) { PlanSportSheet(day: dayKey, sport: model.profile?.otherSports.first?.sport) }
         .sheet(item: $editingTrip) { PlanSportSheet(day: $0.start, editing: $0) }
@@ -2005,6 +2010,9 @@ private struct SportDayHero: View {
     @Environment(AppModel.self) private var model
     @State private var link = WatchLink.shared
 
+    /// Track live today: a paired Watch, or climbing, which also tracks on the iPhone (#829).
+    private var canTrack: Bool { today && (link.ready || sport == .climbing) }
+
     /// Climbing's Wall session (unless turned off), else the sport's prep (#523).
     private var hasPrep: Bool {
         sport == .climbing ? model.profile?.climbDayAddon != false : SportPrep.before(sport) != nil
@@ -2039,10 +2047,13 @@ private struct SportDayHero: View {
             Text(detail).font(Theme.label(12)).opacity(0.9).lineLimit(1).minimumScaleFactor(0.8)
             if today || past {
                 HStack(spacing: 6) {
-                    if today && link.ready {
-                        button("Track live", symbol: "applewatch.radiowaves.left.and.right", primary: true, action: onTrack)
+                    if canTrack {
+                        // Climbing tracks on the iPhone too (#829), with or without a Watch.
+                        button(sport == .climbing && ClimbLive.shared.running ? "Climbing live" : "Track live",
+                               symbol: link.ready ? "applewatch.radiowaves.left.and.right" : "dot.radiowaves.left.and.right",
+                               primary: true, action: onTrack)
                     }
-                    button(past ? "Log \(sport.short.lowercased())" : "Log", symbol: "plus.circle.fill", primary: !(today && link.ready), action: onLog)
+                    button(past ? "Log \(sport.short.lowercased())" : "Log", symbol: "plus.circle.fill", primary: !canTrack, action: onLog)
                     if today && hasPrep {
                         // Climbing names its Wall session (#826): a plain "Prep" read as no Wall session at all.
                         // Pushed by value (#828), like the sessions these pages open.

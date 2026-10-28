@@ -35,7 +35,8 @@ export const climbRoutes = (r: FastifyInstance, db: DB, now: () => Date) => {
       const { fresh, conflicts } = takeConflicts(db, 'climbs', req.userId!, b.climbs, opaqueCopy);
       const climbs = reviveUploaded(db, req.userId!, 'climbs', fresh);
       const jsons = climbs.map((c) => JSON.stringify(c));
-      for (const j of jsons) assertItemSize(j, 10_000, 'Climb');
+      // Room for a live session's goes (#829): ~110 bytes each, the app keeps at most 300.
+      for (const j of jsons) assertItemSize(j, 40_000, 'Climb');
       assertRowQuota(db, 'climbs', req.userId!, climbs.map((c) => c.id));
       assertByteQuota(db, 'climbs', req.userId!, climbs.map((c, i) => ({ id: c.id, bytes: Buffer.byteLength(jsons[i]!) })));
       let count = 0;

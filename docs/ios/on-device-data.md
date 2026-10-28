@@ -39,7 +39,7 @@ Access and refresh tokens, the Watch upload key and the MonkeyGrade link sign-in
 
 ## Settings and preferences
 
-Small UI preferences (style, toggles) live in `UserDefaults` / `@AppStorage`; nothing sensitive. Ring through Silent (`timerAlarms.enabled`, off by default) and whether it was asked (`timerAlarms.asked`).
+Small UI preferences (style, toggles) live in `UserDefaults` / `@AppStorage`; nothing sensitive. A climbing session tracked live (`climbLive`, #829) stays there until finished, with the last grade scale (`climbLiveScale`). Ring through Silent (`timerAlarms.enabled`, off by default) and whether it was asked (`timerAlarms.asked`).
 
 ## Sign-out and deletion
 
