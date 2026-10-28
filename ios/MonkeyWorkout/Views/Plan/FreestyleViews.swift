@@ -22,12 +22,16 @@ struct FreestyleStartView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
+                // Same ✕ as the player (#857, design A from `freestyle-pause-empty/proposals.png`): nothing added yet,
+                // so it leaves at once and the Undo bar brings the workout back.
                 Button(action: onClose) {
-                    Image(systemName: "pause.fill").font(.system(size: 16, weight: .heavy))
+                    Image(systemName: "xmark").font(.system(size: 16, weight: .heavy))
                         .frame(width: 40, height: 40)
                         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.cardStrong))
                 }
-                .accessibilityLabel("Pause or leave workout")
+                .accessibilityLabel("Close workout")
+                .accessibilityHint("Nothing added yet, so it is not saved. Undo for a few seconds.")
+                .accessibilityIdentifier("freestyle.close")
                 Spacer()
                 TimelineView(.periodic(from: started, by: 1)) { ctx in
                     Text(Format.elapsed(ctx.date.timeIntervalSince(started))).font(Theme.label(14)).monospacedDigit()

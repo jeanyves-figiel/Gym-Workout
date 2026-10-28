@@ -119,7 +119,7 @@ struct WorkoutPlayerView: View {
         var effort: Effort?
     }
 
-    enum MapAction { case finish, finishEarly, discard, close }
+    enum MapAction { case finish, finishEarly, discard }
 
     struct SplitUndo: Equatable {
         var text: String
@@ -212,8 +212,8 @@ struct WorkoutPlayerView: View {
                         onPick: { e in addFree([e] + freeLined.filter { $0.id != e.id }, jump: true) },
                         onStartLined: { addFree(freeLined, jump: true) },
                         onBrowse: { freeBrowse = FreeBrowse(group: $0, jump: true) },
-                        // Pause: keep for later or discard (#538), with nothing added yet.
-                        onClose: { mapOpen = true })
+                        // ✕ with nothing added (#857 A): discarded at once, Undo brings it back.
+                        onClose: closeWorkout)
                 }
             }
         }
@@ -277,20 +277,6 @@ struct WorkoutPlayerView: View {
                 // Finish, Finish early and Discard live here (#538), not in a dialog behind the pause button.
                 WorkoutMapSheet(blocks: session.blocks, setsDone: setsDone, current: steps[index].item.uid)
                     .safeAreaInset(edge: .bottom) { mapActions }
-            } else if isFree, steps.isEmpty {
-                // Build as I go before the first exercise (#490): nothing to map, but it can be kept or discarded.
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Workout map").eyebrow()
-                    Text("Nothing added yet").font(Theme.display(26))
-                    Text("Keep it for later, or discard it.").font(.subheadline).foregroundStyle(Theme.muted)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(20)
-                .glassSheetBackground()
-                .foregroundStyle(.white)
-                .preferredColorScheme(.dark)
-                .safeAreaInset(edge: .bottom) { mapActions }
-                .presentationDetents([.medium])
             }
         }
         .animation(.spring(duration: 0.4), value: index)
@@ -547,28 +533,17 @@ struct WorkoutPlayerView: View {
     }
 
     /// Workout map footer (#538): Finish and Discard side by side, Finish early under them. Each runs once the map closed.
-    /// An empty Build as I go workout gets Keep for later in Finish's place.
     private var mapActions: some View {
         VStack(spacing: 6) {
             HStack(spacing: 10) {
-                if steps.isEmpty {
-                    Button {
-                        mapAction = .close
-                        mapOpen = false
-                    } label: {
-                        Label("Keep for later", systemImage: "pause.fill").lineLimit(1).minimumScaleFactor(0.9)
-                    }
-                    .buttonStyle(LimeButtonStyle())
-                } else {
-                    Button {
-                        mapAction = .finish
-                        mapOpen = false
-                    } label: {
-                        Label("Finish", systemImage: "flag.checkered").lineLimit(1).minimumScaleFactor(0.9)
-                    }
-                    .buttonStyle(LimeButtonStyle())
-                    .accessibilityHint("Saves the workout as it is now")
+                Button {
+                    mapAction = .finish
+                    mapOpen = false
+                } label: {
+                    Label("Finish", systemImage: "flag.checkered").lineLimit(1).minimumScaleFactor(0.9)
                 }
+                .buttonStyle(LimeButtonStyle())
+                .accessibilityHint("Saves the workout as it is now")
                 Button {
                     mapAction = .discard
                     mapOpen = false
@@ -582,23 +557,20 @@ struct WorkoutPlayerView: View {
                 .buttonStyle(.plain)
                 .accessibilityHint("Closes without saving. Undo for a few seconds.")
             }
-            if !steps.isEmpty {
-                Button {
-                    mapAction = .finishEarly
-                    mapOpen = false
-                } label: {
-                    Label("Short on time? Finish early", systemImage: "timer")
-                        .font(Theme.label(14)).foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+            Button {
+                mapAction = .finishEarly
+                mapOpen = false
+            } label: {
+                Label("Short on time? Finish early", systemImage: "timer")
+                    .font(Theme.label(14)).foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             moveToWatch
         }
         .padding(.horizontal, 20)
         .padding(.top, 10)
-        .padding(.bottom, steps.isEmpty ? 8 : 0)
         .background(Theme.bg.ignoresSafeArea())
     }
 
@@ -628,7 +600,6 @@ struct WorkoutPlayerView: View {
         mapAction = nil
         switch a {
         case .finish: finish()
-        case .close: closeWorkout()
         case .finishEarly: finishingEarly = true
         case .discard: discardWithUndo()
         }
