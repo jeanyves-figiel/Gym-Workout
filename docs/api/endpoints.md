@@ -110,10 +110,10 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | GET | `/v1/me/body-measurements` | Bearer | → `{measurements, deleted?, serverTime}` (`date`, `girthsCm`, `weightKg`, `bodyFatPct`) | |
 | POST | `/v1/me/body-measurements` | Bearer | `{measurements[≤200]}` → `{saved, serverTime, conflicts?}` | 409 `quota_exceeded`; 413 `too_large` |
 | DELETE | `/v1/me/body-measurements/:id` | Bearer | → 204 | |
-| GET | `/v1/me/climbs` | Bearer | → `{climbs, deleted?, serverTime}` climbing sessions | |
+| GET | `/v1/me/climbs` | Bearer | → `{climbs, deleted?, serverTime}` climbing sessions (optional `place` `{id, name, address?, latitude?, longitude?, gymId?}`, #832) | |
 | POST | `/v1/me/climbs` | Bearer | `{climbs[≤200]}` → `{saved, serverTime, conflicts?}` | 409 `quota_exceeded`; 413 `too_large` |
 | DELETE | `/v1/me/climbs/:id` | Bearer | → 204 | |
-| GET | `/v1/me/sports` | Bearer | → `{sports, deleted?, serverTime}` other sport sessions (snowboard, MTB, Hyrox…) | |
+| GET | `/v1/me/sports` | Bearer | → `{sports, deleted?, serverTime}` other sport sessions (snowboard, MTB, Hyrox…; optional `place` as climbs, #832) | |
 | POST | `/v1/me/sports` | Bearer | `{sports[≤200]}` → `{saved, serverTime, conflicts?}` | 409 `quota_exceeded`; 413 `too_large` |
 | DELETE | `/v1/me/sports/:id` | Bearer | → 204 | |
 | POST | `/v1/me/watch-key` | Bearer | → `{key}`: upload key for the Apple Watch's direct sport upload (replaces the previous one) | |

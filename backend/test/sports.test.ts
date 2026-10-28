@@ -88,6 +88,16 @@ describe('sport sessions sync (#416)', () => {
       expect((await post('/v1/me/sports', { sports: [c] }, t)).statusCode).toBe(400);
   });
 
+  it('keeps where the session happened (#832)', async () => {
+    const t = await signUp('place@example.com');
+    const place = { id: 'map:laax', name: 'Laax', address: 'Graubünden', latitude: 46.8, longitude: 9.26 };
+    const a = { ...sample(), place };
+    expect((await post('/v1/me/sports', { sports: [a] }, t)).json().saved).toBe(1);
+    expect((await get('/v1/me/sports', t)).json().sports[0].place).toEqual(place);
+    for (const bad of [{ ...place, name: '' }, { ...place, latitude: 120 }, { name: 'No id' }])
+      expect((await post('/v1/me/sports', { sports: [{ ...sample(), place: bad }] }, t)).statusCode).toBe(400);
+  });
+
   it('takes a Hyrox race straight from the Watch with its upload key (#426)', async () => {
     const t = await signUp('racer@example.com');
     const key1 = (await post('/v1/me/watch-key', {}, t)).json().key as string;
