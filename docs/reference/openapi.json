@@ -4164,6 +4164,32 @@
         }
       }
     },
+    "/v1/me/coach-set": {
+      "post": {
+        "tags": [
+          "Coach (AI and voices)"
+        ],
+        "summary": "Talk to Coach mid-set (#874): {question 1–300, context{exercise, set, sets, kg?, reps?, step 0.25–20 (2.5), done[]{kg, reps, rir?}, lastTime?, restSec?, swaps[≤4]{id, name}}} → {answer ≤240, actions[≤2]{kind weight|swap|rest, kg? | exerciseId? | sec?}}; weight 60–130 % of kg on the step grid, swap only from swaps, rest 30–600 s, one per kind; 30/day per member. The app tries its own rules and the on-device model first",
+        "description": "Errors / limits: 400; 402 pro_required; 429 daily_limit, busy; 502 coach_failed; 503 coach_unavailable",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/me/gym-scan": {
       "post": {
         "tags": [

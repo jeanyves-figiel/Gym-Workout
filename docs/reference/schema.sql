@@ -104,6 +104,13 @@ CREATE TABLE coach_review_usage (
       PRIMARY KEY (user_id, day)
     );
 
+CREATE TABLE coach_set_usage (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      count INTEGER NOT NULL,
+      PRIMARY KEY (user_id, day)
+    );
+
 CREATE TABLE codes (
      id TEXT PRIMARY KEY,
      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

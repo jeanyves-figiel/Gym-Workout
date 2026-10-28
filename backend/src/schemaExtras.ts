@@ -107,6 +107,13 @@ export const ensureSchemaExtras = (db: DB): void => {
       count INTEGER NOT NULL,
       PRIMARY KEY (user_id, day)
     );
+    -- Talk to Coach mid-set (#874): questions per member per UTC day, for the daily cap (routes/coachSet.ts).
+    CREATE TABLE IF NOT EXISTS coach_set_usage (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      count INTEGER NOT NULL,
+      PRIMARY KEY (user_id, day)
+    );
     -- AI usage (#877): paid model calls per UTC day, feature and model, no member ids (aiUsage.ts, admin ai-usage).
     CREATE TABLE IF NOT EXISTS ai_call_log (
       day TEXT NOT NULL,
