@@ -21,9 +21,11 @@ import { referralPublicRoutes, referralRoutes } from './routes/referrals.ts';
 import { type CoachModel, claudeCoach } from './coach/chat.ts';
 import { coachChatRoutes } from './routes/coachChat.ts';
 import { coachReviewRoutes } from './routes/coachReview.ts';
+import { coachPlanRoutes } from './routes/coachPlan.ts';
 import { type FoodScanModel, type PlateScanModel, type SnapScanModel, claudeFoodScan, claudePlateScan, claudeSnapScan } from './coach/foodScan.ts';
 import { type GymScanModel, claudeGymScan } from './coach/gymScan.ts';
 import { type ReviewModel, claudeWeekReview } from './coach/review.ts';
+import { type PlanSetupModel, claudePlanSetup } from './coach/planSetup.ts';
 import { onAiCall } from './coach/models.ts';
 import { aiCallRecorder } from './aiUsage.ts';
 import { foodScanRoutes } from './routes/foodScan.ts';
@@ -81,6 +83,8 @@ export interface AppDeps {
   coach?: CoachModel;
   /** Weekly Coach review model (#867); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
   review?: ReviewModel;
+  /** Plan set-up with Coach (#873); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
+  planSetup?: PlanSetupModel;
   /** Gym scan photo model (#406); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
   gymScan?: GymScanModel;
   /** Food scan photo model (#496); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
@@ -334,6 +338,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       coachChatRoutes(r, deps.db, now, coach, deps.config.coachChat.dailyLimit, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
       const review = deps.review ?? (deps.config.coachChat.apiKey ? claudeWeekReview(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.chat) : undefined);
       coachReviewRoutes(r, deps.db, now, review, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
+      const planSetup = deps.planSetup ?? (deps.config.coachChat.apiKey ? claudePlanSetup(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.chat) : undefined);
+      coachPlanRoutes(r, deps.db, now, planSetup, deps.config.aiDailyLimit);
       const gymScan = deps.gymScan ?? (deps.config.coachChat.apiKey ? claudeGymScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.scan) : undefined);
       gymScanRoutes(r, deps.db, now, gymScan, 30, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
       const foodScan = deps.foodScan ?? (deps.config.coachChat.apiKey ? claudeFoodScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.scan) : undefined);

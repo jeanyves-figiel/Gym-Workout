@@ -43,6 +43,8 @@ struct OnboardingFlowView: View {
     @State private var programme: Programme?
     @State private var keepPlan: Bool
     @State private var building = false
+    /// Say it once to Coach (#873).
+    @State private var talking = false
     @State private var equipmentOpen = false
     @State private var zonesOpen = false
     @State private var floorPlanOpen = false
@@ -86,6 +88,13 @@ struct OnboardingFlowView: View {
             .navigationDestination(isPresented: $building) {
                 ProfileFormView(initial: p, newMember: isNew) { made in finishPlan(made) }
                     .navigationTitle("Your training")
+            }
+            .navigationDestination(isPresented: $talking) {
+                CoachPlanSetupView(base: p) { made, protect in
+                    talking = false
+                    finishPlan(made)
+                    if let protect { model.addCoachNote("Protect \(protect): go easy on it") }
+                }
             }
         }
         .onAppear { if isNew, !model.demo { model.onboardingOpen = true } }
@@ -236,6 +245,13 @@ struct OnboardingFlowView: View {
                 }
                 .buttonStyle(.plain)
             }
+            // Say it once (#873, design B from `ai-epic/a3.png`): Coach fills the plan in from one sentence.
+            Button { talking = true } label: {
+                bigCard(symbol: "mic.fill", title: "Tell Coach your goal", line: "Say it once in your own words. Coach fills in your plan, you fix and build.",
+                        number: "🐵", unit: nil, category: .cardio)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("onboarding.coachPlan")
             Button { programme = nil; keepPlan = false } label: {
                 bigCard(symbol: "bolt.fill", title: "Build my plan", line: "Goal, days, session flow and method. Made for your gym.",
                         number: nil, unit: nil, category: .power)
