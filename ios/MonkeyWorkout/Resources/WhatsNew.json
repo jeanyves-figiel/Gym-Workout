@@ -2,6 +2,66 @@
   "id": "2026-10-28.2",
   "items": [
     {
+      "symbol": "sparkles",
+      "tint": "strength",
+      "title": "Coach's week review",
+      "body": "Every Sunday Coach scores your week and suggests up to 3 changes for the next one, applied in a tap."
+    },
+    {
+      "symbol": "mic.fill",
+      "tint": "power",
+      "title": "Talk to Coach mid-set",
+      "body": "Hold the mic in Up next, ask \"too heavy?\" and Coach answers out loud with a one-tap fix."
+    },
+    {
+      "symbol": "cross.case.fill",
+      "tint": "mobility",
+      "title": "Train around pain",
+      "body": "Tap where it hurts or tell Coach, and your plan swaps the moves that load it until it feels better."
+    },
+    {
+      "symbol": "text.bubble.fill",
+      "tint": "cardio",
+      "title": "Tell Coach your goal",
+      "body": "Say what you want in one sentence: Coach fills in your plan and protects a sore spot. Not sure on a step? Ask Coach."
+    },
+    {
+      "symbol": "chart.bar.xaxis",
+      "tint": "strength",
+      "title": "Ask your history",
+      "body": "\"Am I squatting more than in June?\" Progress answers with the number and a mini chart, right on your iPhone."
+    },
+    {
+      "symbol": "chart.line.flattrend.xyaxis",
+      "tint": "power",
+      "title": "Plateau explainer",
+      "body": "Stuck on a lift? Coach spots a plateau, says why and gives one fix you apply in a tap (Apple Intelligence iPhones)."
+    },
+    {
+      "symbol": "fork.knife",
+      "tint": "warmup",
+      "title": "What can I eat?",
+      "body": "Monkey turns what's in your fridge into 3 meals that hit what's left today."
+    },
+    {
+      "symbol": "tag.fill",
+      "tint": "stretch",
+      "title": "Read a nutrition label",
+      "body": "Snap it → Label: point at the nutrition table, values fill in live, save it as your own food. Free, offline."
+    },
+    {
+      "symbol": "bell.badge.fill",
+      "tint": "cardio",
+      "title": "Smarter reminders",
+      "body": "Coach writes your reminders: last time's lift and the number to beat. Drifting? One kind nudge with a 20′ workout, now or tonight."
+    },
+    {
+      "symbol": "checkmark.shield.fill",
+      "tint": "mobility",
+      "title": "Safer community",
+      "body": "New posts, plans and photos get a quick check before others see them. Yours shows IN REVIEW until a moderator looks."
+    },
+    {
       "symbol": "bubble.left.and.text.bubble.right.fill",
       "tint": "strength",
       "title": "Ask Coach as you go",
