@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { type Moderator, noModerator } from '../community/aiModeration.ts';
+import { isHeld, type Moderator, noModerator } from '../community/aiModeration.ts';
 import { AUTO_HIDE_REPORTS, assertClean, hasAcceptedGuidelines, REPORT_REASONS, reportContent, VISIBILITIES, visibleToOthersSql } from '../community/moderation.ts';
 import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
@@ -81,6 +81,8 @@ export const programRoutes = (r: FastifyInstance, db: DB, now: () => Date, maile
       copies: p.copies,
       copiedByMe: copied.has(p.id),
       hidden: !!p.hidden_at,
+      // Held by AI moderation (#871); only its owner is told.
+      inReview: p.user_id === viewer && isHeld(db, 'program', p.id),
       createdAt: p.created_at,
       updatedAt: p.updated_at,
     }));

@@ -24,24 +24,28 @@ interface Row {
   updated_at: string;
   visibility: string;
   hidden_at: string | null;
+  in_review: number;
   saves: number;
 }
 
 /** Shared workouts' saves counted from `library_saves` (#714), so a deleted saver no longer counts. */
 const SAVES = '(SELECT COUNT(*) FROM library_saves s WHERE s.workout_id = custom_workouts.id) AS saves';
+/** Shared name held by AI moderation (#871). */
+const IN_REVIEW = `EXISTS (SELECT 1 FROM moderation_holds h WHERE h.target_type = 'workout' AND h.target_id = custom_workouts.id AND h.resolved_at IS NULL) AS in_review`;
 
 /** Stored JSON plus server-owned sharing state (the column is authoritative for visibility). */
 const toWorkout = (r: Row) => ({
   ...(JSON.parse(r.data) as object),
   visibility: r.visibility,
   hidden: !!r.hidden_at,
+  inReview: !!r.in_review,
   saves: r.saves,
   updatedAt: r.updated_at,
 });
 
 export const customWorkoutTable: SyncTable<Row> = {
   table: 'custom_workouts',
-  cols: `data, updated_at, visibility, hidden_at, ${SAVES}`,
+  cols: `data, updated_at, visibility, hidden_at, ${IN_REVIEW}, ${SAVES}`,
   timeCol: 'updated_at',
   map: toWorkout,
 };

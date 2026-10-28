@@ -73,8 +73,8 @@ describe('AI moderation of shared content (#871)', () => {
     const b = await join('b@example.com', 'Ben');
     const res = await post(a.t, 'DM me, meet me for cash');
     expect(res.statusCode).toBe(200);
-    const p = res.json() as { post: { id: string; hidden: boolean } };
-    expect(p.post.hidden).toBe(true);
+    const p = res.json() as { post: { id: string; hidden: boolean; inReview: boolean } };
+    expect(p.post).toMatchObject({ hidden: true, inReview: true });
     expect(await feed(b.t)).not.toContain(p.post.id);
     const mail = mailer.outbox.find((m) => m.subject === 'Community hold: spam (post)')!;
     expect(mail.text).toContain('meet me for cash');
@@ -87,6 +87,8 @@ describe('AI moderation of shared content (#871)', () => {
 
     expect(resolveHold(db, hold!.id, 'released', new Date())).toBe(true);
     expect(await feed(b.t)).toContain(p.post.id);
+    const mine = (await req('GET', '/v1/community/feed', a.t)).json() as { posts: { id: string; inReview: boolean }[] };
+    expect(mine.posts.find((x) => x.id === p.post.id)?.inReview).toBe(false);
     expect(resolveHold(db, hold!.id, 'released', new Date())).toBe(false);
     expect(openHolds(db)).toHaveLength(0);
   });
@@ -130,7 +132,7 @@ describe('AI moderation of shared content (#871)', () => {
     expect(ok.held).toBe(false);
     flagPhotos = true;
     const held = (await put()).json() as { profile: { avatarUrl: string }; held: boolean };
-    expect(held).toMatchObject({ held: true, profile: { avatarUrl: ok.profile.avatarUrl } });
+    expect(held).toMatchObject({ held: true, profile: { avatarUrl: ok.profile.avatarUrl, avatarInReview: true } });
     expect(mailer.outbox.find((m) => m.subject === 'Community hold: sexual (avatar)')?.attachments).toHaveLength(1);
     const [hold] = openHolds(db);
     resolveHold(db, hold!.id, 'released', new Date());
@@ -146,7 +148,7 @@ describe('AI moderation of shared content (#871)', () => {
     const b = await join('b@example.com', 'Ben');
     const planId = randomUUID();
     const plan = { name: 'meet me for cash', about: 'Three days', level: 'beginner', goal: 'strength', weeks: 8, sessionsPerWeek: 3, programme: { id: 'p', name: 'PPL' } };
-    expect(((await req('PUT', `/v1/community/programs/${planId}`, a.t, plan)).json() as { program: { hidden: boolean } }).program.hidden).toBe(true);
+    expect(((await req('PUT', `/v1/community/programs/${planId}`, a.t, plan)).json() as { program: object }).program).toMatchObject({ hidden: true, inReview: true });
     expect((await req('GET', `/v1/community/programs/${planId}`, b.t)).statusCode).toBe(404);
 
     const w = (name: string) => ({ id: randomUUID(), name, createdAt: '2026-10-28T09:00:00Z', items: [{ exerciseId: 'pull-up' }], visibility: 'members' });
@@ -155,6 +157,8 @@ describe('AI moderation of shared content (#871)', () => {
     expect((await req('POST', '/v1/me/custom-workouts', a.t, { workouts: [good, bad] })).statusCode).toBe(200);
     const lib = ((await req('GET', '/v1/library/shared', b.t)).json() as { workouts: { id: string }[] }).workouts.map((x) => x.id);
     expect(lib).toEqual([good.id]);
+    const own = ((await req('GET', '/v1/me/custom-workouts', a.t)).json() as { workouts: { id: string; inReview: boolean }[] }).workouts;
+    expect(own.map((x) => [x.id === bad.id, x.inReview])).toEqual(expect.arrayContaining([[true, true], [false, false]]));
     expect(openHolds(db).map((h) => h.target_type).sort()).toEqual(['program', 'workout']);
   });
 });

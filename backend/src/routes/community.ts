@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { type HoldCategory, type Moderator, noModerator } from '../community/aiModeration.ts';
+import { type HoldCategory, isHeld, type Moderator, noModerator } from '../community/aiModeration.ts';
 import { AVATAR_MAX_BYTES, sanitizeJpeg } from '../community/image.ts';
 import {
   assertClean as checkClean,
@@ -162,6 +162,10 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
   const profileRow = (userId: string) =>
     db.prepare('SELECT * FROM community_profiles WHERE user_id = ?').get(userId) as ProfileRow | undefined;
 
+  /** A new photo held by AI moderation (#871) waits beside the current one. */
+  const avatarInReview = (userId: string) =>
+    !!db.prepare("SELECT 1 FROM moderation_holds WHERE user_id = ? AND target_type = 'avatar' AND resolved_at IS NULL").get(userId);
+
   const accountRow = (userId: string) => db.prepare('SELECT * FROM user_profiles WHERE user_id = ?').get(userId) as AccountRow | undefined;
 
   /**
@@ -170,9 +174,9 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
    */
   const accountProfile = (userId: string) => {
     const p = profileRow(userId);
-    if (p) return { nickname: p.nickname, bio: p.bio, avatarUrl: avatarUrl(p.avatar_id), member: true };
+    if (p) return { nickname: p.nickname, bio: p.bio, avatarUrl: avatarUrl(p.avatar_id), avatarInReview: avatarInReview(userId), member: true };
     const a = accountRow(userId);
-    return { nickname: a?.nickname ?? null, bio: a?.bio ?? null, avatarUrl: avatarUrl(a?.avatar_id ?? null), member: false };
+    return { nickname: a?.nickname ?? null, bio: a?.bio ?? null, avatarUrl: avatarUrl(a?.avatar_id ?? null), avatarInReview: avatarInReview(userId), member: false };
   };
 
   /** Nicknames are unique across members and account-only profiles. */
@@ -256,6 +260,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     nickname: p.nickname,
     bio: p.bio,
     avatarUrl: avatarUrl(p.avatar_id),
+    avatarInReview: avatarInReview(p.user_id),
     defaultVisibility: p.default_visibility,
     autoShare: !!p.auto_share,
     showGym: !!p.show_gym,
@@ -339,6 +344,8 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
         caption: p.caption,
         payload: JSON.parse(p.payload) as unknown,
         hidden: !!p.hidden_at,
+        // Held by AI moderation (#871); only its owner is told.
+        inReview: p.user_id === viewer && isHeld(db, 'post', p.id),
         createdAt: p.created_at,
         reactions: Object.fromEntries(REACTIONS.map((k) => [k, rs.find((c) => c.kind === k)?.n ?? 0])),
         myReactions: rs.filter((c) => c.mine).map((c) => c.kind),

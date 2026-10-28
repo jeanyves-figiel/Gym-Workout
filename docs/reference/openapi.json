@@ -1359,7 +1359,7 @@
         "tags": [
           "Sync: member content"
         ],
-        "summary": "{workouts[≤100]} → {saved, serverTime, conflicts?}; visibility members/public shares it to the library; a new or renamed shared name flagged by AI moderation (#871) is held (hidden) until reviewed",
+        "summary": "{workouts[≤100]} → {saved, serverTime, conflicts?}; visibility members/public shares it to the library; a new or renamed shared name flagged by AI moderation (#871) is held (hidden, inReview) until reviewed",
         "description": "Errors / limits: 403 community_profile_required to share; 409 quota_exceeded; 413 too_large",
         "security": [
           {
@@ -2279,7 +2279,7 @@
         "tags": [
           "Community"
         ],
-        "summary": "Raw image/jpeg ≤ 512 KB, 64–1024 px, metadata stripped → {profile, held}; held: true = AI moderation (#871) held the photo for review, the old photo stays until it is released",
+        "summary": "Raw image/jpeg ≤ 512 KB, 64–1024 px, metadata stripped → {profile, held}; held: true = AI moderation (#871) held the photo for review, the old photo stays until it is released; profiles carry avatarInReview meanwhile",
         "description": "Errors / limits: 413 image_too_large; 400 invalid_image; 415",
         "security": [
           {
@@ -2585,7 +2585,7 @@
         "tags": [
           "Community"
         ],
-        "summary": "Share a win: {id (client UUID), kind workout|badge|record|climb|note, refId?, payload, caption?, visibility?} (refId dedupes; an update keeps the caption and visibility it leaves out) → post; new text is AI-checked (#871): flagged → hidden: true, held for review, owner still sees it. payload: {title, subtitle?, metric?, style?, stats?, exercises?}; a workout sends up to 40 exercises {id, name, sets, reps?, kg?} so members can open and copy it (#779)",
+        "summary": "Share a win: {id (client UUID), kind workout|badge|record|climb|note, refId?, payload, caption?, visibility?} (refId dedupes; an update keeps the caption and visibility it leaves out) → post; new text is AI-checked (#871): flagged → hidden: true, inReview: true (owner only), held for review, owner still sees it. payload: {title, subtitle?, metric?, style?, stats?, exercises?}; a workout sends up to 40 exercises {id, name, sets, reps?, kg?} so members can open and copy it (#779)",
         "description": "Errors / limits: 400 objectionable_content; 429 daily_limit",
         "security": [
           {
@@ -3530,7 +3530,7 @@
         "tags": [
           "Community"
         ],
-        "summary": "Create or update your plan: {name ≤60, about?, level, goal?, weeks, sessionsPerWeek, programme (app record), visibility? (default members)} → {program}; flagged by AI moderation (#871) → hidden: true until reviewed",
+        "summary": "Create or update your plan: {name ≤60, about?, level, goal?, weeks, sessionsPerWeek, programme (app record), visibility? (default members)} → {program}; flagged by AI moderation (#871) → hidden: true, inReview: true (owner only) until reviewed",
         "description": "Errors / limits: 400 objectionable_content, 409 conflict, 413, 429 daily_limit (20 new/day)",
         "parameters": [
           {

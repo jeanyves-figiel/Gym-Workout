@@ -100,7 +100,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | Method | Path | Auth | Summary | Errors / limits |
 |---|---|---|---|---|
 | GET | `/v1/me/custom-workouts` | Bearer | → `{workouts, deleted?, serverTime}` member-built workouts (`id`, `name`, `items[].exerciseId`, `visibility`; other app fields kept as sent, e.g. `routine` `{color, symbol}` for own daily routines, #732) | |
-| POST | `/v1/me/custom-workouts` | Bearer | `{workouts[≤100]}` → `{saved, serverTime, conflicts?}`; `visibility` members/public shares it to the library; a new or renamed shared name flagged by AI moderation (#871) is held (`hidden`) until reviewed | 403 `community_profile_required` to share; 409 `quota_exceeded`; 413 `too_large` |
+| POST | `/v1/me/custom-workouts` | Bearer | `{workouts[≤100]}` → `{saved, serverTime, conflicts?}`; `visibility` members/public shares it to the library; a new or renamed shared name flagged by AI moderation (#871) is held (`hidden`, `inReview`) until reviewed | 403 `community_profile_required` to share; 409 `quota_exceeded`; 413 `too_large` |
 | DELETE | `/v1/me/custom-workouts/:id` | Bearer | → 204 | |
 | GET | `/v1/me/custom-exercises` | Bearer | → `{exercises, deleted: [], serverTime}` (deletion = `archived` flag) | |
 | POST | `/v1/me/custom-exercises` | Bearer | `{exercises[≤20]}` (photo base64 JPEG inside, metadata stripped) → `{saved, serverTime, conflicts?}` | 400 `invalid_image`; 409 `quota_exceeded`; 413 `too_large` |
@@ -143,7 +143,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 |---|---|---|---|---|
 | GET | `/v1/me/public-profile` | Bearer | → `{profile}` account profile (nickname, about, photo), joined or not | |
 | PUT | `/v1/me/public-profile` | Bearer | `{nickname?, bio?}` → `{profile}` | 409 `nickname_taken`; 400 `objectionable_content` |
-| PUT | `/v1/me/public-profile/avatar` | Bearer | Raw `image/jpeg` ≤ 512 KB, 64–1024 px, metadata stripped → `{profile, held}`; `held: true` = AI moderation (#871) held the photo for review, the old photo stays until it is released | 413 `image_too_large`; 400 `invalid_image`; 415 |
+| PUT | `/v1/me/public-profile/avatar` | Bearer | Raw `image/jpeg` ≤ 512 KB, 64–1024 px, metadata stripped → `{profile, held}`; `held: true` = AI moderation (#871) held the photo for review, the old photo stays until it is released; profiles carry `avatarInReview` meanwhile | 413 `image_too_large`; 400 `invalid_image`; 415 |
 | DELETE | `/v1/me/public-profile/avatar` | Bearer | → `{profile}` | |
 | GET | `/v1/community/me` | Bearer | → community profile (`nickname`, `bio`, `defaultVisibility` private\|members\|public, `autoShare`, gym) or null | |
 | PUT | `/v1/community/me` | Bearer | Join / update; joining needs `acceptGuidelines: true` → profile | 400 `guidelines_required`, `nickname_required`, `objectionable_content` (word filter or AI check, #871); 409 `nickname_taken` |
@@ -155,7 +155,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | DELETE | `/v1/community/me/avatar` | Bearer | Removes the photo | |
 | GET | `/v1/community/avatars/:id` | – | Avatar JPEG; unguessable id, immutable cache | 404 |
 | GET | `/v1/community/feed` | Bearer | `?scope=members\|following\|mine&before=ISO&beforeId=&limit=` → `{posts, nextBefore, nextBeforeId}`; blocks applied both ways | 403 `community_profile_required` |
-| POST | `/v1/community/posts` | Bearer | Share a win: `{id (client UUID), kind workout\|badge\|record\|climb\|note, refId?, payload, caption?, visibility?}` (`refId` dedupes; an update keeps the caption and visibility it leaves out) → post; new text is AI-checked (#871): flagged → `hidden: true`, held for review, owner still sees it. `payload`: `{title, subtitle?, metric?, style?, stats?, exercises?}`; a workout sends up to 40 `exercises` `{id, name, sets, reps?, kg?}` so members can open and copy it (#779) | 400 `objectionable_content`; 429 `daily_limit` |
+| POST | `/v1/community/posts` | Bearer | Share a win: `{id (client UUID), kind workout\|badge\|record\|climb\|note, refId?, payload, caption?, visibility?}` (`refId` dedupes; an update keeps the caption and visibility it leaves out) → post; new text is AI-checked (#871): flagged → `hidden: true`, `inReview: true` (owner only), held for review, owner still sees it. `payload`: `{title, subtitle?, metric?, style?, stats?, exercises?}`; a workout sends up to 40 `exercises` `{id, name, sets, reps?, kg?}` so members can open and copy it (#779) | 400 `objectionable_content`; 429 `daily_limit` |
 | PATCH | `/v1/community/posts/:id` | Bearer | Own post: `{visibility?, caption?}` → post | 404 `not_found` |
 | DELETE | `/v1/community/posts/:id` | Bearer | Own post → 204 (also when already gone) | 404 `not_found` (someone else's post) |
 | PUT | `/v1/community/posts/:id/reactions/:kind` | Bearer | Cheer (`like`, `strong`, `fire`, `clap`, `beast`, `banana`), not on own posts → `{post}` | 400 `own_post`; 404 |
@@ -186,7 +186,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | PUT | `/v1/community/challenge/vote` | Bearer | `{suggestionId}` one of the finalists → `{week, suggestionId}`; one vote per member for the next member week, changeable until it starts | 400 `not_finalist` |
 | GET | `/v1/community/programs` | Bearer | Shared plans (#666), newest first: `?q=` name, `?level=beginner\|intermediate\|advanced`, `?mine=1` your own (private too), `?before=&beforeId=` (creation time), `?limit=` → `{programs: [{id, name, about, level, goal, weeks, sessionsPerWeek, programme, author, mine, visibility, copies, copiedByMe, hidden}], nextBefore, nextBeforeId}`; blocked and auto-hidden left out | 403 `community_profile_required` |
 | GET | `/v1/community/programs/:id` | Bearer | One plan → `{program}` | 404 `not_found` |
-| PUT | `/v1/community/programs/:id` | Bearer | Create or update your plan: `{name ≤60, about?, level, goal?, weeks, sessionsPerWeek, programme (app record), visibility? (default members)}` → `{program}`; flagged by AI moderation (#871) → `hidden: true` until reviewed | 400 `objectionable_content`, 409 `conflict`, 413, 429 `daily_limit` (20 new/day) |
+| PUT | `/v1/community/programs/:id` | Bearer | Create or update your plan: `{name ≤60, about?, level, goal?, weeks, sessionsPerWeek, programme (app record), visibility? (default members)}` → `{program}`; flagged by AI moderation (#871) → `hidden: true`, `inReview: true` (owner only) until reviewed | 400 `objectionable_content`, 409 `conflict`, 413, 429 `daily_limit` (20 new/day) |
 | DELETE | `/v1/community/programs/:id` | Bearer | Remove your plan → 204 (also when already gone) | 404 `not_found` (someone else's plan) |
 | POST | `/v1/community/programs/:id/copy` | Bearer | Counts a copy into My programmes (once per member; the app saves the copy) → `{program}` | 404 |
 | POST | `/v1/community/programs/:id/report` | Bearer | `{reason, details?}` → 202 `{status: received, hidden}`; auto-hidden after 3 distinct reporters | 20/hour |
