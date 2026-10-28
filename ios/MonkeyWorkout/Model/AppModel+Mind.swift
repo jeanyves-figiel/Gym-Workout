@@ -43,11 +43,13 @@ extension AppModel {
         if let s = mindScore { MindStore.shared.record(score: s) }
     }
 
-    func checkIn(mood: Int, feelings: [MindFeeling]) {
-        let c = MindCheckIn(date: Date(), mood: mood, feelings: feelings)
+    /// `date`: when it was made (a Watch check-in can arrive later).
+    func checkIn(mood: Int, feelings: [MindFeeling], at date: Date = Date()) {
+        let c = MindCheckIn(date: date, mood: mood, feelings: feelings)
         MindStore.shared.addCheckIn(c)
         recordMindScore()
         guard !demo else { return }
+        WatchSync.shared.push()
         Task { await health?.saveCheckIn(c) }
     }
 
@@ -61,11 +63,30 @@ extension AppModel {
         MindStore.shared.addSession(m)
         recordMindScore()
         guard !demo else { return m }
+        WatchSync.shared.push()
         Task {
             if healthAfter > 0 { try? await Task.sleep(nanoseconds: UInt64(healthAfter * 1_000_000_000)) }
             guard MindStore.shared.saved.sessions.contains(m) else { return }
             await health?.saveMindful(from: start, to: end)
         }
         return m
+    }
+
+    /// Mind for the Watch (#834): today's values and every Calm session flattened for `WMind`.
+    func watchMind(now: Date = Date()) -> WMind {
+        let store = MindStore.shared
+        let score = mindScore
+        let pick = mindPick
+        return WMind(day: WWater.key(now), score: score, level: score.map { MindScore.Level.of($0).title },
+                     week: store.week(endingOn: now).map(\.score), checkedIn: store.checkIn(on: now) != nil,
+                     pick: pick.breath.rawValue, pickWhy: pick.why, weekMinutes: store.weekMinutes,
+                     breaths: Breath.allCases.map(Self.watchBreath))
+    }
+
+    static func watchBreath(_ b: Breath) -> WBreath {
+        WBreath(id: b.rawValue, label: b.label, purpose: b.purpose, symbol: b.symbol, tint: b.colors[0], tint2: b.colors[1],
+                lengths: b.lengths,
+                phases: b.phases.map { WBreathPhase(label: $0.label, seconds: $0.seconds, fill: $0.fill, inhale: $0.kind == .inhale || $0.kind == .topUp) },
+                cues: b.cues)
     }
 }
