@@ -243,6 +243,11 @@ private struct DemoScreen: View {
             if let p = e.position {
                 NavigationStack { PositionGuideView(exercise: e, position: p, demoMistake: Demo.screen == "position-mistake") }
             }
+        // Form check (#833): a made-up member in place of the camera.
+        case "form-live": FormCheckView(exercise: Exercise.get("back-squat"), demo: .live)
+        case "form-ghost": FormCheckView(exercise: Exercise.get("back-squat"), demo: .ghost)
+        case "form-report": FormCheckView(exercise: Exercise.get("back-squat"), demo: .report)
+        case "form-coach": CoachChatView(ask: AskCoachRequest(focus: CoachFocus(screen: "exercise", title: Exercise.get("back-squat").name)))
         case "player-superset": WorkoutPlayerView(sessionId: second, demoMode: "superset")
         case "player-superset-fix": WorkoutPlayerView(sessionId: second, demoMode: "superset-fix")
         case "player-split": WorkoutPlayerView(sessionId: second, demoMode: "superset-split")
@@ -320,6 +325,8 @@ private struct DemoScreen: View {
                 WallSessionPage(today: true, climbedToday: false)
                     .navigationDestination(for: String.self) { SessionView(sessionId: $0) }
             }
+        // Climbing live (#829): a session 47′ in with 9 goes.
+        case "climb-live": ClimbLiveView().onAppear { ClimbLive.shared.demo() }
         case "explore-climbing": NavigationStack { ClimbingCategoryView() }
         case "wall-hangboard": DemoPushed { SessionView(sessionId: WallSession.templates[3].sessionId) }
         case "exercise-climbing": NavigationStack { ExerciseDetailView(exerciseId: "hang-ramp") }
@@ -397,6 +404,15 @@ private struct DemoScreen: View {
         case "challenge", "challenge-suggest": NavigationStack { ChallengeRoomView() }
         case "how-it-works": NavigationStack { HowItWorksView() }
         case "how-it-works-fuel": NavigationStack { HowItWorksTopicView(topic: HowItWorks.topic("fuel")!) }
+        // Mind (#834): Train check-in card before and after checking in, Explore → Calm, a session, the Mind page.
+        case "mind-checkin", "mind-train":
+            NavigationStack {
+                ScrollView { MindTrainCard().padding(16) }
+                    .background(Theme.bg.ignoresSafeArea())
+            }
+        case "explore-calm": NavigationStack { LibraryView(mode: .calm) }
+        case "breathing": BreathingPlayer(breath: .box)
+        case "mind": NavigationStack { MindView() }
         case "community-plan":
             NavigationStack { SharedPlanView(plan: SharedPlans.shared.plans[0]).navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) } }
         case "community-share-plan": SharePlanSheet()

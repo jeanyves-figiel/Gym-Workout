@@ -590,7 +590,7 @@ struct DaySheet: View {
     }
 }
 
-/// Session summary for any week (future sessions can't be opened yet: they are previews).
+/// Session summary for any week; tap it for the full workout page (#840).
 private struct SessionPreview: View {
     let session: Session
     let current: Bool
@@ -606,29 +606,14 @@ private struct SessionPreview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(session.displayTitle).font(.system(.title3, design: .rounded).weight(.heavy))
-                Spacer()
-                if done {
-                    Image(systemName: "checkmark.seal.fill").foregroundStyle(Theme.lime)
-                } else {
-                    Text("\(session.estMin)′").font(Theme.label(15)).foregroundStyle(Theme.muted)
-                }
-            }
+            // The whole summary opens the full workout page (#840): this week's, or a later week's ahead (#758).
+            NavigationLink {
+                if current { SessionView(sessionId: session.id) } else { SessionView(sessionId: session.id, preview: session) }
+            } label: { summary }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("calendar.openWorkout")
+            // Outside the link: its HIIT › button opens HIIT settings (#841).
             if model.isPlannedHiit(session) { hiitSource }
-            BlockStripe(blocks: session.blocks, height: 6)
-            ForEach(session.blocks.filter { $0.kind == .power || $0.kind == .strength }) { b in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(b.title).eyebrow()
-                    ForEach(b.items) { it in
-                        HStack {
-                            Text(Exercise.find(it.exerciseId)?.name ?? it.exerciseId).font(.subheadline.weight(.semibold))
-                            Spacer()
-                            Text("\(it.prescription.sets) × \(it.prescription.reps)").font(.caption.weight(.bold)).foregroundStyle(Theme.muted)
-                        }
-                    }
-                }
-            }
             if current {
                 HStack(spacing: 10) {
                     NavigationLink {
@@ -678,6 +663,36 @@ extension SessionPreview {
         }
         .font(Theme.label(12)).foregroundStyle(Color(hex: 0xFFB27A))
         .sheet(isPresented: $hiitSettings) { HiitSettingsSheet() }
+    }
+
+    /// Title, stripe and main exercises; a chevron says it opens.
+    fileprivate var summary: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(session.displayTitle).font(.system(.title3, design: .rounded).weight(.heavy))
+                Spacer()
+                if done {
+                    Image(systemName: "checkmark.seal.fill").foregroundStyle(Theme.lime)
+                } else {
+                    Text("\(session.estMin)′").font(Theme.label(15)).foregroundStyle(Theme.muted)
+                }
+                Image(systemName: "chevron.right").font(.subheadline.weight(.bold)).foregroundStyle(Theme.muted)
+            }
+            BlockStripe(blocks: session.blocks, height: 6)
+            ForEach(session.blocks.filter { $0.kind == .power || $0.kind == .strength }) { b in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(b.title).eyebrow()
+                    ForEach(b.items) { it in
+                        HStack {
+                            Text(Exercise.find(it.exerciseId)?.name ?? it.exerciseId).font(.subheadline.weight(.semibold))
+                            Spacer()
+                            Text("\(it.prescription.sets) × \(it.prescription.reps)").font(.caption.weight(.bold)).foregroundStyle(Theme.muted)
+                        }
+                    }
+                }
+            }
+        }
+        .contentShape(Rectangle())
     }
 
     /// Remove… (#784, design B): this day only, every week or just skip.

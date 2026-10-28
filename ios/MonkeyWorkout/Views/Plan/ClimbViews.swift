@@ -56,9 +56,7 @@ struct ClimbSection: View {
             VStack(alignment: .leading, spacing: 12) {
                 // Wall session (#366): on unless turned off in Around sport days.
                 if wall {
-                    NavigationLink {
-                        WallSessionPage(today: true, climbedToday: all.contains { Calendar.current.isDateInToday($0.start) })
-                    } label: {
+                    NavigationLink(value: WallSessionRoute(climbedToday: all.contains { Calendar.current.isDateInToday($0.start) })) {
                         ClimbBar(symbol: "hand.raised.fill", title: "Wall session", detail: "Warm-up · hangboard · cool-down",
                                  trailing: "chevron.right", gradient: ClimbKind.topRope.gradient)
                     }
@@ -157,6 +155,8 @@ struct LogClimbView: View {
     @State private var draftKey: String?
     @State private var draftRestored = false
     @State private var showNotes: Bool
+    /// What an untouched sheet holds: `initial`, starting where the member last climbed (#832).
+    @State private var blank: ClimbLog
     /// "Other" picked: the grade is typed instead of tapped.
     @State private var typingGrade = false
     /// Another sport picked in the strip (or All): the sheet becomes Log sport.
@@ -173,6 +173,7 @@ struct LogClimbView: View {
         self.restoring = restoring
         self.editing = editing
         _log = State(initialValue: restoring ?? initial)
+        _blank = State(initialValue: initial)
         _showNotes = State(initialValue: (restoring ?? initial).notes != nil)
     }
 
@@ -199,7 +200,7 @@ struct LogClimbView: View {
                     if draftRestored {
                         DraftRestoredStrip {
                             if let draftKey { DraftStore.clear(draftKey) }
-                            log = initial
+                            log = blank
                             showNotes = initial.notes != nil
                             draftRestored = false
                         }
@@ -229,7 +230,8 @@ struct LogClimbView: View {
             .background(Theme.bg.ignoresSafeArea())
             .safeAreaInset(edge: .bottom) {
                 Button { save() } label: {
-                    Label("Save \(log.kind.label) · \(Climbs.duration(log.minutes)) · \(log.effort)", systemImage: "checkmark")
+                    Label(["Save \(log.kind.label)", log.place?.name, Climbs.duration(log.minutes)].compactMap { $0 }.joined(separator: " · "),
+                          systemImage: "checkmark")
                 }
                 .buttonStyle(LimeButtonStyle())
                 .padding(.horizontal, 16)
@@ -242,11 +244,15 @@ struct LogClimbView: View {
         }
         .preferredColorScheme(.dark)
         .undoableClose(closeGuard, offer: undoOffer)
-        .keepsDraft(draftKey, log, blank: initial)
+        .keepsDraft(draftKey, log, blank: blank)
         .onAppear {
             guard draftKey == nil, restoring == nil, !editing else { return }
             draftKey = "climb"
-            if let d = DraftStore.load("climb", as: ClimbLog.self), d != initial {
+            if blank.place == nil, let last = model.lastPlace(for: .climbing) {
+                blank.place = last
+                if log.place == nil { log.place = last }
+            }
+            if let d = DraftStore.load("climb", as: ClimbLog.self), d != blank {
                 log = d
                 showNotes = d.notes != nil
                 draftRestored = true
@@ -258,6 +264,7 @@ struct LogClimbView: View {
     private var card: some View {
         VStack(alignment: .leading, spacing: 14) {
             CardTimes(start: $log.start, minutes: log.minutes)
+            PlaceChips(place: $log.place, sport: .climbing)
             HStack {
                 Text(log.kind.label).font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.6)
                 Spacer()
@@ -351,7 +358,7 @@ struct LogClimbView: View {
 
     /// Undo bar when anything was changed since the sheet opened (#285).
     private var undoOffer: UndoOffer? {
-        guard log != initial else { return nil }
+        guard log != blank else { return nil }
         let kept = log
         let original = initial
         return UndoOffer(title: "Climb closed",

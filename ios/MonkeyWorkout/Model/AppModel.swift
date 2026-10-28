@@ -386,6 +386,7 @@ final class AppModel {
         // Personal copies outside state.json: cached Health readings, the data export, HTTP responses.
         HealthManager.clearCache()
         MoveStore.shared.signOut()
+        MindStore.shared.signOut()
         ReferralStore.shared.signOut()
         WodStore.shared.signOut()
         SwimStore.shared.signOut()
@@ -401,6 +402,7 @@ final class AppModel {
         URLCache.shared.removeAllCachedResponses()
         MeAvatar.shared.wipe()
         DeviceCache.wipe()
+        FormReportStore.shared.wipe()
     }
 
     /// Before a sign-out wipes this device: one last try (5 s at most) to send what hasn't reached the server.

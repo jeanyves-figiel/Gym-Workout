@@ -119,6 +119,8 @@ struct LogSportView: View {
     @State private var showDistance: Bool
     @State private var showNotes: Bool
     @State private var closeGuard = CloseGuard()
+    /// What an untouched sheet holds: `initial`, starting where the member last did the sport (#832).
+    @State private var blank: SportLog
     /// Track live on the Watch instead of logging a past session (#439, design A).
     @State private var live: Bool
     @State private var saver = false
@@ -138,6 +140,7 @@ struct LogSportView: View {
         self.editing = editing
         _live = State(initialValue: live && restoring == nil && !editing)
         _log = State(initialValue: restoring ?? initial)
+        _blank = State(initialValue: initial)
         _picked = State(initialValue: picked || restoring != nil || editing)
         _distanceText = State(initialValue: (restoring ?? initial).distanceKm.map { String(format: "%g", $0) } ?? "")
         _showDistance = State(initialValue: (restoring ?? initial).distanceKm != nil)
@@ -208,7 +211,8 @@ struct LogSportView: View {
                             .disabled(sent)
                         } else {
                             Button { save() } label: {
-                                Label("Save \(log.sport.short) · \(Climbs.duration(log.minutes)) · \(log.effort)", systemImage: "checkmark")
+                                Label(["Save \(log.sport.short)", log.place?.name, Climbs.duration(log.minutes)].compactMap { $0 }.joined(separator: " · "),
+                                      systemImage: "checkmark")
                             }
                         }
                     }
@@ -225,6 +229,12 @@ struct LogSportView: View {
         }
         .preferredColorScheme(.dark)
         .undoableClose(closeGuard, offer: undoOffer)
+        .onAppear {
+            // Opened on a sport: it starts where that sport was done last time (#832).
+            guard picked, !editing, log == initial, initial.place == nil, let last = model.lastPlace(for: log.sport) else { return }
+            blank.place = last
+            log.place = last
+        }
     }
 
     /// Live mode lists the sports the Watch tracks; logging lists them all.
@@ -324,7 +334,10 @@ struct LogSportView: View {
             closeGuard.done()
             climbing = true
         } else {
+            // A new log starts where this sport was done last time (#832); a place picked by hand stays.
+            let auto = log.place == nil || log.place == model.lastPlace(for: log.sport)
             log.sport = s
+            if !editing && auto { log.place = model.lastPlace(for: s) }
             picked = true
             allSports = false
         }
@@ -338,6 +351,7 @@ struct LogSportView: View {
     private var card: some View {
         VStack(alignment: .leading, spacing: 14) {
             CardTimes(start: $log.start, minutes: log.minutes)
+            PlaceChips(place: $log.place, sport: log.sport)
             HStack {
                 Text(log.sport.label).font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.6)
                 Spacer()
@@ -364,7 +378,7 @@ struct LogSportView: View {
                 }
             }
             if showNotes {
-                TextField("Where, conditions, how legs felt", text: notes, axis: .vertical)
+                TextField("Conditions, how legs felt", text: notes, axis: .vertical)
                     .lineLimit(2...5)
                     .padding(12)
                     .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.black.opacity(0.25)))
@@ -379,7 +393,7 @@ struct LogSportView: View {
     }
 
     private var undoOffer: UndoOffer? {
-        guard picked, !(live && canTrack), log != initial else { return nil }
+        guard picked, !(live && canTrack), log != blank else { return nil }
         let kept = log
         let original = initial
         return UndoOffer(title: "\(kept.sport.short) closed", detail: undoDetail(kept.sport.label, Climbs.duration(kept.minutes)),
@@ -786,6 +800,12 @@ struct SportSessionSheet: View {
                     } else {
                         header
                     }
+                    if let place = model.sportLogs.first(where: { $0.id == entry.id })?.place ?? entry.place {
+                        SessionPlaceTile(place: place, sport: entry.sport)
+                    } else if model.sportLogs.contains(where: { $0.id == entry.id }) {
+                        // Rated from Health: where it was can be added here too (#832).
+                        PlaceChips(place: place, sport: entry.sport).gradientCard(entry.sport.gradient, padding: 14)
+                    }
                     SportSection(entry: entry, track: track, runs: runs, selected: $selectedRun)
                     Text("How did it feel?").eyebrow()
                     HStack(spacing: 8) {
@@ -869,6 +889,15 @@ struct SportSessionSheet: View {
 
     private func chip(_ text: String) -> some View {
         Text(text).font(Theme.label(11)).padding(.horizontal, 8).padding(.vertical, 4).background(Capsule().fill(.black.opacity(0.25)))
+    }
+
+    /// The place of the session's log, saved as soon as it is picked.
+    private var place: Binding<SessionPlace?> {
+        Binding(get: { model.sportLogs.first { $0.id == entry.id }?.place }, set: { p in
+            guard var log = model.sportLogs.first(where: { $0.id == entry.id }) else { return }
+            log.place = p
+            model.saveSport(log)
+        })
     }
 
     private func rate(_ e: Int) {

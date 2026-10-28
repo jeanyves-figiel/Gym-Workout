@@ -17,9 +17,7 @@ struct SportPrepBar: View {
 
     var body: some View {
         if let sport = todaySport, let before = SportPrep.before(sport), let after = SportPrep.after(sport) {
-            NavigationLink {
-                SportPrepPage(sport: sport)
-            } label: {
+            NavigationLink(value: SportPrepRoute(sport: sport)) {
                 HStack(spacing: 8) {
                     Image(systemName: sport.symbol)
                         .font(.system(size: 17, weight: .bold))

@@ -257,7 +257,7 @@ private struct PlusTile: View {
 }
 
 /// Full-width action on a gradient card: white (main) or dark glass.
-private struct CardAction: View {
+struct CardAction: View {
     let title: String
     let symbol: String
     var main = false
@@ -279,7 +279,7 @@ private struct CardAction: View {
 }
 
 /// ✕ on a card's top-right corner.
-private struct CardClose: View {
+struct CardClose: View {
     let label: String
     let action: () -> Void
 

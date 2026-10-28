@@ -112,6 +112,36 @@ final class WatchStore: NSObject {
         WCSession.default.transferUserInfo([WatchKeys.water: today])
     }
 
+    /// Mind (#834): a mood check-in, shown at once (Home row, Smart Stack) and queued to the iPhone, which saves it and
+    /// writes Apple Health.
+    func checkIn(mood: Int) {
+        let now = Date()
+        if var m = snapshot.mind {
+            m.checkedIn = true
+            m.day = WWater.key(now)
+            snapshot.mind = m
+        }
+        #if DEBUG
+        if Demo.on { return }
+        #endif
+        save()
+        send(.mindCheckIn(date: now, mood: mood, feelings: []))
+    }
+
+    /// A finished breathing session (#834): this week's calm minutes at once, mindful minutes saved by the iPhone.
+    func calmDone(breath: String, start: Date, seconds: Int) {
+        guard seconds >= 60 else { return }
+        if var m = snapshot.mind {
+            m.weekMinutes += seconds / 60
+            snapshot.mind = m
+        }
+        #if DEBUG
+        if Demo.on { return }
+        #endif
+        save()
+        send(.mindSession(breath: breath, start: start, seconds: seconds))
+    }
+
     func send(_ command: WCommand) {
         guard WCSession.isSupported(), WCSession.default.isReachable else { return }
         WCSession.default.sendMessage([WatchKeys.command: command.rawValue], replyHandler: nil, errorHandler: nil)
@@ -196,9 +226,15 @@ final class WatchStore: NSObject {
         save()
         // Power zones (#623): the phone's FTP, set by hand or from a test.
         if let ftp = s.bikeFTP { BikeSensors.shared.setFTP(ftp) }
+        // Climbing live (#829): goes tapped on the iPhone while this Watch was out of reach.
+        if let c = s.climbLive { SportTracker.shared.climbFromPhone(c) }
     }
 
     fileprivate func receive(message: [String: Any]) {
+        if let data = message[WatchKeys.climbLive] as? Data, let c = try? JSONDecoder.watch.decode(WClimbLive.self, from: data) {
+            SportTracker.shared.climbFromPhone(c)
+            return
+        }
         if let data = message[WatchKeys.buddy] as? Data, let p = try? JSONDecoder.watch.decode(WBuddyPing.self, from: data) {
             buddyPing = p
             WKInterfaceDevice.current().play(p.cheer == nil ? .click : .success)
@@ -325,6 +361,14 @@ final class WatchStore: NSObject {
                 if pausedAt == at, workout.phoneSessionId == id { stopTracking() }
             }
         }
+    }
+
+    /// Climbing live (#829 A): the session after a go here, at once when the phone is reachable.
+    func sendClimb(_ live: WClimbLive) {
+        #if DEBUG
+        if Demo.on { return }
+        #endif
+        sendNow(.climbLive(live))
     }
 
     /// Sent at once when the phone is reachable (it decides who saves the Health workout), queued otherwise.

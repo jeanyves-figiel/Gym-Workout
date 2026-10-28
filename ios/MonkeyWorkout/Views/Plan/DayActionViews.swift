@@ -196,52 +196,64 @@ private struct RemoveWorkoutSheet: View {
     let onDone: () -> Void
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    /// Sheet fits its content (#838), as the player Change sheet (#807).
+    @State private var contentHeight: CGFloat = 300
 
     var body: some View {
         let s = request.session
         let n = model.profile?.sessionsPerWeek ?? 3
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
                 Text("Remove \(s.displayTitle)").font(Theme.display(24)).lineLimit(2).minimumScaleFactor(0.8)
-                option("Just \(request.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))",
-                       detail: "rest day, plan carries on", symbol: "1.square.fill", fill: AnyShapeStyle(MissedStyle.gradient)) {
-                    // An added workout of this week (#818) comes off the plan, as its own Remove does (#538).
-                    if request.week == nil, let ins = model.planInsert(for: s), ins.replacing == nil {
-                        return removeExtra(ins)
-                    }
-                    withAnimation(.snappy) { model.removeSession(s.id, in: request.week) }
-                    let week = request.week
-                    UndoCloseCenter.shared.deleted("\(s.displayTitle) removed", detail: dayName, symbol: "trash") { [model] in
-                        withAnimation(.snappy) { model.restoreSession(s.id, in: week) }
-                    }
+                Spacer(minLength: 0)
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark").font(.system(size: 14, weight: .heavy))
+                        .frame(width: 34, height: 34)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.cardStrong))
                 }
-                .accessibilityIdentifier("remove.day")
-                // Every week only for a regular gym day's workout (#818) or a planned HIIT day (#841): not an added or moved one.
-                if everyWeek {
-                    option("Every \(WeekSchedule.name(request.weekday))", detail: everyWeekDetail(n),
-                           symbol: "arrow.triangle.2.circlepath",
-                           fill: AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x9A3BD8), Color(hex: 0x5A4AB0)], startPoint: .leading, endPoint: .trailing))) {
-                        let hiit = model.isPlannedHiit(s)
-                        guard let before = withAnimation(.snappy, { model.removeEveryWeek(request.weekday, hiit: hiit) }) else { return }
-                        UndoCloseCenter.shared.deleted("No more \(WeekSchedule.name(request.weekday)) \(hiit ? "HIIT" : "workouts")", detail: "My plan updated", symbol: "trash") { [model] in
-                            withAnimation(.snappy) { model.updateProfile(before) }
-                        }
-                    }
-                    .accessibilityIdentifier("remove.everyWeek")
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close")
+            }
+            option("Just \(request.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))",
+                   detail: "rest day, plan carries on", symbol: "1.square.fill", fill: AnyShapeStyle(MissedStyle.gradient)) {
+                // An added workout of this week (#818) comes off the plan, as its own Remove does (#538).
+                if request.week == nil, let ins = model.planInsert(for: s), ins.replacing == nil {
+                    return removeExtra(ins)
                 }
-                if !skipped {
-                    option("Just skip it", detail: "keeps \"skipped · Unskip\"", symbol: "nosign", fill: AnyShapeStyle(Color.white.opacity(0.14))) {
-                        skip()
-                    }
+                withAnimation(.snappy) { model.removeSession(s.id, in: request.week) }
+                let week = request.week
+                UndoCloseCenter.shared.deleted("\(s.displayTitle) removed", detail: dayName, symbol: "trash") { [model] in
+                    withAnimation(.snappy) { model.restoreSession(s.id, in: week) }
                 }
             }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.bg.ignoresSafeArea())
-            .toolbar { CloseToolbarItem { dismiss() } }
+            .accessibilityIdentifier("remove.day")
+            // Every week only for a regular gym day's workout (#818) or a planned HIIT day (#841): not an added or moved one.
+            if everyWeek {
+                option("Every \(WeekSchedule.name(request.weekday))", detail: everyWeekDetail(n),
+                       symbol: "arrow.triangle.2.circlepath",
+                       fill: AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x9A3BD8), Color(hex: 0x5A4AB0)], startPoint: .leading, endPoint: .trailing))) {
+                    let hiit = model.isPlannedHiit(s)
+                    guard let before = withAnimation(.snappy, { model.removeEveryWeek(request.weekday, hiit: hiit) }) else { return }
+                    UndoCloseCenter.shared.deleted("No more \(WeekSchedule.name(request.weekday)) \(hiit ? "HIIT" : "workouts")", detail: "My plan updated", symbol: "trash") { [model] in
+                        withAnimation(.snappy) { model.updateProfile(before) }
+                    }
+                }
+                .accessibilityIdentifier("remove.everyWeek")
+            }
+            if !skipped {
+                option("Just skip it", detail: "keeps \"skipped · Unskip\"", symbol: "nosign", fill: AnyShapeStyle(Color.white.opacity(0.14))) {
+                    skip()
+                }
+            }
         }
+        .padding(20)
+        .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .glassSheetBackground()
+        .foregroundStyle(.white)
         .preferredColorScheme(.dark)
-        .presentationDetents([.height(CGFloat(380 - (skipped ? 80 : 0) - (everyWeek ? 0 : 80)))])
+        .presentationDetents([.height(contentHeight)])
     }
 
     /// What Every <weekday> does: a HIIT day (#841) changes HIIT days only.

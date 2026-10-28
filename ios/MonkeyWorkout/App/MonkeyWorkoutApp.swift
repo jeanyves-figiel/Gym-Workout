@@ -57,6 +57,7 @@ struct MonkeyWorkoutApp: App {
                     if Demo.enabled {
                         health.snapshot = Demo.health
                         MoveStore.shared.demo()
+                        MindStore.shared.demo(checkedIn: Demo.screen == "mind-train" || Demo.screen == "mind")
                         FuelStore.shared.demo(layout: .dashboard, setUp: Demo.screen != "fuel-setup-card")
                         return
                     }
