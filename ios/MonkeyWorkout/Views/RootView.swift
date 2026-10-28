@@ -168,6 +168,20 @@ private struct LockScreen: View {
 }
 
 #if DEBUG
+/// A screen the app only ever pushes (recipe, Wall session, the hangboard session, the sent report), shown pushed
+/// one level deep with its Back button, as members see it (#823): at the root it had no way back.
+private struct DemoPushed<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+    @State private var path = NavigationPath([0])
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            Theme.bg.ignoresSafeArea()
+                .navigationDestination(for: Int.self) { _ in content() }
+        }
+    }
+}
+
 /// Jumps straight to one screen for CI screenshots.
 private struct DemoScreen: View {
     @Environment(AppModel.self) private var model
@@ -302,12 +316,12 @@ private struct DemoScreen: View {
         case "climb-settings", "around-sport": AroundSportView()
         // Climbing gym (#366): Wall session card, Explore → Climbing, the hangboard session, a hangboard drill.
         case "wall-session":
-            NavigationStack {
+            DemoPushed {
                 WallSessionPage(today: true, climbedToday: false)
                     .navigationDestination(for: String.self) { SessionView(sessionId: $0) }
             }
         case "explore-climbing": NavigationStack { ClimbingCategoryView() }
-        case "wall-hangboard": NavigationStack { SessionView(sessionId: WallSession.templates[3].sessionId) }
+        case "wall-hangboard": DemoPushed { SessionView(sessionId: WallSession.templates[3].sessionId) }
         case "exercise-climbing": NavigationStack { ExerciseDetailView(exerciseId: "hang-ramp") }
         case "climb": LogClimbView(initial: ClimbLog(start: Date().addingTimeInterval(-90 * 60), effort: 8, topGrade: "6C"))
         case "muscle": NavigationStack { MuscleDetailView(muscle: .lats) }
@@ -361,7 +375,7 @@ private struct DemoScreen: View {
             ReportProblemView(draft: ReportDraft(via: .error, kind: .broken, area: "Sync & account", screen: "Train",
                                                  error: "Some changes haven't synced yet. We'll keep trying."), modal: true)
         }
-        case "report-sent": NavigationStack { ReportProblemView(draft: ReportDraft(via: .settings, area: "Train"), demoSent: true) }
+        case "report-sent": DemoPushed { ReportProblemView(draft: ReportDraft(via: .settings, area: "Train"), demoSent: true) }
         case "paywall", "pro": NavigationStack { ProView() }
         case "pro-offer": NavigationStack { ProView(context: .onboarding) {} }
         case "pro-gate": ProPaywallSheet(gate: .askCoach)
@@ -515,7 +529,7 @@ private struct DemoScreen: View {
         // Fuel home redesign (#733): the Log sheet with Magic Snap on top, and the Magic Snap camera.
         case "fuel-log": JustAteSheet(plan: model.fuelPlan(on: Date()), day: Date())
         case "fuel-recipes": NavigationStack { RecipeBrowserView().navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }.fuelDestinations() }
-        case "recipe": NavigationStack { RecipeDetailView(recipe: RecipeBook.catalog[0]) }
+        case "recipe": DemoPushed { RecipeDetailView(recipe: RecipeBook.catalog[0]) }
         case "cook-mode": CookModeView(recipe: RecipeBook.catalog[0], servings: RecipeBook.catalog[0].servings)
         case "fuel-pantry": NavigationStack { PantryView().navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }.fuelDestinations() }
         case "meal-plan":
@@ -603,7 +617,13 @@ private struct DemoScreen: View {
                 .navigationTitle("Week quest")
             }
         case "reschedule":
-            MissedSessionSheet(sessionId: second, day: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
+            // The week's real missed session on its own day, as missed-catchup shows it (#823): not the plan's
+            // second session labelled "yesterday", which named a different workout.
+            if let s = model.missedToHandle.first {
+                let cal = model.planCalendar
+                let day = cal.date(byAdding: .day, value: (s.weekday ?? 1) - 1, to: Progression.weekStart(Date(), cal))
+                MissedSessionSheet(sessionId: s.id, day: day ?? Date())
+            }
         default: MainTabView()
         }
     }

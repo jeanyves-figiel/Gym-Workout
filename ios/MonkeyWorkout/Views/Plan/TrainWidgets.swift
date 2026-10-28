@@ -129,6 +129,7 @@ struct CoachSmallWidget: View {
 struct WeekSmallWidget: View {
     let plan: WeekPlan
     let done: Int
+    @Environment(AppModel.self) private var model
     @Environment(HealthManager.self) private var health
     @State private var explaining = false
 
@@ -138,7 +139,8 @@ struct WeekSmallWidget: View {
             WidgetTile(kind: .week, title: "W\(plan.week)/\(Generator.mesocycleWeeks) · \(Generator.phaseName(plan.week))") {
                 HStack {
                     Spacer(minLength: 0)
-                    DoneRing(done: done, total: plan.sessions.count)
+                    // Skipped and removed workouts leave the week (#818).
+                    DoneRing(done: done, total: model.weekSessionCount)
                     Spacer(minLength: 0)
                 }
                 Text(readiness?.title ?? "\(plan.sessions.count) sessions · \(plan.sessionMinutes) min")
@@ -234,7 +236,19 @@ struct NextUpCompactWidget: View {
 
     /// Start for today's session only (#537); a later day shows its day instead.
     @ViewBuilder private func startButton(_ s: Session) -> some View {
-        if !model.startableToday(s), let wd = s.weekday {
+        if model.liveOnWatch(s) {
+            // Running on the Watch (#822): its twin player, never a second Start.
+            Button { MirroredWorkout.shared.presented = true } label: {
+                Label("Open", systemImage: "applewatch")
+                    .font(Theme.label(14))
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .frame(maxWidth: wide ? nil : .infinity)
+                    .background(Capsule().fill(Theme.lime))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open on iPhone")
+        } else if !model.startableToday(s), let wd = s.weekday {
             PlannedDayBadge(weekday: wd, compact: true)
                 .frame(maxWidth: wide ? nil : .infinity)
         } else {

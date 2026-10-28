@@ -205,6 +205,10 @@ private struct RemoveWorkoutSheet: View {
                 Text("Remove \(s.displayTitle)").font(Theme.display(24)).lineLimit(2).minimumScaleFactor(0.8)
                 option("Just \(request.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))",
                        detail: "rest day, plan carries on", symbol: "1.square.fill", fill: AnyShapeStyle(MissedStyle.gradient)) {
+                    // An added workout of this week (#818) comes off the plan, as its own Remove does (#538).
+                    if request.week == nil, let ins = model.planInsert(for: s), ins.replacing == nil {
+                        return removeExtra(ins)
+                    }
                     withAnimation(.snappy) { model.removeSession(s.id, in: request.week) }
                     let week = request.week
                     UndoCloseCenter.shared.deleted("\(s.displayTitle) removed", detail: dayName, symbol: "trash") { [model] in
@@ -212,16 +216,19 @@ private struct RemoveWorkoutSheet: View {
                     }
                 }
                 .accessibilityIdentifier("remove.day")
-                option("Every \(WeekSchedule.name(request.weekday))",
-                       detail: n > 2 ? "train \(n - 1)× a week instead of \(n)" : "keeps \(n)× a week, on other days",
-                       symbol: "arrow.triangle.2.circlepath",
-                       fill: AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x9A3BD8), Color(hex: 0x5A4AB0)], startPoint: .leading, endPoint: .trailing))) {
-                    guard let before = withAnimation(.snappy, { model.removeEveryWeek(request.weekday) }) else { return }
-                    UndoCloseCenter.shared.deleted("No more \(WeekSchedule.name(request.weekday)) workouts", detail: "My plan updated", symbol: "trash") { [model] in
-                        withAnimation(.snappy) { model.updateProfile(before) }
+                // Every week only for a regular gym day's workout (#818): not an added or moved one.
+                if everyWeek {
+                    option("Every \(WeekSchedule.name(request.weekday))",
+                           detail: n > 2 ? "train \(n - 1)× a week instead of \(n)" : "keeps \(n)× a week, on other days",
+                           symbol: "arrow.triangle.2.circlepath",
+                           fill: AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x9A3BD8), Color(hex: 0x5A4AB0)], startPoint: .leading, endPoint: .trailing))) {
+                        guard let before = withAnimation(.snappy, { model.removeEveryWeek(request.weekday) }) else { return }
+                        UndoCloseCenter.shared.deleted("No more \(WeekSchedule.name(request.weekday)) workouts", detail: "My plan updated", symbol: "trash") { [model] in
+                            withAnimation(.snappy) { model.updateProfile(before) }
+                        }
                     }
+                    .accessibilityIdentifier("remove.everyWeek")
                 }
-                .accessibilityIdentifier("remove.everyWeek")
                 if !skipped {
                     option("Just skip it", detail: "keeps \"skipped · Unskip\"", symbol: "nosign", fill: AnyShapeStyle(Color.white.opacity(0.14))) {
                         skip()
@@ -234,7 +241,24 @@ private struct RemoveWorkoutSheet: View {
             .toolbar { CloseToolbarItem { dismiss() } }
         }
         .preferredColorScheme(.dark)
-        .presentationDetents([.height(skipped ? 300 : 380)])
+        .presentationDetents([.height(CGFloat(380 - (skipped ? 80 : 0) - (everyWeek ? 0 : 80)))])
+    }
+
+    private var everyWeek: Bool { model.canRemoveEveryWeek(request.session, weekday: request.weekday, in: request.week) }
+
+    /// Takes an added workout off this week (#818), with Undo putting it back.
+    private func removeExtra(_ ins: PlanInsert) {
+        let s = request.session
+        withAnimation(.snappy) { model.removePlanInsert(ins.id) }
+        UndoCloseCenter.shared.deleted("\(s.displayTitle) removed", detail: dayName, symbol: "trash") { [model] in
+            withAnimation(.snappy) {
+                if let generated = ins.generated, let wd = ins.weekday {
+                    _ = model.addExtra(ins.workout, generated: generated, weekday: wd)
+                } else {
+                    _ = model.insertIntoPlan(ins.workout, replacing: ins.replacing, weekday: ins.weekday)
+                }
+            }
+        }
     }
 
     private var dayName: String { request.date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)) }

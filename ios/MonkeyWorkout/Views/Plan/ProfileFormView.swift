@@ -718,7 +718,8 @@ struct GymPicker: View {
         VStack(alignment: .leading, spacing: 10) {
             GymCard(name: selectedRef.name,
                     location: selectedRef.address.isEmpty ? (selectedSaved?.kind?.label ?? "Your gym") : selectedRef.address,
-                    symbol: selectedSaved?.kind?.symbol ?? "building.2.fill", count: profile.equipment.count, selected: true) {
+                    symbol: selectedSaved?.kind?.symbol ?? "building.2.fill", count: profile.equipment.count,
+                    machines: AppModel.machineCount(profile.equipment), selected: true) {
                 showEquipment = true
             }
 
@@ -727,7 +728,9 @@ struct GymPicker: View {
                     Image(systemName: "photo.on.rectangle.angled").foregroundStyle(Theme.lime)
                     Text("Equipment").bold()
                     Spacer()
-                    Text("\(profile.equipment.count) items").foregroundStyle(Theme.lime).bold()
+                    // Items and machines (#823): the machines are what Explore counts.
+                    Text("\(profile.equipment.count) items · \(AppModel.machineCount(profile.equipment)) machines")
+                        .foregroundStyle(Theme.lime).bold().lineLimit(1).minimumScaleFactor(0.8)
                     Image(systemName: "chevron.right").font(.footnote.bold()).foregroundStyle(Theme.muted)
                 }
                 .foregroundStyle(.white)
@@ -964,6 +967,8 @@ private struct GymCard: View {
     let location: String
     let symbol: String
     let count: Int
+    /// Machines among the items (#823): Explore's count, shown under it.
+    var machines: Int? = nil
     let selected: Bool
     let action: () -> Void
 
@@ -990,6 +995,7 @@ private struct GymCard: View {
                 VStack(alignment: .trailing, spacing: 0) {
                     Text("\(count)").font(Theme.display(26))
                     Text("ITEMS").font(Theme.label(9)).tracking(1.2).opacity(0.8)
+                    if let machines { Text("\(machines) MACHINES").font(Theme.label(9)).tracking(1.2).opacity(0.8) }
                 }
             }
             .foregroundStyle(.white)
@@ -998,7 +1004,7 @@ private struct GymCard: View {
             .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(.white, lineWidth: selected ? 3 : 0))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(name), \(location), \(count) items")
+        .accessibilityLabel("\(name), \(location), \(count) items" + (machines.map { ", \($0) machines" } ?? ""))
         .accessibilityHint("Shows the equipment")
         .accessibilityAddTraits(selected ? .isSelected : [])
     }

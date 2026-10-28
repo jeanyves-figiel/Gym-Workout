@@ -78,7 +78,7 @@ struct CastSheet: View {
             if case let .failed(why) = CastSession.shared.state {
                 Text(why).font(Theme.label(13)).foregroundStyle(Theme.lime)
             }
-            Text("Your TV shows the workout a few seconds behind. Keep MonkeyFit open while you train.")
+            Text("Your TV shows the workout a few seconds behind. Keep the app open while you train.") // no "MonkeyFit" (#823)
                 .font(.footnote.weight(.semibold)).opacity(0.7)
             Spacer(minLength: 0)
         }

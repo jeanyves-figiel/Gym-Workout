@@ -21,7 +21,7 @@ public enum ProgrammePhaseKind: String, Codable, Sendable, CaseIterable, CodingK
         case .base: "Base"
         case .build: "Build"
         case .peak: "Peak"
-        case .ease: "Ease"
+        case .ease: "Deload" // the plan's own word for the light week, not a second name "Ease" (#823)
         case .test: "Test"
         }
     }

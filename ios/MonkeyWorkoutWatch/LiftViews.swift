@@ -110,31 +110,33 @@ struct AutoLogBanner: View {
     let onUndo: () -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
-            TimelineView(.periodic(from: .now, by: 0.1)) { ctx in
-                let left = max(0, end.timeIntervalSince(ctx.date))
-                HStack(spacing: 6) {
-                    ZStack {
-                        Circle().stroke(W.ink.opacity(0.2), lineWidth: 3)
-                        Circle().trim(from: 0, to: left / total).stroke(W.ink, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                            .rotationEffect(.degrees(-90))
-                        Image(systemName: "checkmark").font(.system(size: 9, weight: .black))
+        TimelineView(.periodic(from: .now, by: 0.1)) { ctx in
+            let left = max(0, end.timeIntervalSince(ctx.date))
+            // At 0 the set is logged: say so and drop Undo instead of "Logs in 0 s" (#824).
+            let logged = left <= 0
+            HStack(spacing: 6) {
+                ZStack {
+                    Circle().stroke(W.ink.opacity(0.2), lineWidth: 3)
+                    Circle().trim(from: 0, to: logged ? 1 : left / total).stroke(W.ink, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    Image(systemName: "checkmark").font(.system(size: 9, weight: .black))
+                }
+                .frame(width: 20, height: 20)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(logged ? "Logged" : "Logs in \(Int(left.rounded(.up))) s").font(W.label(12)).monospacedDigit()
+                    Text(title).font(W.label(9)).opacity(0.8)
+                }
+                .lineLimit(1).minimumScaleFactor(0.6)
+                Spacer(minLength: 0)
+                if !logged {
+                    Button(action: onUndo) {
+                        Text("Undo").font(W.label(11)).foregroundStyle(.white)
+                            .padding(.horizontal, 8).padding(.vertical, 5)
+                            .background(Capsule().fill(W.ink.opacity(0.85)))
                     }
-                    .frame(width: 20, height: 20)
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("Logs in \(Int(left.rounded(.up))) s").font(W.label(12)).monospacedDigit()
-                        Text(title).font(W.label(9)).opacity(0.8)
-                    }
-                    .lineLimit(1).minimumScaleFactor(0.6)
+                    .buttonStyle(.plain)
                 }
             }
-            Spacer(minLength: 0)
-            Button(action: onUndo) {
-                Text("Undo").font(W.label(11)).foregroundStyle(.white)
-                    .padding(.horizontal, 8).padding(.vertical, 5)
-                    .background(Capsule().fill(W.ink.opacity(0.85)))
-            }
-            .buttonStyle(.plain)
         }
         .foregroundStyle(W.ink)
         .padding(.horizontal, 8).padding(.vertical, 5)
@@ -214,7 +216,8 @@ struct PracticeView: View {
             Eyebrow(text: "Practice", color: .white.opacity(0.9))
             Text("\(lift.count)").font(W.display(48)).monospacedDigit().contentTransition(.numericText())
             RepBars(ranges: lift.reps.map(\.range), velocities: lift.reps.map(\.meanVelocity))
-            Text((lift.lastVelocity.map { String(format: "%.2f m/s · ", $0) } ?? "") + "Watch the iPhone")
+            // "Watch the iPhone" read oddly on a Watch (#824).
+            Text((lift.lastVelocity.map { String(format: "%.2f m/s · ", $0) } ?? "") + "Graph on iPhone")
                 .font(.system(size: 11, weight: .semibold)).opacity(0.9).lineLimit(1).minimumScaleFactor(0.7)
             Button("Done") { store.practice = nil }.font(W.label(12)).buttonStyle(.plain).padding(.top, 4)
         }

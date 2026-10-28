@@ -569,7 +569,8 @@ struct AccountView: View {
         let named = user.name?.trimmingCharacters(in: .whitespaces).isEmpty == false
         let words = ((named ? user.name : user.email) ?? "?").split(whereSeparator: { " @.".contains($0) })
         if named && words.count >= 2 { return String(words.prefix(2).compactMap(\.first)).uppercased() }
-        return String((words.first ?? "?").prefix(named ? 2 : 1)).uppercased()
+        // One letter for a one-word name, as the header photo shows it ("J", not "JY") (#823).
+        return String((words.first ?? "?").prefix(1)).uppercased()
     }
 
     private func export() {

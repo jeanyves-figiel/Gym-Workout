@@ -159,19 +159,27 @@ struct TasteView: View {
             HStack(spacing: 10) {
                 ExerciseThumbnail(exercise: e, size: 44)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(e.name).font(Theme.label(15)).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.7)
-                    Text(taste.reason(e.id, at: now)).font(.caption.weight(.semibold)).foregroundStyle(Theme.muted).lineLimit(2)
+                    Text(e.name).font(Theme.display(16)).foregroundStyle(.white).lineLimit(2).minimumScaleFactor(0.7)
+                        .multilineTextAlignment(.leading)
+                    Text(taste.reason(e.id, at: now)).font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.85)).lineLimit(2)
                         .multilineTextAlignment(.leading)
                 }
                 Spacer(minLength: 6)
-                if mark == .never {
-                    Image(systemName: "nosign").font(.footnote.bold()).foregroundStyle(avoidColor)
-                } else {
-                    TasteBar(affinity: a)
+                // On a dark chip so the lime / red bar reads on the gradient (#823).
+                Group {
+                    if mark == .never {
+                        Image(systemName: "nosign").font(.footnote.bold()).foregroundStyle(avoidColor)
+                    } else {
+                        TasteBar(affinity: a)
+                    }
                 }
+                .padding(.horizontal, 7).padding(.vertical, 7)
+                .background(Capsule().fill(.black.opacity(0.3)))
             }
             .padding(10)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.card))
+            // Gradient tiles (#823): liked on teal, avoided on violet, thumbnail as the tile on the left.
+            .background(RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(a > 0 && mark != .never ? WorkoutEngine.Category.cardio.gradient : WorkoutEngine.Category.strength.gradient))
             .contentShape(Rectangle())
         }
         .accessibilityLabel("\(e.name), \(a > 0 ? "liked" : "avoided"). \(taste.reason(e.id, at: now))")

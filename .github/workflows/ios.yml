@@ -188,9 +188,15 @@ jobs:
             xcrun simctl launch --terminate-running-process "$DEVICE" Com.app.MonkeyWorkout.dev -demo -demoScreen "$s"
             sleep 6
             case "$s" in explore-3d*) sleep 10 ;; esac  # 3D figure is built after launch (Debug build)
-            xcrun simctl io "$DEVICE" screenshot "shots/$s.png"
-            sips -Z 800 "shots/$s.png" >/dev/null
+            # A blank or still-loading screen is a tiny PNG (#825): give the busy Debug simulator up to two more tries.
+            for try in 1 2 3; do
+              xcrun simctl io "$DEVICE" screenshot "shots/$s.png"
+              sips -Z 800 "shots/$s.png" >/dev/null
+              [ "$(stat -f%z "shots/$s.png")" -gt 25000 ] && break
+              [ "$try" = 3 ] && echo "$s" >> blank.txt || sleep 6
+            done
           done
+          if [ -s blank.txt ]; then echo "::warning::Blank screens: $(tr '\n' ' ' < blank.txt)"; { echo "Blank after retries:"; cat blank.txt; } >> "$GITHUB_STEP_SUMMARY"; fi
           xcrun simctl shutdown "$DEVICE" || true
           ls -la shots
       - name: Capture iPad screens
@@ -207,8 +213,12 @@ jobs:
           for s in welcome week session player explore muscle progress community account calendar; do
             xcrun simctl launch --terminate-running-process "$IPAD" Com.app.MonkeyWorkout.dev -demo -demoScreen "$s"
             sleep 6
-            xcrun simctl io "$IPAD" screenshot "shots/ipad-$s.png"
-            sips -Z 800 "shots/ipad-$s.png" >/dev/null
+            for try in 1 2 3; do
+              xcrun simctl io "$IPAD" screenshot "shots/ipad-$s.png"
+              sips -Z 800 "shots/ipad-$s.png" >/dev/null
+              [ "$(stat -f%z "shots/ipad-$s.png")" -gt 25000 ] && break
+              [ "$try" = 3 ] || sleep 6
+            done
           done
           # iPhone Duo postures (#598): the sim has no hinge, so force each one; the iPad stands in for the Duo inner screen.
           for pose in flex book tent; do

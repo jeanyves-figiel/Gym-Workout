@@ -68,7 +68,7 @@ struct HowItWorksTopicView: View {
                         .accessibilityIdentifier("how.you")
                 }
                 ForEach(Array(topic.parts.enumerated()), id: \.offset) { i, part in
-                    partCard(part, tinted: i == 0)
+                    partCard(part, index: i)
                 }
                 sources
                 NavigationLink {
@@ -99,26 +99,34 @@ struct HowItWorksTopicView: View {
         .titleInContent(topic.title)
     }
 
-    private func partCard(_ part: HowItWorks.Part, tinted: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(part.title).font(Theme.display(17))
-            Text(part.text).font(.subheadline.weight(.medium)).opacity(0.92).fixedSize(horizontal: false, vertical: true)
-            if !part.rule.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(part.rule, id: \.self) { line in
-                        Text(line).font(.system(.footnote, design: .monospaced).weight(.semibold))
-                            .fixedSize(horizontal: false, vertical: true)
+    /// Each calculation as a gradient tile (#823): number tile left, the plain-language title and text, the formula as
+    /// small secondary lines under it.
+    private func partCard(_ part: HowItWorks.Part, index i: Int) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(i + 1)").font(Theme.display(20)).monospacedDigit()
+                .frame(width: 44, height: 44)
+                .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(.white.opacity(0.22)))
+            VStack(alignment: .leading, spacing: 6) {
+                Text(part.title).font(Theme.display(17)).fixedSize(horizontal: false, vertical: true)
+                Text(part.text).font(.subheadline.weight(.medium)).opacity(0.95).fixedSize(horizontal: false, vertical: true)
+                if !part.rule.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(part.rule, id: \.self) { line in
+                            Text(line).font(.system(.caption2, design: .monospaced).weight(.semibold)).opacity(0.8)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
+                    .padding(.top, 2)
                 }
-                .padding(10).frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.25)))
             }
+            Spacer(minLength: 0)
         }
         .foregroundStyle(.white)
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(tinted ? AnyShapeStyle(topic.gradient) : AnyShapeStyle(Theme.cardStrong)))
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .fill(i == 0 ? topic.gradient : Theme.routineGradient(i - 1)))
+        .accessibilityElement(children: .combine)
     }
 
     private var sources: some View {

@@ -1,6 +1,7 @@
 import HealthKit
 import SwiftUI
 import UIKit
+import WorkoutEngine
 
 /// Workout mirroring (#603, designs A + C from `apple-tech-radar/t1.png`). A workout run on the Watch mirrors its
 /// HealthKit session to the iPhone: heart rate and calories arrive natively, the Watch player's state comes as
@@ -18,6 +19,10 @@ final class MirroredWorkout: NSObject {
     private(set) var kcal: Int?
     /// Twin player on screen; closing it leaves the Watch running and shows the banner on Train instead.
     var presented = false
+    /// The Watch finished while the twin player was open (#822 A): it stays open on the finish screen.
+    private(set) var finishedSessionId: String?
+    /// What the iPhone saved from that finish, once `WatchEvent.finished` arrived.
+    private(set) var finished: (record: WorkoutRecord, session: Session?, reward: GameReward?)?
 
     var live: Bool { session != nil && state?.finished != true }
 
@@ -44,7 +49,30 @@ final class MirroredWorkout: NSObject {
         state = nil
         heartRate = nil
         kcal = nil
+        // A finish screen on show stays until its DONE (#822 A).
+        if finishedSessionId == nil { presented = false }
+    }
+
+    /// The iPhone saved the workout the Watch finished (#822 A). Shown when the twin player is open (or the finish
+    /// state hasn't arrived yet); otherwise the Train screen already shows the new workout.
+    func recorded(_ r: WorkoutRecord, session s: Session?, sessionId: String, reward: GameReward?) {
+        guard finishedSessionId == sessionId || (presented && state?.sessionId == sessionId) else { return }
+        finishedSessionId = sessionId
+        finished = (r, s, reward)
+    }
+
+    /// DONE or ✕ on the finish screen.
+    func closeFinish() {
+        finishedSessionId = nil
+        finished = nil
         presented = false
+    }
+
+    /// FINISH on the twin player (#822 +): the Watch ends the workout (summary and Health there), the iPhone shows the
+    /// finish screen when the record arrives.
+    func finishOnWatch() {
+        finishedSessionId = state?.sessionId
+        send(.finish)
     }
 
     /// A press on the twin player, done by the Watch player.
@@ -60,7 +88,8 @@ final class MirroredWorkout: NSObject {
         state = last
         // Watch workout just showed up: open the twin player once (A); closing it keeps the Train banner.
         if first, !last.finished { presented = true }
-        if last.finished { presented = false }
+        // Finished with the twin player open: it turns into the finish screen (#822 A) instead of vanishing.
+        if last.finished { if presented { finishedSessionId = last.sessionId } else { presented = false } }
     }
 
     @available(iOS 26.0, *)
@@ -109,9 +138,65 @@ extension MirroredWorkout: HKLiveWorkoutBuilderDelegate {
 /// The Watch's workout on the iPhone (#603, design A): same set, log on either device, the other follows.
 struct TwinPlayerView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
     private var mirror: MirroredWorkout { .shared }
 
     var body: some View {
+        if let f = mirror.finished, let session = f.session {
+            // Finished on the Watch (#822 A): the phone's own finish screen, DONE closes with "Workout saved · Undo".
+            SummaryView(session: session, elapsed: TimeInterval(f.record.durationSec), setsDone: f.record.totalSets,
+                        kcal: f.record.kcal, healthSaved: true, reward: f.reward, wins: model.wins(for: f.record),
+                        record: f.record, report: model.workoutReport(f.record)) {
+                done(f.record)
+            }
+            .background(Theme.bg.ignoresSafeArea())
+            .onAppear { if f.reward?.weekCleared == true { model.markChestSeen() } }
+        } else if mirror.finishedSessionId != nil {
+            finishing
+        } else {
+            livePlayer
+        }
+    }
+
+    /// DONE: same close as a phone workout (#822).
+    private func done(_ r: WorkoutRecord) {
+        mirror.closeFinish()
+        dismiss()
+        UndoCloseCenter.shared.show(.workoutSaved(r, model: model))
+    }
+
+    /// Finished on the Watch, record not here yet (or the session left the plan): the finish card and DONE.
+    private var finishing: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("FINISHED ON WATCH").font(Theme.label(12)).opacity(0.9)
+                Text(mirror.finished?.record.title ?? mirror.state?.title ?? "Workout").font(Theme.display(28))
+                    .lineLimit(2).minimumScaleFactor(0.7)
+                if let r = mirror.finished?.record {
+                    Text("\(r.totalSets) sets · \(max(1, r.durationSec / 60))′").font(Theme.label(15)).opacity(0.9)
+                } else {
+                    Text("Saving…").font(Theme.label(15)).opacity(0.9)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(18)
+            .background(LinearGradient(colors: [Color(hex: 0xFF2D55), Color(hex: 0xFF8A00)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                        in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            Button {
+                if let r = mirror.finished?.record { done(r) } else { mirror.closeFinish(); dismiss() }
+            } label: {
+                Text("DONE").font(Theme.label(18)).foregroundStyle(Theme.ink).frame(maxWidth: .infinity, minHeight: 60)
+                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.lime))
+            }
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(.white)
+        .padding(20)
+        .background(Theme.bg.ignoresSafeArea())
+    }
+
+    private var livePlayer: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Label("LIVE FROM WATCH" + (mirror.heartRate.map { " · ♥ \($0)" } ?? ""), systemImage: "applewatch")
@@ -129,6 +214,12 @@ struct TwinPlayerView: View {
                 if let end = s.restEnd, end > .now { rest(end) } else { controls(s) }
                 upNext(s)
                 stats(s)
+                // Ends the workout on both (#822 +): the Watch saves it, the finish screen follows here.
+                Button { mirror.finishOnWatch() } label: {
+                    Text("Finish workout").font(Theme.label(15)).frame(maxWidth: .infinity, minHeight: 50)
+                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.cardStrong))
+                }
+                .accessibilityHint("Ends the workout on the Watch and the iPhone")
             } else {
                 Text("Waiting for the Watch…").font(Theme.label(15)).foregroundStyle(Theme.muted)
             }
@@ -137,7 +228,8 @@ struct TwinPlayerView: View {
         .foregroundStyle(.white)
         .padding(20)
         .background(Theme.bg.ignoresSafeArea())
-        .onChange(of: mirror.live) { _, live in if !live { dismiss() } }
+        // A finish keeps the screen for the finish card (#822 A); anything else that ends the Watch session closes it.
+        .onChange(of: mirror.live) { _, live in if !live, mirror.finishedSessionId == nil { dismiss() } }
     }
 
     private func card(_ s: WMirrorState) -> some View {
@@ -241,5 +333,16 @@ struct WatchLiveBanner: View {
             }
             .buttonStyle(.plain)
         }
+    }
+}
+
+extension UndoOffer {
+    /// "Workout saved · Undo" after DONE on a finish screen (#822): Undo takes the workout back off the history.
+    /// Shared by the phone player and the Watch's twin player.
+    @MainActor static func workoutSaved(_ r: WorkoutRecord, model: AppModel) -> UndoOffer {
+        UndoOffer(
+            title: "Workout saved", detail: undoDetail(r.title, "\(max(1, r.durationSec / 60))′"), symbol: "checkmark.circle.fill",
+            colors: [Color(hex: 0x2FD27A), Color(hex: 0x1E9E8F)], reopen: { AnyView(EmptyView()) },
+            revert: { [model] in _ = model.undoWorkout(r.id) })
     }
 }

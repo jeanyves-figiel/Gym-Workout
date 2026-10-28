@@ -255,6 +255,10 @@ extension AppModel {
         state.dayTune = DayTune(day: PlanCalendar.key(Date(), planCalendar), level: nil, sore: [.legs], undone: [])
     }
 
+    /// The demo goal and growth level only (#823): every screen then shows the same goal % and level as the growth
+    /// path (Progress said 0 % and Level 3 next to its ~45 % and L4).
+    func applyDemoGrowthGoal() { saveGrowthDemo() }
+
     private func saveGrowthDemo() {
         var g = GrowthState()
         g.level = 4

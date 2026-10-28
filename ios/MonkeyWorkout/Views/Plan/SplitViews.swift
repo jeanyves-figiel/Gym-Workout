@@ -220,7 +220,8 @@ struct FocusTile: View {
             Spacer(minLength: 0)
             Text(focus.label).font(Theme.display(16)).lineLimit(2).minimumScaleFactor(0.8)
             if let detail {
-                Text(detail).font(.system(size: 11, weight: .semibold, design: .rounded)).opacity(0.85).lineLimit(1)
+                // Two lines: the muscle list was cut after the first one (#823).
+                Text(detail).font(.system(size: 11, weight: .semibold, design: .rounded)).opacity(0.85).lineLimit(2)
             }
         }
         .foregroundStyle(.white)

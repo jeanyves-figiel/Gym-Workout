@@ -374,8 +374,8 @@ struct CoachRoutineCard: View {
                 }
                 Spacer(minLength: 4)
                 HStack(alignment: .firstTextBaseline, spacing: 1) {
-                    Text("\(minutes)").font(Theme.display(30)).monospacedDigit()
-                    Text("′").font(Theme.label(14))
+                    // ′ in the number's own font: a small label-font ′ read as a clipped comma, "10," (#823).
+                    Text("\(minutes)′").font(Theme.display(30)).monospacedDigit()
                 }
                 .padding(.trailing, 30)
             }
@@ -612,8 +612,8 @@ struct RoutineLibrarySection: View {
                     }
                     Spacer(minLength: 4)
                     HStack(alignment: .firstTextBaseline, spacing: 1) {
-                        Text("\(minutes)").font(Theme.display(30)).monospacedDigit()
-                        Text("′").font(Theme.label(14))
+                        // ′ in the number's own font: a small label-font ′ read as a clipped comma, "10," (#823).
+                        Text("\(minutes)′").font(Theme.display(30)).monospacedDigit()
                     }
                 }
                 .contentShape(Rectangle())

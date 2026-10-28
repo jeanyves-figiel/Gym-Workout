@@ -78,16 +78,34 @@ final class GarminSync {
         pulling = true
         defer { pulling = false }
         guard let events = try? await model.api.garminInbox(GarminEvent.self), !events.isEmpty else { return }
-        for e in events { apply(e, model: model) }
+        // Applied by an earlier pull whose ack never landed (#820): acknowledged again, not applied twice.
+        let handled = Set(model.state.garminHandledIds ?? [])
+        let fresh = events.filter { !handled.contains($0.id) }
+        // Sets reach the phone with their workout's finish, not as they are done (#820): dated no later than that finish,
+        // so the workout record counts their weights.
+        var ends: [String: Date] = [:]
+        for e in fresh where e.type == "finished" {
+            if let sid = e.sid, let end = e.end { ends[sid] = Date(timeIntervalSince1970: end) }
+        }
+        for e in fresh {
+            let received = e.receivedAt.flatMap(Self.parseDate) ?? Date()
+            apply(e, model: model, setDate: e.sid.flatMap { ends[$0] }.map { min($0, received) } ?? received)
+        }
+        if !fresh.isEmpty {
+            model.state.garminHandledIds = Array(((model.state.garminHandledIds ?? []) + fresh.map(\.id)).suffix(500))
+            model.persist()
+        }
         try? await model.api.garminAck(events.map(\.id))
         publish()
     }
 
-    private func apply(_ e: GarminEvent, model: AppModel) {
+    /// `setDate`: when a set is taken to be done (#820).
+    private func apply(_ e: GarminEvent, model: AppModel, setDate: Date) {
         switch e.type {
         case "set":
             guard let sid = e.sid, let ex = e.ex, let i = e.i, let reps = e.reps else { return }
-            WatchSync.shared.receive(.setLogged(sessionId: sid, exerciseId: ex, setIndex: i, kg: e.kg ?? 0, reps: reps, rir: e.rir))
+            WatchSync.shared.receive(.setLogged(sessionId: sid, exerciseId: ex, setIndex: i, kg: e.kg ?? 0, reps: reps, rir: e.rir,
+                                                date: setDate))
         case "done":
             guard let uid = e.uid else { return }
             WatchSync.shared.receive(.itemDone(uid: uid))
@@ -105,6 +123,15 @@ final class GarminSync {
         default:
             return
         }
+    }
+
+    /// The server's `receivedAt` (ISO 8601, with or without fractional seconds).
+    private static func parseDate(_ s: String) -> Date? {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f.date(from: s) { return d }
+        f.formatOptions = [.withInternetDateTime]
+        return f.date(from: s)
     }
 
     /// Same event, same id: a resent finish is recorded once (`WatchSync` keeps the handled ids).
@@ -136,6 +163,8 @@ struct GarminEvent: Decodable, Sendable {
     var hrMax: Double?
     var kcal: Double?
     var day: String?
+    /// When the server received the event (#820); nil from older servers.
+    var receivedAt: String?
 }
 
 /// What the Garmin watch shows (#550): this week's sessions, next up in full, water. Short keys: a Connect IQ app

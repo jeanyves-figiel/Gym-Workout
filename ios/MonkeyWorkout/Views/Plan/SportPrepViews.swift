@@ -113,8 +113,8 @@ struct SportPrepPage: View {
             Spacer(minLength: 0)
             if let minutes {
                 HStack(alignment: .firstTextBaseline, spacing: 1) {
-                    Text("\(minutes)").font(Theme.display(26)).monospacedDigit()
-                    Text("′").font(Theme.label(13))
+                    // ′ in the number's own font: a small label-font ′ read as a clipped comma, "10," (#823).
+                    Text("\(minutes)′").font(Theme.display(26)).monospacedDigit()
                 }
             } else {
                 Image(systemName: "plus").font(.headline.weight(.heavy))

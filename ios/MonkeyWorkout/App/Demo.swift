@@ -35,7 +35,8 @@ enum Demo {
     static var reward: GameReward {
         let badges = Achievements.evaluate(records: [], weights: [], targetPerWeek: 3)
         let streak = badges.first { $0.id == "s4" }
-        return GameReward(xp: 340, levelUp: 8, weekCleared: true, badges: streak.map { [$0] } ?? [])
+        // Level 13, the level the demo history gives everywhere else (LV 13 headers, Level 13 card), not 8 (#823).
+        return GameReward(xp: 340, levelUp: 13, weekCleared: true, badges: streak.map { [$0] } ?? [])
     }
 
     /// Wins you missed (#501) for the `game-done-…` screens.
@@ -198,15 +199,21 @@ enum Demo {
             // No away periods: they re-plan undone sessions from the real today, so nothing would be missed.
             model.state.synced?.away = nil
             model.state.done = [:]
-            // Sessions on weekdays (gym Mon/Wed/Fri/Sun, climbing Tue/Sat), so the week strip shows.
+            // Nothing done this week here: no record of it either (#823).
+            let weekStart = Progression.weekStart(Date(), model.planCalendar)
+            model.state.history.removeAll { $0.startedAt >= weekStart }
+            // Sessions on weekdays (gym Mon/Tue/Thu/Sat, climbing Wed/Sun), so the week strip shows and "today" is
+            // Tuesday as on every other Train screen (#823: these showed Wednesday as today). The past-day screen
+            // keeps gym Mon/Wed/Fri/Sun: it needs Tuesday's climb the day before "today".
             var p = Demo.profile
-            p.gymWeekdays = [1, 3, 5, 7]
-            p.climbingWeekdays = [2, 6]
+            let pastDay = screen == "train-past-day"
+            p.gymWeekdays = pastDay ? [1, 3, 5, 7] : [1, 2, 4, 6]
+            p.climbingWeekdays = pastDay ? [2, 6] : [3, 7]
             if screen == "train-sport-day" {
                 // Sport block (#658): every non-gym day a snowboard day, no climbing.
                 p.climbingWeekdays = []
                 p.climbingDaysPerWeek = 0
-                p.sports = [SportPlan(sport: .snowboard, weekdays: [2, 4, 6])]
+                p.sports = [SportPlan(sport: .snowboard, weekdays: [3, 5, 7])]
             }
             model.state.synced?.profile = p
             model.state.plan = Generator.generateWeek(p, week: Demo.week, seed: 7)
@@ -301,6 +308,18 @@ enum Demo {
         return (records, logs)
     }
 
+    /// This week's first session, done Monday evening (#823): the record behind the ✓ on Train's strip.
+    static func doneThisWeek(_ session: Session, deload: Bool) -> WorkoutRecord {
+        let cal = Progression.calendar()
+        let monday = Progression.weekStart(Date(), cal)
+        let begin = cal.date(bySettingHour: 18, minute: 30, second: 0, of: monday) ?? monday
+        var sets: [String: Int] = [:]
+        for b in session.blocks { for it in b.items { sets[it.uid] = it.prescription.sets } }
+        return WorkoutRecord.build(
+            session: session, week: week, deload: deload, setsDone: sets, weights: [:],
+            startedAt: begin, endedAt: begin.addingTimeInterval(Double(session.estMin + 3) * 60), bodyMassKg: 72.4)
+    }
+
     /// Away periods (#68): two busy days later this week and a hotel-gym trip next week.
     static func away() -> [AwayPeriod] {
         let cal = Progression.calendar()
@@ -308,7 +327,8 @@ enum Demo {
         func key(_ days: Int) -> String { PlanCalendar.key(cal.date(byAdding: .day, value: days, to: monday)!, cal) }
         return [
             AwayPeriod(kind: .off, start: key(3), end: key(4), note: "Conference"),
-            AwayPeriod(kind: .travel, start: key(7), end: key(10), note: "Berlin", setup: .hotelGym),
+            // The Hotel Adlon gym's own list (#823): the trip said 7 items, the saved hotel gym 12.
+            AwayPeriod(kind: .travel, start: key(7), end: key(10), note: "Berlin", setup: .hotelGym, equipment: GymKind.hotel.equipment),
         ]
     }
 

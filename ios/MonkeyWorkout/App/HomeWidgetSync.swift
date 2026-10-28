@@ -58,7 +58,8 @@ final class HomeWidgetSync {
         s.phase = Generator.phaseName(plan.week)
         s.deload = plan.deload
         s.done = model.completedCount
-        s.target = plan.sessions.count
+        // Skipped and removed workouts leave the week (#818).
+        s.target = model.weekSessionCount
 
         let cal = model.planCalendar
         let weekStart = Progression.weekStart(Date(), cal)

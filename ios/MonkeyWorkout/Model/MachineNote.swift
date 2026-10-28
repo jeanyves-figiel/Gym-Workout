@@ -63,10 +63,12 @@ struct MachineNote: Codable, Identifiable, Hashable, Sendable {
     /// Server-safe copy: trimmed, capped.
     var cleaned: MachineNote {
         var n = self
+        // A value typed in a field left unnamed is kept under "Setting" (#817), never dropped.
         n.fields = Array(filledFields.prefix(Self.maxFields)).map {
-            Field(label: String($0.label.trimmingCharacters(in: .whitespaces).prefix(Self.maxLabel)),
-                  value: String($0.value.trimmingCharacters(in: .whitespaces).prefix(Self.maxLabel)))
-        }.filter { !$0.label.isEmpty }
+            let label = $0.label.trimmingCharacters(in: .whitespaces)
+            return Field(label: String((label.isEmpty ? "Setting" : label).prefix(Self.maxLabel)),
+                         value: String($0.value.trimmingCharacters(in: .whitespaces).prefix(Self.maxLabel)))
+        }
         n.text = trimmedText.map { String($0.prefix(Self.maxText)) }
         n.gymName = String(gymName.prefix(120))
         return n

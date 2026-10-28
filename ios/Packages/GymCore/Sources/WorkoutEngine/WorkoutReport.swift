@@ -152,7 +152,7 @@ public struct WorkoutReport: Equatable, Sendable {
             }
             let oneRM = line(\.estimatedOneRepMax)
             let bestBefore = past.compactMap { $0.rec.estimatedOneRepMax }.max()
-            let today = todaysSets(e.exerciseId, record: r, logs: logs)
+            let today = todaysSets(e.exerciseId, record: r, logs: logs, from: setsFrom(r, history: history))
             lifts.append(Lift(
                 uid: e.uid, exerciseId: e.exerciseId, name: Exercise.find(e.exerciseId)?.name ?? e.exerciseId,
                 category: e.category, setsDone: e.setsDone, setsPlanned: e.setsPlanned,
@@ -176,9 +176,19 @@ public struct WorkoutReport: Equatable, Sendable {
         return .same
     }
 
-    /// This workout's per-set logs for one exercise (same session, from start to an hour after the end).
-    static func todaysSets(_ exerciseId: String, record r: WorkoutRecord, logs: [SetLog]) -> [SetLog] {
-        let from = r.startedAt.addingTimeInterval(-600), to = r.endedAt.addingTimeInterval(3600)
+    /// Earliest set log that can belong to `r` (#817): a run closed and resumed later gets a `startedAt` that
+    /// leaves its first sets out, so the window opens at the start of that day, never before the end of an earlier
+    /// workout of the same session.
+    public static func setsFrom(_ r: WorkoutRecord, history: [WorkoutRecord], calendar: Calendar = .current) -> Date {
+        let floor = history.filter { $0.id != r.id && $0.sessionId == r.sessionId && $0.startedAt < r.startedAt }.map(\.endedAt).max()
+        let from = min(r.startedAt.addingTimeInterval(-600), calendar.startOfDay(for: r.startedAt))
+        guard let floor else { return from }
+        return max(from, min(floor, r.startedAt.addingTimeInterval(-60)))
+    }
+
+    /// This workout's per-set logs for one exercise (same session, from `from` to an hour after the end).
+    static func todaysSets(_ exerciseId: String, record r: WorkoutRecord, logs: [SetLog], from: Date? = nil) -> [SetLog] {
+        let from = from ?? r.startedAt.addingTimeInterval(-600), to = r.endedAt.addingTimeInterval(3600)
         var bySet: [Int: SetLog] = [:]
         for l in logs.sorted(by: { $0.date < $1.date })
         where l.exerciseId == exerciseId && l.sessionId == r.sessionId && l.date >= from && l.date <= to {

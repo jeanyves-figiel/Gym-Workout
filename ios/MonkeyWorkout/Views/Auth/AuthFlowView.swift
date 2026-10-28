@@ -101,6 +101,9 @@ struct WelcomeView: View {
                     .frame(maxWidth: .infinity)
             }
             .padding(24)
+            // iPad (#824): a centred column, not buttons the width of the screen.
+            .frame(maxWidth: 600)
+            .frame(maxWidth: .infinity)
         }
         .onAppear { appear = true }
     }

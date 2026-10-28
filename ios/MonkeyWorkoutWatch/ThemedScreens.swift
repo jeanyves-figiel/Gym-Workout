@@ -11,10 +11,10 @@ import WatchKit
 // the looks differ on the home screen and in the iPhone mirror.
 
 extension W {
-    /// "4×6" from 4 sets of "6–8"; timed or single prescriptions as written ("5 min").
+    /// "4×6–8" from 4 sets of "6–8": the whole range, so it agrees with the "80 kg × 8" target (#824);
+    /// timed or single prescriptions as written ("5 min").
     static func dose(_ it: WItem) -> String {
-        let lead = it.reps.split(separator: "–").first.map(String.init) ?? it.reps
-        return it.sets > 1 ? "\(it.sets)×\(lead)" : it.reps
+        it.sets > 1 ? "\(it.sets)×\(it.reps)" : it.reps
     }
 
     /// XP the session would earn with every set done.
@@ -204,7 +204,8 @@ struct ProgressScreen: View {
         let p = store.snapshot.progress
         ScrollView {
             VStack(spacing: 5) {
-                ScreenTitle(text: store.theme == .game ? "Level \(store.snapshot.game?.level ?? 1)" : "Progress")
+                // The Level tile below shows the level; no second "Level 8" as title (#824).
+                ScreenTitle(text: "Progress")
                 tiles(p)
             }
             .watchMargins()
@@ -220,7 +221,7 @@ struct ProgressScreen: View {
                 }
                 GridRow {
                     square("medal.fill", p.records.first?.name ?? "Best", p.records.first.map { WatchPlayer.kg($0.kg) } ?? "–",
-                           W.gradient(0x3D5AFF, 0x7B3DFF))
+                           W.gradient(0x3D5AFF, 0x7B3DFF), unit: p.records.isEmpty ? nil : "kg")
                     square("stopwatch.fill", "Last", p.recent.first.map { "\($0.minutes)′" } ?? "–", W.gradient(0xB23DFF, 0xFF3DA8))
                 }
             }
@@ -233,7 +234,7 @@ struct ProgressScreen: View {
                         tint: W.gradient(0xFFC23D, 0xFF7A3D))
             }
             ForEach(p.records.dropFirst(), id: \.name) { r in
-                TileRow(symbol: "medal.fill", title: r.name, value: WatchPlayer.kg(r.kg), tint: W.gradient(0x3D5AFF, 0x7B3DFF))
+                TileRow(symbol: "medal.fill", title: r.name, value: "\(WatchPlayer.kg(r.kg)) kg", tint: W.gradient(0x3D5AFF, 0x7B3DFF))
             }
             ForEach(p.recent, id: \.date) { r in
                 TileRow(symbol: "clock.fill", title: r.title, detail: "\(r.date.formatted(.dateTime.weekday().day())) · \(r.sets) sets",
@@ -242,7 +243,7 @@ struct ProgressScreen: View {
         }
     }
 
-    private func square(_ symbol: String, _ title: String, _ value: String, _ tint: LinearGradient) -> some View {
+    private func square(_ symbol: String, _ title: String, _ value: String, _ tint: LinearGradient, unit: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Image(systemName: symbol).font(.system(size: 11, weight: .bold))
                 .frame(width: 22, height: 22)
@@ -252,6 +253,8 @@ struct ProgressScreen: View {
                 Text(title).font(W.label(10)).lineLimit(1).minimumScaleFactor(0.6)
                 Spacer(minLength: 0)
                 Text(value).font(W.display(20)).lineLimit(1).minimumScaleFactor(0.5)
+                // Records say their unit (#824).
+                if let unit { Text(unit).font(W.label(8)) }
             }
         }
         .foregroundStyle(.white)
@@ -364,14 +367,21 @@ struct SummaryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 5) {
-                ScreenTitle(text: store.reward?.weekCleared == true ? "Chest opened 🎁" : "Done 🏆")
-                TileRow(symbol: "star.fill", title: "XP", detail: store.reward?.weekCleared == true ? "+\(WGame.weekBonus) week chest" : nil,
-                        value: "+\(xp)", tint: W.gradient(0xB23DFF, 0xFF3DA8))
-                TileRow(symbol: "stopwatch.fill", title: "Time", value: "\(minutes)′", tint: W.gradient(0x3DFFB0, 0x1E9BFF))
-                TileRow(symbol: "dumbbell.fill", title: "Sets", value: "\(player.totalSets)", tint: W.gradient(0xFF7A3D, 0xFF3D5A))
-                TileRow(symbol: "heart.fill", title: "Avg HR", value: hr, tint: W.gradient(0xFF3D6E, 0xB0105A))
-                TileRow(symbol: "flame.fill", title: "kcal", value: "\(Int(kcal))", tint: W.gradient(0xFFC23D, 0xFF7A3D))
+                // 5A (#824): the workout's name, then the four stats as a 2×2 grid that fits above the pinned DONE
+                // on 41 mm; chest, level, badges and sets scroll below it.
+                ScreenTitle(text: "\(player.session.title) ✓")
+                Grid(horizontalSpacing: 5, verticalSpacing: 5) {
+                    GridRow {
+                        stat("XP", "+\(xp)", W.gradient(0xB23DFF, 0xFF3DA8))
+                        stat("Time", "\(minutes)′", W.gradient(0x3DFFB0, 0x1E9BFF))
+                    }
+                    GridRow {
+                        stat("kcal", "\(Int(kcal))", W.gradient(0xFFC23D, 0xFF7A3D))
+                        stat("Avg HR", hr, W.gradient(0xFF3D6E, 0xB0105A))
+                    }
+                }
                 rewardLines
+                TileRow(symbol: "dumbbell.fill", title: "Sets", value: "\(player.totalSets)", tint: W.gradient(0xFF7A3D, 0xFF3D5A))
                 // Effort + mood to Apple Health (#614 C): Crown for effort, tap a face.
                 if saved { WatchEffortAsk(effort: $effort) }
                 WatchMoodAsk()
@@ -393,8 +403,27 @@ struct SummaryView: View {
         .onAppear { WKInterfaceDevice.current().play(.success) }
     }
 
-    /// Level-up and new badges, in every look (#227).
+    /// One small square stat (#824): label top left, number bottom right, square corners.
+    private func stat(_ label: String, _ value: String, _ tint: LinearGradient) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(label.uppercased()).font(W.label(9)).tracking(0.5).lineLimit(1).minimumScaleFactor(0.7)
+            Spacer(minLength: 0)
+            Text(value).font(W.display(18)).lineLimit(1).minimumScaleFactor(0.5)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .foregroundStyle(.white)
+        .padding(6)
+        .frame(maxWidth: .infinity, minHeight: 46, maxHeight: 46, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(tint))
+    }
+
+    /// Week chest, level-up and new badges, in every look (#227), below the stats (#824).
     @ViewBuilder private var rewardLines: some View {
+        if store.reward?.weekCleared == true {
+            Text("🎁 Chest opened · +\(WGame.weekBonus) XP").font(W.label(12)).foregroundStyle(.white)
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .padding(.top, 4)
+        }
         if let level = store.reward?.levelUp {
             Text("⬆️ Level \(level) · \(GameRank.of(level: level).title)").font(W.label(12)).foregroundStyle(W.ink)
                 .padding(.horizontal, 8).padding(.vertical, 3).background(Capsule().fill(W.lime))
@@ -730,8 +759,9 @@ struct ProLockView: View {
                                                                                            : AnyShapeStyle(Color.white.opacity(0.25))))
                 }
                 Text("Apple Watch is Pro").font(W.display(17))
-                Text(theme == .game ? "Unlock Pro on your iPhone to start quests here. iPhone workouts still show on your Watch."
-                     : "Unlock MonkeyWorkout Pro on your iPhone. Workouts started on the iPhone still show here.")
+                // Same facts in every look, only "quests" is themed (#824).
+                Text("Unlock MonkeyWorkout Pro on your iPhone to start \(theme == .game ? "quests" : "workouts") here. "
+                     + "Workouts started on the iPhone still show here.")
                     .font(.footnote).multilineTextAlignment(.center).opacity(0.85)
             }
             .foregroundStyle(.white)

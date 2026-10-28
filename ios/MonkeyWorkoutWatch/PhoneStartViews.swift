@@ -94,7 +94,10 @@ struct PhoneStartView: View {
                     .background(UnevenRoundedRectangle(topLeadingRadius: 11, bottomLeadingRadius: 3, bottomTrailingRadius: 11,
                                                        topTrailingRadius: 11, style: .continuous).fill(.white))
             }
-            if let ex = w.exercises {
+            // Same XP as the workout card and week list when the session is known (#824).
+            if let s = store.phoneSession {
+                Text("+\(W.xp(s)) XP · \(s.items.count) bosses").font(W.label(10)).foregroundStyle(W.lime)
+            } else if let ex = w.exercises {
                 Text("+\(WGame.xp(sets: ex * 3)) XP · \(ex) bosses").font(W.label(10)).foregroundStyle(W.lime)
             }
         }

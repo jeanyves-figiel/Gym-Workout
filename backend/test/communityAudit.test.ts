@@ -79,6 +79,19 @@ describe('privacy (#713)', () => {
     expect((await req('GET', `/v1/community/members/${a.id}`, a.t)).statusCode).toBe(200);
   });
 
+  it("a hidden member's posts leave the feeds and the share page, not their own feed (#819)", async () => {
+    const a = await join('a@example.com', 'ann_a');
+    const b = await join('b@example.com', 'bob_b');
+    expect((await req('PUT', `/v1/community/follows/${a.id}`, b.t)).statusCode).toBe(204);
+    const post = (await share(a.t, { visibility: 'public' })).json().post as { id: string };
+    expect((await app.inject({ method: 'GET', url: `/share/${post.id}` })).statusCode).toBe(200);
+    hideMember(a.id);
+    for (const scope of ['members', 'following'])
+      expect((await req('GET', `/v1/community/feed?scope=${scope}`, b.t)).json().posts).toHaveLength(0);
+    expect((await req('GET', '/v1/community/feed?scope=mine', a.t)).json().posts).toHaveLength(1);
+    expect((await app.inject({ method: 'GET', url: `/share/${post.id}` })).statusCode).toBe(404);
+  });
+
   it('leaving the community deletes reports the member filed and their photo', async () => {
     const a = await join('a@example.com', 'ann_a');
     const b = await join('b@example.com', 'bob_b');

@@ -35,7 +35,8 @@ struct SmartRow<Trailing: View>: View {
                 .frame(width: compact ? 38 : 46, height: compact ? 38 : 46)
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.22)))
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(Theme.display(compact ? 15 : 17)).lineLimit(1).minimumScaleFactor(0.7)
+                // Compact rows hold sentences (Coach remembers): two lines, not "…bench press 12…" (#823).
+                Text(title).font(Theme.display(compact ? 15 : 17)).lineLimit(compact ? 2 : 1).minimumScaleFactor(compact ? 0.85 : 0.7)
                 Text(detail).font(.caption.weight(.semibold)).opacity(0.9).lineLimit(2).fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 6)
@@ -499,7 +500,8 @@ struct NoticedBar: View {
                         .frame(width: 32, height: 32)
                         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.22)))
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(insights.count == 1 ? "Monkey noticed 1 thing" : "Monkey noticed \(insights.count) things")
+                        // One insight: no "1 thing" over "9 new best lifts", which read as a mismatch (#823).
+                        Text(insights.count == 1 ? "Monkey noticed" : "Monkey noticed \(insights.count) things")
                             .font(Theme.label(14))
                         Text(insights.map(\.title).joined(separator: " · ")).font(.caption.weight(.semibold)).opacity(0.85).lineLimit(1)
                     }

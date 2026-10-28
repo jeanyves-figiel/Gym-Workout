@@ -113,8 +113,14 @@ public enum MealPlanner {
             }
         }
         for (i, d) in days.enumerated() {
+            // Pins on a slot the day no longer has (training moved) go to the first slot of the same kind (#819).
+            let ids = Set(d.plan.slots.map(\.id))
+            var strays = kept.filter { $0.day == d.key && $0.pinned && !ids.contains($0.slot) }
             for slot in d.plan.slots where kindsOn(i).contains(slot.kind) {
-                if let k = kept.first(where: { $0.day == d.key && $0.slot == slot.id && $0.pinned }) {
+                let exact = kept.first(where: { $0.day == d.key && $0.slot == slot.id && $0.pinned })
+                let moved = exact == nil ? strays.firstIndex(where: { $0.kind == slot.kind }).map { strays.remove(at: $0) } : nil
+                if var k = exact ?? moved {
+                    k.slot = slot.id
                     out.append(k)
                     recent[k.recipeId] = i
                     if let r = RecipeBook.recipe(k.recipeId, own: own) { use(r) }
@@ -238,7 +244,7 @@ public enum MealPlanner {
 
     /// Plain text to share (Notes, Reminders, Messages).
     public static func shareText(_ items: [GroceryItem]) -> String {
-        var lines = ["🛒 MonkeyFit groceries"]
+        var lines = ["🛒 MonkeyWorkout groceries"]
         for a in aisles {
             let group = items.filter { $0.aisle == a.id }
             guard !group.isEmpty else { continue }

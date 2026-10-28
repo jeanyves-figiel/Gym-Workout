@@ -125,6 +125,10 @@ final class FuelStore {
         if log.glasses > glasses, cal.isDateInToday(day), let health {
             let ml = Double((log.glasses - glasses) * s.prefs.glassMl)
             Task { await health.saveWater(ml: ml) }
+        } else if log.glasses < glasses, cal.isDateInToday(day), let health {
+            // Taken off in the app: off Apple Health too (#819).
+            let keep = Double(log.glasses * s.prefs.glassMl)
+            Task { await health.replaceTodayWater(keepMl: keep) }
         }
         let water = log.glasses != glasses && cal.isDateInToday(day)
         s.logs[k] = log.isEmpty ? nil : log
@@ -497,10 +501,21 @@ final class FuelStore {
     #endif
 
     func signOut() {
-        save(Saved())
+        saved = Saved()
+        WatchSync.shared.schedulePush()
         let url = Self.url
-        // After the coalesced write, so it doesn't bring the file back.
-        Task { @MainActor in Self.queue.async { try? FileManager.default.removeItem(at: url) } }
+        // On the write queue now, after any write already queued (#822): a coalesced write still on its way writes the
+        // empty state, and a restore right after (`restore`) writes after the removal.
+        Self.queue.async { try? FileManager.default.removeItem(at: url) }
+    }
+
+    /// The account's Fuel as saved, kept on this device while signed out (#822).
+    func exportData() -> Data? { try? JSONEncoder().encode(saved) }
+
+    /// Brings back the Fuel an account had when it signed out on this device (#822).
+    func restore(_ data: Data) {
+        guard let s = try? JSONDecoder().decode(Saved.self, from: data) else { return }
+        save(s)
     }
 
     /// Writes run in order on one queue, off the main thread (#720).

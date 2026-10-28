@@ -36,6 +36,8 @@ private let dayFormat: Date.FormatStyle = .dateTime.weekday(.abbreviated).day().
 /// Coming weeks with dated sessions, climbing days and away periods.
 struct CalendarView: View {
     @Environment(AppModel.self) private var model
+    /// Regular = iPad (#824): two weeks per row in a wider column.
+    @Environment(\.horizontalSizeClass) private var horizontalSize
     @State private var editing: AwayPeriod?
     @State private var editingIsNew = false
     @State private var selected: DaySelection?
@@ -66,9 +68,22 @@ struct CalendarView: View {
                     }
                 }
                 // Away periods live in their week cards as tappable strips; no separate list.
-                ForEach(Array(weeks.enumerated()), id: \.element.id) { i, w in
-                    Text(header(i, w)).eyebrow().padding(.top, 4)
-                    WeekCalendarCard(week: w, current: i == 0, onAway: { edit($0) }) { wd in selected = DaySelection(week: w, weekday: wd, current: i == 0) }
+                if horizontalSize == .regular {
+                    // iPad (#824): two weeks side by side instead of one narrow column down the middle.
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 16, alignment: .top), GridItem(.flexible(), spacing: 16, alignment: .top)],
+                              alignment: .leading, spacing: 16) {
+                        ForEach(Array(weeks.enumerated()), id: \.element.id) { i, w in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(header(i, w)).eyebrow().padding(.top, 4)
+                                WeekCalendarCard(week: w, current: i == 0, onAway: { edit($0) }) { wd in selected = DaySelection(week: w, weekday: wd, current: i == 0) }
+                            }
+                        }
+                    }
+                } else {
+                    ForEach(Array(weeks.enumerated()), id: \.element.id) { i, w in
+                        Text(header(i, w)).eyebrow().padding(.top, 4)
+                        WeekCalendarCard(week: w, current: i == 0, onAway: { edit($0) }) { wd in selected = DaySelection(week: w, weekday: wd, current: i == 0) }
+                    }
                 }
                 // Periods starting after the last week shown keep a way in.
                 let later = laterAway(weeks)
@@ -81,7 +96,7 @@ struct CalendarView: View {
             }
             .padding(16)
         }
-        .readableWidth()
+        .modifier(CalendarColumn(maxWidth: horizontalSize == .regular ? 1100 : Theme.readableWidth))
         .background(Theme.bg.ignoresSafeArea())
         // Title in the content (#539), not under the toolbar's glass buttons.
         .titleInContent("Calendar")
@@ -160,6 +175,18 @@ struct CalendarView: View {
     private func edit(_ a: AwayPeriod) {
         editingIsNew = false
         editing = a
+    }
+}
+
+/// `readableWidth()` with its own cap (#824): the iPad calendar's two-week rows get a wider column.
+private struct CalendarColumn: ViewModifier {
+    let maxWidth: CGFloat
+    @State private var width: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        content
+            .safeAreaPadding(.horizontal, max(0, (width - maxWidth) / 2))
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 }
 
@@ -365,9 +392,9 @@ struct AwayStrip: View {
     private func dates(_ cal: Calendar) -> String? {
         guard let a = PlanCalendar.date(period.start, cal), let b = PlanCalendar.date(period.end, cal) else { return nil }
         let short: Date.FormatStyle = .dateTime.day().month(.abbreviated)
-        if a == b { return a.formatted(short) }
-        if cal.isDate(a, equalTo: b, toGranularity: .month) { return "\(cal.component(.day, from: a))–\(b.formatted(short))" }
-        return "\(a.formatted(short)) – \(b.formatted(short))"
+        guard a < b else { return a.formatted(short) }
+        // The locale's own range, "Oct 29 – 30" / "29–30 Oct", never "29–Oct 30" (#823).
+        return (a..<b).formatted(.interval.day().month(.abbreviated))
     }
 }
 
@@ -382,6 +409,12 @@ struct DaySheet: View {
     @State private var adding = false
     @State private var insertsBefore = 0
     @State private var logging: Session?
+    /// An earlier day of this week is logged, never planned (#537, #818): the past day's "What did you do?" (#800),
+    /// then the workout or sport picked there.
+    @State private var loggingPast = false
+    @State private var pastPick: PastDayPick?
+    @State private var pastWorkout: Session?
+    @State private var pastSport: SportLog?
     /// Remove… (#784): this day, every week or just skip.
     @State private var removing: RemoveRequest?
     /// Plan sport (#474): a new sport on this day, or the dated sport day / trip being edited.
@@ -462,11 +495,17 @@ struct DaySheet: View {
                         Text("No gym session planned.").foregroundStyle(Theme.muted)
                     }
                     if selection.current && selection.week.off[wd] == nil {
+                        let past = key < PlanCalendar.key(Date(), cal)
                         Button {
-                            insertsBefore = model.state.synced?.planInserts?.count ?? 0
-                            adding = true
+                            if past {
+                                loggingPast = true
+                            } else {
+                                insertsBefore = model.state.synced?.planInserts?.count ?? 0
+                                adding = true
+                            }
                         } label: {
-                            Label(sessions.isEmpty ? "Add workout" : "Add another workout", systemImage: "plus.circle.fill")
+                            Label(past ? "Log a workout" : sessions.isEmpty ? "Add workout" : "Add another workout",
+                                  systemImage: past ? "square.and.pencil" : "plus.circle.fill")
                                 .font(Theme.label(15)).foregroundStyle(Theme.ink)
                                 .frame(maxWidth: .infinity).padding(.vertical, 14)
                                 .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.lime))
@@ -512,11 +551,28 @@ struct DaySheet: View {
         .presentationDetents(fitDetent.map { [$0, .large] } ?? [.large], selection: $detent)
         .sheet(item: $moving) { s in MoveSessionSheet(sessionId: s.id) { _ in dismiss() } }
         .sheet(item: $logging) { s in MissedLogSheet(session: s) }
+        .sheet(isPresented: $loggingPast, onDismiss: logPastPick) { PastDayLogSheet(day: dayDate) { pastPick = $0 } }
+        .sheet(item: $pastWorkout) { s in MissedLogSheet(session: s, day: dayDate) }
+        .sheet(item: $pastSport) { LogSportView(initial: $0) }
         // Every week changes the plan: the sheet's week is a snapshot, so it closes.
         .removeWorkoutFlow($removing) { if model.profile != profileBefore { dismiss() } }
         .sheet(isPresented: $planningSport, onDismiss: closeIfPlanned) { PlanSportSheet(day: key, sport: model.profile?.otherSports.first?.sport) }
         .sheet(item: $editingTrip, onDismiss: closeIfPlanned) { t in PlanSportSheet(day: t.start, editing: t) }
         .sheet(isPresented: $adding, onDismiss: { if (model.state.synced?.planInserts?.count ?? 0) > insertsBefore { dismiss() } }) { AddWorkoutSheet(weekday: wd) }
+    }
+
+    /// This day's date, for logging on it.
+    private var dayDate: Date { selection.week.date(selection.weekday, model.planCalendar) ?? Date() }
+
+    /// Opens the log sheet for what "What did you do?" picked, once it's down (#818).
+    private func logPastPick() {
+        guard let pick = pastPick else { return }
+        pastPick = nil
+        let evening = model.planCalendar.date(bySettingHour: 18, minute: 0, second: 0, of: dayDate) ?? dayDate
+        switch pick {
+        case let .workout(s): pastWorkout = s
+        case let .sport(sport): pastSport = sport.map { SportLog(sport: $0, start: evening, minutes: 60) } ?? SportLog(start: evening)
+        }
     }
 
     private func closeIfPlanned() {
@@ -604,7 +660,8 @@ extension SessionPreview {
     /// Remove… (#784, design B): this day only, every week or just skip.
     fileprivate var removeButton: some View {
         Button(action: onRemove) {
-            Label("Remove…", systemImage: "trash")
+            // "Remove" on the button: "Remove…" in a narrow capsule read as cut off (#823); the choice still follows.
+            Label("Remove", systemImage: "trash")
                 .lineLimit(1).minimumScaleFactor(0.8)
                 .font(Theme.label(15)).foregroundStyle(.white)
                 .frame(maxWidth: .infinity).frame(height: 56)
@@ -739,10 +796,15 @@ struct AwayEditorView: View {
                     }
                     if !isNew {
                         Button(role: .destructive) {
+                            // As saved, auto-saved edits included, for the Undo bar (#822).
+                            let stored = model.away.first { $0.id == initial.id } ?? period
                             removed.done()
                             closeGuard.done()
                             onDone(nil)
                             dismiss()
+                            UndoCloseCenter.shared.deleted("\(stored.kind.label) removed", detail: undoDetail(stored.note), symbol: stored.kind.symbol) { [model] in
+                                model.saveAway(stored)
+                            }
                         } label: {
                             Text("Remove").font(Theme.label(15)).frame(maxWidth: .infinity).padding(.vertical, 12)
                         }
@@ -939,14 +1001,20 @@ struct RescheduleSheet: View {
                     Label("Moved to \(d.formatted(.dateTime.weekday(.wide)))", systemImage: "checkmark.circle.fill")
                         .font(Theme.label(17)).foregroundStyle(Theme.lime)
                 case .some(.none):
-                    Label("No free day left this week. It's skipped; the plan carries on next week.", systemImage: "info.circle.fill")
+                    // A missed session that finds no free day stays where it was (#822): nothing is skipped.
+                    Label("No free day left this week, so it stays where it was. The plan carries on next week.", systemImage: "info.circle.fill")
                         .font(.subheadline.weight(.semibold)).foregroundStyle(.orange)
                 case .none:
-                    Button { result = .some(model.reschedule(sessionId: sessionId)) } label: {
-                        Label("Move to next free day", systemImage: "arrow.forward.circle.fill")
+                    if session == nil {
+                        // Its week has rolled on (#822): no dead Move button.
+                        Label("That week is over and your plan has moved on: nothing left to move.", systemImage: "info.circle.fill")
+                            .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
+                    } else {
+                        Button { result = .some(model.reschedule(sessionId: sessionId)) } label: {
+                            Label("Move to next free day", systemImage: "arrow.forward.circle.fill")
+                        }
+                        .buttonStyle(LimeButtonStyle())
                     }
-                    .buttonStyle(LimeButtonStyle())
-                    .disabled(session == nil)
                 }
                 if result == nil, session != nil {
                     NavigationLink {

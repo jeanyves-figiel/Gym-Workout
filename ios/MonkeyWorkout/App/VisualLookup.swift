@@ -20,7 +20,7 @@ struct MachineVisualQuery: IntentValueQuery {
 /// Opens an exercise page: a Visual Intelligence result, Spotlight or Shortcuts.
 struct OpenExerciseIntent: OpenIntent {
     static let title: LocalizedStringResource = "Open exercise"
-    static let description = IntentDescription("Opens the exercise page in MonkeyFit.")
+    static let description = IntentDescription("Opens the exercise page in MonkeyWorkout.")
 
     @Parameter(title: "Exercise") var target: ExerciseEntity
 

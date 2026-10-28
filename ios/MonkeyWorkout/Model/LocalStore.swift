@@ -210,6 +210,9 @@ struct LocalState: Codable {
     var feels: [UUID: Int]?
     /// Apple effort 1–10 per workout (#614), by record id. Local only (Apple Health keeps its own copy).
     var efforts: [UUID: Int]?
+    /// Garmin inbox events already applied (#820), newest last: one applied but not acknowledged (app closed, offline)
+    /// isn't applied again by the next pull. Local only.
+    var garminHandledIds: [String]?
 }
 
 /// Where the player stopped: exercise index, sets done per item and active time so far.
@@ -228,6 +231,8 @@ struct ActiveWorkout: Codable, Equatable {
     var interrupted: Bool? = nil
     var restEnd: Date? = nil
     var restTotal: Int? = nil
+    /// Superset/circuit member the rest leads to (#817), so a restore keeps the round order.
+    var restJumpUid: String? = nil
     /// When the workout began (#716): its sets stay its own past midnight. Nil for runs saved before.
     var startedAt: Date? = nil
 }
@@ -340,5 +345,6 @@ extension LocalState {
         dayTune = try? c.decodeIfPresent(DayTune.self, forKey: .dayTune)
         feels = try? c.decodeIfPresent([UUID: Int].self, forKey: .feels)
         efforts = try? c.decodeIfPresent([UUID: Int].self, forKey: .efforts)
+        garminHandledIds = try? c.decodeIfPresent([String].self, forKey: .garminHandledIds)
     }
 }

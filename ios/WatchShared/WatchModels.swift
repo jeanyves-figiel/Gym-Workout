@@ -237,7 +237,9 @@ struct WBadge: Codable, Equatable, Hashable, Identifiable {
 
 /// Watch → phone, queued with `transferUserInfo` so nothing is lost while the phone is away.
 enum WatchEvent: Codable, Equatable {
-    case setLogged(sessionId: String, exerciseId: String, setIndex: Int, kg: Double, reps: Int, rir: Int?)
+    /// `date`: when the set was done (#820), so a set queued while the phone was away keeps its time. Absent from older
+    /// Watch apps (the phone then uses the time it arrives).
+    case setLogged(sessionId: String, exerciseId: String, setIndex: Int, kg: Double, reps: Int, rir: Int?, date: Date? = nil)
     case itemDone(uid: String)
     case finished(WFinished)
     /// Home style picked on the Watch (#219).
@@ -556,6 +558,9 @@ enum WCommand: String, Codable {
     case main, skipRest, addRest, effort0, effort1, effort2, effort3, effort4, next, previous
     /// Twin player on the iPhone (#603): − / + on the coming set's kg.
     case kgDown, kgUp
+    /// Twin player's Finish workout (#822): the Watch ends and saves the workout. Older Watch apps can't decode it and
+    /// ignore it.
+    case finish
 }
 
 /// A workout run on the Watch, as the iPhone's twin player shows it (#603). Sent through HealthKit workout
@@ -590,6 +595,9 @@ enum WatchKeys {
     static let outcome = "outcome"
     /// Workout record the phone saved, with outcome `finished` (#347).
     static let recordId = "recordId"
+    /// With outcome `finished` (#820): true when the phone waits for the Watch to save the Health workout, false when it
+    /// saved it itself (the Watch then throws its session away). Absent from older iPhone apps.
+    static let watchSaves = "watchSaves"
     /// `WLiftLive` from the Watch while it measures a set of the iPhone workout (#383).
     static let lift = "lift"
     /// Live heart rate (Int bpm) of an iPhone workout the Watch tracks, for the Live Activity (#371).

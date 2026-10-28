@@ -556,9 +556,12 @@ extension Demo {
         let json = #"""
         {"reply":"Legs it is, 45 minutes. I kept your shoulder out of it: no overhead work, no barbell on your back.",
          "workout":{"name":"Legs, shoulder-safe","minutes":45,"groups":["legs","hips"],"rest":"standard","grouping":"straight",
-                    "avoidGroups":["shoulders"],"avoidEquipment":[],"avoidKeywords":[]},
+                    "avoidGroups":["shoulders"],"avoidEquipment":[],
+                    "avoidKeywords":["back squat","box squat","front squat","smith-squat","good-morning"]},
          "remainingToday":17}
         """#
+        // The reply promises "no barbell on your back": the settings now say so too (#823), so the card no longer
+        // lists Barbell back squat or Smith machine squat right under it.
         return try JSONDecoder().decode(CoachChatAnswer<CoachWorkoutSettings>.self, from: Data(json.utf8))
     }
 

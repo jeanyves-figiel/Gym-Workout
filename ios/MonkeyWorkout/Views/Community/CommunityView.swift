@@ -118,7 +118,17 @@ struct CommunityView: View {
             }
         }
         if community.hasMore(scope) {
-            ProgressView().padding().task { await community.loadMore(scope, api: model.api) }
+            if community.moreFailed.contains(scope) {
+                // Same slot as the spinner (#819): a failed page asks to try again instead of spinning forever.
+                Button { community.retryMore(scope) } label: {
+                    Label("Couldn't load · Retry", systemImage: "arrow.clockwise")
+                        .font(Theme.label(13)).foregroundStyle(Theme.muted)
+                        .frame(maxWidth: .infinity).padding()
+                }
+                .buttonStyle(.plain)
+            } else {
+                ProgressView().padding().task(id: community.cursor(scope)) { await community.loadMore(scope, api: model.api) }
+            }
         }
     }
 }
@@ -267,8 +277,8 @@ struct PostCard: View {
 
     private var menu: some View {
         Menu {
-            if post.visibility == .everyone, let url = model.api.shareURL(postId: post.id) {
-                ShareLink(item: url) { Label("Share link", systemImage: "square.and.arrow.up") }
+            if post.visibility == .everyone, let url = AppConfig.publicLink("/share/\(post.id)") {
+                ShareLink(item: url) { Label("Share link", systemImage: "square.and.arrow.up") } // public web base (#823)
             }
             if post.mine {
                 Picker("Who can see it", selection: Binding(get: { post.visibility }, set: { setVisibility($0) })) {

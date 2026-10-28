@@ -107,8 +107,18 @@ final class ProStore {
     }
 
     /// Buys a paywall plan: StoreKit, or a fake purchase in staging test mode.
+    /// A plan shown before the App Store answered (#822: its button stays lime) loads the products first, or says why not.
     func buy(_ plan: ProPlan) async {
-        if testing { await test { try await $0.testPurchase(plan.id) } } else if let p = plan.product { await purchase(p) }
+        if testing { return await test { try await $0.testPurchase(plan.id) } }
+        if let p = plan.product { return await purchase(p) }
+        if products.isEmpty, let p = try? await Product.products(for: Self.productIds) {
+            products = p.sorted { (Self.productIds.firstIndex(of: $0.id) ?? 9) < (Self.productIds.firstIndex(of: $1.id) ?? 9) }
+        }
+        if let p = products.first(where: { $0.id == plan.id }) {
+            await purchase(p)
+        } else {
+            error = "The App Store isn't reachable right now. Try again in a moment."
+        }
     }
 
     func testCancel(end: Bool) async { await test { try await $0.testCancel(end: end) } }

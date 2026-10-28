@@ -197,11 +197,7 @@ struct ReportProblemView: View {
         .navigationTitle("Report a problem")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if modal {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { onClose?() } label: { Image(systemName: "xmark") }.accessibilityLabel("Close")
-                }
-            }
+            if modal { CloseToolbarItem { onClose?() } } // the standard ✕ (#823)
         }
         .sheet(item: Binding(get: { marking.map { ReportMarkIndex(i: $0) } }, set: { marking = $0?.i })) { m in
             ScreenshotMarkupView(image: draft.shots[m.i]) { draft.shots[m.i] = $0 }

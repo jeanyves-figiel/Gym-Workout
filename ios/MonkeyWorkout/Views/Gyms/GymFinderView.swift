@@ -106,7 +106,11 @@ enum GymFinder {
 
     static func distance(_ meters: CLLocationDistance?) -> String? {
         guard let m = meters else { return nil }
-        return Measurement(value: m, unit: UnitLength.meters).formatted(.measurement(width: .abbreviated, usage: .road))
+        // Always metric like the rest of the app (kg, km), never feet or miles from a US region setting (#823).
+        let d = m < 1000 ? Measurement(value: (m / 10).rounded() * 10, unit: UnitLength.meters)
+                         : Measurement(value: m, unit: UnitLength.meters).converted(to: .kilometers)
+        return d.formatted(.measurement(width: .abbreviated, usage: .asProvided,
+                                        numberFormatStyle: .number.precision(.fractionLength(0...1))))
     }
 }
 

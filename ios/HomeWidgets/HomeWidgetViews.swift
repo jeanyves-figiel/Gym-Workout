@@ -731,9 +731,11 @@ private struct DataFace: View {
                     Text("Records").font(label(8 * k)).textCase(.uppercase).foregroundStyle(Self.accent(.records))
                     ForEach(s.records.prefix(3), id: \.self) { r in
                         HStack(spacing: 3) {
-                            Text(r.name).lineLimit(1)
+                            // Shrinks before it cuts, and the weight says kg (#823): "One-arm dumbb… 92.5".
+                            Text(r.name).lineLimit(1).minimumScaleFactor(0.7)
                             Spacer(minLength: 2)
-                            Text(HomeWidgetFormat.kg(r.kg)).font(heavy(11 * k))
+                            (Text(HomeWidgetFormat.kg(r.kg)).font(heavy(11 * k)) + Text(" kg").font(label(8 * k)))
+                                .lineLimit(1).fixedSize()
                         }
                         .font(label(10 * k))
                     }
