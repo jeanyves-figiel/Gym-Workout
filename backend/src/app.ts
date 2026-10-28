@@ -20,9 +20,11 @@ import { liveRoutes } from './routes/live.ts';
 import { referralPublicRoutes, referralRoutes } from './routes/referrals.ts';
 import { type CoachModel, claudeCoach } from './coach/chat.ts';
 import { coachChatRoutes } from './routes/coachChat.ts';
+import { type MealIdeasModel, claudeMealIdeas } from './coach/mealIdeas.ts';
 import { type FoodScanModel, type PlateScanModel, type SnapScanModel, claudeFoodScan, claudePlateScan, claudeSnapScan } from './coach/foodScan.ts';
 import { type GymScanModel, claudeGymScan } from './coach/gymScan.ts';
 import { foodScanRoutes } from './routes/foodScan.ts';
+import { mealIdeasRoutes } from './routes/mealIdeas.ts';
 import { gymScanRoutes } from './routes/gymScan.ts';
 import { coachVoiceRoutes } from './routes/coachVoices.ts';
 import { pollySynthesizer, type Synthesize } from './coach/polly.ts';
@@ -82,6 +84,8 @@ export interface AppDeps {
   plateScan?: PlateScanModel;
   /** Magic Snap (#733), `mode: "auto"`. */
   snapScan?: SnapScanModel;
+  /** Meal ideas from the pantry (#869); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
+  mealIdeas?: MealIdeasModel;
   /** Studio coach voices (#395); defaults to Polly when credentials are configured. Injectable for tests. */
   synth?: Synthesize;
   /** Sees every route as it is registered (`src/docsReference.ts`, #586). */
@@ -330,6 +334,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       const plateScan = deps.plateScan ?? (deps.config.coachChat.apiKey ? claudePlateScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
       const snapScan = deps.snapScan ?? (deps.config.coachChat.apiKey ? claudeSnapScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
       foodScanRoutes(r, deps.db, now, foodScan, 20, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit, plateScan, snapScan);
+      const mealIdeas = deps.mealIdeas ?? (deps.config.coachChat.apiKey ? claudeMealIdeas(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
+      mealIdeasRoutes(r, deps.db, now, mealIdeas, 20, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
       const voices = deps.config.coachVoices;
       forgetVoices = coachVoiceRoutes(r, deps.synth ?? (voices.polly ? pollySynthesizer(voices.polly, outbound, now) : undefined), voices.cacheDir, {
         warm: deps.config.env === 'production',

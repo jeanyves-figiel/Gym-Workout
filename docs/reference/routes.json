@@ -488,6 +488,10 @@
     "path": "/v1/me/machine-notes/photos/:photoId"
   },
   {
+    "method": "POST",
+    "path": "/v1/me/meal-ideas"
+  },
+  {
     "method": "DELETE",
     "path": "/v1/me/mfa"
   },

@@ -4190,6 +4190,32 @@
         }
       }
     },
+    "/v1/me/meal-ideas": {
+      "post": {
+        "tags": [
+          "Coach (AI and voices)"
+        ],
+        "summary": "{pantry[1–300]{id, label}, meal breakfast|lunch|dinner|snack, left{protein, carbs} (g still to eat today), diet?, avoid[]?} → {ideas[≤3]{name, minutes, foods[{id, grams}] (pantry ids only), steps[≤5]}, remainingToday} (#869, \"What can I eat?\"; macros added up on the device)",
+        "description": "Errors / limits: 402; 403 verification_required; 429 daily_limit (20/day), busy; 502 ideas_failed; 503 ideas_unavailable",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/me/coach-voices": {
       "get": {
         "tags": [

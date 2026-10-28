@@ -441,6 +441,13 @@ CREATE TABLE machine_notes (
 
 CREATE INDEX machine_notes_user_updated ON machine_notes(user_id, updated_at);
 
+CREATE TABLE meal_ideas_usage (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      count INTEGER NOT NULL,
+      PRIMARY KEY (user_id, day)
+    );
+
 CREATE TABLE member_report_shots (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

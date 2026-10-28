@@ -1,7 +1,7 @@
 import type { DB } from './db.ts';
 import { ApiError } from './errors.ts';
 
-type UsageTable = 'coach_chat_usage' | 'gym_scan_usage' | 'food_scan_usage';
+type UsageTable = 'coach_chat_usage' | 'gym_scan_usage' | 'food_scan_usage' | 'meal_ideas_usage';
 
 /**
  * Takes one of `limit` daily slots before a paid model call (#432): atomic, so parallel requests can't all pass a

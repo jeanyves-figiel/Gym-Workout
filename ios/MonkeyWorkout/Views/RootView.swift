@@ -542,7 +542,7 @@ private struct DemoScreen: View {
         case "own-gym": OwnGymSheet(name: "Kraftwerk Garage Gym") { _ in }
         case "move": MoveSessionSheet(sessionId: second)
         // Fuel (#496).
-        case "fuel", "fuel-setup-card": NavigationStack { FuelView() }
+        case "fuel", "fuel-setup-card", "fuel-ideas": NavigationStack { FuelView() }
         // Fuel home redesign (#733): the Log sheet with Magic Snap on top, and the Magic Snap camera.
         case "fuel-log": JustAteSheet(plan: model.fuelPlan(on: Date()), day: Date())
         case "fuel-recipes": NavigationStack { RecipeBrowserView().navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }.fuelDestinations() }
@@ -565,6 +565,11 @@ private struct DemoScreen: View {
         case "fuel-plate":
             JustAteSheet(plan: model.fuelPlan(on: Date()), day: Date(),
                          plate: [FoodServing(foodId: "coffee"), FoodServing(foodId: "cornflakes", servings: 1.5)])
+        // What can I eat? (#869): one idea as the recipe card.
+        case "fuel-idea":
+            if let slot = model.fuelPlan(on: Date()).slots.first(where: { $0.kind == .dinner }) ?? model.fuelPlan(on: Date()).slots.first {
+                MealIdeaSheet(idea: AppModel.demoIdeas[1], plan: model.fuelPlan(on: Date()), day: Date(), slot: slot)
+            }
         case "fuel-snap-plate":
             if let slot = model.fuelPlan(on: Date()).slots.first(where: { $0.kind == .lunch }) ?? model.fuelPlan(on: Date()).slots.first {
                 PlateScanSheet(plan: model.fuelPlan(on: Date()), day: Date(), slot: slot)
