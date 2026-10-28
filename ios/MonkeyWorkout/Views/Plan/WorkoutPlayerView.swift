@@ -48,6 +48,8 @@ struct WorkoutPlayerView: View {
     /// Finish, Finish early or Discard picked in the workout map (#538): run once the sheet has closed.
     @State private var mapAction: MapAction?
     @State private var formFor: Exercise?
+    /// Form check (#833): the camera watches this set; its rep count can fill the set.
+    @State private var filmFor: Exercise?
     @State private var prFor: Exercise?
     /// "Not here?" (#162): the planned item whose equipment the gym lacks.
     @State private var notHereFor: PlannedExercise?
@@ -217,6 +219,11 @@ struct WorkoutPlayerView: View {
         }
         .preferredColorScheme(.dark)
         .sheet(item: $formFor) { FormSheet(exercise: $0) }
+        .fullScreenCover(item: $filmFor) { e in
+            FormCheckView(exercise: e) { reps in
+                if let i = log.rows.firstIndex(where: { !$0.logged }) { log.setReps(i, reps) }
+            }
+        }
         .sheet(item: $freeBrowse) { b in
             ExercisePickerView(limit: 10, group: b.group) { picked in
                 addFree(steps.isEmpty ? picked + freeLined.filter { l in !picked.contains { $0.id == l.id } } : picked, jump: b.jump)
@@ -458,6 +465,7 @@ struct WorkoutPlayerView: View {
                                  onSplit: canSplit(step) ? { split(step) } : nil,
                                  onGroup: canSplit(step) ? { groupFix = step.item } : nil,
                                  onAdd: isFree ? { freeBrowse = FreeBrowse(group: nil, jump: false) } : nil,
+                                 onFilm: FormModel.supports(step.exercise) ? { filmFor = step.exercise } : nil,
                                  short: short) { formFor = step.exercise }
                     .id(step.item.uid)
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
@@ -671,6 +679,7 @@ struct WorkoutPlayerView: View {
                                      onSplit: canSplit(step) ? { split(step) } : nil,
                                      onGroup: canSplit(step) ? { groupFix = step.item } : nil,
                                      onAdd: isFree ? { freeBrowse = FreeBrowse(group: nil, jump: false) } : nil,
+                                     onFilm: FormModel.supports(step.exercise) ? { filmFor = step.exercise } : nil,
                                      compact: true) { formFor = step.exercise }
                         .id(step.item.uid)
                         .transition(.opacity)
@@ -762,6 +771,7 @@ struct WorkoutPlayerView: View {
                                      onSplit: canSplit(step) ? { split(step) } : nil,
                                      onGroup: canSplit(step) ? { groupFix = step.item } : nil,
                                      onAdd: isFree ? { freeBrowse = FreeBrowse(group: nil, jump: false) } : nil,
+                                     onFilm: FormModel.supports(step.exercise) ? { filmFor = step.exercise } : nil,
                                      compact: true) { formFor = step.exercise }
                         .id(step.item.uid)
                         .transition(.opacity)

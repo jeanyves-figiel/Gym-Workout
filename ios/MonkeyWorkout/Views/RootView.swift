@@ -243,6 +243,11 @@ private struct DemoScreen: View {
             if let p = e.position {
                 NavigationStack { PositionGuideView(exercise: e, position: p, demoMistake: Demo.screen == "position-mistake") }
             }
+        // Form check (#833): a made-up member in place of the camera.
+        case "form-live": FormCheckView(exercise: Exercise.get("back-squat"), demo: .live)
+        case "form-ghost": FormCheckView(exercise: Exercise.get("back-squat"), demo: .ghost)
+        case "form-report": FormCheckView(exercise: Exercise.get("back-squat"), demo: .report)
+        case "form-coach": CoachChatView(ask: AskCoachRequest(focus: CoachFocus(screen: "exercise", title: Exercise.get("back-squat").name)))
         case "player-superset": WorkoutPlayerView(sessionId: second, demoMode: "superset")
         case "player-superset-fix": WorkoutPlayerView(sessionId: second, demoMode: "superset-fix")
         case "player-split": WorkoutPlayerView(sessionId: second, demoMode: "superset-split")
