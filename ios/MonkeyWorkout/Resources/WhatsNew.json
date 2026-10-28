@@ -36,6 +36,12 @@
       "tint": "strength",
       "title": "Calendar touch-ups",
       "body": "Tap a workout in the Calendar day sheet to open it, the Remove sheet fits its content, and your HIIT day is named HIIT."
+    },
+    {
+      "symbol": "face.smiling",
+      "tint": "power",
+      "title": "A friendlier icon",
+      "body": "MonkeyFit now winks at you. The Iron, Titan and Legend reward icons got the same new face."
     }
   ]
 }
