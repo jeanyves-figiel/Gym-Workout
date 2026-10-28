@@ -269,7 +269,7 @@ struct WeekCalendarCard: View {
         let sport = model.sportDays(on: week.date(wd, cal) ?? Date()).first { $0.weekday == wd }?.sport
         // A dated sport day or trip (#474) shows in the sport's colours.
         let trip = week.trips[wd]
-        let tag: String? = session.map { short($0.focus) + (count > 1 ? " +\(count - 1)" : "") } ?? (off ? "Off" : trip.map { $0.sport.short } ?? (climb ? "Climb" : sport?.short ?? (skipped ? "Skipped" : nil)))
+        let tag: String? = session.map { ($0.hiit != nil ? "HIIT" : short($0.focus)) + (count > 1 ? " +\(count - 1)" : "") } ?? (off ? "Off" : trip.map { $0.sport.short } ?? (climb ? "Climb" : sport?.short ?? (skipped ? "Skipped" : nil)))
         let fill = missed ? AnyShapeStyle(MissedStyle.gradient)
             : trip.map { AnyShapeStyle($0.sport.gradient) } ?? tileFill(session: session != nil, off: off, travel: travel, climb: climb)
         VStack(spacing: 1) {
@@ -590,7 +590,7 @@ struct DaySheet: View {
     }
 }
 
-/// Session summary for any week (future sessions can't be opened yet: they are previews).
+/// Session summary for any week; tap it for the full workout page (#840).
 private struct SessionPreview: View {
     let session: Session
     let current: Bool
@@ -601,31 +601,19 @@ private struct SessionPreview: View {
     var canRemove = false
     var onMove: () -> Void = {}
     var onRemove: () -> Void = {}
+    @Environment(AppModel.self) private var model
+    @State private var hiitSettings = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(session.displayTitle).font(.system(.title3, design: .rounded).weight(.heavy))
-                Spacer()
-                if done {
-                    Image(systemName: "checkmark.seal.fill").foregroundStyle(Theme.lime)
-                } else {
-                    Text("\(session.estMin)′").font(Theme.label(15)).foregroundStyle(Theme.muted)
-                }
-            }
-            BlockStripe(blocks: session.blocks, height: 6)
-            ForEach(session.blocks.filter { $0.kind == .power || $0.kind == .strength }) { b in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(b.title).eyebrow()
-                    ForEach(b.items) { it in
-                        HStack {
-                            Text(Exercise.find(it.exerciseId)?.name ?? it.exerciseId).font(.subheadline.weight(.semibold))
-                            Spacer()
-                            Text("\(it.prescription.sets) × \(it.prescription.reps)").font(.caption.weight(.bold)).foregroundStyle(Theme.muted)
-                        }
-                    }
-                }
-            }
+            // The whole summary opens the full workout page (#840): this week's, or a later week's ahead (#758).
+            NavigationLink {
+                if current { SessionView(sessionId: session.id) } else { SessionView(sessionId: session.id, preview: session) }
+            } label: { summary }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("calendar.openWorkout")
+            // Outside the link: its HIIT › button opens HIIT settings (#841).
+            if model.isPlannedHiit(session) { hiitSource }
             if current {
                 HStack(spacing: 10) {
                     NavigationLink {
@@ -657,6 +645,56 @@ private struct SessionPreview: View {
 }
 
 extension SessionPreview {
+    /// Where a planned HIIT day comes from (#841, design B): HIIT settings, opened from here.
+    fileprivate var hiitSource: some View {
+        let h = model.profile?.hiit
+        let picked = h?.weekdays.contains(session.weekday ?? 0) == true
+        return HStack(spacing: 6) {
+            Image(systemName: "bolt.fill")
+            Text("HIIT day · \(h?.days ?? 1)× a week, \(picked ? "your pick" : "Coach picks the day")")
+                .lineLimit(1).minimumScaleFactor(0.8)
+            Spacer(minLength: 4)
+            Button { hiitSettings = true } label: {
+                Text("HIIT ›").padding(.horizontal, 9).padding(.vertical, 4)
+                    .background(Capsule().fill(Color(hex: 0xFF8A3D).opacity(0.25)))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("calendar.hiitSettings")
+        }
+        .font(Theme.label(12)).foregroundStyle(Color(hex: 0xFFB27A))
+        .sheet(isPresented: $hiitSettings) { HiitSettingsSheet() }
+    }
+
+    /// Title, stripe and main exercises; a chevron says it opens.
+    fileprivate var summary: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(session.displayTitle).font(.system(.title3, design: .rounded).weight(.heavy))
+                Spacer()
+                if done {
+                    Image(systemName: "checkmark.seal.fill").foregroundStyle(Theme.lime)
+                } else {
+                    Text("\(session.estMin)′").font(Theme.label(15)).foregroundStyle(Theme.muted)
+                }
+                Image(systemName: "chevron.right").font(.subheadline.weight(.bold)).foregroundStyle(Theme.muted)
+            }
+            BlockStripe(blocks: session.blocks, height: 6)
+            ForEach(session.blocks.filter { $0.kind == .power || $0.kind == .strength }) { b in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(b.title).eyebrow()
+                    ForEach(b.items) { it in
+                        HStack {
+                            Text(Exercise.find(it.exerciseId)?.name ?? it.exerciseId).font(.subheadline.weight(.semibold))
+                            Spacer()
+                            Text("\(it.prescription.sets) × \(it.prescription.reps)").font(.caption.weight(.bold)).foregroundStyle(Theme.muted)
+                        }
+                    }
+                }
+            }
+        }
+        .contentShape(Rectangle())
+    }
+
     /// Remove… (#784, design B): this day only, every week or just skip.
     fileprivate var removeButton: some View {
         Button(action: onRemove) {

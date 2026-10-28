@@ -56,6 +56,10 @@ struct WatchSnapshot: Codable, Equatable {
     var wods: [WodTimer]?
     /// Swimming (#624): pool length, plan, today's and the next swim; nil when the member never set it up.
     var swim: WSwim?
+    /// Climbing session running on the iPhone (#829), picked up by the Watch it wakes; nil when none.
+    var climbLive: WClimbLive?
+    /// Mind (#834): score, check-in, Coach's breathing pick and the Calm sessions; nil from older phone apps.
+    var mind: WMind?
 
     func session(_ id: String) -> WSession? { (sessions + extras).first { $0.id == id } }
 }
@@ -256,6 +260,12 @@ enum WatchEvent: Codable, Equatable {
     case bikeFTP(watts: Int, date: Date)
     /// Cheer for a gym buddy from the Watch (#626 B): `fire`, `banana` or `beast`.
     case buddyCheer(userId: String, kind: String)
+    /// Climbing live (#829): the session after a go tapped on the Watch, or ended there (`ended` set).
+    case climbLive(WClimbLive)
+    /// Mind (#834): a mood check-in on the Watch (mood 1–5, `MindFeeling` raw values) and a finished breathing session
+    /// (`Breath` raw value, seconds breathed). The phone saves them and writes Apple Health.
+    case mindCheckIn(date: Date, mood: Int, feelings: [String])
+    case mindSession(breath: String, start: Date, seconds: Int)
 }
 
 /// Reps and bar speed the Watch measured for one set (#383). Speeds in m/s, ranges in m, times in s.
@@ -553,6 +563,80 @@ struct WWater: Codable, Equatable {
     func today(_ now: Date = Date()) -> Int { day == Self.key(now) ? glasses : 0 }
 }
 
+/// Mind (#834) as the Watch shows it: the phone flattens the engine's `MindScore` and `Breath` into plain values.
+struct WMind: Codable, Equatable {
+    /// `WWater.key` day the values belong to.
+    var day: String
+    var score: Int?
+    /// "Calm", "Steady", "Strained", "Low".
+    var level: String?
+    /// Last 7 days' scores, today last; nil = no score that day.
+    var week: [Int?]
+    var checkedIn: Bool
+    /// Coach's pick: a `breaths` id and why.
+    var pick: String
+    var pickWhy: String
+    var weekMinutes: Int
+    var breaths: [WBreath]
+
+    /// Checked in today; a snapshot from yesterday says no.
+    func checkedInToday(_ now: Date = Date()) -> Bool { checkedIn && day == WWater.key(now) }
+
+    func today(_ now: Date = Date()) -> Bool { day == WWater.key(now) }
+
+    var pickBreath: WBreath? { breaths.first { $0.id == pick } ?? breaths.first }
+}
+
+/// One breathing or relax session, as the engine's `Breath` describes it.
+struct WBreath: Codable, Equatable, Hashable, Identifiable {
+    var id: String
+    var label: String
+    var purpose: String
+    var symbol: String
+    var tint: UInt32
+    var tint2: UInt32
+    /// Minutes offered, the first is the default.
+    var lengths: [Int]
+    var phases: [WBreathPhase]
+    /// Spoken / shown cues of guided sessions, spread evenly.
+    var cues: [String]
+
+    var cycleSeconds: Double { phases.reduce(0) { $0 + $1.seconds } }
+
+    func cycles(minutes: Int) -> Int { max(1, Int((Double(minutes) * 60 / max(1, cycleSeconds)).rounded())) }
+
+    func totalSeconds(minutes: Int) -> Double { Double(cycles(minutes: minutes)) * cycleSeconds }
+
+    /// Same as `Breath.at` on the phone: phase index, seconds into it, cycle and cue at `t`.
+    func at(_ t: Double, minutes: Int) -> (index: Int, into: Double, cycle: Int, cue: String?) {
+        guard !phases.isEmpty, cycleSeconds > 0 else { return (0, 0, 0, nil) }
+        let total = totalSeconds(minutes: minutes)
+        let clamped = min(max(0, t), max(0, total - 0.001))
+        let cycle = min(cycles(minutes: minutes) - 1, Int(clamped / cycleSeconds))
+        var rest = clamped - Double(cycle) * cycleSeconds
+        var index = phases.count - 1
+        for (i, p) in phases.enumerated() {
+            if rest < p.seconds {
+                index = i
+                break
+            }
+            rest -= p.seconds
+        }
+        let cue: String? = cues.isEmpty ? nil : cues[min(cues.count - 1, Int(clamped / (total / Double(cues.count))))]
+        return (index, min(max(0, rest), phases[index].seconds), cycle, cue)
+    }
+}
+
+struct WBreathPhase: Codable, Equatable, Hashable {
+    /// "Breathe in", "Hold", …
+    var label: String
+    var seconds: Double
+    /// Square size at the end of the phase, 0–1.
+    var fill: Double
+    /// Breathing in (a stronger tap on the wrist).
+    var inhale: Bool
+}
+
 /// Watch → phone remote control of the iPhone player.
 enum WCommand: String, Codable {
     case main, skipRest, addRest, effort0, effort1, effort2, effort3, effort4, next, previous
@@ -615,6 +699,8 @@ enum WatchKeys {
     static let swimBuddy = "swimBuddy"
     /// Gym buddy (#626 B): `WBuddyPing` phone → Watch, a buddy's set or a cheer for you.
     static let buddy = "buddy"
+    /// Climbing live (#829): `WClimbLive` phone → Watch after each change on the iPhone (Watch → phone is a `WatchEvent`).
+    static let climbLive = "climbLive"
 }
 
 extension JSONEncoder {
@@ -631,6 +717,27 @@ extension JSONDecoder {
         d.dateDecodingStrategy = .secondsSince1970
         return d
     }()
+}
+
+/// One go on a problem (#829): `result` is `flash`, `send` or `fall` (the iPhone's `ClimbResult`).
+struct WClimbAttempt: Codable, Equatable, Identifiable {
+    var id: UUID
+    var grade: String
+    var result: String
+    var at: Date
+}
+
+/// A climbing session tracked live (#829), the same on both sides. The newer `updatedAt` wins; `grades` is the scale's
+/// list, easiest first, for the Crown. `ended`: finished on the side that sent it; `discarded`: thrown away, nothing logged.
+struct WClimbLive: Codable, Equatable {
+    var id: UUID
+    var start: Date
+    var grades: [String]
+    var grade: String
+    var attempts: [WClimbAttempt]
+    var updatedAt: Date
+    var ended: Date? = nil
+    var discarded: Bool? = nil
 }
 
 /// Hyrox settings for the Watch (#426), from the iPhone's Hyrox hub.

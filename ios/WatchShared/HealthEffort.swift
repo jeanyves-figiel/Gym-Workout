@@ -21,8 +21,10 @@ enum HealthEffort {
     }
 
     /// Mood level 1–5 (`Feel` raw values on the iPhone: drained, meh, good, great, amazing).
-    static func saveMood(_ level: Int, at date: Date, store: HKHealthStore) async throws {
-        let mood = HKStateOfMind(date: date, kind: .momentaryEmotion, valence: valence(level), labels: [label(level)], associations: [.fitness])
+    /// The Mind check-in (#834) saves a daily mood with what it is about.
+    static func saveMood(_ level: Int, at date: Date, kind: HKStateOfMind.Kind = .momentaryEmotion,
+                         associations: [HKStateOfMind.Association] = [.fitness], store: HKHealthStore) async throws {
+        let mood = HKStateOfMind(date: date, kind: kind, valence: valence(level), labels: [label(level)], associations: associations)
         _ = try await store.save(mood)
     }
 

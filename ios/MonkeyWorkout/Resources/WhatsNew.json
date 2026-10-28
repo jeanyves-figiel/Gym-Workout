@@ -1,35 +1,41 @@
 {
-  "id": "2026-10-27.3",
+  "id": "2026-10-28.1",
   "items": [
-    {
-      "symbol": "sparkles",
-      "tint": "strength",
-      "title": "Big polish, every corner",
-      "body": "The player keeps every set, your week stays right after skips and moves, and Undo is there after Move, Swap and finishing a workout."
-    },
-    {
-      "symbol": "applewatch",
-      "tint": "cardio",
-      "title": "Watch workout, live on iPhone",
-      "body": "Train shows the workout running on your Watch. Open it on iPhone, and finish it from there with its summary."
-    },
-    {
-      "symbol": "arrow.up.arrow.down",
-      "tint": "power",
-      "title": "Push or lower weight where it fits",
-      "body": "Separate push and lower weights now show only on machines that can take them."
-    },
-    {
-      "symbol": "slider.horizontal.3",
-      "tint": "mobility",
-      "title": "Tidier player",
-      "body": "The Change sheet fits its options, Setup stays in place once saved, and the Undo bar dismisses with a tap or swipe."
-    },
     {
       "symbol": "figure.climbing",
       "tint": "cardio",
-      "title": "Plan sport on a rest day",
-      "body": "Planning a sport on a day you made a rest day brings the sport back."
+      "title": "Climbing live",
+      "body": "Track live on a climbing day times your goes: grade chips, Flash, Sent or Fell in one tap, rest timer and today's pyramid. With a Watch, tap goes on your wrist too."
+    },
+    {
+      "symbol": "brain.head.profile",
+      "tint": "mobility",
+      "title": "Mind: check in and breathe",
+      "body": "A quick mood check-in on Train, Calm breathing sessions in Explore and a Mind score from mood, HRV, sleep and training. On your Watch too."
+    },
+    {
+      "symbol": "video.fill",
+      "tint": "strength",
+      "title": "Check your form",
+      "body": "Prop your phone up: the camera counts reps, flags short reps, lean or caving knees, and shows the right position as a ghost. Data stays on your phone."
+    },
+    {
+      "symbol": "mappin.and.ellipse",
+      "tint": "power",
+      "title": "Where you climbed",
+      "body": "Log climb and Log sport now keep the gym, crag or ski resort. Pick a chip or search maps."
+    },
+    {
+      "symbol": "airplane",
+      "tint": "cardio",
+      "title": "Holidays clear the week",
+      "body": "Weekly climbing and sport no longer show on away days. Climbing there anyway? Add it for that day with Sport."
+    },
+    {
+      "symbol": "calendar",
+      "tint": "strength",
+      "title": "Calendar touch-ups",
+      "body": "Tap a workout in the Calendar day sheet to open it, the Remove sheet fits its content, and your HIIT day is named HIIT."
     }
   ]
 }

@@ -54,9 +54,16 @@ struct ExploreMenu: View {
         return Button {
             withAnimation(.snappy(duration: 0.25)) { mode = m }
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: m.symbol).font(.system(size: 14, weight: .bold))
-                Text(m.short).font(Theme.label(13)).lineLimit(1).minimumScaleFactor(0.75)
+            // Five Ready-made tiles (#834 Calm): icon over the name when side by side doesn't fit.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 6) {
+                    Image(systemName: m.symbol).font(.system(size: 14, weight: .bold))
+                    Text(m.short).font(Theme.label(13)).lineLimit(1).fixedSize()
+                }
+                VStack(spacing: 2) {
+                    Image(systemName: m.symbol).font(.system(size: 13, weight: .bold))
+                    Text(m.short).font(Theme.label(11)).lineLimit(1).minimumScaleFactor(0.7)
+                }
             }
             .foregroundStyle(on ? .white : .white.opacity(0.85))
             .frame(maxWidth: .infinity)
@@ -84,10 +91,10 @@ extension LibraryView.Mode {
         case exercises, readyMade
         var label: String { self == .exercises ? "Exercises" : "Ready-made" }
         var symbol: String { self == .exercises ? "dumbbell.fill" : "list.bullet.rectangle.fill" }
-        var modes: [LibraryView.Mode] { self == .exercises ? [.muscles, .machines, .categories] : [.workouts, .hiit, .routines, .programmes] }
+        var modes: [LibraryView.Mode] { self == .exercises ? [.muscles, .machines, .categories] : [.workouts, .hiit, .routines, .calm, .programmes] }
     }
 
-    var group: MenuGroup { [.workouts, .hiit, .routines, .programmes].contains(self) ? .readyMade : .exercises }
+    var group: MenuGroup { [.workouts, .hiit, .routines, .calm, .programmes].contains(self) ? .readyMade : .exercises }
 
     /// Tile label under the Exercises / Ready-made switch.
     var short: String {
@@ -98,6 +105,7 @@ extension LibraryView.Mode {
         case .workouts: "Workouts"
         case .hiit: "HIIT"
         case .routines: "Daily"
+        case .calm: "Calm"
         case .programmes: "Plans"
         }
     }
@@ -110,6 +118,7 @@ extension LibraryView.Mode {
         case .workouts: "list.bullet.rectangle.fill"
         case .hiit: "bolt.heart.fill"
         case .routines: "figure.flexibility"
+        case .calm: "figure.mind.and.body"
         case .programmes: "flag.checkered"
         }
     }
@@ -123,6 +132,7 @@ extension LibraryView.Mode {
         case .workouts: .cardio
         case .hiit: .power
         case .routines: .stretch
+        case .calm: .cardio
         case .programmes: .power
         }
     }

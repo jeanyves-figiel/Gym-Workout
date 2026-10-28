@@ -115,6 +115,9 @@ struct CoachChatView: View {
     @State private var listener = CoachListener()
     @State private var voice = CoachVoice()
     @State private var opening: CoachOpen?
+    /// Form check (#833): exercise picker, then the camera.
+    @State private var formPicking = false
+    @State private var formFilming: Exercise?
     @State private var detent: PresentationDetent = .large
     /// The last question was spoken: read the answer aloud (#412).
     @State private var spoken = false
@@ -136,6 +139,9 @@ struct CoachChatView: View {
                                 InlineErrorCard(title: "Couldn't reach Coach", message: statusError) { Task { await loadStatus() } }
                             }
                             greeting
+                            if store.messages.isEmpty {
+                                FormCheckCoachTile(exercise: focusExercise, picking: $formPicking, filming: $formFilming)
+                            }
                             ForEach(store.messages) { m in message(m).id(m.id) }
                             if sending { typingBubble.id("typing") }
                             chips.id("chips")
@@ -160,6 +166,8 @@ struct CoachChatView: View {
             .sheet(item: $tweaking) { m in
                 if let w = m.workout { CustomWorkoutEditor(initial: w, generated: m.settings?.options) }
             }
+            .sheet(isPresented: $formPicking) { FormCheckPicker { e in formFilming = e } }
+            .fullScreenCover(item: $formFilming) { e in FormCheckView(exercise: e) }
             .sheet(item: $opening) { o in
                 NavigationStack {
                     switch o {
@@ -182,6 +190,12 @@ struct CoachChatView: View {
             listener.cancel()
             voice.stop()
         }
+    }
+
+    /// The exercise on screen when Coach was opened from its page, if the camera can check it.
+    private var focusExercise: Exercise? {
+        guard let focus, focus.screen == "exercise", let e = Exercise.named(focus.title), FormModel.supports(e) else { return nil }
+        return e
     }
 
     private func loadStatus() async {
@@ -462,6 +476,12 @@ struct CoachChatView: View {
 
     private func send(_ text: String, spoken: Bool = false) {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // "Check my form" opens the camera (#833) instead of a chat answer.
+        if FormCheckCoachTile.asks(t) {
+            draft = ""
+            if let e = focusExercise { formFilming = e } else { formPicking = true }
+            return
+        }
         guard !t.isEmpty, canTalk else { return }
         store.messages.append(CoachChatMessage(role: .member, text: t))
         draft = ""
