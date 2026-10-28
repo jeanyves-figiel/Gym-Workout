@@ -1637,7 +1637,7 @@
         "tags": [
           "Sync: member content"
         ],
-        "summary": "→ {climbs, deleted?, serverTime} climbing sessions",
+        "summary": "→ {climbs, deleted?, serverTime} climbing sessions (optional place {id, name, address?, latitude?, longitude?, gymId?}, #832)",
         "security": [
           {
             "bearer": []
@@ -1721,7 +1721,7 @@
         "tags": [
           "Sync: member content"
         ],
-        "summary": "→ {sports, deleted?, serverTime} other sport sessions (snowboard, MTB, Hyrox…)",
+        "summary": "→ {sports, deleted?, serverTime} other sport sessions (snowboard, MTB, Hyrox…; optional place as climbs, #832)",
         "security": [
           {
             "bearer": []

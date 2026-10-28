@@ -4,6 +4,16 @@ import { type DB, tx } from '../db.ts';
 import { baseUpdatedAt, conflictsField, opaqueCopy, reviveUploaded, recordTombstone, sendPull, type SyncTable, syncId, syncIdParams, takeConflicts } from './sync.ts';
 import { assertByteQuota, assertItemSize, assertRowQuota } from '../quota.ts';
 
+/** Where a climb or sport session happened (#832): a saved gym, a map place (crag, ski resort…) or one typed in. */
+export const sessionPlace = z.object({
+  id: z.string().min(1).max(200),
+  name: z.string().min(1).max(120),
+  address: z.string().max(240).nullish(),
+  latitude: z.number().min(-90).max(90).nullish(),
+  longitude: z.number().min(-180).max(180).nullish(),
+  gymId: z.string().max(200).nullish(),
+});
+
 /** Climbing sessions (#312): were kept only on the device; now synced like PR attempts (upsert by client id). */
 const climb = z
   .object({
@@ -15,6 +25,7 @@ const climb = z
     kind: z.string().min(1).max(32),
     topGrade: z.string().max(32).nullish(),
     notes: z.string().max(2000).nullish(),
+    place: sessionPlace.nullish(),
   })
   .catchall(z.unknown());
 
