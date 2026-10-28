@@ -12,11 +12,11 @@ extension AppModel {
     var missedDays: [Date] {
         let cal = planCalendar
         let start = WeekPlan.weekStart(of: Date(), calendar: cal)
-        return missedToHandle.compactMap { s in s.weekday.flatMap { cal.date(byAdding: .day, value: $0 - 1, to: start) } }
+        return missedSessions.compactMap { s in s.weekday.flatMap { cal.date(byAdding: .day, value: $0 - 1, to: start) } }
     }
 
     /// What the comeback offer trains: the first missed session's focus, else the next one's.
-    var comebackFocus: Focus { (missedToHandle.first ?? nextSession)?.focus ?? .fullUpper }
+    var comebackFocus: Focus { (missedSessions.first ?? nextSession)?.focus ?? .fullUpper }
 
     /// The offer taken: a 20-min generated session of `focus` added to today (it counts for the Comeback quest like any
     /// workout). Now → straight in the player on Train; tonight → a 19:00 reminder for it.
