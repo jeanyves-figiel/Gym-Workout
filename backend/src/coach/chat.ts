@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { AI_MODELS, CACHED } from './models.ts';
 
 /**
  * Workout chat (#381): the member says what they want today ("45 min, legs, sore shoulder") and Coach Monkey
@@ -71,8 +72,6 @@ export type CoachModel = (turns: ChatTurn[], context: ChatContext) => Promise<Co
 
 /** Stands for the member's first name, which stays on the device (#415). */
 export const NAME_SLOT = '{name}';
-
-export const COACH_MODEL_ID = 'claude-opus-5-5';
 
 const SYSTEM = `You are Coach Monkey, the upbeat coach inside the MonkeyWorkout gym app. Members ask you from any screen of the app, by text or by voice: to get a workout for today, or about an exercise, their form, their progress, their plan, recovery or how the app works.
 
@@ -204,7 +203,7 @@ export const clean = (a: CoachAnswer, context: ChatContext): CoachAnswer => {
 
 /** Claude Opus 5.5 with structured output; low effort keeps each message quick and cheap (~1–2 US¢). */
 /** `workspaceId`: needed when the API key is not scoped to a workspace (sent as anthropic-workspace-id). */
-export const claudeCoach = (apiKey: string, workspaceId?: string): CoachModel => {
+export const claudeCoach = (apiKey: string, workspaceId?: string, model = AI_MODELS.chat): CoachModel => {
   const client = new Anthropic({
     apiKey,
     timeout: 45_000,
@@ -215,11 +214,12 @@ export const claudeCoach = (apiKey: string, workspaceId?: string): CoachModel =>
     const about = describeMember(context);
     const messages: Anthropic.Beta.BetaMessageParam[] = turns.map((t) => ({ role: t.role === 'member' ? 'user' : 'assistant', content: t.text }));
     const res = await client.beta.messages.create({
-      model: COACH_MODEL_ID,
+      model,
       max_tokens: 4000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      system: about ? `${SYSTEM}\n\nAbout this member:\n${about}` : SYSTEM,
+      // Same Coach rules for everyone, cached; the member's own lines come after the cache mark (#866).
+      system: [{ type: 'text', text: SYSTEM, cache_control: CACHED }, ...(about ? [{ type: 'text' as const, text: `About this member:\n${about}` }] : [])],
       output_config: { effort: 'low', format: { type: 'json_schema', schema } },
       messages,
     });

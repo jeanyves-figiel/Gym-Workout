@@ -322,13 +322,13 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       programRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail);
       subscriptionRoutes(r, subscriptions);
       gymRoutes(r, deps.db, now);
-      const coach = deps.coach ?? (deps.config.coachChat.apiKey ? claudeCoach(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
+      const coach = deps.coach ?? (deps.config.coachChat.apiKey ? claudeCoach(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.chat) : undefined);
       coachChatRoutes(r, deps.db, now, coach, deps.config.coachChat.dailyLimit, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
-      const gymScan = deps.gymScan ?? (deps.config.coachChat.apiKey ? claudeGymScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
+      const gymScan = deps.gymScan ?? (deps.config.coachChat.apiKey ? claudeGymScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.scan) : undefined);
       gymScanRoutes(r, deps.db, now, gymScan, 30, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
-      const foodScan = deps.foodScan ?? (deps.config.coachChat.apiKey ? claudeFoodScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
-      const plateScan = deps.plateScan ?? (deps.config.coachChat.apiKey ? claudePlateScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
-      const snapScan = deps.snapScan ?? (deps.config.coachChat.apiKey ? claudeSnapScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
+      const foodScan = deps.foodScan ?? (deps.config.coachChat.apiKey ? claudeFoodScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.scan) : undefined);
+      const plateScan = deps.plateScan ?? (deps.config.coachChat.apiKey ? claudePlateScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.scan) : undefined);
+      const snapScan = deps.snapScan ?? (deps.config.coachChat.apiKey ? claudeSnapScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.scan) : undefined);
       foodScanRoutes(r, deps.db, now, foodScan, 20, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit, plateScan, snapScan);
       const voices = deps.config.coachVoices;
       forgetVoices = coachVoiceRoutes(r, deps.synth ?? (voices.polly ? pollySynthesizer(voices.polly, outbound, now) : undefined), voices.cacheDir, {
