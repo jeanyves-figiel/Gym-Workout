@@ -105,6 +105,14 @@ struct MindCheckInCard: View {
             }
             .sensoryFeedback(.selection, trigger: mood)
             if mood != nil {
+                // What the chips are for (#859): optional tags Coach reads for patterns, saved with the mood in Health.
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("What's behind it? · optional").font(Theme.label(11)).tracking(1).textCase(.uppercase)
+                    Text("Pick any. Coach uses them to spot what lifts or drags your mood.")
+                        .font(.caption.weight(.semibold)).opacity(0.85).fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 2)
+                .accessibilityElement(children: .combine)
                 FlowLayout(spacing: 6) {
                     ForEach(MindFeeling.allCases) { f in
                         SelectChip(title: f.label, on: feelings.contains(f), offFill: AnyShapeStyle(.black.opacity(0.25)),
