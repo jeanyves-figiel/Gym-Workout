@@ -4138,6 +4138,32 @@
         }
       }
     },
+    "/v1/me/coach-review": {
+      "post": {
+        "tags": [
+          "Coach (AI and voices)"
+        ],
+        "summary": "Weekly Coach review (#867): {digest{weekOf YYYY-MM-DD, goal?, level?, days[]{weekday 1–7, title, done, minutes?}, bests[], sleepHours?, hrv?, mood? 1–5, moodAbout[], next[]{id, weekday, title, lifts[]{uid, name, sets}}, offDays[]}} → {weekOf, score 0–100, headline, summary, changes[≤3]{kind move|skip|lighter|addSet, sessionId, weekday?, uid?, label}}; changes only name next workouts and lifts; 3/day per member",
+        "description": "Errors / limits: 400; 402 pro_required; 429 daily_limit, busy; 502 coach_failed; 503 coach_unavailable",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/me/gym-scan": {
       "post": {
         "tags": [

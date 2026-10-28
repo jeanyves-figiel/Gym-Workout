@@ -1,4 +1,5 @@
 import { dirname, join } from 'node:path';
+import { type AiTask, aiModels } from './coach/models.ts';
 import type { OffsiteConfig } from './offsite.ts';
 
 export interface Config {
@@ -37,7 +38,7 @@ export interface Config {
   /** APNs token auth (.p8 with Apple Push Notifications service enabled). Unset → remote push skipped (#69). */
   apns: { teamId?: string; keyId?: string; privateKey?: string };
   /** Workout chat (#381): ANTHROPIC_API_KEY unset → the chat answers 503 and the app hides it. COACH_CHAT_DAILY_LIMIT messages per member per day. */
-  coachChat: { apiKey?: string; workspaceId?: string; dailyLimit: number };
+  coachChat: { apiKey?: string; workspaceId?: string; dailyLimit: number; models: Record<AiTask, string> };
   /** AI_DAILY_LIMIT: paid model calls (coach chat + gym scan + food scan) across all members per UTC day. */
   aiDailyLimit: number;
   /**
@@ -169,6 +170,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
       apiKey: env.ANTHROPIC_API_KEY || undefined,
       workspaceId: env.ANTHROPIC_WORKSPACE_ID || undefined,
       dailyLimit: Number(env.COACH_CHAT_DAILY_LIMIT ?? 20),
+      models: aiModels(env),
     },
     aiDailyLimit: Number(env.AI_DAILY_LIMIT ?? 500),
     subscriptions: {

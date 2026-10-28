@@ -54,6 +54,7 @@ All manual, target `staging` or `production`, run commands on the Fly machine ov
 | Fly undo workout | Remove a wrongly recorded workout for a member (dry run first, then apply) |
 | Free access | Grant / revoke / list free Pro access per account, or grant-all with an end date |
 | Week challenge review | List member challenge suggestions waiting for review, approve (into the member-week vote) or reject one (#748) |
+| AI usage | Paid AI calls per day and feature: calls, failures, tokens, cache hit, estimated US$ cost, `AI_DAILY_LIMIT` use (#877) |
 
 ## Signing and App Store
 

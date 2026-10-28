@@ -1,0 +1,41 @@
+name: AI usage
+
+# Manual (#877): paid AI calls per UTC day and feature (Coach chat, week review, gym / food / plate / snap scans):
+# calls, failures, tokens, cache hit, estimated cost in US$ and the AI_DAILY_LIMIT use. Runs backend/src/admin.ts on the
+# Fly machine (as the app user, same database). No new secrets; the table has no member ids.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target'
+        type: choice
+        options: [staging, production]
+        default: production
+      days:
+        description: 'Days back (1-90)'
+        required: false
+        default: '7'
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_APP: ${{ inputs.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
+      HOST: ${{ inputs.environment == 'production' && 'workout.monkeygrade.cloud' || 'workout-staging.monkeygrade.cloud' }}
+      DAYS: ${{ inputs.days }}
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master, pinned (#432)
+      - name: Validate inputs
+        run: |
+          if ! printf '%s' "$DAYS" | grep -Eq '^[0-9]{1,2}$'; then echo "::error::Days must be 1-90"; exit 1; fi
+      - name: Wake the machine
+        run: curl -fsS --retry 5 --retry-delay 3 "https://$HOST/healthz"
+      - name: Run
+        run: |
+          # The entrypoint drops to the app user so the SQLite files keep their owner.
+          flyctl ssh console -a "$FLY_APP" -C "docker-entrypoint.sh node --disable-warning=ExperimentalWarning /app/src/admin.ts ai-usage --days $DAYS"
