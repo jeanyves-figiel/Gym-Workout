@@ -470,6 +470,21 @@ CREATE TABLE mfa_challenges (
       consumed_at TEXT
     );
 
+CREATE TABLE moderation_holds (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      target_type TEXT NOT NULL CHECK (target_type IN ('post', 'program', 'workout', 'avatar')),
+      target_id TEXT NOT NULL,
+      category TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      resolved_at TEXT,
+      decision TEXT CHECK (decision IN ('released', 'rejected'))
+    );
+
+CREATE INDEX moderation_holds_open ON moderation_holds(resolved_at, created_at);
+
+CREATE INDEX moderation_holds_target ON moderation_holds(target_type, target_id);
+
 CREATE TABLE notification_prefs (
       user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       data TEXT NOT NULL,

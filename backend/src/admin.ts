@@ -8,8 +8,12 @@
  *   node src/admin.ts challenges                      week challenge suggestions waiting for review (#748)
  *   node src/admin.ts challenge-approve <id>          into the member-week vote
  *   node src/admin.ts challenge-reject <id>
+ *   node src/admin.ts holds                           shared items held by AI moderation (#871), oldest first
+ *   node src/admin.ts hold-release <id>               put it live (unless reports still hide it)
+ *   node src/admin.ts hold-reject <id>                keep it hidden (a held photo is deleted)
  */
 import { parseArgs } from 'node:util';
+import { openHolds, resolveHold } from './community/aiModeration.ts';
 import { pendingSuggestions, reviewSuggestion } from './community/challenges.ts';
 import { loadConfig } from './config.ts';
 import { openDb } from './db.ts';
@@ -78,7 +82,18 @@ switch (cmd) {
     console.log(reviewSuggestion(db, email!.trim(), status, new Date()) ? `Suggestion ${email} ${status}.` : `No pending suggestion ${email}.`);
     break;
   }
+  case 'holds':
+    // Ids, category and nickname only, never the content: the workflow log is public (#432). Content is in the moderation mail.
+    console.table(openHolds(db).map((h) => ({ id: h.id, type: h.target_type, category: h.category, by: h.nickname, at: h.created_at })));
+    break;
+  case 'hold-release':
+  case 'hold-reject': {
+    if (!email) fail('Hold id required');
+    const decision = cmd === 'hold-release' ? 'released' : 'rejected';
+    console.log(resolveHold(db, email!.trim(), decision, new Date()) ? `Hold ${email} ${decision}.` : `No open hold ${email}.`);
+    break;
+  }
   default:
-    fail('Usage: node src/admin.ts grant <email> [--until YYYY-MM-DD] [--note text] | grant-all --until YYYY-MM-DD [--before YYYY-MM-DD] | revoke <email> | list | challenges | challenge-approve <id> | challenge-reject <id>');
+    fail('Usage: node src/admin.ts grant <email> [--until YYYY-MM-DD] [--note text] | grant-all --until YYYY-MM-DD [--before YYYY-MM-DD] | revoke <email> | list | challenges | challenge-approve <id> | challenge-reject <id> | holds | hold-release <id> | hold-reject <id>');
 }
 db.close();
