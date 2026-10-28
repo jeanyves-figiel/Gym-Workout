@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { AI_MODELS, CACHED } from './models.ts';
+import { AI_MODELS, CACHED, tracked } from './models.ts';
 
 /**
  * Weekly Coach review (#867): the app sends a digest of the week just done (workouts, bests, sleep, HRV, mood) and the
@@ -143,7 +143,7 @@ export const claudeWeekReview = (apiKey: string, workspaceId?: string, model = A
     defaultHeaders: workspaceId ? { 'anthropic-workspace-id': workspaceId } : undefined,
   });
   return async (digest) => {
-    const res = await client.beta.messages.create({
+    const res = await tracked('review', model, () => client.beta.messages.create({
       model,
       max_tokens: 6000,
       betas: ['server-side-fallback-2026-07-01'],
@@ -151,7 +151,7 @@ export const claudeWeekReview = (apiKey: string, workspaceId?: string, model = A
       system: [{ type: 'text', text: SYSTEM, cache_control: CACHED }],
       output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
       messages: [{ role: 'user', content: describeWeek(digest) }],
-    });
+    }));
     if (res.stop_reason === 'refusal') return { weekOf: digest.weekOf, score: 0, headline: 'Your week', summary: '', changes: [] };
     const text = res.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
     return cleanReview(JSON.parse(text) as Omit<WeekReview, 'weekOf'>, digest);

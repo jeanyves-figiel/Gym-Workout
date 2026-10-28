@@ -14,6 +14,19 @@ CREATE TABLE achievement_announcements (
       PRIMARY KEY (user_id, achievement_id)
     );
 
+CREATE TABLE ai_call_log (
+      day TEXT NOT NULL,
+      feature TEXT NOT NULL,
+      model TEXT NOT NULL,
+      calls INTEGER NOT NULL,
+      failures INTEGER NOT NULL,
+      input INTEGER NOT NULL,
+      output INTEGER NOT NULL,
+      cache_read INTEGER NOT NULL,
+      cache_write INTEGER NOT NULL,
+      PRIMARY KEY (day, feature, model)
+    );
+
 CREATE TABLE ai_daily_usage (
       day TEXT PRIMARY KEY,
       count INTEGER NOT NULL

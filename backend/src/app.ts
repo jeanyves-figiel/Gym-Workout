@@ -24,6 +24,8 @@ import { coachReviewRoutes } from './routes/coachReview.ts';
 import { type FoodScanModel, type PlateScanModel, type SnapScanModel, claudeFoodScan, claudePlateScan, claudeSnapScan } from './coach/foodScan.ts';
 import { type GymScanModel, claudeGymScan } from './coach/gymScan.ts';
 import { type ReviewModel, claudeWeekReview } from './coach/review.ts';
+import { onAiCall } from './coach/models.ts';
+import { aiCallRecorder } from './aiUsage.ts';
 import { foodScanRoutes } from './routes/foodScan.ts';
 import { gymScanRoutes } from './routes/gymScan.ts';
 import { coachVoiceRoutes } from './routes/coachVoices.ts';
@@ -126,6 +128,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   const now = deps.now ?? (() => new Date());
   const outbound: Fetch = deps.fetch ?? ((input, init) => globalThis.fetch(input, init));
   const warn = (msg: string) => app.log.warn(msg);
+  // AI usage report (#877): every paid model call counted per day, feature and model.
+  onAiCall(aiCallRecorder(deps.db, now));
   const auth = new AuthService({
     ...deps,
     now,

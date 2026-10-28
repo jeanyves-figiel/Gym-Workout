@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { AI_MODELS, CACHED } from './models.ts';
+import { AI_MODELS, CACHED, tracked } from './models.ts';
 
 /**
  * Workout chat (#381): the member says what they want today ("45 min, legs, sore shoulder") and Coach Monkey
@@ -213,7 +213,7 @@ export const claudeCoach = (apiKey: string, workspaceId?: string, model = AI_MOD
   return async (turns, context) => {
     const about = describeMember(context);
     const messages: Anthropic.Beta.BetaMessageParam[] = turns.map((t) => ({ role: t.role === 'member' ? 'user' : 'assistant', content: t.text }));
-    const res = await client.beta.messages.create({
+    const res = await tracked('chat', model, () => client.beta.messages.create({
       model,
       max_tokens: 4000,
       betas: ['server-side-fallback-2026-07-01'],
@@ -222,7 +222,7 @@ export const claudeCoach = (apiKey: string, workspaceId?: string, model = AI_MOD
       system: [{ type: 'text', text: SYSTEM, cache_control: CACHED }, ...(about ? [{ type: 'text' as const, text: `About this member:\n${about}` }] : [])],
       output_config: { effort: 'low', format: { type: 'json_schema', schema } },
       messages,
-    });
+    }));
     if (res.stop_reason === 'refusal') return { reply: "I can't help with that one. Ask me about your training!", workout: null, action: null, suggestions: [] };
     const text = res.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
     return clean(JSON.parse(text) as CoachAnswer, context);

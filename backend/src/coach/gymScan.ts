@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { AI_MODELS, CACHED } from './models.ts';
+import { AI_MODELS, CACHED, tracked } from './models.ts';
 
 /**
  * Gym scan (#406): a photo of one area of the member's gym in, the equipment on it out, picked only from the app's
@@ -40,7 +40,7 @@ export const claudeGymScan = (apiKey: string, workspaceId?: string, model = AI_M
     defaultHeaders: workspaceId ? { 'anthropic-workspace-id': workspaceId } : undefined,
   });
   return async (jpeg, catalog) => {
-    const res = await client.beta.messages.create({
+    const res = await tracked('gym-scan', model, () => client.beta.messages.create({
       model,
       max_tokens: 2000,
       betas: ['server-side-fallback-2026-07-01'],
@@ -57,7 +57,7 @@ export const claudeGymScan = (apiKey: string, workspaceId?: string, model = AI_M
           ],
         },
       ],
-    });
+    }));
     if (res.stop_reason === 'refusal') return [];
     const text = res.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
     return cleanScan((JSON.parse(text) as { items: string[] }).items, catalog);
