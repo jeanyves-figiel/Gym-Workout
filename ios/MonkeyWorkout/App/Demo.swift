@@ -231,7 +231,7 @@ enum Demo {
         let next = model.state.done.isEmpty ? ordered.dropFirst().first : ordered.first { !model.doneIds.contains($0.id) }
         model.demoToday = next?.weekday ?? 3
         if screen == "train-skipped", let s = model.plan?.sessions.first(where: { $0.weekday == model.todayWeekday }) {
-            // Today's session skipped from the long press (#643): dash in the strip, Unskip on the card.
+            // Today's session skipped from the long press (#643): gone from the day (#849), a rest day.
             model.skipSession(s.id)
         }
     }

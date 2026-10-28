@@ -50,6 +50,13 @@ extension AppModel {
         current ? skippedIds.contains(sessionId) : isSkipped(sessionId, in: week)
     }
 
+    /// Skipped is gone (#849): once the Undo toast is over, a skipped workout leaves its day for good, never shown
+    /// with Unskip again. This week's (`week` nil) still shows when done or under way.
+    func skippedOff(_ s: Session, in week: PlanCalendar.Week? = nil) -> Bool {
+        guard let week else { return skippedIds.contains(s.id) && !doneIds.contains(s.id) && activeWorkout(s.id) == nil }
+        return isSkipped(s.id, in: week)
+    }
+
     func setSkipped(_ skipped: Bool, _ sessionId: String, in week: PlanCalendar.Week) {
         let key = PlanCalendar.key(week.start, planCalendar)
         var all = state.skippedAhead ?? [:]

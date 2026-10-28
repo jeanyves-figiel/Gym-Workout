@@ -432,9 +432,8 @@ struct DaySheet: View {
         let wd = selection.weekday
         let key = selection.week.days[wd - 1]
         let all = selection.week.plan.sessions.filter { $0.weekday == wd }
-        // Skipped workouts (#784) leave a rest day with a "skipped · Unskip" line, as on Train (#698).
-        let skipped = all.filter { model.isSkipped($0.id, in: selection.week, current: selection.current) }
-        let sessions = all.filter { s in !skipped.contains { $0.id == s.id } }
+        // Skipped workouts are gone (#849), as on Train.
+        let sessions = all.filter { !model.isSkipped($0.id, in: selection.week, current: selection.current) }
         let away = selection.week.off[wd] ?? selection.week.travel[wd]
         NavigationStack {
             ScrollView {
@@ -487,11 +486,7 @@ struct DaySheet: View {
                             removing = model.removeRequest(session, weekday: wd, in: selection.current ? nil : selection.week)
                         }
                     }
-                    if !skipped.isEmpty {
-                        SkippedLine(sessions: skipped, week: selection.current ? nil : selection.week)
-                    }
-                    if sessions.isEmpty && skipped.allSatisfy({ model.isRemoved($0.id, in: selection.current ? nil : selection.week) })
-                        && away == nil && selection.week.trips[wd] == nil {
+                    if sessions.isEmpty && away == nil && selection.week.trips[wd] == nil {
                         Text("No gym session planned.").foregroundStyle(Theme.muted)
                     }
                     if selection.current && selection.week.off[wd] == nil {
