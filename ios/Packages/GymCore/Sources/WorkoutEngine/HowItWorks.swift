@@ -155,7 +155,8 @@ public enum HowItWorks {
             Part("Estimated 1RM", "Used for bests, Growth and PR attempts, from sets of 1–12 reps.",
                  rule: ["1RM = kg × (1 + reps ÷ 30)  (Epley)"]),
         ],
-        sources: ["Epley B. Poundage chart. Boyd Epley Workout. Lincoln, NE: Body Enterprises; 1985.",
+        sources: ["Starting-load ratios (pattern, sex, level, age, implement) are app design, set light on purpose; the first session calibrates.",
+                  "Epley B. Poundage chart. Boyd Epley Workout. Lincoln, NE: Body Enterprises; 1985.",
                   "Helms ER et al. RPE vs. percentage 1RM loading in periodized programs matched for sets and repetitions. Front Physiol 2018;9:247.",
                   "Graham T, Cleather DJ. Autoregulation by \"repetitions in reserve\" leads to greater improvements in strength over a 12-week training program than fixed loading. J Strength Cond Res 2021;35(9):2451-2456."])
 
@@ -166,7 +167,7 @@ public enum HowItWorks {
         shows: "Train readiness pill, Auto-tune card",
         parts: [
             Part("Auto-tune score", "Starts at \(AutoTune.base); each factor adds or takes points. Health values are compared with your own normal.",
-                 rule: ["HRV: % vs normal, −30…+10",
+                 rule: ["HRV: 7-day average % vs 30-day normal, −30…+10 (a single reading is too noisy)",
                         "resting HR: −3 per bpm over normal, −20…+5",
                         "sleep: −10 per hour under 7 h (max −25), +5 from 8 h",
                         "last workout near failure (RIR ≤ 1) −8 · easy (RIR ≥ 3) +3",
@@ -179,7 +180,7 @@ public enum HowItWorks {
                         "≥ \(AutoTune.pushFrom) with Health data: \(TuneLevel.push.title), \(TuneLevel.push.rule)",
                         "sore group: its moves swap to ones that spare it"]),
             Part("Readiness pill", "A quick read of Apple Health markers; advice only.",
-                 rule: ["flags: HRV < 85 % of 30-day normal · resting HR > normal + 5 · sleep < 6 h",
+                 rule: ["flags: 7-day HRV < 85 % of 30-day normal · resting HR > normal + 5 · sleep < 6 h",
                         "0 flags Ready · 1 Normal · 2+ Easy"]),
         ],
         sources: ["Plews DJ, Laursen PB, Stanley J, Kilding AE, Buchheit M. Training adaptation and heart rate variability in elite endurance athletes: opening the door to effective monitoring. Sports Med 2013;43(9):773-781.",
@@ -273,7 +274,7 @@ public enum HowItWorks {
             Part("Carbs", "By day load, shifted by goal.",
                  rule: ["g/kg rest \(fmt(Fuel.carbsPerKg(.rest, goal: .maintain))) · normal \(fmt(Fuel.carbsPerKg(.normal, goal: .maintain))) · big \(fmt(Fuel.carbsPerKg(.big, goal: .maintain)))",
                         "lose −1 · build +0.5 · perform +1 (never under 2)",
-                        "big day tomorrow +1 g/kg · carb loading before a long event 8 g/kg",
+                        "big day tomorrow +1 g/kg · carb loading 1–2 days before a long event \(fmt(Fuel.carbLoadPerKg)) g/kg",
                         "rounded to 10 g"]),
             Part("Fat and calories", "Fat stays steady; calories follow from the three.",
                  rule: ["fat \(fmt(Fuel.fatPerKg(.lose))) g/kg to lose, else \(fmt(Fuel.fatPerKg(.maintain)))",
@@ -299,7 +300,9 @@ public enum HowItWorks {
                         "creatine day: +1 glass"]),
             Part("Pace", "Reminders spread the target from waking to sleep, never during training, and recompute after every glass.", rule: []),
         ],
-        sources: ["Sawka MN et al. American College of Sports Medicine position stand: exercise and fluid replacement. Med Sci Sports Exerc 2007;39(2):377-390."])
+        sources: ["Sawka MN et al. American College of Sports Medicine position stand: exercise and fluid replacement. Med Sci Sports Exerc 2007;39(2):377-390.",
+                  "EFSA Panel on Dietetic Products, Nutrition and Allergies. Scientific opinion on dietary reference values for water. EFSA J 2010;8(3):1459 (2.0 L women, 2.5 L men a day, food included).",
+                  "35 ml/kg and the training and step top-ups are app design, a rule of thumb around those references."])
 
     static let caffeine = Topic(
         id: "caffeine", title: "Caffeine & supplements", symbol: "cup.and.saucer.fill",
@@ -326,9 +329,10 @@ public enum HowItWorks {
             Part("Area pick", "This week's load per muscle group (sets × weight) decides the rest-day routine.",
                  rule: ["area with the most load: hips & back, legs or upper body",
                         "no area above 40 % of the total → full body"]),
-            Part("Cool-down", "A workout without one gets 5′: 4 mat stretches for its most-loaded muscles.", rule: []),
+            Part("Cool-down", "A workout without one gets 5′: 4 mat stretches for its most-loaded muscles. Optional: it feels good and eases you out of the session, but studies don't show it cuts soreness or injuries, so skip it when short on time.", rule: []),
         ],
-        sources: ["Behm DG et al. Acute effects of muscle stretching on physical performance, range of motion, and injury incidence in healthy active individuals: a systematic review. Appl Physiol Nutr Metab 2016;41(1):1-11."])
+        sources: ["Van Hooren B, Peake JM. Do we need a cool-down after exercise? A narrative review of the psychophysiological effects and the effects on performance, injuries and the long-term adaptive response. Sports Med 2018;48(7):1575-1595.",
+                  "Behm DG et al. Acute effects of muscle stretching on physical performance, range of motion, and injury incidence in healthy active individuals: a systematic review. Appl Physiol Nutr Metab 2016;41(1):1-11."])
 
     static let body = Topic(
         id: "body", title: "Body numbers", symbol: "figure.arms.open",

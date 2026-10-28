@@ -149,7 +149,8 @@ enum Readiness: String {
     static func assess(_ s: HealthSnapshot) -> (Readiness, [String])? {
         guard s.hasRecoveryData else { return nil }
         var low: [String] = []
-        if let h = s.hrv, let b = s.hrvBaseline, b > 0, h < b * hrvFloor { low.append("HRV below your baseline") }
+        // 7-day HRV average (#864): one reading is too noisy; the latest until a week is known.
+        if let h = s.hrvWeek ?? s.hrv, let b = s.hrvBaseline, b > 0, h < b * hrvFloor { low.append("HRV below your baseline") }
         if let r = s.restingHR, let b = s.restingHRBaseline, r > b + restHRRise { low.append("Resting HR elevated") }
         if let sl = s.sleepHours, sl < minSleep { low.append("Short sleep") }
         return (low.count >= 2 ? .easy : low.count == 1 ? .normal : .ready, low)
