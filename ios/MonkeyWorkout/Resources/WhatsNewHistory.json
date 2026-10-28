@@ -1,6 +1,55 @@
 {
   "releases": [
     {
+      "id": "2026-10-28.1",
+      "build": 82,
+      "date": "2026-10-28",
+      "items": [
+        {
+          "symbol": "figure.climbing",
+          "tint": "cardio",
+          "title": "Climbing live",
+          "body": "Track live on a climbing day times your goes: grade chips, Flash, Sent or Fell in one tap, rest timer and today's pyramid. With a Watch, tap goes on your wrist too."
+        },
+        {
+          "symbol": "brain.head.profile",
+          "tint": "mobility",
+          "title": "Mind: check in and breathe",
+          "body": "A quick mood check-in on Train, Calm breathing sessions in Explore and a Mind score from mood, HRV, sleep and training. On your Watch too."
+        },
+        {
+          "symbol": "video.fill",
+          "tint": "strength",
+          "title": "Check your form",
+          "body": "Prop your phone up: the camera counts reps, flags short reps, lean or caving knees, and shows the right position as a ghost. Data stays on your phone."
+        },
+        {
+          "symbol": "mappin.and.ellipse",
+          "tint": "power",
+          "title": "Where you climbed",
+          "body": "Log climb and Log sport now keep the gym, crag or ski resort. Pick a chip or search maps."
+        },
+        {
+          "symbol": "airplane",
+          "tint": "cardio",
+          "title": "Holidays clear the week",
+          "body": "Weekly climbing and sport no longer show on away days. Climbing there anyway? Add it for that day with Sport."
+        },
+        {
+          "symbol": "calendar",
+          "tint": "strength",
+          "title": "Calendar touch-ups",
+          "body": "Tap a workout in the Calendar day sheet to open it, the Remove sheet fits its content, and your HIIT day is named HIIT."
+        },
+        {
+          "symbol": "face.smiling",
+          "tint": "power",
+          "title": "A friendlier icon",
+          "body": "MonkeyFit now winks at you. The Iron, Titan and Legend reward icons got the same new face."
+        }
+      ]
+    },
+    {
       "id": "2026-10-27.3",
       "build": 81,
       "date": "2026-10-27",
