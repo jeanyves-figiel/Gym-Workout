@@ -32,15 +32,17 @@ extension DailyRoutine {
 struct RoutineLengthChips: View {
     let lengths: [Int]
     let selected: Int
+    /// Breaths instead of minutes (4-7-8, #861).
+    var breaths = false
     var onPick: (Int) -> Void
 
     var body: some View {
         HStack(spacing: 4) {
             if lengths.count > 1 {
                 ForEach(lengths, id: \.self) { m in
-                    SelectChip(title: "\(m)′", on: m == selected, offFill: AnyShapeStyle(.black.opacity(0.22)), offInk: .white,
+                    SelectChip(title: breaths ? "\(m) breaths" : "\(m)′", on: m == selected, offFill: AnyShapeStyle(.black.opacity(0.22)), offInk: .white,
                                height: 28, fills: false) { onPick(m) }
-                        .accessibilityLabel("\(m) minutes")
+                        .accessibilityLabel(breaths ? "\(m) breaths" : "\(m) minutes")
                 }
             }
         }

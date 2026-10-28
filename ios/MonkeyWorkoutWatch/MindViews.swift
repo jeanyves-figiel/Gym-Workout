@@ -27,7 +27,7 @@ struct WatchMindView: View {
                         MindCard(mind: m)
                         if let b = m.pickBreath {
                             Button { Task { await CalmTracker.shared.begin(b, minutes: b.lengths.first ?? 3) } } label: {
-                                Text("▶ \(b.label) · \(b.lengths.first ?? 3)′").font(W.label(14)).foregroundStyle(W.ink)
+                                Text("▶ \(b.label) · \(b.lengthShort(b.lengths.first ?? 3))").font(W.label(14)).foregroundStyle(W.ink)
                                     .lineLimit(1).minimumScaleFactor(0.7)
                                     .frame(maxWidth: .infinity, minHeight: 36)
                                     .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(W.lime))
@@ -135,14 +135,14 @@ struct CalmRow: View {
                     Text(breath.purpose).font(W.label(8)).opacity(0.85).lineLimit(1)
                 }
                 Spacer(minLength: 2)
-                Text("\(m)′").font(W.display(19))
+                Text(breath.lengthShort(m)).font(W.display(19))
             }
             .foregroundStyle(.white)
             .padding(7)
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(W.gradient(breath.tint, breath.tint2)))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(breath.label), \(breath.purpose), \(m) minutes")
+        .accessibilityLabel("\(breath.label), \(breath.purpose), \(m) \(breath.byBreaths == true ? "breaths" : "minutes")")
     }
 }
 

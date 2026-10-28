@@ -105,6 +105,14 @@ struct MindCheckInCard: View {
             }
             .sensoryFeedback(.selection, trigger: mood)
             if mood != nil {
+                // What the chips are for (#859): optional tags Coach reads for patterns, saved with the mood in Health.
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("What's behind it? · optional").font(Theme.label(11)).tracking(1).textCase(.uppercase)
+                    Text("Pick any. Coach uses them to spot what lifts or drags your mood.")
+                        .font(.caption.weight(.semibold)).opacity(0.85).fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 2)
+                .accessibilityElement(children: .combine)
                 FlowLayout(spacing: 6) {
                     ForEach(MindFeeling.allCases) { f in
                         SelectChip(title: f.label, on: feelings.contains(f), offFill: AnyShapeStyle(.black.opacity(0.25)),
@@ -207,7 +215,7 @@ struct BreathTile: View {
                     .lineLimit(1).minimumScaleFactor(0.6)
             }
             Text(breath.label).font(Theme.label(15)).lineLimit(1).minimumScaleFactor(0.7)
-            Text("\(breath.purpose) · \(minutes) min").font(Theme.label(10)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.7)
+            Text("\(breath.purpose) · \(breath.lengthLabel(minutes))").font(Theme.label(10)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.7)
         }
         .foregroundStyle(breath.ink)
         .padding(10)
@@ -215,7 +223,7 @@ struct BreathTile: View {
         .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(breath.gradient))
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(breath.label), \(breath.purpose), \(minutes) minutes")
+        .accessibilityLabel("\(breath.label), \(breath.purpose), \(breath.lengthLabel(minutes))")
     }
 }
 
@@ -323,7 +331,7 @@ struct MindScoreCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(score.map { "\(MindScore.Level.of($0).title) today" } ?? "Mind score").font(Theme.display(22))
                         .lineLimit(1).minimumScaleFactor(0.7)
-                    Text(score == nil ? "Check in or connect Health" : "Mood · HRV · sleep · load")
+                    Text(score == nil ? "Check in or connect Health" : "Mood · HRV · sleep · training")
                         .font(Theme.label(10)).tracking(1).textCase(.uppercase).opacity(0.85).lineLimit(1).minimumScaleFactor(0.7)
                 }
                 Spacer(minLength: 4)
@@ -403,7 +411,7 @@ struct MindView: View {
         let hrvDelta = i.hrv.flatMap { h in i.hrvBaseline.map { Int((h - $0).rounded()) } }
         return HStack(spacing: 8) {
             stat(i.hrv.map { "\(Int($0.rounded())) ms" } ?? "–",
-                 hrvDelta.map { "HRV \($0 >= 0 ? "+" : "")\($0)" } ?? "HRV")
+                 hrvDelta.map { "HRV 7d \($0 >= 0 ? "+" : "")\($0)" } ?? "HRV 7d")
             stat(i.sleepHours.map(Self.hours) ?? "–", "Sleep")
             stat(mood.map { Feel(rawValue: Int($0.rounded()))?.emoji ?? "–" } ?? "–", "Mood 7d")
         }

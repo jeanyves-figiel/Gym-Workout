@@ -16,7 +16,8 @@ extension AppModel {
         let store = MindStore.shared
         let snap = health?.snapshot
         let since = cal.date(byAdding: .day, value: -(MindScore.loadDays - 1), to: cal.startOfDay(for: now)) ?? now
-        return MindScore.Inputs(mood: store.checkIn(on: now)?.mood, hrv: snap?.hrv, hrvBaseline: snap?.hrvBaseline,
+        // HRV: the 7-day average against the 30-day one (#862), the latest reading until a week is known.
+        return MindScore.Inputs(mood: store.checkIn(on: now)?.mood, hrv: snap?.hrvWeek ?? snap?.hrv, hrvBaseline: snap?.hrvBaseline,
                                 sleepHours: snap?.sleepHours, workoutDays: workoutDays(since: since).count,
                                 calmMinutes: store.calmMinutes(on: now))
     }
@@ -87,6 +88,6 @@ extension AppModel {
         WBreath(id: b.rawValue, label: b.label, purpose: b.purpose, symbol: b.symbol, tint: b.colors[0], tint2: b.colors[1],
                 lengths: b.lengths,
                 phases: b.phases.map { WBreathPhase(label: $0.label, seconds: $0.seconds, fill: $0.fill, inhale: $0.kind == .inhale || $0.kind == .topUp) },
-                cues: b.cues)
+                cues: b.cues, byBreaths: b.byBreaths)
     }
 }
