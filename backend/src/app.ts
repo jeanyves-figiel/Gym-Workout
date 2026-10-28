@@ -344,7 +344,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       const plateScan = deps.plateScan ?? (deps.config.coachChat.apiKey ? claudePlateScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.scan) : undefined);
       const snapScan = deps.snapScan ?? (deps.config.coachChat.apiKey ? claudeSnapScan(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.scan) : undefined);
       foodScanRoutes(r, deps.db, now, foodScan, 20, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit, plateScan, snapScan);
-      const mealIdeas = deps.mealIdeas ?? (deps.config.coachChat.apiKey ? claudeMealIdeas(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId) : undefined);
+      const mealIdeas = deps.mealIdeas ?? (deps.config.coachChat.apiKey ? claudeMealIdeas(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.chat) : undefined);
       mealIdeasRoutes(r, deps.db, now, mealIdeas, 20, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
       const voices = deps.config.coachVoices;
       forgetVoices = coachVoiceRoutes(r, deps.synth ?? (voices.polly ? pollySynthesizer(voices.polly, outbound, now) : undefined), voices.cacheDir, {

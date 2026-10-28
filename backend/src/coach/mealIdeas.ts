@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { COACH_MODEL_ID } from './chat.ts';
+import { AI_MODELS, tracked } from './models.ts';
 import type { ScanItem } from './gymScan.ts';
 
 /**
@@ -85,7 +85,7 @@ export const cleanMealIdeas = (raw: Partial<MealIdea>[], pantry: ScanItem[]): Me
 };
 
 /** One structured text call, same model and account as the coach; [] on a refusal. */
-export const claudeMealIdeas = (apiKey: string, workspaceId?: string): MealIdeasModel => {
+export const claudeMealIdeas = (apiKey: string, workspaceId?: string, model = AI_MODELS.chat): MealIdeasModel => {
   const client = new Anthropic({
     apiKey,
     timeout: 60_000,
@@ -94,8 +94,8 @@ export const claudeMealIdeas = (apiKey: string, workspaceId?: string): MealIdeas
   });
   return async (ask) => {
     const prefs = [ask.diet ? `Diet: ${ask.diet}` : '', ask.avoid.length ? `Avoid: ${ask.avoid.join(', ')}` : ''].filter(Boolean).join('\n');
-    const res = await client.beta.messages.create({
-      model: COACH_MODEL_ID,
+    const res = await tracked('meal-ideas', model, () => client.beta.messages.create({
+      model,
       max_tokens: 4000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
@@ -109,7 +109,7 @@ export const claudeMealIdeas = (apiKey: string, workspaceId?: string): MealIdeas
             .join('\n')}`,
         },
       ],
-    });
+    }));
     if (res.stop_reason === 'refusal') return [];
     const text = res.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
     const raw = JSON.parse(text) as { ideas?: Partial<MealIdea>[] };
