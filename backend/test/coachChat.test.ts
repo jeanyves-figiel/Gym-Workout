@@ -198,6 +198,7 @@ describe('clean', () => {
       action: null,
       exercises: [],
       suggestions: [],
+      protect: null,
       workout: { name: 'Coach workout', minutes: 120, groups: ['legs'], rest: 'standard', grouping: 'straight', avoidGroups: ['shoulders'], avoidEquipment: ['rack'], avoidKeywords: ['lunge'] },
     });
     expect(clean({ reply: 'Which muscles?', workout: { ...a.workout!, groups: [] } }, {}).workout).toBeNull();
@@ -230,6 +231,17 @@ describe('ask from any screen (#412)', () => {
       exercise: null,
       label: 'See progress',
     });
+  });
+});
+
+describe('train around pain (#870)', () => {
+  it('keeps a valid protect, defaults side and level, drops unknown areas', () => {
+    const ok = clean({ reply: 'I will protect it.', workout: null, protect: { area: 'knee', side: 'right', level: 'loaded', seeDoctor: false } }, {});
+    expect(ok.protect).toEqual({ area: 'knee', side: 'right', level: 'loaded', seeDoctor: false });
+    const odd = clean({ reply: 'a', workout: null, protect: { area: 'shoulder', side: 'up' as 'left', level: 'meh' as 'mild', seeDoctor: 'yes' as unknown as boolean } }, {});
+    expect(odd.protect).toEqual({ area: 'shoulder', side: 'both', level: 'loaded', seeDoctor: false });
+    expect(clean({ reply: 'a', workout: null, protect: { area: 'heart' as 'knee', side: 'both', level: 'sharp', seeDoctor: true } }, {}).protect).toBeNull();
+    expect(clean({ reply: 'a', workout: null }, {}).protect).toBeNull();
   });
 });
 

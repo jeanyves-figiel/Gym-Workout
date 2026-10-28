@@ -82,6 +82,8 @@ struct TrainingProfileView: View {
                         HiitProfileCard()
                     }
                     .environment(\.statCardTile, true)
+                    // Train around pain (#870 A): tap where it hurts, Coach swaps across the plan.
+                    PainEntryRow()
                     // Start fresh (#492): a brand new plan, history kept.
                     FreshStartCard()
                 }

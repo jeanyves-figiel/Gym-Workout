@@ -63,6 +63,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var bikeFTPTestedAt: Date?
     /// Life-stage programme check-in (#625): due date, birth, weeks off, doctor's OK.
     var lifeStage: LifeStageCheckIn?
+    /// Train around pain (#870): the spot protected across the plan until it feels better; nil = none.
+    var pain: PainProtect?
     /// New member onboarding (#664): steps done and the set-up card closed; nil = member from before it.
     var onboarding: OnboardingProgress?
     /// One-off places (#700): day ("yyyy-MM-dd") → saved gym id, picked on Train for just that day.

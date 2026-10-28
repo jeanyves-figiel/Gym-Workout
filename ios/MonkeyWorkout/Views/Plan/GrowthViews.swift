@@ -301,6 +301,8 @@ struct AutoTuneSheet: View {
                     hero(verdict, level: level)
                     Text("Sore today").eyebrow()
                     soreGrid
+                    // A joint that hurts, not just sore muscles (#870 A).
+                    PainEntryRow()
                     Text("Monkey changed today").eyebrow()
                     changes
                     if !verdict.factors.isEmpty {

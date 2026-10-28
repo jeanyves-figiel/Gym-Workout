@@ -502,6 +502,11 @@ struct ExerciseCard: View {
                                 .background(RoundedRectangle(cornerRadius: 6).fill(Theme.lime))
                                 .accessibilityLabel("Group \(group)")
                         }
+                        // Swapped to protect a sore spot (#870 C).
+                        if model.painSwapped.contains(item.uid) {
+                            Image(systemName: "shield.lefthalf.filled").font(.caption.weight(.bold)).foregroundStyle(Theme.lime)
+                                .accessibilityLabel("Swapped to protect your \(model.painProtect?.spot ?? "sore spot")")
+                        }
                         Text(exercise.name)
                             .font(.system(.headline, design: .rounded).weight(.heavy))
                             .strikethrough(ticked)
