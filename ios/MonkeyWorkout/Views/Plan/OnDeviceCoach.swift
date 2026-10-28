@@ -85,6 +85,28 @@ import FoundationModels
         return nil
     }
 
+    /// A Coach nudge (#876) in Coach's words: same facts, same offer; nil keeps the built text.
+    static func nudge(_ base: CoachNudge) async -> CoachNudge? {
+        guard available, !base.facts.isEmpty else { return nil }
+        #if DEBUG
+        if Demo.enabled { return nil }
+        #endif
+        #if canImport(FoundationModels)
+        if #available(iOS 26, *) {
+            let session = LanguageModelSession(instructions: Self.instructions)
+            let prompt = "Write a lock-screen notification for the member, from these facts only:\n- "
+                + base.facts.joined(separator: "\n- ")
+                + "\nKeep every number. Example of the tone: \(base.body)"
+            guard let text = try? await session.respond(to: prompt, generating: NudgeDraft.self).content.text
+                .trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty, text.count <= 160 else { return nil }
+            var out = base
+            out.body = text
+            return out
+        }
+        #endif
+        return nil
+    }
+
     private static let instructions = """
     You are Coach Monkey, the upbeat gym coach in the MonkeyWorkout app. Answer in at most three short sentences of plain text: \
     no lists, no markdown, no emoji. Use kg and minutes. Be concrete with numbers. You can't build or change workouts here: \
@@ -101,6 +123,15 @@ struct RecapDraft {
     var recap: String
     @Guide(description: "One short tip for next time, with a weight or rep number")
     var tip: String
+}
+#endif
+
+#if canImport(FoundationModels)
+@available(iOS 26, *)
+@Generable
+struct NudgeDraft {
+    @Guide(description: "One or two short, warm sentences under 140 characters, with the real numbers from the facts")
+    var text: String
 }
 #endif
 

@@ -14,6 +14,7 @@ enum NotifyStyle {
     static let badge = LinearGradient(colors: [rgb(0xFFB800), rgb(0xFF5E3A)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let move = LinearGradient(colors: [rgb(0xFF7A3D), rgb(0xFF3D8A)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let alarm = LinearGradient(colors: [rgb(0xFF8A00), rgb(0xFF3D7B)], startPoint: .topLeading, endPoint: .bottomTrailing)
+    static let comeback = LinearGradient(colors: [rgb(0x7B3FE4), rgb(0xC0408F)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let quiet = LinearGradient(colors: [rgb(0x3A2D7A), rgb(0x1E1650)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let today = LinearGradient(colors: [rgb(0x00C9A7), rgb(0x2EC5FF)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let day = LinearGradient(colors: [Color.white.opacity(0.10), Color.white.opacity(0.05)], startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -59,6 +60,12 @@ struct NotificationsHost: ViewModifier {
                     notify.registerRemoteIfNeeded()
                     await notify.syncRemote(model)
                 }
+            }
+            // Comeback nudge taken (#876 C): today's 20′ workout, in the player now or reminded at 19:00.
+            .onChange(of: notify.comebackPick, initial: true) { _, pick in
+                guard let pick else { return }
+                notify.comebackPick = nil
+                Task { await model.acceptComeback(pick) }
             }
             .sheet(item: $notify.route) { route in
                 switch route {
@@ -130,7 +137,7 @@ struct NotificationSettingsView: View {
                 // Cards show the real state (#822, design A from `full-app-audit-3/mockups/proposals-4.png`): dimmed with
                 // "Off · iPhone notifications are off" until iPhone allows them; a time shows once, its number opens the picker.
                 let blocked = !notify.allowed
-                NotifyCard(symbol: "alarm.fill", title: "Session reminder", detail: "Morning of each planned session",
+                NotifyCard(symbol: "alarm.fill", title: "Session reminder", detail: "Morning of each planned session, written by Coach from your last time",
                            gradient: NotifyStyle.reminder, trailing: notify.prefs.sessionReminders ? NotificationPrefs.clock(notify.prefs.reminderMinutes) : "Off",
                            isOn: $notify.prefs.sessionReminders, blocked: blocked, time: $notify.prefs.reminderMinutes) { EmptyView() }
 
@@ -139,6 +146,11 @@ struct NotificationSettingsView: View {
                            isOn: $notify.prefs.missedCheckIn, blocked: blocked, time: $notify.prefs.checkInMinutes) { EmptyView() }
 
                 // No big "On" (#822): the switch says it.
+                NotifyCard(symbol: "arrow.counterclockwise", title: "Comeback nudge",
+                           detail: "After 2+ missed sessions or a long break, one offer from Coach: a 20′ workout now or tonight",
+                           gradient: NotifyStyle.comeback, trailing: nil,
+                           isOn: $notify.prefs.comebackNudge, blocked: blocked) { EmptyView() }
+
                 NotifyCard(symbol: "medal.fill", title: "Your achievements", detail: "When you unlock a badge",
                            gradient: NotifyStyle.badge, trailing: nil,
                            isOn: $notify.prefs.ownAchievements, blocked: blocked) { EmptyView() }
