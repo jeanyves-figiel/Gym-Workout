@@ -54,7 +54,7 @@ private struct SportOffFlow: ViewModifier {
 extension AppModel {
     /// The Rest day request for day `key` when it holds a sport; nil on a rest or can't-train day.
     func sportOffRequest(key: String, weekday: Int, date: Date) -> SportOffRequest? {
-        guard let sport = profile?.sport(onWeekday: weekday, key: key, date: date) else { return nil }
+        guard let sport = daySport(onWeekday: weekday, key: key, date: date) else { return nil }
         return SportOffRequest(key: key, weekday: weekday, date: date, sport: sport, trip: profile?.sportTrip(on: key))
     }
 }

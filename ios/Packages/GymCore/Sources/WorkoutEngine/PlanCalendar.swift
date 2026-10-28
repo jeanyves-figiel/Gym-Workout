@@ -243,7 +243,7 @@ public enum PlanCalendar {
         let preferred = Set(profile.gymDays).intersection(free)
         // Sport days of this week (seasons, dated days and trips), not today's.
         var prefs = profile.climbPrefs
-        prefs.sports = profile.sportDays(on: weekStart, calendar: cal)
+        prefs.sports = profile.sportDays(on: weekStart, calendar: cal, away: away)
         let slots = place(movable.map(\.focus), on: free, climbing: Set(climbing),
                           gym: preferred.count >= movable.count ? preferred : [], prefs: prefs)
         var trips: [UUID: WeekPlan] = [:]

@@ -61,7 +61,7 @@ extension AppModel {
         var sports: [Sport] = []
         if let trip = week.trips[wd] { sports.append(trip.sport) }
         if week.climbing.contains(wd) { sports.append(.climbing) }
-        for d in profile?.sportDays(on: start, calendar: cal) ?? [] where d.weekday == wd { sports.append(d.sport) }
+        for d in sportDays(on: start, calendar: cal) where d.weekday == wd { sports.append(d.sport) }
         for sport in Set(sports).sorted(by: { $0.rawValue < $1.rawValue })
         where !out.contains(where: { $0.sport == sport }) {
             let minutes = [Sport.snowboard, .ski, .crossCountrySki, .hike, .mountaineering].contains(sport) ? 240 : sport == .climbing ? 120 : 75

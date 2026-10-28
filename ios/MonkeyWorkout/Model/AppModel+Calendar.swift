@@ -8,6 +8,17 @@ extension AppModel {
     /// All away periods, earliest first.
     var away: [AwayPeriod] { (state.synced?.away ?? []).sorted { ($0.start, $0.end) < ($1.start, $1.end) } }
 
+    /// The sport of a day: away days (holiday, trip, can't train) drop the weekly sport; a sport added for that
+    /// day still counts.
+    func daySport(onWeekday weekday: Int, key: String?, date: Date = Date()) -> Sport? {
+        profile?.sport(onWeekday: weekday, key: key, date: date, away: away)
+    }
+
+    /// Other sports' days of a week without the ones on away days.
+    func sportDays(on date: Date, calendar cal: Calendar = Progression.calendar()) -> [SportDay] {
+        profile?.sportDays(on: date, calendar: cal, away: away) ?? []
+    }
+
     /// Away periods that end today or later.
     var upcomingAway: [AwayPeriod] {
         let today = PlanCalendar.key(Date(), planCalendar)

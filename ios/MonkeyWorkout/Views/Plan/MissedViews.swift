@@ -411,7 +411,7 @@ struct WeekDayStrip: View {
             let daySessions = w.plan.sessions.filter { $0.weekday == wd }
             let session = daySessions.first { !model.isSkipped($0.id, in: w) } ?? daySessions.first
             // The same sport the day card shows (#670): dated days first, then weekly climbing and other sports.
-            let daySport = w.off[wd] == nil ? model.profile?.sport(onWeekday: wd, key: w.days[wd - 1], date: date) : nil
+            let daySport = w.off[wd] == nil ? model.daySport(onWeekday: wd, key: w.days[wd - 1], date: date) : nil
             let climb = daySport == .climbing
             let sport = climb ? nil : daySport
             let skipped = !daySessions.isEmpty && daySessions.allSatisfy { model.isSkipped($0.id, in: w) }
@@ -456,7 +456,7 @@ struct WeekDayStrip: View {
             // Today's or a later day skipped (#643): with nothing else on it, a rest day (#698), moon or its sport.
             let anyDone = day.contains { model.doneIds.contains($0.id) }
             let skipped = !allDone && day.allSatisfy { model.doneIds.contains($0.id) || model.skippedIds.contains($0.id) }
-            let daySport = model.profile?.sport(onWeekday: wd, key: PlanCalendar.key(date, model.planCalendar), date: date)
+            let daySport = model.daySport(onWeekday: wd, key: PlanCalendar.key(date, model.planCalendar), date: date)
             let restState: DayState = daySport == .climbing ? .climb : daySport.map { DayState.sport($0) } ?? .rest
             Button { onPick(wd) } label: {
                 cell(wd, day: n, isToday: isToday, state: allDone || skipped && anyDone ? .done : skipped ? restState : day.contains { $0.hiit != nil } ? .hiit : .planned,
@@ -468,7 +468,7 @@ struct WeekDayStrip: View {
                 .accessibilityAddTraits(selected == wd ? .isSelected : [])
         } else {
             // Climbing days of a climber show orange (#277); other sports' days (#416) show their icon. Dated days first (#658).
-            let daySport = model.profile?.sport(onWeekday: wd, key: PlanCalendar.key(date, model.planCalendar), date: date)
+            let daySport = model.daySport(onWeekday: wd, key: PlanCalendar.key(date, model.planCalendar), date: date)
             let climb = daySport == .climbing
             let sport = climb ? nil : daySport
             Button { onPick(wd) } label: {
