@@ -4190,6 +4190,58 @@
         }
       }
     },
+    "/v1/me/coach-plan": {
+      "post": {
+        "tags": [
+          "Coach (AI and voices)"
+        ],
+        "summary": "Set up the plan with Coach (#873), \"say it once\": {text 3–500} → plan form values {goal balanced|build|strength|climbing|endurance|athletic, experience, sessions 2–6, weekdays[1–7], minutes 45|60|75|90|null, climbs, climbDays 1–4|null, protect{area neck|shoulder|elbow|wrist|lower-back|hip|knee|ankle, side left|right|both, level mild|loaded|sharp}|null (turns on pain mode #870), summary}. Free (onboarding); 15 a day per member with /help",
+        "description": "Errors / limits: 400, 429 daily_limit / busy, 502 coach_failed, 503 coach_unavailable",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/coach-plan/help": {
+      "post": {
+        "tags": [
+          "Coach (AI and voices)"
+        ],
+        "summary": "\"Not sure? Ask Coach\" on a plan form step (#873): {step, options[1–12]{id, label}, so[] (answers so far), question?} → {answer, pick (an option id) | null}; same cap as /v1/me/coach-plan",
+        "description": "Errors / limits: 400, 429, 502, 503",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/me/gym-scan": {
       "post": {
         "tags": [

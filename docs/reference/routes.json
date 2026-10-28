@@ -369,6 +369,14 @@
   },
   {
     "method": "POST",
+    "path": "/v1/me/coach-plan"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/me/coach-plan/help"
+  },
+  {
+    "method": "POST",
     "path": "/v1/me/coach-review"
   },
   {

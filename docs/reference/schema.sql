@@ -97,6 +97,13 @@ CREATE TABLE coach_chat_usage (
       PRIMARY KEY (user_id, day)
     );
 
+CREATE TABLE coach_plan_usage (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      count INTEGER NOT NULL,
+      PRIMARY KEY (user_id, day)
+    );
+
 CREATE TABLE coach_review_usage (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       day TEXT NOT NULL,

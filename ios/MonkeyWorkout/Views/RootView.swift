@@ -459,9 +459,11 @@ private struct DemoScreen: View {
         case "app-tour": MainTabView()
         case "train-setup": NavigationStack { WeekView() }
         case "onboarding-hub": NavigationStack { OnboardingHubView() }
-        case "onboarding", "onboarding-climbing":
+        // Set up the plan with Coach (#873): say it once, and Not sure? Ask Coach on the form.
+        case "coach-plan": NavigationStack { CoachPlanSetupView(base: Profile()) { _, _ in } }
+        case "onboarding", "onboarding-climbing", "coach-help":
             NavigationStack {
-                ProfileFormView(initial: Demo.screen == "onboarding" ? nil : Demo.climbingProfile) { _ in }
+                ProfileFormView(initial: Demo.screen == "onboarding-climbing" ? Demo.climbingProfile : nil) { _ in }
                     .navigationTitle("Your training")
             }
         case "profile": NavigationStack { TrainingProfileView().navigationTitle(TrainingProfileView.title) }
