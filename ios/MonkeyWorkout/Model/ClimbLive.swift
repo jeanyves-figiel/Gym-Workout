@@ -128,6 +128,17 @@ final class ClimbLive {
         }
     }
 
+    #if DEBUG
+    /// CI screenshots (#829): a session 47′ in with 9 goes, last one 72″ ago.
+    func demo() {
+        let now = Date()
+        let goes: [(String, ClimbResult, Double)] = [("5+", .flash, 44), ("6A", .flash, 40), ("6A+", .fall, 35), ("6A+", .send, 31),
+                                                     ("6B", .fall, 25), ("6B", .fall, 20), ("6B", .send, 14), ("6A", .flash, 7), ("6B+", .fall, 1.2)]
+        session = ClimbLiveSession(start: now.addingTimeInterval(-47 * 60), scale: .font, grade: "6B+",
+                                   attempts: goes.map { ClimbAttempt(grade: $0.0, result: $0.1, at: now.addingTimeInterval(-$0.2 * 60)) })
+    }
+    #endif
+
     // MARK: Watch
 
     var watchCopy: WClimbLive? { session.map(Self.copy) }

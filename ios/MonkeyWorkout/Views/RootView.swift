@@ -320,6 +320,8 @@ private struct DemoScreen: View {
                 WallSessionPage(today: true, climbedToday: false)
                     .navigationDestination(for: String.self) { SessionView(sessionId: $0) }
             }
+        // Climbing live (#829): a session 47′ in with 9 goes.
+        case "climb-live": ClimbLiveView().onAppear { ClimbLive.shared.demo() }
         case "explore-climbing": NavigationStack { ClimbingCategoryView() }
         case "wall-hangboard": DemoPushed { SessionView(sessionId: WallSession.templates[3].sessionId) }
         case "exercise-climbing": NavigationStack { ExerciseDetailView(exerciseId: "hang-ramp") }
