@@ -397,6 +397,15 @@ private struct DemoScreen: View {
         case "challenge", "challenge-suggest": NavigationStack { ChallengeRoomView() }
         case "how-it-works": NavigationStack { HowItWorksView() }
         case "how-it-works-fuel": NavigationStack { HowItWorksTopicView(topic: HowItWorks.topic("fuel")!) }
+        // Mind (#834): Train check-in card before and after checking in, Explore → Calm, a session, the Mind page.
+        case "mind-checkin", "mind-train":
+            NavigationStack {
+                ScrollView { MindTrainCard().padding(16) }
+                    .background(Theme.bg.ignoresSafeArea())
+            }
+        case "explore-calm": NavigationStack { LibraryView(mode: .calm) }
+        case "breathing": BreathingPlayer(breath: .box)
+        case "mind": NavigationStack { MindView() }
         case "community-plan":
             NavigationStack { SharedPlanView(plan: SharedPlans.shared.plans[0]).navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) } }
         case "community-share-plan": SharePlanSheet()

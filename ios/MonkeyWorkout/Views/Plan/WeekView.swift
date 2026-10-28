@@ -509,6 +509,8 @@ struct WeekView: View {
                     if !arranging { SkillPracticeBar() }
                     // Daily routines (#689 A): stretch, hangs or mobility with a length, every day.
                     if !arranging { DailyRoutinesRow() }
+                    // Mind check-in (#834 A): mood, Mind score and Coach's breathing pick.
+                    if !arranging { MindTrainCard() }
                     // Run & cardio plan (#618): race countdown or Hybrid, this week's runs.
                     if !arranging { RunGoalCard() }
                     if !arranging { notices(plan: plan, profile: profile) }
@@ -522,6 +524,7 @@ struct WeekView: View {
                     if !arranging, !small, showsToday { SportPrepBar() }
                     if !arranging, !small { SkillPracticeBar() }
                     if !arranging, !small { DailyRoutinesRow() }
+                    if !arranging, !small { MindTrainCard() }
                     if !arranging, !small { RunGoalCard() }
                     if !arranging, !small { notices(plan: plan, profile: profile) }
                 }

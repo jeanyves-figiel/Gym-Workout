@@ -34,7 +34,7 @@ public enum HowItWorks {
     public static func topic(_ id: String) -> Topic? { topics.first { $0.id == id } }
 
     public static let topics: [Topic] = [xp, move, streaks, plan, methods, load, readiness, growth, zones, effort,
-                                         cardio, fuel, water, caffeine, recovery, body]
+                                         cardio, fuel, water, caffeine, recovery, body, mind]
 
     // MARK: Game
 
@@ -342,6 +342,30 @@ public enum HowItWorks {
             Part("Change", "Charts show the change from the first to the latest point; Health copies of a logged value are counted once.", rule: []),
         ],
         sources: ["Morton RW et al. A systematic review, meta-analysis and meta-regression of the effect of protein supplementation on resistance training-induced gains in muscle mass and strength in healthy adults. Br J Sports Med 2018;52(6):376-384."])
+
+    static let mind = Topic(
+        id: "mind", title: "Mind score & calm", symbol: "brain.head.profile",
+        summary: "Mood, HRV, sleep and load → 0–100",
+        colors: [0x7A2CFF, 0x2E8BFF],
+        shows: "Train check-in card, Explore → Calm, Mind score page",
+        parts: [
+            Part("Mind score", "Your check-in mood, HRV against your 30-day average, last night's sleep and recent training, each scored 0–1 and weighted. A part with no reading drops out and the others count more. No mood, HRV or sleep: no score.",
+                 rule: ["mood \(fmt(MindScore.moodWeight)) · HRV \(fmt(MindScore.hrvWeight)) · sleep \(fmt(MindScore.sleepWeight)) · load \(fmt(MindScore.loadWeight))",
+                        "mood: 1 → 0, 5 → 1",
+                        "HRV ÷ baseline: \(fmt(MindScore.hrvLow)) → 0, \(fmt(MindScore.hrvHigh)) → 1",
+                        "sleep: \(fmt(MindScore.sleepLow)) h → 0, \(fmt(MindScore.sleepHigh)) h → 1",
+                        "workout days in the last \(MindScore.loadDays): " + MindScore.loadPoints.enumerated().map { "\($0.offset) → \(fmt($0.element))" }.joined(separator: ", "),
+                        "+1 a calm minute today, max +\(MindScore.calmBonusMax)",
+                        "Calm 75+ · Steady 55–74 · Strained 35–54 · Low under 35"]),
+            Part("Coach pick", "One breathing session for now, from the hour, your mood and HRV.",
+                 rule: ["after 8 pm → 4-7-8", "mood 1–2 → physio sigh", "HRV under 85 % of baseline → box",
+                        "before 11 am, mood 3 or no check-in → wake-up", "otherwise → box"]),
+            Part("Patterns", "With \(MindScore.patternMin)+ check-ins in 28 days, Coach compares your mood the day after a workout with other days (0.5 apart or more), then looks at what low days are about, then short nights.", rule: []),
+            Part("Breathing", "Sessions repeat one breathing pattern for whole cycles, so they end on a breath out. Box 4-4-4-4, 4-7-8, physio sigh 2 + 1 in / 6 out, wake-up 2.5 in / 1.5 out, body scan and pre-lift focus with slow out-breaths. Each finished session is saved to Apple Health as mindful minutes; check-ins as State of Mind. Mood and sessions stay on this phone.", rule: []),
+        ],
+        sources: ["Balban MY et al. Brief structured respiration practices enhance mood and reduce physiological arousal. Cell Rep Med 2023;4(1):100895.",
+                  "Zaccaro A et al. How breath-control can change your life: a systematic review on psycho-physiological correlates of slow breathing. Front Hum Neurosci 2018;12:353.",
+                  "Plews DJ et al. Training adaptation and heart rate variability in elite endurance athletes. Int J Sports Physiol Perform 2013;8(6):688-694."])
 
     static func fmt(_ v: Double) -> String {
         v == v.rounded() ? String(Int(v)) : String(format: "%g", v)
