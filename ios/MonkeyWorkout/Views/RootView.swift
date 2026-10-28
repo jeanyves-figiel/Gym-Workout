@@ -573,6 +573,11 @@ private struct DemoScreen: View {
             if let slot = model.fuelPlan(on: Date()).slots.first(where: { $0.kind == .lunch }) ?? model.fuelPlan(on: Date()).slots.first {
                 MagicSnapSheet(plan: model.fuelPlan(on: Date()), day: Date(), slot: slot)
             }
+        // New food from a read nutrition label (#872), values in lime.
+        case "fuel-label":
+            NavigationStack {
+                LabelFoodForm(label: NutritionLabel(kcal: 372, protein: 13, carbs: 58, fat: 7.1, fibre: 8, salt: 0.3))
+            }
         case "fuel-water": WaterSheet(plan: model.fuelPlan(on: Date()), glasses: FuelStore.shared.log(Date()).glasses, day: Date())
         case "fuel-setup": NavigationStack { FuelSetupView(sheet: true) }
         case "share-recipe": ShareRecipeSheet(recipe: RecipeBook.catalog[0])
