@@ -73,6 +73,7 @@ Pro (PRO badge; tap opens the paywall sheet when `enforced`):
 | Generate & do today: builder **Start now**, Coach chat **Start now**, HIIT **Do today** | `.generateWorkout` (Add to a day stays free) | on device |
 | Gym scan | `.gymScan` | `POST /v1/me/gym-scan` 402 |
 | Fridge / receipt scan | `.foodScan` | `POST /v1/me/food-scan` 402 |
+| What can I eat? (meal ideas from the pantry, #869) | `.foodScan` | `POST /v1/me/meal-ideas` 402 |
 
 `ProStore.shared.run(gate, $gate) { … }` + `.proPaywall($gate)` + `ProBadge()`.
 
