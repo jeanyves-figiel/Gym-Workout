@@ -39,7 +39,8 @@ private let afterLast = day(7 * 7 + 5)
         let rs = history(kg: { 60 + 2.5 * Double(min($0, 3)) }, sets: { $0 < 4 ? 4 : 2 })
         let s = try #require(Plateaus.stalled("bench-press", records: rs, sessionsPerWeek: 3, now: afterLast, calendar: utc))
         #expect(s.weeks == 4)
-        #expect(s.causes.contains(.volumeDrop(percent: 50)))
+        // Flat since day 28 (26 days, 24 sets) vs the 26 days before (day 2-27: 11 workouts, 44 sets) → 45 % fewer.
+        #expect(s.causes.contains(.volumeDrop(percent: 45)))
         #expect(s.fix == .topBackoff)
         #expect(s.since == utc.startOfDay(for: day(28)))
     }
