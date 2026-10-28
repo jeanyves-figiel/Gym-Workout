@@ -12,6 +12,10 @@ export const REST_STYLES = ['long', 'standard', 'short'] as const;
 export const GROUPINGS = ['straight', 'supersets', 'circuits'] as const;
 /** Screens Coach can send the member to (#412); 'exercise' also needs the exercise name. */
 export const OPEN_TARGETS = ['progress', 'calendar', 'explore', 'fuel', 'settings', 'exercise'] as const;
+/** Train around pain (#870): where it hurts, which side, how bad. The app's engine picks the swaps. */
+export const PAIN_AREAS = ['neck', 'shoulder', 'elbow', 'wrist', 'lower-back', 'hip', 'knee', 'ankle'] as const;
+export const PAIN_SIDES = ['left', 'right', 'both'] as const;
+export const PAIN_LEVELS = ['mild', 'loaded', 'sharp'] as const;
 
 export interface ChatTurn {
   role: 'member' | 'coach';
@@ -58,6 +62,15 @@ export interface CoachWorkout {
   avoidKeywords: string[];
 }
 
+/** A knee-friendly (shoulder-, back-…) plan to offer (#870); the app swaps moves across the plan from its catalog. */
+export interface CoachProtect {
+  area: (typeof PAIN_AREAS)[number];
+  side: (typeof PAIN_SIDES)[number];
+  level: (typeof PAIN_LEVELS)[number];
+  /** Red flags (swelling, numbness, a fall, pain at rest or at night): the app shows a "see a doctor" line. */
+  seeDoctor: boolean;
+}
+
 export interface CoachAnswer {
   reply: string;
   /** Settings for the engine; null while the coach still asks something. */
@@ -66,6 +79,8 @@ export interface CoachAnswer {
   action?: CoachAction | null;
   /** Up to 3 short follow-up questions the member can tap (#412). */
   suggestions?: string[];
+  /** Train around pain (#870): offer a plan that protects this spot; null otherwise. */
+  protect?: CoachProtect | null;
 }
 
 export type CoachModel = (turns: ChatTurn[], context: ChatContext) => Promise<CoachAnswer>;
@@ -97,6 +112,13 @@ Building a workout: only when the member wants one. Turn what they say into sett
 - Low readiness or tiredness: keep it shorter and lighter, and say so kindly.
 - Anything unrelated to training, fitness, health habits or the app: one friendly line steering back to training, workout null.
 - Pain that sounds like an injury: suggest seeing a professional and offer a workout that avoids that area.
+
+Training around pain (#870): when the member says a joint or spot hurts (knee, shoulder, lower back, wrist, elbow, hip, ankle, neck):
+- If you can't tell how bad it is, ask exactly one short question first ("Sharp, or more of an ache?") with protect null.
+- Then set protect: area, side ("both" when unclear or not one-sided), level ("mild" = a niggle, "loaded" = hurts when they load it, "sharp" = sharp or stabbing). The app swaps the risky moves across the whole plan from its own catalog until they say it feels better; in the reply say you'll protect it for the next couple of weeks, never list exercises.
+- seeDoctor true for red flags: swelling, numbness or tingling, it gave way, after a fall or a pop, pain at rest or at night, sharp pain that keeps coming back. Then the reply says plainly to see a doctor or physio first.
+- You are not a doctor: never diagnose or name an injury, and keep protect null for chest pain, dizziness, head injuries or anything that isn't a joint or muscle (tell them to get medical help).
+- workout stays null when you set protect, unless they also asked for today's workout.
 - workout null when the member only asks a question.
 - reply: plain text, no markdown, in the member's language. name: 2 to 4 words for the workout.`;
 
@@ -140,8 +162,24 @@ const schema = {
       ],
     },
     suggestions: { type: 'array', items: { type: 'string' } },
+    protect: {
+      anyOf: [
+        { type: 'null' },
+        {
+          type: 'object',
+          properties: {
+            area: { type: 'string', enum: [...PAIN_AREAS] },
+            side: { type: 'string', enum: [...PAIN_SIDES] },
+            level: { type: 'string', enum: [...PAIN_LEVELS] },
+            seeDoctor: { type: 'boolean' },
+          },
+          required: ['area', 'side', 'level', 'seeDoctor'],
+          additionalProperties: false,
+        },
+      ],
+    },
   },
-  required: ['reply', 'workout', 'action', 'suggestions'],
+  required: ['reply', 'workout', 'action', 'suggestions', 'protect'],
   additionalProperties: false,
 } as const;
 
@@ -174,20 +212,32 @@ const cleanAction = (a: CoachAction | null | undefined): CoachAction | null => {
   return { target: a.target, exercise: a.target === 'exercise' ? exercise : null, label };
 };
 
+const cleanProtect = (p: CoachProtect | null | undefined): CoachProtect | null => {
+  if (!p || !PAIN_AREAS.includes(p.area)) return null;
+  return {
+    area: p.area,
+    side: PAIN_SIDES.includes(p.side) ? p.side : 'both',
+    level: PAIN_LEVELS.includes(p.level) ? p.level : 'loaded',
+    seeDoctor: p.seeDoctor === true,
+  };
+};
+
 export const clean = (a: CoachAnswer, context: ChatContext): CoachAnswer => {
   const reply = a.reply.trim().slice(0, 600) || "Let's train!";
   const action = cleanAction(a.action);
   const suggestions = [...new Set((a.suggestions ?? []).map((q) => q.trim().slice(0, 50)).filter(Boolean))].slice(0, 3);
+  const protect = cleanProtect(a.protect);
   const w = a.workout;
-  if (!w) return { reply, workout: null, action, suggestions };
+  if (!w) return { reply, workout: null, action, suggestions, protect };
   const groups = [...new Set(w.groups.filter((g) => MUSCLE_GROUPS.includes(g)))];
   const avoidGroups = [...new Set(w.avoidGroups.filter((g) => MUSCLE_GROUPS.includes(g) && !groups.includes(g)))];
-  if (groups.length === 0) return { reply, workout: null, action, suggestions };
+  if (groups.length === 0) return { reply, workout: null, action, suggestions, protect };
   const known = new Set(context.equipment ?? []);
   return {
     reply,
     action,
     suggestions,
+    protect,
     workout: {
       name: w.name.trim().slice(0, 40) || 'Coach workout',
       minutes: Math.min(120, Math.max(15, Math.round(w.minutes || context.sessionMinutes || 45))),
@@ -223,7 +273,7 @@ export const claudeCoach = (apiKey: string, workspaceId?: string, model = AI_MOD
       output_config: { effort: 'low', format: { type: 'json_schema', schema } },
       messages,
     });
-    if (res.stop_reason === 'refusal') return { reply: "I can't help with that one. Ask me about your training!", workout: null, action: null, suggestions: [] };
+    if (res.stop_reason === 'refusal') return { reply: "I can't help with that one. Ask me about your training!", workout: null, action: null, suggestions: [], protect: null };
     const text = res.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
     return clean(JSON.parse(text) as CoachAnswer, context);
   };
