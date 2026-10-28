@@ -23,11 +23,15 @@ struct ProgressTabView: View {
     /// CI screenshots: open this part's page.
     var demoSection: ProgressSection?
     var demoEditing = false
+    /// CI screenshots: ask the history bar its first starter (#868).
+    var demoAsk = false
     /// Set on a part's page: shows only that part.
     var detail: ProgressSection?
 
-    init(demoFlipped: StatMetric? = nil, demoSection: ProgressSection? = nil, demoEditing: Bool = false, detail: ProgressSection? = nil) {
+    init(demoFlipped: StatMetric? = nil, demoSection: ProgressSection? = nil, demoEditing: Bool = false, demoAsk: Bool = false,
+         detail: ProgressSection? = nil) {
         self.demoFlipped = demoFlipped
+        self.demoAsk = demoAsk
         self.demoSection = demoSection
         self.demoEditing = demoEditing
         self.detail = detail
@@ -76,6 +80,9 @@ struct ProgressTabView: View {
                 header
                 if arranging {
                     ProgressEditBar(onAdd: { addingWidget = true }, onList: { customising = true })
+                } else if !fresh {
+                    // Ask your history (#868 A): on-device answers with a number and a mini chart.
+                    ProgressAskBar(demoAsk: demoAsk)
                 }
                 ForEach(layout.rows) { row in
                     switch row {
