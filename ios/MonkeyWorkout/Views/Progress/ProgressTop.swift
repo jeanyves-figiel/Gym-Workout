@@ -4,6 +4,8 @@ import WorkoutEngine
 /// Progress parts (#243): each has a board tile (#444) and its own page.
 enum ProgressSection: String, CaseIterable, Identifiable, Hashable {
     case training, programmes, body, records, badges, muscles, history
+    /// Mind score page (#852), from Explore → Calm too.
+    case mind
 
     var id: String { rawValue }
 
@@ -16,6 +18,7 @@ enum ProgressSection: String, CaseIterable, Identifiable, Hashable {
         case .badges: "Badges"
         case .muscles: "Muscles"
         case .history: "History"
+        case .mind: "Mind"
         }
     }
 
@@ -28,6 +31,7 @@ enum ProgressSection: String, CaseIterable, Identifiable, Hashable {
         case .badges: "medal.fill"
         case .muscles: "figure.strengthtraining.traditional"
         case .history: "clock.arrow.circlepath"
+        case .mind: "brain.head.profile"
         }
     }
 
@@ -40,6 +44,7 @@ enum ProgressSection: String, CaseIterable, Identifiable, Hashable {
         case .badges: [Theme.lime, Color(red: 0.12, green: 0.85, blue: 0.54)]
         case .muscles: WorkoutEngine.Category.cardio.colors
         case .history: [Color(red: 1, green: 0.55, blue: 0.1), Color(red: 1, green: 0.18, blue: 0.47)]
+        case .mind: [Color(hex: 0x3B3F8F), Color(hex: 0x7A2CFF)]
         }
     }
 
@@ -80,6 +85,8 @@ struct ProgressHighlights {
     /// Running programme (#255): name and "Week 3 of 8" / "Paused"; nil when none.
     var programme: (name: String, state: String)?
     var programmesFinished: Int
+    /// Today's Mind score (#852); nil without a check-in, HRV or sleep.
+    var mind: Int?
 
     /// The measurement the body card features: biggest change among girths and body fat, else any.
     var featured: Measure? {
@@ -157,6 +164,14 @@ struct ProgressSectionTile: View {
         case .history:
             HubValue("\(h.workouts)")
             HubNote(h.lastWorkout.map { "Last: \($0.formatted(.relative(presentation: .named)))" } ?? "Sessions show here")
+        case .mind:
+            if let m = h.mind {
+                HubValue("\(m)")
+                HubNote("\(MindScore.Level.of(m).title) · Mind score")
+            } else {
+                HubValue("Check in")
+                HubNote("Mood, HRV, sleep, load")
+            }
         }
     }
 }
@@ -247,7 +262,7 @@ struct HubTile<Content: View, Corner: View>: View {
     }
 }
 
-private struct HubValue: View {
+struct HubValue: View {
     let text: String
     init(_ text: String) { self.text = text }
     var body: some View {
@@ -255,7 +270,7 @@ private struct HubValue: View {
     }
 }
 
-private struct HubNote: View {
+struct HubNote: View {
     let text: String
     init(_ text: String) { self.text = text }
     var body: some View {

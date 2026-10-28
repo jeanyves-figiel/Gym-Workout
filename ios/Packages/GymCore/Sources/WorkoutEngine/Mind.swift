@@ -284,10 +284,13 @@ public enum MindScore {
             }
         }
 
+        /// Score from which the mind counts as steady (below: strained or low).
+        public static let steadyFrom = 55
+
         public static func of(_ score: Int) -> Level {
             switch score {
             case 75...: .calm
-            case 55...: .steady
+            case steadyFrom...: .steady
             case 35...: .strained
             default: .low
             }
@@ -317,6 +320,19 @@ public enum MindScore {
         let weight = p.reduce(0) { $0 + $1.weight }
         let base = p.reduce(0) { $0 + $1.points * $1.weight } / weight * 100
         return min(100, max(0, Int(base.rounded()) + min(calmBonusMax, max(0, i.calmMinutes))))
+    }
+
+    /// Coach's one line under today's Body + Mind pair on Progress (#852). `body`: the auto-tune ready score.
+    public static func todayCall(body: Int, mind: Int?) -> String {
+        guard let mind else { return "Check in to see your Mind next to your Body." }
+        let bodyLow = body < AutoTune.lightBelow, bodyHigh = body >= AutoTune.pushFrom
+        let mindLow = mind < Level.steadyFrom
+        switch (bodyLow, mindLow) {
+        case (true, true): return "Both low: keep it light and breathe 3 min first."
+        case (true, false): return "Body's tired, mind's fine: keep today light."
+        case (false, true): return "Mind's strained: 3 min of breathing before you train helps."
+        default: return bodyHigh ? "Both high: a good day to push." : "Steady day: train as planned."
+        }
     }
 
     /// Coach's breathing pick for now: evening → 4-7-8, low mood → physio sigh, low HRV → box, a so-so morning →

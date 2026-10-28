@@ -341,6 +341,7 @@ private struct DemoScreen: View {
         case "progress", "progress-empty": NavigationStack { ProgressTabView() }
         case "progress-flipped": NavigationStack { ProgressTabView(demoFlipped: .volume, demoSection: .training) }
         case "progress-records": NavigationStack { ProgressTabView(demoSection: .records) }
+        case "progress-mind": NavigationStack { ProgressTabView(demoSection: .mind) }
         case "progress-edit": NavigationStack { ProgressTabView(demoEditing: true) }
         case "progress-sports": NavigationStack { ProgressTabView() }
         case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
