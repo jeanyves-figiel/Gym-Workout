@@ -31,6 +31,8 @@ import Testing
         #expect(text("caffeine").contains("\(Supplements.caffeineGuideMg) mg"))
         #expect(text("plan").contains("Week 4: \(Generator.weekLabel(4))"))
         #expect(HowItWorks.topic("methods")!.parts.count == TrainingMethod.allCases.count + 1)
+        #expect(text("form").contains("trunk lean: \(HowItWorks.fmt(FormModel.Limit.torsoLean))° more"))
+        #expect(text("form").contains("−\(FormFault.kneesIn.penalty)"))
     }
 
     @Test func rankBandsMatchTheLadder() {

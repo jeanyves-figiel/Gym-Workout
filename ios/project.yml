@@ -87,12 +87,12 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         NSFaceIDUsageDescription: Unlock MonkeyWorkout with Face ID.
-        NSCameraUsageDescription: Take photos of machines for your own exercises, scan your gym for its map, and scan your food, fridge or receipts for Fuel.
+        NSCameraUsageDescription: Take photos of machines for your own exercises, scan your gym for its map, scan your food, fridge or receipts for Fuel, and check your exercise form (only your joints are read, on this iPhone; nothing is recorded).
         NSMicrophoneUsageDescription: Talk to Coach in the app and during workouts (say done, a weight, or ask a question).
         NSSpeechRecognitionUsageDescription: Turns what you say to Coach into text, on your iPhone when it can. Only the words are sent to Coach.
-        NSHealthShareUsageDescription: Reads weight, height, body fat, lean body mass, waist circumference, age, sex, resting heart rate, HRV, VO2max, sleep, steps, floors climbed, heart rate during sessions and climbing workouts to estimate calories and starting weights, show readiness, count daily walking and stairs toward your level, and track progress.
+        NSHealthShareUsageDescription: Reads weight, height, body fat, lean body mass, waist circumference, age, sex, resting heart rate, HRV, VO2max, sleep, steps, floors climbed, heart rate during sessions and climbing workouts to estimate calories and starting weights, show readiness, count daily walking and stairs toward your level, and track progress, and to compute your Mind score.
         NSLocationWhenInUseUsageDescription: Finds gyms near you. Your location is only used for the search and never leaves this device except to Apple Maps.
-        NSHealthUpdateUsageDescription: Saves your gym sessions as workouts with how hard they felt (effort), how you feel after them (State of Mind), the weight, height, body fat, lean mass and waist you enter, and the water you log in Fuel, to Apple Health.
+        NSHealthUpdateUsageDescription: Saves your gym sessions as workouts with how hard they felt (effort), how you feel after them and on your mood check-ins (State of Mind), the minutes of your breathing and relax sessions (mindful minutes), the weight, height, body fat, lean mass and waist you enter, and the water you log in Fuel, to Apple Health.
         ITSAppUsesNonExemptEncryption: false
         NSSupportsLiveActivities: true
         # No UIBackgroundModes for mirroring (#603): App Store rejects workout-processing on iOS; HealthKit wakes the app via workoutSessionMirroringStartHandler.

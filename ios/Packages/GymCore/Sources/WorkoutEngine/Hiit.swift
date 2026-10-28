@@ -699,6 +699,20 @@ public struct HiitPlan: Codable, Hashable, Sendable {
     }
 }
 
+extension Profile {
+    /// No more HIIT on `weekday` (#841): one HIIT day fewer a week; the others stay on their days (`planned`: this week's
+    /// HIIT weekdays) so Coach doesn't put one back there. The last HIIT day turns HIIT days off.
+    public func droppingHiitDay(_ weekday: Int, planned: [Int]) -> Profile {
+        guard var h = hiit, h.days > 0 else { return self }
+        var p = self
+        let kept = (h.weekdays.isEmpty ? planned : h.weekdays).filter { $0 != weekday }
+        h.setDays(h.days - 1)
+        h.weekdays = Array(WeekSchedule.normalized(kept).prefix(h.days))
+        p.hiit = h.on || h.lowImpact ? h : nil
+        return p
+    }
+}
+
 /// A built HIIT from Explore (B). The id is the spec, so it opens, plans and logs like any library workout.
 public struct HiitSpec: Codable, Hashable, Sendable, Identifiable {
     public var format: HiitFormat

@@ -69,6 +69,11 @@ struct MonkeyGradeTag: View {
     }
 }
 
+/// Navigation values for the Wall session and Sport prep pages (#828): pushed by value like the sessions they open,
+/// since a view link mixed with value links in one stack bounced back into the session and then skipped the page.
+struct WallSessionRoute: Hashable { var climbedToday = false }
+struct SportPrepRoute: Hashable { let sport: Sport }
+
 /// Train → Climbing → Wall session: day types, parts and start on their own page.
 struct WallSessionPage: View {
     let today: Bool

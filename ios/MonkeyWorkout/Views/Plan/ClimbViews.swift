@@ -56,9 +56,7 @@ struct ClimbSection: View {
             VStack(alignment: .leading, spacing: 12) {
                 // Wall session (#366): on unless turned off in Around sport days.
                 if wall {
-                    NavigationLink {
-                        WallSessionPage(today: true, climbedToday: all.contains { Calendar.current.isDateInToday($0.start) })
-                    } label: {
+                    NavigationLink(value: WallSessionRoute(climbedToday: all.contains { Calendar.current.isDateInToday($0.start) })) {
                         ClimbBar(symbol: "hand.raised.fill", title: "Wall session", detail: "Warm-up · hangboard · cool-down",
                                  trailing: "chevron.right", gradient: ClimbKind.topRope.gradient)
                     }

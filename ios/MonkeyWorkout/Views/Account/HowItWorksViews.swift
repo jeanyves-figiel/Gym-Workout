@@ -157,6 +157,7 @@ struct HowItWorksTopicView: View {
         case "fuel": return ("\(today.protein) g", "protein")
         case "water": return ("\(today.glasses)", "glasses")
         case "caffeine": return ("\(Supplements.caffeineGuideMg)", "mg max")
+        case "mind": return model.mindScore.map { (value: "\($0)", unit: MindScore.Level.of($0).title) }
         default: return nil
         }
     }
@@ -186,6 +187,11 @@ struct HowItWorksTopicView: View {
                 + (f.estimated ? " · typical body, log your weight" : "")
         case "water":
             return "Today: \(today.glasses) glasses · \((Double(today.waterMl) / 1000).formatted(.number.precision(.fractionLength(1)))) L"
+        case "mind":
+            let i = model.mindInputs()
+            guard let score = MindScore.score(i) else { return "Today: no score yet · check in on Train or connect Health" }
+            let parts = MindScore.parts(i).map { "\($0.name) \(Int(($0.points * 100).rounded()))" }.joined(separator: " · ")
+            return "Today: \(score) → \(MindScore.Level.of(score).title) · \(parts)"
         default:
             return nil
         }

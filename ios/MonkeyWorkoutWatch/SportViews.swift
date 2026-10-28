@@ -117,6 +117,10 @@ struct SportTrackView: View {
 
     var body: some View {
         TabView {
+            // Climbing opens on the goes (#829 A): Sent / Fell, the grade on the Crown.
+            if tracker.sport == .climbing {
+                TimelineView(.periodic(from: .now, by: dimmed ? 60 : 1)) { ctx in ClimbWatchPage(now: ctx.date) }
+            }
             // Swing sports open on the swing counter (#611 B).
             if tracker.sport?.swingLever != nil {
                 TimelineView(.periodic(from: .now, by: dimmed ? 60 : 1)) { ctx in swingPage(now: ctx.date) }
@@ -410,6 +414,79 @@ struct SportTrackView: View {
     }
 }
 
+/// Climbing live (#829 A, design A): sends, heart rate and rest; the grade on the Crown; Sent / Fell, Flash and Undo.
+/// Every go shows on the iPhone at once, and the iPhone's on the Watch.
+struct ClimbWatchPage: View {
+    let now: Date
+    @State private var tracker = SportTracker.shared
+    @State private var crown = 0.0
+    @Environment(\.isLuminanceReduced) private var dimmed
+
+    var body: some View {
+        if let c = tracker.climb {
+            let tops = c.attempts.filter { $0.result != "fall" }.count
+            let falls = c.attempts.count - tops
+            VStack(alignment: .leading, spacing: 4) {
+                Text("CLIMB · \(SportTrackView.clock(now.timeIntervalSince(tracker.started ?? now)))")
+                    .font(W.label(11)).foregroundStyle(W.lime).lineLimit(1)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("\(tops)").font(W.display(32)).monospacedDigit()
+                    Text(falls > 0 ? "sent · \(falls) fell" : "sent").font(W.label(11)).lineLimit(1)
+                    Spacer(minLength: 0)
+                    Text(tracker.heartRate.map { "♥\(Int($0.rounded()))" } ?? "♥–")
+                        .font(W.label(13)).foregroundStyle(Color(hex: 0xFF5F6D))
+                }
+                HStack(spacing: 6) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(c.grade).font(W.display(24)).monospacedDigit()
+                        Text("⟳ Crown").font(W.label(9)).opacity(0.75)
+                    }
+                    Spacer(minLength: 0)
+                    if let last = c.attempts.map(\.at).max(), !dimmed {
+                        Text("Rest \(SportTrackView.clock(now.timeIntervalSince(last)))").font(W.label(11)).monospacedDigit().opacity(0.85)
+                    }
+                }
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(W.gradient(0xFF5F3B, 0xFFB03D)))
+                .focusable()
+                .digitalCrownRotation($crown, from: 0, through: Double(max(0, c.grades.count - 1)), by: 1,
+                                      sensitivity: .low, isContinuous: false, isHapticFeedbackEnabled: true)
+                .accessibilityLabel("Grade")
+                .accessibilityValue(c.grade)
+                HStack(spacing: 5) {
+                    climbButton("Sent", fill: W.lime, ink: W.ink) { tracker.logClimb("send") }
+                    climbButton("Fell", fill: W.card, ink: .white) { tracker.logClimb("fall") }
+                }
+                HStack(spacing: 5) {
+                    climbButton("⚡ Flash", fill: Color(hex: 0xFFC93A), ink: W.ink, small: true) { tracker.logClimb("flash") }
+                    climbButton("Undo", fill: W.card, ink: .white, small: true) { tracker.undoClimb() }
+                        .disabled(c.attempts.isEmpty)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .watchMargins()
+            .onAppear { crown = Double(c.grades.firstIndex(of: c.grade) ?? 0) }
+            .onChange(of: crown) { _, v in
+                let i = min(max(Int(v.rounded()), 0), c.grades.count - 1)
+                if c.grades.indices.contains(i) { tracker.setClimbGrade(c.grades[i]) }
+            }
+            // Picked on the iPhone: the Crown follows.
+            .onChange(of: c.grade) { _, g in
+                if let i = c.grades.firstIndex(of: g), Int(crown.rounded()) != i { crown = Double(i) }
+            }
+        }
+    }
+
+    private func climbButton(_ title: String, fill: Color, ink: Color, small: Bool = false, tap: @escaping () -> Void) -> some View {
+        Button(action: tap) {
+            Text(title).font(W.label(small ? 12 : 15)).foregroundStyle(ink)
+                .frame(maxWidth: .infinity, minHeight: small ? 26 : 36)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(fill))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 /// One gradient count tile of the swing counter.
 struct SwingTile: View {
     let title: String
@@ -455,6 +532,7 @@ struct SportSummaryView: View {
                 if summary.trail.count >= 2 {
                     TrailView(trail: summary.trail, live: false).frame(height: 70)
                 }
+                if let climbs = summary.climbs { Text(climbs).font(W.label(12)) }
                 if let b = summary.batteryUsed { Text("Battery used \(b) %").font(W.label(11)).opacity(0.75) }
                 Text("Saved to Apple Health. Rate it on your iPhone.").font(.footnote).opacity(0.8)
                 LimeButton(title: "Done") { SportTracker.shared.closeSummary() }

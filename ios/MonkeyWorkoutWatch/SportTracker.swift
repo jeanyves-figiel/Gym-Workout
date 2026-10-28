@@ -4,12 +4,13 @@ import Foundation
 import HealthKit
 import LiftSensor
 import Observation
+import WatchConnectivity
 import WatchKit
 
 /// Sports the Watch tracks (#418, design B + C); Hyrox has its own race mode (`HyroxTracker`, #426). Raw values match the iPhone's `Sport`, so the session page and the
 /// plan read the exact sport from the workout's metadata. Diving is left to dive apps (user, 2026-10-17).
 enum TrackedSport: String, CaseIterable, Identifiable {
-    case snowboard, ski, crossCountrySki, mountainBike, roadBike, run, trailRun, hike, mountaineering
+    case snowboard, ski, crossCountrySki, mountainBike, roadBike, run, trailRun, hike, mountaineering, climbing
     case crossfit, rowing, football, tennis, padel, golf, surf, skate, other
 
     var id: String { rawValue }
@@ -25,6 +26,7 @@ enum TrackedSport: String, CaseIterable, Identifiable {
         case .trailRun: "Trail run"
         case .hike: "Hike"
         case .mountaineering: "Mountaineering"
+        case .climbing: "Climbing"
         case .crossfit: "CrossFit"
         case .rowing: "Rowing"
         case .football: "Football"
@@ -47,6 +49,7 @@ enum TrackedSport: String, CaseIterable, Identifiable {
         case .run, .trailRun: "figure.run"
         case .hike: "figure.hiking"
         case .mountaineering: "mountain.2.fill"
+        case .climbing: "figure.climbing"
         case .crossfit: "figure.highintensity.intervaltraining"
         case .rowing: "figure.rower"
         case .football: "figure.soccer"
@@ -64,6 +67,7 @@ enum TrackedSport: String, CaseIterable, Identifiable {
         case .snowboard, .ski, .crossCountrySki: (0x00A3C4, 0x7DF9FF)
         case .mountainBike, .hike, .trailRun, .mountaineering: (0x00B86B, 0x7DFFB0)
         case .crossfit: (0xFF3D8B, 0xFF9A5E)
+        case .climbing: (0xFF5F3B, 0xFFB03D)
         case .roadBike, .run, .rowing: (0x3D59FF, 0x00C7FF)
         default: (0x7D4DFF, 0xE040FB)
         }
@@ -77,6 +81,7 @@ enum TrackedSport: String, CaseIterable, Identifiable {
         case .mountainBike, .roadBike: .cycling
         case .run, .trailRun: .running
         case .hike, .mountaineering: .hiking
+        case .climbing: .climbing
         case .crossfit: .crossTraining
         case .rowing: .rowing
         case .football: .soccer
@@ -93,7 +98,7 @@ enum TrackedSport: String, CaseIterable, Identifiable {
     var bike: Bool { self == .roadBike || self == .mountainBike }
 
     /// GPS is worth its battery: outdoor sports that move.
-    var usesGPS: Bool { ![TrackedSport.crossfit, .rowing, .tennis, .padel, .football].contains(self) }
+    var usesGPS: Bool { ![TrackedSport.crossfit, .rowing, .tennis, .padel, .football, .climbing].contains(self) }
     /// Downhill: runs split at lifts, vertical counted down.
     var downhill: Bool { self == .snowboard || self == .ski }
     /// Laps or stations with a big LAP button.
@@ -182,6 +187,11 @@ final class SportTracker: NSObject {
     private(set) var lastLapMinutes: Double?
     /// Battery % at start and at finish (summary).
     private(set) var batteryStart: Float?
+    /// Climbing live (#829 A): goes tapped here or on the iPhone, the same session on both.
+    private(set) var climb: WClimbLive?
+    /// Ended or thrown away on the iPhone: nothing to send back.
+    private var climbEndedByPhone = false
+    private var hrSentAt = Date.distantPast
     private(set) var summary: Summary?
     /// Planned run (#618, design B): its steps as big blocks, pace target vs actual, voice cues.
     private(set) var run: WRun?
@@ -205,6 +215,8 @@ final class SportTracker: NSObject {
         /// Swing sports (#611 B): forehand, backhand, smash counts and the fastest swing (km/h).
         var swings: [SwingCounter.Shot: Int] = [:]
         var topSwing: Double = 0
+        /// Climbing (#829): "6 sends · 2 flashes · 3 falls · top 6B".
+        var climbs: String?
     }
 
     var running: Bool { sport != nil }
@@ -262,6 +274,7 @@ final class SportTracker: NSObject {
             discard()
             return
         }
+        if sport == .climbing { startClimb(now) }
         if sport.usesGPS { startLocation() }
         if run != nil { startRun() }
         // Batched sensors only run inside the workout session.
@@ -447,13 +460,20 @@ final class SportTracker: NSObject {
         summary = Summary(sport: sport, minutes: Int(end.timeIntervalSince(started ?? end) / 60), km: meters / 1000,
                           vertical: sport.downhill ? down : up, runs: runs, topKmh: topSpeed, batteryUsed: used,
                           trail: trail, rideSeconds: rideSeconds, liftSeconds: liftSeconds,
-                          swings: sport.swingLever == nil ? [:] : impacts.swings.counts, topSwing: impacts.swings.top)
+                          swings: sport.swingLever == nil ? [:] : impacts.swings.counts, topSwing: impacts.swings.top,
+                          climbs: climb.map(Self.climbLine))
+        endClimb(at: end)
         do {
             var meta: [String: Any] = [HKMetadataKeyIndoorWorkout: !sport.usesGPS]
             if sport.swingLever != nil, impacts.swings.total > 0 {
                 meta["MonkeyWorkoutSwings"] = SwingCounter.Shot.allCases.map { "\($0.short) \(impacts.swings.counts[$0] ?? 0)" }.joined(separator: " · ")
             }
             if up > 0 { meta[HKMetadataKeyElevationAscended] = HKQuantity(unit: .meter(), doubleValue: up) }
+            // Same id as the climb the iPhone logs (#829): its climbs list shows this workout once.
+            if let climb {
+                meta["MonkeyWorkoutClimbId"] = climb.id.uuidString
+                meta["MonkeyWorkoutClimbType"] = "boulder"
+            }
             try? await builder.addMetadata(meta)
             try await builder.endCollection(at: end)
             if let workout = try await builder.finishWorkout(), let routeBuilder {
@@ -464,6 +484,11 @@ final class SportTracker: NSObject {
     }
 
     func discard() {
+        if var c = climb, !climbEndedByPhone {
+            c.ended = Date()
+            c.discarded = true
+            Self.send(c)
+        }
         stopLocation()
         impacts.stop()
         session?.end()
@@ -473,6 +498,83 @@ final class SportTracker: NSObject {
     }
 
     func closeSummary() { summary = nil }
+
+    // MARK: Climbing live (#829 A)
+
+    /// Font grades, easiest first, when the Watch starts climbing on its own (the iPhone's default scale).
+    static let fontGrades = ["4", "4+", "5", "5+", "6A", "6A+", "6B", "6B+", "6C", "6C+", "7A", "7A+", "7B", "7B+", "7C", "7C+", "8A", "8A+"]
+
+    /// The iPhone's session when it woke this Watch for it, else a new one the iPhone follows.
+    private func startClimb(_ now: Date) {
+        if let c = WatchStore.current?.snapshot.climbLive, c.ended == nil, now.timeIntervalSince(c.start) < 6 * 3600 {
+            climb = c
+        } else {
+            let c = WClimbLive(id: UUID(), start: now, grades: Self.fontGrades, grade: "6A", attempts: [], updatedAt: now)
+            climb = c
+            Self.send(c)
+        }
+    }
+
+    /// One go at the grade picked with the Crown: `flash`, `send` or `fall`.
+    func logClimb(_ result: String) {
+        guard var c = climb else { return }
+        c.attempts.append(WClimbAttempt(id: UUID(), grade: c.grade, result: result, at: Date()))
+        c.updatedAt = Date()
+        climb = c
+        Self.send(c)
+        WKInterfaceDevice.current().play(result == "fall" ? .failure : .success)
+    }
+
+    func undoClimb() {
+        guard var c = climb, !c.attempts.isEmpty else { return }
+        c.attempts.removeLast()
+        c.updatedAt = Date()
+        climb = c
+        Self.send(c)
+        WKInterfaceDevice.current().play(.click)
+    }
+
+    /// Crown turns: local until the next go carries it.
+    func setClimbGrade(_ grade: String) {
+        guard climb?.grade != grade, climb?.grades.contains(grade) == true else { return }
+        climb?.grade = grade
+    }
+
+    /// The session as the iPhone changed it; ended there → this workout ends and saves to Health.
+    func climbFromPhone(_ w: WClimbLive) {
+        guard let c = climb, c.id == w.id else { return }
+        if w.ended != nil {
+            climbEndedByPhone = true
+            if w.discarded == true { discard() } else { Task { await finish() } }
+            return
+        }
+        if w.updatedAt > c.updatedAt { climb = w }
+    }
+
+    /// Tells the iPhone the workout ended here (it logs the climb), unless the iPhone ended it.
+    private func endClimb(at end: Date) {
+        guard var c = climb, !climbEndedByPhone else { return }
+        c.ended = end
+        c.updatedAt = end
+        Self.send(c)
+    }
+
+    static func climbLine(_ c: WClimbLive) -> String {
+        let tops = c.attempts.filter { $0.result != "fall" }
+        let flashes = c.attempts.filter { $0.result == "flash" }.count
+        let falls = c.attempts.count - tops.count
+        var parts = ["\(tops.count) send\(tops.count == 1 ? "" : "s")"]
+        if flashes > 0 { parts.append("\(flashes) flash\(flashes == 1 ? "" : "es")") }
+        if falls > 0 { parts.append("\(falls) fall\(falls == 1 ? "" : "s")") }
+        if let top = tops.map(\.grade).max(by: { (c.grades.firstIndex(of: $0) ?? -1) < (c.grades.firstIndex(of: $1) ?? -1) }) {
+            parts.append("top \(top)")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private static func send(_ c: WClimbLive) {
+        WatchStore.current?.sendClimb(c)
+    }
 
     // MARK: Compass (#617)
 
@@ -540,6 +642,8 @@ final class SportTracker: NSObject {
         routeBuilder = nil
         sport = nil
         paused = false
+        climb = nil
+        climbEndedByPhone = false
         WKInterfaceDevice.current().isBatteryMonitoringEnabled = false
     }
 
@@ -633,6 +737,11 @@ final class SportTracker: NSObject {
             heartRate = v
             maxHeartRate = max(maxHeartRate ?? 0, v)
             ZoneTracker.shared.heart(v)
+            // Climbing live (#829): the iPhone screen shows it, every 10 s at most.
+            if climb != nil, Date().timeIntervalSince(hrSentAt) >= 10, WCSession.default.isReachable {
+                hrSentAt = Date()
+                WCSession.default.sendMessage([WatchKeys.heartRate: Int(v.rounded())], replyHandler: nil, errorHandler: nil)
+            }
         case HKQuantityType(.activeEnergyBurned):
             kcal = stats.sumQuantity()?.doubleValue(for: .kilocalorie()) ?? kcal
         default:

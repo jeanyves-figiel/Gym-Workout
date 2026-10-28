@@ -309,6 +309,29 @@ final class WatchSync: NSObject {
         health?.startWatchApp(activity: HealthManager.activityType(for: sport), done: done)
     }
 
+    /// Climbing live (#829 A): the session goes with the snapshot, then the Watch app is woken for climbing.
+    func startClimb() {
+        sportStart = WSportStart(sport: Sport.climbing.rawValue, saver: false, at: Date())
+        push()
+        health?.startWatchApp(activity: .climbing)
+    }
+
+    /// Climbing live (#829 A): the session after a change on the iPhone. Queued when the Watch is away, so an end still
+    /// reaches it.
+    func sendClimb(_ live: WClimbLive) {
+        schedulePush()
+        guard let session, session.activationState == .activated, session.isPaired, session.isWatchAppInstalled,
+              let data = try? JSONEncoder.watch.encode(live) else { return }
+        let message = [WatchKeys.climbLive: data]
+        if session.isReachable {
+            session.sendMessage(message, replyHandler: nil) { _ in
+                if live.ended != nil { session.transferUserInfo(message) }
+            }
+        } else if live.ended != nil {
+            session.transferUserInfo(message)
+        }
+    }
+
     /// The Watch tracks heart rate for this iPhone workout, so the Watch saves its Health workout (#347).
     func watchTracks(_ sessionId: String) -> Bool { trackedBy == sessionId }
 
@@ -373,8 +396,16 @@ final class WatchSync: NSObject {
             model.saveHyroxRace(race)
         case let .bikeFTP(watts, date):
             model.setBikeFTP(watts, testedAt: date)
+        case let .mindCheckIn(date, mood, feelings):
+            model.checkIn(mood: mood, feelings: feelings.compactMap(MindFeeling.init(rawValue:)), at: date)
+        case let .mindSession(breath, start, seconds):
+            if let b = Breath(rawValue: breath) { model.finishCalm(b, from: start, to: start.addingTimeInterval(Double(seconds))) }
         case let .buddyCheer(userId, kind):
             if let k = LiveCheer(rawValue: kind) { LiveRoom.shared.cheer(userId, k, api: model.api) }
+            return
+        case let .climbLive(live):
+            guard let health else { return }
+            ClimbLive.shared.fromWatch(live, model: model, health: health)
             return
         case let .liftSet(set):
             LiftSets.shared.add(set)
@@ -447,12 +478,16 @@ final class WatchSync: NSObject {
         s.liftLearned = LiftLearning.shared.levels
         s.hyrox = model.watchHyrox(start: WatchSync.shared.hyroxStart)
         s.sportStart = WatchSync.shared.sportStart
+        // Climbing live (#829): the Watch picks up the iPhone's session, only while one is tracked there.
+        s.climbLive = ClimbLive.shared.session?.watch == true ? ClimbLive.shared.watchCopy : nil
         // Heart-rate zones (#609) and today's run (#618).
         s.zones = WZones(starts: model.heartZones.starts, buzz: ZonePrefs.buzz)
         s.run = model.todayRun.flatMap { model.runDone($0) ? nil : AppModel.watchRun($0.workout) }
         // Timers (#622) and swimming (#624).
         s.wods = WodStore.shared.timers
         s.swim = model.watchSwim()
+        // Mind (#834): score, check-in, Coach's pick and the Calm sessions.
+        s.mind = model.watchMind()
         let today = Date()
         let fuel = FuelStore.shared
         s.water = WWater(day: fuel.key(today), glasses: fuel.log(today).glasses, target: model.fuelPlan(on: today).glasses,
