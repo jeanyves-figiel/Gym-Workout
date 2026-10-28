@@ -28,7 +28,7 @@ Several streams of work are bundled into one release: all merge to staging, an i
 | Workflow | File | Trigger | Does |
 |---|---|---|---|
 | CI | `ci.yml` | PR, called by Deploy staging | What's new check; backend `npm ci`, typecheck, tests (incl. docs drift); backend image build |
-| iOS | `ios.yml` | PR / push to `main` touching `ios/**` | GymCore package tests, simulator builds (Debug, Staging), UI tests |
+| iOS | `ios.yml` | PR / push to `main` touching `ios/**` | GymCore package tests, simulator builds (Debug, Staging), UI tests (build-for-testing, booted simulator, a failed test retried once) |
 | App Store screenshots | `app-store-screenshots.yml` | PR, manual | Demo-mode screens captured (≤ 800 px) to branch `screenshots/pr-<n>` and an artifact |
 | Deploy staging | `deploy-staging.yml` | push to `main` | CI, image to GHCR, deploy to staging |
 | Staging smoke test | `staging-smoke.yml` | after Deploy staging, manual | Health + real mail transport, sign-up email, unverified login refused, forgot password, auth guards |

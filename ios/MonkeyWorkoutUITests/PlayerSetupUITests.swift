@@ -52,7 +52,11 @@ final class PlayerSetupUITests: XCTestCase {
         let note = app.textViews.firstMatch.exists ? app.textViews.firstMatch : app.textFields.matching(
             NSPredicate(format: "value BEGINSWITH[c] %@", "Pad just")).firstMatch
         if note.waitForExistence(timeout: 2) {
+            // The keyboard can lag the tap on a busy runner ("Neither element nor any descendant has keyboard
+            // focus", #741): wait for it, tap once more if it never came.
             note.tap()
+            if !app.keyboards.firstMatch.waitForExistence(timeout: 5) { note.tap() }
+            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "Keyboard for the note")
             note.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 40))
         }
         closeSetup()
