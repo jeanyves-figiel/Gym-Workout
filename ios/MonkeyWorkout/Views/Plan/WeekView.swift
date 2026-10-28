@@ -224,16 +224,16 @@ struct WeekView: View {
         let back = { withAnimation(.snappy) { pickedDay = pickedDay == nil && opensToday ? next?.weekday ?? laterDay : nil } }
         let nextTitle = next.flatMap { s in s.weekday.map { "\(WeekSchedule.shortName($0)) · \(s.displayTitle)" } }
             ?? later.map { "\(WeekSchedule.shortName($0.day.weekday)) · \($0.session.displayTitle)" }
-        // Today skipped with nothing else on it (#698): a rest day with Unskip.
+        // Today skipped with nothing else on it (#698): a rest day, the skipped workout gone (#849).
         let todaySkipped = skippedOnly(plan, today)
         let coach: String? = coachMerged ? coachLine : nil
         Group {
             if pickedDay == nil, let live = mirroredLive {
                 // On the Watch now (#822, design 1A): the card goes live, one way into the twin player, no Start.
                 WatchLiveCard(state: live, onPick: pick)
-            } else if pickedDay == nil, let skipped = todaySkipped {
+            } else if pickedDay == nil, todaySkipped != nil {
                 RestDayCard(weekday: today, onPick: pick, onBack: back, onAdd: { addingDay = today; adding = true },
-                            backTitle: nextTitle ?? "This week", skipped: skipped)
+                            backTitle: nextTitle ?? "This week")
             } else if pickedDay == nil, opensToday {
                 if let s = daySession(plan, today) {
                     NextUpCard(session: s, picked: today, coachLine: coach, onPick: pick, onBack: back, onSelect: select(today)) { start(s) }
@@ -250,8 +250,8 @@ struct WeekView: View {
                 PastDayCard(day: d, date: cal.date(byAdding: .day, value: d - 1, to: Progression.weekStart(Date(), cal)) ?? Date(),
                             // A workout removed from the day (#784) leaves a rest day (#818).
                             session: plan.sessions.first { $0.weekday == d && !model.isRemoved($0.id, in: nil) }, onPick: pick, onBack: back)
-            } else if let d = pickedDay, let skipped = skippedOnly(plan, d) {
-                RestDayCard(weekday: d, onPick: pick, onBack: back, onAdd: { addingDay = d; adding = true }, skipped: skipped)
+            } else if let d = pickedDay, skippedOnly(plan, d) != nil {
+                RestDayCard(weekday: d, onPick: pick, onBack: back, onAdd: { addingDay = d; adding = true })
             } else if let d = pickedDay, let s = daySession(plan, d) {
                 NextUpCard(session: s, picked: d, onPick: pick, onBack: back, onSelect: select(d)) { start(s) }
             } else if let d = pickedDay {
@@ -269,11 +269,10 @@ struct WeekView: View {
         .environment(\.trainBackToToday, opensToday && pickedDay != nil)
     }
 
-    /// The workout a day's card shows (#758): the one picked in the day line, else the first not skipped.
+    /// The workout a day's card shows (#758): the one picked in the day line, else the first; skipped ones are gone (#849).
     private func daySession(_ plan: WeekPlan, _ wd: Int, skipped: (Session) -> Bool = { _ in false }) -> Session? {
-        let day = plan.sessions.filter { $0.weekday == wd }
-        return day.first { $0.id == pickedSession }
-            ?? day.first { !model.skippedIds.contains($0.id) && !skipped($0) } ?? day.first
+        let day = plan.sessions.filter { $0.weekday == wd && !model.skippedOff($0) && !skipped($0) }
+        return day.first { $0.id == pickedSession } ?? day.first
     }
 
     /// Day line pick (#758): that workout in the card, on strip day `day` (nil = its own weekday this week).
@@ -300,11 +299,8 @@ struct WeekView: View {
         let wd = d - week * 7
         if week > 0 {
             let weeks = model.calendarWeeks(count: 3)
-            // Skipped that week (#698): a rest day with Unskip, once every workout of the day is (#818).
-            let skipped = week < weeks.count ? weeks[week].plan.sessions.filter { $0.weekday == wd } : []
-            if !skipped.isEmpty, skipped.allSatisfy({ model.isSkipped($0.id, in: weeks[week]) }) {
-                RestDayCard(weekday: wd, day: d, date: date, onPick: pick, onBack: back, skipped: skipped, skippedWeek: weeks[week])
-            } else if week < weeks.count, let s = daySession(weeks[week].plan, wd, skipped: { model.isSkipped($0.id, in: weeks[week]) }) {
+            // Skipped workouts that week are gone (#849): all skipped leaves a rest day (#818).
+            if week < weeks.count, let s = daySession(weeks[week].plan, wd, skipped: { model.isSkipped($0.id, in: weeks[week]) }) {
                 NextUpCard(session: s, picked: d, later: DaySelection(week: weeks[week], weekday: wd, current: false),
                            onPick: pick, onBack: back, onSelect: select(d))
             } else {
@@ -1096,9 +1092,8 @@ private struct NextUpCard: View {
                 }
             }
             Button("Plan a sport", systemImage: "figure.snowboarding") { planningSport = true }
-            if canToggleSkip {
-                Button(skippedHere ? "Unskip" : skipTitle, systemImage: skippedHere ? "arrow.uturn.backward" : "nosign",
-                       role: skippedHere ? nil : .destructive) { toggleSkip(model, session, in: later?.week) }
+            if canSkip {
+                Button(skipTitle, systemImage: "nosign", role: .destructive) { toggleSkip(model, session, in: later?.week) }
             }
             // Remove… (#784): this day, every week or just skip.
             if let d = later?.weekday ?? day, model.state.activeWorkout?.sessionId != session.id {
@@ -1112,9 +1107,8 @@ private struct NextUpCard: View {
         }
     }
 
-    /// Skipped on its day, this week (#643) or ahead in a later week (#671).
-    private var skippedHere: Bool { later.map { model.isSkipped(session.id, in: $0.week) } ?? skipped }
-    private var canToggleSkip: Bool { later != nil || skipped || model.canSkip(session) }
+    /// Skip on its day, this week (#643) or ahead in a later week (#671); a skipped one leaves the card (#849).
+    private var canSkip: Bool { later != nil || model.canSkip(session) }
     private var skipTitle: String {
         if let later { return "Skip \(WeekSchedule.name(later.weekday))" }
         guard let d = day else { return "Skip" }
@@ -1140,12 +1134,11 @@ private struct NextUpCard: View {
                 .accessibilityIdentifier("train.hiitFormat")
                 .dimmed(done)
             }
-            DayActionTile(title: skippedHere ? "Unskip" : "Skip", detail: skippedHere ? "back on" : "this day",
-                          symbol: skippedHere ? "arrow.uturn.backward" : "nosign", fill: AnyShapeStyle(MissedStyle.gradient)) {
+            DayActionTile(title: "Skip", detail: "this day", symbol: "nosign", fill: AnyShapeStyle(MissedStyle.gradient)) {
                 toggleSkip(model, session, in: later?.week)
             }
-            .disabled(!canToggleSkip)
-            .opacity(canToggleSkip ? 1 : 0.4)
+            .disabled(!canSkip)
+            .opacity(canSkip ? 1 : 0.4)
             .dimmed(done)
             if session.hiit == nil { sportTile.dimmed(done) }
         }
@@ -1204,7 +1197,8 @@ private struct NextUpCard: View {
             if let d = later?.weekday ?? day {
                 // The whole day (#758, design A): its workouts, sport and, on coming days, the daily routines.
                 DayComboRow(session: session, day: d, thisWeek: later == nil, showNote: !compact, showPlace: placeDay == nil,
-                            daySessions: (later?.week.plan ?? model.plan)?.sessions.filter { $0.weekday == d } ?? [],
+                            // Skipped ones are gone (#849).
+                            daySessions: (later?.week.plan ?? model.plan)?.sessions.filter { $0.weekday == d && !model.skippedOff($0, in: later?.week) } ?? [],
                             onSelect: onSelect, dayKey: dayKey, routines: !isToday && !past && !done)
             }
             if !compact { BlockStripe(blocks: session.blocks) }
@@ -1217,8 +1211,6 @@ private struct NextUpCard: View {
     }
 
     private var done: Bool { model.doneIds.contains(session.id) }
-    /// Skipped on today or a later day this week (#643); an earlier skipped day is the past-day card's.
-    private var skipped: Bool { later == nil && !past && !done && model.skippedIds.contains(session.id) }
     /// The next session's card needs a way back too when back means today.
     private var showsJump: Bool { picked != nil && (!isNext || backToToday) }
     private var isNext: Bool { session.id == model.nextSession?.id }
@@ -1241,10 +1233,10 @@ private struct NextUpCard: View {
     private var eyebrow: String {
         if let later, let date = later.week.date(later.weekday, model.planCalendar) {
             let day = date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
-            return picked == nil ? "Next up · \(day)" : "\(day) · \(skippedHere ? "skipped" : "planned")"
+            return picked == nil ? "Next up · \(day)" : "\(day) · planned"
         }
         guard let d = picked else { return "Next up · \(model.upcomingDayLabel(session))" }
-        let state = done ? "done" : model.skippedIds.contains(session.id) ? "skipped"
+        let state = done ? "done"
             : model.missedSessions.contains { $0.id == session.id } ? "missed"
             : isNext ? "next up" : d == model.todayWeekday ? "today" : "planned"
         return "\(WeekSchedule.name(d)) · \(state)"
@@ -1262,12 +1254,6 @@ private struct NextUpCard: View {
                 } else if done {
                     NavigationLink(value: session.id) { Label("Done · see workout", systemImage: "checkmark.seal.fill") }
                         .buttonStyle(LimeButtonStyle())
-                } else if skipped {
-                    // Skipped today or later (#643): put it back on its day.
-                    Button { withAnimation { model.unskip(session.id) } } label: {
-                        Label("Unskip \(session.displayTitle)", systemImage: "arrow.uturn.backward").lineLimit(1).minimumScaleFactor(0.8)
-                    }
-                    .buttonStyle(LimeButtonStyle(fill: .white))
                 } else if ahead {
                     // A later day (#343): only its overview.
                     NavigationLink(value: session.id) { Label("See workout", systemImage: "list.bullet") }
@@ -1809,10 +1795,6 @@ private struct RestDayCard: View {
     var onAdd: (() -> Void)? = nil
     /// Header chip title when the card is today's default (#538 follow-up, #562); nil = "Next up · Thu" or "Today".
     var backTitle: String? = nil
-    /// Workouts skipped on this day (#698, design A): the day is a rest day with a "skipped · Unskip" line.
-    var skipped: [Session] = []
-    /// The later week they were skipped in; nil = this week.
-    var skippedWeek: PlanCalendar.Week? = nil
     @Environment(AppModel.self) private var model
     @Environment(\.trainBackToToday) private var backToToday
     @State private var logging: ClimbLog?
@@ -1886,7 +1868,6 @@ private struct RestDayCard: View {
                 Spacer(minLength: 0)
                 DayJumpChip(label: backTitle ?? backChipTitle(model, toToday: backToToday), action: onBack)
             }
-            if !skipped.isEmpty { SkippedLine(sessions: skipped, week: skippedWeek) }
             if let sport = daySport {
                 SportDayHero(sport: sport, trip: trip, today: isToday, past: past,
                              onChange: change,
