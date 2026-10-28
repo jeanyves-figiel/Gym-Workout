@@ -78,7 +78,12 @@ public enum Breath: String, CaseIterable, Codable, Sendable, Identifiable {
     /// Dark type on the light lime gradient, white on the rest.
     public var lightGradient: Bool { self == .wake }
 
-    /// Lengths offered in minutes; the first is the default.
+    /// 4-7-8 is counted in breaths, not minutes (#861): Weil, who made it up, prescribes 4 breaths (about 1¼ min)
+    /// twice a day and at most 8 once it feels easy. The others follow session lengths used in studies (5 min daily
+    /// in Balban 2023; 10–20 min of slow breathing in resonance-breathing work) with a shorter start.
+    public var byBreaths: Bool { self == .sleep478 }
+
+    /// Lengths offered, in minutes (in breaths when `byBreaths`); the first is the default.
     public var lengths: [Int] {
         switch self {
         case .box: [3, 5, 10]
@@ -140,8 +145,14 @@ public enum Breath: String, CaseIterable, Codable, Sendable, Identifiable {
 
     public var cycleSeconds: Double { phases.reduce(0) { $0 + $1.seconds } }
 
-    /// Whole cycles for `minutes` (at least one), so a session always ends on a breath out.
-    public func cycles(minutes: Int) -> Int { max(1, Int((Double(minutes) * 60 / cycleSeconds).rounded())) }
+    /// Whole cycles for `minutes` (at least one), so a session always ends on a breath out. With `byBreaths`, the
+    /// length is the number of breaths.
+    public func cycles(minutes: Int) -> Int {
+        byBreaths ? max(1, minutes) : max(1, Int((Double(minutes) * 60 / cycleSeconds).rounded()))
+    }
+
+    /// "4 breaths", "5 min".
+    public func lengthLabel(_ n: Int) -> String { byBreaths ? "\(n) breaths" : "\(n) min" }
 
     public func totalSeconds(minutes: Int) -> Double { Double(cycles(minutes: minutes)) * cycleSeconds }
 

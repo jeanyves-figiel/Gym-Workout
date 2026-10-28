@@ -87,6 +87,6 @@ extension AppModel {
         WBreath(id: b.rawValue, label: b.label, purpose: b.purpose, symbol: b.symbol, tint: b.colors[0], tint2: b.colors[1],
                 lengths: b.lengths,
                 phases: b.phases.map { WBreathPhase(label: $0.label, seconds: $0.seconds, fill: $0.fill, inhale: $0.kind == .inhale || $0.kind == .topUp) },
-                cues: b.cues)
+                cues: b.cues, byBreaths: b.byBreaths)
     }
 }

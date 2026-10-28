@@ -215,7 +215,7 @@ struct BreathTile: View {
                     .lineLimit(1).minimumScaleFactor(0.6)
             }
             Text(breath.label).font(Theme.label(15)).lineLimit(1).minimumScaleFactor(0.7)
-            Text("\(breath.purpose) · \(minutes) min").font(Theme.label(10)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.7)
+            Text("\(breath.purpose) · \(breath.lengthLabel(minutes))").font(Theme.label(10)).opacity(0.85).lineLimit(1).minimumScaleFactor(0.7)
         }
         .foregroundStyle(breath.ink)
         .padding(10)
@@ -223,7 +223,7 @@ struct BreathTile: View {
         .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(breath.gradient))
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(breath.label), \(breath.purpose), \(minutes) minutes")
+        .accessibilityLabel("\(breath.label), \(breath.purpose), \(breath.lengthLabel(minutes))")
     }
 }
 

@@ -29,7 +29,7 @@ enum Demo {
         let sleep = WBreath(id: "sleep478", label: "4-7-8", purpose: "Sleep", symbol: "moon.stars.fill", tint: 0x3B3F8F, tint2: 0x7A2CFF, lengths: [4, 8],
                             phases: [WBreathPhase(label: "Breathe in", seconds: 4, fill: 0.85, inhale: true),
                                      WBreathPhase(label: "Hold", seconds: 7, fill: 1, inhale: false),
-                                     WBreathPhase(label: "Breathe out", seconds: 8, fill: 0, inhale: false)], cues: [])
+                                     WBreathPhase(label: "Breathe out", seconds: 8, fill: 0, inhale: false)], cues: [], byBreaths: true)
         let sigh = WBreath(id: "sigh", label: "Physio sigh", purpose: "Stress", symbol: "wind", tint: 0xFFB23C, tint2: 0xFF3D6E, lengths: [1, 3, 5],
                            phases: [WBreathPhase(label: "Breathe in", seconds: 2, fill: 0.85, inhale: true),
                                     WBreathPhase(label: "In a little more", seconds: 1, fill: 1, inhale: true),

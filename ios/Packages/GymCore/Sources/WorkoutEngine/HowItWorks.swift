@@ -394,10 +394,16 @@ public enum HowItWorks {
                         "Mind under \(MindScore.Level.steadyFrom) = low",
                         "both low → light + breathe first · body low → light · mind low → breathe first · both high → push"]),
             Part("Patterns", "With \(MindScore.patternMin)+ check-ins in 28 days, Coach compares your mood the day after a workout with other days (0.5 apart or more), then looks at what low days are about, then short nights.", rule: []),
-            Part("Breathing", "Sessions repeat one breathing pattern for whole cycles, so they end on a breath out. Box 4-4-4-4, 4-7-8, physio sigh 2 + 1 in / 6 out, wake-up 2.5 in / 1.5 out, body scan and pre-lift focus with slow out-breaths. Each finished session is saved to Apple Health as mindful minutes; check-ins as State of Mind. Mood and sessions stay on this phone.", rule: []),
+            Part("Breathing", "Sessions repeat one breathing pattern for whole cycles, so they end on a breath out. Box 4-4-4-4, 4-7-8, physio sigh 2 + 1 in / 6 out, wake-up 2.5 in / 1.5 out, body scan and pre-lift focus with slow out-breaths. The counts are a pace to follow, not a test: slower or faster is fine if the ratio stays. Each finished session is saved to Apple Health as mindful minutes; check-ins as State of Mind. Mood and sessions stay on this phone.",
+                 rule: ["4-7-8: 4 breaths (about 1¼ min), 8 once it feels easy (Weil); not minutes",
+                        "box, physio sigh, wake-up: 5 min a day as in Balban 2023, shorter to start",
+                        "body scan, pre-lift focus: about 6 breaths a minute, 8–15 min like slow-breathing studies",
+                        "dizzy or light-headed: stop and breathe normally"]),
         ],
         sources: ["Balban MY et al. Brief structured respiration practices enhance mood and reduce physiological arousal. Cell Rep Med 2023;4(1):100895.",
                   "Zaccaro A et al. How breath-control can change your life: a systematic review on psycho-physiological correlates of slow breathing. Front Hum Neurosci 2018;12:353.",
+                  "Weil A. Breathing: The Master Key to Self Healing. Sounds True, 1999 (4-7-8: four breaths twice a day, up to eight).",
+                  "Vierra J, Boonla O, Prasertsri P. Effects of sleep deprivation and 4-7-8 breathing control on heart rate variability, blood pressure, blood glucose, and endothelial function in healthy young adults. Physiol Rep 2022;10(13):e15389.",
                   "Plews DJ et al. Training adaptation and heart rate variability in elite endurance athletes. Int J Sports Physiol Perform 2013;8(6):688-694."])
 
     static func fmt(_ v: Double) -> String {

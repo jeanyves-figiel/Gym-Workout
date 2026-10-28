@@ -35,7 +35,12 @@ import Testing
         #expect(Breath.box.cycles(minutes: 3) == 11)
         #expect(Breath.box.totalSeconds(minutes: 3) == 176)
         #expect(Breath.sleep478.cycleSeconds == 19)
-        #expect(Breath.sleep478.cycles(minutes: 4) == 13)
+        // 4-7-8 counts breaths (#861): Weil's 4, at most 8.
+        #expect(Breath.sleep478.byBreaths && Breath.sleep478.lengths == [4, 8])
+        #expect(Breath.sleep478.cycles(minutes: 4) == 4)
+        #expect(Breath.sleep478.totalSeconds(minutes: 8) == 152)
+        #expect(Breath.sleep478.lengthLabel(4) == "4 breaths" && Breath.box.lengthLabel(3) == "3 min")
+        #expect(Breath.allCases.filter(\.byBreaths) == [.sleep478])
     }
 
     @Test func phaseAtATime() {
