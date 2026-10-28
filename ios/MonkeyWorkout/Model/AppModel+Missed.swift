@@ -10,19 +10,15 @@ extension AppModel {
 
     var skippedIds: Set<String> { Set((state.skipped ?? [:]).filter(\.value).keys) }
 
-    /// Missed sessions this week, skipped ones included (they still count as missed). Removed ones (#784) are rest
-    /// days, not missed (#818).
+    /// Missed sessions this week still waiting for the member. Skipped ones are gone for good (#854): rest days, not missed.
     var missedSessions: [Session] {
-        (plan.map { WeekProgress.missed($0, today: todayWeekday, done: doneIds) } ?? []).filter { !isRemoved($0.id, in: nil) }
+        (plan.map { WeekProgress.missed($0, today: todayWeekday, done: doneIds) } ?? []).filter { !skippedIds.contains($0.id) }
     }
-
-    /// Missed sessions still waiting for the member: not skipped.
-    var missedToHandle: [Session] { missedSessions.filter { !skippedIds.contains($0.id) } }
 
     /// Sessions still to do this week, from today on (skipped ones don't count, #643).
     var remainingCount: Int { plan.map { WeekProgress.remaining($0, today: todayWeekday, done: doneIds.union(skippedIds)) } ?? 0 }
 
-    /// This week's sessions the ring and tiles count (#818): skipped and removed ones leave the week unless done.
+    /// This week's sessions the ring and tiles count (#818): skipped ones leave the week unless done.
     var weekSessionCount: Int {
         let done = doneIds, skipped = skippedIds
         return plan?.sessions.filter { done.contains($0.id) || !skipped.contains($0.id) }.count ?? 0
@@ -36,7 +32,7 @@ extension AppModel {
 
     /// Coach monkey's "week done": target reached, or nothing left and no missed session waiting (skipped ones let go).
     func weekDone(thisWeek: Int, target: Int) -> Bool {
-        thisWeek >= target || (nextSession == nil && missedToHandle.isEmpty)
+        thisWeek >= target || (nextSession == nil && missedSessions.isEmpty)
     }
 
     /// The date of a session's day this week (today for an unscheduled one).
@@ -78,23 +74,18 @@ extension AppModel {
                       endedAt: start.addingTimeInterval(TimeInterval(max(1, minutes) * 60)), bodyMassKg: body.weightKg)
     }
 
-    /// Lets a missed session go (#340): no more catch-up prompts, chips or counts for it; it stays missed in history.
-    func skipMissed(_ sessionId: String) {
+    /// Skips a session of this week (#643, #340 missed ones too): Next up moves on and it is gone from its day, past
+    /// days included (#854). Only the Undo bar (`unskip`) puts it back.
+    func skipSession(_ sessionId: String) {
         var s = state.skipped ?? [:]
         s[sessionId] = true
         state.skipped = s
         persist()
     }
 
-    /// Skips today's or a later session this week without moving it (#643): Next up moves on, the day shows
-    /// skipped and it becomes a skipped missed session once the day is over.
-    func skipSession(_ sessionId: String) { skipMissed(sessionId) }
-
-    /// Puts a skipped session back on its day (#643).
+    /// Undo of a skip: back on its day (#643). Nothing else calls it (#849).
     func unskip(_ sessionId: String) {
         state.skipped?[sessionId] = nil
-        // Back on its day: no longer removed either (#818).
-        clearRemoved(sessionId, in: nil)
         persist()
     }
 
@@ -129,15 +120,13 @@ extension AppModel {
         let weeks = WeekProgress.weeksBetween(ofDate, monday, cal)
         guard weeks > 0 else { return }
         // A running programme rolls its own plan (`syncProgramme`); the calendar week still moves on (#818): this
-        // week's Monday, skips made ahead for it, removals of past weeks dropped.
+        // week's Monday and skips made ahead for it.
         guard runningProgramme == nil else {
             state.synced?.weekOf = key
             state.profileDirty = true
             let ahead = state.skippedAhead?[key] ?? []
             state.skippedAhead = state.skippedAhead?.filter { $0.key > key }
             if state.skippedAhead?.isEmpty == true { state.skippedAhead = nil }
-            state.removed = state.removed?.filter { $0 >= key }
-            if state.removed?.isEmpty == true { state.removed = nil }
             if !ahead.isEmpty {
                 var skipped = state.skipped ?? [:]
                 for id in ahead { skipped[id] = true }
@@ -156,8 +145,6 @@ extension AppModel {
         state.ticked = [:]
         let ahead = state.skippedAhead?[key] ?? []
         state.skippedAhead = state.skippedAhead?.filter { $0.key > key }
-        state.removed = state.removed?.filter { $0 >= key }
-        if state.removed?.isEmpty == true { state.removed = nil }
         applyProfile(sp.profile, seed: sp.seed, week: PlanCalendar.cycleWeek(current: sp.week, offset: weeks), rolled: true)
         // Sessions skipped ahead for the new week (#671) are its skips now: after the roll, which clears skips.
         guard !ahead.isEmpty else { return }

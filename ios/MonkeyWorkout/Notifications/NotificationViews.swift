@@ -353,7 +353,7 @@ struct MissedSessionSheet: View {
     @State private var logging: Session?
 
     /// This week's session, still missed and not let go: the same catch-up row as Train and Calendar (#822).
-    private var stillMissed: Session? { model.missedToHandle.first { $0.id == sessionId } }
+    private var stillMissed: Session? { model.missedSessions.first { $0.id == sessionId } }
 
     private var session: Session? { model.session(sessionId) }
 

@@ -460,7 +460,8 @@ final class WatchSync: NSObject {
             s.week = plan.week
             s.weeks = Generator.mesocycleWeeks
             s.deload = plan.deload
-            s.sessions = plan.sessions.map { session($0, label: $0.dayLabel, planned: true, model: model) }
+            // Skipped workouts are gone on the Watch too (#854).
+            s.sessions = plan.sessions.filter { !model.skippedOff($0) }.map { session($0, label: $0.dayLabel, planned: true, model: model) }
         }
         s.extras = WorkoutTemplate.all.map { session($0.session, label: "Example", model: model) }
             + model.customWorkouts.map { session($0.session, label: "My workout", model: model) }
@@ -524,7 +525,7 @@ final class WatchSync: NSObject {
                            .map { item($0, block: b, sessionId: session.id, model: model) },
                        guided: b.kind == .cooldown ? true : nil)
             },
-            missed: model.missedToHandle.contains { $0.id == session.id },
+            missed: model.missedSessions.contains { $0.id == session.id },
             plannedOn: planned && session.weekday != nil ? WSession.dayKey(model.day(of: session)) : nil,
             skipped: model.skippedIds.contains(session.id) ? true : nil)
     }
