@@ -54,7 +54,11 @@ extension AppModel {
 
     /// Picker shows once, on the first open of Insights after the app tour (not in demo screens other than its own).
     var needsInsightsFocus: Bool {
-        state.synced != nil && insightsFocus == nil && tourStep == nil && (!Demo.enabled || Demo.screen == "insights-focus-pick")
+        guard state.synced != nil, insightsFocus == nil, tourStep == nil else { return false }
+        #if DEBUG
+        if Demo.enabled { return Demo.screen == "insights-focus-pick" }
+        #endif
+        return true
     }
 
     /// Saves the focus and moves its widgets to the top of the board; nothing is removed.
