@@ -1,6 +1,73 @@
 {
   "releases": [
     {
+      "id": "2026-10-29.1",
+      "build": 84,
+      "date": "2026-10-29",
+      "items": [
+        {
+          "symbol": "sparkles",
+          "tint": "strength",
+          "title": "Progress is now Insights",
+          "body": "Same board with Body + Mind today, Mind, records and widgets, under a name that fits it all."
+        },
+        {
+          "symbol": "play.rectangle.on.rectangle.fill",
+          "tint": "power",
+          "title": "Save a workout from a video",
+          "body": "Saw a cool workout on TikTok or Instagram? Share → MonkeyFit, paste the link, add screenshots or tell Coach, and it becomes your own workout."
+        },
+        {
+          "symbol": "wind",
+          "tint": "mobility",
+          "title": "5 minutes of breathing",
+          "body": "Box breathing, physio sigh and wake-up now start at 5 minutes, the dose tested in research."
+        },
+        {
+          "symbol": "dumbbell.fill",
+          "tint": "power",
+          "title": "Machines, whole picture",
+          "body": "Machine pages show the full picture, and the body map lights each muscle by its share of the work."
+        },
+        {
+          "symbol": "square.grid.2x2.fill",
+          "tint": "cardio",
+          "title": "Explore by type, in colour",
+          "body": "Type pages now group exercises by muscle in gradient sections."
+        },
+        {
+          "symbol": "flag.checkered",
+          "tint": "warmup",
+          "title": "More in My plan",
+          "body": "Get ready for… and Skill tree now in My plan too."
+        },
+        {
+          "symbol": "calendar",
+          "tint": "stretch",
+          "title": "Rest day, still a workout",
+          "body": "A workout logged on a rest day now shows as a workout day in the week strip and the Calendar."
+        },
+        {
+          "symbol": "trash",
+          "tint": "strength",
+          "title": "Discarded means gone",
+          "body": "A discarded custom gym session is gone once Undo runs out: no more Resume."
+        },
+        {
+          "symbol": "square.and.arrow.up",
+          "tint": "cardio",
+          "title": "Share nudges step aside",
+          "body": "Share nudges now slide away on their own, or swipe them down."
+        },
+        {
+          "symbol": "checkmark.shield.fill",
+          "tint": "mobility",
+          "title": "Friendly shares, right away",
+          "body": "Anything unfriendly is turned back on the spot, so you can fix it and share again. No more waiting in review."
+        }
+      ]
+    },
+    {
       "id": "2026-10-28.2",
       "build": 83,
       "date": "2026-10-29",
