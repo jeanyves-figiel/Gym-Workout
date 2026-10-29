@@ -53,7 +53,7 @@ export interface SubscriptionDeps {
   bundleIds: string[];
   /** Staging only: fake purchases (environment `Test`) and a per-account mode override. */
   tests?: boolean;
-  /** Allow-list for test mode (#924): lower-case emails; undefined = every account. */
+  /** Allow-list for test mode (#924): lower-case emails, plus the `subscription_testers` table; undefined = every account. */
   testEmails?: string[];
   /** Sandbox / TestFlight purchases count (#432). Off on production unless SUBSCRIPTION_SANDBOX=on (App Review). Default on. */
   sandbox?: boolean;
@@ -223,7 +223,25 @@ export class SubscriptionService {
     if (!this.d.tests) return false;
     if (!this.d.testEmails) return true;
     const u = this.d.db.prepare('SELECT email FROM users WHERE id = ?').get(userId) as { email: string | null } | undefined;
-    return !!u?.email && this.d.testEmails.includes(u.email.toLowerCase());
+    if (!u?.email) return false;
+    return this.d.testEmails.includes(u.email.toLowerCase()) || !!this.d.db.prepare('SELECT 1 FROM subscription_testers WHERE email = ?').get(u.email);
+  }
+
+  /** Staging testers kept in the database (#924), managed by `admin.ts tester-add / tester-remove / testers`. */
+  addTester(email: string, note?: string) {
+    this.d.db
+      .prepare('INSERT INTO subscription_testers (email, note, added_at) VALUES (?, ?, ?) ON CONFLICT(email) DO UPDATE SET note = excluded.note')
+      .run(email.trim().toLowerCase(), note ?? null, this.d.now().toISOString());
+  }
+
+  removeTester(email: string) {
+    return Number(this.d.db.prepare('DELETE FROM subscription_testers WHERE email = ?').run(email.trim()).changes) > 0;
+  }
+
+  testers() {
+    return this.d.db
+      .prepare('SELECT t.email, t.note, t.added_at, u.id IS NOT NULL AS account FROM subscription_testers t LEFT JOIN users u ON u.email = t.email ORDER BY t.added_at')
+      .all() as { email: string; note: string | null; added_at: string; account: number }[];
   }
 
   private testsOn(userId: string) {
