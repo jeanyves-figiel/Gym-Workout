@@ -9,6 +9,15 @@ import Testing
         #expect(grouped.reduce(0) { $0 + $1.1.count } == legPress.count)
         #expect(Exercise.muscles(using: .legPress, custom: .init()).prefix(3).contains(.quads))
         #expect(Exercise.muscles(using: .latPulldown, custom: .init()).prefix(2).contains(.lats))
+
+    }
+
+    @Test func tricepsMachineHeatsTricepsOverChest() {
+        let load = Exercise.muscleLoad(using: .tricepsMachine, custom: .init())
+        #expect(load.first?.muscle == .triceps)
+        #expect(load.first?.load == 1)
+        let chest = load.first { $0.muscle == .chest }?.load ?? 0
+        #expect(chest < 0.5)
     }
 
     @Test func filterKeysRoundTrip() {
