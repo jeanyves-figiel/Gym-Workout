@@ -99,7 +99,7 @@ struct AccountView: View {
                                     .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
                                     .frame(maxWidth: .infinity).padding(.vertical, 30)
                             }
-                            Text("MonkeyWorkout · Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")")
+                            Text("MonkeyWorkout · Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"))")
                                 .font(.caption).foregroundStyle(Theme.muted)
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 6)
