@@ -283,12 +283,13 @@ struct WeekDayStrip: View {
             let todayOffset = model.todayWeekday - 1
             // Coming weeks as the calendar plans them (index 0 = this week).
             let weeks = model.calendarWeeks(count: 3)
-            let pastDays = Set(model.historyItems(health: health).map { cal.startOfDay(for: $0.start) })
+            // Days with a logged workout or sport (#902): last week's and this week's rest days show them done.
+            let logged = PlanCalendar.loggedDays(model.historyItems(health: health).map(\.start), cal)
             // Shared lens strip (#486, #510): offsets from today, picks count from this week's Monday.
             LensDayStrip(range: -Self.daysBack...Self.daysAhead,
                          selected: selected.map { $0 - 1 - todayOffset } ?? 0,
                          onPick: { onPick(todayOffset + $0 + 1) }) { o in
-                day(o, todayOffset: todayOffset, weekStart: weekStart, weeks: weeks, pastDays: pastDays, cal: cal)
+                day(o, todayOffset: todayOffset, weekStart: weekStart, weeks: weeks, logged: logged, cal: cal)
             }
             .sheet(item: $catchUp) { MissedCatchUpSheet(weekday: $0.id) }
             .sheet(item: $moving) { MoveSessionSheet(sessionId: $0.id) }
@@ -389,7 +390,7 @@ struct WeekDayStrip: View {
     /// Leftmost cell that puts the selected day (today when none) under the lens (#486).
     /// The day `offset` days from today (#464): this week as before, later weeks from the calendar, last week from History.
     @ViewBuilder
-    private func day(_ offset: Int, todayOffset: Int, weekStart: Date, weeks: [PlanCalendar.Week], pastDays: Set<Date>, cal: Calendar) -> some View {
+    private func day(_ offset: Int, todayOffset: Int, weekStart: Date, weeks: [PlanCalendar.Week], logged: Set<String>, cal: Calendar) -> some View {
         let fromMonday = todayOffset + offset
         let week = Int((Double(fromMonday) / 7).rounded(.down))
         let wd = fromMonday - week * 7 + 1
@@ -400,7 +401,7 @@ struct WeekDayStrip: View {
         if offset < -Self.daysBack || offset > Self.daysAhead {
             cell(wd, day: n, isToday: false, state: .rest).opacity(0.25).accessibilityHidden(true)
         } else if week == 0 {
-            thisWeek(wd, day: n, isToday: isToday, date: date)
+            thisWeek(wd, day: n, isToday: isToday, date: date, logged: logged.contains(PlanCalendar.key(date, cal)))
         } else if week > 0, week < weeks.count {
             let w = weeks[week]
             // Skipped workouts are gone (#849): all skipped leaves a rest day (#818) with its rest-day menu.
@@ -420,7 +421,7 @@ struct WeekDayStrip: View {
                 .accessibilityAddTraits(selected == fromMonday + 1 ? .isSelected : [])
                 .accessibilityLabel("\(label): \(session?.displayTitle ?? (climb ? "climbing day" : sport.map { "\($0.label) day" } ?? "rest day"))")
         } else if week < 0 {
-            let trained = pastDays.contains(cal.startOfDay(for: date))
+            let trained = logged.contains(PlanCalendar.key(date, cal))
             let picked = selected == fromMonday + 1
             Button { onPick(fromMonday + 1) } label: {
                 cell(wd, day: n, isToday: false, state: trained ? .done : .rest, picked: picked).opacity(trained || picked ? 1 : 0.6)
@@ -434,7 +435,7 @@ struct WeekDayStrip: View {
     }
 
     @ViewBuilder
-    private func thisWeek(_ wd: Int, day n: Int, isToday: Bool, date: Date) -> some View {
+    private func thisWeek(_ wd: Int, day n: Int, isToday: Bool, date: Date, logged: Bool) -> some View {
         let sessions = model.plan?.sessions ?? []
         let day = sessions.filter { $0.weekday == wd }
         let dayMissed = model.missedSessions.filter { $0.weekday == wd }
@@ -461,8 +462,9 @@ struct WeekDayStrip: View {
             let daySport = model.daySport(onWeekday: wd, key: PlanCalendar.key(date, model.planCalendar), date: date)
             let climb = daySport == .climbing
             let sport = climb ? nil : daySport
+            // An extra workout or sport logged on a day with no plan session is a workout day (#902), not a rest day.
             Button { onPick(wd) } label: {
-                cell(wd, day: n, isToday: isToday, state: climb ? .climb : sport.map { DayState.sport($0) } ?? .rest, picked: selected == wd)
+                cell(wd, day: n, isToday: isToday, state: logged ? .done : climb ? .climb : sport.map { DayState.sport($0) } ?? .rest, picked: selected == wd)
             }
                 .buttonStyle(.plain)
                 // Same moves as the day card's tiles (#671); earlier days are logged on their card.
@@ -473,7 +475,7 @@ struct WeekDayStrip: View {
                         sportMenu(key: PlanCalendar.key(date, model.planCalendar), wd: wd, date: date)
                     }
                 }
-                .accessibilityLabel("\(WeekSchedule.name(wd)): \(climb ? "climbing day" : sport.map { "\($0.label) day" } ?? "rest day")")
+                .accessibilityLabel("\(WeekSchedule.name(wd)): \(logged ? "trained" : climb ? "climbing day" : sport.map { "\($0.label) day" } ?? "rest day")")
                 .accessibilityHint("Add a workout")
                 .accessibilityAddTraits(selected == wd ? .isSelected : [])
         }

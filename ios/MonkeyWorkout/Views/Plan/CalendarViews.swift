@@ -204,10 +204,13 @@ struct WeekCalendarCard: View {
     let onAway: (AwayPeriod) -> Void
     let onDay: (Int) -> Void
     @Environment(AppModel.self) private var model
+    @Environment(HealthManager.self) private var health
 
     var body: some View {
         let cal = model.planCalendar
         let today = PlanCalendar.key(Date(), cal)
+        // Days with a logged workout or sport (#902): a rest day with an extra logged shows done, as on Train.
+        let logged = PlanCalendar.loggedDays(model.historyItems(health: health).map(\.start), cal)
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(range(cal)).font(.system(.subheadline, design: .rounded).weight(.heavy))
@@ -216,7 +219,7 @@ struct WeekCalendarCard: View {
             }
             HStack(spacing: 4) {
                 ForEach(WeekSchedule.weekdays, id: \.self) { wd in
-                    Button { onDay(wd) } label: { tile(wd, today: today, cal: cal) }
+                    Button { onDay(wd) } label: { tile(wd, today: today, logged: logged, cal: cal) }
                         .buttonStyle(.plain)
                 }
             }
@@ -251,11 +254,13 @@ struct WeekCalendarCard: View {
     }
 
     @ViewBuilder
-    private func tile(_ wd: Int, today: String, cal: Calendar) -> some View {
+    private func tile(_ wd: Int, today: String, logged: Set<String>, cal: Calendar) -> some View {
         let key = week.days[wd - 1]
         let session = planned.first { $0.weekday == wd }
+        // A day with no plan session but a logged extra workout or sport is a workout day (#902).
+        let extra = session == nil && key <= today && logged.contains(key)
         // A skipped workout is gone (#854): a plain rest day, no "Skipped" tag.
-        let done = session.map { current && model.doneIds.contains($0.id) } ?? false
+        let done = session.map { current && model.doneIds.contains($0.id) } ?? extra
         let off = week.off[wd] != nil
         let travel = week.travel[wd] != nil
         let climb = week.climbing.contains(wd)
@@ -270,7 +275,7 @@ struct WeekCalendarCard: View {
         let trip = week.trips[wd]
         let tag: String? = session.map { ($0.hiit != nil ? "HIIT" : short($0.focus)) + (count > 1 ? " +\(count - 1)" : "") } ?? (off ? "Off" : trip.map { $0.sport.short } ?? (climb ? "Climb" : sport?.short))
         let fill = missed ? AnyShapeStyle(MissedStyle.gradient)
-            : trip.map { AnyShapeStyle($0.sport.gradient) } ?? tileFill(session: session != nil, off: off, travel: travel, climb: climb)
+            : trip.map { AnyShapeStyle($0.sport.gradient) } ?? tileFill(session: session != nil || extra, off: off, travel: travel, climb: climb)
         VStack(spacing: 1) {
             Text(WeekSchedule.shortName(wd).uppercased()).font(Theme.label(9))
             Text("\(day)").font(Theme.display(17)).monospacedDigit()
@@ -284,14 +289,14 @@ struct WeekCalendarCard: View {
                 Text(" ").font(.system(size: 9))
             }
         }
-        .foregroundStyle(climb && session == nil && !off ? Theme.ink : .white)
+        .foregroundStyle(climb && session == nil && !off && !extra ? Theme.ink : .white)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
         .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(fill))
         .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(Theme.lime, lineWidth: key == today ? 2 : 0))
         .opacity(past && !done && !missed ? 0.45 : 1)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibility(wd, session: session, done: done, off: off, travel: travel, climb: climb) + (missed ? ", missed" : ""))
+        .accessibilityLabel(accessibility(wd, session: session, done: done, off: off, travel: travel, climb: climb) + (missed ? ", missed" : extra ? ", trained" : ""))
     }
 
     private func tileFill(session: Bool, off: Bool, travel: Bool, climb: Bool) -> AnyShapeStyle {
@@ -403,6 +408,7 @@ struct DaySheet: View {
     let onAdd: (AwayKind, String) -> Void
     let onEdit: (AwayPeriod) -> Void
     @Environment(AppModel.self) private var model
+    @Environment(HealthManager.self) private var health
     @Environment(\.dismiss) private var dismiss
     @State private var moving: Session?
     @State private var adding = false
@@ -432,6 +438,10 @@ struct DaySheet: View {
         // Skipped workouts are gone (#849), as on Train.
         let sessions = all.filter { !model.isSkipped($0.id, in: selection.week, current: selection.current) }
         let away = selection.week.off[wd] ?? selection.week.travel[wd]
+        // What was logged this day (#902): Coach hears a trained day, not a rest day.
+        let logged = model.historyItems(health: health).filter { PlanCalendar.key($0.start, cal) == key }.map(\.title)
+        let dayDetail = sessions.isEmpty ? (!logged.isEmpty ? "logged: " + logged.joined(separator: ", ") : away == nil ? "rest day" : "away")
+            : "planned: " + sessions.map(\.displayTitle).joined(separator: ", ")
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -441,7 +451,7 @@ struct DaySheet: View {
                     CoachSpark(question: sessions.isEmpty ? "What could I do this day?" : "Help me plan this day", focus: CoachFocus(
                         screen: "calendar",
                         title: (selection.week.date(wd, cal) ?? Date()).formatted(.dateTime.weekday(.wide).day().month(.wide)),
-                        detail: sessions.isEmpty ? (away == nil ? "rest day" : "away") : "planned: " + sessions.map(\.displayTitle).joined(separator: ", ")))
+                        detail: dayDetail))
                     if let away {
                         Button { onEdit(away) } label: { AwayRow(period: away) }.buttonStyle(.plain)
                     }
