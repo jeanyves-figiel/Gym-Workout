@@ -81,12 +81,14 @@ struct ProgressTabView: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 header
-                if !arranging { focusTop(top: top, items: items) }
+                if !arranging { focusTop(top: top, items: items, fresh: fresh) }
                 if arranging {
                     ProgressEditBar(onAdd: { addingWidget = true }, onList: { customising = true })
                 } else if !fresh {
                     // Ask your history (#868 A): on-device answers with a number and a mini chart.
-                    ProgressAskBar(demoAsk: demoAsk)
+                    // A bit of everything: Pick a focus sits on the same line (#939).
+                    ProgressAskBar(demoAsk: demoAsk,
+                                   onPickFocus: model.insightsFocus == .everything ? { switchingFocus = true } : nil)
                 }
                 ForEach(layout.rows) { row in
                     switch row {
@@ -147,12 +149,13 @@ struct ProgressTabView: View {
         }
     }
 
-    /// Insights focus (#939 C): the hero card, or a chip to pick one for A bit of everything.
+    /// Insights focus (#939 C): the hero card. A bit of everything: Pick a focus on the ask bar's line, or a chip
+    /// before the first workout (no ask bar yet).
     @ViewBuilder
-    private func focusTop(top: ProgressHighlights, items: [HistoryItem]) -> some View {
+    private func focusTop(top: ProgressHighlights, items: [HistoryItem], fresh: Bool) -> some View {
         if let focus = model.insightsFocus {
             if focus == .everything {
-                InsightsFocusChip { switchingFocus = true }
+                if fresh { InsightsFocusChip { switchingFocus = true } }
             } else {
                 let sport = model.progressSports.first ?? .climbing
                 InsightsFocusHero(focus: focus, h: top, sport: sport, sportItems: items.filter { $0.filter == .sport(sport) },
