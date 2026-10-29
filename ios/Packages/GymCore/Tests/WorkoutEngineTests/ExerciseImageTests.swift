@@ -170,12 +170,13 @@ import Testing
     }
 
     @Test func playbackAsClipPieces() {
-        // #944: start → end from the clip's first half, holds as one frame, the way back from its second half.
+        // #944: start → end from the clip's first half, holds as one frame (from the first half, the same picture), the
+        // way back from its second half.
         let p = MotionPlayback(frames: 17, cycles: 1, out: 1, back: 2, hold: 0.5)
         let pieces = p.clipPieces(frames: 17, clipFrames: 61)
         #expect(pieces == [
             .init(start: 0, length: 60, duration: 1), .init(start: 60, length: 1, duration: 0.5),
-            .init(start: 60, length: 60, duration: 2), .init(start: 120, length: 1, duration: 0.5),
+            .init(start: 60, length: 60, duration: 2), .init(start: 0, length: 1, duration: 0.5),
         ])
         #expect(pieces.reduce(0) { $0 + $1.duration } == p.duration)
         // A glide in from the middle frame back to the start plays the second half too.
