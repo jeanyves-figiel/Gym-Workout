@@ -223,6 +223,8 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
             secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
             passphrase: env.BACKUP_KEY,
             keepDays: positiveInt(env.BACKUP_OFFSITE_DAYS, 30),
+            // Hourly encrypted copies (#923): at most an hour of data lost if the volume goes. BACKUP_OFFSITE_HOURS=0 turns them off.
+            keepHours: env.BACKUP_OFFSITE_HOURS === '0' ? 0 : positiveInt(env.BACKUP_OFFSITE_HOURS, 48),
           }
         : undefined,
     remote: { dir: env.CONTENT_DIR || join(import.meta.dirname, '..', 'content'), signingKey: env.CONTENT_SIGNING_KEY || undefined },

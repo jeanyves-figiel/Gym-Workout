@@ -1,6 +1,6 @@
 import { createAppleVerifier } from './apple.ts';
 import { buildApp } from './app.ts';
-import { applyPendingRestore, startBackupJob } from './backup.ts';
+import { applyPendingRestore, startBackupJob, startHourlyCopyJob } from './backup.ts';
 import { loadConfig } from './config.ts';
 import { openDb } from './db.ts';
 import { OffsiteStore } from './offsite.ts';
@@ -42,11 +42,24 @@ const stopBackup = config.backup.dir
         : undefined,
     })
   : () => {};
+const stopHourly =
+  config.backup.dir && offsite && config.offsite!.keepHours > 0
+    ? startHourlyCopyJob(db, {
+        dir: config.backup.dir,
+        intervalMs: 3_600_000,
+        log: (m) => app.log.info(m),
+        upload: async (path, hour) => {
+          const r = await offsite.uploadHourly(path, hour);
+          return `backup hourly off-site: ${r.key} ${r.bytes} bytes, ${r.pruned} pruned`;
+        },
+      })
+    : () => {};
 if (config.backup.dir && !offsite) app.log.warn('backup off-site copy off (needs Tigris bucket secrets + BACKUP_KEY)');
 
 const shutdown = async () => {
   stopPurge();
   stopBackup();
+  stopHourly();
   await app.close();
   db.close();
   process.exit(0);

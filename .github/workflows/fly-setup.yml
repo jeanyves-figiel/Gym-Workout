@@ -47,10 +47,19 @@ jobs:
         run: |
           if flyctl status -a "$FLY_APP" >/dev/null 2>&1; then echo "app exists"
           else flyctl apps create "$FLY_APP" --org "$ORG"; fi
+      # Production gets 10 GB (#923; volumes only grow, never shrink); staging keeps 1 GB.
       - name: Volume
+        env:
+          SIZE_GB: ${{ inputs.environment == 'production' && '10' || '1' }}
         run: |
-          if [ "$(flyctl volumes list -a "$FLY_APP" --json | jq length)" -gt 0 ]; then echo "volume exists"
-          else flyctl volumes create data -a "$FLY_APP" -r "$REGION" -s 1 -y; fi
+          vols=$(flyctl volumes list -a "$FLY_APP" --json)
+          if [ "$(echo "$vols" | jq length)" -eq 0 ]; then flyctl volumes create data -a "$FLY_APP" -r "$REGION" -s "$SIZE_GB" -y
+          else
+            echo "$vols" | jq -r '.[] | "\(.id) \(.size_gb // .SizeGb)"' | while read -r id size; do
+              if [ "$size" -lt "$SIZE_GB" ]; then echo "extending $id from ${size} GB to ${SIZE_GB} GB"; flyctl volumes extend "$id" -a "$FLY_APP" -s "$SIZE_GB" -y
+              else echo "volume $id is ${size} GB"; fi
+            done
+          fi
       # Generated in the runner, sent via stdin, never printed. Existing secrets are kept.
       - name: Secrets
         run: |
