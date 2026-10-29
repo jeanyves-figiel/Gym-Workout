@@ -21,7 +21,7 @@ enum Demo {
 
     /// Mind (#834) as the phone sends it: box breathing and 4-7-8, score 74.
     static func mind(checkedIn: Bool) -> WMind {
-        let box = WBreath(id: "box", label: "Box 4-4-4-4", purpose: "Focus", symbol: "square", tint: 0xFF3D9A, tint2: 0x7A2CFF, lengths: [3, 5, 10],
+        let box = WBreath(id: "box", label: "Box 4-4-4-4", purpose: "Focus", symbol: "square", tint: 0xFF3D9A, tint2: 0x7A2CFF, lengths: [5, 3, 10],
                           phases: [WBreathPhase(label: "Breathe in", seconds: 4, fill: 0.85, inhale: true),
                                    WBreathPhase(label: "Hold", seconds: 4, fill: 1, inhale: false),
                                    WBreathPhase(label: "Breathe out", seconds: 4, fill: 0, inhale: false),
@@ -30,7 +30,7 @@ enum Demo {
                             phases: [WBreathPhase(label: "Breathe in", seconds: 4, fill: 0.85, inhale: true),
                                      WBreathPhase(label: "Hold", seconds: 7, fill: 1, inhale: false),
                                      WBreathPhase(label: "Breathe out", seconds: 8, fill: 0, inhale: false)], cues: [], byBreaths: true)
-        let sigh = WBreath(id: "sigh", label: "Physio sigh", purpose: "Stress", symbol: "wind", tint: 0xFFB23C, tint2: 0xFF3D6E, lengths: [1, 3, 5],
+        let sigh = WBreath(id: "sigh", label: "Physio sigh", purpose: "Stress", symbol: "wind", tint: 0xFFB23C, tint2: 0xFF3D6E, lengths: [5, 1, 3],
                            phases: [WBreathPhase(label: "Breathe in", seconds: 2, fill: 0.85, inhale: true),
                                     WBreathPhase(label: "In a little more", seconds: 1, fill: 1, inhale: true),
                                     WBreathPhase(label: "Breathe out", seconds: 6, fill: 0, inhale: false)], cues: [])

@@ -65,7 +65,7 @@ struct MainTabView: View {
                 .tabItem { Label("Explore", systemImage: "figure.arms.open") }
                 .tag(MainTab.explore)
             NavigationStack { ProgressTabView() }
-                .tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
+                .tabItem { Label("Insights", systemImage: "sparkles") }
                 .tag(MainTab.progress)
             NavigationStack { FuelView() }
                 .tabItem { Label("Fuel", systemImage: "fork.knife") }
@@ -645,7 +645,7 @@ private struct DemoScreen: View {
             NavigationStack {
                 ScrollView { GameProgressCard(badges: model.badges).padding(16) }
                     .background(Theme.bg.ignoresSafeArea())
-                    .navigationTitle("Progress")
+                    .navigationTitle("Insights")
             }
         case "game-quest-deck":
             NavigationStack {

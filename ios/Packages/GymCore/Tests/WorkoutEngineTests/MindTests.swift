@@ -41,6 +41,8 @@ import Testing
         #expect(Breath.sleep478.totalSeconds(minutes: 8) == 152)
         #expect(Breath.sleep478.lengthLabel(4) == "4 breaths" && Breath.box.lengthLabel(3) == "3 min")
         #expect(Breath.allCases.filter(\.byBreaths) == [.sleep478])
+        // Balban 2023's 5 min a day is the default for box, sigh and wake-up (#892).
+        #expect([Breath.box, .sigh, .wake].allSatisfy { $0.defaultMinutes == 5 })
     }
 
     @Test func phaseAtATime() {

@@ -42,7 +42,7 @@ struct ReportDraft: Identifiable {
     var error: String?
     var shots: [UIImage] = []
 
-    static let areas = ["Train", "Workout player", "Explore", "Progress", "History", "Fuel", "Social", "Apple Watch", "Sync & account", "Settings", howItWorks, "Other"]
+    static let areas = ["Train", "Workout player", "Explore", "Insights", "History", "Fuel", "Social", "Apple Watch", "Sync & account", "Settings", howItWorks, "Other"]
     /// Area of a Feels off? report from How it works (#769).
     static let howItWorks = "How it works"
 
@@ -50,7 +50,7 @@ struct ReportDraft: Identifiable {
         switch tab {
         case .train: "Train"
         case .explore: "Explore"
-        case .progress: "Progress"
+        case .progress: "Insights"
         case .fuel: "Fuel"
         case .community: "Social"
         }

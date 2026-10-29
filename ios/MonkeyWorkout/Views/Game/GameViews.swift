@@ -276,7 +276,7 @@ struct MonkeyCoachCard: View {
     private func statChips(stats: ProgressStats, target: Int, missed: [Session], short: Bool) -> some View {
         HStack(spacing: 6) {
             Button { open(.progress(.training)) } label: { gameChip("🔥 \(stats.currentStreakWeeks)\(short ? "" : " wk") ›") }
-                .accessibilityLabel("\(stats.currentStreakWeeks)-week streak").accessibilityHint("Opens Training in Progress")
+                .accessibilityLabel("\(stats.currentStreakWeeks)-week streak").accessibilityHint("Opens Training in Insights")
             if weekFooter == nil {
                 NavigationLink { CalendarView() } label: { gameChip("\(stats.thisWeek)/\(target) \(short ? "wk" : "this week") ›") }
                     .accessibilityLabel("\(stats.thisWeek) of \(target) this week").accessibilityHint("Opens the calendar")

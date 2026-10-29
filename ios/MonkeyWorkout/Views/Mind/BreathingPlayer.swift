@@ -128,7 +128,7 @@ struct BreathingPlayer: View {
     private func controls(left: Int) -> some View {
         VStack(spacing: 12) {
             if startedAt == nil {
-                RoutineLengthChips(lengths: breath.lengths, selected: minutes, breaths: breath.byBreaths) { minutes = $0 }
+                RoutineLengthChips(lengths: breath.lengths.sorted(), selected: minutes, breaths: breath.byBreaths) { minutes = $0 }
             } else {
                 Text("\(left / 60):\(String(format: "%02d", left % 60)) left").font(Theme.label(15)).monospacedDigit().opacity(0.9)
             }

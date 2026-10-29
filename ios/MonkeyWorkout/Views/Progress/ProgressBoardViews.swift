@@ -245,7 +245,7 @@ struct ProgressWidgetGallery: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(on)
-                .accessibilityLabel(on ? "\(w.title), already on Progress" : "Add \(w.title)")
+                .accessibilityLabel(on ? "\(w.title), already on Insights" : "Add \(w.title)")
             }
         }
     }

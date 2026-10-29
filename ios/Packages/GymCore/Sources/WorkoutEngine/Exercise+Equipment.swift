@@ -73,9 +73,17 @@ extension Exercise {
 
     /// Muscles `item` trains most, by how many of its exercises use them as a main mover (then as an assist).
     public static func muscles(using item: Equipment, custom: CustomExercises = .shared) -> [Muscle] {
+        muscleLoad(using: item, custom: custom).map(\.muscle)
+    }
+
+    /// `muscles(using:)` with each muscle's share of the top one (1 = the main mover), for the body map heat:
+    /// an assist muscle shows lighter than the muscle the machine is for.
+    public static func muscleLoad(using item: Equipment, custom: CustomExercises = .shared) -> [(muscle: Muscle, load: Double)] {
         var score: [Muscle: Double] = [:]
         for e in using(item, custom: custom) { for (m, w) in e.muscleWeights { score[m, default: 0] += w } }
-        return score.sorted { $0.value > $1.value || ($0.value == $1.value && $0.key.name < $1.key.name) }.map(\.key)
+        let top = score.values.max() ?? 1
+        return score.sorted { $0.value > $1.value || ($0.value == $1.value && $0.key.name < $1.key.name) }
+            .map { ($0.key, $0.value / top) }
     }
 
     /// `working(muscle)` narrowed by the Explore machine filter.
