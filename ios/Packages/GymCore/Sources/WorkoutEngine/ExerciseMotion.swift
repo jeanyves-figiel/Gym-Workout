@@ -41,6 +41,17 @@ public struct ExerciseMotion: Sendable, Equatable {
         return (pts[i].x + (pts[j].x - pts[i].x) * k, pts[i].y + (pts[j].y - pts[i].y) * k)
     }
 
+    /// The movement at these frames only (#932: the bundled light frames, `ExerciseIllustrations.liteFrames`).
+    public func sampled(_ frames: [Int]) -> ExerciseMotion {
+        let pts = points
+        guard !pts.isEmpty else { return self }
+        let path = frames.flatMap { f -> [Double] in
+            let p = pts[min(max(f, 0), pts.count - 1)]
+            return [p.x, p.y]
+        }
+        return ExerciseMotion(first, second, effortFirst: effortFirst, path: path, cyclic: cyclic)
+    }
+
     /// One half of a repetition as shown on the tempo chip.
     public struct Phase: Sendable, Equatable {
         public let label: String
