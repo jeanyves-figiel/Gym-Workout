@@ -23,6 +23,14 @@ extension AppModel {
         return s
     }
 
+    /// A discarded freestyle workout once its Undo bar is gone (#903): its paused run and list go, so Train offers a new
+    /// custom gym session instead of Resume. One with a run (Undo kept it) stays.
+    func dropFreestyle(_ id: String) {
+        guard state.freestyle?.id == id, activeWorkout(id) == nil else { return }
+        state.freestyle = nil
+        persist()
+    }
+
     /// Saves the freestyle workout's list (adds, swaps, removes); its time estimate follows.
     func saveFreestyle(_ id: String, blocks: [Block]) {
         guard var s = freestyleSession(id) else { return }
