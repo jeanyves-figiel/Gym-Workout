@@ -68,7 +68,7 @@ final class HomeWidgetSync {
         let climbPlan = Set(model.profile?.climbingWeekdays ?? [])
         let missed = Set(model.missedSessions.map(\.id))
         s.days = WeekSchedule.weekdays.map { wd in
-            let sessions = plan.sessions.filter { $0.weekday == wd }
+            let sessions = plan.sessions.filter { $0.weekday == wd && !model.skippedOff($0) }
             return .init(weekday: wd, planned: !sessions.isEmpty,
                          done: !sessions.isEmpty && sessions.allSatisfy { model.state.done[$0.id] ?? false },
                          missed: sessions.contains { missed.contains($0.id) },

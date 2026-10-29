@@ -140,4 +140,15 @@ private func off(_ a: String, _ b: String) -> AwayPeriod { AwayPeriod(kind: .off
         #expect(planned.count == 6)
         #expect(planned.allSatisfy { $0.date >= monday })
     }
+
+    /// Fuel reads a day's workouts like Train (#936): a skipped one leaves the day, others stay.
+    @Test func daySessionsDropSkipped() throws {
+        let w = PlanCalendar.adapt(climber, week: 1, seed: 3, weekStart: monday, away: [], calendar: cal)
+        let s = try #require(w.plan.sessions.first { $0.weekday != nil })
+        let wd = try #require(s.weekday)
+        #expect(PlanCalendar.sessions(in: w, weekday: wd, skipped: []).map(\.id).contains(s.id))
+        #expect(!PlanCalendar.sessions(in: w, weekday: wd, skipped: [s.id]).map(\.id).contains(s.id))
+        let other = try #require(w.plan.sessions.first { $0.weekday != nil && $0.weekday != wd })
+        #expect(PlanCalendar.sessions(in: w, weekday: other.weekday!, skipped: [s.id]).map(\.id).contains(other.id))
+    }
 }
