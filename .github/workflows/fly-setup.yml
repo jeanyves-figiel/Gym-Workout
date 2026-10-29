@@ -35,6 +35,8 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       ANTHROPIC_WORKSPACE_ID: ${{ secrets.ANTHROPIC_WORKSPACE_ID }}
       GITHUB_REPORTS_TOKEN: ${{ secrets.GITHUB_REPORTS_TOKEN }}
+      # Staging test-mode allow-list (#924): comma list of emails. Never sent to production.
+      SUBSCRIPTION_TEST_EMAILS: ${{ inputs.environment != 'production' && secrets.SUBSCRIPTION_TEST_EMAILS || '' }}
       FLY_APP: ${{ inputs.environment == 'production' && 'monkeyworkout-prod' || 'monkeyworkout-staging' }}
       REGION: fra
       HOSTNAME: ${{ inputs.environment == 'production' && 'workout.monkeygrade.cloud' || 'workout-staging.monkeygrade.cloud' }}
@@ -63,6 +65,7 @@ jobs:
               echo "SES_REGION=$SES_REGION"
             elif [ -n "$SMTP_URL" ]; then echo "SMTP_URL=$SMTP_URL"
             else echo "$have" | grep -qxE 'SES_ACCESS_KEY_ID|SMTP_URL|MAIL_TRANSPORT' || echo "MAIL_TRANSPORT=console"; fi
+            if [ -n "$SUBSCRIPTION_TEST_EMAILS" ]; then echo "SUBSCRIPTION_TEST_EMAILS=$SUBSCRIPTION_TEST_EMAILS"; fi
           } > "$RUNNER_TEMP/secrets.env"
           # Real mail configured → drop the console fallback (and the old SES SMTP URL when using the API).
           if { [ -n "$SES_ACCESS_KEY_ID" ] || [ -n "$SMTP_URL" ]; } && echo "$have" | grep -qx MAIL_TRANSPORT; then flyctl secrets unset --stage -a "$FLY_APP" MAIL_TRANSPORT; fi

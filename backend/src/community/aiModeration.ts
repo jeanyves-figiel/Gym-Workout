@@ -1,8 +1,10 @@
+import { createHash } from 'node:crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { AI_MODELS } from '../coach/models.ts';
 import type { DB } from '../db.ts';
 import { reserveGlobal } from '../quota.ts';
 import { ApiError } from '../errors.ts';
+import { DAY, throttleTake } from '../throttle.ts';
 
 /**
  * AI moderation (#871, epic #865): before a shared name, caption or profile photo goes live, a small model checks it
@@ -76,36 +78,63 @@ export const claudeModeration = (apiKey: string, workspaceId?: string, model = A
 /** Non-empty, trimmed, de-duplicated. */
 const texts = (xs: (string | null | undefined)[]) => [...new Set(xs.map((x) => x?.trim()).filter((x): x is string => !!x))];
 
+/** Checks one member may run per UTC day (#920); then their changes wait until tomorrow (fail closed for them). */
+export const MODERATION_PER_MEMBER = 40;
+/** Clean texts remembered, so re-sending the same words costs nothing (#920). */
+const CLEAN_CACHE = 5_000;
+
 export interface Moderator {
-  /** 400 `objectionable_content` when the model flags the texts or photo; resolves when clean or the check could not run. */
-  assertAllowed: (input: { texts: (string | null | undefined)[]; jpeg?: Buffer }) => Promise<void>;
+  /**
+   * 400 `objectionable_content` when the model flags the texts or photo; 429 `daily_limit` when `userId` used up their
+   * checks today; resolves when clean or the check could not run.
+   */
+  assertAllowed: (input: { userId?: string; texts: (string | null | undefined)[]; jpeg?: Buffer }) => Promise<void>;
 }
 
+/**
+ * Budget (#920): moderation has its own daily pool (`limit`, `MODERATION_DAILY_LIMIT`), separate from the paid features'
+ * `AI_DAILY_LIMIT`, so a member editing captions in a loop can't make Coach "busy" for everyone. Each member gets
+ * `MODERATION_PER_MEMBER` checks a day; clean texts already checked are free.
+ */
 export const aiModerator = (
   db: DB,
   now: () => Date,
   model: ModerationModel | undefined,
-  globalLimit: number,
+  limit: number,
   log: { warn: (msg: string) => void; info: (msg: string) => void },
-): Moderator => ({
-  assertAllowed: async (input) => {
-    const t = texts(input.texts);
-    if (!model || (!t.length && !input.jpeg)) return;
-    if (!reserveGlobal(db, now().toISOString().slice(0, 10), globalLimit)) return;
-    let category: FlagCategory | null;
-    try {
-      category = await model({ texts: t, jpeg: input.jpeg });
-    } catch (e) {
-      log.warn(`AI moderation skipped (word filter only): ${String(e)}`);
-      return;
-    }
-    if (!category) return;
-    log.info(`AI moderation refused ${input.jpeg ? 'a photo' : 'text'}: ${category}`);
-    throw input.jpeg
-      ? new ApiError(400, 'objectionable_content', 'Please pick another photo: that one is not allowed in the community.')
-      : new ApiError(400, 'objectionable_content', 'Please keep it friendly: that text is not allowed in the community.');
-  },
-});
+): Moderator => {
+  const clean = new Set<string>();
+  const keyOf = (t: string) => createHash('sha256').update(t).digest('hex');
+  return {
+    assertAllowed: async (input) => {
+      const t = texts(input.texts).filter((x) => !clean.has(keyOf(x)));
+      if (!model || (!t.length && !input.jpeg)) return;
+      const at = now();
+      if (input.userId && !throttleTake(db, `moderate:${input.userId}`, MODERATION_PER_MEMBER, DAY, at))
+        throw new ApiError(429, 'daily_limit', "That's a lot of changes today. Try again tomorrow!");
+      if (!reserveGlobal(db, `moderation:${at.toISOString().slice(0, 10)}`, limit)) {
+        log.warn('AI moderation skipped (word filter only): daily moderation budget spent');
+        return;
+      }
+      let category: FlagCategory | null;
+      try {
+        category = await model({ texts: t, jpeg: input.jpeg });
+      } catch (e) {
+        log.warn(`AI moderation skipped (word filter only): ${String(e)}`);
+        return;
+      }
+      if (!category) {
+        for (const x of t) clean.add(keyOf(x));
+        while (clean.size > CLEAN_CACHE) clean.delete(clean.values().next().value!);
+        return;
+      }
+      log.info(`AI moderation refused ${input.jpeg ? 'a photo' : 'text'}: ${category}`);
+      throw input.jpeg
+        ? new ApiError(400, 'objectionable_content', 'Please pick another photo: that one is not allowed in the community.')
+        : new ApiError(400, 'objectionable_content', 'Please keep it friendly: that text is not allowed in the community.');
+    },
+  };
+};
 
 /** Test / no-key stand-in. */
 export const noModerator = (): Moderator => ({ assertAllowed: () => Promise.resolve() });

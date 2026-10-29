@@ -24,6 +24,10 @@ primary_region = 'fra'
   # Pro test mode (#126): fake purchases without Apple + per-account Pro mode (Account → MonkeyWorkout Pro → Staging test).
   # SUBSCRIPTIONS stays off here, so testers see nothing unless they opt in. Never set on production.
   SUBSCRIPTION_TESTS = 'on'
+  # Only these accounts may use test mode (#924): Fly secret SUBSCRIPTION_TEST_EMAILS (comma list, from the GitHub
+  # secret of the same name via the "Fly setup" workflow). Unset → nobody.
+  # Staging AI cap (#924): TestFlight testers can't spend the paid model budget meant for production.
+  AI_DAILY_LIMIT = '150'
 
 # SQLite lives on this volume → exactly one machine.
 [mounts]

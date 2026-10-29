@@ -18,9 +18,15 @@ let calls: ModerationInput[];
 let flagPhotos: boolean;
 let down: boolean;
 
-const build = (aiDailyLimit = '500') =>
+const build = (moderationLimit = '500', aiDailyLimit = '500') =>
   buildApp({
-    config: loadConfig({ NODE_ENV: 'test', AUTH_RATE_LIMIT_PER_MIN: '1000', MODERATION_EMAIL: 'mod@example.com', AI_DAILY_LIMIT: aiDailyLimit }),
+    config: loadConfig({
+      NODE_ENV: 'test',
+      AUTH_RATE_LIMIT_PER_MIN: '1000',
+      MODERATION_EMAIL: 'mod@example.com',
+      AI_DAILY_LIMIT: aiDailyLimit,
+      MODERATION_DAILY_LIMIT: moderationLimit,
+    }),
     db,
     mailer,
     apple: async () => {
@@ -101,7 +107,7 @@ describe('AI moderation of shared content (#871)', () => {
     expect((await req('PATCH', `/v1/community/posts/${id}`, a.t, { visibility: 'members' })).statusCode).toBe(400);
   });
 
-  it('fails open to the word filter when the model is down or the AI budget is spent', async () => {
+  it('fails open to the word filter when the model is down or the moderation budget is spent', async () => {
     const a = await join('a@example.com', 'Ana');
     down = true;
     expect((await post(a.t, 'meet me for cash')).statusCode).toBe(200);
@@ -153,5 +159,40 @@ describe('AI moderation of shared content (#871)', () => {
     ensureCommunitySchema(db);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'moderation_holds'").get()).toBeUndefined();
     expect(db.prepare("SELECT COUNT(*) AS n FROM community_avatars WHERE id = 'held-photo'").get()).toEqual({ n: 0 });
+  });
+
+  it('keeps its own budget: caption edits never spend the paid AI budget, and a spent AI budget keeps moderation on (#920)', async () => {
+    await app.close();
+    app = build('500', '3');
+    const a = await join('a@example.com', 'Ana');
+    const id = randomUUID();
+    expect((await post(a.t, 'first', id)).statusCode).toBe(200);
+    for (let i = 0; i < 5; i++) expect((await req('PATCH', `/v1/community/posts/${id}`, a.t, { caption: `edit ${i}` })).statusCode).toBe(200);
+    expect(db.prepare("SELECT count FROM ai_daily_usage WHERE day = '2026-10-28'").get()).toBeUndefined();
+    db.prepare("INSERT INTO ai_daily_usage (day, count) VALUES ('2026-10-28', 3)").run();
+    expect((await req('PATCH', `/v1/community/posts/${id}`, a.t, { caption: 'meet me for cash' })).statusCode).toBe(400);
+  });
+
+  it('caps checks per member per day, then refuses their changes until tomorrow (#920)', async () => {
+    const a = await join('a@example.com', 'Ana');
+    const b = await join('b@example.com', 'Bea');
+    const id = randomUUID();
+    expect((await post(a.t, 'first', id)).statusCode).toBe(200);
+    let last = 0;
+    for (let i = 0; i < 45; i++) last = (await req('PATCH', `/v1/community/posts/${id}`, a.t, { caption: `edit ${i}` })).statusCode;
+    expect(last).toBe(429);
+    expect(calls.length).toBeLessThanOrEqual(41);
+    // Others are unaffected.
+    expect((await post(b.t, 'meet me for cash')).statusCode).toBe(400);
+  });
+
+  it('remembers clean texts: the same words again cost no call (#920)', async () => {
+    const a = await join('a@example.com', 'Ana');
+    const id = randomUUID();
+    expect((await post(a.t, 'same words', id)).statusCode).toBe(200);
+    calls = [];
+    expect((await req('PATCH', `/v1/community/posts/${id}`, a.t, { caption: 'other words' })).statusCode).toBe(200);
+    expect((await req('PATCH', `/v1/community/posts/${id}`, a.t, { caption: 'same words' })).statusCode).toBe(200);
+    expect(calls.map((c) => c.texts)).toEqual([['other words']]);
   });
 });

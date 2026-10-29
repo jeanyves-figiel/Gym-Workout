@@ -134,7 +134,7 @@ All `GET` pulls take `?since=ISO` (delta + `deleted` ids) and return `serverTime
 | DELETE | `/v1/me/push-device/:token` | Bearer | → 204; apps before #762 (path redacted in logs) | |
 | GET | `/v1/me/notification-prefs` | Bearer | → `{prefs, pushConfigured}`: toggles, reminder / check-in times, quiet hours (minutes after midnight) | |
 | PUT | `/v1/me/notification-prefs` | Bearer | `{prefs}` (any subset; what it leaves out keeps its saved value) → `{prefs}` | |
-| POST | `/v1/me/achievements` | Bearer | `{achievements[≤30]: {id, type, text}}` → `{announced}`; each new id pushed once to followers, at most 20 a day per member | 30/min |
+| POST | `/v1/me/achievements` | Bearer | `{achievements[≤30]: {id, type, text}}` → `{announced}`; each new id pushed once to followers, at most 20 a day per member; text with a link or domain → 400 `links_not_allowed` (#922) | 30/min |
 | POST | `/v1/me/push-test` | Bearer | Test push to own devices → `{devices, sent, pushConfigured}` | 5/min |
 
 ## Community
@@ -251,7 +251,7 @@ See [`../subscriptions.md`](../subscriptions.md).
 |---|---|---|---|---|
 | GET | `/v1/me/entitlement` | Bearer | → `{mode, pro, access, source subscription\|grant\|none, productId, expiresAt, trial, willRenew, grant, products, test?}` | |
 | POST | `/v1/me/subscriptions/transactions` | Bearer | `{signedTransaction, signedRenewalInfo?}` StoreKit 2 JWS, verified to Apple Root CA - G3 → entitlement | 400 `invalid_transaction`, `unknown_product`, `sandbox_transaction`; 403/409 `subscription_other_account` |
-| PUT | `/v1/me/subscriptions/test` | Bearer | Staging only (`SUBSCRIPTION_TESTS=on`, else 404): `{mode off\|preview\|enforced\|null}` for this account → entitlement | 404 |
+| PUT | `/v1/me/subscriptions/test` | Bearer | Staging only (`SUBSCRIPTION_TESTS=on` and account in `SUBSCRIPTION_TEST_EMAILS`, else 404, #924): `{mode off\|preview\|enforced\|null}` for this account → entitlement | 404 |
 | POST | `/v1/me/subscriptions/test/purchase` | Bearer | Staging only: fake purchase `{productId}` → entitlement | 404 |
 | POST | `/v1/me/subscriptions/test/cancel` | Bearer | Staging only: `{end?}` → entitlement | 404 |
 | POST | `/v1/app-store/notifications` | Apple JWS | App Store Server Notifications V2 `{signedPayload}` → 200 / 400 | 300/min |

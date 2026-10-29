@@ -68,7 +68,7 @@ export const customWorkoutRoutes = (r: FastifyInstance, db: DB, now: () => Date,
       // Same UGC rules as community posts (#61): guidelines accepted, objectionable names refused.
       if (!hasAcceptedGuidelines(db, userId)) throw new ApiError(403, 'community_profile_required', 'Create your community profile first.');
       assertClean(...shared.map((w) => w.name));
-      await mod.assertAllowed({ texts: freshNames(db, userId, shared) });
+      await mod.assertAllowed({ userId, texts: freshNames(db, userId, shared) });
     }
     const ts = now().toISOString();
     const up = db.prepare(

@@ -198,7 +198,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     if (!Buffer.isBuffer(body)) throw new ApiError(415, 'unsupported_media_type', 'Send the photo as image/jpeg.');
     const img = sanitizeJpeg(body);
     const id = randomUUID();
-    await mod.assertAllowed({ texts: [], jpeg: img.data });
+    await mod.assertAllowed({ userId, texts: [], jpeg: img.data });
     tx(db, () => {
       db.prepare('DELETE FROM community_avatars WHERE user_id = ?').run(userId);
       db.prepare('INSERT INTO community_avatars (id, user_id, data, created_at) VALUES (?, ?, ?, ?)').run(id, userId, img.data, now().toISOString());
@@ -207,9 +207,14 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
   };
 
   /** AI check (#871) of a nickname / about that changed: refused like the word filter. */
-  const assertProfileClean = async (before: { nickname?: string | null; bio?: string | null }, nick: string | null | undefined, bioText: string | null | undefined) => {
+  const assertProfileClean = async (
+    userId: string,
+    before: { nickname?: string | null; bio?: string | null },
+    nick: string | null | undefined,
+    bioText: string | null | undefined,
+  ) => {
     const changed = [nick !== before.nickname ? nick : null, bioText !== before.bio ? bioText : null];
-    await mod.assertAllowed({ texts: changed });
+    await mod.assertAllowed({ userId, texts: changed });
   };
 
   const clearAvatar = (userId: string) =>
@@ -359,7 +364,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     const nick = b.nickname === undefined ? undefined : b.nickname ? nickname.parse(b.nickname) : null;
     checkClean(nick, b.bio);
     if (nick) assertNicknameFree(nick, uid);
-    await assertProfileClean(accountProfile(uid), nick, b.bio);
+    await assertProfileClean(uid, accountProfile(uid), nick, b.bio);
     const ts = now().toISOString();
     const member = profileRow(uid);
     if (member) {
@@ -414,7 +419,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     const nick = b.nickname ?? existing?.nickname ?? account?.nickname;
     if (!nick) throw new ApiError(400, 'nickname_required', 'Choose a nickname.');
     assertNicknameFree(nick, req.userId!);
-    await assertProfileClean(existing ?? account ?? {}, nick, b.bio);
+    await assertProfileClean(req.userId!, existing ?? account ?? {}, nick, b.bio);
     const ts = now().toISOString();
     if (existing) {
       db.prepare(
@@ -581,7 +586,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     // AI check (#871) of what members read, only when it is new: an auto re-share of the same workout costs nothing.
     const old = existing && existing.visibility !== 'private' ? (JSON.parse(existing.payload) as typeof b.payload) : undefined;
     const seen = new Set(old ? [existing!.caption, old.title, old.subtitle, ...(old.exercises ?? []).map((e) => e.name)] : []);
-    if (vis !== 'private') await mod.assertAllowed({ texts: shownTexts.filter((t) => !seen.has(t ?? null)) });
+    if (vis !== 'private') await mod.assertAllowed({ userId: req.userId!, texts: shownTexts.filter((t) => !seen.has(t ?? null)) });
     if (existing) {
       // An update keeps the caption and visibility it doesn't send (#714): re-sharing a workout doesn't wipe the caption.
       const cap = b.caption === undefined ? existing.caption : b.caption || null;
@@ -607,6 +612,7 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       const card = JSON.parse(row.payload) as { title?: string; subtitle?: string; exercises?: { name: string }[] };
       const opening = row.visibility === 'private';
       await mod.assertAllowed({
+        userId: req.userId!,
         texts: [
           b.caption && b.caption !== row.caption ? b.caption : opening && b.caption === undefined ? row.caption : null,
           ...(opening ? [card.title, card.subtitle, ...(card.exercises ?? []).map((e) => e.name)] : []),
