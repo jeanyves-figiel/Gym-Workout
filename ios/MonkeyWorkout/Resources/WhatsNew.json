@@ -1,17 +1,35 @@
 {
-  "id": "2026-10-29.2",
+  "id": "2026-10-29.3",
   "items": [
     {
-      "symbol": "number",
-      "tint": "mobility",
-      "title": "Build number in Account",
-      "body": "The bottom of Account now shows the build next to the version, like Version 1.0 (85), so you always know which update you run."
+      "symbol": "scope",
+      "tint": "strength",
+      "title": "Insights, your way",
+      "body": "Pick what matters most (strength, muscle, weight loss, endurance, mind or your sport) and Insights opens on it. Switch any time."
+    },
+    {
+      "symbol": "bubble.left.and.text.bubble.right.fill",
+      "tint": "power",
+      "title": "Ask Coach about your training",
+      "body": "A clearer ask bar on Insights with one-tap BEST, COMPARE, COUNT and VOLUME questions."
+    },
+    {
+      "symbol": "camera.viewfinder",
+      "tint": "cardio",
+      "title": "Coach in Add exercises",
+      "body": "Ask Coach or snap your machine right from Add exercises: Coach's picks tick straight into your list."
+    },
+    {
+      "symbol": "fork.knife",
+      "tint": "warmup",
+      "title": "Fuel follows skips",
+      "body": "Skip a workout and Fuel, the Calendar widget and Home Screen week dots treat the day as a rest day."
     },
     {
       "symbol": "lock.shield",
       "tint": "stretch",
-      "title": "Under the hood",
-      "body": "Fresher sign-in, email and Coach libraries keep the app secure and up to date."
+      "title": "Safer and steadier",
+      "body": "Security fixes and a stronger server keep your data safe and the app fast."
     }
   ]
 }
