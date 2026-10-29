@@ -50,6 +50,7 @@ struct MainTabView: View {
     @State private var ask = CoachAsk.shared
     /// Exercise page opened by Visual Intelligence or Shortcuts (#617).
     @State private var exerciseLaunch = ExerciseLaunch.shared
+    @State private var videoShare = VideoShareLaunch.shared
 
     /// What's new with the X top right (#556); its own function keeps `body` quick to type-check.
     private func whatsNewSheet(_ notes: WhatsNew) -> some View {
@@ -87,6 +88,8 @@ struct MainTabView: View {
             if ProStore.shared.locked { ProPaywallSheet(gate: .askCoach) } else { CoachChatView(ask: r).remotePaused(.askCoach) }
         }
         .sheet(item: $exerciseLaunch.item) { i in NavigationStack { ExerciseDetailView(exerciseId: i.id) } }
+        // Shared from TikTok / Instagram (#909 A).
+        .sheet(item: $videoShare.draft) { d in VideoImportSheet(draft: d) }
         // Me sheet (#560): the Me pill at the top right of every tab.
         .sheet(isPresented: Bindable(model).meOpen) {
             NavigationStack {
@@ -110,6 +113,7 @@ struct MainTabView: View {
         // a sport the Watch tracked (it reaches the iPhone through Health) is posted when the app opens.
         .onChange(of: scenePhase) { _, p in
             guard p == .active else { return }
+            VideoShareLaunch.shared.check()
             Task { await autoShare() }
             // Workouts and sets from a Garmin watch (#550).
             Task { await GarminSync.shared.pull() }
@@ -403,7 +407,7 @@ private struct DemoScreen: View {
         }
         case "account-recovery": NavigationStack { RecoveryCodesView(codes: Demo.recoveryCodes) }
         case "account-passkeys": NavigationStack { PasskeysView(passkeys: Demo.security.passkeys) }
-        case "community", "community-join", "community-post", "community-story", "community-post-detail", "community-review": NavigationStack { CommunityView() }
+        case "community", "community-join", "community-post", "community-story", "community-post-detail": NavigationStack { CommunityView() }
         case "challenge", "challenge-suggest": NavigationStack { ChallengeRoomView() }
         case "how-it-works": NavigationStack { HowItWorksView() }
         case "how-it-works-fuel": NavigationStack { HowItWorksTopicView(topic: HowItWorks.topic("fuel")!) }
@@ -432,6 +436,8 @@ private struct DemoScreen: View {
         case "story-sheet": StorySheet(poster: .workout(title: "Legs", minutes: 55, sets: 27, moves: 12, details: ["Back squat 5 × 5 · 100 kg", "Romanian deadlift 3 × 8", "Leg press 3 × 12", "Walking lunge 3 × 10"]))
         case "community-members":
             NavigationStack { FindMembersView().navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) } }
+        case "video-import": VideoImportSheet()
+        case "video-import-check": VideoImportSheet(read: AppModel.demoVideoImport)
         case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", Demo.customExercise.exerciseId]) { _ in }
         case "builder": CustomExerciseBuilderView(existing: Demo.customExercise)
         case "muscle-picker": MusclePickerScreen(primary: [.glutes], secondary: [.hamstrings], heat: [.glutes: 1, .hamstrings: 0.35]) { _ in }

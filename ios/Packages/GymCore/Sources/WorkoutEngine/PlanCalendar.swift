@@ -125,6 +125,11 @@ public enum PlanCalendar {
         (0..<7).map { key(cal.date(byAdding: .day, value: $0, to: weekStart)!, cal) }
     }
 
+    /// Days with something logged (#902): a logged workout or sport makes a workout day, planned or not.
+    public static func loggedDays(_ starts: [Date], _ cal: Calendar) -> Set<String> {
+        Set(starts.map { key($0, cal) })
+    }
+
     /// Cycle week (1…4) `offset` weeks after `current`.
     public static func cycleWeek(current: Int, offset: Int) -> Int {
         let n = Rules.mesocycleWeeks

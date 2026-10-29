@@ -664,6 +664,10 @@
     "path": "/v1/me/watch-key"
   },
   {
+    "method": "POST",
+    "path": "/v1/me/workout-import"
+  },
+  {
     "method": "GET",
     "path": "/v1/me/workouts"
   },

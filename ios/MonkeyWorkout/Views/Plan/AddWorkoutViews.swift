@@ -21,6 +21,8 @@ struct AddWorkoutSheet: View {
     @State private var library: WorkoutLibraryView.Filter?
     /// Picked in the library; added once that sheet is down.
     @State private var picked: LibraryEntry?
+    /// Save from a video (#909) for this day.
+    @State private var fromVideo = false
 
     private static let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
 
@@ -96,6 +98,11 @@ struct AddWorkoutSheet: View {
                             AddCategoryCard(title: "Log a climb", detail: "boulder, lead, outdoor", symbol: "figure.climbing",
                                             value: "🧗", colors: [Color(hex: 0x1FC8A0), Color(hex: 0x3AA0F0)])
                         }
+                        Button { fromVideo = true } label: {
+                            AddCategoryCard(title: "From a video", detail: "TikTok · Instagram", symbol: "play.rectangle.on.rectangle.fill",
+                                            value: "▶", colors: [Color(hex: 0x7B4DFF), Color(hex: 0x3D7BFF)])
+                        }
+                        .accessibilityIdentifier("addWorkout.fromVideo")
                     }
                     .buttonStyle(.plain)
                 }
@@ -110,6 +117,10 @@ struct AddWorkoutSheet: View {
                     addQuick(focus, minutes: minutes, groups: groups, tweaks: tweaks)
                 }
             }
+            .sheet(isPresented: $fromVideo) {
+                VideoImportSheet(weekday: weekday) { built = true }
+            }
+            .onChange(of: fromVideo) { if !fromVideo && built { dismiss() } }
             .sheet(item: $logging, onDismiss: { if model.climbLogs.count > climbsBefore { dismiss() } }) {
                 LogClimbView(initial: $0)
             }

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { type HoldCategory, isHeld, type Moderator, noModerator } from '../community/aiModeration.ts';
+import { type Moderator, noModerator } from '../community/aiModeration.ts';
 import { AVATAR_MAX_BYTES, sanitizeJpeg } from '../community/image.ts';
 import {
   assertClean as checkClean,
@@ -162,10 +162,6 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
   const profileRow = (userId: string) =>
     db.prepare('SELECT * FROM community_profiles WHERE user_id = ?').get(userId) as ProfileRow | undefined;
 
-  /** A new photo held by AI moderation (#871) waits beside the current one. */
-  const avatarInReview = (userId: string) =>
-    !!db.prepare("SELECT 1 FROM moderation_holds WHERE user_id = ? AND target_type = 'avatar' AND resolved_at IS NULL").get(userId);
-
   const accountRow = (userId: string) => db.prepare('SELECT * FROM user_profiles WHERE user_id = ?').get(userId) as AccountRow | undefined;
 
   /**
@@ -174,9 +170,9 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
    */
   const accountProfile = (userId: string) => {
     const p = profileRow(userId);
-    if (p) return { nickname: p.nickname, bio: p.bio, avatarUrl: avatarUrl(p.avatar_id), avatarInReview: avatarInReview(userId), member: true };
+    if (p) return { nickname: p.nickname, bio: p.bio, avatarUrl: avatarUrl(p.avatar_id), member: true };
     const a = accountRow(userId);
-    return { nickname: a?.nickname ?? null, bio: a?.bio ?? null, avatarUrl: avatarUrl(a?.avatar_id ?? null), avatarInReview: avatarInReview(userId), member: false };
+    return { nickname: a?.nickname ?? null, bio: a?.bio ?? null, avatarUrl: avatarUrl(a?.avatar_id ?? null), member: false };
   };
 
   /** Nicknames are unique across members and account-only profiles. */
@@ -197,29 +193,23 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       ).run(userId, id, ts);
   };
 
-  /** True when the photo was held by AI moderation (#871): kept aside, the current photo stays until it is released. */
+  /** A photo AI moderation flags (#871) is refused; the current photo stays. */
   const storeAvatar = async (userId: string, body: unknown) => {
     if (!Buffer.isBuffer(body)) throw new ApiError(415, 'unsupported_media_type', 'Send the photo as image/jpeg.');
     const img = sanitizeJpeg(body);
     const id = randomUUID();
-    const category = await mod.check({ texts: [], jpeg: img.data });
-    if (category) {
-      db.prepare('INSERT INTO community_avatars (id, user_id, data, created_at) VALUES (?, ?, ?, ?)').run(id, userId, img.data, now().toISOString());
-      mod.hold({ userId, type: 'avatar', id, category, jpeg: img.data });
-      return true;
-    }
+    await mod.assertAllowed({ texts: [], jpeg: img.data });
     tx(db, () => {
       db.prepare('DELETE FROM community_avatars WHERE user_id = ?').run(userId);
       db.prepare('INSERT INTO community_avatars (id, user_id, data, created_at) VALUES (?, ?, ?, ?)').run(id, userId, img.data, now().toISOString());
       setAvatarId(userId, id);
     });
-    return false;
   };
 
-  /** AI check (#871) of a nickname / about that changed: refused like the word filter, since a profile can't wait for review. */
+  /** AI check (#871) of a nickname / about that changed: refused like the word filter. */
   const assertProfileClean = async (before: { nickname?: string | null; bio?: string | null }, nick: string | null | undefined, bioText: string | null | undefined) => {
     const changed = [nick !== before.nickname ? nick : null, bioText !== before.bio ? bioText : null];
-    if (await mod.check({ texts: changed })) throw new ApiError(400, 'objectionable_content', 'Please keep it friendly: that text is not allowed in the community.');
+    await mod.assertAllowed({ texts: changed });
   };
 
   const clearAvatar = (userId: string) =>
@@ -260,7 +250,6 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     nickname: p.nickname,
     bio: p.bio,
     avatarUrl: avatarUrl(p.avatar_id),
-    avatarInReview: avatarInReview(p.user_id),
     defaultVisibility: p.default_visibility,
     autoShare: !!p.auto_share,
     showGym: !!p.show_gym,
@@ -344,8 +333,6 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
         caption: p.caption,
         payload: JSON.parse(p.payload) as unknown,
         hidden: !!p.hidden_at,
-        // Held by AI moderation (#871); only its owner is told.
-        inReview: p.user_id === viewer && isHeld(db, 'post', p.id),
         createdAt: p.created_at,
         reactions: Object.fromEntries(REACTIONS.map((k) => [k, rs.find((c) => c.kind === k)?.n ?? 0])),
         myReactions: rs.filter((c) => c.mine).map((c) => c.kind),
@@ -391,8 +378,8 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
   });
 
   r.put('/me/public-profile/avatar', async (req) => {
-    const held = await storeAvatar(req.userId!, req.body);
-    return { profile: accountProfile(req.userId!), held };
+    await storeAvatar(req.userId!, req.body);
+    return { profile: accountProfile(req.userId!) };
   });
 
   r.delete('/me/public-profile/avatar', async (req) => {
@@ -521,8 +508,8 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
 
   r.put('/community/me/avatar', async (req) => {
     requireProfile(req.userId!);
-    const held = await storeAvatar(req.userId!, req.body);
-    return { profile: ownProfile(profileRow(req.userId!)!), held };
+    await storeAvatar(req.userId!, req.body);
+    return { profile: ownProfile(profileRow(req.userId!)!) };
   });
 
   r.delete('/community/me/avatar', async (req) => {
@@ -563,12 +550,6 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     return { posts: toPosts(rows, viewer), nextBefore: last?.created_at ?? null, nextBeforeId: last?.id ?? null };
   });
 
-  /** Hidden from others until reviewed (#871); the owner still sees it, marked hidden. */
-  const holdPost = (userId: string, postId: string, category: HoldCategory, texts: (string | null | undefined)[]) => {
-    db.prepare('UPDATE community_posts SET hidden_at = COALESCE(hidden_at, ?) WHERE id = ?').run(now().toISOString(), postId);
-    mod.hold({ userId, type: 'post', id: postId, category, texts });
-  };
-
   r.post('/community/posts', async (req) => {
     const b = z
       .object({
@@ -598,9 +579,9 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
       : undefined;
     const vis = b.visibility ?? existing?.visibility ?? prof.default_visibility;
     // AI check (#871) of what members read, only when it is new: an auto re-share of the same workout costs nothing.
-    const old = existing ? (JSON.parse(existing.payload) as typeof b.payload) : undefined;
+    const old = existing && existing.visibility !== 'private' ? (JSON.parse(existing.payload) as typeof b.payload) : undefined;
     const seen = new Set(old ? [existing!.caption, old.title, old.subtitle, ...(old.exercises ?? []).map((e) => e.name)] : []);
-    const category = vis === 'private' ? null : await mod.check({ texts: shownTexts.filter((t) => !seen.has(t ?? null)) });
+    if (vis !== 'private') await mod.assertAllowed({ texts: shownTexts.filter((t) => !seen.has(t ?? null)) });
     if (existing) {
       // An update keeps the caption and visibility it doesn't send (#714): re-sharing a workout doesn't wipe the caption.
       const cap = b.caption === undefined ? existing.caption : b.caption || null;
@@ -612,7 +593,6 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
         `INSERT INTO community_posts (id, user_id, kind, ref_id, visibility, caption, payload, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(id, req.userId!, b.kind, b.refId ?? null, vis, b.caption || null, json, ts, ts);
     }
-    if (category) holdPost(req.userId!, target, category, shownTexts);
     return { post: toPosts([visiblePost(target, req.userId!)], req.userId!)[0] };
   });
 
@@ -622,8 +602,17 @@ export const communityRoutes = (r: FastifyInstance, db: DB, now: () => Date, mai
     checkClean(b.caption);
     const row = db.prepare('SELECT * FROM community_posts WHERE id = ? AND user_id = ?').get(id.toLowerCase(), req.userId!) as PostRow | undefined;
     if (!row) throw new ApiError(404, 'not_found', 'Post not found.');
-    const category = b.caption && b.caption !== row.caption && (b.visibility ?? row.visibility) !== 'private' ? await mod.check({ texts: [b.caption] }) : null;
-    if (category) holdPost(row.user_id, row.id, category, [b.caption]);
+    // AI check (#871): a new caption, or the whole post when it stops being private.
+    if ((b.visibility ?? row.visibility) !== 'private') {
+      const card = JSON.parse(row.payload) as { title?: string; subtitle?: string; exercises?: { name: string }[] };
+      const opening = row.visibility === 'private';
+      await mod.assertAllowed({
+        texts: [
+          b.caption && b.caption !== row.caption ? b.caption : opening && b.caption === undefined ? row.caption : null,
+          ...(opening ? [card.title, card.subtitle, ...(card.exercises ?? []).map((e) => e.name)] : []),
+        ],
+      });
+    }
     db.prepare('UPDATE community_posts SET visibility = ?, caption = ?, updated_at = ? WHERE id = ?').run(
       b.visibility ?? row.visibility,
       b.caption === undefined ? row.caption : (b.caption || null),

@@ -416,7 +416,7 @@ describe('community feed', () => {
 describe('account profile (#108)', () => {
   it('is set on Account before joining, prefills join, stays in sync and survives leaving', async () => {
     const u = await signUp('a@example.com');
-    expect((await req('GET', '/v1/me/public-profile', u.t)).json().profile).toEqual({ nickname: null, bio: null, avatarUrl: null, avatarInReview: false, member: false });
+    expect((await req('GET', '/v1/me/public-profile', u.t)).json().profile).toEqual({ nickname: null, bio: null, avatarUrl: null, member: false });
     expect((await req('PUT', '/v1/me/public-profile', u.t, { nickname: 'x' })).statusCode).toBe(400);
     let p = (await req('PUT', '/v1/me/public-profile', u.t, { nickname: 'monkey_jy', bio: 'Climber who lifts' })).json().profile;
     expect(p).toMatchObject({ nickname: 'monkey_jy', bio: 'Climber who lifts', member: false });
@@ -447,7 +447,7 @@ describe('account profile (#108)', () => {
     // Leaving keeps nickname and about on Account; the photo is removed with the community profile (#713).
     expect((await req('DELETE', '/v1/community/me', u.t)).statusCode).toBe(204);
     p = (await req('GET', '/v1/me/public-profile', u.t)).json().profile;
-    expect(p).toEqual({ nickname: 'jy_lifts', bio: 'Edited in Community', avatarUrl: null, avatarInReview: false, member: false });
+    expect(p).toEqual({ nickname: 'jy_lifts', bio: 'Edited in Community', avatarUrl: null, member: false });
     expect((await app.inject({ method: 'GET', url: avatar })).statusCode).toBe(404);
     expect((await req('GET', '/v1/me/export', u.t)).json().community.accountProfile.nickname).toBe('jy_lifts');
 

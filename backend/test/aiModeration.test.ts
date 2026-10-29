@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.ts';
-import { type ModerationInput, openHolds, resolveHold } from '../src/community/aiModeration.ts';
+import { type ModerationInput } from '../src/community/aiModeration.ts';
+import { ensureCommunitySchema } from '../src/community/schema.ts';
 import { loadConfig } from '../src/config.ts';
 import { type DB, openDb } from '../src/db.ts';
 import { ConsoleMailer } from '../src/mailer.ts';
@@ -68,29 +69,14 @@ const jpeg = () =>
   ]);
 
 describe('AI moderation of shared content (#871)', () => {
-  it('holds a flagged post: hidden from others, visible to its owner, mailed to moderation; release puts it live', async () => {
+  it('refuses a flagged post on the spot, like the word filter; nothing is stored', async () => {
     const a = await join('a@example.com', 'Ana');
     const b = await join('b@example.com', 'Ben');
     const res = await post(a.t, 'DM me, meet me for cash');
-    expect(res.statusCode).toBe(200);
-    const p = res.json() as { post: { id: string; hidden: boolean; inReview: boolean } };
-    expect(p.post).toMatchObject({ hidden: true, inReview: true });
-    expect(await feed(b.t)).not.toContain(p.post.id);
-    const mail = mailer.outbox.find((m) => m.subject === 'Community hold: spam (post)')!;
-    expect(mail.text).toContain('meet me for cash');
-    const [hold] = openHolds(db);
-    expect(hold).toMatchObject({ target_type: 'post', target_id: p.post.id, category: 'spam', nickname: 'Ana' });
-
-    // Editing it while held doesn't put it live.
-    expect((await req('PATCH', `/v1/community/posts/${p.post.id}`, a.t, { caption: 'Leg day done' })).statusCode).toBe(200);
-    expect(await feed(b.t)).not.toContain(p.post.id);
-
-    expect(resolveHold(db, hold!.id, 'released', new Date())).toBe(true);
-    expect(await feed(b.t)).toContain(p.post.id);
-    const mine = (await req('GET', '/v1/community/feed', a.t)).json() as { posts: { id: string; inReview: boolean }[] };
-    expect(mine.posts.find((x) => x.id === p.post.id)?.inReview).toBe(false);
-    expect(resolveHold(db, hold!.id, 'released', new Date())).toBe(false);
-    expect(openHolds(db)).toHaveLength(0);
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'objectionable_content' });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM community_posts').get()).toEqual({ n: 0 });
+    expect(await feed(b.t)).toEqual([]);
   });
 
   it('lets clean posts through and checks only new text (an auto re-share costs no call)', async () => {
@@ -98,67 +84,74 @@ describe('AI moderation of shared content (#871)', () => {
     const b = await join('b@example.com', 'Ben');
     calls = [];
     const id = randomUUID();
-    expect(((await post(a.t, 'New squat PR', id)).json() as { post: { hidden: boolean } }).post.hidden).toBe(false);
+    expect((await post(a.t, 'New squat PR', id)).statusCode).toBe(200);
     expect(calls).toEqual([{ texts: ['New squat PR', 'Leg day'] }]);
     await post(a.t, 'New squat PR', id);
     expect(calls).toHaveLength(1);
     expect(await feed(b.t)).toContain(id);
+    expect((await req('PATCH', `/v1/community/posts/${id}`, a.t, { caption: 'meet me for cash' })).statusCode).toBe(400);
+  });
+
+  it('checks a private post when it is opened to members', async () => {
+    const a = await join('a@example.com', 'Ana');
+    const id = randomUUID();
+    calls = [];
+    expect((await req('POST', '/v1/community/posts', a.t, { id, kind: 'workout', visibility: 'private', caption: 'meet me for cash', payload: { title: 'Leg day' } })).statusCode).toBe(200);
+    expect(calls).toHaveLength(0);
+    expect((await req('PATCH', `/v1/community/posts/${id}`, a.t, { visibility: 'members' })).statusCode).toBe(400);
   });
 
   it('fails open to the word filter when the model is down or the AI budget is spent', async () => {
     const a = await join('a@example.com', 'Ana');
     down = true;
-    expect(((await post(a.t, 'meet me for cash')).json() as { post: { hidden: boolean } }).post.hidden).toBe(false);
+    expect((await post(a.t, 'meet me for cash')).statusCode).toBe(200);
     expect((await post(a.t, 'fuck this')).statusCode).toBe(400);
     await app.close();
     down = false;
     app = build('0');
     calls = [];
-    expect(((await post(a.t, 'meet me for cash')).json() as { post: { hidden: boolean } }).post.hidden).toBe(false);
+    expect((await post(a.t, 'meet me for cash')).statusCode).toBe(200);
     expect(calls).toHaveLength(0);
   });
 
-  it('refuses a flagged nickname or about (a profile cannot wait for review)', async () => {
+  it('refuses a flagged nickname or about', async () => {
     const a = await join('a@example.com', 'Ana');
     const r = await req('PUT', '/v1/community/me', a.t, { bio: 'meet me for cash' });
     expect(r.statusCode).toBe(400);
     expect(r.json()).toMatchObject({ error: 'objectionable_content' });
   });
 
-  it('holds a flagged profile photo aside; the old photo stays until release, reject deletes it', async () => {
+  it('refuses a flagged profile photo; the current photo stays', async () => {
     const a = await join('a@example.com', 'Ana');
     const put = () => app.inject({ method: 'PUT', url: '/v1/community/me/avatar', headers: { authorization: `Bearer ${a.t}`, 'content-type': 'image/jpeg' }, payload: jpeg() });
-    const ok = (await put()).json() as { profile: { avatarUrl: string }; held: boolean };
-    expect(ok.held).toBe(false);
+    const ok = (await put()).json() as { profile: { avatarUrl: string } };
     flagPhotos = true;
-    const held = (await put()).json() as { profile: { avatarUrl: string }; held: boolean };
-    expect(held).toMatchObject({ held: true, profile: { avatarUrl: ok.profile.avatarUrl, avatarInReview: true } });
-    expect(mailer.outbox.find((m) => m.subject === 'Community hold: sexual (avatar)')?.attachments).toHaveLength(1);
-    const [hold] = openHolds(db);
-    resolveHold(db, hold!.id, 'released', new Date());
+    const r = await put();
+    expect(r.statusCode).toBe(400);
+    expect(r.json()).toMatchObject({ error: 'objectionable_content' });
     const now = (await req('GET', '/v1/community/me', a.t)).json() as { profile: { avatarUrl: string } };
-    expect(now.profile.avatarUrl).toBe(`/v1/community/avatars/${hold!.target_id}`);
-    await put();
-    resolveHold(db, openHolds(db)[0]!.id, 'rejected', new Date());
+    expect(now.profile.avatarUrl).toBe(ok.profile.avatarUrl);
     expect(db.prepare('SELECT COUNT(*) AS n FROM community_avatars').get()).toEqual({ n: 1 });
   });
 
-  it('holds a flagged shared plan and only the flagged workout of a batch', async () => {
+  it('refuses a flagged shared plan and a batch with a flagged shared workout name', async () => {
     const a = await join('a@example.com', 'Ana');
-    const b = await join('b@example.com', 'Ben');
-    const planId = randomUUID();
     const plan = { name: 'meet me for cash', about: 'Three days', level: 'beginner', goal: 'strength', weeks: 8, sessionsPerWeek: 3, programme: { id: 'p', name: 'PPL' } };
-    expect(((await req('PUT', `/v1/community/programs/${planId}`, a.t, plan)).json() as { program: object }).program).toMatchObject({ hidden: true, inReview: true });
-    expect((await req('GET', `/v1/community/programs/${planId}`, b.t)).statusCode).toBe(404);
+    expect((await req('PUT', `/v1/community/programs/${randomUUID()}`, a.t, plan)).statusCode).toBe(400);
+    expect((await req('PUT', `/v1/community/programs/${randomUUID()}`, a.t, { ...plan, visibility: 'private' })).statusCode).toBe(200);
 
-    const w = (name: string) => ({ id: randomUUID(), name, createdAt: '2026-10-28T09:00:00Z', items: [{ exerciseId: 'pull-up' }], visibility: 'members' });
-    const good = w('Pull strength');
-    const bad = w('meet me for cash');
-    expect((await req('POST', '/v1/me/custom-workouts', a.t, { workouts: [good, bad] })).statusCode).toBe(200);
-    const lib = ((await req('GET', '/v1/library/shared', b.t)).json() as { workouts: { id: string }[] }).workouts.map((x) => x.id);
-    expect(lib).toEqual([good.id]);
-    const own = ((await req('GET', '/v1/me/custom-workouts', a.t)).json() as { workouts: { id: string; inReview: boolean }[] }).workouts;
-    expect(own.map((x) => [x.id === bad.id, x.inReview])).toEqual(expect.arrayContaining([[true, true], [false, false]]));
-    expect(openHolds(db).map((h) => h.target_type).sort()).toEqual(['program', 'workout']);
+    const w = (name: string, visibility = 'members') => ({ id: randomUUID(), name, createdAt: '2026-10-28T09:00:00Z', items: [{ exerciseId: 'pull-up' }], visibility });
+    expect((await req('POST', '/v1/me/custom-workouts', a.t, { workouts: [w('Pull strength'), w('meet me for cash')] })).statusCode).toBe(400);
+    expect((await req('POST', '/v1/me/custom-workouts', a.t, { workouts: [w('Pull strength'), w('meet me for cash', 'private')] })).statusCode).toBe(200);
+  });
+
+  it('drops the old review queue and the photos it held', async () => {
+    const a = await join('a@example.com', 'Ana');
+    db.exec(`CREATE TABLE moderation_holds (id TEXT PRIMARY KEY, user_id TEXT, target_type TEXT, target_id TEXT, category TEXT, created_at TEXT, resolved_at TEXT, decision TEXT)`);
+    db.prepare('INSERT INTO community_avatars (id, user_id, data, created_at) VALUES (?, ?, ?, ?)').run('held-photo', a.id, Buffer.from([1]), '2026-10-28T10:00:00Z');
+    db.prepare("INSERT INTO moderation_holds VALUES ('h1', ?, 'avatar', 'held-photo', 'sexual', '2026-10-28T10:00:00Z', NULL, NULL)").run(a.id);
+    ensureCommunitySchema(db);
+    expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'moderation_holds'").get()).toBeUndefined();
+    expect(db.prepare("SELECT COUNT(*) AS n FROM community_avatars WHERE id = 'held-photo'").get()).toEqual({ n: 0 });
   });
 });

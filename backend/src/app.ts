@@ -26,6 +26,7 @@ import { type MealIdeasModel, claudeMealIdeas } from './coach/mealIdeas.ts';
 import { coachSetRoutes } from './routes/coachSet.ts';
 import { type FoodScanModel, type PlateScanModel, type SnapScanModel, claudeFoodScan, claudePlateScan, claudeSnapScan } from './coach/foodScan.ts';
 import { type GymScanModel, claudeGymScan } from './coach/gymScan.ts';
+import { type WorkoutImportModel, claudeWorkoutImport } from './coach/workoutImport.ts';
 import { type ReviewModel, claudeWeekReview } from './coach/review.ts';
 import { type SetTalkModel, claudeSetTalk } from './coach/setTalk.ts';
 import { coachPlanRoutes } from './routes/coachPlan.ts';
@@ -34,6 +35,7 @@ import { onAiCall } from './coach/models.ts';
 import { aiCallRecorder } from './aiUsage.ts';
 import { foodScanRoutes } from './routes/foodScan.ts';
 import { mealIdeasRoutes } from './routes/mealIdeas.ts';
+import { workoutImportRoutes } from './routes/workoutImport.ts';
 import { gymScanRoutes } from './routes/gymScan.ts';
 import { coachVoiceRoutes } from './routes/coachVoices.ts';
 import { pollySynthesizer, type Synthesize } from './coach/polly.ts';
@@ -101,6 +103,8 @@ export interface AppDeps {
   snapScan?: SnapScanModel;
   /** Meal ideas from the pantry (#869); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
   mealIdeas?: MealIdeasModel;
+  /** Save a workout from a video (#909); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
+  workoutImport?: WorkoutImportModel;
   /** AI moderation of shared names, captions and photos (#871); defaults to Claude when ANTHROPIC_API_KEY is set. Injectable for tests. */
   moderation?: ModerationModel;
   /** Studio coach voices (#395); defaults to Polly when credentials are configured. Injectable for tests. */
@@ -330,7 +334,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       securityRoutes(r, security, deps.config.authRateLimitPerMin);
       const cc = deps.config.coachChat;
       const moderationModel = deps.moderation ?? (cc.apiKey ? claudeModeration(cc.apiKey, cc.workspaceId, cc.models.moderate) : undefined);
-      const mod = aiModerator(deps.db, now, moderationModel, deps.config.aiDailyLimit, deps.mailer, deps.config.moderationEmail, r.log);
+      const mod = aiModerator(deps.db, now, moderationModel, deps.config.aiDailyLimit, r.log);
       customWorkoutRoutes(r, deps.db, deps.now ?? (() => new Date()), mod);
       communityRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail, mod);
       liveRoutes(r, deps.db, now, push);
@@ -364,6 +368,8 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       foodScanRoutes(r, deps.db, now, foodScan, 20, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit, plateScan, snapScan);
       const mealIdeas = deps.mealIdeas ?? (deps.config.coachChat.apiKey ? claudeMealIdeas(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.chat) : undefined);
       mealIdeasRoutes(r, deps.db, now, mealIdeas, 20, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit);
+      const workoutImport = deps.workoutImport ?? (deps.config.coachChat.apiKey ? claudeWorkoutImport(deps.config.coachChat.apiKey, deps.config.coachChat.workspaceId, deps.config.coachChat.models.scan) : undefined);
+      workoutImportRoutes(r, deps.db, now, workoutImport, 20, (id) => subscriptions.entitlement(id).access, deps.config.aiDailyLimit, outbound);
       const voices = deps.config.coachVoices;
       forgetVoices = coachVoiceRoutes(r, deps.synth ?? (voices.polly ? pollySynthesizer(voices.polly, outbound, now) : undefined), voices.cacheDir, {
         warm: deps.config.env === 'production',

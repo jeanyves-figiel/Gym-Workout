@@ -30,15 +30,12 @@ public struct SharedPlan<Programme: Codable & Sendable & Hashable>: Codable, Sen
     public var copies: Int
     public var copiedByMe: Bool
     public var hidden: Bool
-    /// Held by AI moderation until a moderator checks it (#871); told to its author only. Nil from older servers.
-    public var inReview: Bool?
 
     public init(
         id: String, name: String, about: String? = nil, level: SharedPlanLevel, goal: String? = nil, weeks: Int, sessionsPerWeek: Int,
         programme: Programme, author: CommunityAuthor, mine: Bool, visibility: CommunityVisibility = .members, copies: Int = 0,
-        copiedByMe: Bool = false, hidden: Bool = false, inReview: Bool? = nil
+        copiedByMe: Bool = false, hidden: Bool = false
     ) {
-        self.inReview = inReview
         self.id = id
         self.name = name
         self.about = about

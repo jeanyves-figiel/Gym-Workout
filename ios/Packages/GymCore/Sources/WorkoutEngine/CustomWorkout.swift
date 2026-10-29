@@ -105,8 +105,6 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
     public var visibility: WorkoutVisibility
     /// Set by the server when reports hid it from other members (read-only, never sent).
     public var hidden: Bool
-    /// Set by the server while AI moderation holds its shared name for review (#871; read-only, never sent).
-    public var inReview: Bool
     /// Session flow (#198): warm-up, explosive, mobility, cardio and cool-down blocks played around the
     /// member's own exercises, picked when the flow was set. Empty = just the exercises.
     public var flow: [Block]
@@ -114,26 +112,28 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
     public var flowTweaks: FlowTweaks?
     /// Set when it's the member's own daily routine (#732): shown in Explore → Daily → Mine and on Train's Daily row.
     public var routine: RoutineLook?
+    /// Saved from a video (#909): the post it came from, credited on the workout.
+    public var source: WorkoutSource?
     /// Server version this copy was pulled or saved as, sent back as `baseUpdatedAt` so an edit never overwrites a
     /// newer copy from another device. Nil until the server has it.
     public var updatedAt: String?
 
     public init(id: UUID = UUID(), name: String, items: [Item] = [], createdAt: Date = Date(), visibility: WorkoutVisibility = .private,
-                flow: [Block] = [], flowTweaks: FlowTweaks? = nil, routine: RoutineLook? = nil) {
+                flow: [Block] = [], flowTweaks: FlowTweaks? = nil, routine: RoutineLook? = nil, source: WorkoutSource? = nil) {
         self.id = id
         self.name = name
         self.items = items
         self.createdAt = createdAt
         self.visibility = visibility
         self.hidden = false
-        self.inReview = false
         self.flow = flow
         self.flowTweaks = flowTweaks
         self.routine = routine
+        self.source = source
     }
 
-    enum CodingKeys: String, CodingKey { case id, name, items, createdAt, visibility, flow, flowTweaks, routine, updatedAt }
-    private enum ServerKeys: String, CodingKey { case hidden, inReview }
+    enum CodingKeys: String, CodingKey { case id, name, items, createdAt, visibility, flow, flowTweaks, routine, source, updatedAt }
+    private enum ServerKeys: String, CodingKey { case hidden }
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -145,10 +145,9 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         flow = ((try? c.decodeIfPresent([Block].self, forKey: .flow)) ?? nil) ?? []
         flowTweaks = (try? c.decodeIfPresent(FlowTweaks.self, forKey: .flowTweaks)) ?? nil
         routine = (try? c.decodeIfPresent(RoutineLook.self, forKey: .routine)) ?? nil
+        source = (try? c.decodeIfPresent(WorkoutSource.self, forKey: .source)) ?? nil
         updatedAt = (try? c.decodeIfPresent(String.self, forKey: .updatedAt)) ?? nil
-        let server = try? decoder.container(keyedBy: ServerKeys.self)
-        hidden = (try? server?.decodeIfPresent(Bool.self, forKey: .hidden)) ?? false
-        inReview = (try? server?.decodeIfPresent(Bool.self, forKey: .inReview)) ?? false
+        hidden = (try? decoder.container(keyedBy: ServerKeys.self).decodeIfPresent(Bool.self, forKey: .hidden)) ?? false
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -161,6 +160,7 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         if !flow.isEmpty { try c.encode(flow, forKey: .flow) }
         if let flowTweaks, !flowTweaks.isEmpty { try c.encode(flowTweaks, forKey: .flowTweaks) }
         try c.encodeIfPresent(routine, forKey: .routine)
+        try c.encodeIfPresent(source, forKey: .source)
         try c.encodeIfPresent(updatedAt, forKey: .updatedAt)
     }
 
@@ -194,6 +194,7 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
             return b
         }.filter { !$0.items.isEmpty }
         w.routine = routine?.sanitized
+        w.source = source?.sanitized
         if w.routine != nil { w.flow = [] }
         return w
     }
@@ -357,7 +358,7 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         CustomWorkout(
             name: String("\(name) (copy)".prefix(Self.maxNameLength)),
             items: items.map { Item(exerciseId: $0.exerciseId, sets: $0.sets, reps: $0.reps, restSec: $0.restSec, kcal: $0.kcal, group: $0.group) },
-            createdAt: createdAt, flow: flow, flowTweaks: flowTweaks, routine: routine)
+            createdAt: createdAt, flow: flow, flowTweaks: flowTweaks, routine: routine, source: source)
     }
 }
 

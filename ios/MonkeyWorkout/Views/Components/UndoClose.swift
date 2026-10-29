@@ -138,7 +138,7 @@ final class UndoCloseCenter {
 
     /// Height the tab bar takes above the bottom safe area when it shows (no sheet over it), so the bar sits
     /// above it instead of covering it (#811).
-    private static func tabBarLift() -> CGFloat {
+    static func tabBarLift() -> CGFloat {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         guard let window = scenes.flatMap(\.windows).first(where: { $0.isKeyWindow && !($0 is PassthroughWindow) })
                 ?? scenes.flatMap(\.windows).first(where: { !($0 is PassthroughWindow) }),

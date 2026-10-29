@@ -305,8 +305,9 @@ struct WorkoutPlayerView: View {
     private func lifecycle(_ content: some View) -> some View {
         content
         .onAppear {
-            // Back in the player (Undo, or Resume on Train) before a discard went through: keep the workout.
-            PendingDiscard.cancel(sessionId)
+            // Back in the player (Undo, or Resume on Train) before a discard went through: keep the workout. Not when this
+            // player discarded it and only shows again as its map sheet goes (#903): the workout came back to resume.
+            if !discarded { PendingDiscard.cancel(sessionId) }
             UIApplication.shared.isIdleTimerDisabled = true
             OrientationLock.allowLandscape(true)
             coach.call = model.coachCallName
@@ -2259,6 +2260,10 @@ enum PendingDiscard {
                 model.dropRunLogs(run)
             }
             WatchSync.shared.endLive(.discarded, sessionId: sessionId)
+            // Gone once its Undo bar is (#903): reopening the player cancels this task, so a run still here is left over
+            // and nothing may offer to resume it; a discarded custom gym session goes with it.
+            model.clearActiveWorkout(sessionId)
+            model.dropFreestyle(sessionId)
             model.replanAfterWorkoutIfDone()
         }
     }

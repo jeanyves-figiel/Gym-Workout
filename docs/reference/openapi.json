@@ -1359,8 +1359,8 @@
         "tags": [
           "Sync: member content"
         ],
-        "summary": "{workouts[≤100]} → {saved, serverTime, conflicts?}; visibility members/public shares it to the library; a new or renamed shared name flagged by AI moderation (#871) is held (hidden, inReview) until reviewed",
-        "description": "Errors / limits: 403 community_profile_required to share; 409 quota_exceeded; 413 too_large",
+        "summary": "{workouts[≤100]} → {saved, serverTime, conflicts?}; visibility members/public shares it to the library; new or renamed shared names are AI-checked (#871)",
+        "description": "Errors / limits: 400 objectionable_content (word filter or AI check); 403 community_profile_required to share; 409 quota_exceeded; 413 too_large",
         "security": [
           {
             "bearer": []
@@ -2279,8 +2279,8 @@
         "tags": [
           "Community"
         ],
-        "summary": "Raw image/jpeg ≤ 512 KB, 64–1024 px, metadata stripped → {profile, held}; held: true = AI moderation (#871) held the photo for review, the old photo stays until it is released; profiles carry avatarInReview meanwhile",
-        "description": "Errors / limits: 413 image_too_large; 400 invalid_image; 415",
+        "summary": "Raw image/jpeg ≤ 512 KB, 64–1024 px, metadata stripped → {profile}; AI-checked (#871), a flagged photo is refused and the old one stays",
+        "description": "Errors / limits: 400 objectionable_content; 413 image_too_large; 400 invalid_image; 415",
         "security": [
           {
             "bearer": []
@@ -2585,7 +2585,7 @@
         "tags": [
           "Community"
         ],
-        "summary": "Share a win: {id (client UUID), kind workout|badge|record|climb|note, refId?, payload, caption?, visibility?} (refId dedupes; an update keeps the caption and visibility it leaves out) → post; new text is AI-checked (#871): flagged → hidden: true, inReview: true (owner only), held for review, owner still sees it. payload: {title, subtitle?, metric?, style?, stats?, exercises?}; a workout sends up to 40 exercises {id, name, sets, reps?, kg?} so members can open and copy it (#779)",
+        "summary": "Share a win: {id (client UUID), kind workout|badge|record|climb|note, refId?, payload, caption?, visibility?} (refId dedupes; an update keeps the caption and visibility it leaves out) → post; text members haven't seen yet is AI-checked (#871): flagged → 400 objectionable_content, nothing stored. payload: {title, subtitle?, metric?, style?, stats?, exercises?}; a workout sends up to 40 exercises {id, name, sets, reps?, kg?} so members can open and copy it (#779)",
         "description": "Errors / limits: 400 objectionable_content; 429 daily_limit",
         "security": [
           {
@@ -3530,8 +3530,8 @@
         "tags": [
           "Community"
         ],
-        "summary": "Create or update your plan: {name ≤60, about?, level, goal?, weeks, sessionsPerWeek, programme (app record), visibility? (default members)} → {program}; flagged by AI moderation (#871) → hidden: true, inReview: true (owner only) until reviewed",
-        "description": "Errors / limits: 400 objectionable_content, 409 conflict, 413, 429 daily_limit (20 new/day)",
+        "summary": "Create or update your plan: {name ≤60, about?, level, goal?, weeks, sessionsPerWeek, programme (app record), visibility? (default members)} → {program}; shared text is AI-checked (#871)",
+        "description": "Errors / limits: 400 objectionable_content (word filter or AI check), 409 conflict, 413, 429 daily_limit (20 new/day)",
         "parameters": [
           {
             "name": "id",
@@ -4301,6 +4301,32 @@
         ],
         "summary": "{pantry[1–300]{id, label}, meal breakfast|lunch|dinner|snack, left{protein, carbs} (g still to eat today), diet?, avoid[]?} → {ideas[≤3]{name, minutes, foods[{id, grams}] (pantry ids only), steps[≤5]}, remainingToday} (#869, \"What can I eat?\"; macros added up on the device)",
         "description": "Errors / limits: 402; 403 verification_required; 429 daily_limit (20/day), busy; 502 ideas_failed; 503 ideas_unavailable",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/workout-import": {
+      "post": {
+        "tags": [
+          "Coach (AI and voices)"
+        ],
+        "summary": "{link? (≤500), caption? (≤4000), text? (≤2000, member's own words), photos[≤4] (base64 JPEG ≤ 1.5 MB each), catalog[1–600]{id, label}} → {name, minutes, items[≤40]{said, id (catalog id or \"\"), sets, reps, unit reps|sec|min, sure}, source?{platform tiktok|instagram|youtube|web, url (tracking dropped), author?}, remainingToday} (#909, save a workout seen on TikTok / Instagram; no caption → TikTok / YouTube public oEmbed; video never fetched, photos not kept)",
+        "description": "Errors / limits: 400 bad_link, bad_photo; 402; 403 verification_required; 422 nothing_to_read; 429 daily_limit (20/day), busy; 502 import_failed; 503 import_unavailable",
         "security": [
           {
             "bearer": []

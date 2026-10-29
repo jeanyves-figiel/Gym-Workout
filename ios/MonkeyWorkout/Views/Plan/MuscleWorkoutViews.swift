@@ -192,8 +192,9 @@ extension MuscleGroup {
         }
     }
 
-    var gradient: LinearGradient {
-        let c: WorkoutEngine.Category = switch self {
+    /// Category whose colours the group borrows.
+    private var palette: WorkoutEngine.Category {
+        switch self {
         case .shoulders: .power
         case .chest: .strength
         case .arms: .warmup
@@ -202,6 +203,9 @@ extension MuscleGroup {
         case .hips: .stretch
         case .legs: .strength
         }
-        return c.gradient
     }
+
+    var gradient: LinearGradient { palette.gradient }
+    /// Type colour on the group gradient: `Theme.ink` on light ones (#540).
+    var ink: Color { palette.ink }
 }
