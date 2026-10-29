@@ -81,7 +81,7 @@ struct OpensProgress: ViewModifier {
             model.tab = .progress
         } label: { content }
             .buttonStyle(.plain)
-            .accessibilityHint("Opens \(section.title) in Progress")
+            .accessibilityHint("Opens \(section.title) in Insights")
     }
 }
 

@@ -79,7 +79,7 @@ struct HomeStatRows: View {
             .buttonStyle(.plain)
             NavigationLink { ProgressScreen() } label: {
                 // Real counts on the right (#541), not a bare "›".
-                HomeRow(symbol: "chart.line.uptrend.xyaxis", title: "Progress",
+                HomeRow(symbol: "sparkles", title: "Insights",
                         value: "\(p.records.count)", tint: (0x3D5AFF, 0x7B3DFF), unit: "PR")
             }
             .buttonStyle(.plain)

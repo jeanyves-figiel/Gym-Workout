@@ -282,7 +282,7 @@ struct OnboardingFlowView: View {
             Text("🐵").font(.system(size: 88)).padding(.top, 20)
             Text("Want me to show you round?").font(Theme.display(26)).multilineTextAlignment(.center)
             // The names the tabs and the tour bubbles use (#822).
-            Text("Six stops: Train, Explore, Progress, Fuel, Social and Coach Monkey. Run it again any time in Settings → Onboarding.")
+            Text("Six stops: Train, Explore, Insights, Fuel, Social and Coach Monkey. Run it again any time in Settings → Onboarding.")
                 .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
             VStack(spacing: 8) {
                 ForEach(AppTour.steps) { s in
