@@ -134,20 +134,13 @@ export const ensureCommunitySchema = (db: DB): void => {
       created_at TEXT NOT NULL,
       PRIMARY KEY (program_id, user_id)
     );
-    -- AI moderation holds (#871): shared items the model flagged, hidden until an owner releases or rejects them.
-    CREATE TABLE IF NOT EXISTS moderation_holds (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      target_type TEXT NOT NULL CHECK (target_type IN ('post', 'program', 'workout', 'avatar')),
-      target_id TEXT NOT NULL,
-      category TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      resolved_at TEXT,
-      decision TEXT CHECK (decision IN ('released', 'rejected'))
-    );
-    CREATE INDEX IF NOT EXISTS moderation_holds_open ON moderation_holds(resolved_at, created_at);
-    CREATE INDEX IF NOT EXISTS moderation_holds_target ON moderation_holds(target_type, target_id);
   `);
+  // AI moderation now refuses flagged content on the spot (#871 follow-up): the short-lived review queue goes. Photos it
+  // held were never shown, so they go too; held posts, plans and workouts stay hidden like reported ones.
+  if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'moderation_holds'").get()) {
+    db.exec(`DELETE FROM community_avatars WHERE id IN (SELECT target_id FROM moderation_holds WHERE target_type = 'avatar' AND resolved_at IS NULL);
+      DROP TABLE moderation_holds;`);
+  }
   // Show my gym (#152): members opt in to being found by the gym they train at.
   const cols = db.prepare('PRAGMA table_info(community_profiles)').all() as { name: string }[];
   if (!cols.some((c) => c.name === 'show_gym')) db.exec('ALTER TABLE community_profiles ADD COLUMN show_gym INTEGER NOT NULL DEFAULT 0');

@@ -330,7 +330,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       securityRoutes(r, security, deps.config.authRateLimitPerMin);
       const cc = deps.config.coachChat;
       const moderationModel = deps.moderation ?? (cc.apiKey ? claudeModeration(cc.apiKey, cc.workspaceId, cc.models.moderate) : undefined);
-      const mod = aiModerator(deps.db, now, moderationModel, deps.config.aiDailyLimit, deps.mailer, deps.config.moderationEmail, r.log);
+      const mod = aiModerator(deps.db, now, moderationModel, deps.config.aiDailyLimit, r.log);
       customWorkoutRoutes(r, deps.db, deps.now ?? (() => new Date()), mod);
       communityRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail, mod);
       liveRoutes(r, deps.db, now, push);

@@ -1,21 +1,19 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { randomUUID } from 'node:crypto';
 import { AI_MODELS } from '../coach/models.ts';
 import type { DB } from '../db.ts';
-import type { Mailer } from '../mailer.ts';
 import { reserveGlobal } from '../quota.ts';
-import { isHidden } from './moderation.ts';
+import { ApiError } from '../errors.ts';
 
 /**
  * AI moderation (#871, epic #865): before a shared name, caption or profile photo goes live, a small model checks it
  * against the community guidelines. The word filter (`filter.ts`) still runs first and refuses outright; the model
- * catches what words can't (threats, harassment, sexual or hateful photos, spam). Flagged items are held: hidden from
- * others until an owner releases or rejects them (`admin.ts holds`). Free to members, counted in AI_DAILY_LIMIT; when
- * the model is off, over budget, slow or failing, items go live on the word filter alone (fail open).
+ * catches what words can't (threats, harassment, sexual or hateful photos, spam). Flagged text or photos are refused on
+ * the spot like the word filter (#871 follow-up: no review queue, nobody has to moderate); reports and blocks stay the
+ * human backstop. Free to members, counted in AI_DAILY_LIMIT; when the model is off, over budget, slow or failing, the
+ * word filter alone decides (fail open).
  */
-export const HOLD_CATEGORIES = ['harassment', 'hate', 'sexual', 'violence', 'self_harm', 'spam', 'other'] as const;
-export type HoldCategory = (typeof HOLD_CATEGORIES)[number];
-export type HoldTarget = 'post' | 'program' | 'workout' | 'avatar';
+export const FLAG_CATEGORIES = ['harassment', 'hate', 'sexual', 'violence', 'self_harm', 'spam', 'other'] as const;
+export type FlagCategory = (typeof FLAG_CATEGORIES)[number];
 
 export interface ModerationInput {
   texts: string[];
@@ -23,7 +21,7 @@ export interface ModerationInput {
   jpeg?: Buffer;
 }
 /** Null = fine; a category = hold it. Throws when the model can't answer (the caller fails open). */
-export type ModerationModel = (input: ModerationInput) => Promise<HoldCategory | null>;
+export type ModerationModel = (input: ModerationInput) => Promise<FlagCategory | null>;
 
 const SYSTEM = `You moderate a gym app's community: members share workout posts, captions, plan and workout names, nicknames, short bios and profile photos. Decide if the content breaks the guidelines.
 
@@ -35,7 +33,7 @@ const schema = {
   type: 'object',
   properties: {
     flagged: { type: 'boolean' },
-    category: { type: 'string', enum: [...HOLD_CATEGORIES, 'none'] },
+    category: { type: 'string', enum: [...FLAG_CATEGORIES, 'none'] },
   },
   required: ['flagged', 'category'],
   additionalProperties: false,
@@ -71,7 +69,7 @@ export const claudeModeration = (apiKey: string, workspaceId?: string, model = A
     if (!text || text.type !== 'text') throw new Error('moderation: no answer');
     const out = JSON.parse(text.text) as { flagged?: unknown; category?: unknown };
     if (out.flagged !== true) return null;
-    return HOLD_CATEGORIES.includes(out.category as HoldCategory) ? (out.category as HoldCategory) : 'other';
+    return FLAG_CATEGORIES.includes(out.category as FlagCategory) ? (out.category as FlagCategory) : 'other';
   };
 };
 
@@ -79,10 +77,8 @@ export const claudeModeration = (apiKey: string, workspaceId?: string, model = A
 const texts = (xs: (string | null | undefined)[]) => [...new Set(xs.map((x) => x?.trim()).filter((x): x is string => !!x))];
 
 export interface Moderator {
-  /** Category to hold for, or null (clean, or the check could not run). */
-  check: (input: { texts: (string | null | undefined)[]; jpeg?: Buffer }) => Promise<HoldCategory | null>;
-  /** Records a hold and tells the moderation mailbox. The caller hides the item. */
-  hold: (h: { userId: string; type: HoldTarget; id: string; category: HoldCategory; texts?: (string | null | undefined)[]; jpeg?: Buffer }) => void;
+  /** 400 `objectionable_content` when the model flags the texts or photo; resolves when clean or the check could not run. */
+  assertAllowed: (input: { texts: (string | null | undefined)[]; jpeg?: Buffer }) => Promise<void>;
 }
 
 export const aiModerator = (
@@ -90,90 +86,26 @@ export const aiModerator = (
   now: () => Date,
   model: ModerationModel | undefined,
   globalLimit: number,
-  mailer: Mailer,
-  moderationEmail: string | undefined,
-  log: { warn: (msg: string) => void },
+  log: { warn: (msg: string) => void; info: (msg: string) => void },
 ): Moderator => ({
-  check: async (input) => {
+  assertAllowed: async (input) => {
     const t = texts(input.texts);
-    if (!model || (!t.length && !input.jpeg)) return null;
-    if (!reserveGlobal(db, now().toISOString().slice(0, 10), globalLimit)) return null;
+    if (!model || (!t.length && !input.jpeg)) return;
+    if (!reserveGlobal(db, now().toISOString().slice(0, 10), globalLimit)) return;
+    let category: FlagCategory | null;
     try {
-      return await model({ texts: t, jpeg: input.jpeg });
+      category = await model({ texts: t, jpeg: input.jpeg });
     } catch (e) {
       log.warn(`AI moderation skipped (word filter only): ${String(e)}`);
-      return null;
+      return;
     }
-  },
-  hold: (h) => {
-    const id = randomUUID();
-    const ts = now().toISOString();
-    db.prepare('INSERT INTO moderation_holds (id, user_id, target_type, target_id, category, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, h.userId, h.type, h.id, h.category, ts);
-    if (moderationEmail)
-      mailer
-        .send({
-          to: moderationEmail,
-          subject: `Community hold: ${h.category} (${h.type})`,
-          text: [
-            `Held by AI moderation (#871): hidden until reviewed.`,
-            `Hold: ${id}`,
-            `Member: ${h.userId}`,
-            `${h.type}: ${h.id}`,
-            `Category: ${h.category}`,
-            ...texts(h.texts ?? []).map((x) => `Text: ${x}`),
-            `At: ${ts}`,
-            `Release: "Moderation holds" workflow, action release, id ${id} (or reject).`,
-          ].join('\n'),
-          ...(h.jpeg ? { attachments: [{ filename: 'photo.jpg', contentType: 'image/jpeg', content: h.jpeg }] } : {}),
-        })
-        .catch((e: unknown) => log.warn(`moderation mail failed: ${String(e)}`));
+    if (!category) return;
+    log.info(`AI moderation refused ${input.jpeg ? 'a photo' : 'text'}: ${category}`);
+    throw input.jpeg
+      ? new ApiError(400, 'objectionable_content', 'Please pick another photo: that one is not allowed in the community.')
+      : new ApiError(400, 'objectionable_content', 'Please keep it friendly: that text is not allowed in the community.');
   },
 });
 
 /** Test / no-key stand-in. */
-export const noModerator = (): Moderator => ({ check: () => Promise.resolve(null), hold: () => undefined });
-
-export interface HoldRow {
-  id: string;
-  user_id: string;
-  target_type: HoldTarget;
-  target_id: string;
-  category: string;
-  created_at: string;
-}
-
-/** True while an open hold keeps this item hidden (edits don't release it). */
-export const isHeld = (db: DB, type: HoldTarget, id: string) =>
-  !!db.prepare('SELECT 1 FROM moderation_holds WHERE target_type = ? AND target_id = ? AND resolved_at IS NULL').get(type, id);
-
-export const openHolds = (db: DB) =>
-  db
-    .prepare(
-      `SELECT h.*, cp.nickname FROM moderation_holds h LEFT JOIN community_profiles cp ON cp.user_id = h.user_id
-       WHERE h.resolved_at IS NULL ORDER BY h.created_at`,
-    )
-    .all() as unknown as (HoldRow & { nickname: string | null })[];
-
-const TABLE: Record<Exclude<HoldTarget, 'avatar'>, string> = { post: 'community_posts', program: 'community_programs', workout: 'custom_workouts' };
-
-/**
- * Release puts the item live (unless reports still hide it; a held photo becomes the member's photo if it is still
- * their latest). Reject keeps it hidden (a photo is deleted). False when there is no open hold with that id.
- */
-export const resolveHold = (db: DB, holdId: string, decision: 'released' | 'rejected', at: Date): boolean => {
-  const h = db.prepare('SELECT * FROM moderation_holds WHERE id = ? AND resolved_at IS NULL').get(holdId) as HoldRow | undefined;
-  if (!h) return false;
-  const ts = at.toISOString();
-  db.prepare('UPDATE moderation_holds SET resolved_at = ?, decision = ? WHERE id = ?').run(ts, decision, h.id);
-  if (h.target_type === 'avatar') {
-    if (decision === 'rejected') db.prepare('DELETE FROM community_avatars WHERE id = ?').run(h.target_id);
-    else if (db.prepare('SELECT 1 FROM community_avatars WHERE id = ?').get(h.target_id)) {
-      db.prepare('DELETE FROM community_avatars WHERE user_id = ? AND id != ?').run(h.user_id, h.target_id);
-      db.prepare('UPDATE community_profiles SET avatar_id = ?, updated_at = ? WHERE user_id = ?').run(h.target_id, ts, h.user_id);
-      db.prepare('UPDATE user_profiles SET avatar_id = ?, updated_at = ? WHERE user_id = ?').run(h.target_id, ts, h.user_id);
-    }
-  } else if (decision === 'released' && !isHeld(db, h.target_type, h.target_id) && !isHidden(db, h.target_type, h.target_id)) {
-    db.prepare(`UPDATE ${TABLE[h.target_type]} SET hidden_at = NULL WHERE id = ?`).run(h.target_id);
-  }
-  return true;
-};
+export const noModerator = (): Moderator => ({ assertAllowed: () => Promise.resolve() });
