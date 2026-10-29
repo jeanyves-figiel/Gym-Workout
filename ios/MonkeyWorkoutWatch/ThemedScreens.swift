@@ -205,7 +205,7 @@ struct ProgressScreen: View {
         ScrollView {
             VStack(spacing: 5) {
                 // The Level tile below shows the level; no second "Level 8" as title (#824).
-                ScreenTitle(text: "Progress")
+                ScreenTitle(text: "Insights")
                 tiles(p)
             }
             .watchMargins()

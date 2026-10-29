@@ -2342,7 +2342,7 @@ struct SummaryView: View {
                 }
                 // Fuel (#496): what to eat next.
                 RecoveryFuelCard()
-                Text("Added to your history in Progress.").font(.footnote).foregroundStyle(Theme.muted)
+                Text("Added to your history in Insights.").font(.footnote).foregroundStyle(Theme.muted)
             }
             .padding(20)
         }

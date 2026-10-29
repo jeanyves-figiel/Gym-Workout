@@ -180,7 +180,7 @@ struct LogSportView: View {
                             card
                             Text(health.connected && health.writeWorkouts
                                  ? "Also saved to Apple Health. Gym days around it are planned to spare \(log.sport.loadLabel)."
-                                 : "Saved in MonkeyWorkout. Connect Apple Health in Progress → Body & Health to also save it there.")
+                                 : "Saved in MonkeyWorkout. Connect Apple Health in Insights → Body & Health to also save it there.")
                                 .font(.footnote).foregroundStyle(Theme.muted)
                             if editing {
                                 Button(role: .destructive) { delete() } label: {

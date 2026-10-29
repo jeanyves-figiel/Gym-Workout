@@ -80,7 +80,7 @@ public enum HowItWorks {
         id: "streaks", title: "Streaks & badges", symbol: "flame.fill",
         summary: "Goal weeks in a row, shields, milestones",
         colors: [0xDB2777, 0x7C3AED],
-        shows: "Progress, Levels, badges, finish sheet",
+        shows: "Insights, Levels, badges, finish sheet",
         parts: [
             Part("Week streak", "A week counts when you reach your sessions-a-week goal. The running week never breaks the streak.",
                  rule: ["1 shield every \(StreakRun.weeksPerShield) goal weeks in a row, \(StreakRun.maxShields) held at most",
@@ -380,7 +380,7 @@ public enum HowItWorks {
         id: "mind", title: "Mind score & calm", symbol: "brain.head.profile",
         summary: "Mood, HRV, sleep and training → 0–100",
         colors: [0x7A2CFF, 0x2E8BFF],
-        shows: "Train check-in card, Progress Body + Mind and Mind widgets, Explore → Calm, Mind page",
+        shows: "Train check-in card, Insights Body + Mind and Mind widgets, Explore → Calm, Mind page",
         parts: [
             Part("Mind score", "Your check-in mood, your 7-day HRV average against your 30-day one (a single reading is too noisy), last night's sleep (adults need 7 h or more) and recent training (exercise lifts mood, so a day or two scores best), each scored 0–1 and weighted. A part with no reading drops out and the others count more. No mood, HRV or sleep: no score. The weights are app design, not a validated scale.",
                  rule: ["mood \(fmt(MindScore.moodWeight)) · HRV \(fmt(MindScore.hrvWeight)) · sleep \(fmt(MindScore.sleepWeight)) · training \(fmt(MindScore.loadWeight))",
@@ -393,7 +393,7 @@ public enum HowItWorks {
             Part("Coach pick", "One breathing session for now, from the hour, your mood and HRV.",
                  rule: ["after 8 pm → 4-7-8", "mood 1–2 → physio sigh", "HRV under 85 % of baseline → box",
                         "before 11 am, mood 3 or no check-in → wake-up", "otherwise → box"]),
-            Part("Body + Mind today", "On Progress, your Mind score sits next to the auto-tune ready score (Body), with one line from Coach.",
+            Part("Body + Mind today", "On Insights, your Mind score sits next to the auto-tune ready score (Body), with one line from Coach.",
                  rule: ["Body under \(AutoTune.lightBelow) = low · \(AutoTune.pushFrom)+ = high",
                         "Mind under \(MindScore.Level.steadyFrom) = low",
                         "both low → light + breathe first · body low → light · mind low → breathe first · both high → push"]),
