@@ -25,6 +25,23 @@ struct VideoImportDraft: Identifiable {
     }
 }
 
+/// A share from TikTok / Instagram waiting in the App Group (#909 A), opened as *Save from a video* over the tabs.
+@MainActor @Observable
+final class VideoShareLaunch {
+    static let shared = VideoShareLaunch()
+    var draft: VideoImportDraft?
+
+    /// Picks up what the share extension left (on open and on monkeyworkout://video-import).
+    func check() {
+        guard draft == nil, let taken = VideoInbox.take() else { return }
+        var d = VideoImportDraft()
+        if let link = taken.share.link { d.link = link }
+        if let text = taken.share.text { d.take(text) }
+        d.photos = taken.images.compactMap { UIImage(data: $0) }
+        draft = d
+    }
+}
+
 private extension NSDataDetector {
     static func links(in text: String) -> [URL] {
         guard let d = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return [] }

@@ -39,8 +39,13 @@ targets:
       - path: WatchShared
       # Home Screen widgets (#297): snapshot, settings and faces, shared with the widget extension.
       - path: HomeWidgets
+      # Shares from TikTok / Instagram (#909), written by the share extension.
+      - path: ShareInbox
     dependencies:
       - target: MonkeyWorkoutWidgets
+        embed: true
+      # Share → MonkeyFit (#909 A).
+      - target: MonkeyWorkoutShare
         embed: true
       - target: MonkeyWorkoutWatch
       - package: GymCore
@@ -164,6 +169,39 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).LiveActivity
         PRODUCT_NAME: MonkeyWorkoutWidgets
         # Matches the app; Live Activities only show on iPhone (ActivityKit is off on iPad).
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SKIP_INSTALL: YES
+  # Share → MonkeyFit (#909 A): a TikTok / Instagram post's link, caption and screenshots kept for the app.
+  MonkeyWorkoutShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: MonkeyWorkoutShare
+        excludes: [MonkeyWorkoutShare.entitlements]
+      - path: ShareInbox
+    entitlements:
+      path: MonkeyWorkoutShare/MonkeyWorkoutShare.entitlements
+      properties:
+        com.apple.security.application-groups: [$(APP_GROUP)]
+    info:
+      path: MonkeyWorkoutShare/Info.plist
+      properties:
+        CFBundleDisplayName: $(APP_DISPLAY_NAME)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        MWAppGroup: $(APP_GROUP)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsImageWithMaxCount: 4
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).ShareExtension
+        PRODUCT_NAME: MonkeyWorkoutShare
         TARGETED_DEVICE_FAMILY: "1,2"
         SKIP_INSTALL: YES
   # Apple Watch companion (#56), embedded in the iOS app.
