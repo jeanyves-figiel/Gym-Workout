@@ -432,6 +432,8 @@ private struct DemoScreen: View {
         case "story-sheet": StorySheet(poster: .workout(title: "Legs", minutes: 55, sets: 27, moves: 12, details: ["Back squat 5 × 5 · 100 kg", "Romanian deadlift 3 × 8", "Leg press 3 × 12", "Walking lunge 3 × 10"]))
         case "community-members":
             NavigationStack { FindMembersView().navigationDestination(for: CommunityAuthor.self) { MemberView(author: $0) } }
+        case "video-import": VideoImportSheet()
+        case "video-import-check": VideoImportSheet(read: AppModel.demoVideoImport)
         case "picker": ExercisePickerView(limit: 12, selected: ["back-extension", "ab-wheel", Demo.customExercise.exerciseId]) { _ in }
         case "builder": CustomExerciseBuilderView(existing: Demo.customExercise)
         case "muscle-picker": MusclePickerScreen(primary: [.glutes], secondary: [.hamstrings], heat: [.glutes: 1, .hamstrings: 0.35]) { _ in }

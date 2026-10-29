@@ -721,6 +721,13 @@ CREATE TABLE webauthn_challenges (
       expires_at TEXT NOT NULL
     );
 
+CREATE TABLE workout_import_usage (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      count INTEGER NOT NULL,
+      PRIMARY KEY (user_id, day)
+    );
+
 CREATE TABLE workout_logs (
      id TEXT PRIMARY KEY,
      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -4320,6 +4320,32 @@
         }
       }
     },
+    "/v1/me/workout-import": {
+      "post": {
+        "tags": [
+          "Coach (AI and voices)"
+        ],
+        "summary": "{link? (≤500), caption? (≤4000), text? (≤2000, member's own words), photos[≤4] (base64 JPEG ≤ 1.5 MB each), catalog[1–600]{id, label}} → {name, minutes, items[≤40]{said, id (catalog id or \"\"), sets, reps, unit reps|sec|min, sure}, source?{platform tiktok|instagram|youtube|web, url (tracking dropped), author?}, remainingToday} (#909, save a workout seen on TikTok / Instagram; no caption → TikTok / YouTube public oEmbed; video never fetched, photos not kept)",
+        "description": "Errors / limits: 400 bad_link, bad_photo; 402; 403 verification_required; 422 nothing_to_read; 429 daily_limit (20/day), busy; 502 import_failed; 503 import_unavailable",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "See summary. Errors: `{error, message}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/me/coach-voices": {
       "get": {
         "tags": [

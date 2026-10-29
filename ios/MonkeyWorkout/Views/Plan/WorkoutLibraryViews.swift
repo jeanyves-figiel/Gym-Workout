@@ -283,6 +283,8 @@ struct WorkoutLibraryView: View {
     @State private var query = ""
     @State private var memberState: AppModel.SharedLibraryLoad?
     @State private var editing: CustomWorkout?
+    /// Save from a video (#909).
+    @State private var fromVideo = false
     /// Build as I go (#490): the empty workout open in the player.
     @State private var freestyle: Session?
     /// Pick mode (#178, Add workout → Browse library): tapping a workout hands it over instead of opening it.
@@ -335,6 +337,19 @@ struct WorkoutLibraryView: View {
                                 .card()
                             }
                             .buttonStyle(.plain)
+                            // Save from a video (#909).
+                            Button { fromVideo = true } label: {
+                                HStack {
+                                    Label("Save one from TikTok or Instagram", systemImage: "play.rectangle.on.rectangle.fill")
+                                        .font(Theme.label(15))
+                                        .foregroundStyle(Theme.lime)
+                                    Spacer()
+                                    ProBadge()
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .card()
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -365,6 +380,7 @@ struct WorkoutLibraryView: View {
             }
         }
         .sheet(item: $editing) { w in CustomWorkoutEditor(initial: w) }
+        .sheet(isPresented: $fromVideo) { VideoImportSheet() }
         .fullScreenCover(item: $freestyle) { s in WorkoutPlayerView(sessionId: s.id) }
     }
 
