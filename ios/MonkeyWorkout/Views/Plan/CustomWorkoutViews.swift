@@ -134,6 +134,23 @@ struct CustomWorkoutEditor: View {
                         }
                 }
                 .cardRow()
+                // Saved from a video (#909): credit and a way back to the post.
+                if let source = draft.source, let url = source.link {
+                    Link(destination: url) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "play.rectangle.fill")
+                            Text("From \(source.label)").lineLimit(1)
+                            Spacer(minLength: 4)
+                            Image(systemName: "arrow.up.right")
+                        }
+                        .font(Theme.label(13))
+                        .foregroundStyle(.white)
+                        .padding(12)
+                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(LinearGradient(colors: [Color(hex: 0x7B4DFF), Color(hex: 0x3D7BFF)], startPoint: .leading, endPoint: .trailing)))
+                    }
+                    .cardRow()
+                }
 
                 HStack {
                     Text("Exercises · \(draft.items.count)").eyebrow()

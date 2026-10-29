@@ -8,6 +8,12 @@
       "body": "Same board with Body + Mind today, Mind, records and widgets, under a name that fits it all."
     },
     {
+      "symbol": "play.rectangle.on.rectangle.fill",
+      "tint": "power",
+      "title": "Save a workout from a video",
+      "body": "Saw a cool workout on TikTok or Instagram? Paste the link, add screenshots or tell Coach, and it becomes your own workout."
+    },
+    {
       "symbol": "wind",
       "tint": "mobility",
       "title": "5 minutes of breathing",

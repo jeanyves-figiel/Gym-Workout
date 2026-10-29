@@ -52,7 +52,7 @@ erDiagram
 | Push | `push_devices`, `notification_prefs`, `achievement_announcements` | APNs device tokens; each achievement pushed once, at most 20 a day per member |
 | Subscriptions | `app_store_subscriptions`, `app_store_notifications`, `access_grants`, `subscription_tests` | One App Store original transaction belongs to one account |
 | Garmin | `garmin_devices`, `garmin_snapshots`, `garmin_inbox` | Token hashed; inbox capped |
-| Paid usage | `coach_chat_usage`, `gym_scan_usage`, `food_scan_usage`, `meal_ideas_usage`, `ai_daily_usage` | Daily counters per member and global |
+| Paid usage | `coach_chat_usage`, `gym_scan_usage`, `food_scan_usage`, `meal_ideas_usage`, `workout_import_usage`, `ai_daily_usage` | Daily counters per member and global |
 | Paid usage | `coach_chat_usage`, `coach_review_usage`, `coach_set_usage`, `gym_scan_usage`, `food_scan_usage`, `ai_daily_usage` | Daily counters per member and global |
 | Support | `member_reports`, `member_report_shots` | Problem reports with screenshots (EXIF stripped), in the export |
 | Ops | `throttle_hits`, `schema_version`, `schema_fixes` | Sliding-window throttles (export, codes, mails, pushes); one-time data fixes done |
