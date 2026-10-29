@@ -18,6 +18,9 @@ struct ProgressTabView: View {
     @State private var arranging = false
     @State private var addingWidget = false
     @State private var customising = false
+    /// Insights focus (#939): the first-open picker (A) and the Switch sheet (C).
+    @State private var pickingFocus = false
+    @State private var switchingFocus = false
     /// CI screenshots: open with this tile flipped.
     var demoFlipped: StatMetric?
     /// CI screenshots: open this part's page.
@@ -78,6 +81,7 @@ struct ProgressTabView: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 header
+                if !arranging { focusTop(top: top, items: items) }
                 if arranging {
                     ProgressEditBar(onAdd: { addingWidget = true }, onList: { customising = true })
                 } else if !fresh {
@@ -124,6 +128,10 @@ struct ProgressTabView: View {
         .navigationDestination(item: $openedSport) { HistoryView(initial: .sport($0)) }
         .sheet(isPresented: $addingWidget) { ProgressWidgetGallery() }
         .sheet(isPresented: $customising) { ProgressCustomiseSheet() }
+        .sheet(isPresented: $switchingFocus) { InsightsFocusSheet() }
+        .fullScreenCover(isPresented: $pickingFocus) { InsightsFocusPicker() }
+        // On each visit, so the picker never opens over another tab or the app tour.
+        .onAppear { if model.needsInsightsFocus { pickingFocus = true } }
         .task {
             if demoEditing { arranging = true }
             guard let demoSection else { return }
@@ -136,6 +144,21 @@ struct ProgressTabView: View {
             try? await Task.sleep(for: .milliseconds(350))
             opened = section
             model.progressJump = nil
+        }
+    }
+
+    /// Insights focus (#939 C): the hero card, or a chip to pick one for A bit of everything.
+    @ViewBuilder
+    private func focusTop(top: ProgressHighlights, items: [HistoryItem]) -> some View {
+        if let focus = model.insightsFocus {
+            if focus == .everything {
+                InsightsFocusChip { switchingFocus = true }
+            } else {
+                let sport = model.progressSports.first ?? .climbing
+                InsightsFocusHero(focus: focus, h: top, sport: sport, sportItems: items.filter { $0.filter == .sport(sport) },
+                                  onOpen: { if let s = focus.section { opened = s } else { openedSport = sport } },
+                                  onSwitch: { switchingFocus = true })
+            }
         }
     }
 
