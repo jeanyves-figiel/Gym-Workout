@@ -48,6 +48,12 @@
       "tint": "cardio",
       "title": "Share nudges step aside",
       "body": "Share nudges now slide away on their own, or swipe them down."
+    },
+    {
+      "symbol": "checkmark.shield.fill",
+      "tint": "mobility",
+      "title": "Friendly shares, right away",
+      "body": "Anything unfriendly is turned back on the spot, so you can fix it and share again. No more waiting in review."
     }
   ]
 }
