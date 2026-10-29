@@ -271,3 +271,24 @@ struct InsightsFocusChip: View {
         .accessibilityHint("Puts what matters most to you on top of Insights")
     }
 }
+
+/// A bit of everything: Pick a focus as a square on the ask bar's line, same height as the bar.
+struct InsightsFocusTile: View {
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 2) {
+                Image(systemName: "scope").font(.system(size: 15, weight: .heavy))
+                Text("Focus").font(Theme.label(10))
+            }
+            .foregroundStyle(.white)
+            .frame(width: 50)
+            .frame(maxHeight: .infinity)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.cardStrong))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Pick a focus")
+        .accessibilityHint("Puts what matters most to you on top of Insights")
+    }
+}

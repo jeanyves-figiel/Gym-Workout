@@ -222,12 +222,18 @@ struct ProgressAskBar: View {
     @FocusState private var typing: Bool
     /// CI screenshots: ask the first starter at once.
     var demoAsk = false
+    /// A bit of everything (#939): the Pick a focus tile on the bar's line (user, TF 86).
+    var onPickFocus: (() -> Void)?
 
     private var records: [WorkoutRecord] { model.state.history }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            bar
+            HStack(spacing: 8) {
+                bar
+                if let onPickFocus { InsightsFocusTile(onTap: onPickFocus) }
+            }
+            .fixedSize(horizontal: false, vertical: true)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(HistoryAsk.starterTiles(records: records), id: \.self) { t in
