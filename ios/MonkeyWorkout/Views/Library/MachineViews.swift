@@ -151,13 +151,15 @@ struct MachineDetailView: View {
         let _ = model.customExercises.count
         let area = GymArea.allCases.first { $0.items.contains(item) }
         let gradient = area?.category.gradient ?? WorkoutEngine.Category.strength.gradient
-        let muscles = Exercise.muscles(using: item)
+        let load = Exercise.muscleLoad(using: item).prefix(6)
+        let muscles = load.map(\.muscle)
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 12) {
-                    ExerciseImage(exercise: Exercise.get(item.pictureExerciseId))
+                    // Whole picture at the art's 4:3 (#896): a fixed 180 pt cut heads, feet and machine tops.
+                    ExerciseImage(exercise: Exercise.get(item.pictureExerciseId), contentMode: .fit)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 180)
+                        .aspectRatio(4 / 3, contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     if let area { Text(area.label.uppercased()).font(Theme.label(11)).tracking(2).opacity(0.85) }
                     Text(item.label).font(Theme.display(34))
@@ -177,11 +179,11 @@ struct MachineDetailView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Trains").eyebrow()
                         HStack(spacing: 12) {
-                            BodyMapPair(heat: Dictionary(uniqueKeysWithValues: muscles.prefix(6).enumerated()
-                                .map { ($0.element, $0.offset < 3 ? 1.0 : 0.5) }))
+                            // Heat by share of the machine's work (#896): the triceps machine lit chest as hot as triceps.
+                            BodyMapPair(heat: Dictionary(uniqueKeysWithValues: load.map { ($0.muscle, max(0.3, $0.load)) }))
                                 .frame(height: 200)
                             FlowLayout(spacing: 6) {
-                                ForEach(muscles.prefix(6), id: \.self) { m in
+                                ForEach(muscles, id: \.self) { m in
                                     NavigationLink(value: m) {
                                         Text(m.name).font(Theme.label(12)).foregroundStyle(.white)
                                             .padding(.horizontal, 10).padding(.vertical, 6)
