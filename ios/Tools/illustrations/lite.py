@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Light illustrations bundled in the app (#932): 9 of each exercise's HD frames at half size.
+"""Light illustrations bundled in the app (#932): 3 of each exercise's HD frames at half size (#944: start, middle and
+end; the movement plays from its clip, video.py).
 
 The HD frames (ios/HDAnimations/<id>/<frame>.png, written by generate.py) are not in the app: they ship as the HD
 pack (pack.py) downloaded after sign-up. This writes ios/MonkeyWorkout/Resources/Illustrations.xcassets with
@@ -19,7 +20,7 @@ HERE = Path(__file__).resolve().parent
 IOS = HERE.parent.parent
 HD = IOS / "HDAnimations"
 ASSETS = IOS / "MonkeyWorkout/Resources/Illustrations.xcassets"
-LITE_FRAMES = 9
+LITE_FRAMES = 3
 LITE_SIZE = (360, 270)
 COLORS = 128
 

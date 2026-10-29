@@ -9,8 +9,8 @@ small front/back muscle map. Frames are rasterised to palette PNGs (transparent 
 draws the category gradient behind them).
 
 Writes the HD frames ios/HDAnimations/<id>/<frame>.png (the HD pack downloaded after sign-up, pack.py, #932), the
-light frames bundled in the app (lite.py: Illustrations.xcassets), the Swift id list
-ios/Packages/GymCore/Sources/WorkoutEngine/Exercise+Illustrations.swift, the movement table
+light frames bundled in the app (lite.py: Illustrations.xcassets), the 60 fps movement clips (video.py, #944), the
+Swift id list ios/Packages/GymCore/Sources/WorkoutEngine/Exercise+Illustrations.swift, the movement table
 ExerciseMotion+Table.swift next to it and the media ledger ios/EXERCISE_MEDIA.md. Check every animation first:
 python3 ios/Tools/illustrations/check.py
 
@@ -198,6 +198,9 @@ def write(cat, frames, motions):
             (HD / ex_id).mkdir(exist_ok=True)
             (HD / ex_id / f"{f}.png").write_bytes(png)
     lite.build()
+    # #944: the 60 fps movement clips (light bundled, HD in the pack).
+    import video
+    video.build()
 
     ids = ",\n".join(f'        "{i}"' for i in sorted(frames))
     counts = ",\n".join(f'        "{i}": {len(f)}' for i, f in sorted(frames.items()) if len(f) != FRAMES)
@@ -226,8 +229,9 @@ public enum ExerciseIllustrations {{
         ids.contains(exerciseId) ? frameCounts[exerciseId] ?? frameCount : 0
     }}
 
-    /// Frames of each exercise bundled in the app (#932): `liteFrames`-chosen HD frames at half size.
-    public static let liteFrameCount = 9
+    /// Frames of each exercise bundled in the app (#932): `liteFrames`-chosen HD frames at half size (#944: start, middle
+    /// and end; the movement plays from its clip).
+    public static let liteFrameCount = {lite.LITE_FRAMES}
 
     /// HD frame shown by each bundled light frame: evenly spread, start, middle and end included (lite.py).
     public static func liteFrames(_ count: Int) -> [Int] {{

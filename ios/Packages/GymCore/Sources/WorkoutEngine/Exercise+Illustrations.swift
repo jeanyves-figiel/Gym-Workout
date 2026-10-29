@@ -645,8 +645,9 @@ public enum ExerciseIllustrations {
         ids.contains(exerciseId) ? frameCounts[exerciseId] ?? frameCount : 0
     }
 
-    /// Frames of each exercise bundled in the app (#932): `liteFrames`-chosen HD frames at half size.
-    public static let liteFrameCount = 9
+    /// Frames of each exercise bundled in the app (#932): `liteFrames`-chosen HD frames at half size (#944: start, middle
+    /// and end; the movement plays from its clip).
+    public static let liteFrameCount = 3
 
     /// HD frame shown by each bundled light frame: evenly spread, start, middle and end included (lite.py).
     public static func liteFrames(_ count: Int) -> [Int] {

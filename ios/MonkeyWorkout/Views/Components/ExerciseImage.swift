@@ -16,7 +16,7 @@ struct ExerciseImage: View {
         CustomExercise.isCustom(exercise.id) ? CustomExercises.shared.record(exercise.id) : nil
     }
 
-    /// Frames this exercise has (catalog art: 17–49 with the HD pack, #256, else the 9 bundled light frames, #932;
+    /// Frames this exercise has (catalog art: 17–49 with the HD pack, #256, else the 3 bundled light frames, #932, #944;
     /// 1–2 for a custom exercise; 0 without media).
     static func frameCount(_ e: Exercise) -> Int {
         if CustomExercise.isCustom(e.id) { return CustomExercises.shared.record(e.id)?.frameCount ?? 0 }
@@ -118,13 +118,13 @@ enum IllustrationImages {
     static func forgetHD() { cache.removeAllObjects() }
 }
 
-/// The movement, played a few times then at rest (never an endless loop), #188 / #229. Catalog art has 9 frames
-/// (start, eased in-betweens, end); played at the exercise's
+/// The movement, played a few times then at rest (never an endless loop), #188 / #229. Catalog art plays from its
+/// 60 fps clip (#944, `MotionClipPlayer`; its start / middle / end frames at rest), at the exercise's
 /// tempo: lifting work 1 s, the return 2 s (power: fast work), other categories evenly. Playback is one continuous
 /// position on a display-linked timeline, the next frame blended over the lower one (#236). While playing, a chip
 /// shows the half being played (e.g. "UP 1s", green for the working half, yellow for the return) with a bar
 /// filling over it and the rep; a dotted line traces the path of the bar / hand / foot with a dot riding it.
-/// Reduce Motion: no auto-play, a tap still steps through the frames without fades. Custom exercises (1–2
+/// Reduce Motion: no auto-play and no clip, a tap still steps through the frames without fades. Custom exercises (1–2
 /// frames) play the same way without path or tempo. Shared by the exercise page and the workout player.
 struct ExerciseMotionView: View {
     let exercise: Exercise
@@ -159,14 +159,30 @@ struct ExerciseMotionView: View {
     @State private var started = Date.distantPast
     /// Bumped for every play request so a tap restarts a running play.
     @State private var run = 0
+    /// The exercise's 60 fps clip (#944), loaded as it shows; nil = the movement plays from its frames.
+    @State private var clip: MotionClipPlayer?
 
+    /// Still frames (start, middle, end of catalog art without the HD pack).
     private var frames: Int { ExerciseImage.frameCount(exercise) }
     private var canPlay: Bool { frames > 1 }
+    /// The clip plays the movement, except with Reduce Motion (whole frames then).
+    private var playingClip: MotionClipPlayer? { reduceMotion ? nil : clip }
+    /// Frames a play's position counts: with the clip, the exercise's HD frames (path and tempo are drawn on them).
+    private var playFrames: Int {
+        playingClip != nil ? max(ExerciseIllustrations.frameCount(of: exercise.id), 2) : frames
+    }
+    /// The still frame shown at rest, as a play position.
+    private var restPosition: Double {
+        let n = ExerciseIllustrations.frameCount(of: exercise.id)
+        guard playingClip != nil, frames != n else { return Double(restingFrame) }
+        let lite = ExerciseIllustrations.liteFrames(n)
+        return Double(lite[min(max(restingFrame, 0), lite.count - 1)])
+    }
     /// Path and phase labels; only for catalog art drawn with in-betweens (the light frames: their points, #932).
     private var motion: ExerciseMotion? {
         guard exercise.hasIllustration, let m = exercise.motion else { return nil }
         let n = ExerciseIllustrations.frameCount(of: exercise.id)
-        return frames == n ? m : m.sampled(ExerciseIllustrations.liteFrames(n))
+        return playFrames == n ? m : m.sampled(ExerciseIllustrations.liteFrames(n))
     }
     private var phases: (ExerciseMotion.Phase, ExerciseMotion.Phase)? { motion?.phases(exercise.category) }
 
@@ -174,16 +190,21 @@ struct ExerciseMotionView: View {
         // One continuous frame position drawn on the display's clock (#236): no per-step state changes,
         // so nothing can flash between frames.
         TimelineView(.animation(paused: playback == nil)) { context in
-            let state = playback?.state(at: context.date.timeIntervalSince(started))
-            picture(state)
+            let time = context.date.timeIntervalSince(started)
+            picture(playback?.state(at: time), time: time)
         }
         .contentShape(Rectangle())
         .onTapGesture { start(Self.tapCycles) }
         // A new exercise (first appearance, or the player moving on): play the movement a few times.
         .task(id: exercise.id) {
             playback = nil
+            clip?.stop()
+            clip = nil
             // Frames decoded before they are needed mid-play.
             if canPlay { IllustrationImages.prepare(exercise.id) }
+            if exercise.hasIllustration, let url = MotionClips.url(exercise.id) {
+                clip = await MotionClipPlayer.load(url)
+            }
             guard Self.autoPlays(cycles: autoPlayCycles, frames: frames, reduceMotion: reduceMotion) else { return }
             start(autoPlayCycles)
         }
@@ -191,8 +212,12 @@ struct ExerciseMotionView: View {
         .task(id: run) {
             guard let playback else { return }
             try? await Task.sleep(for: .seconds(playback.duration))
-            if !Task.isCancelled { self.playback = nil }
+            if !Task.isCancelled {
+                self.playback = nil
+                clip?.stop()
+            }
         }
+        .onDisappear { clip?.stop() }
         // The player moving on replays it, but never with Reduce Motion (#719): only a tap plays then.
         .onChange(of: playTrigger) { _, _ in
             guard !reduceMotion else { return }
@@ -201,6 +226,7 @@ struct ExerciseMotionView: View {
         // Picking a frame on the exercise page stops a running play and shows that frame.
         .onChange(of: restingFrame) { _, _ in
             playback = nil
+            clip?.stop()
             run += 1
         }
         .accessibilityElement(children: .ignore)
@@ -214,15 +240,32 @@ struct ExerciseMotionView: View {
     /// switched in quickly over it (#241: a short dissolve, no long double-exposed poses). Only those two are drawn
     /// (every other frame would be invisible); both always stay in the stack, and the exercise's frames are decoded
     /// ahead (`IllustrationImages`), so nothing loads mid-play. Reduce Motion: whole frames.
-    private func picture(_ state: MotionPlayback.State?) -> some View {
-        let raw = state?.position ?? Double(restingFrame)
+    /// While the clip plays (#944), its picture over the category gradient instead (the resting frame until its first
+    /// picture is decoded).
+    private func picture(_ state: MotionPlayback.State?, time: Double) -> some View {
+        let raw = state?.position ?? restPosition
         let position = reduceMotion ? raw.rounded() : raw
         let count = max(frames, 1)
-        let (lower, upper) = MotionPlayback.blend(position, frames: count, window: MotionPlayback.switchWindow)
+        let video = state != nil ? playingClip?.image(at: time) : nil
+        // Frames: the play's position; with the clip, the resting frame.
+        let still = playingClip == nil ? position : Double(restingFrame)
+        let (lower, upper) = MotionPlayback.blend(still, frames: count, window: MotionPlayback.switchWindow)
         return ZStack {
-            ExerciseImage(exercise: exercise, frame: lower, contentMode: contentMode)
-            ExerciseImage(exercise: exercise, frame: min(lower + 1, count - 1), contentMode: contentMode)
-                .opacity(lower + 1 < count ? upper : 0)
+            if let video {
+                // No frame: the gradient alone, the clip's picture laid over it as ExerciseImage lays out a frame.
+                ExerciseImage(exercise: exercise, frame: -1, contentMode: contentMode)
+                    .overlay {
+                        Image(decorative: video, scale: 1)
+                            .resizable()
+                            .aspectRatio(contentMode: contentMode)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    .clipped()
+            } else {
+                ExerciseImage(exercise: exercise, frame: lower, contentMode: contentMode)
+                ExerciseImage(exercise: exercise, frame: min(lower + 1, count - 1), contentMode: contentMode)
+                    .opacity(lower + 1 < count ? upper : 0)
+            }
             if let motion, !motion.path.isEmpty {
                 MotionPathOverlay(motion: motion, position: position, contentMode: contentMode,
                                   emphasised: state != nil)
@@ -235,7 +278,7 @@ struct ExerciseMotionView: View {
                     if let state, let phases, let playback {
                         tempoChip(state.outbound ? phases.0 : phases.1, state: state, cycles: playback.cycles)
                     } else {
-                        Label(state != nil ? Self.label(Int(position.rounded()), of: frames) : "Play movement",
+                        Label(state != nil ? Self.label(Int(position.rounded()), of: playFrames) : "Play movement",
                               systemImage: state != nil ? "figure.walk.motion" : "play.fill")
                             .font(Theme.label(11))
                             .foregroundStyle(.white)
@@ -300,14 +343,16 @@ struct ExerciseMotionView: View {
         guard canPlay, n > 0 else { return }
         let now = Date()
         // A restart mid-play glides from where the picture is now.
-        let from = playback?.state(at: now.timeIntervalSince(started))?.position ?? Double(restingFrame)
+        let from = playback?.state(at: now.timeIntervalSince(started))?.position ?? restPosition
         let cyclic = motion?.cyclic == true
         let out = halfSeconds.0 / speed, back = halfSeconds.1 / speed, hold = Self.hold / speed
         // HIIT: as many reps as fit the interval.
         let cycles = playFor.map { max(1, Int($0 / max(0.1, out + back + (cyclic ? 0 : 2 * hold)))) } ?? n
-        playback = MotionPlayback(frames: frames, cycles: cycles, out: out, back: back, hold: hold,
-                                  from: from, rest: Double(restingFrame), cyclic: cyclic)
+        let play = MotionPlayback(frames: playFrames, cycles: cycles, out: out, back: back, hold: hold,
+                                  from: from, rest: restPosition, cyclic: cyclic)
+        playback = play
         started = now
+        playingClip?.play(play.clipPieces(frames: playFrames))
         run += 1
     }
 }

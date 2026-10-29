@@ -57,6 +57,19 @@ import Testing
         #expect(lite.points.count == ExerciseIllustrations.liteFrameCount && lite.points.first! == squat.points.first!)
     }
 
+    /// #944: every illustrated exercise has its light movement clip in the app and its HD clip for the pack.
+    @Test func everyIllustrationHasClips() {
+        let ios = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let light = ios.appendingPathComponent("MonkeyWorkout/Resources/Motion")
+        let hd = ios.appendingPathComponent("HDMotion")
+        for id in ExerciseIllustrations.ids {
+            #expect(FileManager.default.fileExists(atPath: light.appendingPathComponent("motion-\(id).mp4").path), "\(id)")
+            #expect(FileManager.default.fileExists(atPath: hd.appendingPathComponent("\(id).mp4").path), "\(id)")
+        }
+    }
+
     @Test func everyIllustrationHasMotion() {
         for e in Exercise.catalog where e.hasIllustration {
             guard let m = e.motion else {
@@ -154,5 +167,22 @@ import Testing
         #expect(MotionPlayback.blend(2.5, frames: 9, window: 0.2).upper == 0)
         #expect(abs(MotionPlayback.blend(2.9, frames: 9, window: 0.2).upper - 0.5) < 1e-9)
         #expect(MotionPlayback.blend(2.999, frames: 9, window: 0.2).upper > 0.99)
+    }
+
+    @Test func playbackAsClipPieces() {
+        // #944: start → end from the clip's first half, holds as one frame, the way back from its second half.
+        let p = MotionPlayback(frames: 17, cycles: 1, out: 1, back: 2, hold: 0.5)
+        let pieces = p.clipPieces(frames: 17, clipFrames: 61)
+        #expect(pieces == [
+            .init(start: 0, length: 60, duration: 1), .init(start: 60, length: 1, duration: 0.5),
+            .init(start: 60, length: 60, duration: 2), .init(start: 120, length: 1, duration: 0.5),
+        ])
+        #expect(pieces.reduce(0) { $0 + $1.duration } == p.duration)
+        // A glide in from the middle frame back to the start plays the second half too.
+        let lead = MotionPlayback(frames: 3, cycles: 1, out: 1, back: 1, hold: 0, from: 1).clipPieces(frames: 3, clipFrames: 61)
+        #expect(lead.first == .init(start: 90, length: 30, duration: 0.25))
+        // A gait only plays forward.
+        let walk = MotionPlayback(frames: 9, cycles: 2, out: 0.5, back: 0.5, hold: 0.35, cyclic: true).clipPieces(frames: 9)
+        #expect(walk == Array(repeating: .init(start: 0, length: 60, duration: 1), count: 2))
     }
 }

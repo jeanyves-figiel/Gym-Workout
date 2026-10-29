@@ -42,7 +42,7 @@ Several streams of work are bundled into one release: all merge to staging, an i
 | Garmin watch app | `garmin.yml` | PR, push, manual | Build the Connect IQ app (once Garmin secrets exist) |
 | Garmin signing key | `garmin-key.yml` | manual | Generate the Connect IQ developer key straight into a secret (never in a log or artifact) |
 | Coach live check | `coach-live.yml` | manual | One real Ask Coach call (Claude) or one real Polly voice recording; prints the answer or error |
-| HD animations pack | `hd-animations.yml` | push to `main` touching `ios/HDAnimations/**`, manual (dry run default) | Packs the HD exercise animations (`pack.py`) and publishes new files + `manifest.json` to the `hd-animations` release; deletes files the manifest no longer lists (#932) |
+| HD animations pack | `hd-animations.yml` | push to `main` touching `ios/HDAnimations/**` or `ios/HDMotion/**` (#944 clips), manual (dry run default) | Packs the HD exercise animations (`pack.py`) and publishes new files + `manifest.json` to the `hd-animations` release; deletes files the manifest no longer lists (#932) |
 
 ### Operations workflows
 

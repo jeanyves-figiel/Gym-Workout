@@ -7,7 +7,7 @@ name: HD animations pack
 on:
   push:
     branches: [main]
-    paths: ['ios/HDAnimations/**', 'ios/Tools/illustrations/pack.py', '.github/workflows/hd-animations.yml']
+    paths: ['ios/HDAnimations/**', 'ios/HDMotion/**', 'ios/Tools/illustrations/pack.py', '.github/workflows/hd-animations.yml']
   workflow_dispatch:
     inputs:
       dry_run:
