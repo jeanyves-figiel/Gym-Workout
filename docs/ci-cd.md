@@ -28,7 +28,7 @@ Several streams of work are bundled into one release: all merge to staging, an i
 | Workflow | File | Trigger | Does |
 |---|---|---|---|
 | CI | `ci.yml` | PR, called by Deploy staging | What's new check; backend `npm ci`, typecheck, tests (incl. docs drift); backend image build |
-| iOS | `ios.yml` | PR / push to `main` touching `ios/**` | GymCore package tests, simulator builds (Debug, Staging), UI tests (build-for-testing, booted simulator, a failed test retried once) |
+| iOS | `ios.yml` | PR / push to `main` touching `ios/**` | GymCore package tests, simulator builds (Debug, Staging), device build with an app size report in the job summary (#932), UI tests (build-for-testing, booted simulator, a failed test retried once) |
 | App Store screenshots | `app-store-screenshots.yml` | PR, manual | Demo-mode screens captured (≤ 800 px) to branch `screenshots/pr-<n>` and an artifact |
 | Deploy staging | `deploy-staging.yml` | push to `main` | CI, image to GHCR, deploy to staging |
 | Staging smoke test | `staging-smoke.yml` | after Deploy staging, manual | Health + real mail transport, sign-up email, unverified login refused, forgot password, auth guards |
@@ -42,6 +42,7 @@ Several streams of work are bundled into one release: all merge to staging, an i
 | Garmin watch app | `garmin.yml` | PR, push, manual | Build the Connect IQ app (once Garmin secrets exist) |
 | Garmin signing key | `garmin-key.yml` | manual | Generate the Connect IQ developer key straight into a secret (never in a log or artifact) |
 | Coach live check | `coach-live.yml` | manual | One real Ask Coach call (Claude) or one real Polly voice recording; prints the answer or error |
+| HD animations pack | `hd-animations.yml` | push to `main` touching `ios/HDAnimations/**`, manual (dry run default) | Packs the HD exercise animations (`pack.py`) and publishes new files + `manifest.json` to the `hd-animations` release; deletes files the manifest no longer lists (#932) |
 
 ### Operations workflows
 

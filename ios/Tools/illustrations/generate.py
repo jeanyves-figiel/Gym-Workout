@@ -8,8 +8,9 @@ anatomical figure with the worked muscles in the app's load colours, the machine
 small front/back muscle map. Frames are rasterised to palette PNGs (transparent background; the app
 draws the category gradient behind them).
 
-Writes ios/MonkeyWorkout/Resources/Illustrations.xcassets/illustration-<id>-<frame>.imageset, the
-Swift id list ios/Packages/GymCore/Sources/WorkoutEngine/Exercise+Illustrations.swift, the movement table
+Writes the HD frames ios/HDAnimations/<id>/<frame>.png (the HD pack downloaded after sign-up, pack.py, #932), the
+light frames bundled in the app (lite.py: Illustrations.xcassets), the Swift id list
+ios/Packages/GymCore/Sources/WorkoutEngine/Exercise+Illustrations.swift, the movement table
 ExerciseMotion+Table.swift next to it and the media ledger ios/EXERCISE_MEDIA.md. Check every animation first:
 python3 ios/Tools/illustrations/check.py
 
@@ -30,6 +31,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import art  # noqa: E402
 import cycles  # noqa: E402
+import lite  # noqa: E402
 import motion  # noqa: E402
 import tweens  # noqa: E402
 
@@ -39,7 +41,7 @@ TRAVEL = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercises+Travel.swift"
 VARIATIONS = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercises+Variations.swift"
 GYMAPP = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercises+GymApp.swift"
 CLIMBING = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercises+Climbing.swift"
-ASSETS = IOS / "MonkeyWorkout/Resources/Illustrations.xcassets"
+HD = IOS / "HDAnimations"
 SWIFT_OUT = IOS / "Packages/GymCore/Sources/WorkoutEngine/Exercise+Illustrations.swift"
 MOTION_OUT = IOS / "Packages/GymCore/Sources/WorkoutEngine/ExerciseMotion+Table.swift"
 LEDGER = IOS / "EXERCISE_MEDIA.md"
@@ -184,22 +186,18 @@ def build():
 
 
 def write(cat, frames, motions):
-    if ASSETS.exists():
-        shutil.rmtree(ASSETS)
-    ASSETS.mkdir(parents=True)
-    (ASSETS / "Contents.json").write_text(json.dumps({"info": {"author": "xcode", "version": 1}}, indent=2) + "\n")
-    jobs = [(f"illustration-{ex_id}-{f}", svg, SIZE if f in (0, len(svgs) // 2, len(svgs) - 1) else TWEEN_SIZE)
+    # #932: HD frames go to ios/HDAnimations (the downloaded HD pack, pack.py); the app bundles light frames (lite.py).
+    if HD.exists():
+        shutil.rmtree(HD)
+    HD.mkdir(parents=True)
+    jobs = [(ex_id, f, svg, SIZE if f in (0, len(svgs) // 2, len(svgs) - 1) else TWEEN_SIZE)
             for ex_id, svgs in sorted(frames.items()) for f, svg in enumerate(svgs)]
     with ProcessPoolExecutor() as pool:
-        pngs = pool.map(to_png, [svg for _, svg, _ in jobs], [size for _, _, size in jobs], chunksize=16)
-        for (name, _, _), png in zip(jobs, pngs):
-            d = ASSETS / f"{name}.imageset"
-            d.mkdir()
-            (d / f"{name}.png").write_bytes(png)
-            (d / "Contents.json").write_text(json.dumps({
-                "images": [{"filename": f"{name}.png", "idiom": "universal"}],
-                "info": {"author": "xcode", "version": 1},
-            }, indent=2) + "\n")
+        pngs = pool.map(to_png, [svg for _, _, svg, _ in jobs], [size for *_, size in jobs], chunksize=16)
+        for (ex_id, f, _, _), png in zip(jobs, pngs):
+            (HD / ex_id).mkdir(exist_ok=True)
+            (HD / ex_id / f"{f}.png").write_bytes(png)
+    lite.build()
 
     ids = ",\n".join(f'        "{i}"' for i in sorted(frames))
     counts = ",\n".join(f'        "{i}": {len(f)}' for i, f in sorted(frames.items()) if len(f) != FRAMES)
@@ -207,8 +205,9 @@ def write(cat, frames, motions):
 
 /// Every catalog exercise is illustrated with MonkeyWorkout's own art (#170): the movement in {FRAMES} frames, more
 /// for fast, large movements (#256: `frameCounts`) (#229: start, eased in-betweens, middle key, end), worked
-/// muscles highlighted, equipment drawn. Asset names: `illustration-<id>-<frame>` in the app's
-/// Illustrations.xcassets. Source + license of each exercise's media: ios/EXERCISE_MEDIA.md.
+/// muscles highlighted, equipment drawn. The app bundles `liteFrameCount` light frames per exercise
+/// (`illustration-<id>-<k>` in Illustrations.xcassets, #932); all frames come with the downloaded HD pack
+/// (`HDAnimations`). Source + license of each exercise's media: ios/EXERCISE_MEDIA.md.
 public enum ExerciseIllustrations {{
     /// Frames of most illustrations: start (0), eased in-betweens, end (frameCount - 1).
     public static let frameCount = {FRAMES}
@@ -227,11 +226,20 @@ public enum ExerciseIllustrations {{
         ids.contains(exerciseId) ? frameCounts[exerciseId] ?? frameCount : 0
     }}
 
+    /// Frames of each exercise bundled in the app (#932): `liteFrames`-chosen HD frames at half size.
+    public static let liteFrameCount = 9
+
+    /// HD frame shown by each bundled light frame: evenly spread, start, middle and end included (lite.py).
+    public static func liteFrames(_ count: Int) -> [Int] {{
+        (0..<liteFrameCount).map {{ k in (k * (count - 1) + (liteFrameCount - 1) / 2) / (liteFrameCount - 1) }}
+    }}
+
     /// Start, middle and end frames of `count` frames (the hand-drawn key poses).
     public static func keyFrames(_ count: Int) -> [Int] {{
         [0, count / 2, count - 1]
     }}
 
+    /// Bundled light frame `frame` (0 ..< liteFrameCount).
     public static func assetName(_ exerciseId: String, frame: Int) -> String {{
         "illustration-\\(exerciseId)-\\(frame)"
     }}
@@ -241,9 +249,9 @@ extension Exercise {{
     /// True when the exercise has one of the app's illustrations (every catalog exercise does).
     public var hasIllustration: Bool {{ ExerciseIllustrations.ids.contains(id) }}
 
-    /// Asset names of the illustration frames (start … end). Empty without an illustration.
+    /// Asset names of the bundled light frames (start … end, #932). Empty without an illustration.
     public var illustrationAssets: [String] {{
-        (0..<ExerciseIllustrations.frameCount(of: id)).map {{ ExerciseIllustrations.assetName(id, frame: $0) }}
+        (hasIllustration ? 0..<ExerciseIllustrations.liteFrameCount : 0..<0).map {{ ExerciseIllustrations.assetName(id, frame: $0) }}
     }}
 
     /// Every catalog exercise has media.

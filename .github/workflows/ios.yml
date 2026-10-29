@@ -64,6 +64,17 @@ jobs:
             CODE_SIGNING_ALLOWED=NO > device.log 2>&1 \
             || { grep -E 'error:' device.log | sort -u; tail -n 50 device.log; exit 1; }
           tail -n 5 device.log
+      # App size (#932): device build of the TestFlight scheme, biggest parts first, in the job summary.
+      - name: App size report
+        run: |
+          A=build-device/Build/Products/Staging-iphoneos/MonkeyWorkout.app
+          {
+            echo "### App size (unsigned device build, uncompressed)"
+            echo '```'
+            du -sh "$A"
+            find "$A" -maxdepth 3 \( -name '*.car' -o -name '*.appex' -o -name '*.app' -o -name '*.bundle' -o -name '*.framework' \) -prune -exec du -sh {} + | sort -rh | head -15
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
       # Complications (#190): the widget extension must sit in the Watch app's PlugIns with the WidgetKit extension point.
       - name: Check Watch complications are embedded
         run: |

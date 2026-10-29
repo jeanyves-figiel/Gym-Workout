@@ -51,6 +51,12 @@ struct MainTabView: View {
     /// Exercise page opened by Visual Intelligence or Shortcuts (#617).
     @State private var exerciseLaunch = ExerciseLaunch.shared
     @State private var videoShare = VideoShareLaunch.shared
+    @State private var hd = HDAnimations.shared
+
+    private var showHDOffer: Bool {
+        !hd.offered && !hd.enabled && !model.demo && model.tourStep == nil && !model.offerPro && whatsNew == nil
+            && !model.meOpen && !model.settingsOpen
+    }
 
     /// What's new with the X top right (#556); its own function keeps `body` quick to type-check.
     private func whatsNewSheet(_ notes: WhatsNew) -> some View {
@@ -117,6 +123,8 @@ struct MainTabView: View {
             Task { await autoShare() }
             // Workouts and sets from a Garmin watch (#550).
             Task { await GarminSync.shared.pull() }
+            // HD animations (#932): an unfinished download or changed art.
+            hd.resume()
         }
         .onChange(of: health.snapshot.recentSports.count) { Task { await autoShare() } }
         // Style picked here or on the Watch (#681): an edited Train layout follows it too.
@@ -142,6 +150,22 @@ struct MainTabView: View {
         .sheet(item: Binding(get: { model.offerPro ? nil : whatsNew }, set: { whatsNew = $0 }), onDismiss: WhatsNew.markSeen) {
             whatsNewSheet($0)
         }
+        // HD animations offer (#932 A): once per device, when nothing else is showing (after sign-up and the tour).
+        .sheet(isPresented: Binding(get: { showHDOffer }, set: { if !$0 { hd.offered = true } })) {
+            NavigationStack { HDAnimationsOffer() }
+        }
+        // #932 B: "HD moves ready" once the pack is on the device.
+        .overlay(alignment: .top) {
+            if hd.justFinished {
+                HDReadyToast()
+                    .task {
+                        try? await Task.sleep(for: .seconds(4))
+                        withAnimation { hd.justFinished = false }
+                    }
+            }
+        }
+        .animation(.spring, value: hd.justFinished)
+        .task { hd.resume() }
     }
 }
 

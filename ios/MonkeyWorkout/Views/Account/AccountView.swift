@@ -55,6 +55,7 @@ struct AccountView: View {
         static let bike = "Bike sensors power meter cadence heart rate strap ftp zones cycling watts"
         static let style = "Style look theme monkey coach watch face home"
         static let widgets = "Home Screen widgets"
+        static let hd = "HD animations exercise movement download quality storage size wi-fi"
         static let monkeyGrade = "MonkeyGrade climbing connected apps"
         static let password = "Password sign in"
         static let email = "Email sign in"
@@ -73,7 +74,7 @@ struct AccountView: View {
         static let you = [pro, profile, gym, body, onboarding]
         static let training = [method, flow, coach, reminders, climbing, fuel]
         static let watch = [watchStart, action, lift, garmin, bike]
-        static let look = [style, widgets, monkeyGrade]
+        static let look = [style, widgets, hd, monkeyGrade]
         static let account = [password, email, security, devices, lock, export, signOut, delete]
         static let help = [whatsNew, report, privacy, terms, support]
         static let all = you + training + watch + look + account + help
@@ -348,6 +349,8 @@ struct AccountView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                // HD animations (#932 B): the full-frame pack, downloaded on Wi-Fi.
+                if search.matches(Find.hd) { HDAnimationsSettingsCard() }
                 if search.matches(Find.monkeyGrade) { monkeyGradeRow(user) }
             }
         }
