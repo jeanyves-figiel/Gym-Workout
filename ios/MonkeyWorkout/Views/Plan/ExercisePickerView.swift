@@ -17,6 +17,10 @@ struct ExercisePickerView: View {
     /// Bases whose variations are shown (#174).
     @State private var expanded: Set<String> = []
     @State private var closeGuard = CloseGuard()
+    /// Ask Coach from the picker (#934): type, talk or snap the machine; Coach's + ticks exercises here.
+    @State private var asking: AskCoachRequest?
+    @State private var gate: ProGate?
+    @AppStorage(AskCoachPref.bubbleKey) private var coachShown = true
     /// Selection the picker opened with, the Undo baseline (#285).
     private let initialSelection: [String]
 
@@ -85,6 +89,10 @@ struct ExercisePickerView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     ContentTitle(title: "Add exercises").padding(.horizontal, 16)
+                    if coachShown {
+                        FreestyleCoachBar { entry in ProStore.shared.run(.askCoach, $gate) { ask(entry) } }
+                            .padding(.horizontal, 16)
+                    }
                     categoryTiles
                     muscleChips
                     Text("\(results.count) exercises").eyebrow().padding(.horizontal, 16).padding(.top, 4)
@@ -121,6 +129,11 @@ struct ExercisePickerView: View {
                     CustomExerciseBuilderView(existing: e)
                 }
             }
+            .sheet(item: $asking) { r in
+                CoachChatView(ask: r, freestyle: CoachFreestyle(lined: coachPicks))
+                    .remotePaused(.askCoach)
+            }
+            .proPaywall($gate)
             .safeAreaInset(edge: .bottom) {
                 if !selected.isEmpty { addBar }
             }
@@ -233,6 +246,17 @@ struct ExercisePickerView: View {
         .background(LinearGradient(stops: [.init(color: Theme.bg.opacity(0), location: 0), .init(color: Theme.bg, location: 0.45)],
                                    startPoint: .top, endPoint: .bottom).ignoresSafeArea(edges: .bottom))
         .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    private func ask(_ entry: FreestyleCoachEntry) {
+        let picked = selected.compactMap { Exercise.find($0)?.name }
+        asking = AskCoachRequest(focus: .picker(picked: picked), listen: entry == .talk, photo: entry == .photo)
+    }
+
+    /// The selection as Coach's + marks see it (#934): ticking there ticks here, up to the limit.
+    private var coachPicks: Binding<[Exercise]> {
+        Binding(get: { selected.compactMap { Exercise.find($0) } },
+                set: { selected = Array($0.map(\.id).prefix(max(0, limit))) })
     }
 
     private func toggle(_ e: Exercise) {

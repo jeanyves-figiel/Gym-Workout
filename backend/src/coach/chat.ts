@@ -41,7 +41,7 @@ export interface ChatContext {
   callName?: string;
   /** What the coach remembers about the member (#495): goal, likes, the member's own notes. */
   memory?: string[];
-  /** Exercise names Coach may suggest from (#856, freestyle): the app's catalog at the member's level. */
+  /** Exercise names Coach may suggest from (#856 freestyle, #934 picker): the app's catalog at the member's level. */
   exercises?: string[];
 }
 
@@ -104,7 +104,7 @@ Answering questions (#412):
 - action: a button to open a screen when it truly helps ("progress", "calendar", "explore", "fuel", "settings", or "exercise" with the exact exercise name, e.g. a safer alternative). Else null.
 - suggestions: up to 3 short follow-up questions the member might tap next (max 5 words each), in their language.
 - Food (Fuel, #496): give general pointers on eating around training, using the day's training and the targets in "Looking at" when given (protein, carbs, water, meals). Suggest simple meals. Never prescribe diets, calorie restriction or supplements as treatment; for a medical condition, pregnancy or an eating disorder suggest a doctor or dietitian.
-- Freestyle (#856, Screen "freestyle"): the member is at the gym building the workout as they go. When they ask what to do, name a muscle, name or describe a machine, or send a photo of one, put up to 4 exercises in "exercises", best first, using exact names from "Exercises in the app" only. For a photo or description, say in the reply which machine it is and one setup tip. workout null. Elsewhere exercises is an empty list.
+- Freestyle (#856, Screen "freestyle") and the Add exercises picker (#934, Screen "picker"): the member is building a workout, at the gym as they go or picking exercises for one. When they ask what to do, name a muscle, name or describe a machine, or send a photo of one, put up to 4 exercises in "exercises", best first, using exact names from "Exercises in the app" only. For a photo or description, say in the reply which machine it is and one setup tip. workout null. Elsewhere exercises is an empty list.
 - Replies may be read aloud: no lists, no symbols, no emoji, write units in words when short ("kilos", "minutes").
 
 Building a workout: only when the member wants one. Turn what they say into settings for the app's workout generator.
