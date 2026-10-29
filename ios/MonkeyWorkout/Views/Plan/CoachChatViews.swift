@@ -66,7 +66,7 @@ extension AppModel {
                                 // What the coach remembers (#495), within the server's limits.
                                 memory: coachFacts.isEmpty ? nil : coachFacts.prefix(20).map { String($0.prefix(120)) },
                                 // Building as they go (#856): the names Coach may hand back as exercises to add.
-                                exercises: focus?.screen == CoachFocus.freestyleScreen ? Freestyle.coachNames(profile: p) : nil)
+                                exercises: focus?.wantsExercises == true ? Freestyle.coachNames(profile: p) : nil)
     }
 
     /// Throws when the server can't be reached, so the chat shows an error card with Retry (#539).
@@ -113,8 +113,8 @@ extension AppModel {
 struct CoachFreestyle {
     /// What's lined up on the start screen, in order.
     var lined: Binding<[Exercise]>
-    /// ▶: this one now, then what's lined up.
-    let start: (Exercise) -> Void
+    /// ▶: this one now, then what's lined up. None in the Add exercises picker (#934): + ticks it there.
+    var start: ((Exercise) -> Void)?
 }
 
 /// The chat: a sheet from the 🐵 header tile and sparks (#412) that knows the screen.
@@ -270,6 +270,7 @@ struct CoachChatView: View {
     }
 
     private var hello: String {
+        if focus?.screen == CoachFocus.pickerScreen { return "What are you after? Name a muscle or a machine, or snap the machine and I'll find its exercises." }
         if freestyle != nil { return "What do you want to hit now? Name a muscle, tell me the machine in front of you, or snap it." }
         if let focus, focus.screen != "train" { return "Ask me anything about \(focus.title), by text or voice." }
         return "Hey! What do you feel like today? Tell me your time, what to train and anything sore."
@@ -415,7 +416,7 @@ struct CoachChatView: View {
     }
 
     /// Coach's exercises on the freestyle screen (#856, design A + B): ▶ starts it now, + lines it up (the number once
-    /// lined up), and "Line up all" for the rest.
+    /// lined up), and "Line up all" for the rest. In the Add exercises picker (#934) + ticks it, no ▶.
     private func exerciseCards(_ list: [Exercise]) -> some View {
         let fresh = list.filter { !linedIds.contains($0.id) }
         return VStack(spacing: 6) {
@@ -429,10 +430,12 @@ struct CoachChatView: View {
                     Spacer(minLength: 4)
                     Button { line(e) } label: { FreestyleLineMark(position: at.map { $0 + 1 }, size: 34) }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(at == nil ? "Line up \(e.name)" : "Take \(e.name) out of the line-up")
-                    Button { startNow(e) } label: { FreestylePlayMark(size: 34) }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Start \(e.name) now")
+                        .accessibilityLabel(at == nil ? (freestyle?.start == nil ? "Add \(e.name)" : "Line up \(e.name)") : "Take \(e.name) out of the line-up")
+                    if freestyle?.start != nil {
+                        Button { startNow(e) } label: { FreestylePlayMark(size: 34) }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Start \(e.name) now")
+                    }
                 }
                 .foregroundStyle(.white)
                 .padding(10)
@@ -441,7 +444,7 @@ struct CoachChatView: View {
             }
             if fresh.count > 1 {
                 Button { fresh.forEach { line($0) } } label: {
-                    Label("Line up all \(fresh.count)", systemImage: "plus")
+                    Label(freestyle?.start == nil ? "Add all \(fresh.count)" : "Line up all \(fresh.count)", systemImage: "plus")
                         .font(Theme.label(13)).foregroundStyle(Theme.ink)
                         .frame(maxWidth: .infinity).padding(.vertical, 11)
                         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.lime))
@@ -463,7 +466,7 @@ struct CoachChatView: View {
     }
 
     private func startNow(_ e: Exercise) {
-        freestyle?.start(e)
+        freestyle?.start?(e)
         dismiss()
     }
 
@@ -730,7 +733,7 @@ extension Demo {
     /// Demo coach (no network): a shoulder-safe legs workout for any message; a form tip with an open button when asked
     /// from an exercise (#412).
     static func coachAnswer(_ text: String, focus: CoachFocus? = nil) throws -> CoachChatAnswer<CoachWorkoutSettings> {
-        if focus?.screen == CoachFocus.freestyleScreen {
+        if focus?.wantsExercises == true {
             let json = #"""
             {"reply":"That's a cable stack with a rope: perfect for triceps. Start with pushdowns, elbows pinned to your sides.",
              "workout":null,"action":null,"exercises":["Cable triceps pushdown","Face pull","Straight-arm pulldown"],
