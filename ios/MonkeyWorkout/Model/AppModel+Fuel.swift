@@ -53,7 +53,8 @@ extension AppModel {
         if Calendar.current.isDateInToday(start), at < Date() { at = Date().addingTimeInterval(30 * 60) }
         let gymDone = out.contains { if case .gym = $0.kind { return true } else { return false } }
         if !gymDone {
-            for s in week.plan.sessions where s.weekday == wd && !doneIds.contains(s.id) {
+            // Skipped workouts are gone, as on Train (#936).
+            for s in daySessions(in: week, weekday: wd) where !doneIds.contains(s.id) {
                 out.append(FuelActivity(id: s.id, kind: .gym, title: s.title, start: at, minutes: s.estMin, done: false))
                 at = at.addingTimeInterval(Double(s.estMin + 60) * 60)
             }
