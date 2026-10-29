@@ -27,6 +27,8 @@ Other territories get Apple's equalized price. The free week is one per Apple ID
 
 `SUBSCRIPTION_TESTS=on` (staging only, in `fly.staging.toml`): no Apple involved. Account → MonkeyWorkout Pro → **Staging test**: pick Server / Off / Preview / Enforced for your account only, then buy any plan (fake, no charge; subscriptions start with the free week, Lifetime never expires), cancel auto-renew or end it now. Entitlement carries `test` when on. Never set on production.
 
+Only allow-listed accounts get it (#924): Actions → **Staging testers** → `accounts` (ids, masked emails, nicknames) to find one, then `add` with the email or account id, `remove`, `list` (table `subscription_testers`, the account may sign up later), plus any email in the optional Fly secret `SUBSCRIPTION_TEST_EMAILS`. Everyone else gets 404 on the test routes and their old fake purchases stop counting.
+
 ## Server switch `SUBSCRIPTIONS` (Fly env, default `off`)
 
 | Value | App |

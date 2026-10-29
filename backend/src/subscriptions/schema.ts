@@ -40,5 +40,11 @@ export const ensureSubscriptionSchema = (db: DB): void => {
       mode TEXT,
       updated_at TEXT NOT NULL
     );
+    -- Staging test mode allow-list (#924): added by the "Staging testers" workflow, never by an API route.
+    CREATE TABLE IF NOT EXISTS subscription_testers (
+      email TEXT PRIMARY KEY COLLATE NOCASE,
+      note TEXT,
+      added_at TEXT NOT NULL
+    );
   `);
 };

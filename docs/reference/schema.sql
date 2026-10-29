@@ -636,6 +636,12 @@ CREATE INDEX sports_user_time ON sports(user_id, julianday(start));
 
 CREATE INDEX sports_user_updated ON sports(user_id, updated_at);
 
+CREATE TABLE subscription_testers (
+      email TEXT PRIMARY KEY COLLATE NOCASE,
+      note TEXT,
+      added_at TEXT NOT NULL
+    );
+
 CREATE TABLE subscription_tests (
       user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       mode TEXT,

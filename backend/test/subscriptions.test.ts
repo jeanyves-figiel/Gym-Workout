@@ -244,6 +244,18 @@ describe('staging test mode allow-list (#924)', () => {
     expect(off.entitlement(t.id)).not.toHaveProperty('test');
   });
 
+  it('testers kept in the database count too, whatever the case of the email (#924)', async () => {
+    start({ SUBSCRIPTION_TESTS: 'on', SUBSCRIPTION_TEST_EMAILS: '' });
+    const f = await signUp('friend@example.com');
+    const svc = new SubscriptionService({ db, decode: () => Promise.reject(new Error('unused')), now: () => clock, mode: 'off', productIds: [], bundleIds: [], tests: true, testEmails: [] });
+    expect(await entitlement(f.token)).not.toHaveProperty('test');
+    svc.addTester(' Friend@Example.com ', 'friend');
+    expect(svc.testers()).toMatchObject([{ email: 'friend@example.com', note: 'friend', account: 1 }]);
+    expect(await entitlement(f.token)).toHaveProperty('test');
+    expect(svc.removeTester('FRIEND@example.com')).toBe(true);
+    expect(await entitlement(f.token)).not.toHaveProperty('test');
+  });
+
   it('a deployed server with no list lets nobody in', () => {
     const prod = { NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(32), CODE_PEPPER: 'p', MAIL_TRANSPORT: 'console', BACKUP_DIR: 'off', SUBSCRIPTION_TESTS: 'on' };
     expect(loadConfig(prod).subscriptions.testEmails).toEqual([]);

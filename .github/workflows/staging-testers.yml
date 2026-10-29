@@ -1,0 +1,60 @@
+name: Staging testers
+
+# Manual (#924): who may use Pro test mode (fake purchases) on staging. Adds / removes one email in the
+# `subscription_testers` table, or lists them (masked). Staging only: production has no test mode and admin.ts refuses.
+# Runs backend/src/admin.ts on the Fly machine (as the app user, same database). No new secrets.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'add, remove, list (testers) or accounts (all staging accounts: id, masked email, nickname)'
+        type: choice
+        options: [add, remove, list, accounts]
+        default: add
+      email:
+        description: 'Account email or id from accounts (add); email (remove). The account may sign up later'
+        required: false
+      note:
+        description: 'Who (letters, digits, - _ . only)'
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  testers:
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_APP: monkeyworkout-staging
+      HOST: workout-staging.monkeygrade.cloud
+      ACTION: ${{ inputs.action }}
+      NOTE: ${{ inputs.note }}
+    steps:
+      # The repo is public: the email is read from the event file and masked before any step prints its env (#432).
+      - name: Mask email
+        run: |
+          email=$(jq -r '.inputs.email // ""' "$GITHUB_EVENT_PATH" | tr -d '\r\n')
+          [ -n "$email" ] && echo "::add-mask::$email"
+          echo "EMAIL=$email" >> "$GITHUB_ENV"
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master, pinned (#432)
+      - name: Validate inputs
+        run: |
+          case "$ACTION" in
+            add) printf '%s' "$EMAIL" | grep -Eq '^([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|[A-Za-z0-9-]{8,64})$' || { echo "::error::Valid email or account id required"; exit 1; } ;;
+            remove) printf '%s' "$EMAIL" | grep -Eq '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$' || { echo "::error::Valid email required"; exit 1; } ;;
+          esac
+          if [ -n "$NOTE" ] && ! printf '%s' "$NOTE" | grep -Eq '^[A-Za-z0-9._-]{1,80}$'; then echo "::error::note: letters, digits, - _ . only"; exit 1; fi
+      - name: Wake the machine
+        run: curl -fsS --retry 5 --retry-delay 3 "https://$HOST/healthz"
+      - name: Run
+        run: |
+          case "$ACTION" in
+            add) ARGS="tester-add $EMAIL"; if [ -n "$NOTE" ]; then ARGS="$ARGS --note $NOTE"; fi ;;
+            remove) ARGS="tester-remove $EMAIL" ;;
+            accounts) ARGS="accounts" ;;
+            *) ARGS="testers" ;;
+          esac
+          # The entrypoint drops to the app user so the SQLite files keep their owner.
+          flyctl ssh console -a "$FLY_APP" -C "docker-entrypoint.sh node --disable-warning=ExperimentalWarning /app/src/admin.ts $ARGS"
