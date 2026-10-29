@@ -51,6 +51,7 @@ flowchart LR
 | Engine | `ios/Packages/GymCore/Sources/WorkoutEngine` | Pure Swift, deterministic per seed, exercise catalog, techniques, food, recipes |
 | API client | `ios/Packages/GymCore/Sources/APIClient` | `URLSession` without HTTP cache, Keychain token store, single-flight refresh |
 | Widgets + Live Activity | `ios/MonkeyWorkoutWidgets`, `ios/HomeWidgets`, `ios/Shared` | WidgetKit, ActivityKit, App Intents |
+| Share extension (#909) | `ios/MonkeyWorkoutShare`, `ios/ShareInbox` | Share → MonkeyFit: post link, caption, screenshots into the App Group inbox |
 | Watch app | `ios/MonkeyWorkoutWatch`, `ios/WatchShared` | SwiftUI, HealthKit workout sessions, Core Motion |
 | Watch complications | `ios/MonkeyWorkoutWatchComplications` | WidgetKit on watchOS |
 | Garmin app | `garmin/` | Monkey C (Connect IQ) |

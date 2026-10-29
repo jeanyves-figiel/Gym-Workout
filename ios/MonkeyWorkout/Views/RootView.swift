@@ -50,6 +50,7 @@ struct MainTabView: View {
     @State private var ask = CoachAsk.shared
     /// Exercise page opened by Visual Intelligence or Shortcuts (#617).
     @State private var exerciseLaunch = ExerciseLaunch.shared
+    @State private var videoShare = VideoShareLaunch.shared
 
     /// What's new with the X top right (#556); its own function keeps `body` quick to type-check.
     private func whatsNewSheet(_ notes: WhatsNew) -> some View {
@@ -87,6 +88,8 @@ struct MainTabView: View {
             if ProStore.shared.locked { ProPaywallSheet(gate: .askCoach) } else { CoachChatView(ask: r).remotePaused(.askCoach) }
         }
         .sheet(item: $exerciseLaunch.item) { i in NavigationStack { ExerciseDetailView(exerciseId: i.id) } }
+        // Shared from TikTok / Instagram (#909 A).
+        .sheet(item: $videoShare.draft) { d in VideoImportSheet(draft: d) }
         // Me sheet (#560): the Me pill at the top right of every tab.
         .sheet(isPresented: Bindable(model).meOpen) {
             NavigationStack {
@@ -110,6 +113,7 @@ struct MainTabView: View {
         // a sport the Watch tracked (it reaches the iPhone through Health) is posted when the app opens.
         .onChange(of: scenePhase) { _, p in
             guard p == .active else { return }
+            VideoShareLaunch.shared.check()
             Task { await autoShare() }
             // Workouts and sets from a Garmin watch (#550).
             Task { await GarminSync.shared.pull() }
