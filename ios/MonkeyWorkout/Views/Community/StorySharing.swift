@@ -277,8 +277,14 @@ final class ShareMoments {
             if !enabled { pending = nil }
         }
     }
-    private(set) var pending: ShareMoment?
+    private(set) var pending: ShareMoment? {
+        didSet { if pending?.id != oldValue?.id { MomentToastCenter.shared.update(paused ? nil : pending) } }
+    }
     var sharing: ShareMoment?
+    /// The app tour is showing: the toast waits under it.
+    var paused = false {
+        didSet { if paused != oldValue { MomentToastCenter.shared.update(paused ? nil : pending) } }
+    }
 
     private var seen: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "shareMoments.seen") ?? [])
 
@@ -342,7 +348,8 @@ final class ShareMoments {
     }
 }
 
-/// Gradient toast above the tab bar: "Your story is ready" (C).
+/// Gradient toast above the tab bar: "Your story is ready" (C). Grabber on top like the Undo bar (#811): it hides by
+/// itself after `MomentToastCenter.seconds`, and ✕, a tap on the bar (outside its buttons) or a swipe down hides it.
 struct MomentToast: View {
     let moment: ShareMoment
     @State private var moments = ShareMoments.shared
@@ -354,6 +361,7 @@ struct MomentToast: View {
                 .frame(width: 43, height: 77, alignment: .topLeading)
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(.white, lineWidth: 2))
+                .allowsHitTesting(false)
             VStack(alignment: .leading, spacing: 2) {
                 Text(moment.title).font(Theme.label(14)).lineLimit(2).minimumScaleFactor(0.8)
                 Text("Your story is ready").font(.caption.weight(.semibold)).opacity(0.9)
@@ -367,34 +375,118 @@ struct MomentToast: View {
                 .padding(.horizontal, 14).frame(minHeight: 40)
                 .background(Capsule().fill(Theme.lime))
                 .buttonStyle(.plain)
-            Button { moments.dismiss() } label: { Image(systemName: "xmark").font(.footnote.bold()).frame(width: 30, height: 40) }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Hide")
+            Button { moments.dismiss() } label: {
+                Image(systemName: "xmark").font(.footnote.bold()).frame(width: 36, height: 44).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Hide")
         }
         .foregroundStyle(.white)
         .padding(10)
+        .padding(.top, 6)
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(LinearGradient(colors: moment.poster.colors, startPoint: .leading, endPoint: .trailing)))
+        .overlay(alignment: .top) {
+            Capsule().fill(.white.opacity(0.6)).frame(width: 36, height: 4).padding(.top, 5)
+        }
         .shadow(color: .black.opacity(0.4), radius: 14, y: 6)
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .onTapGesture { moments.dismiss() }
+        .gesture(DragGesture(minimumDistance: 10).onEnded { if $0.translation.height > 20 { moments.dismiss() } })
+        .accessibilityAction(named: "Dismiss") { moments.dismiss() }
+        .accessibilityAction(.escape) { moments.dismiss() }
     }
 }
 
-/// Shows the moment toast above the tab bar and the story sheet; checks for new moments as history changes.
+/// Shows the moment toast in its own window above the tab bar, like the Undo bar (#811, #857): as an overlay on the
+/// TabView it took no taps on device, so ✕ did nothing and it stayed. Hides by itself after `seconds`.
+@MainActor
+final class MomentToastCenter {
+    static let shared = MomentToastCenter()
+    static let seconds: Double = 8
+
+    private var window: MomentToastWindow?
+    private let state = MomentToastState()
+    private var timer: Task<Void, Never>?
+
+    func update(_ moment: ShareMoment?) {
+        timer?.cancel()
+        guard let moment else {
+            withAnimation(.easeOut(duration: 0.25)) { state.moment = nil }
+            state.frame = .zero
+            return
+        }
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }) ?? UIApplication.shared.connectedScenes.first as? UIWindowScene
+        else { return }
+        if window == nil || window?.windowScene !== scene {
+            let w = MomentToastWindow(windowScene: scene)
+            w.state = state
+            // Under the Undo bar's window (.alert + 1).
+            w.windowLevel = .normal + 1
+            let host = UIHostingController(rootView: MomentToastHost(state: state))
+            host.view.backgroundColor = .clear
+            w.rootViewController = host
+            w.isHidden = false
+            window = w
+        }
+        state.lift = UndoCloseCenter.tabBarLift()
+        withAnimation(.snappy) { state.moment = moment }
+        UIAccessibility.post(notification: .announcement, argument: "\(moment.title). Your story is ready.")
+        timer = Task { [id = moment.id] in
+            try? await Task.sleep(for: .seconds(Self.seconds))
+            guard !Task.isCancelled, ShareMoments.shared.pending?.id == id else { return }
+            ShareMoments.shared.dismiss()
+        }
+    }
+}
+
+@MainActor @Observable
+private final class MomentToastState {
+    var moment: ShareMoment?
+    var lift: CGFloat = 0
+    /// Where the toast is, in window points: only touches there are taken.
+    var frame: CGRect = .zero
+}
+
+/// Touches go through except on the toast itself.
+private final class MomentToastWindow: UIWindow {
+    fileprivate weak var state: MomentToastState?
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard let state, state.moment != nil, state.frame.insetBy(dx: -4, dy: -4).contains(point) else { return nil }
+        return super.hitTest(point, with: event) ?? rootViewController?.view
+    }
+}
+
+private struct MomentToastHost: View {
+    let state: MomentToastState
+
+    var body: some View {
+        VStack {
+            Spacer()
+            if let m = state.moment {
+                MomentToast(moment: m)
+                    .id(m.id)
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { state.frame = $0 }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8 + state.lift)
+        .frame(maxWidth: Theme.readableWidth)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+/// Holds the story sheet, keeps the toast under the app tour and checks for new moments as history changes.
 struct ShareMomentsHost: ViewModifier {
     @Environment(AppModel.self) private var model
     @State private var moments = ShareMoments.shared
 
     func body(content: Content) -> some View {
         content
-            .overlay(alignment: .bottom) {
-                if let m = moments.pending, model.tourStep == nil {
-                    MomentToast(moment: m)
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 70)
-                        .readableColumn()
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
-            .animation(.snappy, value: moments.pending?.id)
+            .onChange(of: model.tourStep == nil, initial: true) { _, free in moments.paused = !free }
             .sheet(item: $moments.sharing) { m in StorySheet(poster: m.poster) }
             .task(id: model.observedStateVersion) { moments.check(model) }
     }
