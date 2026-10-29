@@ -213,7 +213,7 @@ struct LogClimbView: View {
                     card
                     Text(health.connected && health.writeWorkouts
                          ? "Also saved to Apple Health as a Climbing workout."
-                         : "Saved in MonkeyWorkout. Connect Apple Health in Progress → Body & Health to also save it there.")
+                         : "Saved in MonkeyWorkout. Connect Apple Health in Insights → Body & Health to also save it there.")
                         .font(.footnote).foregroundStyle(Theme.muted)
                     if editing {
                         Button(role: .destructive) { delete() } label: {

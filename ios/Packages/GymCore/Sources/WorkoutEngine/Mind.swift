@@ -83,13 +83,14 @@ public enum Breath: String, CaseIterable, Codable, Sendable, Identifiable {
     /// in Balban 2023; 10–20 min of slow breathing in resonance-breathing work) with a shorter start.
     public var byBreaths: Bool { self == .sleep478 }
 
-    /// Lengths offered, in minutes (in breaths when `byBreaths`); the first is the default.
+    /// Lengths offered, in minutes (in breaths when `byBreaths`); the first is the default. Box, sigh and wake-up
+    /// default to the 5 min a day Balban 2023 tested (#892), with a shorter option; the player shows them in order.
     public var lengths: [Int] {
         switch self {
-        case .box: [3, 5, 10]
+        case .box: [5, 3, 10]
         case .sleep478: [4, 8]
-        case .sigh: [1, 3, 5]
-        case .wake: [2, 4]
+        case .sigh: [5, 1, 3]
+        case .wake: [5, 3]
         case .bodyScan: [8, 15]
         case .focus: [2, 4]
         }

@@ -684,7 +684,7 @@ struct ProgrammeBuilderView: View {
             ProgrammeLiftChips(candidates: testableLifts(signatures), lifts: $lifts)
             Text(lifts.isEmpty
                  ? "No lifts: the programme ends with an easy week instead of a test."
-                 : "The last week is a test week with a PR attempt for each lift; Progress compares them with your start.")
+                 : "The last week is a test week with a PR attempt for each lift; Insights compares them with your start.")
                 .font(.caption).foregroundStyle(Theme.muted)
             ProgrammeCard(programme: draft)
         }

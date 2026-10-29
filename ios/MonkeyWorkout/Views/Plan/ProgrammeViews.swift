@@ -344,7 +344,7 @@ struct ProgrammeDetailView: View {
         .confirmationDialog("Leave \(programme.name)?", isPresented: $confirmLeave, titleVisibility: .visible) {
             Button("Leave programme", role: .destructive) { model.leaveProgramme() }
         } message: {
-            Text("Your own plan comes back. Progress keeps what you trained.")
+            Text("Your own plan comes back. Insights keeps what you trained.")
         }
     }
 

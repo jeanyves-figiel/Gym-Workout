@@ -2,7 +2,7 @@ import Charts
 import SwiftUI
 import WorkoutEngine
 
-/// "Progress" tab (#444, design A + C): a board of widgets the member arranges like Train (#260): level, streak,
+/// "Insights" tab (was Progress until #894; #444, design A + C): a board of widgets the member arranges like Train (#260): level, streak,
 /// a tile per part of Progress, recent sessions, consistency, sessions per week, and optional sport widgets.
 /// A tile opens its part as a page: training (live tiles #218, consistency, trends, climbing, sports), programmes,
 /// body, records, badges, muscles; recent sessions open History (#442). New users get a "day one" layout.
@@ -102,7 +102,7 @@ struct ProgressTabView: View {
                 }
                 if layout.widgets.isEmpty {
                     Button { arranging = true; addingWidget = true } label: {
-                        Label("Add widgets to Progress", systemImage: "plus.square.dashed")
+                        Label("Add widgets to Insights", systemImage: "plus.square.dashed")
                             .font(Theme.label(15)).foregroundStyle(Theme.lime)
                             .frame(maxWidth: .infinity).padding(.vertical, 28)
                             .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -115,7 +115,7 @@ struct ProgressTabView: View {
             .animation(.snappy, value: layout.widgets)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .navigationTitle("Progress")
+        .navigationTitle("Insights")
         .navigationDestination(for: UUID.self) { id in HistoryDetailView(recordId: id) }
         .navigationDestination(for: ProgrammeRoute.self) { r in model.findProgramme(r.id).map { ProgrammeDetailView(programme: $0) } }
         .navigationDestination(item: $opened) { s in
@@ -142,7 +142,7 @@ struct ProgressTabView: View {
     /// Title with Edit (#444); while editing, "Edit Progress" and Done.
     private var header: some View {
         HStack(spacing: 10) {
-            Text(arranging ? "Edit Progress" : "Progress").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
+            Text(arranging ? "Edit Insights" : "Insights").font(Theme.display(34)).lineLimit(1).minimumScaleFactor(0.7)
             Spacer()
             if arranging {
                 Button { withAnimation(.snappy) { arranging = false } } label: {
@@ -155,7 +155,7 @@ struct ProgressTabView: View {
                 CoachHeaderTile()
                 Button { withAnimation(.snappy) { arranging = true } } label: { HeaderTile(symbol: "square.grid.2x2.fill") }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Edit Progress")
+                .accessibilityLabel("Edit Insights")
                 .accessibilityHint("Add, remove, resize and reorder the widgets on this screen")
                 MePill()
             }
