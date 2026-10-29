@@ -1,0 +1,51 @@
+name: Security probe
+
+# Temporary (security audit): passive TLS/header checks on staging + production and a low-rate,
+# non-destructive rate-limit spoofing check on staging only. Removed before merge.
+
+on:
+  pull_request:
+    paths: ['.github/workflows/security-probe.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: TLS and headers (passive)
+        run: |
+          for h in workout-staging.monkeygrade.cloud workout.monkeygrade.cloud; do
+            echo "=================== $h"
+            for v in tls1 tls1_1 tls1_2 tls1_3; do
+              if echo | timeout 10 openssl s_client -connect $h:443 -servername $h -$v >/dev/null 2>&1; then echo "$v: accepted"; else echo "$v: refused"; fi
+            done
+            echo | openssl s_client -connect $h:443 -servername $h 2>/dev/null | openssl x509 -noout -subject -issuer -dates
+            echo "--- http redirect"; curl -sS -o /dev/null -w '%{http_code} -> %{redirect_url}\n' http://$h/healthz
+            for p in /healthz / /privacy /share/00000000-0000-0000-0000-000000000000 /.well-known/apple-app-site-association /v1/app-config /v1/me /admin /docs /metrics; do
+              echo "--- GET $p"; curl -sS -D - -o /tmp/b --max-time 15 https://$h$p | grep -iv '^date:'; head -c 300 /tmp/b; echo
+            done
+            echo "--- CORS preflight"; curl -sS -D - -o /dev/null -X OPTIONS -H 'Origin: https://evil.example' -H 'Access-Control-Request-Method: POST' https://$h/v1/auth/login
+            echo "--- TRACE"; curl -sS -o /dev/null -w '%{http_code}\n' -X TRACE https://$h/healthz
+            sleep 2
+          done
+      - name: Rate-limit key spoofing (staging only, ~26 requests)
+        run: |
+          H=https://workout-staging.monkeygrade.cloud
+          body='{"email":"probe-nobody-'$RANDOM'@example.invalid"}'
+          echo "--- baseline: 13 requests, no header (limit 10/min)"
+          for i in $(seq 1 13); do curl -sS -o /dev/null -w '%{http_code} ' -H 'content-type: application/json' -d "$body" $H/v1/auth/resend-verification; done; echo
+          sleep 65
+          echo "--- 13 requests, a new Fly-Client-IP each"
+          for i in $(seq 1 13); do curl -sS -o /dev/null -w '%{http_code} ' -H 'content-type: application/json' -H "Fly-Client-IP: 203.0.113.$i" -d "$body" $H/v1/auth/resend-verification; done; echo
+          sleep 65
+          echo "--- 13 requests, a new X-Forwarded-For each"
+          for i in $(seq 1 13); do curl -sS -o /dev/null -w '%{http_code} ' -H 'content-type: application/json' -H "X-Forwarded-For: 198.51.100.$i" -d "$body" $H/v1/auth/resend-verification; done; echo
+      - name: Error and body handling (staging only)
+        run: |
+          H=https://workout-staging.monkeygrade.cloud
+          echo "--- bad JSON"; curl -sS -H 'content-type: application/json' -d '{bad' $H/v1/auth/login; echo
+          echo "--- bad token"; curl -sS -H 'authorization: Bearer eyJhbGciOiJub25lIn0.eyJzdWIiOiJ4In0.' $H/v1/me; echo
+          echo "--- proto pollution"; curl -sS -H 'content-type: application/json' -d '{"__proto__":{"x":1},"email":"a@b.co"}' $H/v1/auth/password/forgot; echo
+          echo "--- 2 MB body"; head -c 2000000 /dev/zero | tr '\0' a | curl -sS -o /dev/null -w '%{http_code}\n' -H 'content-type: application/json' --data-binary @- $H/v1/auth/login
