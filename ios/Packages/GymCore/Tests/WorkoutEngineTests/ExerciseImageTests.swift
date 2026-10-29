@@ -26,13 +26,35 @@ import Testing
         let assets = ios.appendingPathComponent("MonkeyWorkout/Resources/Illustrations.xcassets")
         for e in Exercise.catalog {
             let names = e.illustrationAssets
-            #expect(names.count == ExerciseIllustrations.frameCount(of: e.id), "\(e.id)")
+            #expect(names.count == (e.hasIllustration ? ExerciseIllustrations.liteFrameCount : 0), "\(e.id)")
             for name in names {
                 let png = assets.appendingPathComponent("\(name).imageset/\(name).png")
                 #expect(FileManager.default.fileExists(atPath: png.path), "\(png.path)")
             }
         }
-        #expect(Exercise.get("back-squat").illustrationAssets == (0..<ExerciseIllustrations.frameCount(of: "back-squat")).map { "illustration-back-squat-\($0)" })
+        #expect(Exercise.get("back-squat").illustrationAssets == (0..<ExerciseIllustrations.liteFrameCount).map { "illustration-back-squat-\($0)" })
+    }
+
+    /// #932: every HD frame is in ios/HDAnimations (the downloaded pack); the light frames include start, middle, end.
+    @Test func hdFramesAndLightFrames() {
+        let ios = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let hd = ios.appendingPathComponent("HDAnimations")
+        for id in ExerciseIllustrations.ids {
+            let n = ExerciseIllustrations.frameCount(of: id)
+            for f in 0..<n {
+                #expect(FileManager.default.fileExists(atPath: hd.appendingPathComponent("\(id)/\(f).png").path), "\(id) \(f)")
+            }
+            #expect(!FileManager.default.fileExists(atPath: hd.appendingPathComponent("\(id)/\(n).png").path), "\(id) extra frame")
+            let lite = ExerciseIllustrations.liteFrames(n)
+            #expect(lite.count == ExerciseIllustrations.liteFrameCount && lite.first == 0 && lite.last == n - 1, "\(id)")
+            #expect(zip(lite, lite.dropFirst()).allSatisfy { $0 < $1 }, "\(id)")
+            #expect(ExerciseIllustrations.keyFrames(n).allSatisfy(lite.contains), "\(id)")
+        }
+        let squat = Exercise.get("back-squat").motion!
+        let lite = squat.sampled(ExerciseIllustrations.liteFrames(ExerciseIllustrations.frameCount(of: "back-squat")))
+        #expect(lite.points.count == ExerciseIllustrations.liteFrameCount && lite.points.first! == squat.points.first!)
     }
 
     @Test func everyIllustrationHasMotion() {

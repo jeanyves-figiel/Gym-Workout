@@ -19,3 +19,4 @@ xcuserdata/
 DerivedData/
 .claude/worktrees/
 __pycache__/
+ios/build/

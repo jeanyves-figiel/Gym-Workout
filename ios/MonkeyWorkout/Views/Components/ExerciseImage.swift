@@ -16,18 +16,20 @@ struct ExerciseImage: View {
         CustomExercise.isCustom(exercise.id) ? CustomExercises.shared.record(exercise.id) : nil
     }
 
-    /// Frames this exercise has (17–49 for catalog art, #256; 1–2 for a custom exercise; 0 without media).
+    /// Frames this exercise has (catalog art: 17–49 with the HD pack, #256, else the 9 bundled light frames, #932;
+    /// 1–2 for a custom exercise; 0 without media).
     static func frameCount(_ e: Exercise) -> Int {
         if CustomExercise.isCustom(e.id) { return CustomExercises.shared.record(e.id)?.frameCount ?? 0 }
-        return ExerciseIllustrations.frameCount(of: e.id)
+        guard e.hasIllustration else { return 0 }
+        return HDAnimations.shared.has(e.id) ? ExerciseIllustrations.frameCount(of: e.id) : ExerciseIllustrations.liteFrameCount
     }
 
     /// Has a picture: catalog illustration or a custom exercise's photo/pose.
     static func hasMedia(_ e: Exercise) -> Bool { frameCount(e) > 0 }
 
     private var image: UIImage? {
-        guard frame >= 0, frame < ExerciseIllustrations.frameCount(of: exercise.id) else { return nil }
-        return IllustrationImages.image(ExerciseIllustrations.assetName(exercise.id, frame: frame))
+        guard frame >= 0, frame < Self.frameCount(exercise) else { return nil }
+        return IllustrationImages.image(exercise.id, frame: frame, hd: HDAnimations.shared.has(exercise.id))
     }
 
     var body: some View {
@@ -74,24 +76,46 @@ enum IllustrationImages {
         return c
     }()
 
-    /// The decoded frame when ready, else the bundled image as before (decoded as it draws).
-    static func image(_ name: String) -> UIImage? {
-        if let decoded = cache.object(forKey: name as NSString) { return decoded }
-        return UIImage(named: name)
+    private static func key(_ exerciseId: String, _ frame: Int, hd: Bool) -> NSString {
+        "\(hd ? "hd-" : "")\(ExerciseIllustrations.assetName(exerciseId, frame: frame))" as NSString
     }
 
-    /// Decodes the exercise's illustration frames in the background.
-    static func prepare(_ exerciseId: String) {
-        let names = (0..<ExerciseIllustrations.frameCount(of: exerciseId)).map { ExerciseIllustrations.assetName(exerciseId, frame: $0) }
-        guard !names.isEmpty else { return }
+    /// Frame from the HD pack (#932) or the bundled light frame, undecoded.
+    private static func load(_ exerciseId: String, frame: Int, hd: Bool) -> UIImage? {
+        hd ? HDFrames.image(exerciseId, frame: frame) : UIImage(named: ExerciseIllustrations.assetName(exerciseId, frame: frame))
+    }
+
+    /// The decoded frame when ready, else loaded as before (decoded as it draws). A missing HD frame falls back to
+    /// the light frame at the same point of the movement.
+    static func image(_ exerciseId: String, frame: Int, hd: Bool) -> UIImage? {
+        if let decoded = cache.object(forKey: key(exerciseId, frame, hd: hd)) { return decoded }
+        if hd, let image = load(exerciseId, frame: frame, hd: true) { return image }
+        let n = ExerciseIllustrations.frameCount(of: exerciseId)
+        let lite = hd ? (ExerciseIllustrations.liteFrames(n).lastIndex { $0 <= frame } ?? 0) : frame
+        return load(exerciseId, frame: lite, hd: false)
+    }
+
+    /// Decodes the exercise's illustration frames (`frames` of them, HD or light) in the background.
+    static func prepare(_ exerciseId: String, frames: Int, hd: Bool) {
+        guard frames > 0 else { return }
         Task.detached(priority: .userInitiated) {
-            for name in names where IllustrationImages.cache.object(forKey: name as NSString) == nil {
-                guard let decoded = UIImage(named: name)?.preparingForDisplay() else { continue }
+            for f in 0..<frames where IllustrationImages.cache.object(forKey: key(exerciseId, f, hd: hd)) == nil {
+                guard let decoded = load(exerciseId, frame: f, hd: hd)?.preparingForDisplay() else { continue }
                 let cost = Int(decoded.size.width * decoded.scale * decoded.size.height * decoded.scale) * 4
-                IllustrationImages.cache.setObject(decoded, forKey: name as NSString, cost: cost)
+                IllustrationImages.cache.setObject(decoded, forKey: key(exerciseId, f, hd: hd), cost: cost)
             }
         }
     }
+
+    /// The catalog exercise's frames as shown now (HD or light).
+    @MainActor static func prepare(_ exerciseId: String) {
+        guard ExerciseIllustrations.ids.contains(exerciseId) else { return }
+        let hd = HDAnimations.shared.has(exerciseId)
+        prepare(exerciseId, frames: hd ? ExerciseIllustrations.frameCount(of: exerciseId) : ExerciseIllustrations.liteFrameCount, hd: hd)
+    }
+
+    /// HD pack removed: its decoded frames go too.
+    static func forgetHD() { cache.removeAllObjects() }
 }
 
 /// The movement, played a few times then at rest (never an endless loop), #188 / #229. Catalog art has 9 frames
@@ -138,9 +162,11 @@ struct ExerciseMotionView: View {
 
     private var frames: Int { ExerciseImage.frameCount(exercise) }
     private var canPlay: Bool { frames > 1 }
-    /// Path and phase labels; only for catalog art drawn with in-betweens.
+    /// Path and phase labels; only for catalog art drawn with in-betweens (the light frames: their points, #932).
     private var motion: ExerciseMotion? {
-        frames == ExerciseIllustrations.frameCount(of: exercise.id) ? exercise.motion : nil
+        guard exercise.hasIllustration, let m = exercise.motion else { return nil }
+        let n = ExerciseIllustrations.frameCount(of: exercise.id)
+        return frames == n ? m : m.sampled(ExerciseIllustrations.liteFrames(n))
     }
     private var phases: (ExerciseMotion.Phase, ExerciseMotion.Phase)? { motion?.phases(exercise.category) }
 
@@ -375,7 +401,7 @@ struct ExerciseImageHeader: View {
 
     /// Start / Middle / End of catalog art (its in-betweens only play), every frame of a custom exercise.
     static func keyFrames(_ e: Exercise, _ count: Int) -> [Int] {
-        count == ExerciseIllustrations.frameCount(of: e.id) ? ExerciseIllustrations.keyFrames(count) : Array(0..<count)
+        e.hasIllustration ? ExerciseIllustrations.keyFrames(count) : Array(0..<count)
     }
 
     private func strip(_ f: Int, of count: Int) -> some View {

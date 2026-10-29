@@ -21,6 +21,7 @@ All in the app's `Application Support` unless noted, written atomically with Dat
 | `health-snapshot.json` | `HealthManager` | Last HealthKit readings (readiness, steps, gym workouts from other apps) | No |
 | `form-reports.json` | `FormReportStore` | Form check reports (#833): reps, scores, faults and the joints of the worst rep (no pictures), last 60; wiped on sign-out | No |
 | `coach-voices/` | `CoachVoices` | Voice catalog and cached MP3 lines | No (downloaded) |
+| `hd-animations/` | `HDAnimations` | HD exercise animation pack (#932): `<id>.mwf` per exercise + `installed.json`; excluded from backup; kept on sign-out (not account data), deleted by Settings → HD animations off | No (downloaded) |
 | `gym-workout-export.json` (temporary directory) | `AccountView` | Data export while it is shared; protection `complete` | n/a |
 
 ### App Group (`group.<bundle id>`)
@@ -41,7 +42,7 @@ Access and refresh tokens, the Watch upload key and the MonkeyGrade link sign-in
 
 ## Settings and preferences
 
-Small UI preferences (style, toggles) live in `UserDefaults` / `@AppStorage`; nothing sensitive. A climbing session tracked live (`climbLive`, #829) stays there until finished, with the last grade scale (`climbLiveScale`). Ring through Silent (`timerAlarms.enabled`, off by default) and whether it was asked (`timerAlarms.asked`).
+Small UI preferences (style, toggles) live in `UserDefaults` / `@AppStorage`; nothing sensitive. A climbing session tracked live (`climbLive`, #829) stays there until finished, with the last grade scale (`climbLiveScale`). Ring through Silent (`timerAlarms.enabled`, off by default) and whether it was asked (`timerAlarms.asked`). HD animations (#932): `hdAnimations.enabled`, `hdAnimations.wifiOnly` (default on), `hdAnimations.offered`.
 
 ## Sign-out and deletion
 
