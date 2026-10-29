@@ -210,7 +210,7 @@ struct HistoryBars: View {
     }
 }
 
-/// Progress top (#868 A): "✦ Ask your history…" bar, starter chips, the answer card and Coach's sentence.
+/// Insights top (#868 A, #938 B + C): Coach monkey "Ask Coach about your training…" bar, question tiles, the answer card and Coach's sentence.
 struct ProgressAskBar: View {
     @Environment(AppModel.self) private var model
     @State private var draft = ""
@@ -230,13 +230,10 @@ struct ProgressAskBar: View {
             bar
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(HistoryAsk.starters(records: records), id: \.self) { q in
-                        Button { ask(q) } label: {
-                            Text(q.replacingOccurrences(of: "?", with: "")).font(Theme.label(12)).foregroundStyle(.white)
-                                .padding(.horizontal, 11).padding(.vertical, 7)
-                                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.cardStrong))
-                        }
-                        .buttonStyle(.plain)
+                    ForEach(HistoryAsk.starterTiles(records: records), id: \.self) { t in
+                        Button { ask(t.question) } label: { StarterTile(starter: t) }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(t.question)
                     }
                 }
             }
@@ -275,13 +272,17 @@ struct ProgressAskBar: View {
 
     private var bar: some View {
         HStack(spacing: 8) {
-            Image(systemName: "sparkles").font(.subheadline.weight(.black))
-            TextField("", text: $draft, prompt: Text("Ask your history…").foregroundStyle(Theme.ink.opacity(0.6)))
+            MonkeyFace(mood: .fired, scale: 0.36, gear: model.rank.gear)
+                .frame(width: 26, height: 24)
+                .frame(width: 30, height: 30)
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Theme.ink.opacity(0.12)))
+                .accessibilityHidden(true)
+            TextField("", text: $draft, prompt: Text("Ask Coach about your training…").foregroundStyle(Theme.ink.opacity(0.6)))
                 .font(Theme.label(15))
                 .focused($typing)
                 .submitLabel(.search)
                 .onSubmit { ask(draft) }
-                .accessibilityLabel("Ask your history")
+                .accessibilityLabel("Ask Coach about your training")
             if listener.listening {
                 ProgressView().tint(Theme.ink)
             } else if !draft.isEmpty {
@@ -297,7 +298,7 @@ struct ProgressAskBar: View {
             }
         }
         .foregroundStyle(Theme.ink)
-        .padding(.horizontal, 14).padding(.vertical, 12)
+        .padding(.leading, 8).padding(.trailing, 14).padding(.vertical, 8)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.lime))
     }
 
@@ -323,4 +324,38 @@ struct ProgressAskBar: View {
     }
 
     private struct OpenID: Identifiable { let id: String }
+}
+
+/// Small gradient question tile under the ask bar (#938 C): kind on top, short title below, one line each.
+private struct StarterTile: View {
+    let starter: HistoryStarter
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(kind).font(Theme.label(9)).tracking(1).opacity(0.8)
+            Text(starter.title).font(Theme.label(12)).lineLimit(1)
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: 170, alignment: .leading)
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Theme.routineGradient(palette)))
+    }
+
+    private var kind: String {
+        switch starter.kind {
+        case .best: "BEST"
+        case .compare: "COMPARE"
+        case .count: "COUNT"
+        case .volume: "VOLUME"
+        }
+    }
+
+    private var palette: Int {
+        switch starter.kind {
+        case .best: 0
+        case .compare: 1
+        case .count: 2
+        case .volume: 5
+        }
+    }
 }

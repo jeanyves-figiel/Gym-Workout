@@ -114,5 +114,8 @@ import Testing
         let s = HistoryAsk.starters(records: history, now: now, calendar: cal)
         #expect(s.first == "Best bench press this year?")
         #expect(s.contains("Workouts this month?"))
+        let tiles = HistoryAsk.starterTiles(records: history, now: now, calendar: cal)
+        #expect(tiles.map(\.kind) == [.best, .compare, .count, .volume])
+        #expect(tiles.first?.title == "Bench press this year")
     }
 }

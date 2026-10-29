@@ -57,6 +57,15 @@ extension AppModel {
         return isSkipped(s.id, in: week)
     }
 
+    /// Workouts still on a weekday of a calendar week, as Train shows them (#936): this week's skips or a later
+    /// week's skips ahead are gone. Fuel and the Calendar widget read it so they match Train.
+    func daySessions(in week: PlanCalendar.Week, weekday: Int) -> [Session] {
+        let current = week.start == Progression.weekStart(Date(), planCalendar)
+        let skipped = current ? skippedIds.subtracting(doneIds)
+            : Set(state.skippedAhead?[PlanCalendar.key(week.start, planCalendar)] ?? [])
+        return PlanCalendar.sessions(in: week, weekday: weekday, skipped: skipped)
+    }
+
     func setSkipped(_ skipped: Bool, _ sessionId: String, in week: PlanCalendar.Week) {
         let key = PlanCalendar.key(week.start, planCalendar)
         var all = state.skippedAhead ?? [:]

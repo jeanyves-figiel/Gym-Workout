@@ -342,7 +342,7 @@ struct CalendarWidget: View {
                 guard let date = cal.date(byAdding: .day, value: wd - 1, to: w.start) else { continue }
                 let day = cal.startOfDay(for: date)
                 var marks: [Mark] = []
-                let session = w.plan.sessions.first { $0.weekday == wd }
+                let session = model.daySessions(in: w, weekday: wd).first
                 if w.off[wd] != nil { marks.append(.off) }
                 if doneDays.contains(day) { marks.append(.done) } else if session != nil, day >= today { marks.append(.planned) }
                 if w.climbing.contains(wd) { marks.append(.climb) }

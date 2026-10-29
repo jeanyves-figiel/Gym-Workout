@@ -1,6 +1,25 @@
 {
   "releases": [
     {
+      "id": "2026-10-29.2",
+      "build": 85,
+      "date": "2026-10-29",
+      "items": [
+        {
+          "symbol": "number",
+          "tint": "mobility",
+          "title": "Build number in Account",
+          "body": "The bottom of Account now shows the build next to the version, like Version 1.0 (85), so you always know which update you run."
+        },
+        {
+          "symbol": "lock.shield",
+          "tint": "stretch",
+          "title": "Under the hood",
+          "body": "Fresher sign-in, email and Coach libraries keep the app secure and up to date."
+        }
+      ]
+    },
+    {
       "id": "2026-10-29.1",
       "build": 84,
       "date": "2026-10-29",

@@ -63,6 +63,14 @@ public struct HistoryPeriod: Equatable, Sendable {
     }
 }
 
+/// One question tile under the Insights ask bar (#938).
+public struct HistoryStarter: Hashable, Sendable {
+    public enum Kind: String, Sendable { case best, compare, count, volume }
+    public let kind: Kind
+    public let title: String
+    public let question: String
+}
+
 public enum HistoryAsk {
     // MARK: Questions
 
@@ -95,16 +103,23 @@ public enum HistoryAsk {
 
     /// Chips under the ask bar: the member's most logged main lift, a month back, this month, volume.
     public static func starters(records: [WorkoutRecord], now: Date = Date(), calendar cal: Calendar = .current) -> [String] {
-        var out: [String] = []
+        starterTiles(records: records, now: now, calendar: cal).map(\.question)
+    }
+
+    /// Question tiles under the ask bar (#938): kind (BEST, COMPARE, COUNT, VOLUME), a short title and the question asked.
+    public static func starterTiles(records: [WorkoutRecord], now: Date = Date(), calendar cal: Calendar = .current) -> [HistoryStarter] {
+        var out: [HistoryStarter] = []
         if let id = topLift(records) {
             let n = short(Exercise.get(id).name).lowercased()
-            out.append("Best \(n) this year?")
+            let cap = n.prefix(1).uppercased() + n.dropFirst()
+            out.append(HistoryStarter(kind: .best, title: "\(cap) this year", question: "Best \(n) this year?"))
             if let m = cal.date(byAdding: .month, value: -4, to: now) {
-                out.append("\(n.prefix(1).uppercased() + n.dropFirst()) vs \(monthNames[cal.component(.month, from: m) - 1].capitalized)?")
+                let month = monthNames[cal.component(.month, from: m) - 1].capitalized
+                out.append(HistoryStarter(kind: .compare, title: "\(cap) vs \(month)", question: "\(cap) vs \(month)?"))
             }
         }
-        out.append("Workouts this month?")
-        out.append("Weekly volume?")
+        out.append(HistoryStarter(kind: .count, title: "Workouts this month", question: "Workouts this month?"))
+        out.append(HistoryStarter(kind: .volume, title: "Weekly volume", question: "Weekly volume?"))
         return out
     }
 

@@ -329,6 +329,11 @@ public enum PlanCalendar {
         }
     }
 
+    /// Workouts still on a weekday of `week`, as Train shows them: skipped ones are gone (#849, #936).
+    public static func sessions(in week: Week, weekday: Int, skipped: Set<String>) -> [Session] {
+        week.plan.sessions.filter { $0.weekday == weekday && !skipped.contains($0.id) }
+    }
+
     /// Planned (not done) sessions between two dates, inclusive, with their date.
     public static func planned(in weeks: [Week], from: Date, to: Date, done: Set<String>, calendar cal: Calendar) -> [(date: Date, session: Session)] {
         let lo = key(from, cal), hi = key(to, cal)

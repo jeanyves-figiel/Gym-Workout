@@ -63,6 +63,19 @@ struct CoachFocus: Equatable {
                    detail: done.isEmpty ? "nothing done yet" : "done so far: " + done.joined(separator: ", "),
                    starters: ["Hit chest now", "The rack is busy", "Something for my back", "20 minutes left"])
     }
+
+    /// The Add exercises picker (#934): Coach answers with exercises to tick, like the freestyle screen.
+    static let pickerScreen = "picker"
+
+    /// `picked`: names already ticked, so Coach doesn't hand them back.
+    static func picker(picked: [String] = []) -> CoachFocus {
+        CoachFocus(screen: pickerScreen, title: "Adding exercises",
+                   detail: picked.isEmpty ? "nothing picked yet" : "picked so far: " + picked.joined(separator: ", "),
+                   starters: ["Something for my back", "Chest without a bench", "A warm-up for legs", "What's this machine?"])
+    }
+
+    /// Screens where Coach hands back exercise cards (#856, #934).
+    var wantsExercises: Bool { screen == Self.freestyleScreen || screen == Self.pickerScreen }
 }
 
 struct AskCoachRequest: Identifiable {

@@ -33,6 +33,8 @@ struct SyncedProfile: Codable, Equatable, Sendable {
     var trainLayout: TrainLayout?
     /// Customised Progress page (#444); nil = the default board.
     var progressBoard: ProgressBoard?
+    /// Insights focus (#939); nil = not picked yet, the picker shows on the next open of Insights.
+    var insightsFocus: InsightsFocus?
     /// Programmes the member made or copied (#269).
     var customProgrammes: [Programme]?
     /// Lift Focus block in progress (#499).
