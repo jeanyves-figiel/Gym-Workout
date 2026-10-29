@@ -58,7 +58,8 @@ Sign-in methods: email + password (verified by a 6-digit code), Sign in with App
 
 - Per client IP (address seen by Fly's proxy, not `X-Forwarded-For`): every public auth route shares a per-minute limit (`AUTH_RATE_LIMIT_PER_MIN`, default 10); `/v1/auth/refresh` 60/min; other per-route limits are listed in [endpoints.md](endpoints.md).
 - Per member: data export 3/hour, problem reports 10/hour, reports of posts/workouts 20/hour, coach chat and scans with a daily cap, call names for voices 20/day.
-- Global: paid model calls across all members per UTC day (`AI_DAILY_LIMIT`).
+- Global: paid model calls across all members per UTC day (`AI_DAILY_LIMIT`); AI moderation has its own pool (`MODERATION_DAILY_LIMIT`) and 40 checks per member a day → 429 `daily_limit` (#920).
+- Sign-in hashing queue: more than 64 waiting password hashes → 503 `busy` on auth routes, retry shortly (#927).
 - Row quotas per member and table (`ROW_QUOTAS` in `backend/src/quota.ts`): e.g. 100 000 set logs, 10 000 workouts (and PR attempts, body measurements, climbs, sports), 500 custom workouts → 409 `quota_exceeded`.
 - Byte quota per member: 50 MiB of synced data in all (`ACCOUNT_BYTES`) → 409 `quota_exceeded`. An upload that doesn't grow the total (an edit, a smaller copy) always passes.
 - Per item: a workout or custom workout at most 64 KB of JSON, other synced items smaller → 413 `too_large`.

@@ -146,7 +146,7 @@ export const programRoutes = (r: FastifyInstance, db: DB, now: () => Date, maile
     // AI check (#871) of the texts members haven't seen yet; flagged → refused like the word filter.
     const before = owner && owner.user_id === uid && owner.visibility !== 'private' ? (JSON.parse(owner.data) as typeof data) : undefined;
     const seen = new Set(before ? [before.name, before.about, before.goal, before.programme.name, before.programme.tagline, before.programme.summary] : []);
-    if (visibility !== 'private') await mod.assertAllowed({ texts: shown.filter((t) => !seen.has(t)) });
+    if (visibility !== 'private') await mod.assertAllowed({ userId: uid, texts: shown.filter((t) => !seen.has(t)) });
     const ts = now().toISOString();
     if (owner) {
       db.prepare('UPDATE community_programs SET data = ?, visibility = ?, updated_at = ? WHERE id = ?').run(json, visibility, ts, id);

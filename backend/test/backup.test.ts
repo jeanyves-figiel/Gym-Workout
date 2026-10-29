@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writ
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { applyPendingRestore, backupDirFor, backupNow, inspectCopy, listBackups, stageRestore } from '../src/backup.ts';
+import { applyPendingRestore, backupDirFor, backupNow, inspectCopy, listBackups, stageRestore, startHourlyCopyJob } from '../src/backup.ts';
 import { loadConfig, positiveInt } from '../src/config.ts';
 import { type DB, openDb } from '../src/db.ts';
 
@@ -104,5 +104,37 @@ describe('daily backups (#310)', () => {
 
   it('restores a fetched off-site copy by its own name', () => {
     expect(() => stageRestore(backupDirFor(dbPath), 'app-2026-10-01.offsite.db', dbPath)).toThrow(/no such backup/);
+  });
+});
+
+describe('hourly off-site copy (#923)', () => {
+  it('hands a checked copy of the live database to the upload, then deletes it', async () => {
+    addUser('a');
+    const dir = join(root, 'backups');
+    const seen: { hour: string; users: string[] }[] = [];
+    const logs: string[] = [];
+    let done!: () => void;
+    const finished = new Promise<void>((r) => (done = r));
+    const stop = startHourlyCopyJob(db, {
+      dir,
+      intervalMs: 3_600_000,
+      firstMs: 0,
+      now: () => new Date('2026-10-29T17:45:00Z'),
+      log: (m) => {
+        logs.push(m);
+        done();
+      },
+      upload: async (path, hour) => {
+        const copy = openDb(path);
+        seen.push({ hour, users: users(copy) });
+        copy.close();
+        return 'uploaded';
+      },
+    });
+    await finished;
+    stop();
+    expect(seen).toEqual([{ hour: '2026-10-29T17', users: ['a'] }]);
+    expect(logs).toEqual(['uploaded']);
+    expect(readdirSync(dir)).toEqual([]);
   });
 });

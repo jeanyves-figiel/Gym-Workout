@@ -230,6 +230,27 @@ describe('in-app subscriptions', () => {
   });
 });
 
+describe('staging test mode allow-list (#924)', () => {
+  it('only allow-listed accounts see test mode; fake purchases stop counting when an account leaves the list', async () => {
+    start({ SUBSCRIPTION_TESTS: 'on', SUBSCRIPTION_TEST_EMAILS: 'Tester@example.com' });
+    const t = await signUp('tester@example.com');
+    const o = await signUp('other@example.com');
+    const post = (token: string, url: string, payload: object) => app.inject({ method: 'POST', url, headers: auth(token), payload });
+    expect(await entitlement(o.token)).not.toHaveProperty('test');
+    expect((await post(o.token, '/v1/me/subscriptions/test/purchase', { productId: 'monkeyworkout.pro.yearly' })).statusCode).toBe(404);
+    expect((await post(t.token, '/v1/me/subscriptions/test/purchase', { productId: 'monkeyworkout.pro.lifetime' })).json()).toMatchObject({ pro: true, test: {} });
+    const off = new SubscriptionService({ db, decode: () => Promise.reject(new Error('unused')), now: () => clock, mode: 'off', productIds: [], bundleIds: [], tests: true, testEmails: [] });
+    expect(off.entitlement(t.id)).toMatchObject({ pro: false });
+    expect(off.entitlement(t.id)).not.toHaveProperty('test');
+  });
+
+  it('a deployed server with no list lets nobody in', () => {
+    const prod = { NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(32), CODE_PEPPER: 'p', MAIL_TRANSPORT: 'console', BACKUP_DIR: 'off', SUBSCRIPTION_TESTS: 'on' };
+    expect(loadConfig(prod).subscriptions.testEmails).toEqual([]);
+    expect(loadConfig({ NODE_ENV: 'test' }).subscriptions.testEmails).toBeUndefined();
+  });
+});
+
 describe('sandbox purchases and notification retries (#432)', () => {
   it('production refuses Sandbox transactions and notifications unless allowed', async () => {
     const prod = { NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(32), CODE_PEPPER: 'p', MAIL_TRANSPORT: 'console', BACKUP_DIR: 'off' };

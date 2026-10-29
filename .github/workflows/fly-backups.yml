@@ -21,7 +21,7 @@ name: Fly backups
 #                 `confirm` = the same email. Same as Account → Delete account (Apple revoked, email sent).
 #   offsite-rotate  new Tigris keys: destroys and recreates the bucket (copies refill from the next daily backup)
 #   offsite-list  list encrypted copies in the bucket
-#   offsite-fetch download + decrypt copy for `file` (a day, YYYY-MM-DD) to /data/backups/app-<day>.offsite.db, then verify/restore it
+#   offsite-fetch download + decrypt copy for `file` (a day, YYYY-MM-DD, or an hourly copy YYYY-MM-DDTHH UTC, last 48 h) to /data/backups/app-<day>.offsite.db, then verify/restore it
 on:
   schedule:
     - cron: '30 4 * * *'
@@ -124,7 +124,7 @@ jobs:
       - name: Check inputs
         run: |
           case "$ACTION" in
-            offsite-fetch) echo "$FILE" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' || { echo "::error::file must be a day, YYYY-MM-DD"; exit 1; } ;;
+            offsite-fetch) echo "$FILE" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2})?$' || { echo "::error::file must be a day YYYY-MM-DD or an hour YYYY-MM-DDTHH (UTC)"; exit 1; } ;;
             offsite-setup|offsite-rotate) [ -n "$BACKUP_KEY" ] && [ ${#BACKUP_KEY} -ge 24 ] || { echo "::error::add GitHub secret BACKUP_KEY (24+ chars, also keep it in your password manager)"; exit 1; } ;;
             member-restore)
               echo "$FILE" | grep -Eq '^app-[0-9]{4}-[0-9]{2}-[0-9]{2}(\.offsite)?\.db$' || { echo "::error::file must look like app-YYYY-MM-DD.db"; exit 1; }

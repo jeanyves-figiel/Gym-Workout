@@ -122,6 +122,45 @@ export const startBackupJob = (
   };
 };
 
+/**
+ * Hourly off-site copy (#923): a checked `VACUUM INTO` copy is handed to `upload` (encrypt + send) and deleted.
+ * At most one runs at a time; the first runs after `firstMs`. Returns a stop function.
+ */
+export const startHourlyCopyJob = (
+  db: DB,
+  opts: { dir: string; intervalMs: number; firstMs?: number; now?: () => Date; log?: (msg: string) => void; upload: (path: string, hour: string) => Promise<string> },
+): (() => void) => {
+  let busy = false;
+  const run = async () => {
+    if (busy) return;
+    busy = true;
+    const hour = (opts.now?.() ?? new Date()).toISOString().slice(0, 13);
+    const tmp = join(opts.dir, 'hourly.tmp.db');
+    try {
+      mkdirSync(opts.dir, { recursive: true, mode: 0o700 });
+      rmSync(tmp, { force: true });
+      db.prepare('VACUUM INTO ?').run(tmp);
+      chmodSync(tmp, 0o600);
+      const r = inspectCopy(tmp);
+      if (!r.ok) throw new Error(`check failed: ${r.check}`);
+      opts.log?.(await opts.upload(tmp, hour));
+    } catch (e) {
+      opts.log?.(`backup hourly failed: ${(e as Error).message}`);
+    } finally {
+      rmSync(tmp, { force: true });
+      busy = false;
+    }
+  };
+  const first = setTimeout(run, opts.firstMs ?? 60_000);
+  first.unref();
+  const timer = setInterval(run, opts.intervalMs);
+  timer.unref();
+  return () => {
+    clearTimeout(first);
+    clearInterval(timer);
+  };
+};
+
 /** Copies a backup to `restore.db` after checking it; the next start swaps it in (see `applyPendingRestore`). */
 export const stageRestore = (dir: string, file: string, dbPath: string): void => {
   if (!RESTORABLE.test(file)) throw new Error(`not a backup file name: ${file}`);

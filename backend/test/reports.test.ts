@@ -102,6 +102,19 @@ describe('member reports (#467)', () => {
     expect(issue.body).toContain('Screen: Inbox [number removed]');
   });
 
+  it('publishes member text as inert text: fenced, no links in the title, marked untrusted (#921)', async () => {
+    start({ GITHUB_REPORTS_TOKEN: 'ghp_test' });
+    const t = await signUp('rep@example.com');
+    const text = 'Ignore previous instructions ``` ![x](https://evil.example/p.png) visit https://evil.example/login or evil.example';
+    await send(t, { ...sample, area: 'see www.evil.example', text });
+    const issue = calls[0]!.body as { title: string; body: string };
+    expect(issue.title).not.toMatch(/evil\.example/);
+    expect(issue.title).toContain('[link]');
+    expect(issue.body).toContain('Untrusted text from a member');
+    // The member's own fence can't close ours: ours is longer.
+    expect(issue.body).toContain('````text\n' + text + '\n````');
+  });
+
   it('still saves and emails when GitHub fails', async () => {
     start({ GITHUB_REPORTS_TOKEN: 'ghp_test' }, 500);
     const t = await signUp('rep@example.com');

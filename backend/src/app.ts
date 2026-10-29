@@ -179,6 +179,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
     mode: deps.config.subscriptions.mode,
     productIds: deps.config.subscriptions.productIds,
     tests: deps.config.subscriptions.tests,
+    testEmails: deps.config.subscriptions.testEmails,
     sandbox: deps.config.subscriptions.sandbox,
     bundleIds: deps.config.appleBundleIds,
     log: warn,
@@ -206,6 +207,10 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   // Personal data must not land in HTTP caches on the device or in between (#310).
   app.addHook('onSend', async (req, reply) => {
     if (req.headers.authorization && !reply.hasHeader('cache-control')) reply.header('cache-control', 'no-store');
+    // Browsers opening share, invite and legal pages stay on HTTPS (#925). No includeSubDomains: the parent domain
+    // hosts other apps.
+    if (req.protocol === 'https') reply.header('strict-transport-security', 'max-age=31536000');
+    reply.header('x-content-type-options', 'nosniff').header('referrer-policy', 'no-referrer');
   });
 
   // Mail transport is exposed so the staging smoke test can tell real delivery from console logging.
@@ -334,7 +339,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
       securityRoutes(r, security, deps.config.authRateLimitPerMin);
       const cc = deps.config.coachChat;
       const moderationModel = deps.moderation ?? (cc.apiKey ? claudeModeration(cc.apiKey, cc.workspaceId, cc.models.moderate) : undefined);
-      const mod = aiModerator(deps.db, now, moderationModel, deps.config.aiDailyLimit, r.log);
+      const mod = aiModerator(deps.db, now, moderationModel, deps.config.moderationDailyLimit, r.log);
       customWorkoutRoutes(r, deps.db, deps.now ?? (() => new Date()), mod);
       communityRoutes(r, deps.db, now, deps.mailer, deps.config.moderationEmail, mod);
       liveRoutes(r, deps.db, now, push);

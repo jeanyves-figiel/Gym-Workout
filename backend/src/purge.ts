@@ -8,6 +8,8 @@ export interface PurgeResult {
   refreshTokens: number;
 }
 
+/** Days an unverified email sign-up is kept (#928). */
+export const UNVERIFIED_KEEP_DAYS = 7;
 /** App Store server notification ids kept for de-duplication. */
 const NOTIFICATION_KEEP_DAYS = 90;
 
@@ -38,6 +40,10 @@ export const purgeExpired = (db: DB, now: Date = new Date()): PurgeResult => {
     db.prepare(`DELETE FROM ${t} WHERE expires_at <= ?`).run(iso);
   // Sync deletes (#432): old enough that every active device has pulled them.
   db.prepare('DELETE FROM sync_tombstones WHERE deleted_at <= ?').run(new Date(now.getTime() - TOMBSTONE_KEEP_DAYS * 86_400_000).toISOString());
+  // Sign-ups never verified (#928): nobody can sign in to them, so the address and hash go after a week.
+  db.prepare('DELETE FROM users WHERE email_verified_at IS NULL AND apple_sub IS NULL AND created_at <= ?').run(
+    new Date(now.getTime() - UNVERIFIED_KEEP_DAYS * 86_400_000).toISOString(),
+  );
   // App Store notification ids are kept only to drop Apple's retries, which stop after days.
   db.prepare('DELETE FROM app_store_notifications WHERE received_at <= ?').run(new Date(now.getTime() - NOTIFICATION_KEEP_DAYS * 86_400_000).toISOString());
   // "Taken?" taps (#406) past the rush-hours window; was done on every tap.

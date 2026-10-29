@@ -2178,7 +2178,7 @@
         "tags": [
           "Push and notifications"
         ],
-        "summary": "{achievements[≤30]: {id, type, text}} → {announced}; each new id pushed once to followers, at most 20 a day per member",
+        "summary": "{achievements[≤30]: {id, type, text}} → {announced}; each new id pushed once to followers, at most 20 a day per member; text with a link or domain → 400 links_not_allowed (#922)",
         "description": "Errors / limits: 30/min",
         "security": [
           {
@@ -4515,7 +4515,7 @@
         "tags": [
           "Subscriptions (Pro)"
         ],
-        "summary": "Staging only (SUBSCRIPTION_TESTS=on, else 404): {mode off|preview|enforced|null} for this account → entitlement",
+        "summary": "Staging only (SUBSCRIPTION_TESTS=on and account in SUBSCRIPTION_TEST_EMAILS, else 404, #924): {mode off|preview|enforced|null} for this account → entitlement",
         "description": "Errors / limits: 404",
         "security": [
           {
