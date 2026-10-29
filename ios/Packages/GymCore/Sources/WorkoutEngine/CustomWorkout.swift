@@ -105,8 +105,6 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
     public var visibility: WorkoutVisibility
     /// Set by the server when reports hid it from other members (read-only, never sent).
     public var hidden: Bool
-    /// Set by the server while AI moderation holds its shared name for review (#871; read-only, never sent).
-    public var inReview: Bool
     /// Session flow (#198): warm-up, explosive, mobility, cardio and cool-down blocks played around the
     /// member's own exercises, picked when the flow was set. Empty = just the exercises.
     public var flow: [Block]
@@ -126,14 +124,13 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         self.createdAt = createdAt
         self.visibility = visibility
         self.hidden = false
-        self.inReview = false
         self.flow = flow
         self.flowTweaks = flowTweaks
         self.routine = routine
     }
 
     enum CodingKeys: String, CodingKey { case id, name, items, createdAt, visibility, flow, flowTweaks, routine, updatedAt }
-    private enum ServerKeys: String, CodingKey { case hidden, inReview }
+    private enum ServerKeys: String, CodingKey { case hidden }
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -146,9 +143,7 @@ public struct CustomWorkout: Codable, Hashable, Sendable, Identifiable {
         flowTweaks = (try? c.decodeIfPresent(FlowTweaks.self, forKey: .flowTweaks)) ?? nil
         routine = (try? c.decodeIfPresent(RoutineLook.self, forKey: .routine)) ?? nil
         updatedAt = (try? c.decodeIfPresent(String.self, forKey: .updatedAt)) ?? nil
-        let server = try? decoder.container(keyedBy: ServerKeys.self)
-        hidden = (try? server?.decodeIfPresent(Bool.self, forKey: .hidden)) ?? false
-        inReview = (try? server?.decodeIfPresent(Bool.self, forKey: .inReview)) ?? false
+        hidden = (try? decoder.container(keyedBy: ServerKeys.self).decodeIfPresent(Bool.self, forKey: .hidden)) ?? false
     }
 
     public func encode(to encoder: any Encoder) throws {

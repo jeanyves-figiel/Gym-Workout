@@ -28,7 +28,7 @@ Design and controls. The repository is public: no secret values, keys, bucket na
 ## Authorization and isolation
 
 - Every query is scoped by the `user_id` from the verified token; upserts check ownership (`WHERE <table>.user_id = excluded.user_id`), so a client id belonging to another account is skipped. Tests cover cross-account access.
-- Community: visibility per post (`private`, `members`, `public`), blocks applied both ways, reported content auto-hidden after 3 distinct reporters, word filter on nicknames and text, AI check (small model) of shared names, captions and profile photos before they go live with flagged items held for review (#871; word filter only when the model is off or over budget), moderation mailbox.
+- Community: visibility per post (`private`, `members`, `public`), blocks applied both ways, reported content auto-hidden after 3 distinct reporters, word filter on nicknames and text, AI check (small model) of shared names, captions and profile photos before they go live, flagged ones refused like the word filter with no review queue (#871; word filter only when the model is off or over budget), moderation mailbox.
 - Machine-note photos and problem reports are owner-only; gym data is shared only as counts.
 - Watch and Garmin tokens can reach only their narrow routes (sport upload; snapshot and events).
 - Ops actions (restore, member delete, free access, undo workout) are not HTTP endpoints: they run on the machine from manual GitHub workflows with typed confirmations.
@@ -97,7 +97,7 @@ Rules: each cloud credential has least privilege (the SES IAM user may send mail
 | Member data | Cross-account access (IDOR) | Owner-scoped queries and upserts, tests |
 | Member data | Server or volume loss | Snapshots, daily verified backups, encrypted off-site copy, restore drills |
 | Member data | Backup provider breach | Client-side encryption before upload |
-| Community | Abuse, harassment, objectionable content | Guidelines acceptance, word filter, AI moderation holds (#871), reports with auto-hide, blocks, moderation email (App Store 1.2) |
+| Community | Abuse, harassment, objectionable content | Guidelines acceptance, word filter, AI check refusing flagged shares (#871), reports with auto-hide, blocks, moderation email (App Store 1.2) |
 | Paid services | Cost abuse (Claude, Polly) | Pro gating when enforced, per-member daily caps, global daily cap (call-name recordings included), email-verified or aged accounts only for scans |
 | API | Request floods, large bodies | Per-IP rate limits keyed on Fly's client IP, body limits, row and byte quotas, daily caps on achievement and buddy pushes |
 | Images | Location leak, parser bugs | JPEG only, metadata stripped, size and dimension caps |

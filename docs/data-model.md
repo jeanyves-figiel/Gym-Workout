@@ -65,4 +65,4 @@ erDiagram
 
 ## Ops tools (`backend/src/admin/`)
 
-Run on the Fly machine through manual GitHub workflows, never over HTTP: `backup.ts` (backup / verify / restore / off-site), `deleteMember.ts`, `restoreMember.ts`, `undoWorkout.ts`, and `admin.ts` (free Pro access grants, week challenge review, AI usage report, AI moderation holds `moderation_holds`). See [ci-cd.md](ci-cd.md#operations-workflows).
+Run on the Fly machine through manual GitHub workflows, never over HTTP: `backup.ts` (backup / verify / restore / off-site), `deleteMember.ts`, `restoreMember.ts`, `undoWorkout.ts`, and `admin.ts` (free Pro access grants, week challenge review, AI usage report). See [ci-cd.md](ci-cd.md#operations-workflows).

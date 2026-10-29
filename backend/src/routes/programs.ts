@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { isHeld, type Moderator, noModerator } from '../community/aiModeration.ts';
+import { type Moderator, noModerator } from '../community/aiModeration.ts';
 import { AUTO_HIDE_REPORTS, assertClean, hasAcceptedGuidelines, REPORT_REASONS, reportContent, VISIBILITIES, visibleToOthersSql } from '../community/moderation.ts';
 import { type DB, tx } from '../db.ts';
 import { ApiError } from '../errors.ts';
@@ -81,8 +81,6 @@ export const programRoutes = (r: FastifyInstance, db: DB, now: () => Date, maile
       copies: p.copies,
       copiedByMe: copied.has(p.id),
       hidden: !!p.hidden_at,
-      // Held by AI moderation (#871); only its owner is told.
-      inReview: p.user_id === viewer && isHeld(db, 'program', p.id),
       createdAt: p.created_at,
       updatedAt: p.updated_at,
     }));
@@ -140,15 +138,15 @@ export const programRoutes = (r: FastifyInstance, db: DB, now: () => Date, maile
     const shown = [b.name, b.about, b.goal, b.programme.name, ...['tagline', 'summary'].map((k) => (typeof b.programme[k] === 'string' ? (b.programme[k] as string) : null))];
     assertClean(...shown);
     const id = raw.toLowerCase();
-    const owner = db.prepare('SELECT user_id, data FROM community_programs WHERE id = ?').get(id) as { user_id: string; data: string } | undefined;
+    const owner = db.prepare('SELECT user_id, data, visibility FROM community_programs WHERE id = ?').get(id) as { user_id: string; data: string; visibility: string } | undefined;
     if (owner && owner.user_id !== uid) throw new ApiError(409, 'conflict', 'Plan id already used.');
     const { visibility, ...data } = b;
     const json = JSON.stringify(data);
     if (json.length > 100_000) throw new ApiError(413, 'too_large', 'That plan is too large.');
-    // AI check (#871) of the texts that are new since the last save; flagged → hidden from others until reviewed.
-    const before = owner && owner.user_id === uid ? (JSON.parse(owner.data) as typeof data) : undefined;
+    // AI check (#871) of the texts members haven't seen yet; flagged → refused like the word filter.
+    const before = owner && owner.user_id === uid && owner.visibility !== 'private' ? (JSON.parse(owner.data) as typeof data) : undefined;
     const seen = new Set(before ? [before.name, before.about, before.goal, before.programme.name, before.programme.tagline, before.programme.summary] : []);
-    const category = visibility === 'private' ? null : await mod.check({ texts: shown.filter((t) => !seen.has(t)) });
+    if (visibility !== 'private') await mod.assertAllowed({ texts: shown.filter((t) => !seen.has(t)) });
     const ts = now().toISOString();
     if (owner) {
       db.prepare('UPDATE community_programs SET data = ?, visibility = ?, updated_at = ? WHERE id = ?').run(json, visibility, ts, id);
@@ -156,10 +154,6 @@ export const programRoutes = (r: FastifyInstance, db: DB, now: () => Date, maile
       if (!throttleTake(db, `program:${uid}`, PROGRAMS_PER_DAY, DAY, now()))
         throw new ApiError(429, 'daily_limit', `That's ${PROGRAMS_PER_DAY} plans today. Share more tomorrow!`);
       db.prepare('INSERT INTO community_programs (id, user_id, data, visibility, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, uid, json, visibility, ts, ts);
-    }
-    if (category) {
-      db.prepare('UPDATE community_programs SET hidden_at = COALESCE(hidden_at, ?) WHERE id = ?').run(ts, id);
-      mod.hold({ userId: uid, type: 'program', id, category, texts: shown });
     }
     return { program: toProgram(visible(id, uid), uid) };
   });
