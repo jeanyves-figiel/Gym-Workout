@@ -350,6 +350,8 @@ private struct DemoScreen: View {
         case "progress-ask": NavigationStack { ProgressTabView(demoAsk: true) }
         case "progress-edit": NavigationStack { ProgressTabView(demoEditing: true) }
         case "progress-sports": NavigationStack { ProgressTabView() }
+        // Insights focus (#939): the hero card, and the first-open picker.
+        case "insights-focus", "insights-focus-pick": NavigationStack { ProgressTabView() }
         case "history": DemoPushedHistory(recordId: model.history.first?.id ?? UUID())
         case "history-page": NavigationStack { HistoryView() }
         case "body": NavigationStack { BodyHealthView() }

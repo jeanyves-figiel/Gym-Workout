@@ -169,6 +169,10 @@ final class AppModel {
                     .sport(.snowboard, size: .large), .sport(.hyrox, size: .wide), .sport(.run),
                     ProgressWidget(.streak), ProgressWidget(.history), ProgressWidget(.training), ProgressWidget(.records),
                 ])
+            // Insights focus (#939): Weight loss hero on top, its widgets first.
+            case "insights-focus":
+                state.synced?.insightsFocus = .weightLoss
+                state.synced?.progressBoard = ProgressBoard.classic.focused(on: .weightLoss, sports: [])
             // Lift Focus (#499): week 5 of a 10-week bench block.
             case "lift-focus", "lift-lab":
                 state.synced?.liftFocus = LiftFocus(exerciseId: "bench-press", targetKg: 120,
@@ -514,7 +518,7 @@ final class AppModel {
         let keptGrowth = state.synced?.growth
         let outside = (sportAddOn: state.synced?.sportAddOn, skills: state.synced?.skills, bikeFTP: state.synced?.bikeFTP,
                     bikeFTPTestedAt: state.synced?.bikeFTPTestedAt, lifeStage: state.synced?.lifeStage,
-                    onboarding: state.synced?.onboarding, pain: state.synced?.pain)
+                    onboarding: state.synced?.onboarding, pain: state.synced?.pain, insightsFocus: state.synced?.insightsFocus)
         let learning = (tasteOff: state.synced?.tasteOff, recap: newWeek ? nil : state.synced?.tasteRecap)
         state.synced = sp
         state.synced?.tasteOff = learning.tasteOff
@@ -530,6 +534,7 @@ final class AppModel {
         state.synced?.lifeStage = outside.lifeStage
         state.synced?.onboarding = outside.onboarding
         state.synced?.pain = outside.pain
+        state.synced?.insightsFocus = outside.insightsFocus
         // A profile edit (goal, days, gym…) re-plans the rest of this week (#194): sessions already done and the
         // one in progress keep their content; everything else follows the new profile.
         let kept = newWeek ? [] : doneIds.union([state.activeWorkout?.sessionId].compactMap { $0 })
