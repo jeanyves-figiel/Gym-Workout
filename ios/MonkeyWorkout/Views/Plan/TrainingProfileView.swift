@@ -80,6 +80,9 @@ struct TrainingProfileView: View {
                         RunGoalProfileCard()
                         // HIIT (#693): HIIT days, finisher, impact.
                         HiitProfileCard()
+                        // Sport prep and Skill tree (#898 A): same content as Explore → Plans.
+                        SeasonPlanTile()
+                        SkillTreePlanTile()
                     }
                     .environment(\.statCardTile, true)
                     // Train around pain (#870 A): tap where it hurts, Coach swaps across the plan.
@@ -360,5 +363,48 @@ struct ProfileSectionCard: View {
         case .method: profile.trainingMethod.gradient
         case .gym: WorkoutEngine.Category.strength.gradient
         }
+    }
+}
+
+/// My plan tile (#898 A): opens "Get ready for…" (season blocks + 15′ sport add-on) in a sheet, same card as Explore → Plans.
+struct SeasonPlanTile: View {
+    @Environment(AppModel.self) private var model
+    @State private var open = false
+
+    var body: some View {
+        Button { open = true } label: {
+            ExpertStatCard(symbol: "flag.checkered", title: "Get ready for…",
+                           detail: model.sportAddOn.map { "\(SportAddOn.title($0.sport)) · \($0.perWeek)× week" }
+                               ?? SeasonSport.allCases.map(\.label).joined(separator: " · "),
+                           value: model.sportAddOn?.sport.emoji ?? "", colors: [Color(hex: 0xFF4D8D), Color(hex: 0x8A2BFF)])
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("profile.season")
+        .accessibilityHint("Sport season blocks and a 15′ sport add-on")
+        .sheet(isPresented: $open) {
+            NavigationStack {
+                ScrollView { SeasonPickerCard().padding(16) }
+                    .readableWidth()
+                    .background(Theme.bg.ignoresSafeArea())
+                    .navigationDestination(for: ProgrammeRoute.self) { r in model.findProgramme(r.id).map { ProgrammeDetailView(programme: $0) } }
+                    .toolbar { CloseToolbarItem { open = false } }
+            }
+        }
+    }
+}
+
+/// My plan tile (#898 A): opens the calisthenics Skill tree, same page as Explore → Plans.
+struct SkillTreePlanTile: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        NavigationLink { SkillTreeView() } label: {
+            ExpertStatCard(symbol: "figure.gymnastics", title: "Skill tree",
+                           detail: Skills.Branch.allCases.map { "\($0.label.prefix(4)) L\(model.skills.unlocked($0))" }.joined(separator: " · "),
+                           value: "", colors: [Color(hex: 0x7B3CFF), Color(hex: 0xFF4D8D)])
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("profile.skillTree")
+        .accessibilityHint("Bodyweight skills with levels: pull, push, legs, balance")
     }
 }
