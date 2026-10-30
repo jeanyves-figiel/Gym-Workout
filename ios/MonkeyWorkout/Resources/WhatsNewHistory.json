@@ -1,6 +1,49 @@
 {
   "releases": [
     {
+      "id": "2026-10-29.3",
+      "build": 86,
+      "date": "2026-10-29",
+      "items": [
+        {
+          "symbol": "scope",
+          "tint": "strength",
+          "title": "Insights, your way",
+          "body": "Pick what matters most (strength, muscle, weight loss, endurance, mind or your sport) and Insights opens on it. Switch any time."
+        },
+        {
+          "symbol": "bubble.left.and.text.bubble.right.fill",
+          "tint": "power",
+          "title": "Ask Coach about your training",
+          "body": "A clearer ask bar on Insights with one-tap BEST, COMPARE, COUNT and VOLUME questions."
+        },
+        {
+          "symbol": "arrow.down.circle.fill",
+          "tint": "mobility",
+          "title": "Lighter app, HD moves on download",
+          "body": "MonkeyFit is about 130 MB smaller. Get every exercise in full detail with one tap on Wi-Fi, or anytime in Settings → HD animations."
+        },
+        {
+          "symbol": "camera.viewfinder",
+          "tint": "cardio",
+          "title": "Coach in Add exercises",
+          "body": "Ask Coach or snap your machine right from Add exercises: Coach's picks tick straight into your list."
+        },
+        {
+          "symbol": "fork.knife",
+          "tint": "warmup",
+          "title": "Fuel follows skips",
+          "body": "Skip a workout and Fuel, the Calendar widget and Home Screen week dots treat the day as a rest day."
+        },
+        {
+          "symbol": "lock.shield",
+          "tint": "stretch",
+          "title": "Safer and steadier",
+          "body": "Security fixes and a stronger server keep your data safe and the app fast."
+        }
+      ]
+    },
+    {
       "id": "2026-10-29.2",
       "build": 85,
       "date": "2026-10-29",
