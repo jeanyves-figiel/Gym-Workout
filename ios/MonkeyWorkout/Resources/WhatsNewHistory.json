@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "id": "2026-10-30.3",
+      "build": 89,
+      "date": "2026-10-30",
+      "items": [
+        {
+          "symbol": "figure.indoor.cycle",
+          "tint": "power",
+          "title": "Every machine holds together",
+          "body": "Bike seat, leg press sled and 20 more exercise animations fixed."
+        }
+      ]
+    },
+    {
       "id": "2026-10-30.2",
       "build": 88,
       "date": "2026-10-30",

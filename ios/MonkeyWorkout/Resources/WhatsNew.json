@@ -1,11 +1,23 @@
 {
-  "id": "2026-10-30.3",
+  "id": "2026-10-30.4",
   "items": [
     {
-      "symbol": "figure.indoor.cycle",
+      "symbol": "video.fill",
+      "tint": "strength",
+      "title": "Film the whole session",
+      "body": "Prop your phone and train. MonkeyFit finds every exercise and set on its own. Confirm moves on your Watch, save at the end."
+    },
+    {
+      "symbol": "figure.strengthtraining.functional",
       "tint": "power",
-      "title": "Every machine holds together",
-      "body": "Bike seat, leg press sled and 20 more exercise animations fixed."
+      "title": "Clearer position guide",
+      "body": "Feet on the plates, hands on the handles. Coach callouts show each joint: tap a step to zoom, or pinch."
+    },
+    {
+      "symbol": "mappin.and.ellipse",
+      "tint": "cardio",
+      "title": "Places know what they are",
+      "body": "Climbing gyms, crags, resorts and trails only show for their sports. Set a home spot per sport in Your places."
     }
   ]
 }
