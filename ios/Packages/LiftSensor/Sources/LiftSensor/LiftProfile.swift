@@ -98,7 +98,7 @@ public struct LiftProfile: Equatable, Sendable {
 
 /// Machine mode (#383): where to strap the Watch for a lift the wrist can't measure.
 public struct MachineSpot: Equatable, Sendable {
-    /// "the shin pad", "the sled handle".
+    /// "the shin pad", "the side of the sled".
     public var place: String
     public var family: LiftProfile.Family
     /// SF Symbol for the place.
@@ -107,7 +107,10 @@ public struct MachineSpot: Equatable, Sendable {
     public static func `for`(name: String, exerciseId: String = "") -> MachineSpot? {
         let n = (name + " " + exerciseId).lowercased().replacingOccurrences(of: "-", with: " ")
         func has(_ words: String...) -> Bool { words.contains { n.contains($0) } }
-        if has("leg press", "hack squat") { return MachineSpot(place: "the sled handle", family: .squat, symbol: "figure.strengthtraining.functional") }
+        // #949: on a leg press the handles sit on the fixed seat; only the footplate sled moves.
+        if has("leg press") && has("calf") { return MachineSpot(place: "the side of the sled", family: .other, symbol: "figure.strengthtraining.functional") }
+        if has("leg press") { return MachineSpot(place: "the side of the sled", family: .squat, symbol: "figure.strengthtraining.functional") }
+        if has("hack squat") { return MachineSpot(place: "the sled handle", family: .squat, symbol: "figure.strengthtraining.functional") }
         if has("leg extension") { return MachineSpot(place: "the shin pad", family: .other, symbol: "figure.strengthtraining.traditional") }
         if has("leg curl", "hamstring curl") { return MachineSpot(place: "the ankle pad", family: .other, symbol: "figure.strengthtraining.traditional") }
         if has("seated calf") { return MachineSpot(place: "the knee pad", family: .other, symbol: "figure.strengthtraining.traditional") }

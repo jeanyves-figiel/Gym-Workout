@@ -231,6 +231,9 @@ struct SetCase: Sendable, CustomTestStringConvertible {
         #expect(MachineSpot.for(name: "Leg Extension")?.place == "the shin pad")
         #expect(MachineSpot.for(name: "Seated Calf Raise")?.place == "the knee pad")
         #expect(MachineSpot.for(name: "Leg Press")?.family == .squat)
+        #expect(MachineSpot.for(name: "Leg Press")?.place == "the side of the sled")
+        #expect(MachineSpot.for(name: "Leg press calf raise")?.family == .other)
+        #expect(MachineSpot.for(name: "Hack Squat")?.place == "the sled handle")
         #expect(MachineSpot.for(name: "Plank") == nil)
         #expect(MachineSpot.for(name: "Bench Press") == nil)
     }

@@ -20,15 +20,23 @@ enum MotionClips {
 /// AVPlayer: nothing touches the audio session, so a member's music keeps playing.
 @MainActor
 final class MotionClipPlayer {
+    /// Held for the play: a track only weakly refers to its asset, and without it the composition comes out empty
+    /// (#949: build 87 showed the resting frame with only the path dot moving).
+    private let asset: AVURLAsset
     private let track: AVAssetTrack
     /// End of the clip in the file.
     private let clipEnd: CMTime
     private var reader: ClipReader?
     private var last: CGImage?
+    /// The clip gave no picture in time (unreadable, empty composition): the play falls back to the frames.
+    private(set) var failed = false
+    /// No picture this far into a play: the clip counts as failed.
+    private static let firstPictureDeadline = 0.4
 
     private static let timescale: CMTimeScale = 60_000
 
-    private init(track: AVAssetTrack, end: CMTime) {
+    private init(asset: AVURLAsset, track: AVAssetTrack, end: CMTime) {
+        self.asset = asset
         self.track = track
         clipEnd = end
     }
@@ -38,13 +46,14 @@ final class MotionClipPlayer {
         let asset = AVURLAsset(url: url)
         guard let track = try? await asset.loadTracks(withMediaType: .video).first,
               let range = try? await track.load(.timeRange) else { return nil }
-        return MotionClipPlayer(track: track, end: range.end)
+        return MotionClipPlayer(asset: asset, track: track, end: range.end)
     }
 
     /// Starts decoding `pieces` (MotionPlayback.clipPieces) for a play starting now.
     func play(_ pieces: [MotionPlayback.ClipPiece]) {
         reader?.cancel()
         reader = nil
+        failed = false
         let composition = AVMutableComposition()
         guard let video = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else { return }
         let fps = MotionPlayback.clipFPS
@@ -58,7 +67,10 @@ final class MotionClipPlayer {
             video.scaleTimeRange(CMTimeRange(start: at, duration: source.duration), toDuration: duration)
             at = at + duration
         }
-        guard let frozen = composition.copy() as? AVComposition else { return }
+        guard at > .zero, let frozen = composition.copy() as? AVComposition else {
+            failed = true
+            return
+        }
         reader = ClipReader(frozen)
     }
 
@@ -72,6 +84,7 @@ final class MotionClipPlayer {
     /// Picture `t` seconds into the play; nil before the first one is decoded.
     func image(at t: Double) -> CGImage? {
         if let next = reader?.frame(at: t) { last = next }
+        if last == nil, t > Self.firstPictureDeadline || reader?.failed == true { failed = true }
         return last
     }
 }
@@ -87,6 +100,7 @@ final class ClipReader: @unchecked Sendable {
     private let lock = NSLock()
     private var pending: [(time: Double, image: CGImage)] = []
     private var cancelled = false
+    private var broken = false
     /// Free places in `pending`. Starts at 0 and is raised: a semaphore must not end below its start value.
     private let space = DispatchSemaphore(value: 0)
 
@@ -101,6 +115,8 @@ final class ClipReader: @unchecked Sendable {
     }
 
     private var isCancelled: Bool { lock.withLock { cancelled } }
+    /// The composition could not be read.
+    var failed: Bool { lock.withLock { broken } }
 
     /// The latest decoded picture due by `t`, nil when none is new.
     func frame(at t: Double) -> CGImage? {
@@ -117,14 +133,14 @@ final class ClipReader: @unchecked Sendable {
 
     private func decode(_ composition: AVComposition) {
         guard let track = composition.tracks.first(where: { $0.mediaType == .video }),
-              let reader = try? AVAssetReader(asset: composition) else { return }
+              let reader = try? AVAssetReader(asset: composition) else { return fail() }
         let output = AVAssetReaderTrackOutput(track: track, outputSettings: [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
         ])
         output.alwaysCopiesSampleData = false
-        guard reader.canAdd(output) else { return }
+        guard reader.canAdd(output) else { return fail() }
         reader.add(output)
-        guard reader.startReading() else { return }
+        guard reader.startReading() else { return fail() }
         defer { reader.cancelReading() }
         while !isCancelled, let sample = output.copyNextSampleBuffer() {
             guard let buffer = CMSampleBufferGetImageBuffer(sample), let image = Self.picture(buffer) else { continue }
@@ -134,6 +150,8 @@ final class ClipReader: @unchecked Sendable {
             lock.withLock { pending.append((time, image)) }
         }
     }
+
+    private func fail() { lock.withLock { broken = true } }
 
     /// The stacked picture's colour (top half) masked by its alpha (bottom half).
     private static func picture(_ buffer: CVPixelBuffer) -> CGImage? {
