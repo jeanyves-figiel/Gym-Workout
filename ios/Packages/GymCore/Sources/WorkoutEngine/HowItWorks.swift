@@ -33,8 +33,12 @@ public enum HowItWorks {
 
     public static func topic(_ id: String) -> Topic? { topics.first { $0.id == id } }
 
-    public static let topics: [Topic] = [xp, move, streaks, plan, methods, load, readiness, growth, zones, effort,
-                                         cardio, fuel, water, caffeine, recovery, body, form, mind]
+    public static let topics: [Topic] = [xp, move, streaks, plan, methods, load, warmup, readiness, growth, zones, effort,
+                                         cardio, fuel, water, caffeine, recovery, pain, lifeStage, body, form, mind, coach]
+
+    /// Sources starting with this are the app's own choices, not backed by a study (#976: each one is tracked on
+    /// GitHub until a study backs it or the rule changes). Every topic still names at least one study.
+    public static let appDesign = "App design:"
 
     // MARK: Game
 
@@ -55,7 +59,8 @@ public enum HowItWorks {
                  rule: ["level = XP ÷ \(GameProgress.perLevel) + 1",
                         "Rookie 1–2 · Regular 3–7 · Iron 8–14 · Steel 15–24 · Titan 25–39 · Legend 40+"]),
         ],
-        sources: ["App design, not science: tuned so walking never outweighs a workout and every session counts."])
+        sources: ["Mazeas A, Duclos M, Pereira B, Chalabaev A. Evaluating the effectiveness of gamification on physical activity: systematic review and meta-analysis of randomized controlled trials. J Med Internet Res 2022;24(1):e26779 (points, levels and rewards raise activity a little in the short run).",
+                  "App design: the XP values are tuned so walking never outweighs a workout and every session counts."])
 
     static let move = Topic(
         id: "move", title: "Daily Move", symbol: "figure.walk",
@@ -89,7 +94,9 @@ public enum HowItWorks {
                  rule: []),
             Part("Personal bests", "A best is beaten when a set's estimated 1RM is higher than any before for that exercise (see Load).", rule: []),
         ],
-        sources: ["App design, not science."])
+        sources: ["Lally P, van Jaarsveld CHM, Potts HWW, Wardle J. How are habits formed: modelling habit formation in the real world. Eur J Soc Psychol 2010;40(6):998-1009 (missing one chance did not undo a habit, hence shields).",
+                  "Mazeas A et al. Evaluating the effectiveness of gamification on physical activity. J Med Internet Res 2022;24(1):e26779.",
+                  "App design: badge milestones and the shield rate."])
 
     // MARK: Training
 
@@ -119,7 +126,12 @@ public enum HowItWorks {
         ],
         sources: ["Williams TD et al. Comparison of periodized and non-periodized resistance training on maximal strength: a meta-analysis. Sports Med 2017;47(10):2083-2100.",
                   "Bell L et al. Integrating deloading into strength and physique sports training programmes: an international Delphi consensus approach. Sports Med Open 2023;9:87.",
-                  "Helms ER, Cronin J, Storey A, Zourdos MC. Application of the repetitions in reserve-based RPE scale for resistance training. Strength Cond J 2016;38(4):42-49."])
+                  "Helms ER, Cronin J, Storey A, Zourdos MC. Application of the repetitions in reserve-based RPE scale for resistance training. Strength Cond J 2016;38(4):42-49.",
+                  "Schoenfeld BJ, Ogborn D, Krieger JW. Effects of resistance training frequency on measures of muscle hypertrophy: a systematic review and meta-analysis. Sports Med 2016;46(11):1689-1697 (each muscle at least twice a week).",
+                  "Schoenfeld BJ, Grgic J, Ogborn D, Krieger JW. Strength and hypertrophy adaptations between low- vs. high-load resistance training: a systematic review and meta-analysis. J Strength Cond Res 2017;31(12):3508-3523 (heavy for strength, any load near failure for muscle).",
+                  "Grgic J, Schoenfeld BJ, Skrepnik M, Davies TB, Mikulic P. Effects of rest interval duration in resistance training on measures of muscular strength: a systematic review. Sports Med 2018;48(1):137-151 (longer rests on heavy lifts).",
+                  "American College of Sports Medicine. Progression models in resistance training for healthy adults. Med Sci Sports Exerc 2009;41(3):687-708.",
+                  "App design: the session-length factors."])
 
     static let methods = Topic(
         id: "methods", title: "Training methods", symbol: "slider.horizontal.3",
@@ -155,10 +167,34 @@ public enum HowItWorks {
             Part("Estimated 1RM", "Used for bests, Growth and PR attempts, from sets of 1–12 reps.",
                  rule: ["1RM = kg × (1 + reps ÷ 30)  (Epley)"]),
         ],
-        sources: ["Starting-load ratios (pattern, sex, level, age, implement) are app design, set light on purpose; the first session calibrates.",
+        sources: ["LeSuer DA, McCormick JH, Mayhew JL, Wasserstein RL, Arnold MD. The accuracy of prediction equations for estimating 1-RM performance in the bench press, squat, and deadlift. J Strength Cond Res 1997;11(4):211-213 (Epley among the closest under 10 reps).",
                   "Epley B. Poundage chart. Boyd Epley Workout. Lincoln, NE: Body Enterprises; 1985.",
+                  "Miller AE, MacDougall JD, Tarnopolsky MA, Sale DG. Gender differences in strength and muscle fiber characteristics. Eur J Appl Physiol Occup Physiol 1993;66(3):254-262 (women about 52 % of men's upper and 66 % of lower-body strength).",
+                  "Keller K, Engelhardt M. Strength and muscle mass loss with aging process. Age and strength loss. Muscles Ligaments Tendons J 2013;3(4):346-350.",
+                  "Mujika I, Padilla S. Detraining: loss of training-induced physiological and performance adaptations. Part I. Sports Med 2000;30(2):79-87 (strength dips after weeks off, hence −10 %).",
+                  "App design: the pattern and level ratios, set light on purpose; the first session calibrates.",
                   "Helms ER et al. RPE vs. percentage 1RM loading in periodized programs matched for sets and repetitions. Front Physiol 2018;9:247.",
                   "Graham T, Cleather DJ. Autoregulation by \"repetitions in reserve\" leads to greater improvements in strength over a 12-week training program than fixed loading. J Strength Cond Res 2021;35(9):2451-2456."])
+
+    static let warmup = Topic(
+        id: "warmup", title: "Warm-up & PR tests", symbol: "flame",
+        summary: "Raise, drills, then a ramp to the top set",
+        colors: [0xF59E0B, 0xEF4444],
+        shows: "Every workout's warm-up, Test a PR",
+        parts: [
+            Part("Warm-up", "Every workout starts with a few easy minutes on a cardio machine that suits the day (rower or bike), then drills that wake up the joints the session loads (glutes, shoulder blades, rotator cuff). You can pick drills only, activation, or your own moves.",
+                 rule: ["raise (easy cardio) → mobility and activation drills → the first lift's lighter sets"]),
+            Part("PR test ramp", "Before a 1RM or rep-max test you build up in lighter sets, fewer reps as the weight climbs, so the attempt is warm but not tired.",
+                 rule: ["1RM: 40 % × 8 · 55 % × 5 · 70 % × 3 · 80 % × 2 · 90 % × 1",
+                        "3RM / 5RM: 40 % × 8 · 60 % × 5 · 75 % × 3 · 85 % × 1",
+                        "max reps: 50 % × 8 · 70 % × 3",
+                        "\(PRPlanner.maxAttempts) attempts at most · target = best + one step, or from your estimated 1RM"]),
+            Part("Safety", "Each test names its own safety cue: pins or a spotter for bench and squat, drop a deadlift rather than grind it. A failed rep is fine, an injury is not.", rule: []),
+        ],
+        sources: ["Fradkin AJ, Zazryn TR, Smoliga JM. Effects of warming-up on physical performance: a systematic review with meta-analysis. J Strength Cond Res 2010;24(1):140-148 (warming up improved performance in 79 % of criteria).",
+                  "McCrary JM, Ackermann BJ, Halaki M. A systematic review of the effects of upper body warm-up on performance and injury. Br J Sports Med 2015;49(14):935-942.",
+                  "Grgic J, Lazinica B, Schoenfeld BJ, Pedisic Z. Test-retest reliability of the one-repetition maximum (1RM) strength assessment: a systematic review. Sports Med Open 2020;6:31 (tested with a graded warm-up ramp).",
+                  "App design: the exact ramp percentages, in line with common 1RM test protocols."])
 
     static let readiness = Topic(
         id: "readiness", title: "Readiness & auto-tune", symbol: "heart.text.square.fill",
@@ -185,7 +221,12 @@ public enum HowItWorks {
         ],
         sources: ["Plews DJ, Laursen PB, Stanley J, Kilding AE, Buchheit M. Training adaptation and heart rate variability in elite endurance athletes: opening the door to effective monitoring. Sports Med 2013;43(9):773-781.",
                   "Fullagar HH et al. Sleep and athletic performance: the effects of sleep loss on exercise performance, and physiological and cognitive responses to exercise. Sports Med 2015;45(2):161-186.",
-                  "Larsen S, Kristiansen E, van den Tillaar R. Effects of subjective and objective autoregulation methods for intensity and volume on enhancing maximal strength during resistance-training interventions: a systematic review. PeerJ 2021;9:e10663."])
+                  "Larsen S, Kristiansen E, van den Tillaar R. Effects of subjective and objective autoregulation methods for intensity and volume on enhancing maximal strength during resistance-training interventions: a systematic review. PeerJ 2021;9:e10663.",
+                  "Kiviniemi AM, Hautala AJ, Kinnunen H, Tulppo MP. Endurance training guided individually by daily heart rate variability measurements. Eur J Appl Physiol 2007;101(6):743-751 (easier days when HRV drops beat a fixed plan).",
+                  "Buchheit M. Monitoring training status with HR measures: do all roads lead to Rome? Front Physiol 2014;5:73 (resting HR up and HRV down as fatigue markers).",
+                  "Watson NF et al. Recommended amount of sleep for a healthy adult: a joint consensus statement of the AASM and SRS. Sleep 2015;38(6):843-844 (7 h or more).",
+                  "Cheung K, Hume P, Maxwell L. Delayed onset muscle soreness: treatment strategies and performance factors. Sports Med 2003;33(2):145-164 (sore muscles are weaker for days).",
+                  "App design: the point values and the 85 % HRV and +5 bpm flags."])
 
     static let growth = Topic(
         id: "growth", title: "Block review & growth", symbol: "chart.line.uptrend.xyaxis",
@@ -201,7 +242,10 @@ public enum HowItWorks {
                  rule: ["lagging = < \(Int(Growth.laggingRatio * 100)) % of its counterpart's hard sets (counterpart ≥ 12)"]),
             Part("Effort trending easy", "Flagged in the review when your logged sets end with 3+ reps in reserve on average (6+ sets logged).", rule: []),
         ],
-        sources: ["Kraemer WJ, Ratamess NA. Fundamentals of resistance training: progression and exercise prescription. Med Sci Sports Exerc 2004;36(4):674-688."])
+        sources: ["Kraemer WJ, Ratamess NA. Fundamentals of resistance training: progression and exercise prescription. Med Sci Sports Exerc 2004;36(4):674-688.",
+                  "Kassiano W et al. Does varying resistance exercises promote superior muscle hypertrophy and strength gains? A systematic review. J Strength Cond Res 2022;36(6):1753-1762 (swapping variations helps when gains stall).",
+                  "Helms ER et al. Application of the repetitions in reserve-based RPE scale for resistance training. Strength Cond J 2016;38(4):42-49.",
+                  "App design: the level-up, plateau and lagging thresholds."])
 
     // MARK: Heart and cardio
 
@@ -222,7 +266,8 @@ public enum HowItWorks {
         ],
         sources: ["Tanaka H, Monahan KD, Seals DR. Age-predicted maximal heart rate revisited. J Am Coll Cardiol 2001;37(1):153-156.",
                   "Karvonen MJ, Kentala E, Mustala O. The effects of training on heart rate; a longitudinal study. Ann Med Exp Biol Fenn 1957;35(3):307-315.",
-                  "Bull FC et al. World Health Organization 2020 guidelines on physical activity and sedentary behaviour. Br J Sports Med 2020;54(24):1451-1462."])
+                  "Bull FC et al. World Health Organization 2020 guidelines on physical activity and sedentary behaviour. Br J Sports Med 2020;54(24):1451-1462 (150 min a week).",
+                  "Garber CE et al. American College of Sports Medicine position stand: quantity and quality of exercise for developing and maintaining cardiorespiratory, musculoskeletal, and neuromotor fitness in apparently healthy adults. Med Sci Sports Exerc 2011;43(7):1334-1359 (intensity by heart-rate reserve)."])
 
     static let effort = Topic(
         id: "effort", title: "Workout effort", symbol: "gauge.with.dots.needle.67percent",
@@ -235,7 +280,8 @@ public enum HowItWorks {
             Part("Bands", "Apple's words for the score.",
                  rule: ["1–3 \(WorkoutEffort.word(2)) · 4–6 \(WorkoutEffort.word(5)) · 7–8 \(WorkoutEffort.word(8)) · 9–10 \(WorkoutEffort.word(10))"]),
         ],
-        sources: ["Foster C et al. A new approach to monitoring exercise training. J Strength Cond Res 2001;15(1):109-115."])
+        sources: ["Foster C et al. A new approach to monitoring exercise training. J Strength Cond Res 2001;15(1):109-115.",
+                  "Helms ER et al. Application of the repetitions in reserve-based RPE scale for resistance training. Strength Cond J 2016;38(4):42-49 (RPE = 10 − RIR)."])
 
     static let cardio = Topic(
         id: "cardio", title: "Runs & HIIT", symbol: "figure.run",
@@ -250,7 +296,11 @@ public enum HowItWorks {
             Part("HIIT days", "On free days away from leg days and from each other; formats rotate weekly, the deload week is easy intervals.",
                  rule: ["low readiness eases HIIT like any session"]),
         ],
-        sources: ["Wilson JM et al. Concurrent training: a meta-analysis examining interference of aerobic and resistance exercises. J Strength Cond Res 2012;26(8):2293-2307."])
+        sources: ["Wilson JM et al. Concurrent training: a meta-analysis examining interference of aerobic and resistance exercises. J Strength Cond Res 2012;26(8):2293-2307 (running interferes more than cycling, hence spacing runs from leg days).",
+                  "Schumann M et al. Compatibility of concurrent aerobic and strength training for skeletal muscle size and function: an updated systematic review and meta-analysis. Sports Med 2022;52(3):601-612 (lifting and cardio in the same session costs explosive strength, not size or max strength).",
+                  "Gibala MJ, Little JP, MacDonald MJ, Hawley JA. Physiological adaptations to low-volume, high-intensity interval training in health and disease. J Physiol 2012;590(5):1077-1084.",
+                  "Tabata I et al. Effects of moderate-intensity endurance and high-intensity intermittent training on anaerobic capacity and VO2max. Med Sci Sports Exerc 1996;28(10):1327-1330 (20 s / 10 s × 8).",
+                  "App design: which weekday each run or HIIT lands on."])
 
     // MARK: Fuel
 
@@ -286,7 +336,10 @@ public enum HowItWorks {
         ],
         sources: ["Jäger R et al. International Society of Sports Nutrition position stand: protein and exercise. J Int Soc Sports Nutr 2017;14:20.",
                   "Thomas DT, Erdman KA, Burke LM. American College of Sports Medicine joint position statement: nutrition and athletic performance. Med Sci Sports Exerc 2016;48(3):543-568.",
-                  "Ainsworth BE et al. 2011 Compendium of Physical Activities: a second update of codes and MET values. Med Sci Sports Exerc 2011;43(8):1575-1581."])
+                  "Ainsworth BE et al. 2011 Compendium of Physical Activities: a second update of codes and MET values. Med Sci Sports Exerc 2011;43(8):1575-1581.",
+                  "Helms ER, Zinn C, Rowlands DS, Brown SR. A systematic review of dietary protein during caloric restriction in resistance trained lean athletes: a case for higher intakes. Int J Sport Nutr Exerc Metab 2014;24(2):127-138 (more protein when losing).",
+                  "Burke LM, Hawley JA, Wong SHS, Jeukendrup AE. Carbohydrates for training and competition. J Sports Sci 2011;29(Suppl 1):S17-S27 (carbs by training load, 10–12 g/kg to load).",
+                  "App design: hand portions are a rule of thumb; the lean × 1.25 cap."])
 
     static let water = Topic(
         id: "water", title: "Water", symbol: "drop.fill",
@@ -302,7 +355,7 @@ public enum HowItWorks {
         ],
         sources: ["Sawka MN et al. American College of Sports Medicine position stand: exercise and fluid replacement. Med Sci Sports Exerc 2007;39(2):377-390.",
                   "EFSA Panel on Dietetic Products, Nutrition and Allergies. Scientific opinion on dietary reference values for water. EFSA J 2010;8(3):1459 (2.0 L women, 2.5 L men a day, food included).",
-                  "35 ml/kg and the training and step top-ups are app design, a rule of thumb around those references."])
+                  "App design: 35 ml/kg, the training, step and creatine top-ups are a rule of thumb around those references."])
 
     static let caffeine = Topic(
         id: "caffeine", title: "Caffeine & supplements", symbol: "cup.and.saucer.fill",
@@ -316,7 +369,10 @@ public enum HowItWorks {
             Part("Supplement schedule", "Doses land on your meals; cycles count weeks on and off from the start date you set.", rule: []),
         ],
         sources: ["EFSA Panel on Dietetic Products, Nutrition and Allergies. Scientific opinion on the safety of caffeine. EFSA J 2015;13(5):4102.",
-                  "Drake C, Roehrs T, Shambroom J, Roth T. Caffeine effects on sleep taken 0, 3, or 6 hours before going to bed. J Clin Sleep Med 2013;9(11):1195-1200."])
+                  "Drake C, Roehrs T, Shambroom J, Roth T. Caffeine effects on sleep taken 0, 3, or 6 hours before going to bed. J Clin Sleep Med 2013;9(11):1195-1200.",
+                  "Gardiner C et al. The effect of caffeine on subsequent sleep: a systematic review and meta-analysis. Sleep Med Rev 2023;69:101764 (a coffee about 9 h and a pre-workout about 13 h before bed still cost sleep).",
+                  "Guest NS et al. International Society of Sports Nutrition position stand: caffeine and exercise performance. J Int Soc Sports Nutr 2021;18(1):1 (3–6 mg/kg about an hour before).",
+                  "Kreider RB et al. International Society of Sports Nutrition position stand: safety and efficacy of creatine supplementation in exercise, sport, and medicine. J Int Soc Sports Nutr 2017;14:18."])
 
     // MARK: Body
 
@@ -332,7 +388,52 @@ public enum HowItWorks {
             Part("Cool-down", "A workout without one gets 5′: 4 mat stretches for its most-loaded muscles. Optional: it feels good and eases you out of the session, but studies don't show it cuts soreness or injuries, so skip it when short on time.", rule: []),
         ],
         sources: ["Van Hooren B, Peake JM. Do we need a cool-down after exercise? A narrative review of the psychophysiological effects and the effects on performance, injuries and the long-term adaptive response. Sports Med 2018;48(7):1575-1595.",
-                  "Behm DG et al. Acute effects of muscle stretching on physical performance, range of motion, and injury incidence in healthy active individuals: a systematic review. Appl Physiol Nutr Metab 2016;41(1):1-11."])
+                  "Behm DG et al. Acute effects of muscle stretching on physical performance, range of motion, and injury incidence in healthy active individuals: a systematic review. Appl Physiol Nutr Metab 2016;41(1):1-11.",
+                  "Dupuy O, Douzi W, Theurot D, Bosquet L, Dugué B. An evidence-based approach for choosing post-exercise recovery techniques to reduce markers of muscle damage, soreness, fatigue, and inflammation: a systematic review with meta-analysis. Front Physiol 2018;9:403 (active recovery and massage-like work ease soreness a little).",
+                  "App design: the 40 % rule for picking an area."])
+
+    static let pain = Topic(
+        id: "pain", title: "Train around pain", symbol: "cross.case.fill",
+        summary: "Moves that load a sore joint swap out",
+        colors: [0xE11D48, 0xF59E0B],
+        shows: "Body figure, Ask Coach, 🛡 swapped moves",
+        parts: [
+            Part("Three levels", "Tell the app where it hurts and how bad. Each level swaps more; training the rest of the body goes on, pain-free range only.",
+                 rule: ["mild: the harshest moves for that joint (legs: jumps and running · shoulder: overhead · back: swings and barbell hinges)",
+                        "sore when loaded: also the moves that load it most (knee: lunges, leg extensions, free squats)",
+                        "sharp: every move that loads the joint"]),
+            Part("Swap", "Each risky move swaps to the closest one that spares the joint (same role, most muscles in common, your kit), or goes when nothing fits.", rule: []),
+            Part("When to see someone", PainProtect.notAdvice,
+                 rule: ["still on after 14 days → Still hurts after 2 weeks? card with Get advice"]),
+        ],
+        sources: ["Smith BE et al. Should exercises be painful in the management of chronic musculoskeletal pain? A systematic review and meta-analysis. Br J Sports Med 2017;51(23):1679-1687 (some pain during exercise is acceptable, hence mild only swaps the harshest moves).",
+                  "Silbernagel KG, Thomeé R, Eriksson BI, Karlsson J. Continued sports activity, using a pain-monitoring model, during rehabilitation in patients with Achilles tendinopathy: a randomized controlled study. Am J Sports Med 2007;35(6):897-906 (keep training while pain stays low).",
+                  "App design: which moves load which joint, and the 14-day check-in."])
+
+    static let lifeStage = Topic(
+        id: "life", title: "Life stages", symbol: "figure.and.child.holdinghands",
+        summary: "Pregnancy, after birth, 50+, back to training",
+        colors: [0xEC4899, 0x8B5CF6],
+        shows: "Explore → Plans → Life stages",
+        parts: [
+            Part("Safety first", "Each programme starts with a short check-in and asks you to confirm a doctor or midwife said exercise is OK. Working sets go by feel.",
+                 rule: ["every strength set: \(LifeStage.talkTest)"]),
+            Part("Pregnancy", "Strength goes on through all three trimesters, with safer moves as the bump grows.",
+                 rule: ["all trimesters: no jumping or bounding",
+                        "from the 2nd: no crunching, no lying flat on your back for long, lighter loads without breath holding"]),
+            Part("After birth", "Core and pelvic floor first, impact later.",
+                 rule: ["no jumps and no crunching until about week 16", "then build up to the hardest jumps"]),
+            Part("50+", "Power with control: fast but safe moves, balance and bone loading stay in.",
+                 rule: ["depth and tuck jumps, burpees, dragon flags and toes-to-bar swap to controlled versions"]),
+            Part("Back to training", "After 4 weeks or more off, rebuild before high-impact jumps and fast lifts.",
+                 rule: ["4+ weeks off: depth and tuck jumps and power cleans swap out", "loads start lighter (see Load)"]),
+        ],
+        sources: ["Mottola MF et al. 2019 Canadian guideline for physical activity throughout pregnancy. Br J Sports Med 2018;52(21):1339-1346.",
+                  "ACOG Committee Opinion No. 804. Physical activity and exercise during pregnancy and the postpartum period. Obstet Gynecol 2020;135(4):e178-e188 (avoid lying flat on the back for long, and contact or fall risks).",
+                  "Christopher SM et al. Clinical and exercise professional opinion of return-to-running readiness after childbirth: an international Delphi study and consensus statement. Br J Sports Med 2024 (impact from about 12 weeks; the app waits a little longer).",
+                  "Fragala MS et al. Resistance training for older adults: position statement from the National Strength and Conditioning Association. J Strength Cond Res 2019;33(8):2019-2052 (power, balance and strength work after 50).",
+                  "Persinger R, Foster C, Gibson M, Fater DCW, Porcari JP. Consistency of the talk test for exercise prescription. Med Sci Sports Exerc 2004;36(9):1632-1636.",
+                  "Mujika I, Padilla S. Detraining: loss of training-induced physiological and performance adaptations. Part I. Sports Med 2000;30(2):79-87."])
 
     static let body = Topic(
         id: "body", title: "Body numbers", symbol: "figure.arms.open",
@@ -345,7 +446,8 @@ public enum HowItWorks {
             Part("Where it's used", "Lean mass sets protein and nudges starting loads; arm and thigh girths nudge arm and leg starting loads. Each nudge is capped so a typo can't swing a number.", rule: []),
             Part("Change", "Charts show the change from the first to the latest point; Health copies of a logged value are counted once.", rule: []),
         ],
-        sources: ["Morton RW et al. A systematic review, meta-analysis and meta-regression of the effect of protein supplementation on resistance training-induced gains in muscle mass and strength in healthy adults. Br J Sports Med 2018;52(6):376-384."])
+        sources: ["Morton RW et al. A systematic review, meta-analysis and meta-regression of the effect of protein supplementation on resistance training-induced gains in muscle mass and strength in healthy adults. Br J Sports Med 2018;52(6):376-384.",
+                  "App design: the caps on lean-mass and girth nudges."])
 
     static let form = Topic(
         id: "form", title: "Form check", symbol: "video.fill",
@@ -373,7 +475,8 @@ public enum HowItWorks {
         ],
         sources: ["Apple Vision framework, VNDetectHumanBodyPoseRequest (2D body pose).",
                   "Myer GD et al. The back squat: a proposed assessment of functional deficits and technical factors that limit performance. Strength Cond J 2014;36(6):4-27.",
-                  "Thresholds are app design, tuned on the 3D position guide's poses."])
+                  "Hewett TE et al. Biomechanical measures of neuromuscular control and valgus loading of the knee predict anterior cruciate ligament injury risk in female athletes: a prospective study. Am J Sports Med 2005;33(4):492-501 (why knees caving is flagged).",
+                  "App design: the thresholds and points, tuned on the 3D position guide's poses."])
 
     private static func pct(_ v: Double) -> String { "\(Int((v * 100).rounded())) %" }
     static let mind = Topic(
@@ -411,7 +514,25 @@ public enum HowItWorks {
                   "Watson NF et al. Recommended amount of sleep for a healthy adult: a joint consensus statement of the AASM and SRS. Sleep 2015;38(6):843-844.",
                   "Weil A. Breathing: The Master Key to Self Healing. Sounds True, 1999 (4-7-8: four breaths twice a day, up to eight).",
                   "Vierra J, Boonla O, Prasertsri P. Effects of sleep deprivation and 4-7-8 breathing control on heart rate variability, blood pressure, blood glucose, and endothelial function in healthy young adults. Physiol Rep 2022;10(13):e15389.",
-                  "Plews DJ et al. Training adaptation and heart rate variability in elite endurance athletes. Int J Sports Physiol Perform 2013;8(6):688-694."])
+                  "Plews DJ, Laursen PB, Kilding AE, Buchheit M. Evaluating training adaptation with heart-rate measures: a methodological comparison. Int J Sports Physiol Perform 2013;8(6):688-694 (7-day HRV average over single readings).",
+                  "App design: the score weights and bands; not a validated scale."])
+
+    static let coach = Topic(
+        id: "coach", title: "Coach nudges", symbol: "bell.badge.fill",
+        summary: "When Coach speaks up, and when it stays quiet",
+        colors: [0x84CC16, 0x10B981],
+        shows: "Session reminders, comeback offer, workout recap",
+        parts: [
+            Part("Session reminder", "At your reminder time (never in quiet hours), in your words: what you did last time, the number to beat and when you usually start.",
+                 rule: ["usual start = median of your last 12 workouts, once \(CoachNudges.usualMinRecords) are logged"]),
+            Part("Drifting", "One kind offer, once, when plans slip, never a guilt trip.",
+                 rule: ["\(CoachNudges.driftMissed) planned sessions missed since your last workout, or \(Comeback.gapDays)+ days away → a \(CoachNudges.comebackMinutes)′ comeback workout",
+                        "shown at 12:00 or 17:00, outside quiet hours"]),
+            Part("Recap", "When a workout ends: two lines on what happened, compared with the last time you did each move, and one tip for next time.", rule: []),
+        ],
+        sources: ["Gollwitzer PM, Sheeran P. Implementation intentions and goal achievement: a meta-analysis of effects and processes. Adv Exp Soc Psychol 2006;38:69-119 (a set when and where makes doing it more likely).",
+                  "Lally P, van Jaarsveld CHM, Potts HWW, Wardle J. How are habits formed: modelling habit formation in the real world. Eur J Soc Psychol 2010;40(6):998-1009 (same time each day builds the habit).",
+                  "App design: 2 missed sessions and the 12:00 / 17:00 slots."])
 
     static func fmt(_ v: Double) -> String {
         v == v.rounded() ? String(Int(v)) : String(format: "%g", v)
