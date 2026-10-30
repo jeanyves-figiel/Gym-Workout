@@ -108,7 +108,7 @@ public enum PRPlanner {
     public static let maxAttempts = 3
     public static let repMaxChoices = [3, 5]
 
-    private static let bodyweightGear: Set<Equipment> = [.pullupBar, .dipStation, .rings, .trx, .mat, .bench, .plyoBox, .abWheel, .bands, .backExtension]
+    static let bodyweightGear: Set<Equipment> = [.pullupBar, .dipStation, .rings, .trx, .mat, .bench, .plyoBox, .abWheel, .bands, .backExtension]
 
     /// Strength moves counted in reps; time-based holds can't be attempted.
     public static func eligible(_ e: Exercise) -> Bool { e.category == .strength && e.unit != .sec }
