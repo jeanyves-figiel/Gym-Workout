@@ -137,4 +137,13 @@ extension AppModel {
 
     /// Puts the profile back after Rest day's Undo.
     func restoreSportDay(_ before: Profile) { updateProfile(before) }
+
+    /// Undo of a one-day sport skip (#987): takes only that day back off the list, so edits made while the Undo bar
+    /// was up (a new place, another sport) stay.
+    func restoreSportOff(_ key: String) {
+        guard var p = profile, p.sportOff?.contains(key) == true else { return }
+        p.sportOff?.removeAll { $0 == key }
+        if p.sportOff?.isEmpty == true { p.sportOff = nil }
+        updateProfile(p)
+    }
 }

@@ -188,7 +188,8 @@ struct DayComboRow: View {
                 Label(sport == .climbing ? "Log climb" : "Log \(sport.short.lowercased())", systemImage: "plus.circle.fill")
             }
         }
-        if let onSportSkip {
+        // Not while it is being tracked live (#987): the day would say no sport next to a climb being logged.
+        if let onSportSkip, !(sport == .climbing && ClimbLive.shared.running) {
             Button(role: .destructive) { onSportSkip(sport) } label: {
                 Label(Self.skipSportTitle(sport, today: thisWeek && day == model.todayWeekday), systemImage: "nosign")
             }
