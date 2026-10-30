@@ -2,8 +2,12 @@
 const { chromium } = require('playwright'); const http=require('http'),fs=require('fs'),path=require('path');
 (async()=>{
  const [outp,W,H,...specs]=process.argv.slice(2);
- const srv=http.createServer((q,r)=>{const f=path.join(__dirname,decodeURIComponent(q.url.split('?')[0]));fs.readFile(f,(e,d)=>{if(e){r.writeHead(404);r.end();return;}
-  r.writeHead(200,{'Content-Type':f.endsWith('.js')?'text/javascript':f.endsWith('.html')?'text/html':'application/octet-stream'});r.end(d);});}).listen(0);
+ // local file server for the page: only files inside this folder, on loopback
+ const root=path.resolve(__dirname);
+ const srv=http.createServer((q,r)=>{let f;try{f=path.resolve(root,'.'+path.posix.normalize('/'+decodeURIComponent(q.url.split('?')[0])));}catch(e){f=null;}
+  if(!f||(f!==root&&!f.startsWith(root+path.sep))){r.writeHead(403);r.end();return;}
+  fs.readFile(f,(e,d)=>{if(e){r.writeHead(404);r.end();return;}
+  r.writeHead(200,{'Content-Type':f.endsWith('.js')?'text/javascript':f.endsWith('.html')?'text/html':'application/octet-stream'});r.end(d);});}).listen(0,'127.0.0.1');
  const port=srv.address().port;
  const b=await chromium.launch({args:['--use-gl=swiftshader','--enable-webgl','--ignore-gpu-blocklist']});
  const cols=Math.min(specs.length,+process.env.COLS||4), rows=Math.ceil(specs.length/cols);
