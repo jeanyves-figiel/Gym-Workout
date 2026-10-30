@@ -1,17 +1,23 @@
 {
-  "id": "2026-10-30.1",
+  "id": "2026-10-30.2",
   "items": [
     {
       "symbol": "figure.strengthtraining.traditional",
       "tint": "power",
-      "title": "Silky moves",
-      "body": "Every exercise animation now plays at 60 fps, smooth from start to finish at your tempo."
+      "title": "Moves are back",
+      "body": "Exercise animations play again on every exercise, smooth at 60 fps."
     },
     {
-      "symbol": "scope",
+      "symbol": "video.fill",
       "tint": "strength",
-      "title": "Focus next to Ask Coach",
-      "body": "With A bit of everything, the Focus tile now sits right beside the Insights ask bar: one line, less scrolling."
+      "title": "Film my workout",
+      "body": "Show the weight, lift, and MonkeyFit names the move, counts reps, checks form and logs it. Video never leaves your iPhone."
+    },
+    {
+      "symbol": "figure.climbing",
+      "tint": "cardio",
+      "title": "Climb on a gym day",
+      "body": "Tap Climb on the day to track it live or log it."
     }
   ]
 }
