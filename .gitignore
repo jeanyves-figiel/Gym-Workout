@@ -19,4 +19,8 @@ xcuserdata/
 DerivedData/
 .claude/worktrees/
 __pycache__/
+ios/Tools/illustrations/preview3d/out/
+ios/Tools/illustrations/preview3d/three.module.js
+ios/Tools/illustrations/preview3d/package*.json
+ios/Tools/illustrations/preview3d/*.png
 ios/build/

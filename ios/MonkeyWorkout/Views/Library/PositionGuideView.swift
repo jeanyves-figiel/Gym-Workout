@@ -17,6 +17,11 @@ struct PositionGuideView: View {
     @State private var showMistake = false
     @State private var snapFrom: (yaw: Double, at: Date)?
     @State private var snapTarget: Double?
+    /// Pinch / button zoom of the stage (1 = whole movement framed).
+    @State private var zoom = 1.0
+    @State private var pinchBase: Double?
+    /// Step the camera zooms on (design C, #959); nil = all callouts.
+    @State private var focus: Int?
 
     init(exercise: Exercise, position: ExercisePosition, key: Int? = nil, demoMistake: Bool = false) {
         self.exercise = exercise
@@ -64,6 +69,43 @@ struct PositionGuideView: View {
         }
     }
     private var checks: [PositionCheck] { position.checks(at: key) }
+
+    /// One technique step on the stage: a callout by default, the camera's focus when tapped.
+    struct Step: Identifiable {
+        let n: Int
+        let part: String
+        let cue: String
+        let joint: String
+        let color: Color
+        let check: PositionCheck?
+        var id: Int { n }
+    }
+
+    /// The pinned checkpoints (with the angle check on their joint, if any), then angle checks no pin covers.
+    private var steps: [Step] {
+        var out = pins.map { n, c in
+            let check = checks.first { Self.checkJoint(for: c.part) == $0.joint }
+            return Step(n: n, part: c.part.label, cue: c.cue,
+                        joint: check.map { $0.joint.points($0.side).1 } ?? ExercisePosition.joint(for: c.part),
+                        color: Self.pinColors[(n - 1) % 4], check: check)
+        }
+        for (i, c) in checks.enumerated() where !out.contains(where: { $0.check == c }) {
+            out.append(Step(n: (out.map(\.n).max() ?? 0) + 1, part: c.joint.label, cue: "Hold \(c.rangeText) here",
+                            joint: c.joint.points(c.side).1, color: Self.arcColors[i % 2], check: c))
+        }
+        return out
+    }
+
+    static func checkJoint(for part: BodyPart) -> PositionJoint? {
+        switch part {
+        case .knees: .knee
+        case .hips: .hip
+        case .elbows: .elbow
+        case .shoulders: .shoulder
+        case .feet: .ankle
+        default: nil
+        }
+    }
     private var mistake: PositionMistake? { PositionMistake.pick(technique?.mistakes ?? []) }
     private var ghost: ExercisePosition.Key? {
         guard showMistake, let mistake else { return nil }
@@ -79,6 +121,7 @@ struct PositionGuideView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 stage
+                stepChips
                 keyChips
                 cards
             }
@@ -97,7 +140,8 @@ struct PositionGuideView: View {
         TimelineView(.animation(paused: snapFrom == nil)) { ctx in
             let y = currentYaw(at: ctx.date)
             GeometryReader { geo in
-                let camera = PositionCamera(position: position, size: geo.size)
+                let focusPoint = steps.first { $0.n == focus }.flatMap { position.keys[key].point($0.joint) }
+                let camera = PositionCamera(position: position, size: geo.size, zoom: zoom, focus: focusPoint)
                 ZStack {
                     PositionFigureView(exerciseId: exercise.id, position: position, key: key, ghost: ghost,
                                        highlight: exercise.primary, yaw: y, camera: camera)
@@ -117,7 +161,15 @@ struct PositionGuideView: View {
                 yaw = base + Double(v.translation.width) * 0.012
             }
             .onEnded { _ in dragBase = nil })
+        .simultaneousGesture(MagnifyGesture()
+            .onChanged { v in
+                let base = pinchBase ?? zoom
+                pinchBase = base
+                zoom = Self.clampZoom(base * Double(v.magnification))
+            }
+            .onEnded { _ in pinchBase = nil })
         .overlay(alignment: .top) { snaps.padding(.top, 12) }
+        .overlay(alignment: .bottomTrailing) { zoomButtons.padding(10) }
         .overlay(alignment: .bottomLeading) {
             Label("Drag to turn", systemImage: "rotate.3d")
                 .font(Theme.label(10)).tracking(1.5).textCase(.uppercase)
@@ -127,6 +179,44 @@ struct PositionGuideView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(exercise.name), \(ExerciseMotionView.label(key, of: position.keys.count)) position in 3D")
+    }
+
+    static let zoomRange = 1.0...3.0
+    static func clampZoom(_ z: Double) -> Double { min(zoomRange.upperBound, max(zoomRange.lowerBound, z)) }
+
+    /// Zoom out / in buttons (pinch does the same); the level shows between them and resets on tap.
+    private var zoomButtons: some View {
+        HStack(spacing: 2) {
+            zoomButton("minus", label: "Zoom out", enabled: zoom > Self.zoomRange.lowerBound + 0.01) {
+                zoom = Self.clampZoom(zoom / 1.4)
+            }
+            Button { withAnimation(.snappy) { zoom = 1 } } label: {
+                Text(String(format: "%.1f×", zoom))
+                    .font(Theme.label(11)).monospacedDigit()
+                    .foregroundStyle(.white)
+                    .frame(minWidth: 34, minHeight: 34)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Reset zoom")
+            zoomButton("plus", label: "Zoom in", enabled: zoom < Self.zoomRange.upperBound - 0.01) {
+                zoom = Self.clampZoom(zoom * 1.4)
+            }
+        }
+        .padding(3)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.3)))
+    }
+
+    private func zoomButton(_ icon: String, label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button { withAnimation(.snappy) { action() } } label: {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .black))
+                .foregroundStyle(.white.opacity(enabled ? 1 : 0.35))
+                .frame(width: 34, height: 34)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.14)))
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .accessibilityLabel(label)
     }
 
     private func currentYaw(at date: Date) -> Double {
@@ -169,12 +259,21 @@ struct PositionGuideView: View {
         .background(Capsule().fill(.black.opacity(0.3)))
     }
 
-    /// Pins, angle arcs and the mistake label, placed on the projected joints.
+    /// Callouts (design B, #959): each technique step is a plain-language callout in a column beside the figure,
+    /// a dashed leader to its joint and a ring where it is; the angle arcs stay on the joints. With a step in focus
+    /// (design C) only that step shows: its ring, its arc and a big gauge.
     private func overlay(camera: PositionCamera, yaw: Double) -> some View {
         let k = position.keys[key]
+        let focused = steps.first { $0.n == focus }
+        let anchors: [(Step, CGPoint)] = (focused.map { [$0] } ?? steps).compactMap { s in
+            k.point(s.joint).map { (s, camera.project($0, yaw: yaw)) }
+        }
+        let boxes = focused == nil
+            ? Self.layoutCallouts(anchors.map(\.1), in: camera.size, top: showMistake ? 86 : 56) : []
         return ZStack(alignment: .topLeading) {
             Canvas { ctx, _ in
                 for (i, c) in checks.enumerated() {
+                    if let focused, focused.check != c { continue }
                     let (a, j, b) = c.joint.points(c.side)
                     guard let pa = k.point(a), let pj = k.point(j), let pb = k.point(b) else { continue }
                     let A = camera.project(pa, yaw: yaw), J = camera.project(pj, yaw: yaw),
@@ -182,40 +281,117 @@ struct PositionGuideView: View {
                     var a1 = atan2(A.y - J.y, A.x - J.x), a2 = atan2(B.y - J.y, B.x - J.x)
                     if a2 - a1 > .pi { a2 -= 2 * .pi } else if a1 - a2 > .pi { a1 -= 2 * .pi }
                     var path = Path()
-                    path.addArc(center: J, radius: 24, startAngle: .radians(a1), endAngle: .radians(a2),
-                                clockwise: a2 < a1)
-                    ctx.stroke(path, with: .color(Self.arcColors[i % 2]),
-                               style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    path.addArc(center: J, radius: focused == nil ? 24 : 36, startAngle: .radians(a1),
+                                endAngle: .radians(a2), clockwise: a2 < a1)
+                    ctx.stroke(path, with: .color(focused?.color ?? Self.arcColors[i % 2]),
+                               style: StrokeStyle(lineWidth: focused == nil ? 4 : 6, lineCap: .round))
+                }
+                for (i, (s, p)) in anchors.enumerated() {
+                    if i < boxes.count {
+                        var leader = Path()
+                        leader.move(to: boxes[i].edge)
+                        leader.addLine(to: p)
+                        ctx.stroke(leader, with: .color(.white.opacity(0.9)), style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
+                    }
+                    ctx.stroke(Path(ellipseIn: CGRect(x: p.x - 10, y: p.y - 10, width: 20, height: 20)),
+                               with: .color(s.color), lineWidth: 3)
+                    ctx.stroke(Path(ellipseIn: CGRect(x: p.x - 15, y: p.y - 15, width: 30, height: 30)),
+                               with: .color(s.color.opacity(0.35)), lineWidth: 2)
                 }
             }
             .allowsHitTesting(false)
-            ForEach(Array(checks.enumerated()), id: \.offset) { i, c in
-                if let pj = k.point(c.joint.points(c.side).1) {
-                    let p = camera.project(pj, yaw: yaw)
-                    tag(c.label, color: Self.arcColors[i % 2], dark: false)
-                        .position(x: p.x + (i == 0 ? 52 : -52), y: p.y - 22)
+            ForEach(Array(anchors.enumerated()), id: \.offset) { i, item in
+                if i < boxes.count {
+                    callout(item.0).position(boxes[i].center)
                 }
             }
-            ForEach(pins, id: \.0) { n, c in
-                if let pj = k.point(ExercisePosition.joint(for: c.part)) {
-                    let p = camera.project(pj, yaw: yaw)
-                    Text("\(n)")
-                        .font(.system(size: 13, weight: .black, design: .rounded))
-                        .foregroundStyle(Theme.ink)
-                        .frame(width: 24, height: 24)
-                        .background(Circle().fill(.white))
-                        .overlay(Circle().strokeBorder(Self.pinColors[(n - 1) % 4], lineWidth: 3))
-                        .shadow(color: .black.opacity(0.35), radius: 4)
-                        .position(x: p.x + 16, y: p.y - 4)
-                }
+            if let focused {
+                gauge(focused)
+                    .padding(.top, showMistake ? 86 : 52).padding(.leading, 12)
+                    .allowsHitTesting(false)
             }
             if showMistake, let mistake, ghost != nil {
                 tag("✕ " + Self.short(mistake), color: Self.mistakeColor, dark: true)
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.top, 52).padding(.trailing, 12)
+                    .allowsHitTesting(false)
             }
         }
-        .allowsHitTesting(false)
+    }
+
+    static let calloutSize = CGSize(width: 118, height: 40)
+
+    /// Callout boxes in two columns (left / right of the stage, by the side their joint is on), in the joints'
+    /// vertical order, pushed apart so none overlap, kept between the snaps and the zoom buttons.
+    static func layoutCallouts(_ anchors: [CGPoint], in size: CGSize, top: Double) -> [(center: CGPoint, edge: CGPoint)] {
+        let w = calloutSize.width, h = calloutSize.height, gap = 6.0, bottom = size.height - 54
+        var out = [(center: CGPoint, edge: CGPoint)](repeating: (.zero, .zero), count: anchors.count)
+        for left in [true, false] {
+            let idx = anchors.indices.filter { (anchors[$0].x < size.width / 2) == left }.sorted { anchors[$0].y < anchors[$1].y }
+            guard !idx.isEmpty else { continue }
+            var ys = idx.map { min(max(anchors[$0].y - h / 2, top), bottom - h) }
+            for i in ys.indices.dropFirst() { ys[i] = max(ys[i], ys[i - 1] + h + gap) }
+            if let last = ys.last, last > bottom - h {
+                ys[ys.count - 1] = bottom - h
+                for i in ys.indices.reversed().dropFirst() { ys[i] = min(ys[i], ys[i + 1] - h - gap) }
+            }
+            let x = left ? 8 + w / 2 : size.width - 8 - w / 2
+            for (j, i) in idx.enumerated() {
+                let c = CGPoint(x: x, y: ys[j] + h / 2)
+                out[i] = (c, CGPoint(x: left ? x + w / 2 : x - w / 2, y: c.y))
+            }
+        }
+        return out
+    }
+
+    private func callout(_ s: Step) -> some View {
+        Button { setFocus(s.n) } label: {
+            HStack(alignment: .top, spacing: 5) {
+                Text("\(s.n)")
+                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .frame(width: 18, height: 18)
+                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.white.opacity(0.3)))
+                Text(s.cue)
+                    .font(.system(size: 11, weight: .heavy, design: .rounded))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                    .multilineTextAlignment(.leading)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 7).padding(.vertical, 5)
+            .frame(width: Self.calloutSize.width, height: Self.calloutSize.height, alignment: .topLeading)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(s.color))
+            .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(s.part): \(s.cue)")
+        .accessibilityHint("Zooms on this step")
+    }
+
+    /// The focused step's big gauge: its angle and the range that counts as right, or its cue.
+    private func gauge(_ s: Step) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text("\(s.n) · \(s.part.uppercased())")
+                .font(Theme.label(10)).tracking(1.5)
+                .foregroundStyle(s.color)
+            if let c = s.check {
+                Text("\(c.degrees)°").font(.system(size: 34, weight: .black, design: .rounded))
+                Text("Good: \(c.rangeText) here").font(.caption2.weight(.heavy)).opacity(0.85)
+            } else {
+                Text(s.cue).font(.caption.weight(.heavy)).lineLimit(3)
+                    .frame(maxWidth: 170, alignment: .leading)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.black.opacity(0.4)))
+    }
+
+    private func setFocus(_ n: Int?) {
+        withAnimation(.snappy) {
+            focus = n
+            zoom = n == nil ? 1 : max(zoom, 2.2)
+        }
     }
 
     private func tag(_ text: String, color: Color, dark: Bool) -> some View {
@@ -245,6 +421,46 @@ struct PositionGuideView: View {
 
     // MARK: Below the stage
 
+    /// All + one chip per step (design C): a chip zooms the camera on that step; its cue shows under the chips.
+    @ViewBuilder private var stepChips: some View {
+        if !steps.isEmpty {
+            VStack(spacing: 8) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        stepChip("All", color: .white, on: focus == nil) { setFocus(nil) }
+                        ForEach(steps) { s in
+                            stepChip("\(s.n) \(s.part)", color: s.color, on: focus == s.n) { setFocus(focus == s.n ? nil : s.n) }
+                        }
+                    }
+                }
+                if let f = steps.first(where: { $0.n == focus }) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(f.part.uppercased()) · \(ExerciseMotionView.label(key, of: position.keys.count).uppercased())")
+                            .font(Theme.label(10)).tracking(1.2).opacity(0.85)
+                        Text(f.cue).font(.subheadline.weight(.heavy)).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12).padding(.vertical, 10)
+                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(LinearGradient(colors: [f.color, f.color.opacity(0.7)], startPoint: .leading, endPoint: .trailing)))
+                }
+            }
+        }
+    }
+
+    private func stepChip(_ title: String, color: Color, on: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(Theme.label(12))
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .foregroundStyle(on ? Theme.ink : .white)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(on ? AnyShapeStyle(color) : AnyShapeStyle(Theme.cardStrong)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
     private var keyChips: some View {
         HStack(spacing: 8) {
             ForEach(0..<position.keys.count, id: \.self) { i in
@@ -266,10 +482,16 @@ struct PositionGuideView: View {
 
     private var cards: some View {
         VStack(spacing: 8) {
-            ForEach(Array(checks.enumerated()), id: \.offset) { i, c in
-                row(icon: Text("✓"), iconColor: Self.arcColors[i % 2], title: "\(c.joint.label) \(c.rangeText)",
-                    detail: "This position: \(c.degrees)°. The arc shows the angle to hold.",
-                    background: AnyShapeStyle(Theme.cardStrong))
+            if !checks.isEmpty {
+                // the angles in one line (design B); tap zooms on the first one
+                Button { setFocus(steps.first { $0.check != nil }?.n) } label: {
+                    row(icon: Text("✓"), iconColor: Theme.lime,
+                        title: checks.map(\.label).joined(separator: " · "),
+                        detail: checks.count > 1 ? "Both in the right range for this position. Tap a step to zoom in."
+                            : "In the right range for this position. Tap a step to zoom in.",
+                        background: AnyShapeStyle(Theme.cardStrong))
+                }
+                .buttonStyle(.plain)
             }
             if let mistake {
                 Button { showMistake.toggle() } label: {
@@ -300,6 +522,9 @@ struct PositionGuideView: View {
                 .padding(.horizontal, 12).padding(.vertical, 9)
                 .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(LinearGradient(colors: [color, color.opacity(0.7)], startPoint: .leading, endPoint: .trailing)))
+                .contentShape(Rectangle())
+                .onTapGesture { if pinned { setFocus(n) } }
+                .accessibilityAddTraits(pinned ? .isButton : [])
             }
         }
     }
@@ -331,7 +556,7 @@ struct PositionCamera: Equatable {
     let distance: Double
     let size: CGSize
 
-    init(position: ExercisePosition, size: CGSize) {
+    init(position: ExercisePosition, size: CGSize, zoom: Double = 1, focus: SIMD3<Double>? = nil) {
         var lo = SIMD3<Double>(repeating: .greatestFiniteMagnitude), hi = -lo
         for k in position.keys {
             for p in k.joints.values {
@@ -340,14 +565,14 @@ struct PositionCamera: Equatable {
             }
         }
         lo.y = min(lo.y, 0)
-        center = (lo + hi) / 2
+        center = focus ?? (lo + hi) / 2
         let ext = hi - lo
         // the figure turns: its widest horizontal extent can face the camera
         let horizontal = max(ext.x, ext.z, 120)
         let height = max(ext.y, 120)
         let aspect = max(0.3, Double(size.width / max(size.height, 1)))
         let need = max(height, horizontal / aspect) * 0.5 + 44
-        distance = need / tan(Self.fov * .pi / 360) + max(ext.x, ext.z) * 0.5
+        distance = (need / tan(Self.fov * .pi / 360) + max(ext.x, ext.z) * 0.5) / max(zoom, 0.1)
         self.size = size
     }
 
@@ -813,6 +1038,12 @@ enum Mannequin {
                     h.simdPosition = v(c) + SIMD3(0, Float(-rb * 0.1), 0)
                     h.simdOrientation = simd_quatf(angle: .pi / 2, axis: SIMD3(1, 0, 0))
                     root.addChildNode(h)
+                } else if kind == "roller" || kind == "foam" {
+                    // padded machine roller / foam roller across the machine
+                    let ax = axis.map(simd_normalize) ?? SIMD3(0, 0, 1)
+                    let half = kind == "foam" ? 30.0 : 18.0
+                    let foam = material(UIColor(red: 0.17, green: 0.44, blue: 0.72, alpha: 1), ghost: false)
+                    root.addChildNode(cylinder(c - ax * half, c + ax * half, r: r0 > 0 ? r0 : 7, kind == "foam" ? foam : pad))
                 } else {
                     let g = SCNSphere(radius: CGFloat(r))
                     g.firstMaterial = kind == "ball"

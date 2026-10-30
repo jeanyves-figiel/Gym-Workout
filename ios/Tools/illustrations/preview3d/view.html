@@ -1,0 +1,64 @@
+<!doctype html><html><body style="margin:0;background:#5a5df0"><canvas id=c></canvas>
+<script type=module>
+import * as T from './three.module.js';
+const q = new URLSearchParams(location.search);
+const W = +q.get('w')||400, H = +q.get('h')||400;
+const R = new T.WebGLRenderer({canvas:document.getElementById('c'), antialias:true,alpha:true, preserveDrawingBuffer:true});
+R.setPixelRatio(window.devicePixelRatio); R.setSize(W,H); R.setClearColor(0x000000, 0);
+async function load(name){
+  const [f, v, js] = await Promise.all([fetch('out/faces.bin').then(r=>r.arrayBuffer()), fetch(`out/${name}.bin`).then(r=>r.arrayBuffer()), fetch(`out/${name}.json`).then(r=>r.json())]);
+  return {F:new Uint32Array(f), V:new Float32Array(v), js};
+}
+function cyl(a,b,r,m){const A=new T.Vector3(...a),B=new T.Vector3(...b);const d=B.clone().sub(A);const L=d.length();
+ const g=new T.CylinderGeometry(r,r,Math.max(L,0.01),16);const n=new T.Mesh(g,m);n.position.copy(A.clone().add(B).multiplyScalar(.5));
+ if(L>0.01)n.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),d.normalize());return n;}
+function props(P){const g=new T.Group();
+ const steel=new T.MeshStandardMaterial({color:0x5c636e,metalness:.5,roughness:.4}), pad=new T.MeshStandardMaterial({color:0x292b33}),
+  iron=new T.MeshStandardMaterial({color:0x1f2126}), wood=new T.MeshStandardMaterial({color:0x5c4533}), mat=new T.MeshStandardMaterial({color:0x2e6e8f});
+ for(const p of P){
+  if(p.k=='rod') g.add(cyl(p.a,p.b,Math.max(p.r||2,1.6), steel));
+  else if(p.k=='pad'){const a=new T.Vector3(...p.a),b=new T.Vector3(...p.b);const al=b.clone().sub(a);const L=al.length();if(L<1)continue;
+   const n=new T.Vector3(p.n[0],p.n[1],0);const t=n.length();const depth=p.w>0?p.w*2:34;
+   const m=new T.Mesh(new T.BoxGeometry(L,Math.max(t,4),depth),pad);const x=al.normalize();const y=t>0?n.clone().divideScalar(t):new T.Vector3(0,1,0);
+   let z=new T.Vector3().crossVectors(x,y);if(z.length()<.01)z.set(0,0,1);z.normalize();const yy=new T.Vector3().crossVectors(z,x);
+   m.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(x,yy,z));m.position.copy(a.clone().add(b).multiplyScalar(.5).add(n.clone().multiplyScalar(.5)));g.add(m);}
+  else if(p.k=='block'||p.k=='mat'){const lo=p.lo,hi=p.hi;const s=[0,1,2].map(i=>Math.max(hi[i]-lo[i],1));
+   const m=new T.Mesh(new T.BoxGeometry(...s),p.k=='mat'?mat:(s[1]>60?iron:wood));m.position.set((lo[0]+hi[0])/2,(lo[1]+hi[1])/2,(lo[2]+hi[2])/2);g.add(m);}
+  else if(p.k=='disc'){const m=new T.Mesh(new T.CylinderGeometry(p.r,p.r,5,32),iron);m.position.set(...p.c);
+   m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),p.x?new T.Vector3(1,0,0):new T.Vector3(0,0,1));g.add(m);}
+  else if(p.k=='db'){const r=Math.min(p.r||8,9);const ax=new T.Vector3(...(p.ax||[0,0,1])).normalize();const c=new T.Vector3(...p.c);
+   const hw=r*1.15,hr=r*.62,hl=r*.6;g.add(cyl(c.clone().addScaledVector(ax,-hw).toArray(),c.clone().addScaledVector(ax,hw).toArray(),1.6,steel));
+   for(const s of[-1,1]){const mid=c.clone().addScaledVector(ax,s*(hw-hl/2));g.add(cyl(mid.clone().addScaledVector(ax,-hl/2).toArray(),mid.clone().addScaledVector(ax,hl/2).toArray(),hr,iron));}}
+  else if(p.k=='roller'||p.k=='foam'){const ax=new T.Vector3(...(p.ax||[0,0,1])).normalize();const c=new T.Vector3(...p.c);const hl=p.k=='foam'?30:18;
+   g.add(cyl(c.clone().addScaledVector(ax,-hl).toArray(),c.clone().addScaledVector(ax,hl).toArray(),p.r||7,p.k=='foam'?new T.MeshStandardMaterial({color:0x2b6fb8}):pad));}
+  else if(p.k=='kb'||p.k=='ball'){const r=Math.min(p.r||8,p.k=='kb'?9:99);const m=new T.Mesh(new T.SphereGeometry(p.k=='kb'?r*.8:r,24,16),p.k=='ball'?new T.MeshStandardMaterial({color:0xbf382b}):iron);
+   m.position.set(...p.c);if(p.k=='kb')m.position.y-=r*.72;g.add(m);}
+ } return g;}
+window.render = async (name, yaw, opts={}) => {
+  const {F,V,js} = await load(name);
+  const scene = new T.Scene();
+  scene.add(new T.HemisphereLight(0xffffff,0x444455,1.6)); const dl=new T.DirectionalLight(0xffffff,2.2); dl.position.set(80,200,160); scene.add(dl);
+  const turn = new T.Group(); scene.add(turn);
+  const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(V,3)); g.setIndex(new T.BufferAttribute(F,1)); g.computeVertexNormals();
+  turn.add(new T.Mesh(g, new T.MeshStandardMaterial({color:0x9a9ca3, roughness:.6, side:T.DoubleSide})));
+  turn.add(props(js.p));
+  // floor
+  const fl=new T.Mesh(new T.CylinderGeometry(150,150,1,48),new T.MeshStandardMaterial({color:0x292b33}));fl.position.set(js.j.hip[0],-0.6,0);turn.add(fl);
+  if(opts.joints){for(const [n,v] of Object.entries(js.j)){const s=new T.Mesh(new T.SphereGeometry(1.6),new T.MeshBasicMaterial({color:n.endsWith('F')?0x00ffff:0xff00ff,depthTest:false}));s.position.set(...v);s.renderOrder=9;turn.add(s);}}
+  // camera as PositionCamera
+  let lo=[1e9,1e9,1e9],hi=[-1e9,-1e9,-1e9];
+  for(const J of js.all) for(const v of Object.values(J)) for(let i=0;i<3;i++){lo[i]=Math.min(lo[i],v[i]);hi[i]=Math.max(hi[i],v[i]);}
+  lo[1]=Math.min(lo[1],0); let c=lo.map((l,i)=>(l+hi[i])/2); if(opts.at){const a=opts.at.split(',');c=(a.length==3?a.map(Number):js.j[a[0]]);} const ext=hi.map((h,i)=>h-lo[i]);
+  const hor=Math.max(ext[0],ext[2],120), ht=Math.max(ext[1],120); const need=Math.max(ht,hor/(W/H))*.5+44;
+  const zoom = opts.zoom||1;
+  const dist=(need/Math.tan(30*Math.PI/360)+Math.max(ext[0],ext[2])*.5)/zoom; const pitch=opts.pitch??0.16;
+  const cam=new T.PerspectiveCamera(30,W/H,1,5000); cam.position.set(c[0],c[1]+dist*Math.sin(pitch),c[2]+dist*Math.cos(pitch)); cam.lookAt(...c);
+  turn.position.set(c[0],c[1],c[2]); for(const ch of turn.children) ch.position.sub(new T.Vector3(...c));
+  turn.rotation.y = yaw;
+  R.render(scene, cam);
+  turn.updateMatrixWorld(true);
+  const proj={}; for(const [n,v] of Object.entries(js.j)){const p=new T.Vector3(...v).sub(new T.Vector3(...c)).applyAxisAngle(new T.Vector3(0,1,0),yaw).add(new T.Vector3(...c)).project(cam);proj[n]=[(p.x+1)/2*W,(1-p.y)/2*H];}
+  window.proj=proj; return proj;
+};
+window.ready = true;
+</script></body></html>

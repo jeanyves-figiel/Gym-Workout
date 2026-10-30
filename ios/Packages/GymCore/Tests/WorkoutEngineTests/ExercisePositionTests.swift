@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import simd
 @testable import WorkoutEngine
 
 /// Position guide data (#402): 3D key positions lifted from the animation's key poses.
@@ -38,6 +39,28 @@ import Testing
         // feet about shoulder-width apart for a squat
         let feet = try #require(p.keys[0]["ankleN"]).z - (try #require(p.keys[0]["ankleF"]).z)
         #expect(feet > 25)
+    }
+
+    @Test func machineContactsAreConnected() throws {
+        // leg press (#959): each hand on its own handle, in every key
+        for k in try #require(Exercise.get("leg-press").position).keys {
+            for side in ["N", "F"] {
+                let hand = try #require(k["hand" + side])
+                let near = k.props.contains { p in
+                    guard case let .rod(a, b, _, _) = p else { return false }
+                    let ab = b - a
+                    let t = min(1, max(0, simd_dot(hand - a, ab) / max(simd_dot(ab, ab), 1e-6)))
+                    return simd_length(hand - (a + t * ab)) < 6
+                }
+                #expect(near, "\(side) hand off its handle")
+            }
+        }
+        // leg extension: the shin roller is a roller, not a ball
+        let ext = try #require(Exercise.get("leg-extension").position).keys[0]
+        #expect(ext.props.contains { if case let .weight(kind, _, _, _, _) = $0 { kind == "roller" } else { false } })
+        // pull-up: the dead hang clears the floor
+        let hang = try #require(Exercise.get("pull-up").position).keys[0]
+        #expect(min(try #require(hang["ankleN"]).y, try #require(hang["ankleF"]).y) > 8)
     }
 
     @Test func barbellGripIsWiderThanShoulders() throws {

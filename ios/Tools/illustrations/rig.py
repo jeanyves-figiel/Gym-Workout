@@ -78,6 +78,16 @@ def two_bone(S, T, a, b, pole):
     return S + u * x + p * h, S + u * L
 
 
+def dorsum(ft, sn):
+    """Which way the top of the foot faces: back up the shin (a foot pressing a leg-press sled or a wall has its sole
+    on the plate whichever way the toes point), world up when the toes point along the shin."""
+    up = np.array([0, 1.0, 0])
+    v = perp(-nrm(sn), nrm(ft))
+    w = float(np.clip((np.linalg.norm(v) - 0.2) / 0.3, 0, 1))
+    a = w * nrm(v) + (1 - w) * nrm(perp(up, nrm(ft)))
+    return a if np.linalg.norm(a) > 1e-3 else up
+
+
 def held_object(J, d, props):
     """What the figure's hand on side d holds: ("rod", axis, (a, b)) for a bar/handle/cable through the hand,
     ("db", None, centre) for a dumbbell/kettlebell/ball at the hand, else None."""
@@ -379,7 +389,7 @@ class Rig:
         Rth = rot(basis(th0, a_th0), basis(th, a_th))
         Rsn = rot(basis(sn0, a_sn0), basis(sn, a_sn))
         up = np.array([0, 1.0, 0])
-        Rft = rot(basis(ft0, up), basis(ft, up))
+        Rft = rot(basis(ft0, dorsum(ft0, sn0)), basis(ft, dorsum(ft, sn)))
         out = {"upperleg01": (Rth, k), "upperleg02": (Rth, k), "lowerleg01": (Rsn, k), "lowerleg02": (Rsn, k), "foot": (Rft,)}
         if on_toes:       # toes bend back to lie flat on the floor
             fl = perp(ft, up)
