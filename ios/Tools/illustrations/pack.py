@@ -3,7 +3,8 @@
 
 Reads ios/HDAnimations/<id>/<frame>.png and writes to OUT (default ios/build/hd-pack):
 - `<id>-<sha256[:12]>.mwf` per exercise: b"MWF1", frame count (UInt16 LE), each frame's byte length (UInt32 LE), then
-  the PNGs. Named by content, so a file never changes once published (cached for good) and a new manifest never
+  the PNGs; then (#944) b"MCLP", the movement clip's byte length (UInt32 LE) and the HD clip (ios/HDMotion/<id>.mp4,
+  video.py). Apps from before the clips read the frames and ignore the rest. Named by content, so a file never changes once published (cached for good) and a new manifest never
   points at a file an older one used.
 - `manifest.json`: {"format": 1, "exercises": {id: {"file", "frames", "bytes", "sha256"}}, "bytes": total}.
 The app keeps a file only when its frame count matches its build's catalog and its sha256 matches the manifest.
@@ -20,12 +21,15 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 IOS = HERE.parent.parent
 HD = IOS / "HDAnimations"
+CLIPS = IOS / "HDMotion"
 
 
 def pack(ex_dir):
     frames = [(ex_dir / f"{i}.png").read_bytes() for i in range(len(list(ex_dir.glob("*.png"))))]
     head = b"MWF1" + struct.pack("<H", len(frames)) + b"".join(struct.pack("<I", len(f)) for f in frames)
-    return len(frames), head + b"".join(frames)
+    clip = CLIPS / f"{ex_dir.name}.mp4"
+    tail = b"MCLP" + struct.pack("<I", clip.stat().st_size) + clip.read_bytes() if clip.exists() else b""
+    return len(frames), head + b"".join(frames) + tail
 
 
 def main(out):

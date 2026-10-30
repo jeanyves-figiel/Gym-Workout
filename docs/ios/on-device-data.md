@@ -21,7 +21,7 @@ All in the app's `Application Support` unless noted, written atomically with Dat
 | `health-snapshot.json` | `HealthManager` | Last HealthKit readings (readiness, steps, gym workouts from other apps) | No |
 | `form-reports.json` | `FormReportStore` | Form check reports (#833): reps, scores, faults and the joints of the worst rep (no pictures), last 60; wiped on sign-out | No |
 | `coach-voices/` | `CoachVoices` | Voice catalog and cached MP3 lines | No (downloaded) |
-| `hd-animations/` | `HDAnimations` | HD exercise animation pack (#932): `<id>.mwf` per exercise + `installed.json`; excluded from backup; kept on sign-out (not account data), deleted by Settings → HD animations off | No (downloaded) |
+| `hd-animations/` | `HDAnimations` | HD exercise animation pack (#932): `<id>.mwf` per exercise, its movement clip `<id>.mp4` (#944) + `installed.json`; excluded from backup; kept on sign-out (not account data), deleted by Settings → HD animations off | No (downloaded) |
 | `gym-workout-export.json` (temporary directory) | `AccountView` | Data export while it is shared; protection `complete` | n/a |
 
 ### App Group (`group.<bundle id>`)

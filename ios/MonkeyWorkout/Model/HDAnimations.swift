@@ -5,8 +5,8 @@ import Observation
 import UIKit
 import WorkoutEngine
 
-/// HD exercise animations (#932, design A + B): the app bundles 9 light frames per exercise at half size; every frame
-/// at full size comes as a pack downloaded after sign-up (welcome card) or from Settings, on Wi-Fi by default. One file
+/// HD exercise animations (#932, design A + B): the app bundles 3 light frames and a light 60 fps clip (#944) per
+/// exercise at half size; every frame and the clip at full size come as a pack downloaded after sign-up (welcome card) or from Settings, on Wi-Fi by default. One file
 /// per exercise (`<id>.mwf`, ios/Tools/illustrations/pack.py) listed with its sha256 in `manifest.json`: changed files
 /// come again when the manifest changes, so new art needs no app build. An exercise without its HD file, or drawn with
 /// other frames than this build expects, keeps the light frames.
@@ -20,7 +20,7 @@ final class HDAnimations {
     /// The remote value `hdAnimationsURL` moves it without a build.
     static let defaultBase = URL(string: "https://github.com/jeanyves-figiel/Gym-Workout/releases/download/hd-animations/")!
     /// Shown before the manifest is known.
-    static let approxBytes: Int64 = 171_000_000
+    static let approxBytes: Int64 = 235_000_000
 
     private(set) var status: Status = .off
     /// Exercises whose HD frames are on this device and match this build.
@@ -77,6 +77,12 @@ final class HDAnimations {
 
     /// HD frames of this exercise are on the device.
     func has(_ exerciseId: String) -> Bool { installed.contains(exerciseId) }
+
+    /// The exercise's HD movement clip (#944) when it is on the device.
+    func clipURL(_ exerciseId: String) -> URL? {
+        let url = HDFrames.clip(exerciseId)
+        return has(exerciseId) && FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
 
     var progress: Double { totalBytes > 0 ? min(1, Double(doneBytes) / Double(totalBytes)) : 0 }
 
@@ -187,6 +193,12 @@ final class HDAnimations {
         let sha = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
         guard sha == entry.sha256, HDFrames.frameCount(data) == entry.frames else { throw URLError(.cannotDecodeContentData) }
         try data.write(to: HDFrames.file(id), options: .atomic)
+        // The movement clip goes to its own file: video plays from a file.
+        if let clip = HDFrames.clip(in: data) {
+            try clip.write(to: HDFrames.clip(id), options: .atomic)
+        } else {
+            try? FileManager.default.removeItem(at: HDFrames.clip(id))
+        }
         return (id, entry)
     }
 
@@ -202,12 +214,27 @@ final class HDAnimations {
 }
 
 /// Reads HD frames from the pack files (any thread): `MWF1`, frame count (UInt16 LE), each frame's length (UInt32 LE),
-/// then the PNGs.
+/// then the PNGs; then (#944) `MCLP`, the movement clip's length (UInt32 LE) and the clip.
 enum HDFrames {
     static let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("hd-animations", isDirectory: true)
 
     static func file(_ exerciseId: String) -> URL { dir.appendingPathComponent("\(exerciseId).mwf") }
+
+    /// The exercise's HD movement clip, taken out of its pack file.
+    static func clip(_ exerciseId: String) -> URL { dir.appendingPathComponent("\(exerciseId).mp4") }
+
+    /// The movement clip after a pack file's frames, nil without one.
+    static func clip(in data: Data) -> Data? {
+        guard let n = frameCount(data) else { return nil }
+        let start = (0..<n).reduce(6 + 4 * n) { $0 + int(data, 6 + 4 * $1, 4) }
+        guard data.count >= start + 8, data.subdata(in: data.startIndex + start..<data.startIndex + start + 4) == Data("MCLP".utf8) else {
+            return nil
+        }
+        let length = int(data, start + 4, 4)
+        guard data.count >= start + 8 + length else { return nil }
+        return data.subdata(in: data.startIndex + start + 8..<data.startIndex + start + 8 + length)
+    }
 
     private static func int(_ data: Data, _ at: Int, _ size: Int) -> Int {
         (0..<size).reduce(0) { $0 | Int(data[data.startIndex + at + $1]) << (8 * $1) }
