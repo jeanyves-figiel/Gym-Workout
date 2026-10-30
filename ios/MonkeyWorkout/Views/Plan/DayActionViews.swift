@@ -61,34 +61,39 @@ extension AppModel {
 
 /// Skip (#854, design A from `skip-simplify/proposals.png`): the one way a workout leaves its day. At once, this week
 /// (`week` nil) or a later week, with the Undo bar; once the bar is gone it is gone for good, past days included (#849).
-/// A workout added to this week (#818) comes off the plan instead.
-@MainActor func skipDay(_ model: AppModel, _ s: Session, in week: PlanCalendar.Week?) {
+/// A workout added to this week (#818) comes off the plan instead. `title` and `alsoUndo` (#966, Skip whole day) name
+/// the Undo bar and put the day's sport back with it. False when nothing was skipped.
+@MainActor @discardableResult
+func skipDay(_ model: AppModel, _ s: Session, in week: PlanCalendar.Week?, title: String? = nil, alsoUndo: (() -> Void)? = nil) -> Bool {
+    let title = title ?? "\(s.displayTitle) skipped"
     if week == nil, let ins = model.planInsert(for: s), ins.replacing == nil {
         withAnimation(.snappy) { model.removePlanInsert(ins.id) }
-        UndoCloseCenter.shared.deleted("\(s.displayTitle) skipped", detail: "This week only", symbol: "nosign") { [model] in
+        UndoCloseCenter.shared.deleted(title, detail: "This week only", symbol: "nosign") { [model] in
             withAnimation(.snappy) {
                 if let generated = ins.generated, let wd = ins.weekday {
                     _ = model.addExtra(ins.workout, generated: generated, weekday: wd)
                 } else {
                     _ = model.insertIntoPlan(ins.workout, replacing: ins.replacing, weekday: ins.weekday)
                 }
+                alsoUndo?()
             }
         }
-        return
+        return true
     }
     guard let week else {
-        guard model.canSkip(s) || model.missedSessions.contains(where: { $0.id == s.id }) else { return }
+        guard model.canSkip(s) || model.missedSessions.contains(where: { $0.id == s.id }) else { return false }
         withAnimation { model.skipSession(s.id) }
-        UndoCloseCenter.shared.deleted("\(s.displayTitle) skipped", detail: "This week only", symbol: "nosign") { [model] in
-            withAnimation { model.unskip(s.id) }
+        UndoCloseCenter.shared.deleted(title, detail: "This week only", symbol: "nosign") { [model] in
+            withAnimation { model.unskip(s.id); alsoUndo?() }
         }
-        return
+        return true
     }
-    guard !model.isSkipped(s.id, in: week) else { return }
+    guard !model.isSkipped(s.id, in: week) else { return false }
     withAnimation { model.setSkipped(true, s.id, in: week) }
-    UndoCloseCenter.shared.deleted("\(s.displayTitle) skipped", detail: "That week only", symbol: "nosign") { [model] in
-        withAnimation { model.setSkipped(false, s.id, in: week) }
+    UndoCloseCenter.shared.deleted(title, detail: "That week only", symbol: "nosign") { [model] in
+        withAnimation { model.setSkipped(false, s.id, in: week); alsoUndo?() }
     }
+    return true
 }
 
 /// "Stop training <weekday>s" (#854): the plan change, from long press only. Nil when it doesn't fit `s`.
