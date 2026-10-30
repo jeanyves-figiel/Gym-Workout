@@ -123,6 +123,10 @@ struct FilmSessionView: View {
     @State private var aspect = 9.0 / 16
     @State private var guessing = false
     @State private var reviewing = false
+    // Better detection (#969): last frame with 3D joints, kit seen while resting, a set left without a weight.
+    @State private var depthSeen: Double = -10
+    @State private var scene: Set<String> = []
+    @State private var askKg: Int?
     @State private var brightnessWas: CGFloat?
     // Clips: the last set of each move.
     @State private var clip: ClipRecorder?
@@ -195,6 +199,7 @@ struct FilmSessionView: View {
                     Spacer()
                 }
                 if session.paused { pausedCard }
+                if let i = askKg, session.moves.indices.contains(i) { weightCard(i) }
                 timeline
                 Button { stop() } label: { Label("Stop · review", systemImage: "stop.fill").lineLimit(1) }
                     .buttonStyle(LimeButtonStyle(fill: Color(hex: 0xFF3B5C), text: .white))
@@ -250,7 +255,7 @@ struct FilmSessionView: View {
 
     private var nowDetail: String {
         guard let i = session.current else {
-            return session.moves.isEmpty ? "Side on, whole body in frame" : "Next set or move is found on its own"
+            return session.moves.isEmpty ? "Whole body in frame, from any side" : "Next set or move is found on its own"
         }
         let m = session.moves[i]
         let kg = m.kg.map { "\(LoadAdvisor.formatKg($0)) kg\(m.kgRead ? " · read" : " · last time")" } ?? "bodyweight"
@@ -284,6 +289,49 @@ struct FilmSessionView: View {
         }
         .multilineTextAlignment(.center)
         .accessibilityElement(children: .combine)
+    }
+
+    /// A set logged for a move that takes a weight, none read and none from history (#969): tap it in, or carry on and
+    /// fix it in the review.
+    private func weightCard(_ i: Int) -> some View {
+        let m = session.moves[i]
+        let kg = m.kg ?? 0
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("SET \(m.sets.count) LOGGED · \(Exercise.get(m.exerciseId).name.uppercased())")
+                .font(Theme.label(10)).tracking(1.3).opacity(0.85).lineLimit(1)
+            HStack(spacing: 8) {
+                Text("Weight not read").font(Theme.display(17)).lineLimit(1).minimumScaleFactor(0.7)
+                Spacer(minLength: 4)
+                Button { askKg = nil } label: {
+                    Image(systemName: "xmark").font(.system(size: 13, weight: .black)).frame(width: 30, height: 30)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Fix it in the review")
+            }
+            HStack(spacing: 8) {
+                ForEach([-2.5, 2.5], id: \.self) { d in
+                    Button {
+                        session.enter(kg: max(0, kg + d), move: i)
+                    } label: {
+                        Image(systemName: d < 0 ? "minus" : "plus")
+                            .font(.system(size: 16, weight: .black))
+                            .frame(width: 44, height: 40)
+                            .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(.black.opacity(0.28)))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(d < 0 ? "Less weight" : "More weight")
+                    if d < 0 {
+                        Text(kg > 0 ? "\(LoadAdvisor.formatKg(kg)) kg" : "– kg")
+                            .font(Theme.display(26)).monospacedDigit().frame(maxWidth: .infinity)
+                    }
+                }
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(LinearGradient(colors: [Color(hex: 0x2B6CFF), Color(hex: 0x7B4DFF)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .accessibilityIdentifier("film.session.weight")
     }
 
     private var pausedCard: some View {
@@ -477,6 +525,11 @@ struct FilmSessionView: View {
             return
         }
         camera.onPose = { p, t, a in feed(p, at: t, aspect: a) }
+        camera.depth = true
+        camera.onScene = { labels in
+            // Kit in view while resting names the next move.
+            if !session.inSet { scene.formUnion(labels) }
+        }
         camera.textWithPose = true
         camera.onText = { seen in
             // Between sets only: a number shown or on the kit in view is the next set's weight.
@@ -499,6 +552,9 @@ struct FilmSessionView: View {
         guard !reviewing else { return }
         aspect = a
         pose = p
+        if p?.world != nil { depthSeen = t }
+        // With the 3D pose found, only its frames are counted: angles from the picture and from 3D don't mix.
+        if p != nil, p?.world == nil, t - depthSeen < 2 { return }
         if let e = session.add(p, at: t) { handle(e) }
     }
 
@@ -506,8 +562,10 @@ struct FilmSessionView: View {
         guard session.needsGuess, !guessing else { return }
         guessing = true
         let frames = session.pending, plan = planned, recent = model.recentExerciseIds(), last = session.moves.last?.exerciseId
+        let seen = scene, gym = model.profile.map { Set($0.equipment) }
         Task.detached(priority: .userInitiated) {
-            let g = FilmWorkout.guess(frames, models: FilmWorkout.models, planned: plan, recent: recent, current: last)
+            let g = FilmWorkout.guess(frames, models: FilmWorkout.models, planned: plan, recent: recent, current: last,
+                                      scene: seen, gym: gym)
             await MainActor.run {
                 guessing = false
                 if let e = session.accept(g) { handle(e) }
@@ -518,6 +576,8 @@ struct FilmSessionView: View {
     private func handle(_ e: FilmSession.Event) {
         switch e {
         case let .newMove(i):
+            askKg = nil
+            scene = []
             let m = session.moves[i]
             if let last = model.lastWeight(m.exerciseId) { session.fill(kg: last, move: i) }
             let name = Exercise.get(m.exerciseId).name
@@ -528,10 +588,15 @@ struct FilmSessionView: View {
                                                       reps: session.live.reps.count))
             startClip()
         case .sameMove:
+            askKg = nil
+            scene = []
             startClip()
         case let .setLogged(i, n, reps):
             UINotificationFeedbackGenerator().notificationOccurred(.success)
-            if voiceOn { say("\(Exercise.get(session.moves[i].exerciseId).name), set \(n), \(reps) reps") }
+            let m = session.moves[i]
+            let noKg = FilmWorkout.needsWeight(m.exerciseId, kg: m.kg)
+            if noKg { askKg = i }
+            if voiceOn { say("\(Exercise.get(m.exerciseId).name), set \(n), \(reps) reps\(noKg ? ". Weight not read, tap it in" : "")") }
             finishClip(for: session.moves[i].id)
         }
     }
