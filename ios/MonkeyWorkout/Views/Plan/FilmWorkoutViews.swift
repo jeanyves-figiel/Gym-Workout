@@ -92,11 +92,6 @@ final class ClipRecorder: @unchecked Sendable {
     }
 }
 
-/// Every move the camera can name: the ones with a form check model.
-enum FilmCatalog {
-    static let models: [FormModel] = Exercise.catalog.compactMap { FormModel(exercise: $0) }
-}
-
 // MARK: - Screen
 
 struct FilmWorkoutView: View {
@@ -657,7 +652,7 @@ struct FilmWorkoutView: View {
         guessing = true
         let f = frames, plan = planned, recent = model.recentExerciseIds()
         Task.detached(priority: .userInitiated) {
-            let g = FilmWorkout.guess(f, models: FilmCatalog.models, planned: plan, recent: recent)
+            let g = FilmWorkout.guess(f, models: FilmWorkout.models, planned: plan, recent: recent)
             await MainActor.run {
                 guessing = false
                 guard move == nil, let top = g.first, top.reps >= FilmWorkout.repsToGuess else { return }

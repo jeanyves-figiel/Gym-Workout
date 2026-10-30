@@ -17,6 +17,9 @@ public enum FilmWorkout {
         public let reps: Int
     }
 
+    /// Every move the camera can name: the catalog exercises with a form check model.
+    public static let models: [FormModel] = Exercise.catalog.compactMap { FormModel(exercise: $0) }
+
     /// Extra score for a move planned today and for one logged lately (moves that look alike: the likely one wins).
     public static let planBoost = 0.25
     public static let recentBoost = 0.12
