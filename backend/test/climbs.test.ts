@@ -64,6 +64,15 @@ describe('climbs sync (#312)', () => {
     expect((await post('/v1/me/climbs', { climbs: [{ ...sample(), place: { id: 'x', name: 'y'.repeat(200) } }] }, t)).statusCode).toBe(400);
   });
 
+  it('keeps the place type (#960)', async () => {
+    const t = await signUp('kind@example.com');
+    const place = { id: 'map:minimum', name: 'Minimum Boulder', kind: 'climbingGym' };
+    expect((await post('/v1/me/climbs', { climbs: [{ ...sample(), place }] }, t)).json().saved).toBe(1);
+    expect((await get('/v1/me/climbs', t)).json().climbs[0].place).toEqual(place);
+    const bad = { ...place, kind: 'gym; drop' };
+    expect((await post('/v1/me/climbs', { climbs: [{ ...sample(), place: bad }] }, t)).statusCode).toBe(400);
+  });
+
   it('upserts, deltas, isolates, exports and deletes climbs; account delete removes them', async () => {
     const t = await signUp('climber@example.com');
     const a = sample();

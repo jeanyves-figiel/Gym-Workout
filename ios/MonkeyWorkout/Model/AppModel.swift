@@ -518,7 +518,8 @@ final class AppModel {
         let keptGrowth = state.synced?.growth
         let outside = (sportAddOn: state.synced?.sportAddOn, skills: state.synced?.skills, bikeFTP: state.synced?.bikeFTP,
                     bikeFTPTestedAt: state.synced?.bikeFTPTestedAt, lifeStage: state.synced?.lifeStage,
-                    onboarding: state.synced?.onboarding, pain: state.synced?.pain, insightsFocus: state.synced?.insightsFocus)
+                    onboarding: state.synced?.onboarding, pain: state.synced?.pain, insightsFocus: state.synced?.insightsFocus,
+                    placeBook: state.synced?.placeBook)
         let learning = (tasteOff: state.synced?.tasteOff, recap: newWeek ? nil : state.synced?.tasteRecap)
         state.synced = sp
         state.synced?.tasteOff = learning.tasteOff
@@ -535,6 +536,7 @@ final class AppModel {
         state.synced?.onboarding = outside.onboarding
         state.synced?.pain = outside.pain
         state.synced?.insightsFocus = outside.insightsFocus
+        state.synced?.placeBook = outside.placeBook
         // A profile edit (goal, days, gym…) re-plans the rest of this week (#194): sessions already done and the
         // one in progress keep their content; everything else follows the new profile.
         let kept = newWeek ? [] : doneIds.union([state.activeWorkout?.sessionId].compactMap { $0 })
