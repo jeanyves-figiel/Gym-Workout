@@ -10,6 +10,9 @@ stick figure is fitted to the skinned body, and gym machines get their real size
 
     python3 contact.py            # whole catalog (minutes)
     python3 contact.py bench-press cable-fly
+
+After any scene change: positions.py (writes the raw export), copy it to RAW, then contact.py over the whole catalog;
+committing a bare positions.py export ships bodies off their equipment (#959). Check with preview3d/.
 """
 import json, sys, zlib
 from pathlib import Path
@@ -45,7 +48,8 @@ def support_gap(V, J, p):
         al = rel @ u
         lat = rel[:, 2] - (a[2] + 0 * al)
         w = p.get("w", 0) or 20
-        dn = (rel @ nh) * s - t / 2
+        # the pad is drawn from the a→b line out along n (PositionGuideView): its far face is t out on the n side
+        dn = (rel @ nh) * s - (t if s > 0 else 0.0)
         cand = (al > -3) & (al < L + 3) & (np.abs(lat) < w + 4) & (dn > -t) & (dn < 14)
         if cand.sum() < 12:
             return None
@@ -86,7 +90,7 @@ def attach_rods(props, p, dv):
             e = np.asarray(q[end], float)
             rel = e - (a - dv)
             al = rel @ u
-            if -4 < al < L + 4 and abs(abs(rel @ nh) - t / 2) < 4 and abs(rel[2]) < (p.get("w") or 20) + 4:
+            if -4 < al < L + 4 and min(abs(rel @ nh), abs(rel @ nh - t)) < 4 and abs(rel[2]) < (p.get("w") or 20) + 4:
                 q[end] = [round(float(x), 1) for x in e + dv]
 
 
@@ -182,16 +186,19 @@ def dumbbells(props, J, held, grip):
 
 
 def hanging(J, held):
-    return any(h is not None and h[0] == "rod" and J["hand" + d][1] > J["shoulder"][1] + 10 for d, h in held.items())
+    """Hands on a bar above the shoulders, or on rings / straps hanging from overhead."""
+    return any(h is not None and h[0] == "rod" and (J["hand" + d][1] > J["shoulder"][1] + 10 or max(h[2][0][1], h[2][1][1]) > 300)
+               for d, h in held.items())
 
 
 UNILATERAL = ("lunge", "split", "step", "single", "one", "pistol", "bulgarian", "skater", "curtsy", "shrimp",
               "side", "traverse", "climb", "crossover", "kick", "bird", "fire", "clamshell", "sprint", "skip", "march")
 
 
-def mirror_legs(ex, j):
-    """A bilateral pose keeps both legs the same: the 2D depth guess scissored them a little."""
-    if any(w in ex.split("-") for w in UNILATERAL):
+def mirror_legs(ex, j, view="s"):
+    """A bilateral pose keeps both legs the same: the 2D depth guess scissored them a little. Side view only: in a
+    front or back view the legs are drawn apart across the picture, so mirroring them would swap a wide stance."""
+    if view != "s" or any(w in ex.split("-") for w in UNILATERAL):
         return False
     J = {n: np.asarray(v, float) for n, v in j.items() if not n.startswith("_")}
     asym = max(np.linalg.norm((J[a + "N"] - J[a + "F"]) * [1, 1, 0]) for a in ("knee", "ankle", "toe"))
@@ -393,6 +400,23 @@ def cable_bar(ex, keys):
     clipped to its middle (cable curls, pushdowns, straight-arm pulldowns). Ropes stay ropes."""
     if "rope" in ex or "single" in ex or "one" in ex.split("-"):
         return
+    if not any(p["k"] == "rod" and p.get("s") == "cable" for k in keys for p in k["p"]):
+        return          # machine handles (leg press side grips) are not a cable bar
+    if not any(p["k"] == "rod" and p.get("s") == "handle" for k in keys for p in k["p"]):
+        # the scene ran the cable straight into the hands: clip a handle to it where both hands meet
+        def cable_end(k, mid):
+            ends = [np.asarray(p[e], float) for p in k["p"] if p["k"] == "rod" and p.get("s") == "cable" for e in ("a", "b")]
+            return min((np.linalg.norm(e - mid) for e in ends), default=99)
+        mids = []
+        for k in keys:
+            J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
+            mid = (J["handN"] + J["handF"]) / 2
+            if abs(J["handN"][1] - J["handF"][1]) > 8 or abs(J["handN"][0] - J["handF"][0]) > 10 or cable_end(k, mid) > 20:
+                return
+            mids.append(mid)
+        for k, mid in zip(keys, mids):
+            k["p"].append(dict(k="rod", a=[round(float(x), 1) for x in mid], b=[round(float(x), 1) for x in mid + [0, 0, 1]],
+                               r=1.6, s="handle"))
     for k in keys:
         J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
         hN, hF = J["handN"], J["handF"]
@@ -528,6 +552,255 @@ def frames(props):
     return len(new) // 2
 
 
+DARK_PART = ("#1C1F24", "#1D2125", "#262A30", "#2A2E34", "#2C3137")
+FLYWHEEL = ("air-bike", "rower", "ski-erg")
+
+
+def machine_parts(ex, keys):
+    """Round machine parts the 2D scenes drew as dots become what they are: leg / hip rollers, pivots and pedals are
+    padded rollers across the machine, foam rollers are foam cylinders, a fan or flywheel is a wheel (the guide
+    showed them as red balls)."""
+    for k in keys:
+        for p in k["p"]:
+            if p["k"] != "ball":
+                continue
+            col = p.get("col")
+            if col in DARK_PART and p.get("r", 8) <= 12:
+                p["k"] = "roller"; p["ax"] = [0, 0, 1]
+            elif col == "#2B6FB8":
+                p["k"] = "foam"; p["ax"] = [0, 0, 1]
+            elif p.get("r", 8) > 12 and any(w in ex for w in FLYWHEEL):
+                p["k"] = "disc"
+
+
+def straps(ex, keys):
+    """Rings and straps hanging from overhead end in the hands that hold them (the 2D scene stopped them a ring's
+    height above the fist)."""
+    for k in keys:
+        J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
+        for p in k["p"]:
+            if p["k"] != "rod" or p.get("r", 3) >= 2.5:
+                continue
+            lo, hi = ("a", "b") if p["a"][1] < p["b"][1] else ("b", "a")
+            if p[hi][1] < 300:
+                continue
+            e = np.asarray(p[lo], float)
+            d = min("NF", key=lambda d: np.linalg.norm(J["hand" + d] - e))
+            if np.linalg.norm(J["hand" + d] - e) < 16:
+                fist = J["hand" + d] + 0.25 * (J["hand" + d] - J["wrist" + d])
+                p[lo] = [round(float(x), 1) for x in fist]
+
+
+HANG_CLEAR = 8.0
+
+
+def lift_hang(ex, keys):
+    """A dead hang with straight legs needs the bar high enough for the feet to clear the floor: the 2D scenes drew
+    a low bar and folded the legs into a kneel. The whole scene goes up (frame feet stay on the floor)."""
+    if not hangs(ex):
+        return 0.0
+    low = min(k["j"]["hip"][1] for k in keys)
+    lift = LEG[0] + LEG[1] + 11 + HANG_CLEAR - low
+    if lift <= 1:
+        return 0.0
+    for k in keys:
+        for n, v in k["j"].items():
+            if not n.startswith("_"):
+                k["j"][n] = [v[0], round(v[1] + lift, 1), v[2]]
+        for p in k["p"]:
+            if p["k"] == "rod":
+                for e in ("a", "b"):
+                    if p[e][1] > 3:                       # uprights keep their foot on the floor
+                        p[e] = [p[e][0], round(p[e][1] + lift, 1), p[e][2]]
+            elif p["k"] in ("block", "mat"):
+                if p["lo"][1] > 3:
+                    p["lo"][1] = round(p["lo"][1] + lift, 1)
+                    p["hi"][1] = round(p["hi"][1] + lift, 1)
+                elif p["hi"][1] > 40:                    # a box to step from grows with the bar
+                    p["hi"][1] = round(p["hi"][1] + lift, 1)
+            else:
+                for e in ("a", "b", "c"):
+                    if e in p:
+                        p[e] = [p[e][0], round(p[e][1] + lift, 1), p[e][2]]
+    return lift
+
+
+def parallel_grips(ex, keys):
+    """Parallel (neutral) grips drawn on the frame's sides, a hand's width outside the fists: each grip moves in
+    under its fist, the rods that hang it follow at their lower end."""
+    for k in keys:
+        J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
+        P = k["p"]
+        for d in "NF":
+            h = J["hand" + d]
+            for p in P:
+                if p["k"] != "rod" or p.get("s") == "cable":
+                    continue
+                a, b = np.asarray(p["a"], float), np.asarray(p["b"], float)
+                if abs(a[1] - b[1]) > 1 or abs(a[2] - b[2]) > 1 or abs(a[0] - b[0]) < 15:
+                    continue
+                dz = h[2] - a[2]
+                if not (min(a[0], b[0]) - 4 < h[0] < max(a[0], b[0]) + 4 and abs(h[1] - a[1]) < 9 and 3 < abs(dz) < 14):
+                    continue
+                for q in P:
+                    if q is p or q["k"] != "rod":
+                        continue
+                    for e in ("a", "b"):
+                        if min(np.linalg.norm(np.asarray(q[e], float) - x) for x in (a, b)) < 3:
+                            q[e] = [q[e][0], q[e][1], round(q[e][2] + dz, 1)]
+                p["a"] = [p["a"][0], p["a"][1], round(p["a"][2] + dz, 1)]
+                p["b"] = [p["b"][0], p["b"][1], round(p["b"][2] + dz, 1)]
+
+
+def handles(ex, keys):
+    """Machine handles the hands hold (leg press side handles, seat grips) sit in the fists. The 2D scene drew one
+    handle on the far side, or a short bar from the seat to the near hand that came out running across the lap: each
+    gripping hand gets its own upright handle through the fist, mirrored to the other side when only one was drawn."""
+    for k in keys:
+        J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
+        P = k["p"]
+        fist = {d: J["hand" + d] + 0.25 * (J["hand" + d] - J["wrist" + d]) for d in "NF"}
+        # a short bar that starts at one hand and crosses to the other side of the body: a mis-depthed handle
+        for p in list(P):
+            if p["k"] != "rod" or p.get("s") == "cable":
+                continue
+            a, b = np.asarray(p["a"], float), np.asarray(p["b"], float)
+            if np.linalg.norm(b - a) < 45 and abs(a[2] - b[2]) > 20 and \
+                    min(np.linalg.norm(e - J["hand" + d]) for e in (a, b) for d in "NF") < 3:
+                P.remove(p)
+        hs = [p for p in P if p["k"] == "rod" and p.get("s") == "handle"]
+        if not hs:
+            continue
+        own = {}
+        for d in "NF":
+            best = None
+            for p in hs:
+                a, b = np.asarray(p["a"], float), np.asarray(p["b"], float)
+                ab = b - a
+                t = np.clip(((fist[d] - a) @ ab) / max(ab @ ab, 1e-6), 0, 1)
+                dist = np.linalg.norm(fist[d] - (a + t * ab))
+                if dist < 22 and (best is None or dist < best[0]):
+                    best = (dist, p, a + t * ab)
+            if best:
+                own[d] = best
+        if len(own) == 2 and own["N"][1] is own["F"][1]:
+            # one handle between both hands: a bar (cable_bar shapes those) unless the hands are far apart
+            if abs(J["handN"][2] - J["handF"][2]) < 40:
+                continue
+            p = own["N"][1]
+            q = dict(p); q["a"] = list(p["a"]); q["b"] = list(p["b"])
+            P.append(q); own["F"] = (own["F"][0], q, own["F"][2])
+        if len(own) == 1:
+            d = next(iter(own)); o = "F" if d == "N" else "N"
+            mirrored = abs(J["hand" + d][2] + J["hand" + o][2]) < 8 and np.linalg.norm((J["hand" + d] - J["hand" + o])[:2]) < 8
+            if mirrored:
+                p = own[d][1]
+                q = dict(p); q["a"] = [p["a"][0], p["a"][1], -p["a"][2]]; q["b"] = [p["b"][0], p["b"][1], -p["b"][2]]
+                P.append(q)
+                own[o] = (0.0, q, None)
+        for d, (dist, p, _) in own.items():
+            a, b = np.asarray(p["a"], float), np.asarray(p["b"], float)
+            ab = b - a
+            t = np.clip(((fist[d] - a) @ ab) / max(ab @ ab, 1e-6), 0, 1)
+            dv = fist[d] - (a + t * ab)
+            if np.linalg.norm(dv) > 0.5:
+                p["a"] = [round(float(x), 1) for x in a + dv]
+                p["b"] = [round(float(x), 1) for x in b + dv]
+
+
+def _sole_gap(V, foot, p):
+    """Signed gap between a foot's vertices and a pad (positive = apart), and the pad's unit normal toward the foot."""
+    a, b, u, L, nh, t = pad_frame(p)
+    r = V[foot] - a
+    al = r @ u
+    lat = r[:, 2] - a[2]
+    w = p.get("w", 0) or 17
+    dn = r @ nh
+    near = (al > -4) & (al < L + 4) & (np.abs(lat) < w + 6)
+    if near.sum() < 10:
+        return None
+    side = 1.0 if np.median(dn[near]) > t / 2 else -1.0
+    gap = (dn[near] - t).min() if side > 0 else (-dn[near]).min()
+    return float(gap), nh * side
+
+
+def _moving(keys, i):
+    """Prop i moves between keys (a sled, a lever arm): the props that move with it are the ones that move too."""
+    return any(json.dumps(k["p"][i]) != json.dumps(keys[0]["p"][i]) for k in keys[1:] if i < len(k["p"]))
+
+
+def foot_plates(ex, keys, poses, feet):
+    """Feet that push a plate (leg press sled, cable-row foot plate, calf block, sit-up rollers) touch it: the plate
+    moves onto the soles along its normal. A sled moves with everything that moves with it (carriage, plates, bar)."""
+    if not keys or any(len(k["p"]) != len(keys[0]["p"]) for k in keys):
+        return 0
+    moved = 0
+    for i, p0 in enumerate(keys[0]["p"]):
+        if p0["k"] != "pad":
+            continue
+        per = []
+        for (J, V, held, grip), k in zip(poses, keys):
+            p = k["p"][i]
+            hip_zone = abs((np.asarray(p["a"]) + np.asarray(p["b"]))[1] / 2 - J["hip"][1]) < 25 and \
+                min(abs(np.asarray(p["a"])[0] - J["hip"][0]), abs(np.asarray(p["b"])[0] - J["hip"][0]), 999) < 60
+            gs = [g for g in (_sole_gap(V, feet[s], p) for s in "LR") if g is not None]
+            dy = k.get("dy", 0)
+            gs = [(g - (dy * n[1]), n) for g, n in gs]          # the body is drawn shifted by dy
+            if not gs or hip_zone:
+                per.append(None); continue
+            g, n = min(gs, key=lambda x: x[0])
+            per.append((g, n) if -8 < g < 24 and abs(g) > 1.0 else None)
+        if not any(per):
+            continue
+        if _moving(keys, i):
+            group = [j for j in range(len(keys[0]["p"])) if _moving(keys, j)]
+            for (gn, k) in zip(per, keys):
+                if gn is None:
+                    continue
+                dv = gn[1] * gn[0]
+                for j in group:
+                    shift_any(k["p"][j], dv)
+        else:
+            vals = [g for g in per if g is not None]
+            g = float(np.median([v[0] for v in vals])); dv = vals[0][1] * g
+            for k in keys:
+                shift_any(k["p"][i], dv)
+                attach_rods(k["p"], k["p"][i], dv)
+        moved += 1
+    return moved
+
+
+def clear_blocks(ex, keys, poses, hands):
+    """A back pad or frame drawn in a front / back view got its depth around the body's middle: the body stood inside
+    it. Such a block moves back (−x, the figure faces +x) until it clears the body, the same in every key."""
+    if not keys or any(len(k["p"]) != len(keys[0]["p"]) for k in keys):
+        return 0
+    moved = 0
+    for i, p0 in enumerate(keys[0]["p"]):
+        if p0["k"] != "block":
+            continue
+        need = 0.0
+        for (J, V, held, grip), k in zip(poses, keys):
+            lo, hi = np.asarray(k["p"][i]["lo"], float), np.asarray(k["p"][i]["hi"], float)
+            inside = np.all((V > lo + 1) & (V < hi - 1), axis=1) & ~hands
+            if inside.sum() < 800 or hi[1] - lo[1] < 20:
+                continue
+            foot = (V[:, 1] > lo[1]) & (V[:, 1] < hi[1]) & (V[:, 2] > lo[2]) & (V[:, 2] < hi[2]) & ~hands
+            need = min(need, float(V[foot, 0].min()) - hi[0] - 0.5)
+        if need < -0.5:
+            for k in keys:
+                shift_any(k["p"][i], [need, 0.0, 0.0])
+            moved += 1
+    return moved
+
+
+def shift_any(p, dv):
+    dv = np.asarray(dv, float)
+    for a in ("a", "b", "c", "lo", "hi"):
+        if a in p:
+            p[a] = [round(float(x + d), 1) for x, d in zip(p[a], dv)]
+
+
 def run(ids=None):
     if not RAW.exists():
         RAW.write_bytes(DATA.read_bytes())
@@ -535,6 +808,8 @@ def run(ids=None):
     R = rigmod.Rig()
     rigmod.MUSH = 0
     fingers = np.isin(R.bi[:, 0], [R.ix[n] for n in R.names if n.startswith("finger")])
+    palms = np.isin(R.bi[:, 0], [R.ix[n] for n in R.names if n.startswith(("metacarpal", "wrist"))])
+    feet = {s: np.isin(R.bi[:, 0], [R.ix[n] for n in R.names if n.startswith(("foot", "toe")) and n.endswith("." + s)]) for s in "LR"}
     report = []
     for ex in (ids or sorted(d)):
         e = d[ex]
@@ -544,10 +819,15 @@ def run(ids=None):
         grip_axes(ex, keys)
         cable_bar(ex, keys)
         bar_clear(ex, keys)
+        handles(ex, keys)
+        parallel_grips(ex, keys)
+        machine_parts(ex, keys)
+        straps(ex, keys)
+        lift_hang(ex, keys)
         # every key must list the same static props; shifts are decided per exercise
         poses = []
         for k in keys:
-            mirror_legs(ex, k["j"])
+            mirror_legs(ex, k["j"], e["v"])
             J = {n: np.asarray(v, float) for n, v in k["j"].items() if not n.startswith("_")}
             V = R.pose(k["j"], k["p"])
             if hangs(ex) and hanging(J, R.held) and hang_legs(k["j"], J):
@@ -593,19 +873,20 @@ def run(ids=None):
                 dy = -min_y
             elif supported and resid and min(resid) > 1.0 and min_y > 2.0:
                 dy = -min(resid)
-            elif not supported and min_y > 2.5 and not hanging(J, held):
+            elif not supported and min_y > 2.5 and not hanging(J, held) and not hangs(ex):    # over the bar (muscle-up) is still on it
                 dy = -min_y
             if abs(dy) > 0.5:
                 k["dy"] = round(dy, 1)
             else:
                 k.pop("dy", None)
+        plates = foot_plates(ex, keys, poses, feet) + clear_blocks(ex, keys, poses, fingers | palms)
         done = 0
         for (J, V, held, grip), k in zip(poses, keys):
             dumbbells(k["p"], J, held, grip)
             done += machines(k["p"]) + frames(k["p"])
-        if shifts or done or any("dy" in k for k in keys):
+        if shifts or done or plates or any("dy" in k for k in keys):
             report.append((ex, {i: round(g, 1) for i, (g, _) in shifts.items()}, [k.get("dy", 0) for k in keys], done))
-        print(ex, "shifts", {i: round(g, 1) for i, (g, _) in shifts.items()}, "dy", [k.get("dy", 0) for k in keys], "machines", done, flush=True)
+        print(ex, "shifts", {i: round(g, 1) for i, (g, _) in shifts.items()}, "dy", [k.get("dy", 0) for k in keys], "machines", done, "plates", plates, flush=True)
     z = zlib.compressobj(9, zlib.DEFLATED, -15)
     DATA.write_bytes(z.compress(json.dumps(d, separators=(",", ":")).encode()) + z.flush())
     Path("/tmp/claude-0/contact-report.json").write_text(json.dumps(report))

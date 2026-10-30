@@ -426,7 +426,7 @@ public final class BodyRig: Sendable {
         let Rth = rot(basis(th0, perp(nrm(ft0), nrm(th0))), basis(th, aTh))
         let Rsn = rot(basis(sn0, aSn0), basis(sn, aSn))
         let up3 = SIMD3<Double>(0, 1, 0)
-        let Rft = rot(basis(ft0, up3), basis(ft, up3))
+        let Rft = rot(basis(ft0, Self.dorsum(ft0, sn0)), basis(ft, Self.dorsum(ft, sn)))
         var out: [String: (simd_double3x3, Double)] = ["upperleg01": (Rth, k), "upperleg02": (Rth, k), "lowerleg01": (Rsn, k),
                                                         "lowerleg02": (Rsn, k), "foot": (Rft, 1)]
         if onToes {      // toes bend back to lie flat on the floor
@@ -435,6 +435,16 @@ public final class BodyRig: Sendable {
             out["toe"] = (rot(basis(ft0, up3), basis(nrm(fl), up3)), 1)
         }
         return out
+    }
+
+    /// Which way the top of the foot faces (rig.py `dorsum`): back up the shin, so a foot pressing a leg-press sled
+    /// or a wall has its sole on the plate whichever way the toes point; world up when the toes point along the shin.
+    static func dorsum(_ ft: SIMD3<Double>, _ sn: SIMD3<Double>) -> SIMD3<Double> {
+        let up = SIMD3<Double>(0, 1, 0)
+        let v = perp(-nrm(sn), nrm(ft))
+        let w = min(1, max(0, (length(v) - 0.2) / 0.3))
+        let a = w * nrm(v) + (1 - w) * nrm(perp(up, nrm(ft)))
+        return length(a) > 1e-3 ? a : up
     }
 
     // MARK: Hands
@@ -458,6 +468,7 @@ public final class BodyRig: Sendable {
             case let .weight(kind, c, r, ax, up):
                 let r = r > 0 ? r : 8
                 if kind == "ball", r > 12 { continue }        // a stability ball is sat or lain on, not held
+                if kind == "roller" || kind == "foam" { continue }    // machine rollers and foam rollers are not held
                 // the weight may already sit in the body's (wider) hand, outside the figure's: measure across the
                 // shoulder line and allow the sideways offset
                 let lat = nrm(J["shoulder" + d]! - J["shoulder"]!)
