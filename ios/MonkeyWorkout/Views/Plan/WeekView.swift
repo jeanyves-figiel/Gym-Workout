@@ -1111,6 +1111,17 @@ private struct NextUpCard: View {
         if sport == .climbing { climbingLive = true } else { trackingPicked = SportLog(sport: sport, start: Date()) }
     }
 
+    /// Skips just the day's sport (#966, design A), the workout stays: that day only, with the Undo bar.
+    private func skipSport(_ sport: Sport) {
+        guard let key = dayKey, let d = later?.weekday ?? day else { return }
+        guard let before = withAnimation(.snappy, { model.dropSport(on: key, weekday: d, scope: .day) }) else { return }
+        let date = PlanCalendar.date(key, model.planCalendar)
+        UndoCloseCenter.shared.deleted("\(sport == .climbing ? "Climb" : sport.label) skipped",
+                                       detail: date?.formatted(.dateTime.weekday(.abbreviated).day()) ?? "This day only", symbol: "nosign") { [model] in
+            withAnimation(.snappy) { model.restoreSportDay(before) }
+        }
+    }
+
     /// An earlier day's sport starts at 18:00 that day.
     private var sportStart: Date {
         let cal = model.planCalendar
@@ -1131,6 +1142,10 @@ private struct NextUpCard: View {
             Button("Plan a sport", systemImage: "figure.snowboarding") { planningSport = true }
             if canSkip {
                 Button(skipTitle, systemImage: "nosign", role: .destructive) { skipDay(model, session, in: later?.week) }
+            }
+            // Just the sport part (#966).
+            if let sport = daySport {
+                Button(DayComboRow.skipSportTitle(sport, today: isToday), systemImage: "nosign", role: .destructive) { skipSport(sport) }
             }
             // The plan change (#854, design A): long press only.
             if let d = later?.weekday ?? day, model.state.activeWorkout?.sessionId != session.id,
@@ -1240,7 +1255,9 @@ private struct NextUpCard: View {
                             onSelect: onSelect, dayKey: dayKey, routines: !isToday && !past && !done,
                             // The sport part is picked like the tiles (#947): today Track live + Log, earlier days Log.
                             onSportTrack: later == nil && isToday ? trackSport : nil,
-                            onSportLog: later == nil && (isToday || past) ? logSport : nil)
+                            onSportLog: later == nil && (isToday || past) ? logSport : nil,
+                            // Skip just the sport part (#966, design A): the workout stays.
+                            onSportSkip: past ? nil : skipSport)
             }
             if !compact { BlockStripe(blocks: session.blocks) }
         }
