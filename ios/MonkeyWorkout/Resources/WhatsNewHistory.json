@@ -1,6 +1,31 @@
 {
   "releases": [
     {
+      "id": "2026-10-30.2",
+      "build": 88,
+      "date": "2026-10-30",
+      "items": [
+        {
+          "symbol": "figure.strengthtraining.traditional",
+          "tint": "power",
+          "title": "Moves are back",
+          "body": "Exercise animations play again on every exercise, smooth at 60 fps."
+        },
+        {
+          "symbol": "video.fill",
+          "tint": "strength",
+          "title": "Film my workout",
+          "body": "Show the weight, lift, and MonkeyFit names the move, counts reps, checks form and logs it. Video never leaves your iPhone."
+        },
+        {
+          "symbol": "figure.climbing",
+          "tint": "cardio",
+          "title": "Climb on a gym day",
+          "body": "Tap Climb on the day to track it live or log it."
+        }
+      ]
+    },
+    {
       "id": "2026-10-30.1",
       "build": 87,
       "date": "2026-10-30",
