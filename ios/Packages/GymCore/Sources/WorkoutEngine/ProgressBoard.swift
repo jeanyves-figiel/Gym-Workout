@@ -241,7 +241,7 @@ public struct ProgressBoard: Codable, Equatable, Sendable {
 
         public var detail: String {
             switch self {
-            case .classic: "Body + Mind today, level, streak, every part of Progress and recent sessions"
+            case .classic: "Body + Mind today, level, streak, every part of Insights and recent sessions"
             case .lifter: "Records, weekly sessions, muscles and body first"
             case .sports: "A big card for each of your sports up top"
             case .minimal: "Streak, this week and recent sessions"

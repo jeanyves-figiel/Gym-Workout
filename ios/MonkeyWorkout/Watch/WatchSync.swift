@@ -514,7 +514,8 @@ final class WatchSync: NSObject {
         s.progress = WProgress(
             streakWeeks: stats.currentStreakWeeks, bestStreakWeeks: stats.bestStreakWeeks, thisWeek: stats.thisWeek, target: target,
             records: stats.personalRecords.prefix(5).map { WRecord(name: Exercise.find($0.exerciseId)?.name ?? "Exercise", kg: $0.kg) },
-            recent: model.history.prefix(5).map { WRecent(title: $0.title, date: $0.startedAt, minutes: $0.durationSec / 60, sets: $0.totalSets) })
+            recent: model.history.prefix(5).map { WRecent(title: $0.title, date: $0.startedAt, minutes: $0.durationSec / 60, sets: $0.totalSets) },
+            recordCount: stats.personalRecords.count)
         // Game layer (#219, #227): same XP, level and badges as the iPhone.
         let game = model.game
         let badges = model.badges

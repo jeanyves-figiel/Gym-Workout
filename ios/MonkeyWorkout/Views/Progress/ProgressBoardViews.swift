@@ -285,7 +285,7 @@ struct ProgressCustomiseSheet: View {
         NavigationStack {
             // Explore-style gradient rows (#539), as Customise Train: removing is instant with Undo.
             List {
-                ContentTitle(title: "Customise Progress",
+                ContentTitle(title: "Customise Insights",
                              subtitle: "Drag ≡ to reorder · swipe left to remove · Add widget adds a card per sport")
                     .cardRow()
                 Section("Presets") {
@@ -308,7 +308,7 @@ struct ProgressCustomiseSheet: View {
                         .darkCardRow()
                     }
                 }
-                Section("On Progress") {
+                Section("On Insights") {
                     ForEach(board.widgets) { w in row(w).gradientRow(w.gradient) }
                         .onMove { from, to in model.editProgressBoard { $0.move(fromOffsets: from, toOffset: to) } }
                         .onDelete { idx in remove(idx.map { board.widgets[$0] }, from: board) }
@@ -347,7 +347,7 @@ struct ProgressCustomiseSheet: View {
             }
             .environment(\.editMode, .constant(.active))
             .themedForm()
-            .titleInContent("Customise Progress")
+            .titleInContent("Customise Insights")
             .toolbar { CloseToolbarItem { dismiss() } }
         }
     }

@@ -137,6 +137,8 @@ struct WProgress: Codable, Equatable {
     var target = 3
     var records: [WRecord] = []
     var recent: [WRecent] = []
+    /// All PRs (#989): `records` holds only the latest 5; nil from older iPhone apps.
+    var recordCount: Int?
 }
 
 struct WRecord: Codable, Equatable, Hashable {

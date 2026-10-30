@@ -576,7 +576,7 @@ struct CoachChatView: View {
                 Text(p).font(.caption2.weight(.semibold)).foregroundStyle(Theme.muted).padding(.leading, 16)
             }
             if let r = store.remaining, r <= 5 {
-                Text(r == 0 ? "No messages left today. Coach is back tomorrow!" : "\(r) message\(r == 1 ? "" : "s") left today")
+                Text(r == 0 ? "No messages left today. Coach is back at \(Self.quotaReset.formatted(date: .omitted, time: .shortened))." : "\(r) message\(r == 1 ? "" : "s") left today")
                     .font(.caption2.weight(.semibold)).foregroundStyle(Theme.muted)
                     .padding(.leading, 16)
             }
@@ -699,6 +699,13 @@ struct CoachChatView: View {
     }
 
     /// On-device answer (#608 A); false when the model couldn't answer, so the server Coach can.
+    /// The daily message allowance turns over at midnight UTC on the server (#989), shown in local time.
+    static var quotaReset: Date {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        return utc.nextDate(after: Date(), matching: DateComponents(hour: 0, minute: 0), matchingPolicy: .nextTime) ?? Date()
+    }
+
     private func answerOnDevice(_ question: String, about: String, history: [CoachChatMessage]) async -> Bool {
         let start = Date()
         guard let text = try? await OnDeviceCoach.answer(question, about: about, history: history) else { return false }

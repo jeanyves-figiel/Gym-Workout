@@ -152,14 +152,14 @@ public struct LiftFocus: Codable, Hashable, Sendable {
     public var testDate: Date { start.addingTimeInterval(Double((weeks - 1) * 7 + 5) * 86400) }
 
     /// Block week 1…weeks of `date`; nil before the start or after the block.
-    public func week(on date: Date, calendar cal: Calendar = .current) -> Int? {
+    public func week(on date: Date, calendar cal: Calendar = Progression.calendar()) -> Int? {
         let days = cal.dateComponents([.day], from: cal.startOfDay(for: start), to: cal.startOfDay(for: date)).day ?? -1
         guard days >= 0 else { return nil }
         let w = days / 7 + 1
         return w <= weeks ? w : nil
     }
 
-    public func finished(on date: Date, calendar cal: Calendar = .current) -> Bool {
+    public func finished(on date: Date, calendar cal: Calendar = Progression.calendar()) -> Bool {
         cal.startOfDay(for: date) > cal.startOfDay(for: start.addingTimeInterval(Double(weeks * 7) * 86400))
     }
 
@@ -306,7 +306,7 @@ extension WeekPlan {
     /// The week with the Lift Focus applied (#499): the lift in its sessions with the block's sets (inserted first
     /// in the strength block of the best-matching sessions when the plan lacks it), weak-point accessories after it
     /// in the first focus session, other strength work at maintenance volume. Outside the block: unchanged.
-    public func applyingLiftFocus(_ f: LiftFocus?, on date: Date, equipment: Set<Equipment>, calendar cal: Calendar = .current) -> WeekPlan {
+    public func applyingLiftFocus(_ f: LiftFocus?, on date: Date, equipment: Set<Equipment>, calendar cal: Calendar = Progression.calendar()) -> WeekPlan {
         guard let f, let w = f.week(on: date, calendar: cal), let lift = Exercise.find(f.exerciseId),
               Selector.isAvailable(lift, equipment) else { return self }
         let want = f.sessionsPerWeek(week: w)

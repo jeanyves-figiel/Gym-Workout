@@ -149,10 +149,10 @@ enum Climbs {
         return climbs.first { $0.isHard && $0.end >= yesterday && $0.start <= now }
     }
 
-    /// Rough active energy: climbing MET ≈ 5.8 (top rope) … 8 (bouldering/lead), scaled by effort.
+    /// Rough active energy (same effort scale as Fuel, #989): climbing MET ≈ 5.8 (top rope) … 8 (bouldering/lead), scaled by effort.
     static func kcal(_ log: ClimbLog, weightKg: Double?) -> Double? {
         guard let w = weightKg, w > 0 else { return nil }
-        let met = (log.kind == .topRope ? 5.8 : 8.0) * (0.7 + 0.06 * Double(min(max(log.effort, 1), 10)))
+        let met = (log.kind == .topRope ? 5.8 : 8.0) * (0.6 + 0.07 * Double(min(max(log.effort, 1), 10)))
         return (met * w * Double(log.minutes) / 60).rounded()
     }
 }

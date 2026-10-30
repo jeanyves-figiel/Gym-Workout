@@ -87,7 +87,7 @@ public enum HowItWorks {
                         "missed week: a shield saves it, else the streak restarts"]),
             Part("Badges", "Milestones from your history: sessions (1, 10, 25, 50, 100), streaks (2, 4, 8 weeks), total lifted (10, 50, 100 t = sets × reps × kg), hours trained (10, 50), beaten bests (1, 10), 100 shoulder-health sets, and one-offs like a full 4-week cycle.",
                  rule: []),
-            Part("Personal bests", "A best is beaten when a set's estimated 1RM is higher than any before for that exercise (see Load).", rule: []),
+            Part("Personal bests", "A best is beaten when a set is heavier than any before for that exercise, whatever the reps. Strength trends use the estimated 1RM (see Load).", rule: []),
         ],
         sources: ["App design, not science."])
 
