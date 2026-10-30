@@ -20,10 +20,17 @@ enum FilmMode: String, Identifiable {
 struct FilmModeSheet: View {
     let onPick: (FilmMode) -> Void
     @AppStorage("film.mode") private var last = FilmMode.steps.rawValue
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Film my workout").font(Theme.display(24))
+            // Close X top right, like every sheet (#988).
+            HStack {
+                Text("Film my workout").font(Theme.display(24))
+                Spacer()
+                Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 15, weight: .bold)) }
+                    .accessibilityLabel("Close")
+            }
             tile(.steps, title: "Step by step", detail: "Show the weight, lift, review each move", symbol: "shoeprints.fill",
                  colors: [Color(hex: 0x7B4DFF), Color(hex: 0xE04FE0)])
             tile(.session, title: "Whole session", detail: "Hands-free: every move found, saved at the end", symbol: "video.fill",
@@ -165,6 +172,9 @@ struct FilmSessionView: View {
             guard let a = n.object as? FilmAnswer else { return }
             if a.ok { session.confirm(a.move) } else {
                 session.reject(a.move)
+                if session.moves.indices.contains(a.move) {
+                    session.moveChanged(a.move, lastKg: model.lastWeight(session.moves[a.move].exerciseId))
+                }
                 if voiceOn, session.moves.indices.contains(a.move) { say(Exercise.get(session.moves[a.move].exerciseId).name) }
             }
         }
@@ -353,7 +363,7 @@ struct FilmSessionView: View {
                     Text("No sets were found.").font(Theme.label(15)).padding(.vertical, 20)
                 }
                 HStack(spacing: 8) {
-                    Button { dismiss() } label: { Text("Discard").lineLimit(1) }
+                    Button { discard() } label: { Text("Discard").lineLimit(1) }
                         .buttonStyle(LimeButtonStyle(fill: Color(hex: 0x2A2A30), text: .white))
                     Button { save() } label: { Label("Save workout · \(session.filmed.count)", systemImage: "checkmark").lineLimit(1) }
                         .buttonStyle(LimeButtonStyle())
@@ -369,7 +379,12 @@ struct FilmSessionView: View {
 
     private func moveRow(_ i: Int, _ m: FilmSession.Move) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Button { withAnimation(.snappy) { open = open == m.id ? nil : m.id } } label: {
+            Button {
+                // One player for the review: a newly opened move never shows the last one's clip (#988).
+                playing?.pause()
+                playing = nil
+                withAnimation(.snappy) { open = open == m.id ? nil : m.id }
+            } label: {
                 HStack(spacing: 8) {
                     Image(systemName: m.sure ? "figure.strengthtraining.traditional" : "questionmark")
                         .font(.system(size: 13, weight: .black))
@@ -405,6 +420,7 @@ struct FilmSessionView: View {
                             }
                             session.moves[i].exerciseId = alt
                             session.moves[i].sure = true
+                            session.moveChanged(i, lastKg: model.lastWeight(alt))
                         } label: {
                             Text(Exercise.get(alt).name).font(Theme.label(12)).lineLimit(1)
                                 .padding(.horizontal, 9).padding(.vertical, 6)
@@ -555,6 +571,15 @@ struct FilmSessionView: View {
     private func save() {
         onSave(session.filmed, started)
         dismiss()
+    }
+
+    /// Discard (#988): closes at once, the Undo bar saves the workout after all. No dialog.
+    private func discard() {
+        let kept = session.filmed, at = started
+        dismiss()
+        guard !kept.isEmpty else { return }
+        UndoCloseCenter.shared.deleted("Filmed workout discarded", detail: "\(kept.count) move\(kept.count == 1 ? "" : "s")",
+                                       symbol: "video.slash.fill") { [onSave] in onSave(kept, at) }
     }
 
     /// Dark screen (B): the display down to its lowest; back to what it was on light or close.

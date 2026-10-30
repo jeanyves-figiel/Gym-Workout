@@ -379,8 +379,11 @@ final class WatchStore: NSObject {
     }
 
     /// Film whole session (#957 C): ✓ / ✗ on the move the camera named, at once while the phone films.
+    /// Live message only (#988): a queued answer would land on a later film session's move of the same number.
     func answerFilm(move: Int, ok: Bool) {
-        sendNow(.filmAnswer(move: move, ok: ok))
+        guard WCSession.isSupported(), WCSession.default.isReachable,
+              let data = try? JSONEncoder.watch.encode(WatchEvent.filmAnswer(move: move, ok: ok)) else { return }
+        WCSession.default.sendMessage([WatchKeys.event: data], replyHandler: nil, errorHandler: nil)
     }
 
     /// Sent at once when the phone is reachable (it decides who saves the Health workout), queued otherwise.
