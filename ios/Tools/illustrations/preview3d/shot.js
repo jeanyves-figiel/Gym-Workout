@@ -7,7 +7,8 @@ const { chromium } = require('playwright'); const http=require('http'),fs=requir
  const srv=http.createServer((q,r)=>{let f;try{f=path.resolve(root,'.'+path.posix.normalize('/'+decodeURIComponent(q.url.split('?')[0])));}catch(e){f=null;}
   if(!f||(f!==root&&!f.startsWith(root+path.sep))){r.writeHead(403);r.end();return;}
   fs.readFile(f,(e,d)=>{if(e){r.writeHead(404);r.end();return;}
-  r.writeHead(200,{'Content-Type':f.endsWith('.js')?'text/javascript':f.endsWith('.html')?'text/html':'application/octet-stream'});r.end(d);});}).listen(0,'127.0.0.1');
+  r.writeHead(200,{'Content-Type':f.endsWith('.js')?'text/javascript':f.endsWith('.html')?'text/html':'application/octet-stream'});r.end(d);});});
+ await new Promise(ok=>srv.listen(0,'127.0.0.1',ok));
  const port=srv.address().port;
  const b=await chromium.launch({args:['--use-gl=swiftshader','--enable-webgl','--ignore-gpu-blocklist']});
  const cols=Math.min(specs.length,+process.env.COLS||4), rows=Math.ceil(specs.length/cols);
