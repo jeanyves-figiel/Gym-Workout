@@ -1790,11 +1790,45 @@ private struct GymSessionTile: View {
     let weekday: Int
     let action: () -> Void
     @Environment(AppModel.self) private var model
+    @Environment(HealthManager.self) private var health
+    @State private var filming = false
 
     var body: some View {
+        HStack(spacing: 8) {
+            sessionButton
+            // Film my workout (#952): the camera builds and logs the workout.
+            Button {
+                Haptics.start()
+                filming = true
+            } label: {
+                Image(systemName: "video.fill")
+                    .font(.system(size: 16, weight: .heavy))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(LinearGradient(colors: [Color(hex: 0xFF3B5C), Color(hex: 0xFF9A3C)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Film my workout")
+            .accessibilityHint("The camera names each move, counts reps, reads the weight and logs the workout")
+            .accessibilityIdentifier("train.film")
+        }
+        .fullScreenCover(isPresented: $filming) {
+            FilmWorkoutView { moves, started in
+                guard let r = model.recordFilmed(moves, startedAt: started) else { return }
+                Task {
+                    let hr = await health.save(r)
+                    model.attachHeartRate(r.id, avg: hr.avg, max: hr.max)
+                }
+                UndoCloseCenter.shared.show(.workoutSaved(r, model: model))
+            }
+        }
+    }
+
+    private var sessionButton: some View {
         let resumes = model.freestyleInProgress != nil
         let gym = model.placeName(onWeekday: weekday)
-        Button {
+        return Button {
             Haptics.start()
             action()
         } label: {

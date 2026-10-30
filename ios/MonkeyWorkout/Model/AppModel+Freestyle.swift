@@ -72,4 +72,29 @@ extension AppModel {
         guard let s = freestyleSession(sessionId), let p = profile else { return [] }
         return Freestyle.suggest(after: s.blocks, profile: p, recent: recentExerciseIds())
     }
+
+    /// Film my workout (#952): the filmed moves become a custom gym session, every set logged and the workout saved to
+    /// history at once. A custom session paused in the player is left alone. Nil when nothing was filmed.
+    @discardableResult
+    func recordFilmed(_ moves: [FilmedMove], startedAt: Date, endedAt: Date = Date()) -> WorkoutRecord? {
+        let moves = moves.filter { !$0.sets.isEmpty }
+        guard !moves.isEmpty else { return nil }
+        var s = Freestyle.session()
+        var done: [String: Int] = [:]
+        for m in moves {
+            let added = Freestyle.adding(Exercise.get(m.exerciseId), to: s.blocks, sessionId: s.id)
+            guard let uid = added.uid else { continue }
+            s.blocks = Freestyle.settingSets(m.sets.count, of: uid, in: added.blocks)
+            done[uid] = m.sets.count
+            for (i, set) in m.sets.enumerated() {
+                logSet(exerciseId: m.exerciseId, sessionId: s.id, setIndex: i, kg: set.kg, reps: set.reps, rir: nil)
+            }
+        }
+        s.estMin = max(1, Int((Double(s.blocks.estSec) / 60).rounded()))
+        if freestyleInProgress == nil {
+            state.freestyle = s
+            persist()
+        }
+        return recordWorkout(session: s, setsDone: done, startedAt: startedAt, endedAt: endedAt, bodyMassKg: body.weightKg)
+    }
 }
