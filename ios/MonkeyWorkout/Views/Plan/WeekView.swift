@@ -1111,6 +1111,32 @@ private struct NextUpCard: View {
         if sport == .climbing { climbingLive = true } else { trackingPicked = SportLog(sport: sport, start: Date()) }
     }
 
+    /// Skips just the day's sport (#966, design A), the workout stays: that day only, with the Undo bar.
+    private func skipSport(_ sport: Sport) {
+        guard let key = dayKey, let d = later?.weekday ?? day else { return }
+        guard let before = withAnimation(.snappy, { model.dropSport(on: key, weekday: d, scope: .day) }) else { return }
+        let date = PlanCalendar.date(key, model.planCalendar)
+        UndoCloseCenter.shared.deleted("\(sport == .climbing ? "Climb" : sport.label) skipped",
+                                       detail: date?.formatted(.dateTime.weekday(.abbreviated).day()) ?? "This day only", symbol: "nosign") { [model] in
+            withAnimation(.snappy) { model.restoreSportDay(before) }
+        }
+    }
+
+    /// Skip whole day (#966, design B): the workout and the day's sport, one Undo bar for both.
+    private func skipWholeDay() {
+        guard let key = dayKey, let d = later?.weekday ?? day else { return }
+        guard let before = withAnimation(.snappy, { model.dropSport(on: key, weekday: d, scope: .day) }) else {
+            skipDay(model, session, in: later?.week)
+            return
+        }
+        let restore = { [model] in model.restoreSportDay(before) }
+        if !skipDay(model, session, in: later?.week, title: "Day skipped", alsoUndo: restore) {
+            UndoCloseCenter.shared.deleted("Day skipped", detail: "This day only", symbol: "nosign") {
+                withAnimation(.snappy) { restore() }
+            }
+        }
+    }
+
     /// An earlier day's sport starts at 18:00 that day.
     private var sportStart: Date {
         let cal = model.planCalendar
@@ -1131,6 +1157,13 @@ private struct NextUpCard: View {
             Button("Plan a sport", systemImage: "figure.snowboarding") { planningSport = true }
             if canSkip {
                 Button(skipTitle, systemImage: "nosign", role: .destructive) { skipDay(model, session, in: later?.week) }
+            }
+            // Just the sport part, or the whole day (#966).
+            if let sport = daySport {
+                Button(DayComboRow.skipSportTitle(sport, today: isToday), systemImage: "nosign", role: .destructive) { skipSport(sport) }
+                if canSkip {
+                    Button("Skip whole day", systemImage: "moon.zzz.fill", role: .destructive) { skipWholeDay() }
+                }
             }
             // The plan change (#854, design A): long press only.
             if let d = later?.weekday ?? day, model.state.activeWorkout?.sessionId != session.id,
@@ -1170,13 +1203,30 @@ private struct NextUpCard: View {
                 .accessibilityIdentifier("train.hiitFormat")
                 .dimmed(done)
             }
+            skipTile
+                .disabled(!canSkip)
+                .opacity(canSkip ? 1 : 0.4)
+                .dimmed(done)
+            if session.hiit == nil { sportTile.dimmed(done) }
+        }
+    }
+
+    /// Skip: one tap; on a workout + sport day (#966, design B) it asks which part: the workout, the sport or the day.
+    @ViewBuilder private var skipTile: some View {
+        if let sport = daySport, !past {
+            Menu {
+                Button("Skip \(session.displayTitle)", systemImage: "dumbbell.fill") { skipDay(model, session, in: later?.week) }
+                Button(DayComboRow.skipSportTitle(sport, today: false), systemImage: sport == .climbing ? "figure.climbing" : sport.symbol) { skipSport(sport) }
+                Button("Skip whole day", systemImage: "moon.zzz.fill", role: .destructive) { skipWholeDay() }
+            } label: {
+                DayActionTileLabel(title: "Skip", detail: "which part", symbol: "nosign", fill: AnyShapeStyle(MissedStyle.gradient))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("train.skipPart")
+        } else {
             DayActionTile(title: "Skip", detail: "this day", symbol: "nosign", fill: AnyShapeStyle(MissedStyle.gradient)) {
                 skipDay(model, session, in: later?.week)
             }
-            .disabled(!canSkip)
-            .opacity(canSkip ? 1 : 0.4)
-            .dimmed(done)
-            if session.hiit == nil { sportTile.dimmed(done) }
         }
     }
 
@@ -1240,7 +1290,9 @@ private struct NextUpCard: View {
                             onSelect: onSelect, dayKey: dayKey, routines: !isToday && !past && !done,
                             // The sport part is picked like the tiles (#947): today Track live + Log, earlier days Log.
                             onSportTrack: later == nil && isToday ? trackSport : nil,
-                            onSportLog: later == nil && (isToday || past) ? logSport : nil)
+                            onSportLog: later == nil && (isToday || past) ? logSport : nil,
+                            // Skip just the sport part (#966, design A): the workout stays.
+                            onSportSkip: past ? nil : skipSport)
             }
             if !compact { BlockStripe(blocks: session.blocks) }
         }
